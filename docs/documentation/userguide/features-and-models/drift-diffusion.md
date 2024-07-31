@@ -84,5 +84,7 @@ PIC-BR. See CalcSourceHDG() on how the drift-diffusion is added to the source te
 
 ### References 
 [1] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: II. Numerical solution and investigation of planar fronts. Journal of Physics D: Applied Physics, 53(33), 335202. https://doi.org/10.1088/1361-6463/ab8b93
+
 [2] 
+
 [3] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: I. Derivation of model and transport data. Journal of Physics D: Applied Physics, 53(33), 335201. https://doi.org/10.1088/1361-6463/ab8b92
