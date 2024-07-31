@@ -1,25 +1,8 @@
 # Drift-diffusion model
+Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages [1]. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development [2].
 
-Streamers occur in nature (lightning and sprites, and technology (plasma-assisted combustion, plasma medicine, disinfection etc). 
-Streamer models can be categorized into four types: 
-
-**- Particle Models**
-
-These models are typically of the particle-in-cell (PIC)type. With these models, a large number of particles is followed as they move through the simulation domain, so thatone has direct information about the particle distributionin phase space.
-
-**- Kinetic Models**
-
-The second type of models are the so-called kinetic models, that couple the full Boltzmann equation with the Poisson equation. Such models are computationally very costly, because they require a numerical grid that covers the full phase space. However, advances in computing power and algorithms have made some of these fully kinetic simulations possible.
-
-**- Fluid Models**
-
-The third type of models are the plasma fluid models,which describe the electron dynamics in plasma based on macroscopic quantities like electron density, average elec-tron velocity, average electron energy etc.
-
-**- Hybrid Models**
-
-Hybrid models combine the strengths of the fluidand particle approaches, by combining the fast speed of fluidsimulations with the accurate particle kinetics of particlemodels [1].
-
-The focus of this section is on hybrid modelling approach. The main difference between the hybrid model and the 1st order fluid model is that, in the hybrid model, ions are represented by particles, not by constants.
+Streamer discharge simulations are basically modeled in three ways. These are the Particle Model, Fluid Model, and Hybrid Model.
+In this section, the Hybrid Model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
 
 
 The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
