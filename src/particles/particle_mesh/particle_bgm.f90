@@ -295,7 +295,7 @@ CALL BARRIER_AND_SYNC(BoundsOfElem_Shared_Win,MPI_COMM_SHARED)
 GEO%ForceFIBGM = GETLOGICAL("Part-ForceFIBGM")
 
 IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo of shape function
-  .OR. TrackingMethod.EQ.REFMAPPING & ! FIBGM need in rafmapping
+  .OR. TrackingMethod.EQ.REFMAPPING & ! FIBGM need in refmapping
 #if USE_MPI
   .OR. nComputeNodeProcessors.NE.nProcessors_Global & ! FIBGM needed to build the halo region
 #endif  /*USE_MPI*/
@@ -303,8 +303,10 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
   .OR. GEO%ForceFIBGM ) THEN
     GEO%InitFIBGM = .TRUE.
 ELSE
-  ! Check if emmision only cell-local
+  ! Check if emission only cell-local
   GEO%InitFIBGM = .FALSE.
+
+  ! FIBGM needed in every emmision except cell_local
   DO iSpec=1,nSpecies
     DO iInit=1,Species(iSpec)%NumberOfInits
       IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
@@ -369,8 +371,6 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMdeltas(1) = MIN(FIBGMdeltas1(1),FIBGMdeltas2(1))
     GEO%FIBGMdeltas(2) = MIN(FIBGMdeltas1(2),FIBGMdeltas2(2))
     GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
-  END IF
-  IF(GEO%AutomaticFIBGM) THEN
     LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') " | Automatically determined Part-FIBGMdeltas: "&
                                                           , GEO%FIBGMdeltas(1), ", ", GEO%FIBGMdeltas(2), ", ", GEO%FIBGMdeltas(3)
   END IF
@@ -420,12 +420,16 @@ IF(GEO%InitFIBGM) THEN
 
     ! BGM indices must be >0 --> move by 1
     ! >> - Halo region extended by one in each direction to catch elements directly on the edge of a FIGBM cell
-    ElemToBGM_Shared(1,iElem) = MAX(FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex
-    ElemToBGM_Shared(2,iElem) = MIN(FLOOR((xmax-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob)
-    ElemToBGM_Shared(3,iElem) = MAX(FLOOR((ymin-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex
-    ElemToBGM_Shared(4,iElem) = MIN(FLOOR((ymax-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob)
-    ElemToBGM_Shared(5,iElem) = MAX(FLOOR((zmin-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex
-    ElemToBGM_Shared(6,iElem) = MIN(FLOOR((zmax-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob)
+    ElemToBGM_Shared(1,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex
+    ElemToBGM_Shared(2,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob)
+    ElemToBGM_Shared(3,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex
+    ElemToBGM_Shared(4,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob)
+    ElemToBGM_Shared(5,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex
+    ElemToBGM_Shared(6,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob)
+    DO iBGM=1,6
+      WRITE(*,*) iElem, ElemToBGM_Shared(iBGM,iElem)
+    END DO
+    WRITE(*,*)
   END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
