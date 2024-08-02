@@ -179,6 +179,7 @@ CASE(20)  ! Catalytic gas-surface interaction: Adsorption or Eley-Rideal reactio
   CALL SurfaceModelChemistry(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact(1:3))
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
+  ! 4: SEE by power-fit
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)

@@ -970,8 +970,8 @@ SUBROUTINE SurfaceModelEventProbability(PartID,SideID,GlobalElemID,n_loc,PartPos
 ! MODULES
 ! ROUTINES / FUNCTIONS
 USE MOD_Globals
-USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModelParticleEmission, MaxwellScattering, CalcPostWallCollVelo, CalcRotWallVelo
-USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModelEnergyAccommodation, DiffuseReflection
+USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, CalcPostWallCollVelo, CalcRotWallVelo
+USE MOD_SurfaceModel_Tools        ,ONLY: SurfaceModelEnergyAccommodation
 USE MOD_part_operations           ,ONLY: CreateParticle, RemoveParticle
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID

@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_Tracking
 !===================================================================================================================================
-! Routines for photon tracking in radiave transfer solver
+! Routines for photon tracking in radiative transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -257,17 +257,7 @@ END SUBROUTINE FinalizePhotonSurfSample
 
 SUBROUTINE PhotonTriaTracking()
 !===================================================================================================================================
-! Routine for tracking of moving particles and boundary interaction using triangulated sides.
-! 1) Loop over all particles that are still inside
-!    2) Perform tracking until the particle is considered "done" (either localized or deleted)
-!       2a) Perform a check based on the determinant of (3x3) matrix of the vectors from the particle position to the nodes of each
-!           triangle (ParticleInsideQuad3D)
-!       2b) If particle is not within the given element in a), the side through which the particle went is determined by checking
-!           each side of the element (ParticleThroughSideCheck3DFast)
-!       2c) If no sides are found, the particle is deleted (very rare case). If multiple possible sides are found, additional
-!           treatment is required, where the particle path is reconstructed (which side was crossed first) by comparing the ratio
-!           the determinants
-!    3) In case of a boundary, determine the intersection and perform the appropriate boundary interaction (GetBoundaryInteraction)
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -300,7 +290,7 @@ INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
 INTEGER                          :: SideID,TempSideID,iLocSide
 INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6), GlobSideTemp(1:6)
-INTEGER                          :: SecondNrOfThroughSides, indSide 
+INTEGER                          :: SecondNrOfThroughSides, indSide
 INTEGER                          :: DoneLastElem(1:4,1:6) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
 LOGICAL                          :: ThroughSide, Done, TempPointSelect(2), LastInterPointSelect(2),DummyPointSelect(2),FallBack
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide, InterPointSelect(2), InterPointSelectTemp(2,6)
@@ -332,7 +322,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
   oldElemIsMortar = .FALSE.
   NrOfThroughSides = 0
   LocSidesTemp(:) = 0
-  DistTemp = 0.0  
+  DistTemp = 0.0
   TriNumTemp(:) = 0
   GlobSideTemp = 0
   isMortarSideTemp = .FALSE.
@@ -393,7 +383,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
         ThroughSide = .FALSE.
         !CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID,alpha2=currentIntersect%alpha)
         IF (SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.DoneLastElem(1,1)) THEN
-          DummyPointSelect = LastInterPointSelect 
+          DummyPointSelect = LastInterPointSelect
         ELSE
           DummyPointSelect = (/.FALSE.,.FALSE./)
         END IF
@@ -455,7 +445,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
       END IF
     END DO LocSideLoop2
   END IF
-!  
+!
   TriNum = TriNumTemp(1)
   ! ----------------------------------------------------------------------------
   ! Additional treatment if particle did not cross any sides or it crossed multiple sides
@@ -634,7 +624,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
 
     CASE(3) ! PartBound%PeriodicBC
       IF((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking.OR.Fallback))THEN
-        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)      
+        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
         IF(PhotonLost)THEN
           ! Error in periodic Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
           ! parallel to side
@@ -721,17 +711,7 @@ END SUBROUTINE PhotonTriaTracking
 
 SUBROUTINE Photon2DSymTracking()
 !===================================================================================================================================
-! Routine for tracking of moving particles and boundary interaction using triangulated sides.
-! 1) Loop over all particles that are still inside
-!    2) Perform tracking until the particle is considered "done" (either localized or deleted)
-!       2a) Perform a check based on the determinant of (3x3) matrix of the vectors from the particle position to the nodes of each
-!           triangle (ParticleInsideQuad3D)
-!       2b) If particle is not within the given element in a), the side through which the particle went is determined by checking
-!           each side of the element (ParticleThroughSideCheck3DFast)
-!       2c) If no sides are found, the particle is deleted (very rare case). If multiple possible sides are found, additional
-!           treatment is required, where the particle path is reconstructed (which side was crossed first) by comparing the ratio
-!           the determinants
-!    3) In case of a boundary, determine the intersection and perform the appropriate boundary interaction (GetBoundaryInteraction)
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -1043,7 +1023,7 @@ SELECT CASE(nRoot)
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
         IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonPos(1:3)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)        
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)
         CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
@@ -1140,7 +1120,7 @@ SELECT CASE(nRoot)
         t(2) = ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PhotonProps%PhotonDirection)
 
 #ifdef CODE_ANALYZE
-        IF(MPIRANKOUT.EQ.MyRank)THEN          
+        IF(MPIRANKOUT.EQ.MyRank)THEN
           WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(2),' | t: ',t(2)
         END IF
 #endif /*CODE_ANALYZE*/

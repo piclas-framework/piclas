@@ -182,8 +182,8 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE DEFAULT
   !-----------------------------------------------------------------------------------------------------------------------------------
-    CALL abort(__STAMP__,' ERROR: PartBound not associated!. (unknown case)')
-END SELECT !PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
+    CALL abort(__STAMP__,' ERROR: PartBound not associated (unknown case)!')
+  END SELECT !PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
 END ASSOCIATE
 
 END SUBROUTINE GetBoundaryInteraction

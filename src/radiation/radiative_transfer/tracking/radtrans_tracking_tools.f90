@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_TrackingTools
 !===================================================================================================================================
-! Routines for photon tracking in radiave transfer solver
+! Routines for photon tracking in radiative transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
