@@ -426,10 +426,6 @@ IF(GEO%InitFIBGM) THEN
     ElemToBGM_Shared(4,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob)
     ElemToBGM_Shared(5,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex
     ElemToBGM_Shared(6,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob)
-    DO iBGM=1,6
-      WRITE(*,*) iElem, ElemToBGM_Shared(iBGM,iElem)
-    END DO
-    WRITE(*,*)
   END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
