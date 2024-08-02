@@ -555,12 +555,17 @@ ELSE
       ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
       CYCLE
     END IF
-    BGMCellXmin = ElemToBGM_Shared(1,iElem)
-    BGMCellXmax = ElemToBGM_Shared(2,iElem)
-    BGMCellYmin = ElemToBGM_Shared(3,iElem)
-    BGMCellYmax = ElemToBGM_Shared(4,iElem)
-    BGMCellZmin = ElemToBGM_Shared(5,iElem)
-    BGMCellZmax = ElemToBGM_Shared(6,iElem)
+    ! Extend the mapping of elements to BGM cells by one in each direction
+    ! >> This ensures elements directly on the border of the BGM bounding box are
+    ! >> checked as well. Otherwise, we might skip these elements while they are
+    ! >> technically in range based on the center+radius <= halo_eps check. If not,
+    ! >> we still sort them out in the detailed check
+    BGMCellXmin = ElemToBGM_Shared(1,iElem)-1
+    BGMCellXmax = ElemToBGM_Shared(2,iElem)+1
+    BGMCellYmin = ElemToBGM_Shared(3,iElem)-1
+    BGMCellYmax = ElemToBGM_Shared(4,iElem)+1
+    BGMCellZmin = ElemToBGM_Shared(5,iElem)-1
+    BGMCellZmax = ElemToBGM_Shared(6,iElem)+1
     ! add current element to number of BGM-elems
     ! ATTENTION: THIS ONLY ADDS THE ELEMENT TO THE BGM CELLS ON THE NODE WHILE
     ! SKIPPING BGM CELLS OUTSIDE. WE END UP WITH PARTIALLY ADDED ELEMENTS
