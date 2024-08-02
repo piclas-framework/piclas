@@ -275,6 +275,7 @@ DO BCSideID=1,nBCSides
               ! Encode species index: Set a temporarily invalid number, which holds the information that the particle has interacted with a VDL.
               ! The Particle is removed after MPI communication because the new position might be on a different process due to the displacement
               PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
+              ! Invert species index
               PartSpecies(PartID) = -PartSpecies(PartID)
             END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
           END IF ! DoVirtualDielectricLayer

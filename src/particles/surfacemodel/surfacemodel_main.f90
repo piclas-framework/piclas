@@ -225,6 +225,7 @@ CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
         END DO ! iProd = 1, ProductSpecNbr
       END IF ! PartBound%Dielectric(locBCID)
 
+#if USE_HDG
       ! Method 2: Virtual dielectric layer (VDL)
       IF(ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0)THEN
         ! Create new particles
@@ -242,8 +243,10 @@ CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
           PartSpecies(NewPartID) = -PartSpecies(NewPartID)
         END DO ! iNewPart = 1, ProductSpecNbr
       END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
+#endif /*USE_HDG*/
     END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
   END IF
+#if USE_HDG
 !-----------------------------------------------------------------------------------------------------------------------------------
 CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -253,6 +256,7 @@ CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
   ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be used
   ! anymore
   CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
+#endif /*USE_HDG*/
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown surface model. PartBound%SurfaceModel(locBCID) = ',IntInfoOpt=PartBound%SurfaceModel(locBCID))
 END SELECT
@@ -404,6 +408,7 @@ END DO
 
 END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 
+#if USE_HDG
 !===================================================================================================================================
 !> Shift impacting particles by a specific displacement away from the boundary in the normal direction. Change the species ID to
 !> flag such particles so that later, after MPI communication, they can be deleted and deposited at the target position to form a
@@ -461,6 +466,7 @@ ELSE
 END IF ! PartSpecies(iPart).GE.SpeciesOffsetVDL
 
 END SUBROUTINE VirtualDielectricLayerDisplacement
+#endif /*USE_HDG*/
 
 
 SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)
