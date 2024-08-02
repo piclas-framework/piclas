@@ -46,6 +46,7 @@ END INTERFACE
 PUBLIC::DefineParametersParticleBGM
 PUBLIC::BuildBGMAndIdentifyHaloRegion
 PUBLIC::FinalizeBGM
+PUBLIC::CheckAndMayDeleteFIBGM
 #if USE_MPI
 PUBLIC::WriteHaloInfo
 PUBLIC::FinalizeHaloInfo
@@ -1611,6 +1612,90 @@ CALL BARRIER_AND_SYNC(GlobalSide2CNTotalSide_Shared_Win,MPI_COMM_SHARED)
 ADEALLOCATE(ElemToBGM_Shared)
 
 END SUBROUTINE BuildBGMAndIdentifyHaloRegion
+
+SUBROUTINE CheckAndMayDeleteFIBGM()
+!===================================================================================================================================
+! Checks if FIBGM can be deleted after initalization to reduce memory usage
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,FIBGM_Element
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
+USE MOD_ReadInTools            ,ONLY: PrintOption
+#if USE_MPI
+USE MOD_MPI_Shared_Vars
+USE MOD_MPI_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMProcs_Shared
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared_Win,FIBGMProcs_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,ElemToBGM_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
+#endif /*USE_MPI*/
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                  :: DeleteFIBGM
+INTEGER                  :: iSpec, iInit
+!===================================================================================================================================
+IF(.NOT.GEO%InitFIBGM) RETURN
+
+DeleteFIBGM=.TRUE.
+
+IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo of shape function
+  .OR. TrackingMethod.EQ.REFMAPPING & ! FIBGM need in refmapping
+! #if USE_MPI
+!   .OR. nComputeNodeProcessors.NE.nProcessors_Global & ! FIBGM needed to build the halo region
+! #endif  /*USE_MPI*/
+  ! .OR. DoRestart & ! FIBGM needed to find lost particles
+  .OR. GEO%ForceFIBGM ) THEN
+    DeleteFIBGM=.FALSE.
+
+  ! FIBGM needed in every non-initial emmision except cell_local
+  DO iSpec=1,nSpecies
+    DO iInit=1,Species(iSpec)%NumberOfInits
+      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.0) THEN
+        DeleteFIBGM=.FALSE.
+      END IF
+    END DO
+  END DO
+END IF
+
+! Delete FIBGM Variables to reduce memory usage
+IF(DeleteFIBGM) THEN
+#if USE_MPI
+  CALL UNLOCK_AND_FREE(ElemToBGM_Shared_Win)
+  CALL UNLOCK_AND_FREE(FIBGM_nTotalElems_Shared_Win)
+  CALL UNLOCK_AND_FREE(FIBGM_nElems_Shared_Win)
+  CALL UNLOCK_AND_FREE(FIBGM_offsetElem_Shared_Win)
+  CALL UNLOCK_AND_FREE(FIBGM_Element_Shared_Win)
+  CALL UNLOCK_AND_FREE(FIBGMToProc_Shared_Win)
+  CALL UNLOCK_AND_FREE(FIBGMProcs_Shared_Win)
+#endif /*USE_MPI*/
+  ADEALLOCATE(ElemToBGM_Shared)
+  ADEALLOCATE(FIBGM_nTotalElems)
+  ADEALLOCATE(FIBGM_nTotalElems_Shared)
+  ADEALLOCATE(FIBGM_nElems)
+  ADEALLOCATE(FIBGM_nElems_Shared)
+  ADEALLOCATE(FIBGM_offsetElem)
+  ADEALLOCATE(FIBGM_offsetElem_Shared)
+  ADEALLOCATE(FIBGM_Element)
+  ADEALLOCATE(FIBGM_Element_Shared)
+  ADEALLOCATE(FIBGMToProc)
+  ADEALLOCATE(FIBGMToProc_Shared)
+  ADEALLOCATE(FIBGMProcs)
+  ADEALLOCATE(FIBGMProcs_Shared)
+  CALL PrintOption('Deletion of FIBGM after initialization, because it is not longer needed','INFO',LogOpt=GEO%InitFIBGM)
+  GEO%InitFIBGM = .FALSE.
+END IF
+END SUBROUTINE CheckAndMayDeleteFIBGM
 
 
 SUBROUTINE FinalizeBGM()
