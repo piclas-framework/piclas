@@ -45,6 +45,9 @@ USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+#if USE_HDG
+USE MOD_Particle_Vars             ,ONLY: ResetVDLSpecID
+#endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,14 +72,9 @@ SubQ = TrackInfo%q
 
 SpecID = PartSpecies(PartID)
 #if USE_HDG
-! Check particle index for VDL particles
-IF(ABS(PartSpecies(PartID)).GT.SpeciesOffsetVDL)THEN
-  ! Reset to original species index
-  SpecID = ABS(PartSpecies(PartID)) - SpeciesOffsetVDL
-END IF
+! Check particle index for VDL particles and reset to original species index
+SpecID = ResetVDLSpecID(PartID)
 #endif/*USE_HDG*/
-
-
 
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MPF = GetParticleWeight(PartID)

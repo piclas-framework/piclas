@@ -974,20 +974,29 @@ DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
     ! Check particle index for VDL particles
     IF(ABS(PartSpecies(iPart)).GT.SpeciesOffsetVDL)THEN
+      ! Check for negative sign
       IF(PartSpecies(iPart).LT.0)THEN
+        ! If negative sign is found in the species index, invert the deposited charge
         SignSwitch = -1
+        ! Invert the species index so it is meaningful again
         PartSpecies(iPart) = -PartSpecies(iPart)
       ELSE
+        ! Use same sign for charge deposition
         SignSwitch =  1
       END IF ! PartSpecies(iPart).LT.0
       ! Reset to original species index
       PartSpecies(iPart) = PartSpecies(iPart) - SpeciesOffsetVDL
+      ! Check if vMPF is active
       IF(usevMPF)THEN
+        ! Calculate the charge considering the MPF of the specific particle
         charge = Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
       ELSE
+        ! Calculate the charge considering the MPF of the species
         charge = Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
       END IF
+      ! Deposit the charge on the corner nodes of the element
       CALL DepositParticleOnNodes(SignSwitch*charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
+      ! After deposition, delete the particle from existence
       CALL RemoveParticle(iPart)
     END IF ! PartSpecies(iPart).GT.SpeciesOffsetVDL
   END IF !PDM%ParticleInside(iPart)

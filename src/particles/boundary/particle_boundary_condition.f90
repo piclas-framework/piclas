@@ -63,6 +63,9 @@ USE MOD_Mesh_Tools               ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared
 #endif /* CODE_ANALYZE */
+#if USE_HDG
+USE MOD_Particle_Vars            ,ONLY: IsVDLSpecID,SpeciesOffsetVDL
+#endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -82,8 +85,27 @@ REAL                                 :: n_loc(1:3)
 REAL                                 :: v1(3),v2(3)
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
-
+! Set defaults
 crossedBC    =.FALSE.
+
+#if USE_HDG
+! Check particle index for VDL particles and kill them here
+IF(IsVDLSpecID(iPart))THEN
+  IF(PDM%ParticleInside(iPart))THEN
+    IF(CountNbrOfLostParts)THEN
+      ! Store particle position using PartState(1:3,iPart) via UsePartState_opt=.TRUE. to show where the particles have been
+      ! moved to via the VDL displacement. Otherwise, LastPartPos(1:3,iPart) would contain the position where the particles have
+      ! impacted on the VDL boundary (the actual tracking BC. i.e. the mesh, not the virtual layer around the BC)
+      CALL StoreLostParticleProperties(iPart,ElemID,UsePartState_opt=.TRUE.,PartMissingType_opt=PartSpecies(iPart))
+      NbrOfLostParticles=NbrOfLostParticles+1
+    END IF ! CountNbrOfLostParts
+    ! Reset to original species index before removing the particle
+    PartSpecies(iPart) = ABS(PartSpecies(iPart)) - SpeciesOffsetVDL
+    CALL RemoveParticle(iPart,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+    RETURN
+  END IF ! PDM%ParticleInside(iPart)
+END IF ! IsVDLSpecID(iPart)
+#endif /*USE_HDG*/
 
 ! Calculate normal vector
 SELECT CASE(TrackingMethod)

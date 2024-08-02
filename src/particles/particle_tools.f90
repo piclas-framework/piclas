@@ -338,9 +338,12 @@ SUBROUTINE StoreLostParticleProperties(iPart,ElemID,UsePartState_opt,PartMissing
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Globals                ,ONLY: abort,myrank
-USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos,SpeciesOffsetVDL
+USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
+#if USE_HDG
+USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
+#endif/*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -357,24 +360,23 @@ REAL                 :: MPF
 ! Temporary arrays
 REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
 !                                                !                 2nd index: 1 to number of lost particles
-INTEGER              :: ALLOCSTAT,PartSpec
+INTEGER              :: ALLOCSTAT,SpecID
 LOGICAL              :: UsePartState_loc
 !===================================================================================================================================
 UsePartState_loc = .FALSE.
 IF (PRESENT(UsePartState_opt)) UsePartState_loc = UsePartState_opt
 
-! Check if the particle has an encoded species index
-IF(PartSpecies(iPart).GE.SpeciesOffsetVDL)THEN
-  PartSpec = PartSpecies(iPart) - SpeciesOffsetVDL
-ELSE
-  PartSpec = PartSpecies(iPart)
-END IF ! PartSpecies(iPart).GE.SpeciesOffsetVDL
+SpecID = PartSpecies(iPart)
+#if USE_HDG
+! Check particle index for VDL particles and reset to original species index
+SpecID = ResetVDLSpecID(iPart)
+#endif /*USE_HDG*/
 
 ! Set macro particle factor
 IF (usevMPF) THEN
   MPF = PartMPF(iPart)
 ELSE
-  MPF = Species(PartSpec)%MacroParticleFactor
+  MPF = Species(SpecID)%MacroParticleFactor
 END IF
 
 dims = SHAPE(PartStateLost)

@@ -1480,10 +1480,8 @@ END FUNCTION ElementOnProc
 PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
 ! MODULES
 USE MOD_Preproc
-#if USE_MPI
 USE MOD_MPI_Vars        ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

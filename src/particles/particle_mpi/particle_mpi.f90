@@ -256,7 +256,7 @@ USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalPr
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 #if USE_HDG
-USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
+USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 ! variables for parallel deposition
 ! IMPLICIT VARIABLE HANDLING
@@ -305,11 +305,8 @@ DO iPart=1,PDM%ParticleVecLength
   IF (useDSMC) THEN
     SpecID = PartSpecies(iPart)
 #if USE_HDG
-    ! Check particle index for VDL particles
-    IF(ABS(PartSpecies(iPart)).GT.SpeciesOffsetVDL)THEN
-      ! Reset to original species index
-      SpecID = ABS(PartSpecies(iPart)) - SpeciesOffsetVDL
-    END IF
+    ! Check particle index for VDL particles and reset to original species index
+    SpecID = ResetVDLSpecID(iPart)
 #endif/*USE_HDG*/
     IF ((DSMC%NumPolyatomMolecs.GT.0).OR.(DSMC%ElectronicModel.EQ.2).OR.DSMC%DoAmbipolarDiff) THEN
       IF((DSMC%NumPolyatomMolecs.GT.0).AND.(SpecDSMC(SpecID)%PolyatomicMol)) THEN
@@ -385,7 +382,7 @@ USE MOD_Particle_Vars,           ONLY:Pt_temp
 USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #if USE_HDG
-USE MOD_Particle_Vars           ,ONLY: SpeciesOffsetVDL
+USE MOD_Particle_Vars           ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -537,11 +534,8 @@ DO iProc=0,nExchangeProcessors-1
       IF (useDSMC) THEN
         SpecID = PartSpecies(iPart)
 #if USE_HDG
-        ! Check particle index for VDL particles
-        IF(ABS(PartSpecies(iPart)).GT.SpeciesOffsetVDL)THEN
-          ! Reset to original species index
-          SpecID = ABS(PartSpecies(iPart)) - SpeciesOffsetVDL
-        END IF
+        ! Check particle index for VDL particles and reset to original species index
+        SpecID = ResetVDLSpecID(iPart)
 #endif/*USE_HDG*/
         !--- put the polyatomic vibquants per particle at the end of the message
         IF (DSMC%NumPolyatomMolecs.GT.0) THEN
@@ -737,7 +731,7 @@ USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
 #if USE_HDG
-USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
+USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
 ! variables for parallel deposition
 !USE MOD_Mesh_Vars              ,ONLY: nGlobalMortarSides
@@ -931,11 +925,8 @@ DO iProc=0,nExchangeProcessors-1
     IF (useDSMC) THEN
       SpecID = PartSpecies(PartID)
 #if USE_HDG
-      ! Check particle index for VDL particles
-      IF(ABS(PartSpecies(PartID)).GT.SpeciesOffsetVDL)THEN
-        ! Reset to original species index
-        SpecID = ABS(PartSpecies(PartID)) - SpeciesOffsetVDL
-      END IF
+      ! Check particle index for VDL particles and reset to original species index
+      SpecID = ResetVDLSpecID(PartID)
 #endif/*USE_HDG*/
       !--- put the polyatomic vibquants per particle at the end of the message
       IF (DSMC%NumPolyatomMolecs.GT.0) THEN
