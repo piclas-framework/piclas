@@ -1625,16 +1625,16 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
 USE MOD_ReadInTools            ,ONLY: PrintOption
-#if USE_MPI
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMProcs_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared_Win,FIBGMProcs_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMProcs_Shared
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared_Win,FIBGMProcs_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,ElemToBGM_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
