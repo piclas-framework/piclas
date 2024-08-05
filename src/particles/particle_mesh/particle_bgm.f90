@@ -421,12 +421,12 @@ IF(GEO%InitFIBGM) THEN
 
     ! BGM indices must be >0 --> move by 1
     ! >> - Halo region extended by one in each direction to catch elements directly on the edge of a FIGBM cell
-    ElemToBGM_Shared(1,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex
-    ElemToBGM_Shared(2,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob)
-    ElemToBGM_Shared(3,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex
-    ElemToBGM_Shared(4,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob)
-    ElemToBGM_Shared(5,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex
-    ElemToBGM_Shared(6,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob)
+    ElemToBGM_Shared(1,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
+    ElemToBGM_Shared(2,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,1,iElem)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
+    ElemToBGM_Shared(3,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
+    ElemToBGM_Shared(4,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,2,iElem)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
+    ElemToBGM_Shared(5,iElem) = MAX(FLOOR((BoundsOfElem_Shared(1,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
+    ElemToBGM_Shared(6,iElem) = MIN(FLOOR((BoundsOfElem_Shared(2,3,iElem)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
   END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
@@ -584,21 +584,21 @@ IF(GEO%InitFIBGM) THEN
 
     ! >> Take global maxima of cell radius into account and increase the considered range accordingly
     ! >> - Halo region extended by one in each direction to catch elements directly on the edge of a FIGBM cell
-    BGMimin = MERGE(GEO%FIBGMiminglob,MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex                   ,PeriodicComponent(1))
-    BGMimax = MERGE(GEO%FIBGMimaxglob,MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob),PeriodicComponent(1))
-    BGMjmin = MERGE(GEO%FIBGMjminglob,MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex                   ,PeriodicComponent(2))
-    BGMjmax = MERGE(GEO%FIBGMjmaxglob,MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob),PeriodicComponent(2))
-    BGMkmin = MERGE(GEO%FIBGMkminglob,MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex                   ,PeriodicComponent(3))
-    BGMkmax = MERGE(GEO%FIBGMkmaxglob,MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob),PeriodicComponent(3))
+    BGMimin = MERGE(GEO%FIBGMiminglob,MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex                   ,PeriodicComponent(1))
+    BGMimax = MERGE(GEO%FIBGMimaxglob,MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob),PeriodicComponent(1))
+    BGMjmin = MERGE(GEO%FIBGMjminglob,MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex                   ,PeriodicComponent(2))
+    BGMjmax = MERGE(GEO%FIBGMjmaxglob,MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob),PeriodicComponent(2))
+    BGMkmin = MERGE(GEO%FIBGMkminglob,MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex                   ,PeriodicComponent(3))
+    BGMkmax = MERGE(GEO%FIBGMkmaxglob,MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob),PeriodicComponent(3))
   ELSE
     ! >> Take global maxima of cell radius into account and increase the considered range accordingly
     ! >> - Halo region extended by one in each direction to catch elements directly on the edge of a FIGBM cell
-    BGMimin = MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))-1,0) + moveBGMindex
-    BGMimax = MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))+1    + moveBGMindex,GEO%FIBGMimaxglob)
-    BGMjmin = MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))-1,0) + moveBGMindex
-    BGMjmax = MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))+1    + moveBGMindex,GEO%FIBGMjmaxglob)
-    BGMkmin = MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))-1,0) + moveBGMindex
-    BGMkmax = MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))+1    + moveBGMindex,GEO%FIBGMkmaxglob)
+    BGMimin = MAX(FLOOR((GEO%CNxmin-(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
+    BGMimax = MIN(FLOOR((GEO%CNxmax+(halo_eps+maxCellRadius)-GEO%xminglob)/GEO%FIBGMdeltas(1))    + moveBGMindex,GEO%FIBGMimaxglob)
+    BGMjmin = MAX(FLOOR((GEO%CNymin-(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2)),0) + moveBGMindex
+    BGMjmax = MIN(FLOOR((GEO%CNymax+(halo_eps+maxCellRadius)-GEO%yminglob)/GEO%FIBGMdeltas(2))    + moveBGMindex,GEO%FIBGMjmaxglob)
+    BGMkmin = MAX(FLOOR((GEO%CNzmin-(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3)),0) + moveBGMindex
+    BGMkmax = MIN(FLOOR((GEO%CNzmax+(halo_eps+maxCellRadius)-GEO%zminglob)/GEO%FIBGMdeltas(3))    + moveBGMindex,GEO%FIBGMkmaxglob)
   END IF
 
   ! write function-local BGM indices into global variables
@@ -661,31 +661,34 @@ ELSE
       ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 1 ! compute-node element
       CYCLE
     END IF
-    IF(GEO%InitFIBGM) THEN
-      BGMCellXmin = ElemToBGM_Shared(1,iElem)
-      BGMCellXmax = ElemToBGM_Shared(2,iElem)
-      BGMCellYmin = ElemToBGM_Shared(3,iElem)
-      BGMCellYmax = ElemToBGM_Shared(4,iElem)
-      BGMCellZmin = ElemToBGM_Shared(5,iElem)
-      BGMCellZmax = ElemToBGM_Shared(6,iElem)
-      ! add current element to number of BGM-elems
-      ! ATTENTION: THIS ONLY ADDS THE ELEMENT TO THE BGM CELLS ON THE NODE WHILE
-      ! SKIPPING BGM CELLS OUTSIDE. WE END UP WITH PARTIALLY ADDED ELEMENTS
-      DO iBGM = BGMCellXmin,BGMCellXmax
-        IF(iBGM.LT.BGMimin) CYCLE
-        IF(iBGM.GT.BGMimax) CYCLE
-        DO jBGM = BGMCellYmin,BGMCellYmax
-          IF(jBGM.LT.BGMjmin) CYCLE
-          IF(jBGM.GT.BGMjmax) CYCLE
-          DO kBGM = BGMCellZmin,BGMCellZmax
-            IF(kBGM.LT.BGMkmin) CYCLE
-            IF(kBGM.GT.BGMkmax) CYCLE
-            !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
-            IF(.NOT.ElementOnNode(iElem)) ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
-          END DO ! kBGM
-        END DO ! jBGM
-      END DO ! iBGM
-    END IF ! GEO%InitFIBGM
+    ! Extend the mapping of elements to BGM cells by one in each direction
+    ! >> This ensures elements directly on the border of the BGM bounding box are
+    ! >> checked as well. Otherwise, we might skip these elements while they are
+    ! >> technically in range based on the center+radius <= halo_eps check. If not,
+    ! >> we still sort them out in the detailed check
+    BGMCellXmin = ElemToBGM_Shared(1,iElem)-1
+    BGMCellXmax = ElemToBGM_Shared(2,iElem)+1
+    BGMCellYmin = ElemToBGM_Shared(3,iElem)-1
+    BGMCellYmax = ElemToBGM_Shared(4,iElem)+1
+    BGMCellZmin = ElemToBGM_Shared(5,iElem)-1
+    BGMCellZmax = ElemToBGM_Shared(6,iElem)+1
+    ! add current element to number of BGM-elems
+    ! ATTENTION: THIS ONLY ADDS THE ELEMENT TO THE BGM CELLS ON THE NODE WHILE
+    ! SKIPPING BGM CELLS OUTSIDE. WE END UP WITH PARTIALLY ADDED ELEMENTS
+    DO iBGM = BGMCellXmin,BGMCellXmax
+      IF(iBGM.LT.BGMimin) CYCLE
+      IF(iBGM.GT.BGMimax) CYCLE
+      DO jBGM = BGMCellYmin,BGMCellYmax
+        IF(jBGM.LT.BGMjmin) CYCLE
+        IF(jBGM.GT.BGMjmax) CYCLE
+        DO kBGM = BGMCellZmin,BGMCellZmax
+          IF(kBGM.LT.BGMkmin) CYCLE
+          IF(kBGM.GT.BGMkmax) CYCLE
+          !GEO%FIBGM(iBGM,jBGM,kBGM)%nElem = GEO%FIBGM(iBGM,jBGM,kBGM)%nElem + 1
+          IF(.NOT.ElementOnNode(iElem)) ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 2 ! halo element
+        END DO ! kBGM
+      END DO ! jBGM
+    END DO ! iBGM
   END DO ! iElem
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
