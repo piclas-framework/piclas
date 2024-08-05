@@ -303,7 +303,7 @@ DO iBCSide=1,nDirichletBCSides
       DO i=0,jNloc; DO j=0,jNloc
         DO r=1,nGP_face(jNloc)
           Smatloc(p*(iNloc+1)+q+1,r) = Smatloc(p*(iNloc+1)+q+1,r) + &
-          PREF_VDM(jNloc,iNloc)%Vdm(i,p) * PREF_VDM(jNloc,iNloc)%Vdm(j,q) * &
+          PREF_VDM(iNloc,jNloc)%Vdm(i,p) * PREF_VDM(iNloc,jNloc)%Vdm(j,q) * &
           HDG_Vol_N(ElemID)%Smat(i*(jNloc+1)+j+1,r,iLocSide,jLocSide) ! TODO ij vs ji
         END DO
       END DO; END DO
