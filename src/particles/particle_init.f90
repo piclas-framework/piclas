@@ -343,6 +343,7 @@ USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides
 USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWallTemp, InitRotPeriodicInterPlaneMapping
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 USE MOD_Particle_BGM               ,ONLY: CheckAndMayDeleteFIBGM
+USE MOD_Restart_Vars               ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 !USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
@@ -469,7 +470,7 @@ CALL InitPartDataSize()
 CALL InitParticleCommSize()
 #endif
 
-CALL CheckAndMayDeleteFIBGM()
+IF(.NOT. DoRestart) CALL CheckAndMayDeleteFIBGM()
 
 ParticlesInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLES DONE!'

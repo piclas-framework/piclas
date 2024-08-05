@@ -68,6 +68,7 @@ USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
+USE MOD_Particle_BGM           ,ONLY: CheckAndMayDeleteFIBGM
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues, DoCatalyticRestart
 ! HDG
@@ -846,6 +847,8 @@ IF (DoVirtualCellMerge) CALL MergeCells()
 
 ! Deallocate the read-in macroscopic values (might have been utilized in RestartAdaptiveBCSampling)
 SDEALLOCATE(MacroRestartValues)
+
+CALL CheckAndMayDeleteFIBGM() ! Check if FIBGM can be deleted (it is necessary for restart)
 
 END SUBROUTINE ParticleRestart
 
