@@ -378,10 +378,10 @@ Run the command
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
 An analysis of the numerical results contained in `PartAnalyze.csv` and `FieldAnalyze.csv` using **ParaView** to plot the data show
-* the maximum value of the electric field over time for the case of `Part-Species1-Init1-WaveNumber` = 0.5 ({numref}`fig:plasma-wave-visual`),
-* fluctuating gain in the kinetic energy of particles (top-right plot in {numref}`fig:plasma-wave-res`),
-* fluctuating decay in the electric field energy (bottom-right plot in {numref}`fig:plasma-wave-res`),
-* fluctuating Total Energy Error which converges after t=150 (left plot in {numref}`fig:plasma-wave-res`).
+* The electric field over time for the case of `Part-Species1-Init1-WaveNumber` = 0.5 ({numref}`fig:plasma-wave-visual`),
+* gain in the kinetic energy of particles (top-right plot in {numref}`fig:plasma-wave-res`),
+* decay in the electric field energy (bottom-right plot in {numref}`fig:plasma-wave-res`),
+* Total Energy Error converging after t=150 (left plot in {numref}`fig:plasma-wave-res`).
 
 
 
@@ -406,6 +406,8 @@ Resulting electric field (with decaying maximas) as a function of time .
 The best fit line (analytical) in {numref}`fig:plasma-wave-visual` was calculated manually (using the calculator function in ParaView) to show a linear function on the plot. The line of best fit is created through the coordinates of second and tenth maxima being chosen for best fit and to calculate the values of constants `à` and `b`  using the following function : 
 
 $$ 002-E-El = a \cdot e^{b*001-time} $$
+
+In plasma physics, the electric field oscillates periodically. The term "frequency of oscillations" refers to how often the electric field completes a full cycle of oscillation per unit time. The maximum value of the electric field, denoted as $E_{max}$​, reaches its peak value twice during each full cycle of the electric field's oscillation. Therefore, for every complete oscillation of the electric field, $E_{max}$​ hits its maximum value twice. This implies that the number of $E_{max}$​ peaks observed is double the number of full oscillations of the electric field itself. Thus, if we count the oscillations of $E_{max}$​, we get twice the number of full electric field oscillations.
 
 
 

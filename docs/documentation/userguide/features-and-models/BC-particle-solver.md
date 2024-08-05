@@ -281,8 +281,9 @@ As additional output, the cell-local sticking coefficient will be added to the s
 
 ### Fixed probability surface chemistry
 
-This simple fixed-probability surface chemistry model allows the user to define arbitrary surface reactions, by defining the impacting species, the products and a fixed event probability. The reaction is then assigned to the boundaries by specifying their number and index as defined previously.
+This simple fixed-probability surface chemistry model allows the user to define arbitrary surface reactions, by defining the number of reactions, the impacting species, the products and a fixed event probability. The reaction is then assigned to the boundaries by specifying their number and index as defined previously.
 
+    Surface-NumOfReactions               = 1
     Surface-Reaction1-Type               = P
     Surface-Reaction1-Reactants          = (/1,0/)
     Surface-Reaction1-Products           = (/2,1,0/)
