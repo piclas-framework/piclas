@@ -511,7 +511,7 @@ DO iElem=1,PP_nElems
         jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
-      CALL ChangeBasisSmat(Smatloc, HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), NElem, iNloc, jNloc)
+      CALL ChangeBasisSmat(Smatloc(1:iNdof,1:jNdof), HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), NElem, iNloc, jNloc)
 
       PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
     END DO
