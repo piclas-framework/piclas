@@ -725,14 +725,13 @@ IF(ElemDataExists) THEN
   ! Read-in the variable names
   ALLOCATE(VarNamesAdd(1:nVarAdd))
   CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
-  ! Loop over the number of variables and find Nloc, exit the loop and use the last iVar
+  ! Loop over the number of variables and find Nloc (or NlocRay, in case of a RadiationVolState), exit the loop and use the last iVar
   DO iVar=1,nVarAdd
-    IF(TRIM(VarNamesAdd(iVar)).EQ.'Nloc') THEN
+    IF(TRIM(VarNamesAdd(iVar)).EQ.'Nloc'.OR.TRIM(VarNamesAdd(iVar)).EQ.'NlocRay') THEN
       NlocFound = .TRUE.
       EXIT
     END IF
   END DO
-  DEALLOCATE(VarNamesAdd)
   IF(NlocFound) THEN
     SDEALLOCATE(Nloc_HDF5)
     ALLOCATE(Nloc_HDF5(1:nElems))
@@ -751,8 +750,9 @@ IF(ElemDataExists) THEN
       CALL abort(__STAMP__,'ERROR: Ngeo as read-in from mesh is greater than the smallest local polynomial degree! Ngeo: ',Ngeo)
     END IF
     DEALLOCATE(ElemData)
-    SWRITE(*,*) 'Found element-local polynomial degree, considering it for the output each element instead of NVisu.'
+    SWRITE(*,*) 'Found element-local polynomial degree ('//TRIM(VarNamesAdd(iVar))//'), considering it for the output each element instead of NVisu.'
   END IF
+  DEALLOCATE(VarNamesAdd)
 END IF
 
 ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)

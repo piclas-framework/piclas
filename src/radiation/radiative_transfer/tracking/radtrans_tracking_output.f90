@@ -53,7 +53,7 @@ USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars   ,ONLY: NodeType
+USE MOD_Interpolation_Vars   ,ONLY: NodeType,N_Inter
 USE MOD_Interpolation        ,ONLY: GetVandermonde
 USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars   ,ONLY: ElemVolume_Shared
@@ -179,17 +179,13 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
     ! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
     J_Nloc = 0.
-    IF(PP_N.EQ.Nloc)THEN
-      J_Nloc(1,0:PP_N,0:PP_N,0:PP_N) = J_N(1,0:PP_N,0:PP_N,0:PP_N)
+    ALLOCATE(Vdm_GaussN_Nloc(0:Nloc,0:PP_N))
+    IF(Nloc.LT.PP_N)THEN
+      CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.TRUE.)
     ELSE
-      ALLOCATE(Vdm_GaussN_Nloc(0:PP_N,0:Nloc))
-      IF(Nloc.LT.PP_N)THEN
-        CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.TRUE.)
-      ELSE
-        CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
-      END IF ! Nloc.LT.PP_N
-        CALL ChangeBasis3D(1,PP_N,Nloc,Vdm_GaussN_Nloc,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nloc(1:1,0:Nloc,0:Nloc,0:Nloc))
-    END IF ! PP_N.EQ.Nloc
+      CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
+    END IF ! Nloc.LT.PP_N
+    CALL ChangeBasis3D(1,PP_N,Nloc,Vdm_GaussN_Nloc,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nloc(1:1,0:Nloc,0:Nloc,0:Nloc))
 
     ! Calculate the sub-volumes
     DO m=0,Nloc
@@ -203,7 +199,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         END DO ! k
       END DO ! l
     END DO ! m
-    IF(PP_N.NE.Nloc) DEALLOCATE(Vdm_GaussN_Nloc)
+    DEALLOCATE(Vdm_GaussN_Nloc)
 
     ! Sanity checks: Low order
     ! 1.) compare sum of sub-volumes with cell-const value and abort
@@ -225,7 +221,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem)     = ", RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem)
-        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(2) for tolerance = ',RealInfoOpt=tolerance)
+        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc2nd does not match U_N_Ray%U(2) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
     ! volume
@@ -249,8 +245,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       UNMax(:,:,:,:,iElem) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
     ELSE
       CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, &
-          U_N_Ray(iGlobalElem)%U(1:nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax),      &
-                           UNMax(1:nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,iElem))
+          U_N_Ray(iGlobalElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc),UNMax(1:nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,iElem))
     END IF ! Nloc.Eq.Nmax
 
     ! Copy data from global array (later used for emission)
@@ -275,9 +270,12 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     ! Sanity checks: High order
     ! 1.) compare sum of sub-volumes with cell-const value and abort
     ! 2.) compare sum of sub-cell energies with cell-const value and abort (1st and 2nd energies)
+    !     Note: in case of Nloc =/= NMax, the sum is scaled for the sanity check since the absolute energy values cannot be simply
+    !           interpolated with ChangeBasis, after the read-in the UNMax values are interpolated to the original polynomial degree
     ! 1st energy
     IF(RayElemPassedEnergyLoc1st(iElem).GT.0.0)THEN
-      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc1st(iElem), SUM(UNMax(1,:,:,:,iElem)), tolerance))THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc1st(iElem), SUM(UNMax(1,:,:,:,iElem)) * (Nloc+1)**3 / (Ray%NMax+1)**3, tolerance))THEN
+        IPWRITE(UNIT_StdOut,*) "Nloc,Ray%NMax                    = ", Nloc, Ray%NMax
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem) = ", RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(1,:,:,:,iElem))        = ", SUM(UNMax(1,:,:,:,iElem))
@@ -287,12 +285,12 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     END IF
     ! 2nd energy
     IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
-      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc2nd(iElem), SUM(UNMax(2,:,:,:,iElem)), tolerance))THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc2nd(iElem), SUM(UNMax(2,:,:,:,iElem)) * (Nloc+1)**3 / (Ray%NMax+1)**3, tolerance))THEN
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem) = ", RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(2,:,:,:,iElem))        = ", SUM(UNMax(2,:,:,:,iElem))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc2nd(iElem)
-        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(2) for tolerance = ',RealInfoOpt=tolerance)
+        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc2nd does not match UNMax(2) for tolerance = ',RealInfoOpt=tolerance)
       END IF
     END IF
     ! volume
