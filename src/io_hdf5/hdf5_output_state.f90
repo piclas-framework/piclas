@@ -426,8 +426,6 @@ ASSOCIATE (&
   END IF
 #endif /*PARTICLES*/
 
-  IPWRITE(*,'(I0,A,I0)') ": v "//TRIM(__FILE__)//" +",__LINE__
-  read*
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/4_IK , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
