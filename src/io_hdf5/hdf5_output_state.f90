@@ -242,14 +242,14 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
 RestartFile=Filename
 #if USE_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,NIn=NMax)
 #elif PP_nVar==3
 IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc)
 #else /*(PP_nVar==4)*/
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif  /*PP_nVar==1*/
 #else /*USE_HDG*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
+IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,NIn=NMax)
 #endif /*USE_HDG*/
 ! generate nextfile info in previous output file
 usePreviousTime_loc=.FALSE.
@@ -268,6 +268,7 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 PP_nVarTmp = INT(PP_nVar,IK)
 ASSOCIATE (&
       N                 => INT(PP_N,IK)               ,&
+      NMax8             => INT(NMax,IK)               ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
       PP_nElems         => INT(PP_nElems,IK)          ,&
       offsetElem        => INT(offsetElem,IK)         ,&
@@ -425,11 +426,13 @@ ASSOCIATE (&
   END IF
 #endif /*PARTICLES*/
 
+  IPWRITE(*,'(I0,A,I0)') ": v "//TRIM(__FILE__)//" +",__LINE__
+  read*
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/4_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/4_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      nValGlobal=(/4_IK , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
+      nVal=      (/4_IK , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK , 0_IK       , 0_IK       , 0_IK       , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 
 #elif (PP_nVar==3)
@@ -471,9 +474,9 @@ ASSOCIATE (&
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      nValGlobal=(/PP_nVarTmp , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK       , 0_IK       , 0_IK       , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 #endif /*USE_HDG*/
 

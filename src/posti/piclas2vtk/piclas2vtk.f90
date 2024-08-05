@@ -668,6 +668,7 @@ USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 USE MOD_VTK                   ,ONLY: WriteDataToVTK
 USE MOD_IO_HDF5               ,ONLY: HSize
 USE MOD_piclas2vtk_Vars       ,ONLY: NVisuLocal, ElemLocal, Nloc_HDF5
+USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -746,6 +747,8 @@ IF(ElemDataExists) THEN
     Nloc_HDF5(1:nElems) = NINT(ElemData(iVar,1:nElems))
     NlocMax = MAXVAL(Nloc_HDF5)
     NlocMin = MINVAL(Nloc_HDF5)
+    CALL PrintOption('NlocMin','HDF5',IntOpt=NlocMin)
+    CALL PrintOption('NlocMax','HDF5',IntOpt=NlocMax)
     IF(Ngeo.GT.NlocMin) THEN
       CALL abort(__STAMP__,'ERROR: Ngeo as read-in from mesh is greater than the smallest local polynomial degree! Ngeo: ',Ngeo)
     END IF
@@ -764,6 +767,7 @@ nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
 
 ! Default: DGSolutionDataset = 'DG_Solution'
 CALL GetDataProps(TRIM(DGSolutionDataset),nVar_Solution,N_State,nElems_State,NodeType_State,nDimsOffset)
+CALL PrintOption('N_State','HDF5',IntOpt=N_State)
 CALL ReadAttribute(File_ID,'MeshFile',1,StrScalar=MeshFile)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 
@@ -821,7 +825,7 @@ IF(NlocFound) THEN
   SDEALLOCATE(NVisuLocal)
   ALLOCATE(NVisuLocal(1:NlocMax))
   DO Nloc = 1, NlocMax
-    ALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Ngeo,0:Nloc))
+    ALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo))
     CALL GetVandermonde(Ngeo,NodeTypeVisu,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu,modal=.FALSE.)
   END DO
   SDEALLOCATE(ElemLocal)
@@ -831,12 +835,12 @@ IF(NlocFound) THEN
     Nloc = Nloc_HDF5(iElem)
     ALLOCATE(ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc))
     ! ALLOCATE(tempArray(3,0:Nloc,0:Nloc,0:Nloc))
-    CALL ChangeBasis3D(3, NGeo, Nloc, NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu, NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), &
-                        ElemLocal(iElem)%Coords_NVisu)
+    CALL ChangeBasis3D(3, NGeo, Nloc, NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo), NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), &
+                                                                     ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc))
   END DO
 ELSE
   SDEALLOCATE(Vdm_EQNgeo_NVisu)
-  ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
+  ALLOCATE(Vdm_EQNgeo_NVisu(0:NVisu,0:NGeo))
   CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
   SDEALLOCATE(Coords_NVisu)
   ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
@@ -844,7 +848,8 @@ ELSE
   ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
   ! Convert coordinates to visu grid
   DO iElem = 1,nElems
-    CALL ChangeBasis3D(3, NGeo, NVisu, Vdm_EQNgeo_NVisu, NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), Coords_NVisu(1:3,0:NVisu,0:NVisu,0:NVisu,iElem))
+    CALL ChangeBasis3D(3, NGeo, NVisu, Vdm_EQNgeo_NVisu(0:NVisu,0:NGeo), NodeCoords(1:3,0:NGeo ,0:NGeo ,0:NGeo ,iElem), &
+                                                                       Coords_NVisu(1:3,0:NVisu,0:NVisu,0:NVisu,iElem))
   END DO
 END IF
 
@@ -924,7 +929,7 @@ CALL CloseDataFile()
 
 IF(NlocFound) THEN
   DO Nloc = 1, NlocMax
-    ALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu(0:N_State,0:Nloc))
+    ALLOCATE(NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State))
     CALL GetVandermonde(N_State,NodeType_State,Nloc,NodeTypeVisuOut,NVisuLocal(Nloc)%Vdm_N_NVisu,modal=.FALSE.)
   END DO
   DO iElem = 1,nElems
@@ -978,7 +983,7 @@ DO iField = 1, nFields
     DO iElem = 1,nElems
       Nloc = Nloc_HDF5(iElem)
       IF(nFields.EQ.1)THEN
-        CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu, U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
+        CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State), U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
                             ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
       ELSE ! more than one field
         ! TODO: is nVar_State correct here?
@@ -1235,9 +1240,12 @@ USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample
 USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect, SurfOutputSideToUniqueSide
 USE MOD_Interpolation           ,ONLY: GetVandermonde
+USE MOD_Interpolation_Vars      ,ONLY: NMax,NMin
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
 USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh
+USE MOD_ReadInTools             ,ONLY: PrintOption
+USE MOD_DG_Vars                 ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1249,11 +1257,18 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide
+INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide, Nloc
 REAL                            :: OutputTime
 REAL,ALLOCATABLE                :: tempSurfData(:,:,:,:,:)
-REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Interpolation variables
+!-----------------------------------------------------------------------------------------------------------------------------------
+TYPE :: VisuInterpolation
+  REAL,ALLOCATABLE :: Vdm_N_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
+END TYPE VisuInterpolation
+
+TYPE(VisuInterpolation),ALLOCATABLE :: N_Inter_Visu(:)      !< Array of prebuild interpolation matrices
 !===================================================================================================================================
 
 ! Read in solution
@@ -1273,6 +1288,7 @@ END IF
       !,'Error in piclas2vtk: Conversion to VTK only possible for DSMC_nSurfSample=1!')
 !END IF
 CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
+CALL PrintOption('DSMC_nSurfSample','HDF5',IntOpt=nSurfSample) ! 'HDF5.'
 
 CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
 nVarSurf = INT(HSize(1),4)
@@ -1299,18 +1315,26 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceOutputSides.GT.0))THEN
 END IF
 
 IF(nSurfSample.GT.1) THEN
-  ! Use PP_N here because Face_xGP is built in mesh.f90 using N when piclas2vtk loads the mesh on a constant N, even for p-adaption
-  ALLOCATE(Vdm_N_NVisu(0:nSurfSample,0:PP_N))
-  ! Note that this uses NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
-  CALL GetVandermonde(PP_N , 'GAUSS' , nSurfSample , NodeTypeVISU , Vdm_N_NVisu      , modal=.FALSE.)
+
+  ! Build interpolation basis from NodeType=GAUSS (0:Nloc) to NodeType=VISU (0:nSurfSample)
+  ALLOCATE(N_Inter_Visu(Nmin:Nmax))
+  ! Loop over all polynomial degrees
+  DO Nloc=Nmin,Nmax
+    ! Use Nloc here because Face_xGP is built in mesh.f90 using Nloc when piclas2vtk loads the mesh
+    ALLOCATE(N_Inter_Visu(Nloc)%Vdm_N_NVisu(0:nSurfSample,0:Nloc))
+    ! Note that this uses NodeTypeVISU, which is hard-coded to NodeTypeVISU='VISU'
+    CALL GetVandermonde(Nloc , 'GAUSS' , nSurfSample , NodeTypeVISU , N_Inter_Visu(Nloc)%Vdm_N_NVisu , modal=.FALSE.)
+  END DO
+
   ALLOCATE(NodeCoords_visu(1:3,0:nSurfSample,0:nSurfSample,0:0,SurfConnect%nSurfaceOutputSides))
   NodeCoords_visu = 0.
   ! Interpolate mesh onto visu grid
   DO iSurfOutputSide = 1, SurfConnect%nSurfaceOutputSides
     ! Mapping from nSurfaceOutputSides to nSides
     SideID = SurfOutputSideToUniqueSide(iSurfOutputSide)
-    CALL ChangeBasis2D(3, PP_N, nSurfSample, Vdm_N_NVisu, &
-        N_SurfMesh(SideID)%Face_xGP(1:3 , 0:PP_N        , 0:PP_N)       , &
+    Nloc   = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+    CALL ChangeBasis2D(3, Nloc, nSurfSample, N_Inter_Visu(Nloc)%Vdm_N_NVisu, &
+        N_SurfMesh(SideID)%Face_xGP(1:3 , 0:Nloc        , 0:Nloc)       , &
                     NodeCoords_visu(1:3 , 0:nSurfSample , 0:nSurfSample , 0 , iSurfOutputSide))
   END DO
 ELSE
