@@ -1657,16 +1657,15 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
   ! .OR. DoRestart & ! FIBGM needed to find lost particles
   .OR. GEO%ForceFIBGM ) THEN
     DeleteFIBGM=.FALSE.
-
-  ! FIBGM needed in every non-initial emmision except cell_local
-  DO iSpec=1,nSpecies
-    DO iInit=1,Species(iSpec)%NumberOfInits
-      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.Species(iSpec)%Init(iInit)%ParticleEmissionType.NE.0) THEN
-        DeleteFIBGM=.FALSE.
-      END IF
-    END DO
-  END DO
 END IF
+! FIBGM needed in every non-initial emmision except cell_local and background
+DO iSpec=1,nSpecies
+  DO iInit=1,Species(iSpec)%NumberOfInits
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0) THEN
+      DeleteFIBGM=.FALSE.
+    END IF
+  END DO
+END DO
 
 ! Delete FIBGM Variables to reduce memory usage
 IF(DeleteFIBGM) THEN
