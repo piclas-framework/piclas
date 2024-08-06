@@ -68,7 +68,13 @@ Select different models via
     Part-Species1-SpeciesName = N2
     BGGas-DriftDiff-Database  = Phelps
 
-### Visualisation
+
+
+Part-Species1-SpeciesName = N2: This line indicates that the species to be used in the simulation is nitrogen gas (N2).
+
+BGGas-DriftDiff-Database = Phelps: This line indicates that the database used for diffusion and drift coefficients is selected according to the Phelps model.
+
+### Visualisation 
 
 Convert state file with `piclas2vtk` to view charge $\rho$ and current density $j$ as well as the electric potential $\Phi$ and
 field strengths $E$ in the *Solution.vtu* file.
