@@ -45,7 +45,6 @@ PUBLIC :: PostProcessGradientHDG
 #if USE_PETSC
 PUBLIC :: PETScFillSystemMatrix
 PUBLIC :: PETScSetPrecond
-PUBLIC :: ChangeBasisSmat
 #endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -373,6 +372,7 @@ USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,BC
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 
 USE MOD_Mortar_Vars        ,ONLY: N_Mortar
 USE MOD_Mesh_Vars          ,ONLY: MortarType,MortarInfo,firstMortarInnerSide,lastMortarInnerSide
@@ -511,9 +511,44 @@ DO iElem=1,PP_nElems
         jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
-      CALL ChangeBasisSmat(Smatloc(1:iNdof,1:jNdof), HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), NElem, iNloc, jNloc)
+      ! TODO PETSC P-Adaption: ij vs ji
+      ! Why does it work like this
+      Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide)
+      IF(NElem.GT.iNloc)THEN
+        ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T - "From low to high"
+        DO i=1,nGP_face(NElem)
+          CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:iNdof))
+          !CALL ChangeBasis2D(1, NElem, jNloc, PREF_VDM(NElem,jNloc)%Vdm, Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
+        END DO
+      END IF
+      IF(NElem.GT.jNloc)THEN
+        ! 2. S_{IJ} = (V^T)_{Ii} * S_{iJ} - "From high to low"
+        DO j=1,iNdof
+          CALL ChangeBasis2D(1, NElem, jNloc, TRANSPOSE(PREF_VDM(jNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:jNdof,j))
+          !CALL ChangeBasis2D(1, NElem, iNloc, PREF_VDM(NElem,iNloc)%Vdm, Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
+        END DO
+      END IF
+      !!!! TODO PETSC P-Adaption: ij vs ji
+      !!!Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide)
+      !!!IF(NElem.GT.jNloc)THEN
+      !!!  ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T - "From low to high"
+      !!!  DO i=1,nGP_face(NElem)
+      !!!    CALL ChangeBasis2D(1, NElem, jNloc, TRANSPOSE(PREF_VDM(jNloc,NElem)%Vdm), Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
+      !!!    !CALL ChangeBasis2D(1, NElem, jNloc, PREF_VDM(NElem,jNloc)%Vdm, Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
+      !!!  END DO
+      !!!END IF
+      !!!IF(NElem.GT.iNloc)THEN
+      !!!  ! 2. S_{IJ} = (V^T)_{Ii} * S_{iJ} - "From high to low"
+      !!!  DO j=1,jNdof
+      !!!    CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
+      !!!    !CALL ChangeBasis2D(1, NElem, iNloc, PREF_VDM(NElem,iNloc)%Vdm, Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
+      !!!  END DO
+      !!!END IF
 
-      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
+      !CALL ChangeBasisSmat(Smatloc(1:iNdof,1:jNdof), HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), NElem, iNloc, jNloc)
+
+      ! Why Smatloc(1:jNdof,1:iNdof) and not the other way around???
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:jNdof,1:iNdof),ADD_VALUES,ierr))
     END DO
   END DO
 END DO
@@ -539,9 +574,11 @@ DO BCsideID=1,nConductorBCsides
 
     DO i_m=0,iNloc; DO i_p=0,iNloc
       DO i=0,NElem; DO j=0,NElem
-        Smatloc(i_m*(iNloc+1)+i_p+1,:) = Smatloc(i_m*(iNloc+1)+i_p+1,:) + &
+        ! TODO PETSC P-Adaption: Conductor ChangeBasis2D
+        Smatloc(i_m*(iNloc+1)+i_p+1,1:iNdof) = Smatloc(i_m*(iNloc+1)+i_p+1,1:iNdof) + &
           PREF_VDM(iNloc,NElem)%Vdm(i,i_m) * PREF_VDM(iNloc,NElem)%Vdm(j,i_p) * &
-          HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,:,iLocSide,jLocSide)
+          !PREF_VDM(NElem,iNloc)%Vdm(i_m,i) * PREF_VDM(NElem,iNloc)%Vdm(i_p,j) * &
+          HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,1:iNdof,iLocSide,jLocSide)
       END DO; END DO
     END DO; END DO
     !Smatloc(:,:) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide)
@@ -583,52 +620,6 @@ END DO
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 END SUBROUTINE PETScFillSystemMatrix
-
-
-PPURE SUBROUTINE ChangeBasisSmat(S_out, S_in, NElem, iNSide, jNSide)
-!===================================================================================================================================
-! Change the basis of Smat from NElem to iNSide x jNSide
-!===================================================================================================================================
-! MODULES
-USE MOD_HDG_Vars
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN) :: NElem, iNSide, jNSide
-REAL, INTENT(IN)    :: S_in(nGP_face(NElem),nGP_face(NElem))
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)   :: S_out(nGP_face(iNSide),nGP_face(jNSide))
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER             :: i_out_p, i_out_q, i_out_GP, j_out_p, j_out_q, j_out_GP
-INTEGER             :: i_in_p, i_in_q, i_in_GP, j_in_p, j_in_q, j_in_GP
-REAL                :: VT,V
-!===================================================================================================================================
-
-S_out = 0.
-
-! We can loop over all S_in indices and add the contributions
-DO i_out_p=0,iNSide; DO i_out_q=0,iNSide
-  DO j_out_p=0,jNSide; DO j_out_q=0,jNSide
-    i_out_GP = i_out_p*(iNSide+1)+i_out_q+1
-    j_out_GP = j_out_p*(jNSide+1)+j_out_q+1
-    DO i_in_p=0,NElem; DO i_in_q=0,NElem
-      DO j_in_p=0,NElem; DO j_in_q=0,NElem
-        i_in_GP = i_in_p*(NElem+1)+i_in_q+1
-        j_in_GP = j_in_p*(NElem+1)+j_in_q+1
-
-        VT = PREF_VDM(iNSide,NElem)%Vdm(i_in_p,i_out_p) * PREF_VDM(iNSide,NElem)%Vdm(i_in_q,i_out_q)
-        V = PREF_VDM(jNSide,NElem)%Vdm(j_in_p,j_out_p) * PREF_VDM(jNSide,NElem)%Vdm(j_in_q,j_out_q)
-
-        S_out(i_out_GP,j_out_GP) = S_out(i_out_GP,j_out_GP) + VT * S_in(i_in_GP,j_in_GP) * V
-      END DO; END DO
-    END DO; END DO
-  END DO; END DO
-END DO; END DO
-END SUBROUTINE ChangeBasisSmat
 #endif /* USE_PETSC */
 
 
