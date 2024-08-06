@@ -1,5 +1,5 @@
 # Drift-diffusion model
-Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages [1]. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development [2].
+Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development [1].
 
 Streamer discharge simulations are basically modeled in three ways. These are the Particle Model, Fluid Model, and Hybrid Model.
 In this section, the Hybrid Model which combines the 1st order fluid model with particle model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
@@ -17,7 +17,7 @@ HDG solver for electric fields)
 **The First-Order Fluid Model** 
 
 The first-order-fluid model is derived from the Boltzmann equation. 
-Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [3].
+Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [2].
 
  
 $$
@@ -102,6 +102,5 @@ PIC-BR. See CalcSourceHDG() on how the drift-diffusion is added to the source te
 ### References 
 [1] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: II. Numerical solution and investigation of planar fronts. Journal of Physics D: Applied Physics, 53(33), 335202. https://doi.org/10.1088/1361-6463/ab8b93
 
-[2] 
+[2] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: I. Derivation of model and transport data. Journal of Physics D: Applied Physics, 53(33), 335201. https://doi.org/10.1088/1361-6463/ab8b92
 
-[3] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: I. Derivation of model and transport data. Journal of Physics D: Applied Physics, 53(33), 335201. https://doi.org/10.1088/1361-6463/ab8b92
