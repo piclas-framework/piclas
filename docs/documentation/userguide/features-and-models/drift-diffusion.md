@@ -4,7 +4,7 @@ Streamers are growing ionized fingers that appear when ionizable matter is sudde
 Streamer discharge simulations are basically modeled in three ways. These are the Particle Model, Fluid Model, and Hybrid Model.
 In this section, the Hybrid Model which combines the 1st order fluid model with particle model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
 
-The first-order fluid model is the multiply used reaction–drift-diffusion model[1]. The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
+The first-order fluid model is the multiply used reaction–drift-diffusion model[1]. It is also called 'cllassical fluid model´. The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
 
 The piclas executable to use the model in created by
 
@@ -30,9 +30,12 @@ $$
 
 After some implementation and the simplfications are applied to the these constitutive equations, the first-order-fluid model is given by the equations : 
 
+The equation is given by:
 
 $$
-\frac{\partial n}{\partial t} = \nabla \cdot (D \cdot \nabla n) + \nabla \cdot (\mu n E) + n(\nu_I - \nu_A)  
+\frac{\partial n}{\partial t} = \nabla \cdot (D \cdot \nabla n) + \nabla \cdot (\mu n \mathbf{E}) + n (\nu_I - \nu_A)
+$$
+
 
 $$
 \frac{\partial n_p}{\partial t} = n \nu_I  
