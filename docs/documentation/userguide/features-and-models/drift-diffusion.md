@@ -49,7 +49,8 @@ $$
 $$
 
 
-Here, n_p  and n_n are positive and negative ion densities, while nu_I and nu_A are the ionization and attachment collision frequencies due to electron–molecule collisions, and phi is the electric potential.
+Here, `$n_p$` and `$n_n$` represent the positive and negative ion densities, respectively, while `$ \nu_I$` and `$\nu_A$` denote the ionization and attachment collision frequencies due to electron–molecule collisions. Additionally, `$\phi$` stands for the electric potential.
+
 
 ## Boundary conditions
 
