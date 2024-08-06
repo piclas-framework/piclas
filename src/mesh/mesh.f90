@@ -46,6 +46,8 @@ INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
 INTEGER,PARAMETER :: PRM_P_ADAPTION_NPB  = 2  ! Elements with non-periodic boundary sides get NMax
 
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_MINTWO  = -2 ! Directly connected elements are set to NMax and 2nd layer elements are set to NMin+1
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_MINONE  = -1 ! Directly connected elements are set to NMin+1
 INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_DEFAULT = 1 ! Directly connected elements are set to NMax
 INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_TWO     = 2 ! Directly connected elements and elements connected with these are set to NMax
 !===================================================================================================================================
@@ -87,12 +89,16 @@ CALL addStrListEntry('pAdaptionType' , 'random'          , PRM_P_ADAPTION_RDN)
 CALL addStrListEntry('pAdaptionType' , 'non-periodic-BC' , PRM_P_ADAPTION_NPB)
 
 CALL prms%CreateIntFromStringOption('pAdaptionBCLevel', "Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax.\n"//&
-                                    '    directly-connected ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_DEFAULT))//'): elements with non-periodic boundary conditions receive NMax\n'//&
-                                    'first-and-second-layer ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_TWO))//'): first two elements with non-periodic boundary conditions receive NMax\n'&
+                                    '1st-and-2nd-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINTWO))//'): elements with non-periodic boundary conditions receive NMax, 2nd layer receive NMin+1\n'//&
+                                    '    directly-connected-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINONE))//'): elements with non-periodic boundary conditions receive NMin+1\n'//&
+                                    '      directly-connected-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_DEFAULT))//'): elements with non-periodic boundary conditions receive NMax\n'//&
+                                    '  1st-and-2nd-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_TWO))//'): first two elements with non-periodic boundary conditions receive NMax\n'&
                                    ,'directly-connected')
 
-CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected'     , PRM_P_ADAPTION_LVL_DEFAULT)
-CALL addStrListEntry('pAdaptionBCLevel' , 'first-and-second-layer' , PRM_P_ADAPTION_LVL_TWO)
+CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMin+1' , PRM_P_ADAPTION_LVL_MINTWO)
+CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMin+1'     , PRM_P_ADAPTION_LVL_MINONE)
+CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMax'       , PRM_P_ADAPTION_LVL_DEFAULT)
+CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMax'   , PRM_P_ADAPTION_LVL_TWO)
 
 END SUBROUTINE DefineParametersMesh
 
@@ -569,8 +575,8 @@ CASE DEFAULT
 END SELECT
 
 ! Check if BC elements are to be set to a higher polynomial degree
-IF(pAdaptionBCLevel.GT.1.OR.&
-  (pAdaptionBCLevel.GT.0.AND.readFEMconnectivity))THEN
+IF(ABS(pAdaptionBCLevel).GT.1.OR.&
+  (ABS(pAdaptionBCLevel).GT.0.AND.readFEMconnectivity))THEN
   CALL SetpAdaptionBCLevel()
 ELSE
   ! Check if all BC elements are set to Nmax
@@ -687,14 +693,18 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
       BCType = BoundaryType(BCIndex,BC_TYPE)
       IF(BCType.LE.1) CYCLE LocSideListLoop ! Skip periodic sides
       IF(BCType.EQ.10) CYCLE LocSideListLoop ! Skip Neumann sides
-      N_DG(iElem) = NMax
+      IF(pAdaptionBCLevel.EQ.-1)THEN
+        N_DG(iElem) = NMin+1
+      ELSE
+        N_DG(iElem) = NMax
+      END IF ! pAdaptionBCLevel.EQ.-1
     END DO LocSideListLoop ! iLocSideList = 1, 3
   END DO VertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
 END DO GlobalElemIDLoop ! iGlobalElemID = FirstElemInd, LastElemInd
 
 
 ! For further layers, loop over the elements again and check for already marked elements instead of the sides
-IF(pAdaptionBCLevel.GT.1)THEN
+IF(ABS(pAdaptionBCLevel).GT.1)THEN
   ! Allocate the shared memory container and associate pointer: N_DG_Mapping
   CALL Allocate_N_DG_Mapping()
 
@@ -717,7 +727,11 @@ IF(pAdaptionBCLevel.GT.1)THEN
       ! Get neighbour infos
       GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
       IF(N_DG_Mapping(2,GlobalNbElemID).EQ.NMax)THEN
-        N_DG(iElem) = NMin+1
+        IF(pAdaptionBCLevel.EQ.-2)THEN
+          N_DG(iElem) = NMin+1
+        ELSE
+          N_DG(iElem) = NMax
+        END IF ! pAdaptionBCLevel.EQ.-2
       END IF ! N_DG_Mapping(2,GlobalNbElemID).EQ.NMax
     END DO iVertexConnect_loop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
   END DO iGlobalElemID_loop ! iGlobalElemID = FirstElemInd, LastElemInd
