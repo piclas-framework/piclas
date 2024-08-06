@@ -511,44 +511,20 @@ DO iElem=1,PP_nElems
         jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
-      ! TODO PETSC P-Adaption: ij vs ji
-      ! Why does it work like this
-      Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide)
-      IF(NElem.GT.iNloc)THEN
-        ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T - "From low to high"
-        DO i=1,nGP_face(NElem)
-          CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:iNdof))
-          !CALL ChangeBasis2D(1, NElem, jNloc, PREF_VDM(NElem,jNloc)%Vdm, Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
-        END DO
-      END IF
+      Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide)
       IF(NElem.GT.jNloc)THEN
-        ! 2. S_{IJ} = (V^T)_{Ii} * S_{iJ} - "From high to low"
-        DO j=1,iNdof
-          CALL ChangeBasis2D(1, NElem, jNloc, TRANSPOSE(PREF_VDM(jNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:jNdof,j))
-          !CALL ChangeBasis2D(1, NElem, iNloc, PREF_VDM(NElem,iNloc)%Vdm, Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
+        ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T
+        DO i=1,nGP_face(NElem)
+          CALL ChangeBasis2D(1, NElem, jNloc, TRANSPOSE(PREF_VDM(jNloc,NElem)%Vdm), Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
         END DO
       END IF
-      !!!! TODO PETSC P-Adaption: ij vs ji
-      !!!Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide)
-      !!!IF(NElem.GT.jNloc)THEN
-      !!!  ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T - "From low to high"
-      !!!  DO i=1,nGP_face(NElem)
-      !!!    CALL ChangeBasis2D(1, NElem, jNloc, TRANSPOSE(PREF_VDM(jNloc,NElem)%Vdm), Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
-      !!!    !CALL ChangeBasis2D(1, NElem, jNloc, PREF_VDM(NElem,jNloc)%Vdm, Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
-      !!!  END DO
-      !!!END IF
-      !!!IF(NElem.GT.iNloc)THEN
-      !!!  ! 2. S_{IJ} = (V^T)_{Ii} * S_{iJ} - "From high to low"
-      !!!  DO j=1,jNdof
-      !!!    CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
-      !!!    !CALL ChangeBasis2D(1, NElem, iNloc, PREF_VDM(NElem,iNloc)%Vdm, Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
-      !!!  END DO
-      !!!END IF
-
-      !CALL ChangeBasisSmat(Smatloc(1:iNdof,1:jNdof), HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), NElem, iNloc, jNloc)
-
-      ! Why Smatloc(1:jNdof,1:iNdof) and not the other way around???
-      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:jNdof,1:iNdof),ADD_VALUES,ierr))
+      IF(NElem.GT.iNloc)THEN
+        ! 2. S_{IJ} = (V^T)_{Ii} * S_{iJ}
+        DO j=1,jNdof
+          CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
+        END DO
+      END IF
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
     END DO
   END DO
 END DO

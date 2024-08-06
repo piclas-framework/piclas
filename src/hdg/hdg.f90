@@ -628,6 +628,7 @@ PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matri
 PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,11 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
+PetscCallA(MatSetOption(PETScSystemMatrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)) ! Column oriented for more convenient set up
 
 CALL PETScFillSystemMatrix()
 
