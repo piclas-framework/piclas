@@ -53,7 +53,15 @@ $$
 
 Here, `$n_p$` and `$n_n$` represent the positive and negative ion densities, respectively, while `$ \nu_I$` and `$ \nu_A$` denote the ionization and attachment collision frequencies due to electron–molecule collisions. Additionally, `$ \phi$` stands for the electric potential.
 
+As a summary, electrons and ions it reads as: 
 
+$$
+\frac{\partial n}{\partial t} = \nabla \cdot (\mu(E)n \mathbf{E} + D(E) \cdot \nabla n) + n \nu_I(E)
+$$
+
+$$
+\frac{\partial n_{\text{ion}}}{\partial t} = n \nu_I(E)
+$$
 
 ## Boundary conditions
 
