@@ -48,12 +48,8 @@ $$
 \nabla^2 \phi = \frac{e}{\epsilon_0} (n - n_p + n_n), \quad E = -\nabla \phi
 $$
 
+Here, `$n_p$` and `$n_n$` represent the positive and negative ion densities, respectively, while `$ \nu_I$` and `$ \nu_A$` denote the ionization and attachment collision frequencies due to electron–molecule collisions. Additionally, `$ \phi$` stands for the electric potential.
 
-Here, $$
-\frac{e}{\epsilon_0} (n_p), 
-$$ and $$
-\frac{e}{\epsilon_0} (n_n), 
-$$  represent the positive and negative ion densities, respectively, while `$ \nu_I$` and `$ \nu_A$` denote the ionization and attachment collision frequencies due to electron–molecule collisions. Additionally, `$ \phi$` stands for the electric potential.
 
 
 ## Boundary conditions
