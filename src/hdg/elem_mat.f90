@@ -528,68 +528,46 @@ DO iElem=1,PP_nElems
     END DO
   END DO
 END DO
+
 ! Set Conductor matrix
+! The Conductors are at the end, so we need to fill the last columns of the global matrix.
 DO BCsideID=1,nConductorBCsides
   jSideID=ConductorBC(BCsideID)
-  iElem=SideToElem(S2E_ELEM_ID,jSideID)
   jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+  jNloc=N_SurfMesh(jSideID)%NSideMin
+
+  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+  NElem=N_DG_Mapping(2,iElem+offsetElem)
 
   BCState = BoundaryType(BC(jSideID),BC_STATE)
-  jPETScGlobal=nGlobalPETScDOFs-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-  jNloc=N_SurfMesh(jSideID)%NSideMin
+  jIndices(1:1) = nGlobalPETScDOFs-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
+
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 
-    ! The matrix goes from left to right and its not symmetrical and we have sum up this part to there
-    ! From Side to Conductor: 1xnGPside matrix
-    ! 1. Bring Smat to nGP of the Side (S * V)
-    Smatloc = 0.
-    NElem=N_DG_Mapping(2,iElem+offsetElem)
-    iNdof=nGP_face(NElem)
-    iNloc=N_SurfMesh(iSideID)%NSideMin
-
-    DO i_m=0,iNloc; DO i_p=0,iNloc
-      DO i=0,NElem; DO j=0,NElem
-        ! TODO PETSC P-Adaption: Conductor ChangeBasis2D
-        Smatloc(i_m*(iNloc+1)+i_p+1,1:iNdof) = Smatloc(i_m*(iNloc+1)+i_p+1,1:iNdof) + &
-          PREF_VDM(iNloc,NElem)%Vdm(i,i_m) * PREF_VDM(iNloc,NElem)%Vdm(j,i_p) * &
-          !PREF_VDM(NElem,iNloc)%Vdm(i_m,i) * PREF_VDM(NElem,iNloc)%Vdm(i_p,j) * &
-          HDG_Vol_N(iElem)%Smat(i*(Nelem+1)+j+1,1:iNdof,iLocSide,jLocSide)
-      END DO; END DO
-    END DO; END DO
-    !Smatloc(:,:) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide)
-
-    ! Summing up rows to actually have a 1! x nGP matrix
-    iNdof=nGP_face(iNloc)
-    DO i=1,iNdof
-      DO j=2,jNdof
-        Smatloc(i,1) = Smatloc(i,1) + Smatloc(i,j)
-      END DO
+    ! Summing up columns since all DOFs are one conductor DOF
+    DO i=1,nGP_face(NElem)
+      Smatloc(i,1) = SUM(HDG_Vol_N(iElem)%Smat(i,:,iLocSide,jLocSide))
     END DO
-
-    jIndices(1:1) = jPETScGlobal
 
     IF(MaskedSide(iSideID).EQ.2) THEN
       ! From Conductor to Conductor: 1x1 matrix
-      ! Sum up columns
-      DO i=2,iNdof
-        Smatloc(1,1) = Smatloc(1,1) + Smatloc(i,1)
-      END DO
+      Smatloc(1,1) = SUM(Smatloc(:,1))
 
       BCState = BoundaryType(BC(iSideID),BC_STATE)
       iIndices(1:1) = nGlobalPETScDOFs-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-      PetscCallA(MatSetValues(PETScSystemMatrix,1,iIndices(1:1),1,jIndices(1:1),Smatloc(1:1,1:1),ADD_VALUES,ierr))
+      PetscCallA(MatSetValues(PETScSystemMatrix,1,iIndices(1:1),1,jIndices(1:1),Smatloc(1,1),ADD_VALUES,ierr))
     ELSEIF(MaskedSide(iSideID).GT.0) THEN
       CYCLE
     ELSE
-      iPETScGlobal=OffsetGlobalPETScDOF(iSideID)
-      DO i=1,iNdof
-        iIndices(i) = iPETScGlobal + i - 1
-      END DO
-      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),1,jIndices(1:1),Smatloc(1:iNdof,1:1),ADD_VALUES,ierr))
-      PetscCallA(MatSetValues(PETScSystemMatrix,1,jIndices(1:1),iNdof,iIndices(1:iNdof),TRANSPOSE(Smatloc(1:iNdof,1:1)),ADD_VALUES,ierr))
-    END IF
+      ! From Conductor to normal side: iNdof x 1 matrix
+      iNloc=N_SurfMesh(iSideID)%NSideMin
+      iNdof=nGP_face(iNloc)
+      CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),1), Smatloc(1:iNdof,1))
 
+      iIndices(1:iNdof) = (/ (OffsetGlobalPETScDOF(iSideID) + i - 1, i=1,iNdof) /)
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),1,jIndices(1:1),Smatloc(1:iNdof,1),ADD_VALUES,ierr))
+    END IF
   END DO
 END DO
 
