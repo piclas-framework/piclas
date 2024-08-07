@@ -311,7 +311,7 @@ from particle locations to the grid) are selected via
     ! =============================================================================== !
     ! PIC: Interpolation/Deposition
     ! =============================================================================== !
-    PIC-DoInterpolation      = T                 m ! Activate Lorentz forces acting on charged particles
+    PIC-DoInterpolation      = T                   ! Activate Lorentz forces acting on charged particles
     PIC-Interpolation-Type   = particle_position   ! Field interpolation method for Lorentz force calculation
 
     PIC-Deposition-Type      = cell_volweight_mean ! Linear deposition method
@@ -346,7 +346,7 @@ have to be defined.
     ! -------------------------------------
     Part-Species1-ChargeIC            = -1.60217653E-19 ! Electric charge of species #1
     Part-Species1-MassIC              = 9.1093826E-31   ! Rest mass of species #1
-    Part-Species1-MacroParticleFactor = 1e9             ! Weighting factor for species #1
+    Part-Species1-MacroParticleFactor = 2.4e5           ! Weighting factor for species #1
     Part-Species1-nInits              = 1               ! Number of initialization/emission regions for species #1
 
 The number of initialization sets is defined by `Part-Species1-nInits`, where each initialization set is accompanied
@@ -380,8 +380,7 @@ In case of the `SpaceIC=sin_deviation`, the number of simulation particles must 
 `Part-Species1-Init1-maxParticleNumber-x/y/z` as this emission type allows distributing the particles not only in one, but in all
 three Cartesian coordinates, which is not required for this 1D example.
 
-In the same manner, a second stream of electron is defined with  only the  difference of `Part-Species2-Init1-VeloVecIC` = (/-1.,0.001,0.001/) and #
-`Part-Species2-Init1-Amplitude` = -0.004  
+In the same manner, a second stream of electron is defined with  only the  difference of `Part-Species2-Init1-VeloVecIC` = (/-1.,0.001,0.001/) and `Part-Species2-Init1-Amplitude` = -0.004  
 
 The ions at rest in the background are defined as well providing a quasi-neutral state. 
 
@@ -390,7 +389,7 @@ The ions at rest in the background are defined as well providing a quasi-neutral
     ! ------------------------------------------------------------------------------- !
     Part-Species3-ChargeIC                     = 3.204e-19
     Part-Species3-MassIC                       = 6.69e-27
-
+    Part-Species3-MacroParticleFactor          = 2.4e5            ! Weighting factor for species #3
     Part-Species3-nInits                       = 1
     !Part-Species3-Init1-maxParticleNumber-x   = 100000           ! Number of simulation particles in x-direction for species 3
     Part-Species3-Init1-maxParticleNumber-y    = 1                ! Number of particles in y
@@ -516,7 +515,7 @@ Transfer of transversal velocity to thermal velocity.
 To visualize the probability distribution function, a PDF script present in the tools folder: `piclas/tools/paraview/pdf/511` is to be loaded in Paraview. This can be done by selecting **Tools &rarr; Manage Plugins &rarr; Load New &rarr; pdf_paraview511.xml**. After loading the script, make sure to select the Auto Load feature in the list of plugins for the PDF to avoid loading the script everytime you open Paraview. Open the particle file, e.g., two_stream_instability_visuPart_000.000000000.vtu and add the `Probability Distribution Function 5.11 (piclas)` feature to this file. You can do this by the searching the feature directly in paraview with the shortcut keys `CTRL+SPACE`. Do not forget to set the `xMax`to 12.566, i.e $4\pi$ in our case setup.
 
 
-```{figure} results/final.gif
+```{figure} results/compressed.gif
 ---
 name: fig:PDF
 width: 700px
