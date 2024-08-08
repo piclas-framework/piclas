@@ -207,11 +207,9 @@ REAL                            :: iRan, fNorm, J, fIntegralNorm
 ! Quantized treatment of rotational energy
 J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpec)%CharaTRot) - 1.))
 ! fIntegralNorm brings integral over fNorm(j) from 0 to infinity to 1
-fIntegralNorm = TRot/SpecDSMC(iSpec)%CharaTRot * &
-                exp(-SpecDSMC(iSpec)%CharaTRot/TRot)/((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot))
+fIntegralNorm = TRot/SpecDSMC(iSpec)%CharaTRot
 ! set jMax to include 99.9% of energy in fNorm distribution
-jMax = NINT(0.5 * (SQRT(1.-4.*TRot/SpecDSMC(iSpec)%CharaTRot*log(1.-0.999*fIntegralNorm*((2.*J + 1.)* &
-        EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot))*SpecDSMC(iSpec)%CharaTRot/TRot))-1.))
+jMax = NINT(0.5 * (SQRT(1.-4.*TRot/SpecDSMC(iSpec)%CharaTRot*log(1.-0.999*fIntegralNorm*SpecDSMC(iSpec)%CharaTRot/TRot))-1.))
 ARM = .TRUE.
 CALL RANDOM_NUMBER(iRan)
 iQuant = INT((1+jMax)*iRan)

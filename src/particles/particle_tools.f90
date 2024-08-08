@@ -1103,7 +1103,7 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
   ! calculate quantum number where f has maximum
   J = NINT(0.5 * (SQRT(2.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
   ! fIntegralNorm brings integral over fNorm(j) from 0 to infinity to 1
-  fIntegralNorm = TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) * exp(-PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot)
+  fIntegralNorm = TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
   ! set jMax to include 99.9% of energy in fNorm distribution for maximum allowed quantum number
   jMax = NINT(0.5 * (SQRT(1.-4.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*log(1.-0.999*fIntegralNorm* & 
     PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))-1.))
@@ -1208,11 +1208,10 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
   ! calculate quantum number where f has maximum
   J = NINT(0.5 * (SQRT(2.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
   ! fIntegralNorm brings integral over fNorm(j) from 0 to infinity to 1
-  fIntegralNorm = TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) * exp(-PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / &
-                  ((2.*J + 1.)*EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
+  fIntegralNorm = TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
   ! set jMax to include 99.9% of energy in fNorm distribution
-  jMax = NINT(0.5 * (SQRT(1.-4.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*log(1.-0.999*fIntegralNorm*((2.*J + 1.)* & 
-        EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))-1.))
+  jMax = NINT(0.5 * (SQRT(1.-4.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*log(1.-0.999*fIntegralNorm* &
+         PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))-1.))
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT(iRan*(jMax+1))
   DO iWalk=1, 5000
