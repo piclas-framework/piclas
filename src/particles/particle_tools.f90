@@ -472,11 +472,11 @@ END FUNCTION DiceUnitVector
 !===================================================================================================================================
 !> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function at the surface
 !===================================================================================================================================
-FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
+FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr,iPartBound)
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
 USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c,ElementaryCharge,PI
-USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS
+USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, SurfModSEEPowerFit
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -484,6 +484,7 @@ CHARACTER(LEN=*),INTENT(IN) :: distribution   !< Specifying keyword for velocity
 REAL,INTENT(IN)             :: Tempergy       !< Input temperature in [K] or energy in [J] or [eV] or velocity in [m/s]
 INTEGER,INTENT(IN)          :: iNewPart       !< The i-th particle that is inserted (only required for some distributions)
 INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that are inserted (only required for some distributions)
+INTEGER,INTENT(IN)          :: iPartBound     !< Boundary ID for surface-specific properties
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL            :: VeloFromDistribution(1:3) !< Velocity vector created from specific velocity distribution function
@@ -491,7 +492,7 @@ REAL            :: VeloABS                   !< Absolute velocity of the velocit
 REAL            :: RandVal                   !< Pseudo random number
 LOGICAL         :: ARM                       !< Acceptance rejection method
 REAL            :: PDF,PDF_max               !< Probability density function
-REAL, PARAMETER :: PDF_max2=4./PI            !< Maximum of PDF for cosine2 distribution
+REAL, PARAMETER :: PDF_max2=4./PI            !< Maximum of PDF for cosine distribution
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 REAL            :: E_temp, E_max, W          !< Energy values [eV]
 REAL            :: Theta, Chi, Theta_temp    !< Angles between surface normal/tangent to velocity
@@ -577,12 +578,12 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
   ! Set magnitude
   VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
-CASE('cosine2')
+CASE('cosine')
 
-  W = TempErgy
+  W = SurfModSEEPowerFit(4,iPartBound)  ! [eV] Material-dependent work function
+  E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
+  PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
   ! ARM for energy distribution
-  E_max = 25.0*W ! in eV (this yields an integral of 0.9956759, i.e., 99.57% of electrons have this or a lower energy)
-  PDF_max = 81.0 / (128.0 * W)  ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
   ARM=.TRUE.
   DO WHILE(ARM)
     CALL RANDOM_NUMBER(RandVal)
@@ -601,7 +602,7 @@ CASE('cosine2')
   DO WHILE(ARM)
     CALL RANDOM_NUMBER(RandVal)
     Theta_temp = RandVal * 0.5 * PI
-    PDF = 4.0 / PI * COS(Theta_temp)**2
+    PDF = 4.0 / PI * COS(Theta_temp)
     CALL RANDOM_NUMBER(RandVal)
     IF ((PDF/PDF_max2).GT.RandVal) ARM = .FALSE.
   END DO

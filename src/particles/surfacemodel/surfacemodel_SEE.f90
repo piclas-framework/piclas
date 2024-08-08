@@ -111,7 +111,7 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
       CASE('deltadistribution')
         ! Energy in [m/s]
         TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('cosine2','uniform-energy','Morozov2004')
+      CASE('cosine','uniform-energy','Morozov2004')
         ! Energy in [eV]
         TempErgy = eps_e
       CASE DEFAULT

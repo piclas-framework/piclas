@@ -145,7 +145,7 @@ DO iPartBound=1,nPartBound
   ! 4: SEE Power-fit model based on Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
   CASE(4)
     SurfModSEEPowerFit(1:4,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEPowerFit',4)
-    SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','cosine2'))
+    SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','cosine'))
     ! Loop all species
     DO iSpec = 1,nSpecies
       IF(SPECIESISELECTRON(iSpec)) THEN

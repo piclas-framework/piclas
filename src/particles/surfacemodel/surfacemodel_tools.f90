@@ -554,7 +554,7 @@ BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobalElemID)), &
 DO iNewPart = 1, ProductSpecNbr
   ! create new particle and assign correct energies
   ! sample newly created velocity
-  NewVelo(1:3) = VeloFromDistribution(EnergyDistribution,TempErgy,iNewPart,ProductSpecNbr)
+  NewVelo(1:3) = VeloFromDistribution(EnergyDistribution,TempErgy,iNewPart,ProductSpecNbr,locBCID)
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
   ! Create new position by using POI and moving the particle by eps in the direction of the element center
