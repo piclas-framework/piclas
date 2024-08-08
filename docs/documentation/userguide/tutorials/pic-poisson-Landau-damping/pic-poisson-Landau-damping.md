@@ -377,23 +377,22 @@ Run the command
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-An analysis of the numerical results contained in `PartAnalyze.csv` and `FieldAnalyze.csv` using **ParaView** to plot the data show
-* The electric field over time for the case of `Part-Species1-Init1-WaveNumber` = 0.5 ({numref}`fig:plasma-wave-visual`),
-* gain in the kinetic energy of particles (top-right plot in {numref}`fig:plasma-wave-res`),
-* decay in the electric field energy (bottom-right plot in {numref}`fig:plasma-wave-res`),
-* Total Energy Error converging after t=150 (left plot in {numref}`fig:plasma-wave-res`).
+Analysis of the numerical results contained in `PartAnalyze.csv` and `FieldAnalyze.csv` using **ParaView** to plot the data show
+* gain in the kinetic energy of particles,
+* decay in the electric field energy,
+* total Energy Error converging over time .
 
 
 
-```{figure} results/finalfig.png
+```{figure} results/land.png
 ---
 name: fig:plasma-wave-res
-width: 700px
+width: 600px
 ---
 
 The Total Energy Error converging over time.
 ```
-```{figure} results/second.png
+```{figure} results/damp.png
 ---
 name: fig:plasma-wave-visual
 width: 700px

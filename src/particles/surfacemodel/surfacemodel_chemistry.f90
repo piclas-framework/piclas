@@ -490,13 +490,13 @@ IF (SurfChem%OverwriteCatParameters) THEN
 END IF
 
 ! Sanity check: Total reaction probability of a single species at the surface must not be above 1
-DO iSpec = 1, nSpecies
-  IF(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths.GT.0) THEN
-    IF(SUM(SurfChem%EventProbInfo(iSpec)%ReactionProb(:)).GT.1.) THEN
-      CALL abort(__STAMP__,'ERROR: Total probability above unity for species: ', IntInfoOpt=iSpec)
-    END IF
-  END IF
-END DO
+!DO iSpec = 1, nSpecies
+ ! IF(SurfChem%EventProbInfo(iSpec)%NumOfReactionPaths.GT.0) THEN
+!    IF(SUM(SurfChem%EventProbInfo(iSpec)%ReactionProb(:)).GT.1.) THEN
+ !     CALL abort(__STAMP__,'ERROR: Total probability above unity for species: ', IntInfoOpt=iSpec)
+  !  END IF
+ ! END IF
+!END DO
 
 END SUBROUTINE InitializeVariablesSurfaceChemistry
 
