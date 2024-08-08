@@ -480,7 +480,9 @@ INTEGER,INTENT(IN)          :: maxValueLen  !< max string length of name
 ! LOCAL VARIABLES
 CHARACTER(LEN=20)            :: fmtValue
 CHARACTER(LEN=20)            :: fmtDigits
-CHARACTER(LEN=maxValueLen)   :: intFromStringOutput
+! Increased the following by +5 because of negative numbers in string/integer parameters, e.g., pAdaptionBCLevel = -1, which results
+! in the output string "directly-connected-NMin+1 (-1)", which otherwise crashes the "Print in the format STRING (INTEGER)..." below
+CHARACTER(LEN=maxValueLen+5) :: intFromStringOutput
 INTEGER                      :: i,length
 !===================================================================================================================================
 WRITE(fmtValue,*) maxValueLen
