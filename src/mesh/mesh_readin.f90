@@ -210,7 +210,7 @@ USE MOD_Mesh_Vars            ,ONLY: NGeo
 USE MOD_Mesh_Vars            ,ONLY: NodeCoords
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems,nNodes
 USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
-USE MOD_Mesh_Vars            ,ONLY: nFEMEdges, nFEMVertices, readFEMconnectivity
+USE MOD_Mesh_Vars            ,ONLY: nFEMEdges, nFEMVertices, readFEMconnectivity, nFEMEdgeConnections, nFEMVertexConnections, nNonUniqueGlobalEdges, nNonUniqueGlobalVertices
 USE MOD_Mesh_Vars            ,ONLY: nMortarSides
 USE MOD_Mesh_Vars            ,ONLY: nGlobalUniqueSidesFromMesh
 USE MOD_Mesh_Vars            ,ONLY: useCurveds
@@ -235,7 +235,7 @@ USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: nDeposPerElem,nSurfacePartsPerElem,nTracksPerElem,nPartsPerBCElem,nSurfacefluxPerElem
 ! Restart without HDF5
-USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_Shared,EdgeInfo_Shared,EdgeConnectInfo_Shared,VertexInfo_Shared,VertexConnectInfo_Shared
 #endif /*USE_LOADBALANCE*/
 #endif /*PARTICLES*/
 #if USE_LOADBALANCE
@@ -313,6 +313,11 @@ IF (.NOT.PerformLoadBalance) THEN
     END IF ! .NOT.nFEMEdgesExists
     CALL ReadAttribute(File_ID,'nFEMEdges',1,IntScalar=nFEMEdges)
     CALL ReadAttribute(File_ID,'nFEMVertices',1,IntScalar=nFEMVertices)
+    CALL ReadAttribute(File_ID,'nFEMEdgeConnections',1,IntScalar=nFEMEdgeConnections)
+    CALL ReadAttribute(File_ID,'nFEMVertexConnections',1,IntScalar=nFEMVertexConnections)
+
+    CALL ReadAttribute(File_ID,'nEdges',1,IntScalar=nNonUniqueGlobalEdges)
+    CALL ReadAttribute(File_ID,'nVertices',1,IntScalar=nNonUniqueGlobalVertices)
   END IF ! readFEMconnectivity
   CALL CloseDataFile()
   ! INTEGER KIND=4 check for number of elements
@@ -713,7 +718,7 @@ IF(readFEMconnectivity)THEN
         offsetEdgeID   => INT(offsetEdgeID,IK)  )
 #if defined(PARTICLES) && USE_LOADBALANCE
     IF (PerformLoadBalance) THEN
-      !EdgeInfo(1:EdgeInfoSize,:) = EdgeInfo_Shared(1:EdgeInfoSize,offsetEdgeID+1:offsetSideID+nSideIDs)
+      EdgeInfo(1:EdgeInfoSize,:) = EdgeInfo_Shared(1:EdgeInfoSize,offsetEdgeID+1:offsetEdgeID+nEdgeIDs)
     ELSE
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
       CALL ReadArray('EdgeInfo',2,(/EdgeInfoSize,nEdgeIDs/),offsetEdgeID,2,IntegerArray_i4=EdgeInfo(1:EdgeInfoSize,:))
@@ -734,8 +739,15 @@ IF(readFEMconnectivity)THEN
     EdgeConnectInfoSize   => INT(EDGECONNECTINFOSIZE_H5,IK)   ,&
     nEdgeConnectIDs       => INT(nEdgeConnectIDs,IK)       ,&
     offsetEdgeConnectID   => INT(offsetEdgeConnectID,IK)  )
-
-    CALL ReadArray('EdgeConnectInfo',2,(/EdgeConnectInfoSize,nEdgeConnectIDs/),offsetEdgeConnectID,2,IntegerArray_i4=EdgeConnectInfo(1:EdgeConnectInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+    IF (PerformLoadBalance) THEN
+      EdgeConnectInfo(1:EdgeConnectInfoSize,:) = EdgeConnectInfo_Shared(1:EdgeConnectInfoSize,offsetEdgeConnectID+1:offsetEdgeConnectID+nEdgeConnectIDs)
+    ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+      CALL ReadArray('EdgeConnectInfo',2,(/EdgeConnectInfoSize,nEdgeConnectIDs/),offsetEdgeConnectID,2,IntegerArray_i4=EdgeConnectInfo(1:EdgeConnectInfoSize,:))
+#if defined(PARTICLES) && USE_LOADBALANCE
+    END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   END ASSOCIATE
 END IF ! readFEMconnectivity
 
@@ -759,7 +771,7 @@ IF(readFEMconnectivity)THEN
         offsetVertexID   => INT(offsetVertexID,IK)  )
 #if defined(PARTICLES) && USE_LOADBALANCE
     IF (PerformLoadBalance) THEN
-      !EdgeInfo(1:EdgeInfoSize,:) = EdgeInfo_Shared(1:EdgeInfoSize,offsetEdgeID+1:offsetSideID+nSideIDs)
+      VertexInfo(1:VertexInfoSize,:) = VertexInfo_Shared(1:VertexInfoSize,offsetVertexID+1:offsetVertexID+nVertexIDs)
     ELSE
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
       CALL ReadArray('VertexInfo',2,(/VertexInfoSize,nVertexIDs/),offsetVertexID,2,IntegerArray_i4=VertexInfo(1:VertexInfoSize,:))
@@ -780,12 +792,20 @@ IF(readFEMconnectivity)THEN
     VertexConnectInfoSize   => INT(VERTEXCONNECTINFOSIZE_H5,IK)   ,&
     nVertexConnectIDs       => INT(nVertexConnectIDs,IK)       ,&
     offsetVertexConnectID   => INT(offsetVertexConnectID,IK)  )
-
+#if defined(PARTICLES) && USE_LOADBALANCE
+    IF (PerformLoadBalance) THEN
+      VertexConnectInfo(1:VertexConnectInfoSize,:) = VertexConnectInfo_Shared(1:VertexConnectInfoSize,offsetVertexConnectID+1:offsetVertexConnectID+nVertexConnectIDs)
+    ELSE
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
     CALL ReadArray('VertexConnectInfo',2,(/VertexConnectInfoSize,nVertexConnectIDs/),offsetVertexConnectID,2,IntegerArray_i4=VertexConnectInfo(1:VertexConnectInfoSize,:))
     CALL CloseDataFile()
+#if defined(PARTICLES) && USE_LOADBALANCE
+    END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   END ASSOCIATE
-END IF ! readFEMconnectivity
 
+  CALL ReadMeshEdgedAndVertices()
+END IF ! readFEMconnectivity
 
 !----------------------------------------------------------------------------------------------------------------------------
 !                              NODES
@@ -1090,7 +1110,9 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: FirstElemInd,LastElemInd
-INTEGER                        :: nSideIDs,offsetSideID
+INTEGER                        :: nSideIDs,offsetSideID,nEdgeIDs,nEdgeConnectIDs,nVertexIDs,nVertexConnectIDs
+INTEGER                        :: FirstEdgeInd,LastEdgeInd,offsetEdgeID,FirstVertexInd,LastVertexInd,offsetVertexID
+INTEGER                        :: FirstEdgeConnectInd,LastEdgeConnectInd,offsetEdgeConnectID,FirstVertexConnectInd,LastVertexConnectInd,offsetVertexConnectID
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -1123,6 +1145,114 @@ SideInfo_Shared(SIDEINFOSIZE_H5+1:SIDEINFOSIZE+1  , 1:nSideIDs) = 0
 
 END SUBROUTINE ReadMeshSides
 #endif /*defined(PARTICLES)*/
+
+
+SUBROUTINE ReadMeshEdgedAndVertices()
+!===================================================================================================================================
+!> Create particle mesh arrays for sides:
+!> - SideInfo_Shared(1:SIDEINFOSIZE+1,1:nNonUniqueGlobalSides)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars
+USE MOD_Particle_Mesh_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars
+#endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: FirstElemInd,LastElemInd
+INTEGER                        :: nSideIDs,offsetSideID,nEdgeIDs,nEdgeConnectIDs,nVertexIDs,nVertexConnectIDs
+INTEGER                        :: FirstEdgeInd,LastEdgeInd,offsetEdgeID,FirstVertexInd,LastVertexInd,offsetVertexID
+INTEGER                        :: FirstEdgeConnectInd,LastEdgeConnectInd,offsetEdgeConnectID,FirstVertexConnectInd,LastVertexConnectInd,offsetVertexConnectID
+!===================================================================================================================================
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+! offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+! nSideIDs     = ElemInfo(ELEM_LASTSIDEIND ,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
+
+
+offsetEdgeID = ElemInfo(ELEM_FIRSTEDGEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nEdgeIDs     = ElemInfo(ELEM_LASTEDGEIND,LastElemInd)-ElemInfo(ELEM_FIRSTEDGEIND,FirstElemInd)
+FirstEdgeInd = offsetEdgeID+1
+LastEdgeInd  = offsetEdgeID+nEdgeIDs
+
+offsetVertexID = ElemInfo(ELEM_FIRSTVERTEXIND,FirstElemInd) ! hdf5 array starts at 0-> -1
+nVertexIDs     = ElemInfo(ELEM_LASTVERTEXIND,LastElemInd)-ElemInfo(ELEM_FIRSTVERTEXIND,FirstElemInd)
+FirstVertexInd = offsetVertexID+1
+LastVertexInd  = offsetVertexID+nVertexIDs
+
+offsetEdgeConnectID = EdgeInfo(EDGE_FIRSTCONNECTIND,FirstEdgeInd) ! hdf5 array starts at 0-> -1
+nEdgeConnectIDs     = EdgeInfo(EDGE_LASTCONNECTIND,LastEdgeInd)-offsetEdgeConnectID
+FirstEdgeConnectInd = offsetEdgeConnectID+1
+LastEdgeConnectInd  = offsetEdgeConnectID+nEdgeConnectIDs
+
+offsetVertexConnectID = VertexInfo(VERTEX_FIRSTCONNECTIND,FirstVertexInd) ! hdf5 array starts at 0-> -1
+nVertexConnectIDs     = VertexInfo(VERTEX_LASTCONNECTIND,LastVertexInd)-offsetVertexConnectID
+FirstVertexConnectInd = offsetVertexConnectID+1
+LastVertexConnectInd  = offsetVertexConnectID+nVertexConnectIDs
+
+
+#if USE_MPI
+CALL Allocate_Shared((/EDGEINFOSIZE_H5,nNonUniqueGlobalEdges/),EdgeInfo_Shared_Win,EdgeInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,EdgeInfo_Shared_Win,IERROR)
+EdgeInfo_Shared(1:EDGEINFOSIZE_H5,offsetEdgeID+1:offsetEdgeID+nEdgeIDs) = EdgeInfo(:,:)
+CALL BARRIER_AND_SYNC(EdgeInfo_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(EdgeInfo_Shared(1:EDGEINFOSIZE_H5, 1:nEdgeIDs))
+EdgeInfo_Shared(1:EDGEINFOSIZE_H5, 1:nEdgeIDs) = EdgeInfo(:,:)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL Allocate_Shared((/EDGECONNECTINFOSIZE_H5,nFEMEdgeConnections/),EdgeConnectInfo_Shared_Win,EdgeConnectInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,EdgeConnectInfo_Shared_Win,IERROR)
+EdgeConnectInfo_Shared(1:EDGECONNECTINFOSIZE_H5,offsetEdgeConnectID+1:offsetEdgeConnectID+nEdgeConnectIDs) = EdgeConnectInfo(:,:)
+CALL BARRIER_AND_SYNC(EdgeConnectInfo_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(EdgeConnectInfo_Shared(1:EDGECONNECTINFOSIZE_H5, 1:nEdgeConnectIDs))
+EdgeConnectInfo_Shared(1:EDGECONNECTINFOSIZE_H5, 1:nEdgeConnectIDs) = EdgeConnectInfo(:,:)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL Allocate_Shared((/VERTEXINFOSIZE_H5,nNonUniqueGlobalVertices/),VertexInfo_Shared_Win,VertexInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,VertexInfo_Shared_Win,IERROR)
+VertexInfo_Shared(1:VERTEXINFOSIZE_H5,offsetVertexID+1:offsetVertexID+nVertexIDs) = VertexInfo(:,:)
+CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(VertexInfo_Shared(1:VETREXINFOSIZE_H5, 1:nVertexIDs))
+EDGEInfo_Shared(1:VERTEXINFOSIZE_H5, 1:nVertexIDs) = VertexInfo(:,:)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL Allocate_Shared((/VERTEXCONNECTINFOSIZE_H5,nFEMVertexConnections/),VertexConnectInfo_Shared_Win,VertexConnectInfo_Shared)
+CALL MPI_WIN_LOCK_ALL(0,VertexConnectInfo_Shared_Win,IERROR)
+VertexConnectInfo_Shared(1:VERTEXCONNECTINFOSIZE_H5,offsetVertexConnectID+1:offsetVertexConnectID+nVertexConnectIDs) = VertexConnectInfo(:,:)
+CALL BARRIER_AND_SYNC(VertexConnectInfo_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(VertexConnectInfo_Shared(1:VERTEXCONNECTINFOSIZE_H5, 1:nEdgeConnectIDs))
+VertexConnectInfo_Shared(1:VERTEXCONNECTINFOSIZE_H5, 1:nVertexConnectIDs) = VertexConnectInfo(:,:)
+#endif /*USE_MPI*/
+
+END SUBROUTINE ReadMeshEdgedAndVertices
+
+
+
+
+
+
 
 
 SUBROUTINE ReadMeshNodes()
@@ -1572,6 +1702,16 @@ CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
 CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
 #endif /*defined(PARTICLES)*/
 
+IF(readFEMconnectivity)THEN
+  ! edges
+  CALL UNLOCK_AND_FREE(EdgeInfo_Shared_Win)
+  CALL UNLOCK_AND_FREE(EdgeConnectInfo_Shared_Win)
+
+  ! vertices
+  CALL UNLOCK_AND_FREE(VertexInfo_Shared_Win)
+  CALL UNLOCK_AND_FREE(VertexConnectInfo_Shared_Win)
+END IF
+
 ! nodes
 CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)
 CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
@@ -1583,6 +1723,13 @@ ADEALLOCATE(ElemInfo_Shared)
 ADEALLOCATE(SideInfo_Shared)
 ADEALLOCATE(NodeInfo_Shared)
 ADEALLOCATE(NodeCoords_Shared)
+IF(readFEMconnectivity)THEN
+  ADEALLOCATE(EdgeInfo_Shared)
+  ADEALLOCATE(EdgeConnectInfo_Shared)
+  ADEALLOCATE(VertexInfo_Shared)
+  ADEALLOCATE(VertexConnectInfo_Shared)
+END IF
+
 
 ! Free communication arrays
 #if USE_MPI

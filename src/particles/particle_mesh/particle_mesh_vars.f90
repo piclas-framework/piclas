@@ -108,6 +108,10 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
 INTEGER,ALLOCATABLE                      :: SideInfo_Shared_tmp(:)
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared !> Contains the 8 corner nodes of an element (global "unique node IDs")
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: EdgeInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: EdgeConnectInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: VertexInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: VertexConnectInfo_Shared
 
 ! Shared arrays for halo debug information
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemHaloInfo_Shared
@@ -215,6 +219,10 @@ INTEGER         :: ElemInfo_Shared_Win
 INTEGER         :: SideInfo_Shared_Win
 INTEGER         :: NodeInfo_Shared_Win
 INTEGER         :: NodeCoords_Shared_Win
+INTEGER         :: EdgeInfo_Shared_Win
+INTEGER         :: EdgeConnectInfo_Shared_Win
+INTEGER         :: VertexInfo_Shared_Win
+INTEGER         :: VertexConnectInfo_Shared_Win
 
 INTEGER         :: ElemHaloInfo_Shared_Win
 

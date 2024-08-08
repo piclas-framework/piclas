@@ -188,6 +188,10 @@ INTEGER          :: nUserBCs=0              !< number of BC in inifile
 LOGICAL          :: ChangedPeriodicBC       !< is set true if BCs are changed from periodic to non-periodic (default is false)
 INTEGER          :: nFEMEdges
 INTEGER          :: nFEMVertices
+INTEGER          :: nFEMEdgeConnections
+INTEGER          :: nFEMVertexConnections
+INTEGER          :: nNonUniqueGlobalEdges
+INTEGER          :: nNonUniqueGlobalVertices
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Define index ranges for all sides in consecutive order for easier access
 INTEGER             :: firstBCSide             !< First SideID of BCs (in general 1)
