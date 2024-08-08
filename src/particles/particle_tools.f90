@@ -492,7 +492,7 @@ REAL            :: VeloABS                   !< Absolute velocity of the velocit
 REAL            :: RandVal                   !< Pseudo random number
 LOGICAL         :: ARM                       !< Acceptance rejection method
 REAL            :: PDF,PDF_max               !< Probability density function
-REAL, PARAMETER :: PDF_max2=4./PI            !< Maximum of PDF for cosine distribution
+REAL, PARAMETER :: PDF_max2=4./PI            !< Maximum of PDF for cosine2 distribution
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 REAL            :: E_temp, E_max, W          !< Energy values [eV]
 REAL            :: Theta, Chi, Theta_temp    !< Angles between surface normal/tangent to velocity
@@ -595,18 +595,22 @@ CASE('cosine')
   ! Non-relativistic electron energy (conversion from eV to Joule)
   VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / ElectronMass)
 
-  ! ARM for angular distribution
+  ! Equally-distributed angle Chi [0:2*PI] for tangential component
   CALL RANDOM_NUMBER(RandVal)
   Chi = RandVal * 2.0 * PI
-  ARM=.TRUE.
-  DO WHILE(ARM)
-    CALL RANDOM_NUMBER(RandVal)
-    Theta_temp = RandVal * 0.5 * PI
-    PDF = 4.0 / PI * COS(Theta_temp)
-    CALL RANDOM_NUMBER(RandVal)
-    IF ((PDF/PDF_max2).GT.RandVal) ARM = .FALSE.
-  END DO
-  Theta = Theta_temp
+  ! Distribution of Theta [0:PI/2] for normal component
+  ! ARM for angular distribution for cosine2
+  ! ARM=.TRUE.
+  ! DO WHILE(ARM)
+  !   CALL RANDOM_NUMBER(RandVal)
+  !   Theta_temp = RandVal * 0.5 * PI
+  !   PDF = 4.0 / PI * COS(Theta_temp)**2
+  !   CALL RANDOM_NUMBER(RandVal)
+  !   IF ((PDF/PDF_max2).GT.RandVal) ARM = .FALSE.
+  ! END DO
+  ! Inverse method for cosine distribution
+  CALL RANDOM_NUMBER(RandVal)
+  Theta = ASIN(SQRT(RandVal))
 
   VeloFromDistribution(1) = COS(Theta) * COS(Chi)
   VeloFromDistribution(2) = COS(Theta) * SIN(Chi)
