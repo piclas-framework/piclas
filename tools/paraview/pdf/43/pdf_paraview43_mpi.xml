@@ -1,0 +1,179 @@
+<ServerManagerConfiguration>
+  <ProxyGroup name="filters">
+    <SourceProxy name="PDF" class="vtkPythonProgrammableFilter" label="Probability Distribution Function">
+
+      <Documentation
+        long_help="Computes the probability distribution function."
+        short_help="Computes the probability distribution function.">
+      </Documentation>
+
+
+      <InputProperty
+        name="Input"
+        command="SetInputConnection">
+          <ProxyGroupDomain name="groups">
+            <Group name="sources"/>
+            <Group name="filters"/>
+          </ProxyGroupDomain>
+
+          <DataTypeDomain name="input_type">
+            <DataType value="vtkDataObject"/>
+          </DataTypeDomain>
+      </InputProperty>
+
+
+      <IntVectorProperty
+        name="NumberOfSpaceBins"
+        label="NumberOfSpaceBins"
+        initial_string="NumberOfSpaceBins"
+        command="SetParameter"
+        animateable="1"
+        default_values="250"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <IntVectorProperty
+        name="NumberOfVeloBins"
+        label="NumberOfVeloBins"
+        initial_string="NumberOfVeloBins"
+        command="SetParameter"
+        animateable="1"
+        default_values="250"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <IntVectorProperty
+        name="iDirect"
+        label="SelectCoordinate"
+        initial_string="iDirect"
+        command="SetParameter"
+        animateable="1"
+        default_values="0"
+        number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="coord_X"/>
+          <Entry value="1" text="coord_Y"/>
+          <Entry value="2" text="coord_Z"/>
+        </EnumerationDomain>
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <IntVectorProperty
+        name="iVelocity"
+        label="iVelocity"
+        initial_string="iVelocity"
+        command="SetParameter"
+        animateable="1"
+        default_values="0"
+        number_of_elements="1">
+        <EnumerationDomain name="enum">
+          <Entry value="0" text="Velocity_X"/>
+          <Entry value="1" text="Velocity_Y"/>
+          <Entry value="2" text="Velocity_Z"/>
+          <Entry value="3" text="Velocity_abs"/>
+          <Entry value="4" text="Velocity_tang-x"/>
+          <Entry value="5" text="Velocity_tang-y"/>
+          <Entry value="6" text="Velocity_tang-z"/>
+        </EnumerationDomain>
+ 
+        <Documentation></Documentation>
+      </IntVectorProperty>
+
+
+      <DoubleVectorProperty
+        name="minVelo"
+        label="minVelo"
+        initial_string="minVelo"
+        command="SetParameter"
+        animateable="1"
+        default_values="-300000000.0"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+      <DoubleVectorProperty
+        name="maxVelo"
+        label="maxVelo"
+        initial_string="maxVelo"
+        command="SetParameter"
+        animateable="1"
+        default_values="300000000.0"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+      
+      <DoubleVectorProperty
+        name="xMin"
+        label="xMin"
+        initial_string="xMin"
+        command="SetParameter"
+        animateable="1"
+        default_values="0.0"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+
+      <DoubleVectorProperty
+        name="xMax"
+        label="xMax"
+        initial_string="xMax"
+        command="SetParameter"
+        animateable="1"
+        default_values="12.57"
+        number_of_elements="1">
+        <Documentation></Documentation>
+      </DoubleVectorProperty>
+
+
+
+
+      <!-- Output data type: "vtkImageData" -->
+      <IntVectorProperty command="SetOutputDataSetType"
+                         default_values="6"
+                         name="OutputDataSetType"
+                         number_of_elements="1"
+                         panel_visibility="never">
+        <Documentation>The value of this property determines the dataset type
+        for the output of the programmable filter.</Documentation>
+      </IntVectorProperty>
+
+
+      <StringVectorProperty
+        name="Script"
+        command="SetScript"
+        number_of_elements="1"
+        default_values="import math&#xA;import numpy&#xA;import paraview&#xA;import vtk.numpy_interface.dataset_adapter&#xA;import vtk.numpy_interface.algorithms&#xA;#from mpi4py import MPI&#xA;try:&#xA;    from vtk.vtkParallelCore import vtkMultiProcessController&#xA;    from vtk.vtkParallelMPI4Py import vtkMPI4PyCommunicator&#xA;except ImportError:&#xA;    vtkMultiProcessController = None&#xA;    vtkMPI4PyCommunicator = None&#xA;# -- this will import vtkMultiProcessController and vtkMPI4PyCommunicator&#xA;#if controller is None and vtkMultiProcessController is not None:&#xA;#    controller = vtkMultiProcessController.GetGlobalController()&#xA;controller = vtkMultiProcessController.GetGlobalController()&#xA;nProcs =controller.GetNumberOfProcesses()&#xA;print ' nProcs: ', nProcs&#xA;if controller and controller.IsA(&quot;vtkMPIController&quot;) and controller.GetNumberOfProcesses() &gt; 1:&#xA;    from mpi4py import MPI&#xA;    comm = vtkMPI4PyCommunicator.ConvertToPython(controller.GetCommunicator())&#xA;    rank = comm.Get_rank()&#xA;else:&#xA;    rank = 0&#xA;&#xA;# This script computes the particle distribution function. Missing: Selection of &#xA;# spacial coordinate and velocity&#xA;deltaX=float(xMax-xMin)/float(NumberOfSpaceBins)&#xA;deltaV=float(maxVelo-minVelo)/float(NumberOfVeloBins)&#xA;# input&#xA;input=self.GetInputDataObject(0,0)&#xA;if input.IsA(&quot;vtkMultiBlockDataSet&quot;):&#xA;    # here: new format with vtk-multiblock&#xA;    print(&quot; vtkMultiBlockDataSet&quot;)&#xA;    iter = input.NewIterator()&#xA;    iter.UnRegister(None)&#xA;    iter.InitTraversal()&#xA;    pdi=iter.GetCurrentDataObject()&#xA;else:&#xA;    # old format without multiblock&#xA;    pdi=input.GetInput()  &#xA;nParts= pdi.GetNumberOfPoints()&#xA;if nProcs&gt;1:&#xA;    #nTotalParts = numpy.array(0, 'i')&#xA;    #nTotalParts=[]&#xA;    #comm.Allreduce([nParts, MPI.INT], [nTotalParts, MPI.INT], op=MPI.SUM)&#xA;    nTotalParts=comm.allreduce(nParts  , op=MPI.SUM)&#xA;else:&#xA;    nTotalParts=nParts&#xA;if rank ==0:&#xA;    print ' nTotalParts:', nTotalParts&#xA;# output&#xA;pdo = self.GetOutputDataObject(0)&#xA;pdo = self.GetOutput()&#xA;# generate 2d grid&#xA;pdo.SetDimensions(NumberOfSpaceBins+1,NumberOfVeloBins+1,0)&#xA;deltaXplot=1./float(NumberOfSpaceBins)&#xA;deltaVplot=1./float(NumberOfVeloBins)&#xA;if(maxVelo==-minVelo):&#xA;   pdo.SetOrigin(0,-0.5,0.)&#xA;else:&#xA;   pdo.SetOrigin(0,0.0,0.)&#xA;pdo.SetSpacing(deltaXplot,deltaVplot,1.)&#xA;# On ParaView 3.98, 4.0 and 4.1&#xA;pdo.SetExtent(0,NumberOfSpaceBins,0,NumberOfVeloBins,0,1)&#xA;PDF = numpy.zeros((NumberOfSpaceBins, NumberOfVeloBins), dtype='float')&#xA;# generate array&#xA;# loop over all particles &#xA;nPartsMin=0&#xA;nPartsMax=0&#xA;nPartsIn=0&#xA;nXmin=0&#xA;nXmax=0&#xA;for i in range(0, nParts):&#xA;  coord = pdi.GetPoint(i)&#xA;  pos   = coord[iDirect]&#xA;  if (iVelocity==3):&#xA;      # vabs&#xA;      vx =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i    )&#xA;      vy =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 1)&#xA;      vz =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 2)&#xA;      velo=math.sqrt(vx**2+vy**2+vz**2)&#xA;  elif(iVelocity==4):&#xA;     # v-tang to x&#xA;     vy =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 1)&#xA;     vz =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 2)&#xA;     velo=math.sqrt(vy**2+vz**2)&#xA;  elif(iVelocity==5):&#xA;     # vabv-tang to y&#xA;     vx =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i    )&#xA;     vz =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 2)&#xA;     velo=math.sqrt(vx**2+vz**2)&#xA;  elif(iVelocity==6):&#xA;     # vabv-tang to z&#xA;     vx =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i    )&#xA;     vy =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 1)&#xA;     velo=math.sqrt(vx**2+vy**2)&#xA;  else:&#xA;     # velocity in x,y or z&#xA;     velo  = pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + iVelocity)&#xA;&#xA;  #if (iVelocity!=3):&#xA;  #  velo  = pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + iVelocity)&#xA;  #else:&#xA;  #  vx =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i    )&#xA;  #  vy =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 1)&#xA;  #  vz =pdi.GetPointData().GetArray(&quot;Velocity&quot;).GetValue(3*i + 2)&#xA;  #  velo=math.sqrt(vx**2+vy**2+vz**2)&#xA;  # check x range&#xA;  if(xMin&gt;pos):&#xA;    nXmin=nXmin+1&#xA;  elif(xMax&lt;pos):&#xA;    nMax=nXmax+1&#xA;  else:&#xA;    # particle in x-range&#xA;    if(minVelo&gt;velo):&#xA;      nPartsMin=nPartsMin+1&#xA;    elif(maxVelo&lt;velo):&#xA;      nPartsMax=nPartsMax+1&#xA;    else:&#xA;      # compute position in 2d-space pos-velo array&#xA;      ipos = int((pos-xMin)/deltaX)#+1&#xA;      ivelo= int((velo-minVelo)/deltaV)#+1&#xA;      nPartsIn=nPartsIn+1&#xA;      PDF[ipos,ivelo]=PDF[ipos,ivelo]+1.0#/float(nParts)&#xA;totalPDF = numpy.zeros((NumberOfSpaceBins, NumberOfVeloBins), dtype='float')&#xA;if nProcs&gt;1:&#xA;    # mpi stuff&#xA;    nTotalPartsIn=comm.allreduce(nPartsIn  , op=MPI.SUM)&#xA;    totalPDF=comm.allreduce(PDF  , op=MPI.SUM)&#xA;    for j in range(0,NumberOfVeloBins):&#xA;         for i in range(0,NumberOfSpaceBins):&#xA;             totalPDF[i,j]=totalPDF[i,j]/float(nTotalPartsIn)&#xA;else:&#xA;    nTotalPartsIn=nPartsIn&#xA;    for j in range(0,NumberOfVeloBins):&#xA;       for i in range(0,NumberOfSpaceBins):&#xA;           totalPDF[i,j]=PDF[i,j]/float(nTotalPartsIn)&#xA;array=vtk.vtkFloatArray()&#xA;if nProcs&gt;1:&#xA;    # sum up to total&#xA;    nTotalXmin=comm.reduce(nXmin , op=MPI.SUM)&#xA;    nTotalXmax=comm.reduce(nXmax , op=MPI.SUM)&#xA;    nTotalPartsMin=comm.reduce(nPartsMin , op=MPI.SUM)&#xA;    nTotalPartsMax=comm.reduce(nPartsMax , op=MPI.SUM)&#xA;else:&#xA;    nTotalXmin=nXmin&#xA;    nTotalXmax=nXmax&#xA;    nTotalPartsMin=nPartsMin&#xA;    nTotalPartsMax=nPartsMax&#xA;nTotalPartsOut=nTotalParts-nTotalPartsIn&#xA;if rank==0:&#xA;    # output&#xA;    if(nTotalXmin&gt;0) or (nTotalXmax&gt;0):&#xA;      print &quot; Particles out of coordinate range.&quot;&#xA;      print &quot; nMinOut: &quot;, nTotalXmin&#xA;      print &quot; nMaxOut: &quot;, nTotalXmax&#xA;      print &quot; Percent coord out: &quot;, float(nTotalXmin+nTotalXmax)/float(nTotalParts)*100.0&#xA;    if(nTotalPartsMin&gt;0) or (nTotalPartsMax&gt;0):&#xA;      print &quot; Particles out of velocity range. Velocity truncated!!!&quot;&#xA;      print &quot; nPartsMin: &quot;, nTotalPartsMin&#xA;      print &quot; nPartsMax: &quot;, nTotalPartsMax&#xA;      print &quot; Percent velo out of nPartsIn:     &quot;, float(nTotalPartsMin+nTotalPartsMax)/float(nTotalPartsIn)*100.0&#xA;      print &quot; Percent velo out of nParts:       &quot;, float(nTotalPartsMin+nTotalPartsMax)/float(nTotalParts)*100.0&#xA;    if(nTotalPartsOut&gt;0):&#xA;      print &quot; nPartsIn:  &quot;, nTotalPartsIn&#xA;      print &quot; total out: &quot;, nTotalPartsOut&#xA;      print &quot; Percent nPartIn:  &quot;, float(nTotalPartsIn) /float(nTotalParts)*100.0&#xA;      print &quot; Percent nPartOut: &quot;, float(nTotalPartsOut)/float(nTotalParts)*100.0&#xA;array.SetName(&quot;PDF&quot;)&#xA;array.SetNumberOfComponents(1)&#xA;ncells  = NumberOfSpaceBins*NumberOfVeloBins&#xA;array.SetNumberOfTuples(ncells)&#xA;pdo.GetCellData().AddArray(array)&#xA;ipos=0&#xA;for j in range(0,NumberOfVeloBins):&#xA;   for i in range(0,NumberOfSpaceBins):&#xA;    # caution: transpoesed index because of storage&#xA;    #array.SetValue(ipos,totalPDF[i,j]/float(nPartsIn))&#xA;    array.SetValue(ipos,totalPDF[i,j])&#xA;    ipos=ipos+1&#xA;"
+        panel_visibility="advanced">
+        <Hints>
+         <Widget type="multi_line"/>
+       </Hints>
+      <Documentation>This property contains the text of a python program that
+      the programmable source runs.</Documentation>
+      </StringVectorProperty>
+
+      <StringVectorProperty
+        name="InformationScript"
+        label="RequestInformation Script"
+        command="SetInformationScript"
+        number_of_elements="1"
+        default_values="from paraview import util&#xA;pdi = self.GetInput()&#xA;util.SetOutputWholeExtent(self, [0,NumberOfSpaceBins,0,NumberOfVeloBins,0,0])&#xA;"
+        panel_visibility="advanced">
+        <Hints>
+          <Widget type="multi_line" />
+        </Hints>
+        <Documentation>This property is a python script that is executed during
+        the RequestInformation pipeline pass. Use this to provide information
+        such as WHOLE_EXTENT to the pipeline downstream.</Documentation>
+      </StringVectorProperty>
+
+
+    </SourceProxy>
+ </ProxyGroup>
+</ServerManagerConfiguration>
