@@ -44,13 +44,15 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF, PartSpecies
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, UseVarTimeStep, PartTimeStep, PartMPF, PartSpecies
 USE MOD_Particle_Vars           ,ONLY: usevMPF, UseSplitAndMerge, vMPFSplitThreshold
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Part_Tools              ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
+!----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -141,6 +143,7 @@ IF (DoExactPartNumInsert) THEN
 ELSE
   PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
   IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+  CHECKSAFEINT(PartDens * LocalVolume, 4)
   chunkSize_tmp = INT(PartDens * LocalVolume)
   IF(UseSplitAndMerge) THEN
     IF(vMPFSplitThreshold(iSpec).GT.0) chunkSize_tmp = nElems * vMPFSplitThreshold(iSpec)

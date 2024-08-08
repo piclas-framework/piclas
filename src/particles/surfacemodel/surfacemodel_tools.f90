@@ -211,7 +211,7 @@ IF(PDM%InRotRefFrame(PartID)) THEN
   ! Calc new particle position with NewVeloPush
   PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 ELSE
-  ! Mirror the LastPartPos for new particle position  
+  ! Mirror the LastPartPos for new particle position
   PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 END IF
 
@@ -285,17 +285,18 @@ SUBROUTINE DiffuseReflection(PartID,SideID,n_loc)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: TwoepsMach
 USE MOD_Particle_Mesh_Vars
-USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,PartVeloRotRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep,nSubCyclingSteps
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -312,7 +313,7 @@ REAL                              :: tang1(1:3), tang2(1:3), NewVelo(3), POI_vec
 REAL                              :: POI_fak, TildTrajectory(3), dtVar
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
-REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3), OldVelo(1:3)
+REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:2), OldVelo(1:3)
 REAL                              :: NewVeloPush(1:3)
 !===================================================================================================================================
 ! 1.) Get the wall velocity, temperature and accommodation coefficients
@@ -360,14 +361,9 @@ IF(Symmetry%Axisymmetric) THEN
   CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
   LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
-  ! Getting the vectors, which span the cell (1-2 and 1-4)
-  Vector1(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-  Vector2(1:3)=NodeCoords_Shared(1:3,ElemSideNodeID_Shared(4,LocSideID,CNElemID)+1)-NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+  ! Getting the vectors, which span the cell
+   Vector1(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,LocSideID, CNElemID))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,LocSideID, CNElemID))
 
-  ! Get the vector, which does NOT have the z-component
-  IF (ABS(Vector1(3)).GT.ABS(Vector2(3))) THEN
-    Vector1 = Vector2
-  END IF
   ! Cross product of the two vectors is simplified as Vector1(3) is zero
   nx = Vector1(2)
   ny = -Vector1(1)
@@ -428,7 +424,17 @@ LastPartPos(1:3,PartID) = POI_vec(1:3)
 ! recompute initial position and ignoring preceding reflections and trajectory between current position and recomputed position
 !TildPos       =PartState(1:3,PartID)-dt*RKdtFrac*PartState(4:6,PartID)
 TildTrajectory = OldVelo * dtVar
-POI_fak=1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/SQRT(DOT_PRODUCT(TildTrajectory,TildTrajectory))
+! Nullify the components in 1D and 2D to calculate the correct magnitude (2D axisymmetric is not affected)
+IF(Symmetry%Order.EQ.3.OR.Symmetry%Axisymmetric) THEN
+  POI_fak = VECNORM(TildTrajectory)
+ELSE IF(Symmetry%Order.EQ.2.AND..NOT.Symmetry%Axisymmetric) THEN
+  POI_fak = VECNORM2D(TildTrajectory(1:2))
+ELSE IF(Symmetry%Order.EQ.1) THEN
+  POI_fak = ABS(TildTrajectory(1))
+ELSE
+  CALL Abort(__STAMP__,'Error in DiffuseReflection: Symmetry%Order is not properly defined!')
+END IF
+POI_fak = 1. - (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)/POI_fak
 ! travel rest of particle vector
 !PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - alpha/lengthPartTrajectory) * dt*RKdtFrac * NewVelo(1:3)
 IF (PartBound%Resample(locBCID)) CALL RANDOM_NUMBER(POI_fak) !Resample Equilibirum Distribution
@@ -468,6 +474,16 @@ IF(Symmetry%Axisymmetric) THEN
   PartState(3,PartID) = 0.0
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
+
+  ! First check ensures that the normal vector of the side is not almost entirely in the x-direction (thus avoiding ny = 0)
+  IF (ABS(nx).LT.0.999) THEN
+    ! If particle has been rotated in the opposite direction of the normal vector, shift last particle position slightly
+    ! away from the wall and reset LastSide to check side again.
+    IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
+      LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
+      TrackInfo%LastSide = 0
+    END IF
+  END IF
 END IF ! Symmetry%Axisymmetric
 
 IF(Symmetry%Order.LT.3) THEN

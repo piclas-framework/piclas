@@ -6,8 +6,9 @@ MESSAGE(STATUS "Generating with [cmake] (${CMAKE_VERSION})")
 CMAKE_MINIMUM_REQUIRED(VERSION 3.6.3)
 # Policies (see https://cmake.org/cmake/help/v3.13/manual/cmake-policies.7.html)
 # VERSION_GREATER_EQUAL is incompatible with CMAKE versions < 3.7
-IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.6.0"))
-  SET(GITSHALLOW "GIT_SHALLOW ON")
+IF(NOT CMAKE_VERSION VERSION_LESS "3.6.0")
+  # Utilizing GIT_SHALLOW for faster cloning, using LIST(APPEND ...) to ensure correct expansion in ExternalProject_Add
+  LIST(APPEND GITSHALLOW "GIT_SHALLOW" "TRUE")
 ENDIF()
 IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.12.0"))
   CMAKE_POLICY(SET CMP0074 NEW)
@@ -21,28 +22,28 @@ ENDIF()
 # Git configuration
 # =========================================================================
 IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-# Setup git hooks
-SET(PRECOMMIT_FILE ".githooks/pre-commit")
-# Check if the pre-commit hooks exits
-IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
-  # Create otherwise
-  EXECUTE_PROCESS(COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks)
-  EXECUTE_PROCESS(COMMAND ln -s ${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
-ELSE()
-  # Check if the hook is the correct symlink and warn otherwise
-  EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
-  IF (NOT ${PRECOMMIT_LINK} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE}")
-    MESSAGE (WARNING "Custom git pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+  # Setup git hooks
+  SET(PRECOMMIT_FILE ".githooks/pre-commit")
+  # Check if the pre-commit hooks exits
+  IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+    # Create otherwise
+    EXECUTE_PROCESS(COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks)
+    EXECUTE_PROCESS(COMMAND ln -s ${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
+  ELSE()
+    # Check if the hook is the correct symlink and warn otherwise
+    EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
+    IF (NOT ${PRECOMMIT_LINK} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE}")
+      MESSAGE (WARNING "Custom git pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+    ENDIF()
   ENDIF()
-ENDIF()
 
-# Check if the hook actually gets loaded
-EXECUTE_PROCESS(COMMAND git config --get core.hooksPath OUTPUT_VARIABLE HOOKSPATH OUTPUT_STRIP_TRAILING_WHITESPACE)
-IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "" AND NOT "${HOOKSPATH}" STREQUAL ".git/hooks")
-  # STRING(ASCII 27 ESCAPE)
-  # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
-  MESSAGE (WARNING "Custom git hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
-ENDIF()
+  # Check if the hook actually gets loaded
+  EXECUTE_PROCESS(COMMAND git config --get core.hooksPath OUTPUT_VARIABLE HOOKSPATH OUTPUT_STRIP_TRAILING_WHITESPACE WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+  IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "" AND NOT "${HOOKSPATH}" STREQUAL ".git/hooks")
+    # STRING(ASCII 27 ESCAPE)
+    # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
+    MESSAGE (WARNING "Custom git hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
+  ENDIF()
 ELSE()
   MESSAGE(STATUS "git not found")
 ENDIF()
@@ -158,9 +159,9 @@ PROJECT(PICLas)
 SET(commit ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h)
 FILE(WRITE ${commit} "! Define the current commit hash. The default must remain empty, i.e., ''. Do not commit the changed file!\n#define GIT_CURRENT_COMMIT  ''\n")
 IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE)
+  EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
   MESSAGE(STATUS "Current git commit ${GIT_COMMIT} will be written to ${commit}")
-  EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
+  EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 ENDIF()
 # Make sure that the script is executed even though cmake is not explicitly executed after the commit is changed in git
 ADD_CUSTOM_TARGET(UpdateGitCommitHash COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})

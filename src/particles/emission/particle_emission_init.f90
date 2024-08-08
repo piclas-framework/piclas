@@ -149,6 +149,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars        ,ONLY: useDSMC, BGGas
 USE MOD_DSMC_BGGas       ,ONLY: BGGas_Initialize
+USE MOD_Symmetry_Vars    ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
@@ -822,9 +823,10 @@ USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
 USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, DSMC
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
-USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,SpecReset,Symmetry
+USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,SpecReset
 USE MOD_ReadInTools
 USE MOD_Restart_Vars        ,ONLY: DoRestart
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

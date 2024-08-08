@@ -1074,7 +1074,8 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -1166,9 +1167,10 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
-USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_Part_tools    ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF
+USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
+USE MOD_Symmetry_Vars ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2191,7 +2193,7 @@ USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
 USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2230,7 +2232,7 @@ DO iElem = 1, nElems
           CALL RANDOM_NUMBER(RandomPos)
           RandomPos = Bounds(1,:) + RandomPos*(Bounds(2,:)-Bounds(1,:))
           ! Use TRIATRACKING inside-element check as the elements must be cuboids for this test case
-          CALL ParticleInsideQuad3D(RandomPos,GlobalElemID,InsideFlag)
+          CALL ParticleInsideQuad(RandomPos,GlobalElemID,InsideFlag)
         END DO
       END ASSOCIATE
       ! Accept position

@@ -1,0 +1,139 @@
+        CONTROL INFO 2.4.6
+** GAMBIT NEUTRAL FILE
+FILEPATH
+PROGRAM:        Coreform_Cubit     VERSION:  2024.3
+
+     NUMNP     NELEM     NGRPS    NBSETS     NDFCD     NDFVL
+        27         8         2         7         3         3
+ENDOFSECTION
+   NODAL COORDINATES 2.4.6
+         1   0.00000000000e+00   0.00000000000e+00   0.00000000000e+00
+         2   0.00000000000e+00   0.00000000000e+00   5.00000000000e-01
+         3   5.00000000000e-01   0.00000000000e+00   5.00000000000e-01
+         4   5.00000000000e-01   0.00000000000e+00   0.00000000000e+00
+         5   0.00000000000e+00   5.00000000000e-01   0.00000000000e+00
+         6   0.00000000000e+00   5.00000000000e-01   5.00000000000e-01
+         7   5.00000000000e-01   5.00000000000e-01   5.00000000000e-01
+         8   5.00000000000e-01   5.00000000000e-01   0.00000000000e+00
+         9   0.00000000000e+00   0.00000000000e+00   1.00000000000e+00
+        10   5.00000000000e-01   0.00000000000e+00   1.00000000000e+00
+        11   0.00000000000e+00   5.00000000000e-01   1.00000000000e+00
+        12   5.00000000000e-01   5.00000000000e-01   1.00000000000e+00
+        13   1.00000000000e+00   0.00000000000e+00   5.00000000000e-01
+        14   1.00000000000e+00   0.00000000000e+00   0.00000000000e+00
+        15   1.00000000000e+00   5.00000000000e-01   5.00000000000e-01
+        16   1.00000000000e+00   5.00000000000e-01   0.00000000000e+00
+        17   1.00000000000e+00   0.00000000000e+00   1.00000000000e+00
+        18   1.00000000000e+00   5.00000000000e-01   1.00000000000e+00
+        19   0.00000000000e+00   1.00000000000e+00   1.00000000000e+00
+        20   5.00000000000e-01   1.00000000000e+00   1.00000000000e+00
+        21   0.00000000000e+00   1.00000000000e+00   5.00000000000e-01
+        22   5.00000000000e-01   1.00000000000e+00   5.00000000000e-01
+        23   1.00000000000e+00   1.00000000000e+00   1.00000000000e+00
+        24   1.00000000000e+00   1.00000000000e+00   5.00000000000e-01
+        25   0.00000000000e+00   1.00000000000e+00   0.00000000000e+00
+        26   5.00000000000e-01   1.00000000000e+00   0.00000000000e+00
+        27   1.00000000000e+00   1.00000000000e+00   0.00000000000e+00
+ENDOFSECTION
+      ELEMENTS/CELLS 2.4.6
+       1  4  8        1       2       4       3       5       6       8
+                      7
+       2  4  8        2       9       3      10       6      11       7
+                     12
+       3  4  8        4       3      14      13       8       7      16
+                     15
+       4  4  8        3      10      13      17       7      12      15
+                     18
+       5  4  8       11      19      12      20       6      21       7
+                     22
+       6  4  8       12      20      18      23       7      22      15
+                     24
+       7  4  8        6      21       7      22       5      25       8
+                     26
+       8  4  8        7      22      15      24       8      26      16
+                     27
+ENDOFSECTION
+       ELEMENT GROUP 2.4.6
+GROUP:          1 ELEMENTS:          4 MATERIAL:          0 NFLAGS:          0
+                         Block 1
+
+
+       1       2       3       4
+ENDOFSECTION
+       ELEMENT GROUP 2.4.6
+GROUP:          2 ELEMENTS:          4 MATERIAL:          0 NFLAGS:          0
+                         Block 2
+
+
+       5       6       7       8
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        BC_inner         1         4         0         6
+         3    4    6
+         1    4    6
+         4    4    6
+         2    4    6
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                       BC_yminus         1         4         0         6
+         2    4    5
+         1    4    5
+         4    4    5
+         3    4    5
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                       BC_xminus         1         4         0         6
+         7    4    1
+         5    4    1
+         2    4    1
+         1    4    1
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                       BC_zminus         1         4         0         6
+         8    4    6
+         7    4    6
+         1    4    4
+         3    4    4
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        BC_xplus         1         4         0         6
+         3    4    3
+         4    4    3
+         6    4    3
+         8    4    3
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        BC_yplus         1         4         0         6
+         6    4    2
+         8    4    2
+         5    4    2
+         7    4    2
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        BC_zplus         1         4         0         6
+         4    4    2
+         2    4    2
+         5    4    5
+         6    4    5
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        cfd_bc 1         1         0         0        51
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        cfd_bc 2         1         0         0        51
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        cfd_bc 3         1         0         0        51
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        cfd_bc 4         1         0         0        51
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        cfd_bc 5         1         0         0        51
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        cfd_bc 6         1         0         0        51
+ENDOFSECTION
+ BOUNDARY CONDITIONS 2.4.6
+                        cfd_bc 7         1         0         0        51
+ENDOFSECTION
