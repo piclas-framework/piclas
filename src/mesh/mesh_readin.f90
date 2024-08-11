@@ -1232,7 +1232,7 @@ CALL MPI_WIN_LOCK_ALL(0,VertexInfo_Shared_Win,IERROR)
 VertexInfo_Shared(1:VERTEXINFOSIZE_H5,offsetVertexID+1:offsetVertexID+nVertexIDs) = VertexInfo(:,:)
 CALL BARRIER_AND_SYNC(VertexInfo_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(VertexInfo_Shared(1:VETREXINFOSIZE_H5, 1:nVertexIDs))
+ALLOCATE(VertexInfo_Shared(1:VERTEXINFOSIZE_H5, 1:nVertexIDs))
 EDGEInfo_Shared(1:VERTEXINFOSIZE_H5, 1:nVertexIDs) = VertexInfo(:,:)
 #endif /*USE_MPI*/
 
