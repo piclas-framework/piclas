@@ -510,13 +510,13 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Mesh_ReadIn            ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #else
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime
 #endif /*USE_LOADBALANCE*/
@@ -865,10 +865,10 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #if USE_LOADBALANCE
   !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
   ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
-  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
+  IF(.NOT.PerformLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
     ! From InitElemNodeIDs
-    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+    IF(.NOT.DoDielectricSurfaceCharge) CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
 #if USE_LOADBALANCE
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/

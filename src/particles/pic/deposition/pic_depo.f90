@@ -2010,8 +2010,9 @@ SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix,ElemNodeID_Shared
 USE MOD_PICDepo_Vars
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 #if USE_MPI
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared_Win
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
@@ -2023,10 +2024,9 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 !USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
 USE MOD_LoadBalance_Vars   ,ONLY: NodeSourceExtEquiLB!,PartSourceLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -2155,11 +2155,13 @@ END IF
 #if USE_MPI
 #if USE_LOADBALANCE
 ! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
-IF(PerformLoadBalance.AND.DoDielectricSurfaceCharge)THEN
+IF(PerformLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
-  ! From InitElemNodeIDs
-  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
-  ADEALLOCATE(ElemNodeID_Shared)
+  IF(DoDielectricSurfaceCharge)THEN
+    ! From InitElemNodeIDs
+    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+    ADEALLOCATE(ElemNodeID_Shared)
+  END IF
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE*/
