@@ -47,7 +47,7 @@ SUBROUTINE FP_DSMC_main()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
-USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
@@ -58,6 +58,7 @@ USE MOD_DSMC                ,ONLY: DSMC_main
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -143,7 +144,7 @@ SUBROUTINE FPFlow_main()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
-USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry, DoVirtualCellMerge, VirtMergedCells
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, DoVirtualCellMerge, VirtMergedCells
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
@@ -153,6 +154,7 @@ USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_M
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -620,7 +620,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1318,7 +1318,6 @@ END DO ElemLoop
 END SUBROUTINE MergeCells
 
 
-
 SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode,iInit)
 !===================================================================================================================================
 !> Initialize a particle from a given macroscopic result, requires the macroscopic velocity, translational and internal temperatures
@@ -1334,10 +1333,6 @@ USE MOD_Particle_Emission_Vars  ,ONLY: EmissionDistributionDim
 !USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcEElec_particle, CalcEVib_particle, CalcERot_particle
 !USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 !-----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 INTEGER, INTENT(IN)             :: Mode                  !< 1: Macroscopic restart (data for each element)
                                                          !< 2: Emission distribution (equidistant data from .h5 file)
@@ -1555,7 +1550,7 @@ SUBROUTINE CalcPartSymmetryPos(Pos,Velo,ElectronVelo)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -92,7 +92,8 @@ USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
-USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge, Symmetry
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -287,7 +288,7 @@ RECURSIVE SUBROUTINE DeleteNodeAverage(NodeAverage)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_BGK_Vars
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES

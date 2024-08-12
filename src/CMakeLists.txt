@@ -433,6 +433,7 @@ FILE(GLOB_RECURSE piclasF90 ./src/init/*.f90
                             ./src/recordpoints/*.f90
                             ./src/restart/*.f90
                             ./src/utils/*.f90
+                            ./src/symmetry/*.f90
                             ./unitTests/unittest.f90
                             ./unitTests/unittest_vars.f90)
 
@@ -630,7 +631,7 @@ IF(PICLAS_CTAGS)
        SET(EXLUDES "--exclude=src/equations/${item}/*" ${EXLUDES})
     ENDFOREACH()
 
-    ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ${CTAGS_PATH} -R --fortran-kinds=+i+L -f ctags.txt ${EXLUDES} src && ${CTAGS_PATH} -R --fortran-kinds=+i+L -f ctags.txt ${EXLUDES} --append src/posti)
+    ADD_CUSTOM_COMMAND(OUTPUT ctags.txt COMMAND cd ${CMAKE_CURRENT_SOURCE_DIR} && ${CTAGS_PATH} -R --fortran-kinds=+i+L -f ctags.txt ${EXLUDES} src && ${CTAGS_PATH} -R --fortran-kinds=+i+L -f ctags.txt ${EXLUDES} --append src/posti && ln -sf ctags.txt tags)
     ADD_CUSTOM_TARGET(tags DEPENDS ctags.txt)
     MESSAGE(STATUS "Found ctags: ${CTAGS_PATH}")
     ADD_DEPENDENCIES(piclas tags)

@@ -78,11 +78,16 @@ load_module () {
 # --------------------------------------------------------------------------------------------------
 # Check command line arguments
 RERUNMODE=0
+UPDATEMODE=0
 LOADMODULES=1
 # default to openmpi
 WHICHMPI='openmpi'
 for ARG in "$@"
 do
+
+  if [ ${ARG} == "--update" ] || [ ${ARG} == "-u" ]; then
+    UPDATEMODE=1
+  fi
 
   if [ ${ARG} == "--help" ] || [ ${ARG} == "-h" ]; then
     echo "Input arguments:"
@@ -206,7 +211,15 @@ HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/
 MODULEFILE=${HOPRMODULEFILEDIR}/${HDF5VERSION}
 
 # if no HOPR module for this compiler found, install HOPR and create module
-if [ ! -e "${MODULEFILE}" ]; then
+if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
+  # Check if module already exists and update mode is enabled (this will remove the existing module)
+  if [[ -e "${MODULEFILE}" && ${UPDATEMODE} -eq 1 ]]; then
+    echo " "
+    echo -e "${YELLOW}Update mode detected (--update or -u): This will overwrite the installed module version with the latest one.${NC}"
+    echo -e "${YELLOW}The 'HOPR-${HOPRVERSION}' module file already exists under [${MODULEFILE}] and will be deleted now.${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+    rm -rf ${MODULEFILE}
+  fi
   echo -e "$GREEN""creating HOPR-${HOPRVERSION} for GCC-${GCCVERSION} under$NC"
   echo -e "$GREEN""$MODULEFILE$NC"
   echo " "
@@ -233,15 +246,26 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # Check if repo is already downloaded
   CLONEDIR=${HOPRINSTALLDIR}/hopr
+
+  # If repo already exists and update is performed, remove the directory first.
+  if [[ -d ${CLONEDIR} && ${UPDATEMODE} -eq 1 ]]; then
+    echo " "
+    echo -e "${YELLOW}Update mode detected (--update or -u): This will remove the existing git repository and clone a new one.${NC}"
+    echo -e "${YELLOW}The cloned directory already exists under [${CLONEDIR}] and will be deleted now.${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+    rm -rf ${CLONEDIR}
+  fi
+
+  # Check if directory exists
   if [[ -d ${CLONEDIR} ]]; then
     # Inquiry: Continue the installation with the existing files OR remove them all and start fresh
     while true; do
       echo " "
       echo "${YELLOW}${CLONEDIR} already exists.${NC}"
-      echo "${YELLOW}Do you want to continue the installation (y/n)?${NC}"
+      echo "${YELLOW}Do you want to continue the installation? Otherwise the directory will be removed and a fresh installation will be performed.${NC}"
       # Inquiry
       if [[ ${RERUNMODE} -eq 0 ]]; then
-        read -p "${YELLOW}Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]${NC}" yn
+        read -p "${YELLOW}Continue the installation without removing? [Y/n]${NC}" yn
       else
         yn=y
       fi

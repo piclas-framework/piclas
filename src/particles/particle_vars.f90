@@ -32,12 +32,6 @@ INTEGER, PARAMETER :: IK = SELECTED_INT_KIND(8)
 #endif
 
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tSymmetry
-  INTEGER             :: Order                                               ! 1-3 D
-  LOGICAL             :: Axisymmetric
-END TYPE tSymmetry
-
-TYPE(tSymmetry)       :: Symmetry
 
 LOGICAL               :: DoFieldIonization                                   ! Do Field Ionization by quantum tunneling
 INTEGER               :: FieldIonizationModel                                !'Field Ionization models. Implemented models are:
@@ -312,5 +306,9 @@ REAL                  :: LastVeloRotRefSubCycling(3)  ! Last Velocity in the rot
 INTEGER               :: GlobalElemIDSubCycling       ! Element ID before subcycling
 LOGICAL               :: RotRefSubTimeStep            ! Flag for loop that defines that the current time step is a subcycling step
 LOGICAL               :: InRotRefFrameSubCycling      ! Check for RotRefFrame before subcycling
+
+! Sampling of pressure tensor and heatflux
+LOGICAL               :: SamplePressTensHeatflux
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

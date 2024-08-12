@@ -44,7 +44,7 @@ CONTAINS
 SUBROUTINE InitSingleParticleTriaTracking()
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars            ,ONLY: Symmetry
+USE MOD_Symmetry_Vars            ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
@@ -267,7 +267,7 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
-USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_Symmetry_Vars               ,ONLY: Symmetry
 USE MOD_Particle_Vars               ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars
