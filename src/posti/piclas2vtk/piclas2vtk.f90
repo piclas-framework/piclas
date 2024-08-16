@@ -1205,11 +1205,7 @@ ELSE
 END IF
 
 IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
-  IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
-  ELSE
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
-  END IF
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
 ELSE
   FileString=TRIM(TRIM(ProjectName)//'_RadSurfVisu')//'.vtu'
 END IF

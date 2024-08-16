@@ -538,20 +538,20 @@ IF(.NOT.SurfTotalSideOnNode) RETURN
 IF (PerformLoadBalance) RETURN
 #endif
 
-ALLOCATE(ChemSampWall(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(ChemSampWall(1:nSpecies+1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemSampWall = 0.0
-ALLOCATE(ChemDesorpWall(1:nSpecies,1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(ChemDesorpWall(1:nSpecies,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemDesorpWall = 0.0
 
 #if USE_MPI
-CALL Allocate_Shared((/nSpecies,2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemSampWall_Shared_Win,ChemSampWall_Shared)
+CALL Allocate_Shared((/nSpecies+1,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemSampWall_Shared_Win,ChemSampWall_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ChemSampWall_Shared_Win,IERROR)
 IF (myComputeNodeRank.EQ.0) THEN
   ChemSampWall_Shared = 0.
 END IF
 CALL BARRIER_AND_SYNC(ChemSampWall_Shared_Win,MPI_COMM_SHARED)
 
-CALL Allocate_Shared((/nSpecies,2,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemWallProp_Shared_Win,ChemWallProp_Shared)
+CALL Allocate_Shared((/nSpecies+1,nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),ChemWallProp_Shared_Win,ChemWallProp_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ChemWallProp_Shared_Win,IERROR)
 ChemWallProp => ChemWallProp_Shared
 IF (myComputeNodeRank.EQ.0) THEN
@@ -562,13 +562,13 @@ IF (myComputeNodeRank.EQ.0) THEN
     iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
     DO iSpec = 1, nSpecies
       ! Initial surface coverage
-      ChemWallProp(iSpec,1,:,:,iSide) = PartBound%CoverageIni(iBC, iSpec)
+      ChemWallProp(iSpec,:,:,iSide) = PartBound%CoverageIni(iBC, iSpec)
     END DO
   END DO
 END IF
 CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
 #else
-ALLOCATE(ChemWallProp(1:nSpecies,2,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
+ALLOCATE(ChemWallProp(1:nSpecies+1,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
 ChemWallProp = 0.0
 DO iSide = 1, nComputeNodeSurfTotalSides
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
@@ -576,7 +576,7 @@ DO iSide = 1, nComputeNodeSurfTotalSides
   iBC = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   DO iSpec = 1, nSpecies
   ! Initial surface coverage
-    ChemWallProp(iSpec,1,:,:,iSide) = PartBound%CoverageIni(iBC, iSpec)
+    ChemWallProp(iSpec,:,:,iSide) = PartBound%CoverageIni(iBC, iSpec)
   END DO
 END DO
 
@@ -607,7 +607,7 @@ USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, CalcPostWallCollVelo
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 ! VARIABLES
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
-USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF, WriteMacroSurfaceValues
+USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF, WriteMacroSurfaceValues, nSpecies
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem, SurfChemReac , ChemWallProp, ChemSampWall
@@ -687,23 +687,23 @@ DO iReac = 1, SurfChem%NumOfReact
       ! Special case: dissociative adsorption
       IF (SurfChemReac(iReac)%DissociativeAds) THEN
         iProd = SurfChemReac(iReac)%AdsorbedProduct
-        Coverage = ChemWallProp(iProd,1,SubP,SubQ,SurfSideID)
+        Coverage = ChemWallProp(iProd,SubP,SubQ,SurfSideID)
       ELSE
         IF(ANY(SurfChemReac(iReac)%Products(:).NE.0)) THEN
           DO iValProd=1, SIZE(SurfChemReac(iReac)%Products(:))
             IF(SurfChemReac(iReac)%Products(iValProd).NE.0) THEN
               iProd = SurfChemReac(iReac)%Products(iValProd)
-              Coverage = ChemWallProp(iProd,1,SubP,SubQ,SurfSideID)
+              Coverage = ChemWallProp(iProd,SubP,SubQ,SurfSideID)
             END IF
           END DO
         ELSE
-          Coverage = ChemWallProp(speciesID,1,SubP,SubQ,SurfSideID)
+          Coverage = ChemWallProp(speciesID,SubP,SubQ,SurfSideID)
         END IF
       END IF ! Dissociative ADS
 
       ! Definition of the variables
       MaxCoverage = PartBound%MaxCoverage(locBCID,speciesID)
-      TotalCoverage = SUM(ChemWallProp(:,1,SubP, SubQ, SurfSideID))
+      TotalCoverage = SUM(ChemWallProp(1:nSpecies,SubP, SubQ, SurfSideID))
       MaxTotalCov = PartBound%MaxTotalCoverage(locBCID)
       DissOrder = SurfChemReac(iReac)%DissOrder
       S_0 = SurfChemReac(iReac)%S_initial
@@ -718,13 +718,13 @@ DO iReac = 1, SurfChem%NumOfReact
       IF(SurfChemReac(iReac)%Inhibition.NE.0) THEN
         iCoadsReac = SurfChemReac(iReac)%Inhibition
         iCoadsSpec = SurfChemReac(iCoadsReac)%Reactants(1)
-        CoAds_Coverage = ChemWallProp(iCoadsSpec,1,SubP, SubQ, SurfSideID)
+        CoAds_Coverage = ChemWallProp(iCoadsSpec,SubP, SubQ, SurfSideID)
         CoAds_MaxCov = PartBound%MaxCoverage(locBCID,iCoadsSpec)
         Theta = 1.0 - Coverage/MaxCoverage - CoAds_Coverage/CoAds_MaxCov
       ELSE IF(SurfChemReac(iReac)%Promotion.NE.0) THEN
         iCoadsReac = SurfChemReac(iReac)%Promotion
         iCoadsSpec = SurfChemReac(iCoadsReac)%Reactants(1)
-        CoAds_Coverage = ChemWallProp(iCoadsSpec,1,SubP, SubQ, SurfSideID)
+        CoAds_Coverage = ChemWallProp(iCoadsSpec,SubP, SubQ, SurfSideID)
         CoAds_MaxCov = PartBound%MaxCoverage(locBCID,iCoadsSpec)
         Theta = 1.0 - Coverage/MaxCoverage + CoAds_Coverage/CoAds_MaxCov
       ELSE
@@ -759,8 +759,8 @@ DO iReac = 1, SurfChem%NumOfReact
           IF(SurfChemReac(iReac)%Reactants(iValReac).NE.speciesID .AND. SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
             iReactant = SurfChemReac(iReac)%Reactants(iValReac)
             IF(iReactant.NE.SurfChem%SurfSpecies) THEN
-              Coverage = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID)
-              AdCountIter = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID)
+              Coverage = ChemWallProp(iReactant,SubP, SubQ, SurfSideID)
+              AdCountIter = ChemSampWall(iReactant,SubP,SubQ, SurfSideID)
             ELSE  ! Involvement of the bulk species
               Coverage = 1.
               AdCountIter = 0.
@@ -768,8 +768,8 @@ DO iReac = 1, SurfChem%NumOfReact
           END IF
         END DO
       ELSE
-        Coverage = ChemWallProp(speciesID,1,SubP, SubQ, SurfSideID)
-        AdCountIter = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID)
+        Coverage = ChemWallProp(speciesID,SubP, SubQ, SurfSideID)
+        AdCountIter = ChemSampWall(speciesID,SubP,SubQ, SurfSideID)
       END IF
       ! Absolute particle density of the element
       AdsDens = Coverage * SurfMol / SurfSideArea(SubP, SubQ,SurfSideID)
@@ -853,10 +853,10 @@ CASE('A')
     CALL RemoveParticle(PartID)
 
     ! Heat flux on the surface created by the adsorption
-    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + AdsHeat * partWeight
+    ChemSampWall(nSpecies+1,SubP,SubQ, SurfSideID) = ChemSampWall(nSpecies+1,SubP,SubQ, SurfSideID) + AdsHeat * partWeight
     ! Update the number of adsorbed molecules by binding half of the molecule to the surface
     iProd = SurfChemReac(iReac)%AdsorbedProduct
-    ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight
+    ChemSampWall(iProd,SubP,SubQ, SurfSideID) = ChemSampWall(iProd,SubP,SubQ, SurfSideID) + DissOrder * partWeight
 
     ! Re-insert the other half of the molecule into the gas-phase
     WallVelo = PartBound%WallVelo(1:3,locBCID)
@@ -884,17 +884,17 @@ CASE('A')
     CALL RemoveParticle(PartID)
 
     ! Heat flux on the surface created by the adsorption
-    ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 2,SubP,SubQ, SurfSideID) + AdsHeat * partWeight
+    ChemSampWall(nSpecies+1,SubP,SubQ, SurfSideID) = ChemSampWall(nSpecies+1,SubP,SubQ, SurfSideID) + AdsHeat * partWeight
     ! Update the number of adsorbed molecules
     IF(ANY(SurfChemReac(iReac)%Products(:).NE.0)) THEN
       DO iValProd=1, SIZE(SurfChemReac(iReac)%Products(:))
         IF(SurfChemReac(iReac)%Products(iValProd).NE.0) THEN
           iProd = SurfChemReac(iReac)%Reactants(iValProd)
-          ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iProd, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight
+          ChemSampWall(iProd,SubP,SubQ, SurfSideID) = ChemSampWall(iProd,SubP,SubQ, SurfSideID) + DissOrder * partWeight
         END IF
       END DO
     ELSE
-      ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) + DissOrder * partWeight
+      ChemSampWall(speciesID,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID,SubP,SubQ, SurfSideID) + DissOrder * partWeight
     END IF
   END IF
 
@@ -903,7 +903,7 @@ CASE('ER')
   CALL RemoveParticle(PartID)
 
   ! Heat flux on the surface created by the reaction
-  ChemSampWall(speciesID,2,SubP,SubQ,SurfSideID) = ChemSampWall(speciesID,2,SubP,SubQ,SurfSideID) + ReacHeat*partWeight*BetaCoeff
+  ChemSampWall(nSpecies+1,SubP,SubQ,SurfSideID) = ChemSampWall(nSpecies+1,SubP,SubQ,SurfSideID) + ReacHeat*partWeight*BetaCoeff
 
   ! Create the Eley-Rideal reaction product
   ! Incomplete energy accommodation: remaining energy is added to the product
@@ -939,12 +939,12 @@ CASE('ER')
       IF(SurfChemReac(iReac)%Reactants(iValReac).NE.speciesID .AND. SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
         iReactant = SurfChemReac(iReac)%Reactants(iValReac)
         IF(iReactant.NE.SurfChem%SurfSpecies) THEN
-          ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, 1,SubP,SubQ, SurfSideID) - partWeight
+          ChemSampWall(iReactant,SubP,SubQ, SurfSideID) = ChemSampWall(iReactant, SubP,SubQ, SurfSideID) - partWeight
         END IF
       END IF
     END DO
   ELSE
-    ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID, 1,SubP,SubQ, SurfSideID) - partWeight
+    ChemSampWall(speciesID,SubP,SubQ, SurfSideID) = ChemSampWall(speciesID,SubP,SubQ, SurfSideID) - partWeight
   END IF
 
 CASE DEFAULT
@@ -1126,17 +1126,17 @@ DO iSide = firstSide, lastSide
   DO iSpec = 1, nSpecies
     IF (PartBound%LatticeVec(locBCID).GT.0.) THEN
       ! update the surface coverage (direct calculation of the number of surface atoms)
-      ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) * PartBound%LatticeVec(locBCID)* &
+      ChemWallProp(iSpec,:,:,iSide) = ChemWallProp(iSpec,:,:,iSide) + ChemSampWall(iSpec,:,:,iSide) * PartBound%LatticeVec(locBCID)* &
       PartBound%LatticeVec(locBCID)/(PartBound%MolPerUnitCell(locBCID)*SurfSideArea(:,:,iSide))
     ELSE
       ! update the surface coverage (calculation with a surface monolayer)
-      ChemWallProp(iSpec,1,:,:,iSide) = ChemWallProp(iSpec,1,:,:,iSide) + ChemSampWall(iSpec,1,:,:,iSide) / &
+      ChemWallProp(iSpec,:,:,iSide) = ChemWallProp(iSpec,:,:,iSide) + ChemSampWall(iSpec,:,:,iSide) / &
       (10.**(19)*SurfSideArea(:,:,iSide))
     END IF
-    ! calculate the heat flux on the surface subside
-    ChemWallProp(iSpec,2,:,:,iSide) = ChemWallProp(iSpec,2,:,:,iSide) + ChemSampWall(iSpec,2,:,:,iSide)
   END DO
-  ChemSampWall(:,:,:,:,iSide) = 0.0
+  ! calculate the heat flux on the surface subside
+  ChemWallProp(nSpecies+1,:,:,iSide) = ChemWallProp(nSpecies+1,:,:,iSide) + ChemSampWall(nSpecies+1,:,:,iSide)
+  ChemSampWall(:,:,:,iSide) = 0.0
 END DO
 
 #if USE_MPI
@@ -1177,7 +1177,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                         :: iSpec,iProc,SideID,iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
-INTEGER                         :: nValues, SurfChemVarNum, SurfChemSampSize
+INTEGER                         :: nValues, SurfChemSampSize
 INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
@@ -1186,8 +1186,7 @@ IF (.NOT.SurfTotalSideOnNode) RETURN
 ! communication of the coverage values to the halo region of compute nodes
 ! swap the receive/send array, send coverage values to the sides, where you would receive from
 IF (myComputeNodeRank.EQ.0) THEN
-  SurfChemVarNum   = 2
-  SurfChemSampSize = SurfChemVarNum * nSpecies
+  SurfChemSampSize = nSpecies + 1
   nValues = SurfChemSampSize*nSurfSample**2
   DO iProc = 0,nSurfLeaders-1
     ! ignore myself
@@ -1227,9 +1226,9 @@ IF (myComputeNodeRank.EQ.0) THEN
       ! Assemble message
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
-          DO iSpec =1, nSpecies
-            SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum) = ChemWallProp_Shared(iSpec,:,p,q,SurfSideID)
-            iPos = iPos + SurfChemVarNum
+          DO iSpec =1, nSpecies+1
+            SurfRecvBuf(iProc)%content(iPos+1) = ChemWallProp_Shared(iSpec,p,q,SurfSideID)
+            iPos = iPos + 1
           END DO
         END DO ! p=0,nSurfSample
       END DO ! q=0,nSurfSample
@@ -1287,9 +1286,9 @@ IF (myComputeNodeRank.EQ.0) THEN
       ! Store values in the halo regions
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
-          DO iSpec =1, nSpecies
-            ChemWallProp_Shared(iSpec,:,p,q,SurfSideID) = SurfSendBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum)
-            iPos = iPos + SurfChemVarNum
+          DO iSpec =1, nSpecies+1
+            ChemWallProp_Shared(iSpec,p,q,SurfSideID) = SurfSendBuf(iProc)%content(iPos+1)
+            iPos = iPos + 1
           END DO
         END DO ! p=0,nSurfSample
       END DO ! q=0,nSurfSample
