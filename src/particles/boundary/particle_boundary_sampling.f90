@@ -705,8 +705,10 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         END IF ! CalcSurfaceImpact
 
         ! Output of the species-specific surface coverage values
-        idx = idx + 1
-        MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec)= ChemWallProp(iSpec, p, q, iSurfSide)
+        IF (DoChemSurface) THEN
+          idx = idx + 1
+          MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec)= ChemWallProp(iSpec, p, q, iSurfSide)
+        END IF
       END DO ! iSpec=1,nSpecies
     END DO ! q=1,nSurfSample
   END DO ! p=1,nSurfSample
