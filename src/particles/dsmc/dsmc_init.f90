@@ -361,6 +361,8 @@ IF(CollisMode.GE.2) THEN
     ! RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle_MH
     ! RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuantMH
     ! RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaQuantMH
+    ! Initialization for burn in phase of metropolis hastings method
+    ! IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
   ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
     RotInitPolyRoutineFuncPTR  => CalcERotDataset_particle
@@ -1004,8 +1006,6 @@ ELSE !CollisMode.GT.0
       END IF !iSpec overwrite parameters
     END DO !Species
 
-    ! Initialization for burn in phase of metropolis hastings method for diatomic species
-    IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
     ! Initialization of polyatomic species and burn-in phase (Metropolis-Hastings) per initialization region
     IF(DSMC%NumPolyatomMolecs.GT.0) THEN
       DSMC%PolySingleMode = GETLOGICAL('Particles-DSMC-PolyRelaxSingleMode','.FALSE.')

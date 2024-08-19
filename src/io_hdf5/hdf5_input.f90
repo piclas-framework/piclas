@@ -301,9 +301,13 @@ ELSE
   attrib_loc=.FALSE.
 END IF
 
-! Check attribute or data set/group. Data sets or grouops can be checked by determining the existence of the corresponding link
+! Check attribute or data set/group. Data sets or groups can be checked by determining the existence of the corresponding link
 IF(attrib_loc)THEN
   CALL H5AEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
+  ! close DSetName_attrib if it was opened before
+  IF(PRESENT(DSetName_attrib))THEN
+    IF(TRIM(DSetName_attrib).NE.'') CALL H5DCLOSE_F(Loc_ID, iError)
+  END IF
 ELSE
   CALL H5LEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
 END IF

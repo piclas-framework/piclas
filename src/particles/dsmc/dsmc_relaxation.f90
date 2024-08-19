@@ -246,7 +246,7 @@ REAL FUNCTION DSMC_RotInitDiaQuant(iSpec,TRot,iPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, RotQuantsPar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -281,6 +281,8 @@ DO WHILE (ARM)
     ARM = .FALSE.
   END IF
 END DO
+! save latest accepted sample to start MH markov chain at this point in post coll sampling
+! RotQuantsPar(1,iPart) = iQuant
 DSMC_RotInitDiaQuant = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
 
 RETURN
