@@ -144,6 +144,10 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                            ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
+  REAL,ALLOCATABLE                  :: jMaxAtTemp(:)        ! contains maximum quantum number (in first row) for given temperature 
+                                                            ! (in second row) for initial particle insertion to decrease computational
+                                                            ! cost - for symmetric tops there: numerically calculated maximal value for
+                                                            ! for acceptance rejection normalization in third row
   REAL                              :: MomentOfInertia      ! Moment of Inertia
   REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
   REAL                              :: EZeroPoint           ! Zero point energy for molecules

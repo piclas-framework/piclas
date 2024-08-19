@@ -299,6 +299,7 @@ USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_RotRelaxDatabasePoly, DSMC_RotRelaxQuantPoly, DSMC_RotRelaxPoly
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RotRelaxQuantPolyMH
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinous,DSMC_RotRelaxDiaQuant,DSMC_RotInitDiaContinous,DSMC_RotInitDiaQuant
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotInitDiaQuantMH, DSMC_RotRelaxDiaQuantMH
 USE MOD_DSMC_Relaxation        ,ONLY: RotRelaxDiaRoutineFuncPTR, RotInitDiaRoutineFuncPTR
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
@@ -353,10 +354,13 @@ IF(CollisMode.GE.2) THEN
   IF(DSMC%RotRelaxModel.EQ.1)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPoly
     RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle
-    ! RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPolyMH
-    ! RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle_MH
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuant
     RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaQuant
+    ! set sampling routine to Metropolis Hastings
+    ! RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPolyMH
+    ! RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle_MH
+    ! RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuantMH
+    ! RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaQuantMH
   ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
     RotInitPolyRoutineFuncPTR  => CalcERotDataset_particle
@@ -874,9 +878,8 @@ ELSE !CollisMode.GT.0
                 END IF
               END IF
             END DO !SurfaceFluxBCs
-            IF(DSMC%RotRelaxModel.EQ.2)THEN ! read rotational levels from database
-              CALL ReadRotationalSpeciesLevel (iSpec)
-            END IF
+            ! read rotational levels from database
+            IF(DSMC%RotRelaxModel.EQ.2) CALL ReadRotationalSpeciesLevel(iSpec)
           END IF ! not electron
         END IF
       END DO !Species
@@ -1001,6 +1004,8 @@ ELSE !CollisMode.GT.0
       END IF !iSpec overwrite parameters
     END DO !Species
 
+    ! Initialization for burn in phase of metropolis hastings method for diatomic species
+    IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
     ! Initialization of polyatomic species and burn-in phase (Metropolis-Hastings) per initialization region
     IF(DSMC%NumPolyatomMolecs.GT.0) THEN
       DSMC%PolySingleMode = GETLOGICAL('Particles-DSMC-PolyRelaxSingleMode','.FALSE.')
@@ -1010,7 +1015,6 @@ ELSE !CollisMode.GT.0
         CALL Abort(__STAMP__,'ERROR: No single-mode polyatomic relaxation possible with chosen selection procedure! SelectionProc:', SelectionProc)
       END IF
       IF(.NOT.ALLOCATED(VibQuantsPar)) ALLOCATE(VibQuantsPar(PDM%maxParticleNumber))
-      IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
       ALLOCATE(PolyatomMolDSMC(DSMC%NumPolyatomMolecs))
       DO iSpec = 1, nSpecies
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN

@@ -275,7 +275,7 @@ END SUBROUTINE GetAttributeSize
 !> auto error messages off
 !> also used for opening groups in SpeciesDatabase
 !==================================================================================================================================
-SUBROUTINE DatasetExists(Loc_ID_in,DSetName,Exists,attrib,DSetName_attrib,ChangeToGroup)
+SUBROUTINE DatasetExists(Loc_ID_in,DSetName,Exists,attrib,DSetName_attrib)
 ! MODULES
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -283,7 +283,6 @@ IMPLICIT NONE
 CHARACTER(LEN=*)                     :: DSetName        !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID_in       !< ID of dataset
 LOGICAL,INTENT(IN),OPTIONAL          :: attrib          !< check dataset or attribute
-LOGICAL,INTENT(IN),OPTIONAL          :: ChangeToGroup   !< set to open Group and not Dataset
 CHARACTER(LEN=*),OPTIONAL            :: DSetName_attrib !< name if dataset to be checked
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                  :: Exists          !< result: dataset exists
@@ -293,21 +292,10 @@ INTEGER(HID_T)                       :: Loc_ID
 LOGICAL                              :: attrib_loc, group_loc
 !==================================================================================================================================
 Loc_ID=Loc_ID_in
-IF(PRESENT(ChangeToGroup))THEN
-  group_loc = ChangeToGroup
-ELSE
-  group_loc = .FALSE.
-END IF
 IF (PRESENT(attrib)) THEN
   attrib_loc=attrib
   IF(PRESENT(DSetName_attrib))THEN
-    IF(group_loc)THEN
-      ! Open group
-      IF(TRIM(DSetName_attrib).NE.'') CALL H5GOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
-    ELSE
-      ! Open dataset
-      IF(TRIM(DSetName_attrib).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
-    END IF
+    IF(TRIM(DSetName_attrib).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DSetName_attrib),Loc_ID, iError)
   END IF
 ELSE
   attrib_loc=.FALSE.
@@ -316,9 +304,6 @@ END IF
 ! Check attribute or data set/group. Data sets or grouops can be checked by determining the existence of the corresponding link
 IF(attrib_loc)THEN
   CALL H5AEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
-  ! Close the only group and property list (in case it was opened) for species database read in
-  ! Dataset should not be closed here for multiple parameters in writeattributetoHDF5
-  IF(group_loc) CALL H5GCLOSE_F(Loc_ID, iError)
 ELSE
   CALL H5LEXISTS_F(Loc_ID, TRIM(DSetName), Exists, iError)
 END IF
