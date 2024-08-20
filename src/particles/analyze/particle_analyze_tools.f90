@@ -1983,7 +1983,7 @@ INTEGER                 :: iPolyatMole, iLoop, kLoop, iDOF, iQuant, CutOffPartit
 REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
 REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
 REAL                    :: Qrot, SumOne, SumTwo, EVib
-REAL,PARAMETER          :: eps_prec=1E-6                    !< Relative precision of root-finding algorithm
+REAL,PARAMETER          :: eps_prec=1E-8                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
@@ -2045,7 +2045,8 @@ IF (MeanERot.GT.0) THEN
                 /MiddleTemp)*REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*BoltzmannConst
       END DO
       EGuess = EGuess * 1/Qrot
-    ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top molecule
+    ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN  
+      ! symmetric top molecule
       ! Find max value numerically
       SumOne = 0
       SumTwo = 0

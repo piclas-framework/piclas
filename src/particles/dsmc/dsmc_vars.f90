@@ -464,7 +464,9 @@ TYPE(tQKChemistry), ALLOCATABLE   :: QKChemistry(:)
 
 TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?
-  INTEGER                         :: RotationalGroup        ! Type of molecule - 1 sperical top, 2 symmetric top, 3 asym top
+  INTEGER                         :: RotationalGroup        ! Type of molecule - 1 sperical top, 10 and 11 symmetric tops (where 10
+                                                            ! is an oblate symmetric top and 11 an prolate symmetric top),
+                                                            ! 3 asymmetric top, -1 catch for errors
   INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
   REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
