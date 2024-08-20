@@ -97,7 +97,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_TimeDisc_Vars      ,ONLY: iter
-USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU
+USE MOD_Interpolation_Vars ,ONLY: NodeType,NodeTypeVISU,NMax
 USE MOD_Interpolation      ,ONLY: GetVandermonde
 #if USE_MPI
 USE MOD_PICDepo            ,ONLY: ExchangeNodeSourceExtTmp
@@ -120,15 +120,15 @@ INTEGER                        :: NodeID(1:8)
 REAL,ALLOCATABLE               :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
 !===================================================================================================================================
 ! create global Eps field for parallel output of Eps distribution
-ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems))
+ALLOCATE(NodeSourceExtGlobal(1:N_variables,0:NMax,0:NMax,0:NMax,1:PP_nElems))
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='NodeSourceExt'
 NodeSourceExtGlobal=0.
 
 ! Allocate and determine Vandermonde mapping from equidistant (visu) to NodeType node set
 IF(.NOT.ALLOCATED(Vdm_EQ_N))THEN
-  ALLOCATE(Vdm_EQ_N(0:PP_N,0:1))
-  CALL GetVandermonde(1, NodeTypeVISU, PP_N, NodeType, Vdm_EQ_N, modal=.FALSE.)
+  ALLOCATE(Vdm_EQ_N(0:NMax,0:1))
+  CALL GetVandermonde(1, NodeTypeVISU, NMax, NodeType, Vdm_EQ_N, modal=.FALSE.)
 END IF ! .NOT.ALLOCATED(Vdm_EQ_N)
 
 ! Skip MPI communication in the first step as nothing has been deposited yet
@@ -164,7 +164,7 @@ DO iElem=1,PP_nElems
   NodeSourceExtEqui(1,0,1,1) = NodeSourceExt(NodeID(8))*sNodeVol(8)
 
   ! Map equidistant distribution to G/GL (current node type)
-  CALL ChangeBasis3D(1, 1, PP_N, Vdm_EQ_N, NodeSourceExtEqui(1:1,0:1,0:1,0:1), NodeSourceExtGlobal(1:1,0:PP_N,0:PP_N,0:PP_N,iElem))
+  CALL ChangeBasis3D(1, 1, NMax, Vdm_EQ_N, NodeSourceExtEqui(1:1,0:1,0:1,0:1), NodeSourceExtGlobal(1:1,0:NMax,0:NMax,0:NMax,iElem))
 END DO!iElem
 
 ! Write data twice to .h5 file
@@ -201,13 +201,13 @@ DO i = 1, iMax
         nGlobalElems    => INT(nGlobalElems,IK)    ,&
         PP_nElems       => INT(PP_nElems,IK)       ,&
         N_variables     => INT(N_variables,IK)     ,&
-        N               => INT(PP_N,IK)            ,&
+        NMax8           => INT(NMax,IK)            ,&
         offsetElem      => INT(offsetElem,IK)      )
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName=TRIM(DataSetName) , rank=5 , &
-        nValGlobal =(/N_variables     , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-        nVal       =(/N_variables     , N+1_IK , N+1_IK , N+1_IK , PP_nElems   /) , &
-        offset     =(/       0_IK     , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
+        nValGlobal =(/N_variables , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
+        nVal       =(/N_variables , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , PP_nElems   /) , &
+        offset     =(/       0_IK , 0_IK       , 0_IK       , 0_IK       , offsetElem  /) , &
         collective =.TRUE.            , RealArray=NodeSourceExtGlobal)
   END ASSOCIATE
 END DO ! i = 1, 2

@@ -267,7 +267,7 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 ! Associate construct for integer KIND=8 possibility
 PP_nVarTmp = INT(PP_nVar,IK)
 ASSOCIATE (&
-      N                 => INT(PP_N,IK)               ,&
+      !N                 => INT(PP_N,IK)               ,&
       NMax8             => INT(NMax,IK)               ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
       PP_nElems         => INT(PP_nElems,IK)          ,&
@@ -514,9 +514,9 @@ ASSOCIATE (&
     END DO ! iElem = 1, nElems
     CALL GatheredWriteArray(FileName,create=.FALSE.,&
         DataSetName='DG_Source', rank=5,  &
-        nValGlobal=(/nVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-        nVal=      (/nVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-        offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+        nValGlobal=(/nVar , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
+        nVal=      (/nVar , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , PP_nElems/)    , &
+        offset=    (/0_IK , 0_IK       , 0_IK       , 0_IK       , offsetElem/)   , &
         collective=.TRUE.,RealArray=PartSource)
 
     DEALLOCATE(LocalStrVarNames)
@@ -552,9 +552,9 @@ ASSOCIATE (&
         END IF
         CALL GatheredWriteArray(FileName,create=.FALSE.,&
             DataSetName='DG_TimeDerivative', rank=5,  &
-            nValGlobal=(/nVar8 , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-            nVal=      (/nVar8 , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-            offset=    (/0_IK  , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+            nValGlobal=(/nVar8 , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
+            nVal=      (/nVar8 , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , PP_nElems/)    , &
+            offset=    (/0_IK  , 0_IK       , 0_IK       , 0_IK       , offsetElem/)   , &
             collective=.TRUE.,RealArray=Dt(:,:,:,:,:))
         DEALLOCATE(Dt)
         DEALLOCATE(LocalStrVarNames)
@@ -590,9 +590,9 @@ ASSOCIATE (&
         END IF
         CALL GatheredWriteArray(FileName,create=.FALSE.,&
             DataSetName='DG_PhiF', rank=5,  &
-            nValGlobal=(/nVar8 , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-            nVal=      (/nVar8 , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-            offset=    (/0_IK  , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+            nValGlobal=(/nVar8 , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , nGlobalElems/) , &
+            nVal=      (/nVar8 , NMax8+1_IK , NMax8+1_IK , NMax8+1_IK , PP_nElems/)    , &
+            offset=    (/0_IK  , 0_IK       , 0_IK       , 0_IK       , offsetElem/)   , &
             collective=.TRUE.,RealArray=PhiF(:,:,:,:,:))
         DEALLOCATE(PhiF)
         DEALLOCATE(LocalStrVarNames)
