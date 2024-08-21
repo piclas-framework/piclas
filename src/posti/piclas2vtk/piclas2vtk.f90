@@ -397,6 +397,7 @@ IF(ReadMeshFinished)THEN
 #if USE_MPI
   ! From InitElemNodeIDs
   CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
   ADEALLOCATE(ElemNodeID_Shared)
 END IF ! ReadMeshFinished

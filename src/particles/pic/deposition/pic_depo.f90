@@ -2152,21 +2152,6 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-#if USE_MPI
-#if USE_LOADBALANCE
-! This step was skipped in particle_mesh.f90: FinalizeParticleMesh()
-IF(PerformLoadBalance)THEN
-#endif /*USE_LOADBALANCE*/
-  IF(DoDielectricSurfaceCharge)THEN
-    ! From InitElemNodeIDs
-    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
-    ADEALLOCATE(ElemNodeID_Shared)
-  END IF
-#if USE_LOADBALANCE
-END IF
-#endif /*USE_LOADBALANCE*/
-#endif /*USE_MPI*/
-
 SDEALLOCATE(DepoNodetoGlobalNode)
 SDEALLOCATE(NodeSource)
 SDEALLOCATE(NodeSourceExt)
