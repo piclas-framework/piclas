@@ -356,25 +356,10 @@ IF(CollisMode.GE.2) THEN
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
   DSMC%DoRotRelaxQuantized = GETLOGICAL('Particles-DSMC-RotRelaxQuantized')
   DSMC%VibAHO = GETLOGICAL('Particles-DSMC-Vib-Anharmonic')
-  ! Read-in of parameters for anharmonic oscillator model (vibration)
-  IF(DSMC%VibAHO) THEN
+  IF (DSMC%VibAHO) THEN
     ALLOCATE(AHO%NumVibLevels(nSpecies))
     ALLOCATE(AHO%omegaE(nSpecies))
     ALLOCATE(AHO%chiE(nSpecies))
-    DO iSpec = 1, nSpecies
-      IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
-        WRITE(UNIT=hilf,FMT='(I0)') iSpec
-        AHO%omegaE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-omegaE')
-        AHO%chiE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-chiE')
-        FileNameAHO(iSpec) = GETSTR('Particles-DSMC-Vib-Anharmonic-Species'//TRIM(hilf)//'-Data')
-        CALL ReadAHOLevelsFromCSV(FileNameAHO(iSpec),iSpec)
-      END IF
-    END DO
-    ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
-    AHO%VibEnergy = 0.
-    DO iSpec = 1, nSpecies
-      CALL ReadAHOEnergiesFromCSV(FileNameAHO(iSpec),iSpec)
-    END DO
     IF (DSMC%VibRelaxProb.EQ.2.) THEN
       CALL Abort(__STAMP__,'ERROR: Variable vibration relaxation probabilities according to Boyd not supported with AHO!')
     END IF
@@ -747,9 +732,6 @@ ELSE !CollisMode.GT.0
     END IF
 
     IF(SpeciesDatabase.NE.'none') THEN
-      IF(DSMC%VibAHO) THEN
-        CALL Abort(__STAMP__,'ERROR: The Read-In of anharmonic vibrational constants from the database is not implemented yet!')
-      END IF
       ! Initialize FORTRAN interface.
       CALL H5OPEN_F(err)
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
@@ -772,12 +754,13 @@ ELSE !CollisMode.GT.0
               CALL Abort(__STAMP__,'! Simulation of Polyatomic Molecules and T-E-V-R relaxation not possible yet!!!')
             END IF
             IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+              IF(DSMC%VibAHO) THEN
+                CALL Abort(__STAMP__,'ERROR: The anharmonic model is not implemented for polyatomic species yet!')
+              END IF
               DSMC%NumPolyatomMolecs = DSMC%NumPolyatomMolecs + 1
               SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
             ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
               SpecDSMC(iSpec)%Xi_Rot     = 2
-              CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
-              CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
               CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists)
               IF (AttrExists) THEN
                 CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia)
@@ -807,12 +790,23 @@ ELSE !CollisMode.GT.0
               CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
               CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV)
               CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
-              ! Set the limit for the acceptance-rejection
-              SpecDSMC(iSpec)%MaxVibQuant = 200
-              ! Calculation of the zero-point energy
-              SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
-              ! Calculation of the dissociation quantum number (used for QK chemistry)
-              SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
+              ! Anharmonic Oscillator Model
+              IF(DSMC%VibAHO) THEN
+                CALL ReadAttribute(file_id_specdb,'Vib-OmegaE',1,DatasetName = dsetname,RealScalar=AHO%omegaE(iSpec))
+                CALL PrintOption('Vib-OmegaE','DB',RealOpt=AHO%omegaE(iSpec))
+                CALL ReadAttribute(file_id_specdb,'Vib-ChiE',1,DatasetName = dsetname,RealScalar=AHO%chiE(iSpec))
+                CALL PrintOption('Vib-ChiE','DB',RealOpt=AHO%chiE(iSpec))
+                CALL ReadAttribute(file_id_specdb,'Vib-NumLevels',1,DatasetName = dsetname,IntScalar=AHO%NumVibLevels(iSpec))
+                CALL PrintOption('Vib-NumLevels','DB',IntOpt=AHO%NumVibLevels(iSpec))
+              ELSE ! SHO model
+                CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
+                CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
+                SpecDSMC(iSpec)%MaxVibQuant = 200
+                ! Calculation of the dissociation quantum number (used for QK chemistry)
+                SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
+                ! Calculation of the zero-point energy
+                SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
+              END IF
             END IF
             ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
             IF(DSMC%RotRelaxProb.GT.1.0.AND.DSMC%RotRelaxProb.LE.3.0.AND.((Species(iSpec)%InterID.EQ.2).OR. &
@@ -904,6 +898,20 @@ ELSE !CollisMode.GT.0
         END IF
       END DO !Species
 
+      ! Finalize read-in for vibrational energy levels of anharmonic oscillator model
+      IF(DSMC%VibAHO) THEN
+        ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
+        AHO%VibEnergy = 0.
+        DO iSpec = 1, nSpecies
+          IF(.NOT.Species(iSpec)%DoOverwriteParameters) THEN
+            IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+              ! TO-DO: read the vibrational levels (AHO%VibEnergy)
+              SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
+            END IF
+          END IF
+        END DO
+      END IF
+
       ! Close the file.
       CALL H5FCLOSE_F(file_id_specdb, err)
       ! Close FORTRAN interface.
@@ -934,16 +942,19 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%CharaTRot       = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
             END IF
             SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
-            IF(.NOT.DSMC%VibAHO) THEN
+            ! Anharmonic Oscillator Model
+            IF(DSMC%VibAHO) THEN
+              WRITE(UNIT=hilf,FMT='(I0)') iSpec
+              AHO%omegaE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-omegaE')
+              AHO%chiE(iSpec) = GETREAL('Part-Species'//TRIM(hilf)//'-Vib-Anharmonic-chiE')
+              FileNameAHO(iSpec) = GETSTR('Particles-DSMC-Vib-Anharmonic-Species'//TRIM(hilf)//'-Data')
+              CALL ReadAHOLevelsFromCSV(FileNameAHO(iSpec),iSpec)
+            ELSE
               SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
               SpecDSMC(iSpec)%MaxVibQuant = 200
               ! Calculation of the dissociation quantum number (used for QK chemistry)
               SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
-            END IF
-            ! Calculation of the zero-point energy
-            IF (DSMC%VibAHO) THEN
-              SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
-            ELSE
+              ! Calculation of the zero-point energy
               SpecDSMC(iSpec)%EZeroPoint = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib
             END IF
           END IF
@@ -1037,6 +1048,19 @@ ELSE !CollisMode.GT.0
         END IF ! not electron
       END IF !iSpec overwrite parameters
     END DO !Species
+    ! Finalize read-in for vibrational energy levels of anharmonic oscillator model
+    IF(DSMC%VibAHO) THEN
+      ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
+      AHO%VibEnergy = 0.
+      DO iSpec = 1, nSpecies
+        IF(Species(iSpec)%DoOverwriteParameters) THEN
+          IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+            CALL ReadAHOEnergiesFromCSV(FileNameAHO(iSpec),iSpec)
+            SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
+          END IF
+        END IF
+      END DO
+    END IF
 
     ! Initialization of polyatomic species and burn-in phase (Metropolis-Hastings) per initialization region
     IF(DSMC%NumPolyatomMolecs.GT.0) THEN
