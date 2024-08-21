@@ -529,6 +529,7 @@ ELSE ! Normal restart
       CALL abort(__STAMP__,'DG_Solution does not exist')
     END IF
 
+    ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF(Nloc.EQ.N_Restart)THEN ! N is equal
@@ -542,6 +543,7 @@ ELSE ! Normal restart
         CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
+    DEALLOCATE(Uloc)
     DEALLOCATE(U)
 
     ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
