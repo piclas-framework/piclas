@@ -70,6 +70,7 @@ USE MOD_Particle_Vars           ,ONLY: LastPartPos
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Vars           ,ONLY: nSpecies
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -167,6 +168,12 @@ DO BCSideID=1,nBCSides
     IPWRITE(UNIT_StdOut,*) "iPartBound =", iPartBound
     IPWRITE(UNIT_StdOut,*) "PartBound%PhotonSEEElectronSpecies(iPartBound) =", PartBound%PhotonSEEElectronSpecies(iPartBound)
     CALL abort(__STAMP__,'Electron species index cannot be zero!')
+  END IF ! SpecID.eq.0
+  IF(SpecID.GT.nSpecies)THEN
+    IPWRITE(UNIT_StdOut,*) "iPartBound =", iPartBound
+    IPWRITE(UNIT_StdOut,*) "PartBound%PhotonSEEElectronSpecies(iPartBound) =", PartBound%PhotonSEEElectronSpecies(iPartBound)
+    IPWRITE(UNIT_StdOut,*) "nSpecies   =", nSpecies
+    CALL abort(__STAMP__,'Electron species index cannot greater than nSpecies!')
   END IF ! SpecID.eq.0
   ! Determine which element the particles are going to be inserted
   GlobElemID = SideInfo_Shared(SIDE_ELEMID ,SideID)

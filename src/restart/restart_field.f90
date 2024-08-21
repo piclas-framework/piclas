@@ -529,6 +529,7 @@ ELSE ! Normal restart
       CALL abort(__STAMP__,'DG_Solution does not exist')
     END IF
 
+    ! Map U from N_Restart to Nloc on the same interpolation point type (Gauss, GL, etc.)
     ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
     DO iElem = 1, nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)

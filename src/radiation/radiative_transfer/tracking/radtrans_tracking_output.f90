@@ -60,6 +60,8 @@ USE MOD_Particle_Mesh_Vars   ,ONLY: ElemVolume_Shared
 USE MOD_Photon_TrackingVars  ,ONLY: RadiationVolState
 USE MOD_HDF5_Output_State    ,ONLY: WriteElemDataToSeparateContainer
 USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,ElemTime
+USE MOD_DG_Vars              ,ONLY: N_DG_Mapping
+USE MOD_Interpolation_Vars   ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,19 +71,20 @@ USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,ElemTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m
+INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m,NlocDG
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 REAL                                :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
 REAL                                :: ElemTimeDummy(PP_nElems)
 #if USE_MPI
 INTEGER                             :: NlocOffset
 #endif /*USE_MPI*/
-REAL                                :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+REAL                                :: J_N(1,0:NMax,0:NMax,0:NMax)
 REAL                                :: J_Nmax(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 REAL                                :: J_Nloc(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 REAL                                :: IntegrationWeight
-REAL                                :: Vdm_GaussN_NMax(0:PP_N,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+!REAL                                :: Vdm_GaussN_NMax(0:NMax,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL, ALLOCATABLE                   :: Vdm_GaussN_Nloc(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+REAL, ALLOCATABLE                   :: Vdm_GaussN_NMax(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL, PARAMETER                     :: tolerance=1e-2
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
@@ -124,8 +127,6 @@ StrVarNames(5)='PhotonEnergyDensity2nd'
 CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
 
-! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
-CALL GetVandermonde(PP_N, NodeType, Ray%NMax, Ray%NodeType, Vdm_GaussN_NMax, modal=.FALSE.)
 
 #if USE_MPI
 ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
@@ -173,19 +174,32 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
+
+
+    ! TODO: Maybe pre-compute these Vandermonde matrices at the beginning?
+    ! Switch node type from NodeType to Ray%NodeType (e.g. Gauss to VISU)
+    ! Note the following:
+    !
+    !     N_VolMesh(iElem)%sJ(:,:,:)    with    NlocDG = N_DG_Mapping(2,iElem+offSetElem)    on     NodeType
+    !
+    ! is converted to
+    !
+    !     J_Nloc                        with    Nloc = N_DG_Ray_loc(iElem)                   on     Ray%NodeType
+    !
     ! Get the element volumes on Nloc
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
-    ! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
+    NlocDG = N_DG_Mapping(2,iElem+offSetElem)
+    J_N(1,0:NlocDG,0:NlocDG,0:NlocDG)=1./N_VolMesh(iElem)%sJ(:,:,:)
+    ! p-refinement: Interpolate lower degree to higher degree (other way around would require modal=T)
     J_Nloc = 0.
-    ALLOCATE(Vdm_GaussN_Nloc(0:Nloc,0:PP_N))
-    IF(Nloc.LT.PP_N)THEN
-      CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.TRUE.)
+    ALLOCATE(Vdm_GaussN_Nloc(0:Nloc,0:NlocDG))
+    IF(Nloc.LT.NlocDG)THEN
+      CALL GetVandermonde(NlocDG, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.TRUE.)
     ELSE
-      CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
-    END IF ! Nloc.LT.PP_N
-    CALL ChangeBasis3D(1,PP_N,Nloc,Vdm_GaussN_Nloc,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nloc(1:1,0:Nloc,0:Nloc,0:Nloc))
+      CALL GetVandermonde(NlocDG, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
+    END IF ! Nloc.LT.NlocDG
+    CALL ChangeBasis3D(1,NlocDG,Nloc,Vdm_GaussN_Nloc,J_N(1:1,0:NlocDG,0:NlocDG,0:NlocDG),J_Nloc(1:1,0:Nloc,0:Nloc,0:Nloc))
 
     ! Calculate the sub-volumes
     DO m=0,Nloc
@@ -194,6 +208,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
           IntegrationWeight = N_Inter_Ray(Nloc)%wGP(k)*&
                               N_Inter_Ray(Nloc)%wGP(l)*&
                               N_Inter_Ray(Nloc)%wGP(m)*J_Nloc(1,k,l,m)
+                              !N_Inter_Ray(Nloc)%wGP(m)/N_VolMesh(iElem)%sJ(k,l,m)
           !UNMax(1:2,k,l,m,iElem) = UNMax(1:2,k,l,m,iElem) / IntegrationWeight
           U_N_Ray(iGlobalElem)%U(3,k,l,m) = IntegrationWeight
         END DO ! k
@@ -251,10 +266,27 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     ! Copy data from global array (later used for emission)
     U_N_Ray_loc(iElem)%U(:,:,:,:) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
 
+    ! TODO: Maybe pre-compute these Vandermonde matrices at the beginning?
+    ! Switch node type from NodeType to Ray%NodeType (e.g. Gauss to VISU)
+    ! Note the following:
+    !
+    !     N_VolMesh(iElem)%sJ(:,:,:)    with    NlocDG = N_DG_Mapping(2,iElem+offSetElem)    on     NodeType
+    !
+    ! is converted to
+    !
+    !     J_Nloc                        with    Ray%NMax                                     on     Ray%NodeType
+    !
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
-    CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_NMax,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax))
+    J_N(1,0:NlocDG,0:NlocDG,0:NlocDG)=1./N_VolMesh(iElem)%sJ(:,:,:)
+    J_Nmax = 0.
+    ALLOCATE(Vdm_GaussN_NMax(0:Ray%NMax,0:NlocDG))
+    IF(Ray%NMax.LT.NlocDG)THEN
+      CALL GetVandermonde(NlocDG, NodeType, Ray%NMax, Ray%NodeType, Vdm_GaussN_NMax, modal=.TRUE.)
+    ELSE
+      CALL GetVandermonde(NlocDG, NodeType, Ray%NMax, Ray%NodeType, Vdm_GaussN_NMax, modal=.FALSE.)
+    END IF ! Ray%NMax.LT.NlocDG
+    CALL ChangeBasis3D(1,NlocDG,Ray%NMax,Vdm_GaussN_NMax,J_N(1:1,0:NlocDG,0:NlocDG,0:NlocDG),J_Nmax(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax))
     DO m=0,Ray%NMax
       DO l=0,Ray%NMax
         DO k=0,Ray%NMax
@@ -266,6 +298,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         END DO ! k
       END DO ! l
     END DO ! m
+    DEALLOCATE(Vdm_GaussN_NMax)
 
     ! Sanity checks: High order
     ! 1.) compare sum of sub-volumes with cell-const value and abort

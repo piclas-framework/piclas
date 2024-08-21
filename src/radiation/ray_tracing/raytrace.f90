@@ -202,6 +202,7 @@ DO iRay = 1, LocRayNum
 
   ! Sanity check: nComputeNodeSurfTotalSides > 0 and the correct PartBCIndex for those sides
   IF(.NOT.FoundComputeNodeSurfSide)THEN
+    IPWRITE(UNIT_StdOut,*) ""
     IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfTotalSides =", nComputeNodeSurfTotalSides
     IPWRITE(UNIT_StdOut,*) ": RayPartBound               =", RayPartBound
     !IPWRITE(UNIT_StdOut,'(I0,A,I0,A)') ": Set Part-Boundary",RayPartBound,"-BoundaryParticleOutput = T"
