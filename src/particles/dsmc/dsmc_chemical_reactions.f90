@@ -1333,6 +1333,57 @@ IF(Qelec.EQ.0.) Qelec = 1.
 END SUBROUTINE CalcPartitionFunction
 
 
+! SUBROUTINE CalcRotPartitionFunction(iSpec, Temp, Qrot)
+! !===================================================================================================================================
+! !//TODO also pointer?
+! !> Calculation of the rotational partition function for a species at the given temperature (also applicable at low temperatures)
+! !===================================================================================================================================
+! ! MODULES
+! USE MOD_Globals
+! USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
+! USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC
+! USE MOD_Particle_Vars       ,ONLY: Species
+
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! INTEGER, INTENT(IN)         :: iSpec
+! REAL, INTENT(IN)            :: Temp
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! REAL, INTENT(OUT)           :: Qrot
+! !-----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! INTEGER                     :: iPolyatMole, J, K
+! REAL,PARAMETER              :: eps_prec=5E-3                    !< absolut precision for stopping summation
+! !===================================================================================================================================
+! iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+! J = 0
+! Qrot = 0.
+! DO WHILE(J.LT.300)   !//TODO adjust condition
+!   IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
+!     Qrot = Qrot + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*SpecDSMC(iSpec)%CharaTRot/Temp)
+!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
+!     Qrot = Qrot + (2.*REAL(J)+1.)*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
+!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
+!     Qrot = Qrot + (2.*REAL(J)+1.)**2.*exp(-REAL(J)*(REAL(J)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/Temp)
+!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.2)THEN  ! symmetric top molecule
+!     K = 0
+!     DO WHILE(K.LT.J)
+!       Qrot = Qrot + PlanckConst**2. / (8.*PI**2.) * (REAL(J)*(REAL(J)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(K)**2.)
+!       K = K + 1
+!     END DO
+!   ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN  ! asymmetric top molecule
+!     CALL abort(&
+!     __STAMP__&
+!     ,'Calculation of partition function for asymmetric top molecules not possible yet!')
+!   END IF
+!   J = J + 1
+! END DO
+
+! END SUBROUTINE CalcRotPartitionFunction
+
 SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
 !===================================================================================================================================
 ! Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval

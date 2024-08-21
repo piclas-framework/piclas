@@ -65,6 +65,10 @@ CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
                                           , 'Define the rotational relaxation probability upon collision of molecules\n'//&
                                           '0-1: constant\n'//&
                                           '2: variable, Boyd)', '0.2')
+CALL prms%CreateLogicalOption(  'Particles-DSMC-RotRelaxQuantized', &
+                                          'Enables the quantized treatment of rotational energy levels after Boyd, '//&
+                                          'Physics of Fluids A: Fluid Dynamics (1989-1993) 5, 2278 (1993); doi: 10.1063/1.858531',&
+                                          '.FALSE.')
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
                                           , 'Define the vibrational relaxation probability upon collision of molecules', '0.004')
 CALL prms%CreateRealOption(     'Part-Species[$]-ElecRelaxProb'  &
@@ -296,7 +300,7 @@ USE MOD_Preproc
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
-USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
+USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge, PlanckConst
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, Symmetry, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -350,6 +354,7 @@ SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') ! 1: Laux, 2: Gi
 IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
+  DSMC%DoRotRelaxQuantized = GETLOGICAL('Particles-DSMC-RotRelaxQuantized')
   DSMC%VibAHO = GETLOGICAL('Particles-DSMC-Vib-Anharmonic')
   ! Read-in of parameters for anharmonic oscillator model (vibration)
   IF(DSMC%VibAHO) THEN
@@ -377,6 +382,7 @@ IF(CollisMode.GE.2) THEN
 ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
+  DSMC%DoRotRelaxQuantized = .FALSE.
 END IF
 
 DSMC%GammaQuant = GETREAL('Particles-DSMC-GammaQuant')
@@ -772,12 +778,32 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%Xi_Rot     = 2
               CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
               CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
-              CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+              CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists)
               IF (AttrExists) THEN
-                CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+                CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia)
+                CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+                IF(AttrExists)THEN  ! check if CharaTempRot is set or should be calculated with Moment of Inertia
+                  CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+                ELSE
+                  SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
+                END IF
               ELSE
-                SpecDSMC(iSpec)%CharaTRot = 0.0
+                CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists)
+                IF(AttrExists)THEN  ! check if CharaTempRot is set without Moment of Inertia
+                  CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot)
+                ELSE
+                  SpecDSMC(iSpec)%CharaTRot = 0.0
+                END IF
+                IF(DSMC%DoRotRelaxQuantized)THEN
+                  CALL abort(&
+                  __STAMP__&
+                  ,'Moment of inertia necessary for quantized rotational energy and is not set for species', iSpec)
+                ELSE
+                  ! //TODO: do i need a value here or leave empty - set dummy value
+                  SpecDSMC(iSpec)%MomentOfInertia = 0
+                END IF
               END IF
+              CALL PrintOption('MomentOfInertia','DB',RealOpt=SpecDSMC(iSpec)%MomentOfInertia)
               CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
               CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV)
               CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
@@ -789,7 +815,8 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%DissQuant = INT(SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib))
             END IF
             ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
-            IF(DSMC%RotRelaxProb.GT.1.0.AND.((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
+            IF(DSMC%RotRelaxProb.GT.1.0.AND.DSMC%RotRelaxProb.LE.3.0.AND.((Species(iSpec)%InterID.EQ.2).OR. &
+              (Species(iSpec)%InterID.EQ.20))) THEN
               SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')
               SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot')
               IF(SpecDSMC(iSpec)%CollNumRotInf*SpecDSMC(iSpec)%TempRefRot.EQ.0) THEN
@@ -901,7 +928,11 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
           ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Xi_Rot     = 2
-            SpecDSMC(iSpec)%CharaTRot  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','0')
+            SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia')
+            SpecDSMC(iSpec)%CharaTRot       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot','-1')
+            IF(SpecDSMC(iSpec)%CharaTRot.EQ.-1)THEN
+              SpecDSMC(iSpec)%CharaTRot       = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
+            END IF
             SpecDSMC(iSpec)%Ediss_eV   = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')
             IF(.NOT.DSMC%VibAHO) THEN
               SpecDSMC(iSpec)%CharaTVib  = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
@@ -917,7 +948,8 @@ ELSE !CollisMode.GT.0
             END IF
           END IF
           ! Read in species values for rotational relaxation models of Boyd/Zhang if necessary
-          IF(DSMC%RotRelaxProb.GT.1.0.AND.((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
+          IF(DSMC%RotRelaxProb.GT.1.0.AND.DSMC%RotRelaxProb.LE.3.0 &
+            .AND.((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20))) THEN
             SpecDSMC(iSpec)%CollNumRotInf = GETREAL('Part-Species'//TRIM(hilf)//'-CollNumRotInf')
             SpecDSMC(iSpec)%TempRefRot    = GETREAL('Part-Species'//TRIM(hilf)//'-TempRefRot')
             IF(SpecDSMC(iSpec)%CollNumRotInf*SpecDSMC(iSpec)%TempRefRot.EQ.0) THEN
@@ -1780,6 +1812,7 @@ IF(DSMC%NumPolyatomMolecs.GT.0) THEN
     SDEALLOCATE(PolyatomMolDSMC(iPoly)%GammaVib)
     SDEALLOCATE(PolyatomMolDSMC(iPoly)%VibRelaxProb)
     SDEALLOCATE(PolyatomMolDSMC(iPoly)%CharaTRotDOF)
+    SDEALLOCATE(PolyatomMolDSMC(iPoly)%MomentOfInertia)
   END DO
   SDEALLOCATE(PolyatomMolDSMC)
 END IF
