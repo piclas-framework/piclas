@@ -625,7 +625,7 @@ USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, BGGas, ChemReac, DSMC, PartStateI
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: Species
 USE MOD_TimeDisc_Vars         ,ONLY: dt
-USE MOD_part_tools            ,ONLY: CalcERot_particle, CalcEVib_particle, CalcEElec_particle
+USE MOD_part_tools            ,ONLY: CalcEVib_particle, CalcEElec_particle, RotInitPolyRoutineFuncPTR
 USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -689,7 +689,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
         Temp_Rot   = SpecDSMC(jSpec)%Init(1)%TRot
       END IF
       PartStateIntEn(1,bggPartIndex) = CalcEVib_particle(jSpec,Temp_Vib,bggPartIndex)
-      PartStateIntEn(2,bggPartIndex) = CalcERot_particle(jSpec,Temp_Rot)
+      PartStateIntEn( 2,bggPartIndex) = RotInitPolyRoutineFuncPTR(jSpec,Temp_Rot,bggPartIndex)
       CollEnergy = CollEnergy + PartStateIntEn(1,bggPartIndex) + PartStateIntEn(2,bggPartIndex)
     END IF
     IF ((DSMC%ElectronicModel.GT.0).AND.(.NOT.SpecDSMC(jSpec)%FullyIonized)) THEN

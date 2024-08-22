@@ -38,8 +38,9 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec, SortEnergies
 PUBLIC :: RelaxElectronicShellWall, LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
+PUBLIC :: ReadRotationalSpeciesLevel
 !===================================================================================================================================
 CONTAINS
 
@@ -245,7 +246,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart, CollInf
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, UseVarTimeStep, usevMPF, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset
 USE MOD_MCC_Vars                ,ONLY: SpecXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -352,7 +353,7 @@ CASE(2)
   END DO
   IF ((Coll_pData(iPair)%Ec-PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)).LT.0.0) then
     Etmp = (Coll_pData(iPair)%Ec - (1.-LocRelaxProb)*Eold*GetParticleWeight(iPart1))/(GetParticleWeight(iPart1)*LocRelaxProb)
-    TransElec = CalcTelec(Etmp, iSpec)*0.98
+    TransElec = CalcTDataset(Etmp, iSpec, 'ELECTRONIC')*0.98
     ElectronicPartition = 0.0
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
       tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec
@@ -414,7 +415,7 @@ USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcXiElec
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTelec
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTDataset
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -461,7 +462,7 @@ Xi_ElecSpec=0.; Xi_Elec_oldSpec=0.; TElecSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
   IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-    TElecSpec(iSpec)=CalcTelec( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec)
+    TElecSpec(iSpec)=CalcTDataset( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec, 'ELECTRONIC')
     Xi_ElecSpec(iSpec)=CalcXiElec(TElecSpec(iSpec),iSpec)
     Xi_Elec_oldSpec(iSpec) = Xi_ElecSpec(iSpec)
   END IF
@@ -1158,7 +1159,7 @@ PartStateIntEn(1,iPart1) = (jQVib + DSMC%GammaQuant) * BoltzmannConst &
 
 END SUBROUTINE TVEEnergyExchange
 
-
+!//TODO move to new module species database
 SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 !===================================================================================================================================
 ! Subroutine to read the electronic levels from DSMCSpeciesElectronicState.h5
@@ -1203,7 +1204,7 @@ IF (Species(iSpec)%DoOverwriteParameters) THEN
   datasetname = dsetname
   ElLevelDatabase = TRIM(DSMC%ElectronicModelDatabase)
 ELSE
-  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))//'/ElectronicLevel'
   ElLevelDatabase = TRIM(SpeciesDatabase)
 END IF
 LBWRITE(UNIT_StdOut,'(A)') ' | Read electronic level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)
@@ -1302,6 +1303,74 @@ IF (DSMC%ElectronicModel.EQ.4) THEN
 END IF
 
 END SUBROUTINE ReadSpeciesLevel
+
+
+SUBROUTINE ReadRotationalSpeciesLevel (iSpec)
+!===================================================================================================================================
+! Subroutine to read the rotational levels from SpeciesDatabase.h5
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_Particle_Vars         ,ONLY: Species, SpeciesDatabase
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                                    :: iSpec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                               :: err
+! HDF5 specifier taken from extractParticles
+CHARACTER(LEN=256)                                    :: ElLevelDatabase
+CHARACTER(LEN=64)                                     :: datasetname
+INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
+INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
+REAL,ALLOCATABLE                                      :: RotationalState(:,:)
+LOGICAL                                               :: DataSetFound
+!===================================================================================================================================
+datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name)//'/RotationalLevel')
+ElLevelDatabase = TRIM(SpeciesDatabase)
+LBWRITE(UNIT_StdOut,'(A)') ' | Read rotational level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(ElLevelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL DatasetExists(File_ID_DSMC,TRIM(datasetname),DataSetFound)
+IF(.NOT.DataSetFound)THEN
+  CALL abort(__STAMP__,'DataSet not found: ['//TRIM(datasetname)//'] ['//TRIM(ElLevelDatabase)//']')
+END IF
+! Open the  dataset.
+CALL H5DOPEN_F(file_id_dsmc, datasetname, dset_id_dsmc, err)
+! Get the file space of the dataset.
+CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+! get size
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+! Allocate rotational_state
+ALLOCATE (RotationalState( 1:dims(1), 0:dims(2)-1 ) )
+! read data
+CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, RotationalState, dims, err)
+CALL SortEnergies(RotationalState, INT(dims(2)))
+
+ALLOCATE ( SpecDSMC(iSpec)%RotationalState( 1:dims(1), 0:dims(2)-1 ) )
+SpecDSMC(iSpec)%RotationalState = RotationalState
+SpecDSMC(iSpec)%MaxRotQuant  = SIZE(SpecDSMC(iSpec)%RotationalState,2)
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadRotationalSpeciesLevel
 
 
 SUBROUTINE SortEnergies(ElectronicState, nQuants)

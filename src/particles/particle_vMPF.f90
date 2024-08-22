@@ -136,12 +136,12 @@ USE MOD_Globals               ,ONLY: ISFINITE
 USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Species, CellEelec_vMPF, CellEvib_vMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_Particle_Analyze_Tools,ONLY: CalcTelec, CalcTVibPoly
+USE MOD_Particle_Analyze_Tools,ONLY: CalcTDataset, CalcTVibPoly
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: LOG_RAN
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -277,7 +277,7 @@ IF(CollisMode.GT.1) THEN
     T_rot = 2.*E_rot/(DOF_rot*totalWeight*BoltzmannConst)
   END IF
   IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
-    T_elec = CalcTelec(E_elec/totalWeight, iSpec)
+    T_elec = CalcTDataset(E_elec/totalWeight, iSpec, 'ELECTRONIC')
     IF (T_elec.GT.0.0) DOF_elec = 2.*E_elec/(totalWeight*BoltzmannConst*T_elec)
   END IF
 END IF
@@ -573,7 +573,7 @@ USE MOD_Particle_Tracking_Vars,ONLY: TrackingMethod
 USE MOD_Part_Tools            ,ONLY: GetNextFreePosition
 !#ifdef CODE_ANALYZE
 !USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
-!USE MOD_Particle_Vars         ,ONLY: Symmetry
+!USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 !#endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

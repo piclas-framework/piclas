@@ -85,9 +85,10 @@ USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullify
 #if USE_MPI
 USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
+USE MOD_Symmetry             ,ONLY: InitSymmetry
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
-USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles,InitSymmetry
+USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
 USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
 USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
@@ -135,10 +136,9 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 #ifdef PARTICLES
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC')
+#endif /*PARTICLES*/
 
 CALL InitSymmetry()
-
-#endif /*PARTICLES*/
 
 ! Initialization
 IF(IsLoadBalance)THEN

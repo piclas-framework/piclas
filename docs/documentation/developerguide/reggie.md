@@ -62,20 +62,20 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
         PICLAS_NODETYPE ......................... GAUSS
         PICLAS_PARTICLES ........................ ON,OFF
         PICLAS_CODE_ANALYZE ..................... ON,OFF
-        PICLAS_PETSC ............................ OFF,ON
+        LIBS_USE_PETSC .......................... OFF,ON
 
        Select the first set of options via
 
-       cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_PETSC=OFF
+       cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DLIBS_USE_PETSC=OFF
 
    The last line can directly be copied into the terminal within a build directory to generate the make files for compiling PICLas with the
    first set of parameter options given in the *builds.ini* file (ignoring the *nocrosscombination* statements).
    Simply adjust the last line to have the correct flags set, execute *cmake* in the *build* directory and run *make* to compile:
 
-       cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_PETSC=ON
+       cmake ..  -DCMAKE_BUILD_TYPE=Debug -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_MPI=ON -DPICLAS_NODETYPE=GAUSS -DPICLAS_PARTICLES=ON -DPICLAS_CODE_ANALYZE=ON -DLIBS_USE_PETSC=ON
        make -j
 
-   Note that `-DPICLAS_PETSC=ON` has been adjusted in the above command.
+   Note that `-DLIBS_USE_PETSC=ON` has been adjusted in the above command.
    This will compile the *piclas* executable and it will be placed in the current directory under *bin*.
    Important note: Some regression tests build the hopr meshes "on-the-fly", hence, the *hopr* executable is required additionally.
    There are different possibilities to supply the *hopr* executable that is required:

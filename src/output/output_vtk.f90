@@ -57,6 +57,7 @@ PUBLIC::WriteCoordsToVTK_array
 PUBLIC::WriteDataToVTK_array
 PUBLIC::WriteVarnamesToVTK_array
 PUBLIC::CARRAY
+PUBLIC::CreateConnectivity
 !===================================================================================================================================
 
 CONTAINS

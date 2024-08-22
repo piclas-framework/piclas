@@ -183,7 +183,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollInf, PartStateIntEn
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -216,7 +216,7 @@ DO iSpec=1, nSpecies
   IF(SpecPartNum_Simu(iSpec).GT.1) THEN
     ElecEnergy(iSpec) = ElecEnergy(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
     ! Compute temperatures
-    DSMC%InstantTXiElec(1,iSpec) = CalcTelec(ElecEnergy(iSpec), iSpec)
+    DSMC%InstantTXiElec(1,iSpec) = CalcTDataset(ElecEnergy(iSpec), iSpec, 'ELECTRONIC')
     IF (DSMC%InstantTXiElec(1,iSpec).GT.0.0) THEN
       DSMC%InstantTXiElec(2,iSpec) = 2.*ElecEnergy(iSpec) /(BoltzmannConst*DSMC%InstantTXiElec(1,iSpec))
     ELSE
@@ -465,7 +465,7 @@ USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, DSMC_SolutionPressTens
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge, VirtMergedCells, SamplePressTensHeatflux
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
@@ -474,7 +474,8 @@ USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly,CalcTVibAHO
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset,CalcTVibPoly,CalcTVibAHO
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -604,7 +605,7 @@ DO iElem = 1, nElems ! element/cell main loop
               END IF
               IF (DSMC%ElectronicModel.GT.0) THEN
                 IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-                  Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
+                  Macro_TempElec = CalcTDataset(PartEelec/PartNum, iSpec, 'ELECTRONIC')
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
                 END IF
                 IF(nSpecies.GT.1) Total_TempElec = Total_TempElec + Macro_TempElec*Macro_PartNum

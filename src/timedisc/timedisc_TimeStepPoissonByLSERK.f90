@@ -63,7 +63,7 @@ USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
-USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
+USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle,CalcPartSymmetryPos
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
@@ -204,9 +204,7 @@ IF (time.GE.DelayTime) THEN
         PDM%dtFracPush(iPart) = .FALSE.
         IF (.NOT.DoForceFreeSurfaceFlux) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
       END IF !IsNewPart
-
       CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
-
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF
@@ -334,9 +332,7 @@ DO iStage=2,nRKStages
           END IF
           IF (.NOT.DoForceFreeSurfaceFlux .OR. iStage.EQ.nRKStages) PDM%IsNewPart(iPart) = .FALSE. !change to false: Pt_temp is now rebuilt...
         END IF !IsNewPart
-
         CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
-      
         ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
         IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
       END IF

@@ -121,6 +121,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: Ediss_eV                  ! Energy of dissociation in eV, ini_2
   INTEGER                     :: MaxVibQuant               ! Max vib quantum number + 1
   INTEGER                     :: MaxElecQuant              ! Max elec quantum number + 1
+  INTEGER                     :: MaxRotQuant               ! Max rot quantum number + 1 (from database)
   INTEGER                     :: DissQuant                 ! Vibrational quantum number corresponding to the dissociation energy
   REAL                        :: RotRelaxProb              ! rotational relaxation probability
   REAL                        :: VibRelaxProb              ! vibrational relaxation probability
@@ -137,11 +138,18 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: VibCrossSec               ! vibrational cross section, ini_2
   REAL, ALLOCATABLE           :: CharaVelo(:)              ! characteristic velocity according to Boyd & Abe, nec for vib
                                                            ! relaxation
-  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState      ! Array with electronic State for each species
-                                                            ! first  index: 1 - degeneracy & 2 - char. Temp,el
-                                                            ! second index: energy level
+  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState     ! Array with electronic State for each species
+                                                           ! first  index: 1 - degeneracy & 2 - char. Temp,el
+                                                           ! second index: energy level
+  REAL,ALLOCATABLE,DIMENSION(:,:)   :: RotationalState     ! Array with rotational State for each species
+                                                           ! first  index: 1 - degeneracy
+                                                           ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
+  REAL,ALLOCATABLE                  :: jMaxAtTemp(:)        ! contains maximum quantum number (in first row) for given temperature 
+                                                            ! (in second row) for initial particle insertion to decrease computational
+                                                            ! cost - for symmetric tops there: numerically calculated maximal value for
+                                                            ! for acceptance rejection normalization in third row
   REAL                              :: MomentOfInertia      ! Moment of Inertia
   REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
   REAL                              :: EZeroPoint           ! Zero point energy for molecules
@@ -162,7 +170,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
 END TYPE tSpeciesDSMC
 
-TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+TYPE(tSpeciesDSMC), ALLOCATABLE,TARGET     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
@@ -235,7 +243,11 @@ TYPE tDSMC
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model
                                                             !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
-  LOGICAL                       :: DoRotRelaxQuantized      ! Flag to enable quantized rotational energy levels (Boyd)
+  INTEGER                       :: RotRelaxModel            ! Model for rotational relaxation
+                                                            !    0 Continous treatment 
+                                                            !    1 Analytic model + rotational energy levels from unified species database 
+                                                            !       only for asymmetric top molecules
+                                                            !    2 rotational energy levels for all species from unified species database
   REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
                                                             !    0-1: constant probability (0: no relaxation)
                                                             !    2: Boyd's model, with correction from Abe
@@ -464,7 +476,9 @@ TYPE(tQKChemistry), ALLOCATABLE   :: QKChemistry(:)
 
 TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?
-  INTEGER                         :: RotationalGroup        ! Type of molecule - 1 sperical top, 2 symmetric top, 3 asym top
+  INTEGER                         :: RotationalGroup        ! Type of molecule - 1 sperical top, 10 and 11 symmetric tops (where 10
+                                                            ! is an oblate symmetric top and 11 an prolate symmetric top),
+                                                            ! 3 asymmetric top, -1 catch for errors
   INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
   REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
@@ -483,6 +497,11 @@ TYPE tPolyatomMolVibQuant !DSMC Species Param
 END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
+
+INTEGER, ALLOCATABLE                        :: RotQuantsPar(:,:)  ! Rot quants for each particle
+                                                                  ! Dimensions: 2 | MaxParticleNumber, where first row is first
+                                                                  ! first quantum number (iQuant) and second row second quantum
+                                                                  ! number (kQuant) only for symmetric Tops
 
 TYPE tAmbipolElecVelo !DSMC Species Param
   REAL, ALLOCATABLE            :: ElecVelo(:)            ! Vib quants of each DOF for each particle
@@ -521,7 +540,6 @@ TYPE tSampler ! DSMC sampling for Steady-State Detection       ! DSMC sampling f
   REAL                           :: EElec                      ! Energy of Cell (Electronic State)
 END TYPE
 
-INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
 REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:)           ! 1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
 REAL,ALLOCATABLE          :: DSMC_SolutionPressTens(:,:)    ! 1:3 pressure tensor, 4:6 heatflux
 

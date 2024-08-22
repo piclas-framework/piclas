@@ -197,9 +197,7 @@ SUBROUTINE CalcCellLocNodeVolumes()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Basis              ,ONLY: InitializeVandermonde
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: wGP, xGP, wBary
+USE MOD_Interpolation_Vars ,ONLY: wGP, xGP
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
@@ -217,8 +215,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                             :: Vdm_loc(0:1,0:PP_N),wGP_loc,xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
-REAL                             :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
 INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
@@ -248,38 +244,23 @@ firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
 
-IF (PP_N.NE.1) THEN
-  xGP_loc(0) = -0.5
-  xGP_loc(1) = 0.5
-  wGP_loc = 1.
-  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_loc, Vdm_loc)
-END IF
 ! ElemNodeID and ElemsJ use compute node elems
 DO iElem = firstElem, lastElem
-  IF (PP_N.EQ.1) THEN
-    wGP_loc = wGP(0)
-    DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetJac(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
-    END DO; END DO; END DO
-  ELSE
-    DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-      DetLocal(1,j,k,l)=1./ElemsJ(j,k,l,iElem)
-    END DO; END DO; END DO
-    CALL ChangeBasis3D(1,PP_N, 1, Vdm_loc, DetLocal(:,:,:,:),DetJac(:,:,:,:))
-  END IF
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )
 #endif /*USE_MPI*/
     ! Get UniqueNodeIDs
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
-    NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + DetJac(1,0,0,0)
-    NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + DetJac(1,1,0,0)
-    NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + DetJac(1,1,1,0)
-    NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + DetJac(1,0,1,0)
-    NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + DetJac(1,0,0,1)
-    NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + DetJac(1,1,0,1)
-    NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + DetJac(1,1,1,1)
-    NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + DetJac(1,0,1,1)
+    DO j=0,PP_N;DO k=0,PP_N;DO l=0,PP_N
+      NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+      NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
+    END DO; END DO; END DO
 #if USE_MPI
   END ASSOCIATE
 #endif /*USE_MPI*/

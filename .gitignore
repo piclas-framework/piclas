@@ -70,6 +70,7 @@ commit.h
 CMakeCache.txt
 ctags.txt
 CMakeFiles/
+tags
 .tags
 
 # comma separated files
