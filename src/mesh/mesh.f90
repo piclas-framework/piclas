@@ -45,6 +45,7 @@ PUBLIC::DefineParametersMesh
 INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
 INTEGER,PARAMETER :: PRM_P_ADAPTION_NPB  = 2  ! Elements with non-periodic boundary sides get NMax
+INTEGER,PARAMETER :: PRM_P_ADAPTION_HH   = 3  ! Elements in the lower half domain in x-direction are set to NMin and the upper half are set to NMax. Origin must be at x=0.
 
 INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_MINTWO  = -2 ! Directly connected elements are set to NMax and 2nd layer elements are set to NMin+1
 INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_MINONE  = -1 ! Directly connected elements are set to NMin+1
@@ -81,12 +82,14 @@ CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about 
 CALL prms%CreateIntFromStringOption('pAdaptionType', "Method for initial polynomial degree distribution among the elements: \n"//&
                                     '           none ('//TRIM(int2strf(PRM_P_ADAPTION_ZERO))//'): default for setting all elements to N\n'//&
                                     '         random ('//TRIM(int2strf(PRM_P_ADAPTION_RDN))//'): elements get random polynomial degree between NMin and NMax\n'//&
-                                    'non-periodic-BC ('//TRIM(int2strf(PRM_P_ADAPTION_NPB))//'): elements with non-periodic boundary conditions receive NMax\n'&
+                                    'non-periodic-BC ('//TRIM(int2strf(PRM_P_ADAPTION_NPB))//'): elements with non-periodic boundary conditions receive NMax\n'//&
+                                    '      half-half ('//TRIM(int2strf(PRM_P_ADAPTION_HH))//'): elements in the lower half domain in x-direction are set to NMin and the upper half are set to NMax. The domain must be centered around x=0.\n'&
                                    ,'none')
 
 CALL addStrListEntry('pAdaptionType' , 'none'            , PRM_P_ADAPTION_ZERO)
 CALL addStrListEntry('pAdaptionType' , 'random'          , PRM_P_ADAPTION_RDN)
 CALL addStrListEntry('pAdaptionType' , 'non-periodic-BC' , PRM_P_ADAPTION_NPB)
+CALL addStrListEntry('pAdaptionType' , 'half-half'       , PRM_P_ADAPTION_HH)
 
 CALL prms%CreateIntFromStringOption('pAdaptionBCLevel', "Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax.\n"//&
                                     '1st-and-2nd-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINTWO))//'): elements with non-periodic boundary conditions receive NMax, 2nd layer receive NMin+1\n'//&
@@ -95,10 +98,10 @@ CALL prms%CreateIntFromStringOption('pAdaptionBCLevel', "Only for pAdaptionType=
                                     '  1st-and-2nd-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_TWO))//'): first two elements with non-periodic boundary conditions receive NMax\n'&
                                    ,'directly-connected')
 
-CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMin+1' , PRM_P_ADAPTION_LVL_MINTWO)
-CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMin+1'     , PRM_P_ADAPTION_LVL_MINONE)
-CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMax'       , PRM_P_ADAPTION_LVL_DEFAULT)
-CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMax'   , PRM_P_ADAPTION_LVL_TWO)
+CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMin+1'        , PRM_P_ADAPTION_LVL_MINTWO)
+CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMin+1' , PRM_P_ADAPTION_LVL_MINONE)
+CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMax'   , PRM_P_ADAPTION_LVL_DEFAULT)
+CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMax'          , PRM_P_ADAPTION_LVL_TWO)
 
 END SUBROUTINE DefineParametersMesh
 
@@ -534,17 +537,16 @@ USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity
+USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
-!USE MOD_DG        ,ONLY: DG_ProlongDGElemsToFace
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iElem,BCSideID,BCType
-REAL    :: RandVal
+REAL    :: RandVal,x
 LOGICAL :: SetBCElemsToNMax
 !===================================================================================================================================
 ! Set defaults
@@ -576,6 +578,15 @@ CASE(PRM_P_ADAPTION_NPB) ! Non-periodic BCs are set to NMax
   pAdaptionBCLevel = GETINTFROMSTR('pAdaptionBCLevel')
   N_DG = Nmin ! By default, the initial degree is set to Nmin
   SetBCElemsToNMax = .TRUE.
+CASE(PRM_P_ADAPTION_HH) ! Elements in the lower half domain in x-direction are set to NMin and the upper half are set to NMax
+  DO iElem=1,nElems
+    x = (MAXVAL(NodeCoords(1,:,:,:,iElem))+MINVAL(NodeCoords(1,:,:,:,iElem)))/2.0
+    IF(x.GT.0.0)THEN
+      N_DG(iElem) = NMax
+    ELSE
+      N_DG(iElem) = NMin
+    END IF ! x.GT.0.0
+  END DO
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown pAdaptionType!' ,IntInfo=pAdaptionType)
 END SELECT
