@@ -573,6 +573,7 @@ END DO ! iCNElem = firstElem,lastElem
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
 ALLOCATE(ElemsJ(nDofsMappingNode))
+
 ElemsJ = 0.
 DO iElem = 1,nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
@@ -1499,14 +1500,12 @@ IMPLICIT NONE
 INTEGER                        :: iElem,globElemID, OffsetCounter, locN, locDofs
 INTEGER                        :: firstElem,lastElem
 #if USE_MPI
-INTEGER                        :: sendbuf,recvbuf,OffsetN_DG_Mapping, firstElemGlob, lastElemGlob
+INTEGER                        :: sendbuf,recvbuf,OffsetN_DG_Mapping
 #endif
 !================================================================================================================================
 #if USE_MPI
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
 lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
-firstElemGlob = GetGlobalElemID(firstElem)
-lastElemGlob = GetGlobalElemID(lastElem)
 #else
 firstElem = 1
 lastElem  = nElems
@@ -1532,7 +1531,10 @@ END DO ! iElem = firstElem, lastElem
   CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
   nDofsMappingNode = sendbuf
 
-  N_DG_Mapping(3,firstElemGlob:lastElemGlob) = N_DG_Mapping(3,firstElemGlob:lastElemGlob) + OffsetN_DG_Mapping
+  DO iElem=firstElem,lastElem
+    globElemID = GetGlobalElemID(iELem)
+    N_DG_Mapping(3,globElemID) = N_DG_Mapping(3,globElemID) + OffsetN_DG_Mapping
+  END DO
   CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
 #else
   nDofsMappingNode = OffsetCounter
