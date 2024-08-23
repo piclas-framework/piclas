@@ -787,6 +787,35 @@ NIG_PIC_poisson_Leapfrog_Debug: # Use the same reggie as NIG_PIC_poisson_Leapfro
   script:
     - cd build ; python ../reggie/reggie.py -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog/
 
+# Sme reggies only work on single node, e.g., ray tracing
+NIG_PIC_poisson_Leapfrog_single_node_Release:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEKHTLY'
+
+# TODO: Make this reggie weekly when everything works
+# Sme reggies only work on single node, e.g., ray tracing
+NIG_PIC_poisson_Leapfrog_single_node_Debug: # Use the same reggie as NIG_PIC_poisson_Leapfrog_single_node_Release but compile everything with CMAKE_BUILD_TYPE = Debug
+#WEK_PIC_poisson_Leapfrog_single_node_Debug:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  #stage: reggie_weekly
+  script:
+    - cd build ; python ../reggie/reggie.py -t Debug ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEKHTLY'
+
 NIG_poisson:
   <<: *defaults_nightly
   stage: reggie_nightly
