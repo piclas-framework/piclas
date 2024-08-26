@@ -476,7 +476,7 @@ FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr,iPar
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
 USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c,ElementaryCharge,PI
-USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, SurfModSEEPowerFit
+USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, BackupVeloABSArray, SurfModSEEPowerFit
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -495,7 +495,8 @@ REAL            :: PDF,PDF_max               !< Probability density function
 REAL, PARAMETER :: PDF_max2=4./PI            !< Maximum of PDF for cosine2 distribution
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 REAL            :: E_temp, E_max, W          !< Energy values [eV]
-REAL            :: Theta, Chi, Theta_temp    !< Angles between surface normal/tangent to velocity
+REAL            :: Theta, Chi                !< Angles between surface normal/tangent to velocity
+REAL            :: PDFArray(ProductSpecNbr), E_tempArray(ProductSpecNbr), RandValArray(ProductSpecNbr)  !< Array version of the same variables
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
@@ -580,34 +581,54 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
 
 CASE('cosine')
 
-  W = SurfModSEEPowerFit(4,iPartBound)  ! [eV] Material-dependent work function
-  E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
-  PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
-  ! ARM for energy distribution
-  ARM=.TRUE.
-  DO WHILE(ARM)
-    CALL RANDOM_NUMBER(RandVal)
-    E_temp = RandVal * E_max
-    PDF = 6 * W**2 * E_temp / (E_temp + W)**4
-    CALL RANDOM_NUMBER(RandVal)
-    IF ((PDF/PDF_max).GT.RandVal) ARM = .FALSE.
-  END DO
-  ! Non-relativistic electron energy (conversion from eV to Joule)
-  VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / ElectronMass)
+  ! === Energy distribution
+  IF(ProductSpecNbr.EQ.1) THEN
+    ! Only 1 SEE
+    W = SurfModSEEPowerFit(4,iPartBound)  ! [eV] Material-dependent work function
+    E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
+    PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+    ! ARM for energy distribution
+    ARM=.TRUE.
+    DO WHILE(ARM)
+      CALL RANDOM_NUMBER(RandVal)
+      E_temp = RandVal * E_max
+      PDF = 6 * W**2 * E_temp / (E_temp + W)**4
+      CALL RANDOM_NUMBER(RandVal)
+      IF ((PDF/PDF_max).GT.RandVal) ARM = .FALSE.
+    END DO
+    ! Non-relativistic electron energy (conversion from eV to Joule)
+    VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / ElectronMass)
+  ELSE
+    ! 2 or more SEEs
+    IF(iNewPart.EQ.1)THEN
+      ALLOCATE(BackupVeloABSArray(ProductSpecNbr))
+      W = SurfModSEEPowerFit(4,iPartBound)  ! [eV] Material-dependent work function
+      E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
+      PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+      ! ARM for energy distribution
+      ARM=.TRUE.
+      DO WHILE(ARM)
+        CALL RANDOM_NUMBER(RandValArray)
+        IF(SUM(RandValArray).GT.1.0) CYCLE
+        E_tempArray = RandValArray * E_max
+        PDFArray = 6 * W**2 * E_tempArray / (E_tempArray + W)**4
+        CALL RANDOM_NUMBER(RandValArray)
+        IF (ALL((PDFArray/PDF_max).GT.RandValArray)) ARM = .FALSE.
+      END DO
+      ! Non-relativistic electron energy (conversion from eV to Joule)
+      BackupVeloABSArray = SQRT(2.0 * E_tempArray * ElementaryCharge / ElectronMass)
+      VeloABS = BackupVeloABSArray(iNewPart)
+    ELSE
+      VeloABS = BackupVeloABSArray(iNewPart)
+      IF(iNewPart.EQ.ProductSpecNbr) DEALLOCATE(BackupVeloABSArray)
+    END IF
+  END IF
 
+  ! === Velocity vector
   ! Equally-distributed angle Chi [0:2*PI] for tangential component
   CALL RANDOM_NUMBER(RandVal)
   Chi = RandVal * 2.0 * PI
   ! Distribution of Theta [0:PI/2] for normal component
-  ! ARM for angular distribution for cosine2
-  ! ARM=.TRUE.
-  ! DO WHILE(ARM)
-  !   CALL RANDOM_NUMBER(RandVal)
-  !   Theta_temp = RandVal * 0.5 * PI
-  !   PDF = 4.0 / PI * COS(Theta_temp)**2
-  !   CALL RANDOM_NUMBER(RandVal)
-  !   IF ((PDF/PDF_max2).GT.RandVal) ARM = .FALSE.
-  ! END DO
   ! Inverse method for cosine distribution
   CALL RANDOM_NUMBER(RandVal)
   Theta = ASIN(SQRT(RandVal))

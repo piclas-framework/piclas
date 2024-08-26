@@ -32,6 +32,7 @@ CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy dis
 REAL , ALLOCATABLE               :: SurfModEmissionEnergy(:)        ! Energy of emitted particle for surface emission model (only available for SurfaceModel=7)
 REAL , ALLOCATABLE               :: SurfModEmissionYield(:)         ! Emission yield factor for surface emission model (only changable for SurfaceModel=7)
 REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARMfor 2nd SEE
+REAL , ALLOCATABLE               :: BackupVeloABSArray(:)           ! Precalculated velocities in case of multiple SEE
 ! === Porous BC ====================================================================================================================
 INTEGER                          :: nPorousBC                       ! Number of porous BCs
 TYPE tPorousBC
