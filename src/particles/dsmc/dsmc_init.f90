@@ -362,6 +362,7 @@ IF(CollisMode.GE.2) THEN
     ! RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuantMH
     ! RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaQuantMH
     ! Initialization for burn in phase of metropolis hastings method
+    !//TODO fails with load balance in increase part num
     ! IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
   ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
