@@ -92,13 +92,11 @@ ELSE
 END IF
 iSpec = PartSpecies(iPart)
 ! calculate maximum allowed quantum number if all of the collision energy would be transfered to rotational energy
-J2 = INT(0.5 * (-1.+SQRT(1.+(4.*Coll_pData(iPair)%Ec)/(BoltzmannConst * SpecDSMC(iSpec)%CharaTRot))))
-! reduce J2 if too big which would correspond to unphysical quantum numbers -> //TODO which cut off - vib energy??
-IF(J2.GT.500) J2 = 500
+J2 = INT(0.5 * (-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * SpecDSMC(iSpec)%CharaTRot))))
 ! Find max value of distribution numerically
 MaxValue = 0.
 DO jIter=0, J2
-  CurrentValue = (2.*REAL(jIter) + 1.)*(Coll_pData(iPair)%Ec - REAL(jIter)*(REAL(jIter) + 1.)* & 
+  CurrentValue = (2.*REAL(jIter) + 1.)*(Ec - REAL(jIter)*(REAL(jIter) + 1.)* & 
                 BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi
   IF (CurrentValue .GT. MaxValue) THEN
       MaxValue = CurrentValue
@@ -108,7 +106,7 @@ ARM = .TRUE.
 CALL RANDOM_NUMBER(iRan)
 iQuant = INT((1+J2)*iRan)
 DO WHILE (ARM)
-  fNorm = (2.*REAL(iQuant) + 1.)*(Coll_pData(iPair)%Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi &
+  fNorm = (2.*REAL(iQuant) + 1.)*(Ec - REAL(iQuant)*(REAL(iQuant) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi &
   / (MaxValue)
   CALL RANDOM_NUMBER(iRan)
   IF(fNorm .LT. iRan) THEN

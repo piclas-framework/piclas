@@ -1307,9 +1307,6 @@ ARM = .TRUE.
 IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same routine as diatomic
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy)
   J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise 
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
@@ -1335,9 +1332,6 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
   ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy)
   J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise 
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
@@ -1366,9 +1360,6 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10)THEN
     J2 = INT((-PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
     SQRT((PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))**2. + & 
     (32.*Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)*PI**2.)/(PlanckConst**2.)))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise 
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
@@ -1442,9 +1433,6 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11)THEN
   ! function identical to oblate tops other than J2 calculation but for clarity and less if statements separate 
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy) with k = 0
   J2 = INT((-1. + SQRT(1. + (32.*Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*PI**2.)/(PlanckConst**2.)))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise 
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
