@@ -298,9 +298,7 @@ USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_RotRelaxDatabasePoly, DSMC_RotRelaxQuantPoly, DSMC_RotRelaxPoly
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RotRelaxQuantPolyMH
-USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinous,DSMC_RotRelaxDiaQuant,DSMC_RotInitDiaContinous,DSMC_RotInitDiaQuant
-USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotInitDiaQuantMH, DSMC_RotRelaxDiaQuantMH
-USE MOD_DSMC_Relaxation        ,ONLY: RotRelaxDiaRoutineFuncPTR, RotInitDiaRoutineFuncPTR
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinous,DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaQuantMH, RotRelaxDiaRoutineFuncPTR
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 USE MOD_io_hdf5
@@ -355,12 +353,10 @@ IF(CollisMode.GE.2) THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPoly
     RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuant
-    RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaQuant
     ! set sampling routine to Metropolis Hastings
     ! RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPolyMH
     ! RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle_MH
     ! RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuantMH
-    ! RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaQuantMH
     ! Initialization for burn in phase of metropolis hastings method
     !//TODO fails with load balance in increase part num
     ! IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
@@ -368,12 +364,10 @@ IF(CollisMode.GE.2) THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
     RotInitPolyRoutineFuncPTR  => CalcERotDataset_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDatabasePoly
-    RotInitDiaRoutineFuncPTR   => CalcERotDataset_particle
   ELSE
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxPoly
     RotInitPolyRoutineFuncPTR  => CalcERot_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaContinous
-    RotInitDiaRoutineFuncPTR   => DSMC_RotInitDiaContinous
   END IF
 ELSE
   DSMC%RotRelaxProb = 0.
