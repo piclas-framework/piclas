@@ -103,6 +103,9 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
       ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
       IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
 
+      ! TODO: Limit the number of possible secondary electrons to four to avoid excessive computational duration during energy distribution ARM
+      IF(ProductSpecNbr.GT.4) ProductSpecNbr = 4
+
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
       CASE('deltadistribution')
