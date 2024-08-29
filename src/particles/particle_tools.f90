@@ -1116,12 +1116,11 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
     SumOne = 0
     SumTwo = (2.*REAL(0) + 1.) *EXP(-REAL(0)*(REAL(0) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
              / ((2.*J + 1.) *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-    jIter = 0
+    jIter = 1
     DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
       SumOne = SumTwo
       SumTwo = SumOne + (2.*REAL(jIter) + 1.) *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* & 
-               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / ((2.*J + 1.) * & 
-               EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
+               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / MaxValue
       jIter = jIter + 1
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
@@ -1156,13 +1155,12 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
     SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
     SumOne = 0
     SumTwo = (2.*REAL(0) + 1.)**2 *EXP(-REAL(0)*(REAL(0) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
-             / ((2.*J + 1.)**2 *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-    jIter = 0
+             / MaxValue
+    jIter = 1
     DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
       SumOne = SumTwo
       SumTwo = SumOne + (2.*REAL(jIter) + 1.)**2 *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* & 
-               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / ((2.*J + 1.)**2 * & 
-               EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
+               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / MaxValue
       jIter = jIter + 1
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
@@ -1210,13 +1208,13 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10))THEN
     DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
       ! for k=0 not double degenerate
       SumTwo = SumTwo + (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * (REAL(jIter) * &
-                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
+                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))) / MaxValue
       DO kIter=1, jIter
         SumOne = SumTwo
         SumTwo = SumTwo + (2.) * (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
             (REAL(jIter) * (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
             (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
-            REAL(kIter)**2.))
+            REAL(kIter)**2.)) / MaxValue
       END DO
       jIter = jIter + 1
     END DO
@@ -1296,13 +1294,13 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
     DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
       ! for k=0 not double degenerate
       SumTwo = SumTwo + (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * (REAL(jIter) * &
-                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
+                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))) / MaxValue
       DO kIter=1, jIter
         SumOne = SumTwo
         SumTwo = SumTwo + (2.) * (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
             (REAL(jIter) * (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
             (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
-            REAL(kIter)**2.))
+            REAL(kIter)**2.)) / MaxValue
       END DO
       jIter = jIter + 1
     END DO

@@ -1309,10 +1309,7 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
 ELSE
   CALL RotRelaxDiaRoutineFuncPTR(iPair, iPart, FakXi)
 END IF
-Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2, iPart)
-IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
-  PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
-END IF
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2, iPart) * GetParticleWeight(iPart)
 END SUBROUTINE ProcessRotRelax
 
 

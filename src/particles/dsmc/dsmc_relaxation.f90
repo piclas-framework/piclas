@@ -181,8 +181,10 @@ SUBROUTINE DSMC_RotRelaxDiaContinous(iPair,iPart,FakXi)
 !> Only seperate routine for function pointer with RotRelaxModel
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, RadialWeighting
+USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars         ,ONLY: PartSpecies
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -202,6 +204,9 @@ iSpec = PartSpecies(iPart)
 LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot
 CALL RANDOM_NUMBER(iRan)
 PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
+IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
+END IF
 END SUBROUTINE DSMC_RotRelaxDiaContinous
 
 
@@ -255,22 +260,37 @@ REAL, INTENT(IN)                :: TRot
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iQuant, jMax, dummy
+INTEGER                         :: iQuant, jMax, jIter, dummy
 LOGICAL                         :: ARM
-REAL                            :: iRan, fNorm, J, fIntegralNorm
+REAL                            :: iRan, fNorm, J, MaxValue, SumOne, SumTwo
+REAL,PARAMETER                  :: eps_prec=1E-10
 !===================================================================================================================================
 ! Quantized treatment of rotational energy
 J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpec)%CharaTRot) - 1.))
-! fIntegralNorm brings integral over fNorm(j) from 0 to infinity to 1
-fIntegralNorm = TRot/SpecDSMC(iSpec)%CharaTRot
-! set jMax to include 99.9% of energy in fNorm distribution
-jMax = NINT(0.5 * (SQRT(1.-4.*TRot/SpecDSMC(iSpec)%CharaTRot*log(1.-0.999*fIntegralNorm*SpecDSMC(iSpec)%CharaTRot/TRot))-1.))
+MaxValue = (2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot)
+! calculate cutoff value for distribution function if not already calculated for current temperature
+IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
+IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+  SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
+  SumOne = 0
+  SumTwo = (2.*REAL(0) + 1.) *EXP(-REAL(0)*(REAL(0) + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot) &
+            / MaxValue
+  jIter = 1
+  DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+    SumOne = SumTwo
+    SumTwo = SumOne + (2.*REAL(jIter) + 1.) *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* & 
+              SpecDSMC(iSpec)%CharaTRot/TRot) / MaxValue
+    jIter = jIter + 1
+  END DO
+  SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
+END IF
+jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
 ARM = .TRUE.
 CALL RANDOM_NUMBER(iRan)
 iQuant = INT((1+jMax)*iRan)
 DO WHILE (ARM)
   fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot) &
-  / ((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot))
+  / MaxValue
   CALL RANDOM_NUMBER(iRan)
   IF(fNorm .LT. iRan) THEN
     CALL RANDOM_NUMBER(iRan)

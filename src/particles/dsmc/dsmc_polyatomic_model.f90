@@ -578,7 +578,6 @@ DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
                               + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
   VibQuantsPar(iPart)%Quants(iDOF)=iQuant
 END DO
-!//TODO
 ! set initial rotational internal energy
 PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpecies,TRot,iPart)
 
@@ -1225,8 +1224,10 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 ! MODULES
   USE MOD_Globals               ,ONLY: Abort
   USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
-  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
+  USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, usevMPF
+  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, RadialWeighting
   USE MOD_Particle_Vars         ,ONLY: PartSpecies
+  USE MOD_part_tools            ,ONLY: GetParticleWeight
 
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1264,7 +1265,9 @@ ELSE    ! continous treatment of linear molecules
   CALL RANDOM_NUMBER(iRan)
   PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
 END IF
-
+IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
+END IF
 END SUBROUTINE DSMC_RotRelaxPoly
 
 
