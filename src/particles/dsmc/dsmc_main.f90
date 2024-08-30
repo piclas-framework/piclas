@@ -46,7 +46,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
 USE MOD_DSMC_Analyze          ,ONLY: SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Species, PartSpecies
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
@@ -64,7 +64,7 @@ LOGICAL,OPTIONAL  :: DoElement(nElems)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem, nPart
+INTEGER           :: iElem, nPart, nPartTemp, iLoop, iPart
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -94,6 +94,19 @@ IF (CollisMode.NE.0) THEN
       IF (.NOT.DoElement(iElem)) CYCLE
     END IF
     nPart = PEM%pNumber(iElem)
+    ! Are there granular species
+    IF(ANY(Species(:)%InterID.EQ.100)) THEN
+      ! Get real nPart without granular species
+      iPart = PEM%pStart(iElem)
+      nPartTemp = nPart
+      DO iLoop = 1, nPart
+        IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+          nPartTemp = nPartTemp - 1
+        END IF
+        iPart = PEM%pNext(iPart)
+      END DO
+      nPart = nPartTemp
+    END IF
     IF (nPart.LT.1) CYCLE
     IF(DSMC%CalcQualityFactors) THEN
       DSMC%CollProbMax = 0.0; DSMC%CollProbSum = 0.0;DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0

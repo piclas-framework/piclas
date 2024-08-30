@@ -196,6 +196,8 @@ INTEGER                       :: nPartTemp
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+! Get real nPart without granular species
+iPart = PEM%pStart(iElem)
 nPartTemp = nPart
 DO iLoop = 1, nPart
   IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
@@ -866,6 +868,8 @@ CNElemID = GetCNElemID(iElem+offSetElem)
 Volume = ElemVolume_Shared(CNElemID)
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+! Get real nPart without granular species
+iPart = PEM%pStart(iElem)
 nPartTemp = nPart
 DO iLoop = 1, nPart
   IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
@@ -1199,6 +1203,8 @@ SpecPartNum = 0.
 
 NULLIFY(TreeNode)
 nPart = PEM%pNumber(iElem)
+! Get real nPart without granular species
+iPart = PEM%pStart(iElem)
 nPartTemp = nPart
 DO iLoop = 1, nPart
   IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN

@@ -43,6 +43,7 @@ PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
 PUBLIC :: CalcPartRHSRotRefFrame
 PUBLIC :: CalcPartPosInRotRef
+PUBLIC :: CalcPosAndVeloForGranularSpecies
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -833,6 +834,48 @@ ELSE
 END IF
 
 END SUBROUTINE CalcPartPosInRotRef
+
+
+SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
+  !===================================================================================================================================
+  ! Routine for the calculation of the new velocity and position of granular species using a Leapfrog integration
+  ! Two influences are currently implemented:
+  ! 1. Gravity
+  ! 2. Fluid-particle interaction
+  !===================================================================================================================================
+  ! MODULES
+  USE MOD_Particle_Vars ,ONLY: PartState
+  USE MOD_Globals_Vars  ,ONLY: GravityAccelerationEarth
+
+  ! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! INPUT VARIABLES
+  INTEGER, INTENT(IN)           :: iPart
+  REAL, INTENT(IN)              :: dtVar
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! OUTPUT VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! LOCAL VARIABLES
+  REAL                     :: Pt(3)
+  !===================================================================================================================================
+  ! 1. Gravity:
+  Pt(1) = (-1.0) * GravityAccelerationEarth
+  Pt(2) = 0.0
+  Pt(3) = 0.0
+  ! 2.Fluid-particle interaction
+
+  ! New velocity and position
+  ! 1. leapfrog step v(t+dt/2):
+  PartState(4:6,iPart) = PartState(4:6,iPart) + 0.5 * dtVar * Pt(1:3)
+  ! 2. leapfrog step r(t+dt):
+  PartState(1:3,iPart) = PartState(1:3,iPart) + dtVar * PartState(4:6,iPart)
+  ! 3. leapfrog step v(t+dt):
+  PartState(4:6,iPart) = PartState(4:6,iPart) + 0.5 * dtVar * Pt(1:3) 
+
+  !print*,'velo',PartState(4:6,iPart)
+  
+  END SUBROUTINE CalcPosAndVeloForGranularSpecies
 
 
 END MODULE MOD_part_RHS

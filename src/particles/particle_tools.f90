@@ -705,7 +705,7 @@ LOGICAL             :: isPushParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF((ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0).OR.(Species(PartSpecies(iPart))%InterID.EQ.100)) THEN
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0) THEN
   isPushParticle = .TRUE.
 ELSE
   isPushParticle = .FALSE.
