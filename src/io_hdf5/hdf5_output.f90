@@ -518,6 +518,10 @@ TYPE(C_PTR)                    :: buf
 INTEGER(KIND=8)                :: Nbr8
 INTEGER                        :: irank
 #endif /*!defined(INTKIND8)*/
+! Sanity check
+INTEGER                        :: rankTest
+INTEGER(HSIZE_T)               :: dimsTest(rank)
+INTEGER(HSIZE_T)               :: maxDimsTest(rank)
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
 
@@ -568,7 +572,9 @@ CALL H5DOPEN_F(File_ID, TRIM(DatasetName),DSet_ID, iError)
 IF(iError.NE.0)THEN ! does not exist
   ! Create the data space for the  dataset.
   CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, FileSpace, iError, nValMax)
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR in WriteArrayToHDF5: Filespace could not be created.')
   CALL H5DCREATE_F(File_ID, TRIM(DataSetName), Type_ID, FileSpace, DSet_ID,iError,dsetparams)
+  IF(iError.NE.0) CALL abort(__STAMP__,'ERROR in WriteArrayToHDF5: Dataset '//TRIM(DatasetName)//' could not be created.')
   CALL H5SCLOSE_F(FileSpace, iError)
 END IF
 CALL H5ESET_AUTO_F(1,iError)
@@ -591,6 +597,19 @@ IF(ANY(Dimsf.EQ.0))THEN
   CALL H5SSELECT_NONE_F(FileSpace,iError)
 ELSE
   CALL H5SSELECT_HYPERSLAB_F(FileSpace, H5S_SELECT_SET_F, OffsetHDF, Dimsf, iError)
+END IF
+
+! Sanity check for dimensions of FileSpace since it might have been created outside of routine
+! Get the dimensionality (rank) of the filespace
+CALL H5SGET_SIMPLE_EXTENT_NDIMS_F(FileSpace,rankTest, ierror)
+IF(rank.NE.rankTest) CALL abort(__STAMP__,'ERROR in WriteArrayToHDF5: Rank of available filespace does not correspond to the input rank!')
+! Get the dimensions and max dimensions of the filespace
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dimsTest, maxDimsTest, ierror)
+IF(ANY(dimsTest.NE.nValGlobal)) THEN
+  IPWRITE(*,*) 'Dataset name: ', TRIM(DatasetName)
+  IPWRITE(*,*) 'Dimensions of filespace: ', dimsTest
+  IPWRITE(*,*) 'Dimensions of input: ', nValGlobal
+  CALL abort(__STAMP__,'ERROR in WriteArrayToHDF5: Dimensions of available filespace do not correspond to the input dimensions!')
 END IF
 
 ! Create property list for collective dataset write

@@ -184,7 +184,7 @@ DO i = 1, iMax
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
     FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
-    IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
+    IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -1239,7 +1239,7 @@ END SUBROUTINE WriteAdaptiveWallTempToHDF5
 
 SUBROUTINE WriteVibProbInfoToHDF5(FileName)
 !===================================================================================================================================
-!> Subroutine that generates the adaptive boundary info and writes it out into State-File
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
