@@ -239,6 +239,10 @@ DO iSpec = 1, nSpecies
       ,'maxwell_lpn'))
     Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
     Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3)
+    ! Velocity distribution of granular species must be constant
+    IF(Species(iSpec)%InterID.EQ.100) THEN
+      Species(iSpec)%Init(iInit)%velocityDistribution  = 'constant'
+    END IF
     !--- Normalize VeloVecIC
     IF(.NOT.ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).EQ.0.)) THEN
       Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC / VECNORM(Species(iSpec)%Init(iInit)%VeloVecIC)

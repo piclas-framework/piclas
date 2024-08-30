@@ -66,6 +66,7 @@ REAL, PARAMETER            :: eV2Joule=1.60217734e-19               !> Conversio
 CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
 REAL,PARAMETER             :: BohrRadius     = 5.2917721067E-11     !> Radius, 1st Bohr orbit for H (a0) [m]
 REAL,PARAMETER             :: AtomicMassUnit = 1.660539040E-27      !> Atomic mass unit [kg]
+REAL,PARAMETER             :: GravityAccelerationEarth = 9.8067     !> Atomic mass unit [m/s^2]
 
 REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
 ! Set variables (natural constants and derived quantities) from user input or hard coded

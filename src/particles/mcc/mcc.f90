@@ -91,6 +91,7 @@ REAL                          :: CollCaseNum, CollProb, VeloBGGPart(1:3), CRela2
 REAL                          :: PartStateSplit(1:6), PartPosRefSplit(1:3), PartStateIntSplit(1:3), PartTimeStepSplit, PartMPFSplit
 INTEGER, ALLOCATABLE          :: VibQuantsParSplit(:), PartIndexCase(:)
 REAL                          :: ProbNull, dtVar
+INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 ! Skip elements outside of any background gas regions
@@ -104,9 +105,29 @@ Volume = ElemVolume_Shared(CNElemID)
 
 ! Create particle index list for pairing
 nPart = PEM%pNumber(iElem)
+
+! Get real nPart without granular species
+iPart = PEM%pStart(iElem)
+nPartTemp = nPart
+DO iLoop = 1, nPart
+  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+    nPartTemp = nPartTemp - 1
+  END IF
+  iPart = PEM%pNext(iPart)
+END DO
+nPart = nPartTemp
+
+
 ALLOCATE(iPartIndx_Node(nPart))
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
+  ! Skip granular species
+  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+    ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
+  END IF
   iPartIndx_Node(iLoop) = iPart
   iPart = PEM%pNext(iPart)
 END DO

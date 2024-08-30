@@ -337,6 +337,11 @@ ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
 END IF
+! If granular species exist, the internal degree of freedom needs to be used (restart and communication) 
+! as long as the vibration energy is used as the bulk temperature value for granular species
+IF((CollisMode.LT.2).AND.ANY(Species(:)%InterID.EQ.100)) THEN
+  CollisMode = 2  
+END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
@@ -452,7 +457,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         CALL PrintOption('alphaVSS','DB',RealOpt=SpecDSMC(iSpec)%alphaVSS)
         ! check for faulty parameters
         WRITE(UNIT=hilf,FMT='(I0)') iSpec
-        IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
+        IF(((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) &
+            .AND. (Species(iSpec)%InterID.NE.100)) THEN
           CALL Abort(__STAMP__,'ERROR in species data: check collision parameters \n'//&
           'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
         END IF ! (Tref * dref * alphaVSS) .EQ. 0
@@ -484,7 +490,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
       SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS' )
       ! check for faulty parameters
-      IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
+      IF(((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) &
+      .AND. (Species(iSpec)%InterID.NE.100)) THEN
         CALL Abort(__STAMP__,'ERROR in species data: check collision parameters in ini \n'//&
           'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
       END IF ! (Tref * dref * alphaVSS) .EQ. 0
@@ -499,7 +506,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     ! Save the electron species into a global variable
     IF(Species(iSpec)%InterID.EQ.4) DSMC%ElectronSpecies = iSpec
     ! reading electronic state information from HDF5 file
-    IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4)) THEN
+    IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
       CALL SetElectronicModel(iSpec)
     END IF
   END DO
@@ -699,7 +706,7 @@ ELSE !CollisMode.GT.0
         IF(.NOT.Species(iSpec)%DoOverwriteParameters) THEN
           dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
-          IF(Species(iSpec)%InterID.NE.4) THEN
+          IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
             dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
             CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=AttrExists)
             IF (AttrExists) THEN
@@ -834,7 +841,7 @@ ELSE !CollisMode.GT.0
 
     DO iSpec = 1, nSpecies
       IF(Species(iSpec)%DoOverwriteParameters) THEN
-        IF(Species(iSpec)%InterID.NE.4) THEN
+        IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
           LBWRITE (UNIT_stdOut,'(68(". "))')
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
@@ -1060,7 +1067,7 @@ ELSE !CollisMode.GT.0
     DO iSpec=1,nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! Read-in of species for field ionization (only required if it cannot be determined automatically)
-      IF(Species(iSpec)%InterID.NE.4) THEN
+      IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
         SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies')
       ELSE
         SpecDSMC(iSpec)%NextIonizationSpecies = 0
@@ -1419,7 +1426,7 @@ INTEGER       :: iSpec
 AutoDetect=.FALSE.
 DO iSpec = 1, nSpecies
   ! loop all species, except electrons (also loop over fully ionized species!)
-  IF(Species(iSpec)%InterID.NE.4) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
     IF(SpecDSMC(iSpec)%PreviousState.NE.0)THEN
       SpecDSMC(SpecDSMC(iSpec)%PreviousState)%NextIonizationSpecies = iSpec
       AutoDetect=.TRUE.

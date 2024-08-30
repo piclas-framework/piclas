@@ -139,6 +139,7 @@ TYPE tSpecies                                                                ! P
                                                                              !     4   : Electron
                                                                              !     10  : Atomic ion
                                                                              !     20  : Molecular ion
+                                                                             !    100  : Granular species
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   REAL                                   :: TimeStepFactor                   ! Species-specific time step factor
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements

@@ -711,7 +711,7 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
 END IF
 
 IF (DSMC%ElectronicModel.GT.0) THEN
-  IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
+  IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
     CALL RANDOM_NUMBER(RanNum)
     IF (RanNum.LT.ElecACC) THEN
       PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)

@@ -381,6 +381,7 @@ INTEGER, INTENT(IN)           :: iElem
 INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, CNElemID
 INTEGER                       :: cSpec1, cSpec2, iCase, iSpec, bggSpec
 REAL                          :: iRan, MPF
+INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 ! Skip elements outside of any background gas regions
@@ -389,6 +390,17 @@ IF(BGGas%UseRegions) THEN
 END IF
 
 nPart = PEM%pNumber(iElem)
+! Get real nPart without granular species
+iPart = PEM%pStart(iElem)
+nPartTemp = nPart
+DO iLoop = 1, nPart
+  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+    nPartTemp = nPartTemp - 1
+  END IF
+  iPart = PEM%pNext(iPart)
+END DO
+nPart = nPartTemp
+
 nPair = INT(nPart/2.)
 
 ! Routine to increase the sample size for trace background gas species by splitting the simulation particle
@@ -408,6 +420,13 @@ IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 iPair = 1
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
+  ! Skip granular species
+  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+    ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
+  END IF
   iSpec = PartSpecies(iPart)
   ! Counting the number of particles per species
   MPF = GetParticleWeight(iPart)
