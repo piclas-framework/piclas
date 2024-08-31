@@ -913,6 +913,7 @@ ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
 
 GlobalSide2SurfSideProc = -1
 nComputeNodeSurfSides   = 0
+nComputeNodeInnerBCs    = 0
 nSurfSidesProc          = 0
 ReflectiveOrOpenBCFound = .FALSE.
 
@@ -1057,7 +1058,6 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
   ! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
 #if USE_MPI
   IF (myComputeNodeRank.EQ.0) THEN
-    nComputeNodeInnerBCs = 0
 #endif /*USE_MPI*/
     nComputeNodeSurfOutputSides = 0
     DO iSurfSide = 1,nComputeNodeSurfSides
