@@ -1557,7 +1557,6 @@ IF(MPIRoot)THEN
       ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN  ! quantized treatment of rotational energies
         IntTemp(iSpec,2) = CalcTDataset(ERot(iSpec)/NumSpecTemp, iSpec, 'ROTATIONAL')
       END IF
-      ! PRINT *, "Temp",IntTemp(iSpec,2),"ERot",ERot
       IF (EVib(iSpec)/NumSpecTemp.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
           IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpecTemp, iSpec)
@@ -1982,7 +1981,7 @@ INTEGER                 :: iPolyatMole, iLoop, kLoop, iDOF, iQuant, CutOffPartit
 REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
 REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
 REAL                    :: Qrot, SumOne, SumTwo, EVib
-REAL,PARAMETER          :: eps_prec=1E-8                    !< Relative precision of root-finding algorithm
+REAL,PARAMETER          :: eps_prec=1E-15                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature

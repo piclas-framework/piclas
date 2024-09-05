@@ -1536,7 +1536,7 @@ SUBROUTINE DSMC_RotRelaxQuantPolyMH(iPair, iPart, FakXi)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   REAL                          :: iRan, tempEng, tempProb, NormProb, Ec
-  INTEGER                       :: iPolyatMole, iSpec, iWalk, LoopEnd
+  INTEGER                       :: iPolyatMole, iSpec, iWalk
   INTEGER                       :: jMax, iQuant, kQuant, delta, delta_old
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
@@ -1589,9 +1589,8 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
   END DO
 ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
   ! molecule is non-linear -> symmetric top molecule where two are equal and third is different
-  LoopEnd = 1000
   iWalk = 1
-  DO WHILE(iWalk.LT.LoopEnd)
+  DO iWalk=1,3500
     NormProb = Ec - PartStateIntEn(2,iPart)
     ! Proper modelling of energy transfer between old and new state in chemistry
     NormProb = NormProb**FakXi
@@ -1618,13 +1617,8 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC
         RotQuantsPar(1,iPart)=iQuant
         RotQuantsPar(2,iPart)=kQuant
       END IF
-    ELSE
-      ! handle NaN for PartStateIntEn(2,iPart), since tempProb**FakXi is Nan if tempProb is negative and FakXi<0
-      LoopEnd = LoopEnd + 1
     END IF
-    iWalk = iWalk + 1
   END DO
-
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN
   ! -> asymmetric top molecule, no analytic formula for energy levels -> always use rotational levels
   CALL DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)
@@ -1659,6 +1653,13 @@ IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   CollisionEnergy = Coll_pData(iPair)%Ec
+END IF
+
+IF(CollisionEnergy.GT.(BoltzmannConst*SpecDSMC(iSpec)%RotationalState(2,SpecDSMC(iSpec)%MaxRotQuant-1))) THEN
+  CALL ABORT(__STAMP__, &
+    'Please use continous calculation for rotational energy levels, since temperature is above the highest level - Not tested yet!')
+  CALL DSMC_RotRelaxPoly(iPair,iPart,FakXi)
+  RETURN
 END IF
 
 iQuaMax  = 0

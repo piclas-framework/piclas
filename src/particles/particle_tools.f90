@@ -1097,10 +1097,12 @@ INTEGER                       :: kQuant, kIter, delta
 ! jMax Calculation
 INTEGER                       :: jMax, jIter
 REAL                          :: SumOne, SumTwo
-REAL,PARAMETER                :: eps_prec=1E-10
+REAL,PARAMETER                :: eps_prec=1E-12
 
 !===================================================================================================================================
 CalcERotQuant_particle = 0.
+! if Trot is zero function would lead to endless loop due to diving by zero
+IF(TRot.EQ.0) RETURN
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 ARM = .TRUE.
 IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN            ! diatomic case
@@ -1177,7 +1179,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
@@ -1217,7 +1219,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
 ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10))THEN
@@ -1295,8 +1297,8 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10))THEN
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant
-  RotQuantsPar(2,iPart) = kQuant
+  ! RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(2,iPart) = kQuant
   CalcERotQuant_particle = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / &
                           PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
                           1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)
@@ -1381,8 +1383,8 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant
-  RotQuantsPar(2,iPart) = kQuant
+  ! RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(2,iPart) = kQuant
   CalcERotQuant_particle = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / &
                           PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
                           1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)                          
@@ -1423,25 +1425,27 @@ INTEGER                       :: jMax, iQuant, iQuant_old
 INTEGER                       :: kQuant, kQuant_old, delta, delta_old
 !===================================================================================================================================
 CalcERotQuant_particle_MH = 0.
+! if Trot is zero function would lead to endless loop due to diving by zero
+IF(TRot.EQ.0) RETURN
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-  IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN
-    jMax = 50
+IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN
+  jMax = 50
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(iRan*(jMax+1))
+  DO iWalk=1, 4000
+    iQuant_old=iQuant
     CALL RANDOM_NUMBER(iRan)
-    iQuant = INT(iRan*(jMax+1))
-    DO iWalk=1, 4000
-      iQuant_old=iQuant
-      CALL RANDOM_NUMBER(iRan)
-      ! random walk
-      iQuant = iQuant_old+NINT((2.0 * iRan - 1.0) * 10)
-      IF(iQuant.LT.0) iQuant = -1*iQuant -1
-      NormProb = ((REAL(iQuant_old)*(REAL(iQuant_old) + 1.))-(REAL(iQuant)*(REAL(iQuant) + 1.)))*SpecDSMC(iSpec)%CharaTRot/TRot
-      NormProb = MIN(1.0,(2.*REAL(iQuant) + 1.)/(2.*REAL(iQuant_old) + 1.)*EXP(NormProb))
-      CALL RANDOM_NUMBER(iRan)
-      IF (NormProb.LT.iRan) iQuant=iQuant_old
-    END DO
-    ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-    RotQuantsPar(1,iPart) = iQuant
-    CalcERotQuant_particle_MH = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
+    ! random walk
+    iQuant = iQuant_old+NINT((2.0 * iRan - 1.0) * 10)
+    IF(iQuant.LT.0) iQuant = -1*iQuant -1
+    NormProb = ((REAL(iQuant_old)*(REAL(iQuant_old) + 1.))-(REAL(iQuant)*(REAL(iQuant) + 1.)))*SpecDSMC(iSpec)%CharaTRot/TRot
+    NormProb = MIN(1.0,(2.*REAL(iQuant) + 1.)/(2.*REAL(iQuant_old) + 1.)*EXP(NormProb))
+    CALL RANDOM_NUMBER(iRan)
+    IF (NormProb.LT.iRan) iQuant=iQuant_old
+  END DO
+  ! save latest accepted sample to start MH markov chain at this point in post coll sampling
+  RotQuantsPar(1,iPart) = iQuant
+  CalcERotQuant_particle_MH = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
 
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
   jMax = 100
@@ -1460,7 +1464,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule
     IF (NormProb.LT.iRan) iQuant=iQuant_old
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant_old
+  RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle_MH = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
@@ -1481,7 +1485,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
     IF (NormProb.LT.iRan) iQuant=iQuant_old
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant_old
+  RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle_MH = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
 ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
@@ -1525,8 +1529,8 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant_old
-  RotQuantsPar(2,iPart) = kQuant_old
+  RotQuantsPar(1,iPart) = iQuant
+  RotQuantsPar(2,iPart) = kQuant
   CalcERotQuant_particle_MH = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / & 
     PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - & 
     1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)
@@ -1565,6 +1569,14 @@ INTEGER, INTENT(IN)           :: iPart  ! dummy for func pointer to work (needed
 INTEGER                   :: iQuant, dummy
 REAL                      :: iRan, RotationalPartition, RotationalPartitionTemp
 !===================================================================================================================================
+! switch to continous calculatation if temperature is above the highest level in database
+IF(TRot.GT.SpecDSMC(iSpec)%RotationalState(2,SpecDSMC(iSpec)%MaxRotQuant-1)) THEN
+  CALL ABORT(__STAMP__,&
+    'Please use continous calculation for rotational energy levels, since temperature is above the highest level - Not tested yet!')
+  CalcERotDataset_particle = CalcERot_particle(iSpec,TRot,iPart)
+  RETURN
+END IF
+
 RotationalPartition  = 0.
 CalcERotDataset_particle = 0.
 RotationalPartitionTemp = 0.
