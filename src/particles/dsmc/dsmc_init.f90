@@ -298,7 +298,7 @@ USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_RotRelaxDatabasePoly, DSMC_RotRelaxQuantPoly, DSMC_RotRelaxPoly
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RotRelaxQuantPolyMH
-USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinous,DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaQuantMH, RotRelaxDiaRoutineFuncPTR
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinuous,DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaQuantMH, RotRelaxDiaRoutineFuncPTR
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 USE MOD_io_hdf5
@@ -367,7 +367,7 @@ IF(CollisMode.GE.2) THEN
   ELSE
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxPoly
     RotInitPolyRoutineFuncPTR  => CalcERot_particle
-    RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaContinous
+    RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaContinuous
   END IF
 ELSE
   DSMC%RotRelaxProb = 0.
@@ -906,7 +906,7 @@ ELSE !CollisMode.GT.0
             IF(DSMC%RotRelaxModel.EQ.1)THEN  ! If MomentOfInertia needed calc CharaTempRot with Moment
               SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia')
               SpecDSMC(iSpec)%CharaTRot       = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
-            ELSE  ! read in CharaTRot 
+            ELSE  ! read in CharaTRot
               SpecDSMC(iSpec)%CharaTRot       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempRot')
             END IF
             SpecDSMC(iSpec)%Ediss_eV        = GETREAL('Part-Species'//TRIM(hilf)//'-Ediss_eV')

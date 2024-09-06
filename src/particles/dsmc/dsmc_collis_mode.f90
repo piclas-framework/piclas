@@ -1290,7 +1290,7 @@ USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, usevMPF
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_RotRelaxPoly, DSMC_RotRelaxQuantPoly, DSMC_VibRelaxPoly, DSMC_RotRelaxDatabasePoly
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: RotRelaxPolyRoutineFuncPTR
-USE MOD_DSMC_Relaxation         ,ONLY: DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaContinous, RotRelaxDiaRoutineFuncPTR
+USE MOD_DSMC_Relaxation         ,ONLY: DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaContinuous, RotRelaxDiaRoutineFuncPTR
 
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
