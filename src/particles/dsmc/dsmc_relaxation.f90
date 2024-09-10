@@ -311,7 +311,7 @@ SUBROUTINE InitCalcVibRelaxProb()
 ! Initialize the calculation of the variable vibrational relaxation probability in the cell for each iteration
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb
 USE MOD_Particle_Vars      ,ONLY: nSpecies
 
 ! IMPLICIT VARIABLE HANDLING
@@ -321,7 +321,7 @@ IMPLICIT NONE
 INTEGER                   :: iSpec
 !===================================================================================================================================
 
-IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set summs for variable vibrational relaxation to zero
+IF(DSMC%VibRelaxProb.EQ.2.0) THEN ! Set sums for variable vibrational relaxation to zero
   DO iSpec=1,nSpecies
     VarVibRelaxProb%ProbVibAvNew(iSpec) = 0
     VarVibRelaxProb%nCollis(iSpec) = 0
@@ -336,13 +336,15 @@ SUBROUTINE DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart, Xi_rel, ProbRot, ProbRo
 ! Calculation of probability for rotational relaxation. Different Models implemented:
 ! 0 - Constant Probability
 ! 1 - No rotational relaxation. RotRelaxProb = 0
-! 2 - Boyd
+! 2 - Boyd for N2
 ! 3 - Zhang (Nonequilibrium Direction Dependent)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals            ,ONLY : Abort
-USE MOD_Globals_Vars       ,ONLY : Pi, BoltzmannConst
-USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, Coll_pData, PartStateIntEn, DSMC, useRelaxProbCorrFactor, CollInf
+USE MOD_Globals            ,ONLY: Abort
+USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
+USE MOD_Particle_Vars      ,ONLY: UseVarTimeStep, usevMPF
+USE MOD_part_tools         ,ONLY: GetParticleWeight
+USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn, DSMC, useRelaxProbCorrFactor, CollInf, RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -357,8 +359,13 @@ REAL, INTENT(OUT)         :: ProbRot, ProbRotMax
 REAL                      :: TransEn, RotEn, RotDOF, CorrFact           ! CorrFact: To correct sample Bias
                                                                         ! (fewer DSMC particles than natural ones)
 !===================================================================================================================================
+! Note that during probability calculation, collision energy only contains translational part
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  TransEn = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+ELSE
+  TransEn = Coll_pData(iPair)%Ec
+END IF
 
-TransEn    = Coll_pData(iPair)%Ec ! notice that during probability calculation,Collision energy only contains translational part
 RotDOF     = SpecDSMC(iSpec1)%Xi_Rot
 RotEn      = PartStateIntEn(2,iPart)
 ProbRot    = 0.
@@ -405,7 +412,7 @@ END SUBROUTINE DSMC_calc_P_rot
 
 SUBROUTINE DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec)
 !===================================================================================================================================
-! Calculation of probability for electronic relaxation. 
+! Calculation of probability for electronic relaxation.
 !===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, useRelaxProbCorrFactor, DSMC
@@ -516,7 +523,7 @@ END SUBROUTINE DSMC_calc_P_vib
 SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
 !===================================================================================================================================
 ! Calculation of probability for vibrational relaxation for variable relaxation rates. This has to average over all collisions!
-! No instantanious variable probability calculateable
+! No instantaneous variable probability calculateable
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals      ,ONLY: Abort
@@ -607,10 +614,10 @@ END SUBROUTINE SumVibRelaxProb
 
 SUBROUTINE FinalizeCalcVibRelaxProb(iElem)
 !===================================================================================================================================
-  ! Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
+! Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb 
+USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb
 USE MOD_Particle_Vars      ,ONLY: nSpecies
 
 ! IMPLICIT VARIABLE HANDLING
