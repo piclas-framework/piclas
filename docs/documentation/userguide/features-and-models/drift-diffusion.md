@@ -16,7 +16,7 @@ HDG solver for electric fields)
 
 **The First-Order Fluid Model** 
 
-The first-order-fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [2]. The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions it reads as:
+The first-order-fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [2]. The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions, it reads as:
 
 $$
 \frac{\partial n}{\partial t} = \nabla \cdot \left( \mu(E) E n \right) + D(E) \cdot \nabla n + \nu_I(E, t)
@@ -27,6 +27,15 @@ $$
 $$
 
 \text{where } E = |E|, n_{\text{ion}} \text{ is ion density and where mobility } \mu, \text{ diffusion } D \text{ and } \nu_I \text{ are functions of the local electric field.}
+
+$$
+\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1
+$$
+
+$$
+\frac{\partial (nmv)}{\partial t} + \nabla \cdot (nm(cc)) - neE = C_{mc}
+$$
+
 
 
  
