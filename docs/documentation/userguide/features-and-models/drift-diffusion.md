@@ -30,6 +30,7 @@ $$
 
 
 
+
 Coupling these two equations with the Poisson equation results in the following form: 
 
 $$
