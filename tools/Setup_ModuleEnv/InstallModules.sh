@@ -187,7 +187,7 @@ if [ ! -d "${MODULESHOME}" ]; then
     #       S.C.: /op/modules/modulefiles
     #
 
-    PATHLIST=/opt/modules/modulefiles/compilers:/opt/modules/modulefiles/utilities:/opt/modules/modulefiles/MPI:/opt/modules/modulefiles/libraries
+    PATHLIST=/opt/modules/modulefiles/compilers:/opt/modules/modulefiles/petsc:/opt/modules/modulefiles/utilities:/opt/modules/modulefiles/MPI:/opt/modules/modulefiles/libraries
     #PATHLIST=/opt/modules/modulefiles/compilersX
 
     # Check if TCL version is greater/equal 8.5
@@ -313,6 +313,7 @@ if [ ! -d "${MODULESHOME}" ]; then
     mkdir -p ${INSTALLDIRMODULESFILES}
     mkdir -p ${INSTALLDIRMODULESFILES}/compilers
     mkdir -p ${INSTALLDIRMODULESFILES}/utilities
+    mkdir -p ${INSTALLDIRMODULESFILES}/petsc
     mkdir -p ${INSTALLDIRMODULESFILES}/MPI
     mkdir -p ${INSTALLDIRMODULESFILES}/libraries
 
@@ -348,12 +349,14 @@ else
     # add:
     echo "/opt/modules/modulefiles/compilers" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/utilities" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/petsc" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/MPI" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/libraries" >> ${MODULESPATH}
 
     mkdir -p ${INSTALLDIRMODULESFILES}
     mkdir -p ${INSTALLDIRMODULESFILES}/compilers
     mkdir -p ${INSTALLDIRMODULESFILES}/utilities
+    mkdir -p ${INSTALLDIRMODULESFILES}/petsc
     mkdir -p ${INSTALLDIRMODULESFILES}/MPI
     mkdir -p ${INSTALLDIRMODULESFILES}/libraries
   fi
