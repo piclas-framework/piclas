@@ -58,7 +58,11 @@ $$
 The electric feld for x > 0 is calculated by integrating the first order fluid model equation (3) numerically over x, with the (4) as a boundary condiition. The system length _L_, the number of grid points, and the grid spacing are adjusted as boundary conditions.
 
 ## Plasma chemistry
+
+The diffusion coefficient is considered as a scalar in the model. However, in the case of streamer discharges, the diffusion tensor can be anisotropic. This means that diffusion can occur at different rates in different directions, which would require a tensor instead of a single scalar diffusion coefficient.
+
 Uses *Diffusion-Coefficients* in the SpeciesDatabase.h5 file.
+
 Select different models via
 
     Part-Species1-SpeciesName = N2
