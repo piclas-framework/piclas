@@ -28,6 +28,13 @@ $$
 
 \text{where } E = |E|, n_{\text{ion}} \text{ is ion density and where mobility } \mu, \text{ diffusion } D \text{ and } \nu_I \text{ are functions of the local electric field.}
 
+Coupling these two equations with the Poisson equation results in the following form: 
+
+$$
+\frac{\partial E}{\partial x} = -\varepsilon_0 e n_{\text{ion}}
+$$
+
+
 $$
 \frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1
 $$
