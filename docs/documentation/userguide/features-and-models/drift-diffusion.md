@@ -50,9 +50,12 @@ TODO: implement RefState (the same as HDG solver uses for the electric potential
 To create steady propagation conditions for the negative front, the electric feld on the left boundary x = 0 is fxed to the time 
 independent value E0.
 
+$$
 E(0, t) = E_0 > 0. \tag{22}
+$$
+*(4)*
 
-The electric feld for x > 0 is calculated by integrating the first order fluid model equation numerically over x, with the equation above as a boundary condiition.
+The electric feld for x > 0 is calculated by integrating the first order fluid model equation numerically over x, with the equation 4 as a boundary condiition.
 
 ## Plasma chemistry
 Uses *Diffusion-Coefficients* in the SpeciesDatabase.h5 file.
