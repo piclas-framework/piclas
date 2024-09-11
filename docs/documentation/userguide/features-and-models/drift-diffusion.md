@@ -19,11 +19,11 @@ HDG solver for electric fields)
 The first-order-fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [2]. The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions, it reads as:
 
 $$
-\frac{\partial n}{\partial t} = \nabla \cdot \left( \mu(E) E n \right) + D(E) \cdot \nabla n + \nu_I(E, t)
+\frac{\partial n}{\partial t} = \nabla \cdot \left( \mu(E) E n \right) + D(E) \cdot \nabla n + \nu_I(E, t) \tag{1}
 $$
 
 $$
-\frac{\partial n_{\text{ion}}}{\partial t} = \nu_I(E, t)
+\frac{\partial n_{\text{ion}}}{\partial t} = \nu_I(E, t) \tag{2}
 $$
 
 \text{where } E = |E|, \, n_{\text{ion}} \text{ is the ion density, and where mobility } \mu, \text{ diffusion } D, \text{ and } \nu_I \text{ are functions of the local electric field.}
@@ -34,7 +34,7 @@ $$
 Coupling these two equations with the Poisson equation results in the following form: 
 
 $$
-\frac{\partial E}{\partial x} = -\varepsilon_0 e n_{\text{ion}}
+\frac{\partial E}{\partial x} = -\varepsilon_0 e n_{\text{ion}} \tag{3}
 $$
 
 ## Boundary conditions
@@ -51,9 +51,9 @@ To create steady propagation conditions for the negative front, the electric fel
 independent value E0.
 
 $$
-E(0, t) = E_0 > 0. \tag{22}
+E(0, t) = E_0 > 0. \tag{4}
 $$
-*(4)*
+ 
 
 The electric feld for x > 0 is calculated by integrating the first order fluid model equation numerically over x, with the equation 4 as a boundary condiition.
 
