@@ -55,7 +55,7 @@ E(0, t) = E_0 > 0. \tag{4}
 $$
  
 
-The electric feld for x > 0 is calculated by integrating the first order fluid model equation numerically over x, with the equation 4 as a boundary condiition.
+The electric feld for x > 0 is calculated by integrating the first order fluid model equation (3) numerically over x, with the (4) as a boundary condiition. The system length _L_, the number of grid points, and the grid spacing are adjusted as boundary conditions.
 
 ## Plasma chemistry
 Uses *Diffusion-Coefficients* in the SpeciesDatabase.h5 file.
