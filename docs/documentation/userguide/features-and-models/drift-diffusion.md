@@ -16,7 +16,9 @@ HDG solver for electric fields)
 
 **The First-Order Fluid Model** 
 
-The first-order-fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [2]. The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions, it reads as:
+The first-order-fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [3]. 
+
+The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions, it reads as[2]:
 
 $$
 \frac{\partial n}{\partial t} = \nabla \cdot \left( \mu(E) E n \right) + D(E) \cdot \nabla n + \nu_I(E, t) \tag{1}
@@ -31,7 +33,7 @@ $$
 
 
 
-Coupling these two equations with the Poisson equation results in the following form: 
+Coupling these two equations with the Poisson equation results in the following form[2]: 
 
 $$
 \frac{\partial E}{\partial x} = -\varepsilon_0 e n_{\text{ion}} \tag{3}
@@ -59,7 +61,7 @@ The electric feld for x > 0 is calculated by integrating the first order fluid m
 
 ## Plasma chemistry
 
-The diffusion coefficient is considered as a scalar in the model. However, in the case of streamer discharges, the diffusion tensor can be anisotropic. This means that diffusion can occur at different rates in different directions, which would require a tensor instead of a single scalar diffusion coefficient.
+The diffusion coefficient is considered as a scalar in the model. However, in the case of streamer discharges, the diffusion tensor can be anisotropic. This means that diffusion can occur at different rates in different directions, which would require a tensor instead of a single scalar diffusion coefficient [2].
 
 Uses *Diffusion-Coefficients* in the SpeciesDatabase.h5 file.
 
@@ -90,5 +92,7 @@ PIC-BR. See CalcSourceHDG() on how the drift-diffusion is added to the source te
 ### References 
 [1] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: II. Numerical solution and investigation of planar fronts. Journal of Physics D: Applied Physics, 53(33), 335202. https://doi.org/10.1088/1361-6463/ab8b93
 
-[2] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: I. Derivation of model and transport data. Journal of Physics D: Applied Physics, 53(33), 335201. https://doi.org/10.1088/1361-6463/ab8b92
+[2] Markosyan, A. H., Teunissen, J., Dujko, S., & Ebert, U. (2015). Comparing plasma fluid models of different order for 1D streamer ionization fronts. Journal of Physics D: Applied Physics. Received 23 March 2015, revised 6 August 2015, accepted for publication 7 September 2015, published 8 October 2015.
+
+[3] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: I. Derivation of model and transport data. Journal of Physics D: Applied Physics, 53(33), 335201. https://doi.org/10.1088/1361-6463/ab8b92
 
