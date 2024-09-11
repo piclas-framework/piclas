@@ -34,61 +34,6 @@ $$
 \frac{\partial E}{\partial x} = -\varepsilon_0 e n_{\text{ion}}
 $$
 
-
-$$
-\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1
-$$
-
-$$
-\frac{\partial (nmv)}{\partial t} + \nabla \cdot (nm(cc)) - neE = C_{mc}
-$$
-
-
-
- 
-$$
-\frac{\partial n}{\partial t} + \nabla \cdot (nv) = C1  
-$$
-
-$$
-\frac{\partial (nmv)}{\partial t} + \nabla \cdot (nm\langle cc \rangle) - neE = C_{mc}  
-$$
-
-After some implementation and the simplfications are applied to the these constitutive equations, the first-order-fluid model is given by the equations : 
-
-The equation is given by:
-
-$$
-\frac{\partial n}{\partial t} = \nabla \cdot (D \cdot \nabla n) + \nabla \cdot (\mu n \mathbf{E}) + n (\nu_I - \nu_A)
-$$
-
-
-$$
-\frac{\partial n_p}{\partial t} = n \nu_I  
-$$
-
-$$
-\frac{\partial n_n}{\partial t} = n \nu_A  
-$$
-
-coupled to the Poisson equation for the electric field, 
-
-$$
-\nabla^2 \phi = \frac{e}{\epsilon_0} (n - n_p + n_n), \quad E = -\nabla \phi
-$$
-
-Here, $n_p$ and $n_n$ represent the positive and negative ion densities, respectively, while $\nu_I$ and $\nu_A$ denote the ionization and attachment collision frequencies due to electron–molecule collisions. Additionally, $\phi$ stands for the electric potential.
-
-As a summary, for electrons and ions equations read as: 
-
-$$
-\frac{\partial n}{\partial t} = \nabla \cdot (\mu(E)n \mathbf{E} + D(E) \cdot \nabla n) + n \nu_I(E)
-$$
-
-$$
-\frac{\partial n_{\text{ion}}}{\partial t} = n \nu_I(E)
-$$
-
 ## Boundary conditions
 
 Overview of boundary conditions
