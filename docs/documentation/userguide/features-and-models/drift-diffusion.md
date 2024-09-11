@@ -26,7 +26,8 @@ $$
 \frac{\partial n_{\text{ion}}}{\partial t} = \nu_I(E, t)
 $$
 
-\text{where } E = |E|, n_{\text{ion}} \text{ is ion density and where mobility } \mu, \text{ diffusion } D \text{ and } \nu_I \text{ are functions of the local electric field.}
+\text{where } E = |E|, \, n_{\text{ion}} \text{ is the ion density, and where mobility } \mu, \text{ diffusion } D, \text{ and } \nu_I \text{ are functions of the local electric field.}
+
 
 Coupling these two equations with the Poisson equation results in the following form: 
 
