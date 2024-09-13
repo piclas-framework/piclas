@@ -105,24 +105,39 @@ remove_elements () { # Check list content: use * to prevent error: Arrays implic
   fi
 }
 
+get_opt_dir () {
+grep -E "set.* topdir.* /opt" "$1" | sed 's/  */:/g' | cut -d ":" -f3
+}
+
+get_opt_siz () {
+du -hs ${1} 2>/dev/null | sed 's/\t/  /g' | cut -d " " -f1
+}
+
+display_line_success () {
+printf '%s %s [%s] %s %s\n' "$MODULEFILE" "${dashes:${#MODULEFILE}}" "$OPTSIZ" "${whites:${#OPTSIZ}}" "$OPTDIR"
+}
+
+display_line_failed () {
+printf ${RED}'%s %s [%s] %s %s\n'${NC} "$MODULEFILE" "${dashes:${#MODULEFILE}}" "$OPTSIZ" "${whites:${#OPTSIZ}}" "Dangling module: Could not find the corresponding files in the /opt/... path!"
+}
+
 # --------------------------------------------------------------------------------------------------
 # Setup
 # --------------------------------------------------------------------------------------------------
 
-FILES=$(find /opt/modules/modulefiles -name "*" -type f)
+MODULEFILES=$(find /opt/modules/modulefiles -name "*" -type f)
 FIRSTCOMPILER=$(ls /opt/compiler/gcc/ | head -n1)
 FIRSTCOMPILERGCC=$(echo gcc/$FIRSTCOMPILER)
 
 echo "Non-compiler stuff"
-for i in $FILES; do # Not recommended, will break on whitespace
-  MODULEFILE=$(echo "$i")
-  OPTDIR=$(grep -E "set.* topdir.* /opt" "$i" | sed 's/  */:/g' | cut -d ":" -f3)
+for MODULEFILE in $MODULEFILES; do # Not recommended, will break on whitespace
+  OPTDIR=$(get_opt_dir $MODULEFILE)
   if [[ -n ${OPTDIR} ]]; then
-    OPTSIZ=$(du -hs ${OPTDIR} 2>/dev/null | sed 's/\t/  /g' | cut -d " " -f1)
+    OPTSIZ=$(get_opt_siz $OPTDIR)
     if [[ -n ${OPTSIZ} ]]; then
       GCCFOUND=$(echo $OPTDIR | grep -i "gcc")
       if [[ -z ${GCCFOUND} ]]; then
-        printf '%s %s [%s] %s %s\n' "$MODULEFILE" "${dashes:${#MODULEFILE}}" "$OPTSIZ" "${whites:${#OPTSIZ}}" "$OPTDIR"
+        display_line_success
       fi
     fi
   fi
@@ -135,23 +150,26 @@ for COMPILER in $COMPILERS; do # Not recommended, will break on whitespace
     unset deletelist
     FIRSTCOMPILERGCC=$(echo gcc/$COMPILER)
     echo "Checking $FIRSTCOMPILERGCC"
-    for i in $FILES; do # Not recommended, will break on whitespace
-      MODULEFILE=$(echo "$i")
+    for MODULEFILE in $MODULEFILES; do # Not recommended, will break on whitespace
       if [[ "$MODULEFILE" == *"$FIRSTCOMPILERGCC"* ]]; then
-        OPTDIR=$(grep -E "set.* topdir.* /opt" "$i" | sed 's/  */:/g' | cut -d ":" -f3)
+        OPTDIR=$(get_opt_dir $MODULEFILE)
         if [[ -n ${OPTDIR} ]]; then
-          OPTSIZ=$(du -hs ${OPTDIR} 2>/dev/null | sed 's/\t/  /g' | cut -d " " -f1)
+          OPTSIZ=$(get_opt_siz $OPTDIR)
           if [[ -n ${OPTSIZ} ]]; then
-            printf '%s %s [%s] %s %s\n' "$MODULEFILE" "${dashes:${#MODULEFILE}}" "$OPTSIZ" "${whites:${#OPTSIZ}}" "$OPTDIR"
+            SRCDIR=$(get_opt_dir $MODULEFILE)
+#            if [[ -n ${SRCDIR} ]]; then
+#              SRCSIZ=$(get_src_siz $SRCDIR)
+#            fi
+            display_line_success
             if [ ${#deletelist[@]} -eq 0 ]; then
               declare -a deletelist=("$MODULEFILE") # declare array for first entry
             else
               deletelist+=("$MODULEFILE")           # add element to array for following entries
             fi
-              deletelist+=("$OPTDIR")           # add element to array for following entries
+            deletelist+=("$OPTDIR")           # add element to array for following entries
           else
             OPTSIZ="-"
-            printf ${RED}'%s %s [%s] %s %s\n'${NC} "$MODULEFILE" "${dashes:${#MODULEFILE}}" "$OPTSIZ" "${whites:${#OPTSIZ}}" "Dangling module: Could not find the corresponding files in the /opt/... path!"
+            display_line_failed
           fi
         fi
       fi
@@ -160,3 +178,24 @@ for COMPILER in $COMPILERS; do # Not recommended, will break on whitespace
   fi
   printf "\n"
 done
+
+
+tree -f -L 1 /opt/sources
+# SOURCES=$(find /opt/sources -maxdepth 2 -type d -name "build*")
+# for SOURCE in $SOURCES; do
+#   for TESTFILE in $(find $SOURCE -maxdepth 2 -type f -name Makefile); do
+#     RESULT=$(grep "/opt/compiler/gcc/13.2.0" $TESTFILE | grep prefix)
+#     if [[ -n ${RESULT} ]]; then
+#       break
+#     fi
+#   done
+#
+#   printf '%s' "$SOURCE"
+#   if [[ -n ${RESULT} ]]; then
+#     printf ${RED}' %s\n'${NC} "$RESULT"
+#   else
+#     printf ' \n'
+#   fi
+#   #find $SOURCE -maxdepth 2 -type f -exec grep -lm1 "/opt/hdf5/1.12.2/gcc/12.2.0/single" {} \; -a -quit
+#   #find $SOURCE -maxdepth 2 -type f -exec grep -lm1 "/opt/compiler/gcc/13.2.0" {} \; -a -quit
+# done
