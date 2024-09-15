@@ -265,6 +265,15 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartCsp' &
+                                            ,'the solid particle speciﬁc heat [J/(kg*K)].'&
+                                            ,'0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartTau' &
+                                            ,'thermal accommodation coeﬃcient during granular particle interaction.'&
+                                            ,'1.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartEps' &
+                                            ,'fraction of specularly reﬂected gas atoms during granular particle interaction.'&
+                                            ,'0.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -501,6 +510,27 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
     END IF
   END DO !iSpec
+  
+  SpecDSMC(:)%ThermalACCGranularPart         = 0.0
+  SpecDSMC(:)%SpecularReflecProbGranularPart = 0.0
+  SpecDSMC(:)%SpecificHeatSolid              = 0.0
+  IF(ANY(Species(:)%InterID.EQ.100)) THEN
+    DO iSpec = 1, nSpecies
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      IF (Species(iSpec)%InterID.EQ.100) THEN
+        SpecDSMC(iSpec)%SpecificHeatSolid              = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartCsp' )
+        IF(ALMOSTZERO(SpecDSMC(iSpec)%SpecificHeatSolid)) THEN
+          CALL Abort(__STAMP__,'ERROR in species data: check speciﬁc heat [J/(kg*K)] of granular species. It must not be 0')
+        END IF
+      ELSE
+        SpecDSMC(iSpec)%ThermalACCGranularPart         = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartTau' )
+        SpecDSMC(iSpec)%SpecularReflecProbGranularPart = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartEps' )
+      END IF
+    END DO
+  ELSE
+
+  END IF
+
 
   DO iSpec=1, nSpecies
     ! Save the electron species into a global variable

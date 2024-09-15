@@ -223,6 +223,10 @@ CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotat
 CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational reference frame regions','0')
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'UseGravitation' ,'Flag for taking gravity into account for granular species.', '.FALSE.')
+CALL prms%CreateRealArrayOption('DirectionOfGravity','Vector points in the direction of gravity force', no=3)
+CALL prms%CreateLogicalOption(  'SkipGranularUpdate' ,'Flag to skip granular species position, velocity and temperatur update'//&
+                                'uesed only for benchmark TC.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticles
 
@@ -241,8 +245,8 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
-USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_ReadInTools            ,ONLY: GETLOGICAL
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep, GravityDir, UseGravitation, SkipGranularUpdate
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL, GETREALARRAY
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
@@ -306,6 +310,14 @@ END IF ! UseRayTracing
 ! Radiation solver/transport always requires PerformRayTracing = T
 PerformRayTracing = .TRUE.
 #endif
+
+! Consideration of gravity for granular species
+UseGravitation = GETLOGICAL('UseGravitation')
+IF(UseGravitation) THEN
+  GravityDir(1:3) = GETREALARRAY('DirectionOfGravity',3)
+  GravityDir(:) = UNITVECTOR(GravityDir)
+END IF
+SkipGranularUpdate = GETLOGICAL('SkipGranularUpdate')
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 

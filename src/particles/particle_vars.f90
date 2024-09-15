@@ -311,5 +311,11 @@ LOGICAL               :: InRotRefFrameSubCycling      ! Check for RotRefFrame be
 ! Sampling of pressure tensor and heatflux
 LOGICAL               :: SamplePressTensHeatflux
 
+! Consideration of gravity for granular species
+LOGICAL               :: UseGravitation     ! Flag for taking gravity into account for granular species
+REAL                  :: GravityDir(3)      ! Direction ofgravity force
+LOGICAL               :: SkipGranularUpdate ! Flag to skip granular species position, velocity and temperatur update
+                                            ! uesed only for benchmark TC
+
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars
