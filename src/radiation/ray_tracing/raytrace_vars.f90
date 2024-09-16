@@ -27,6 +27,9 @@ SAVE
 LOGICAL :: UseRayTracing        ! Activate ray tracing based emission (also required for plasma simulation)
 LOGICAL :: PerformRayTracing    ! Activate actual ray tracing algorithms that track rays through the complete mesh (full mesh mode)
 
+INTEGER               :: nRaySides
+INTEGER,ALLOCATABLE   :: RaySide2GlobalSide(:)
+
 TYPE tRayTrace
   REAL    :: PulseDuration      !<
   REAL    :: tShift             !<

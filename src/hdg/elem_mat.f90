@@ -327,20 +327,20 @@ END DO !iElem
 IF(DoDisplayIter)THEN
   IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
     time=PICLASTIME()
-    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEME_MAT DONE! [',Time-time0,' sec ]'
+    SWRITE(UNIT_stdOut,'(A,F14.2,A)') ' HDG ELEM_MAT DONE! [',Time-time0,' sec ]'
     SWRITE(UNIT_stdOut,'(132("-"))')
   END IF
 END IF
 
 CONTAINS
 
- PPURE FUNCTION index_3to1(i1,i2,i3,Nloc) RESULT(i)
+PPURE FUNCTION index_3to1(i1,i2,i3,Nloc) RESULT(i)
   INTEGER, INTENT(IN) :: i1, i2, i3, Nloc
   INTEGER :: i
    i = i3*(Nloc+1)**2 + i2*(Nloc+1) + i1 + 1
  END FUNCTION index_3to1
 
- PPURE FUNCTION sindex_3to1(i1,i2,i3,iLocSide,Nloc) RESULT(i)
+PPURE FUNCTION sindex_3to1(i1,i2,i3,iLocSide,Nloc) RESULT(i)
   INTEGER, INTENT(IN) :: i1, i2, i3, iLocSide, Nloc
   INTEGER :: i
   !local variables

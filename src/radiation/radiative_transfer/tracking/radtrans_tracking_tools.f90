@@ -716,7 +716,6 @@ ELSE
     U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
   END DO
 END IF ! ABS(direction(3).GT.1e6*(ABS(direction(1))+ABS(direction(2))))
-PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
 
 ! Store intersection point as new starting point
 PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)

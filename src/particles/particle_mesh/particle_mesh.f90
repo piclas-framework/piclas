@@ -86,7 +86,7 @@ CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, dir
                                              '1: Output the initial position of the rays and their direction vector\n'&
                                              '2: Output initial position and all calculated intersection points calculated in radtrans tracking\n'&
                                              ,'0')
-                                         CALL prms%CreateLogicalOption( 'UsePhotonTriaTracking', 'Activates usage of TriaTracking methods for photon tracking or Bilinear methods (default is True). Can only be selected when ray tracing is actually performed.','.TRUE.')
+CALL prms%CreateLogicalOption( 'UsePhotonTriaTracking', 'Activates usage of TriaTracking methods for photon tracking or Bilinear methods (default is True). Can only be selected when ray tracing is actually performed.','.TRUE.')
 CALL prms%CreateLogicalOption( 'DoBoundaryParticleOutputRay', 'Activates output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation)','.FALSE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
