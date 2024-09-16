@@ -259,7 +259,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     IF(Nloc.EQ.Ray%Nmax)THEN
       UNMax(:,:,:,:,iElem) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
     ELSE
-      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, &
+      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm(0:Ray%NMax,0:Nloc), &
           U_N_Ray(iGlobalElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc),UNMax(1:nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,iElem))
     END IF ! Nloc.Eq.Nmax
 

@@ -14,7 +14,7 @@
 
 MODULE MOD_RayTracing
 !===================================================================================================================================
-! Module for the main radiation transport routines
+! Module for raytracing
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -37,7 +37,14 @@ PUBLIC :: ReadRayTracingDataFromH5
 CONTAINS
 
 !===================================================================================================================================
-!> Main routine for the Radiation Transport
+!> Main routine for raytracing
+!> 0. (Restart) Read-in raytracing result from file if available (in this case, leaves routine at this point)
+!> 1. Loop over the local rays/photon
+!>    1. Determine
+!>    2. Perform tracking of each ray/photon until the final destination (PhotonTriaTracking)
+!> 2. Output of surface result
+!> 3. Read-in of surface result on the actual surface mesh of the node
+!> 4. Output of volume result
 !===================================================================================================================================
 SUBROUTINE RayTracing()
 ! MODULES
@@ -45,13 +52,14 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy,RayElemSize,N_DG_Ray_loc
+USE MOD_RayTracing_Vars         ,ONLY: nRaySides,RaySide2GlobalSide
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps
 USE MOD_Photon_Tracking         ,ONLY: PhotonTriaTracking
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Output                  ,ONLY: PrintStatusLineRadiation
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_part_emission_tools     ,ONLY: InsideQuadrilateral
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,PartBound,SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartStateBoundary,nVarPartStateBoundary
@@ -78,9 +86,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: NonUniqueGlobalSideID,iSurfSide,iBC,iPartBound
+INTEGER :: NonUniqueGlobalSideID,iRaySide,iBC,iPartBound
 INTEGER :: CNElemID, iRay, photonCount, RayVisCount, LocRayNum, RayDisp
-LOGICAL :: FoundComputeNodeSurfSide
 INTEGER :: ALLOCSTAT
 REAL    :: RectPower,SumPhotonEnACC
 REAL    :: StartT,EndT ! Timer
@@ -175,42 +182,20 @@ DO iRay = 1, LocRayNum
   PhotonProps%PhotonDirection(1:3) = Ray%Direction ! (/0.0,0.0,-1.0/)! SetPhotonStartDirection(iCNElem, iPhotLoc, RandRot)
 
   ! Loop over all sides of a specific iPartBoundary and find the side where the ray enters the domain
-  ! count number of nSides connected to iPartBoundary BCSideID
-
   PhotonProps%ElemID = -1 ! Initialize
 
-  FoundComputeNodeSurfSide = .FALSE.
-  SurfLoop: DO iSurfSide = 1,nComputeNodeSurfTotalSides
-    NonUniqueGlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0) THEN ! BC side
-      ! Get field BC index of side and compare with BC index of the corresponding particle boundary index of the emission side
-      iBC = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID) ! Get field BC index from non-unique global side index
-      IF(iBC.NE.PartBound%MapToFieldBC(RayPartBound)) CYCLE SurfLoop ! Correct BC not found, check next side
-      FoundComputeNodeSurfSide = .TRUE.
-      ! Check if ray starting position is within the quadrilateral that is spanned by the four corner nodes of the side
-      IF(InsideQuadrilateral(PhotonProps%PhotonPos(1:2),NonUniqueGlobalSideID))THEN
-        ! Found CN element index
-        CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
-        ! Set global element index for current ray
-        PhotonProps%ElemID = GetGlobalElemID(CNElemID)
-        PhotonProps%PhotonEnergy = RectPower
-        EXIT SurfLoop
-      END IF ! InsideQuadrilateral(X,NonUniqueGlobalSideID)
-    END IF ! SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0
-  END DO SurfLoop! iSurfSide = 1,nComputeNodeSurfTotalSides
-
-  ! Sanity check: nComputeNodeSurfTotalSides > 0 and the correct PartBCIndex for those sides
-  IF(.NOT.FoundComputeNodeSurfSide)THEN
-    IPWRITE(UNIT_StdOut,*) ""
-    IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfTotalSides =", nComputeNodeSurfTotalSides
-    IPWRITE(UNIT_StdOut,*) ": RayPartBound               =", RayPartBound
-    !IPWRITE(UNIT_StdOut,'(I0,A,I0,A)') ": Set Part-Boundary",RayPartBound,"-BoundaryParticleOutput = T"
-    IF(.NOT.DSMC%CalcSurfaceVal)THEN
-      IPWRITE(UNIT_StdOut,*) ": Set Particles-DSMC-CalcSurfaceVal = T to build the mappings for SurfSide2GlobalSide(:,:)!"
-    END IF ! .NOT.DSMC%CalcSurfaceVal
-    CALL abort(__STAMP__,'No boundary found in list of nComputeNodeSurfTotalSides for defined RayPartBound!')
-  END IF ! FoundComputeNodeSurfSide
+  RaySurfLoop: DO iRaySide = 1, nRaySides
+    NonUniqueGlobalSideID = RaySide2GlobalSide(iRaySide)
+    ! Check if ray starting position is within the quadrilateral that is spanned by the four corner nodes of the side
+    IF(InsideQuadrilateral(PhotonProps%PhotonPos(1:2),NonUniqueGlobalSideID))THEN
+      ! Found CN element index
+      CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+      ! Set global element index for current ray
+      PhotonProps%ElemID = GetGlobalElemID(CNElemID)
+      PhotonProps%PhotonEnergy = RectPower
+      EXIT RaySurfLoop
+    END IF ! InsideQuadrilateral(X,NonUniqueGlobalSideID)
+  END DO RaySurfLoop! iRaySide = 1,nRaySides
 
   ! Sanity check
   IF(PhotonProps%ElemID.LE.0)THEN
@@ -541,7 +526,7 @@ END FUNCTION SetPhotonEnergy
 
 FUNCTION SetRayPos()
 !===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!> Set a random initial ray/photon position on a rectangle in the xy-plane (defined by the mesh bounds in x and y) at maximum z
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO

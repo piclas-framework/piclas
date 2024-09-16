@@ -14,7 +14,7 @@
 
 MODULE MOD_RayTracing_Init
 !===================================================================================================================================
-! Initialization of Radiation Transport
+! Initialization of the raytracing
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -63,7 +63,7 @@ END SUBROUTINE DefineParametersRayTracing
 
 SUBROUTINE InitRayTracing()
 !===================================================================================================================================
-! Initialization of the radiation transport solver
+! Initialization of the raytracing
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -71,10 +71,10 @@ USE MOD_Preproc
 USE MOD_RayTracing_Vars
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETREALARRAY,GETINT,GETLOGICAL,PrintOption,GETSTR
 USE MOD_Globals_Vars           ,ONLY: Pi
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, SideInfo_Shared
 USE MOD_RadiationTrans_Vars    ,ONLY: RadiationAbsorptionModel,RadObservationPointMethod
 USE MOD_Interpolation_Vars     ,ONLY: NodeType,NodeTypeVISU
-USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample
+USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,nComputeNodeSurfTotalSides,PartBound,SurfSide2GlobalSide
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -87,8 +87,11 @@ USE MOD_Photon_Tracking        ,ONLY: InitPhotonSurfSample
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL              :: factor,SurfaceNormal(3),alpha
-CHARACTER(LEN=3)  :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
+INTEGER             :: iSurfSide, iBC, NonUniqueGlobalSideID
+INTEGER,ALLOCATABLE :: RaySide2GlobalSide_temp(:)
+REAL                :: factor,SurfaceNormal(3),alpha
+CHARACTER(LEN=3)    :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
+LOGICAL             :: FoundComputeNodeSurfSide
 !===================================================================================================================================
 IF(.NOT.UseRayTracing) RETURN
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -144,6 +147,37 @@ IF(Ray%Nmax.LT.Ray%Nmax) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller
 ! Build surface and volume containers
 CALL InitPhotonSurfSample()
 CALL InitHighOrderRaySampling()
+
+! Create a mapping from the sides, where rays are to be emitted to the non-unique global side ID
+nRaySides = 0
+ALLOCATE(RaySide2GlobalSide_temp(nComputeNodeSurfTotalSides))
+RaySide2GlobalSide_temp = 0
+
+FoundComputeNodeSurfSide = .FALSE.
+SurfLoop: DO iSurfSide = 1,nComputeNodeSurfTotalSides
+  NonUniqueGlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+  ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+  IF(SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0) THEN ! BC side
+    ! Get field BC index of side and compare with BC index of the corresponding particle boundary index of the emission side
+    iBC = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID) ! Get field BC index from non-unique global side index
+    IF(iBC.NE.PartBound%MapToFieldBC(RayPartBound)) CYCLE SurfLoop ! Correct BC not found, check next side
+    nRaySides = nRaySides + 1
+    RaySide2GlobalSide_temp(nRaySides) = NonUniqueGlobalSideID
+    FoundComputeNodeSurfSide = .TRUE.
+  END IF ! SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0
+END DO SurfLoop! iSurfSide = 1,nComputeNodeSurfTotalSides
+
+! Sanity check: nRaySides > 0
+IF(.NOT.FoundComputeNodeSurfSide)THEN
+  IPWRITE(UNIT_StdOut,*) ""
+  IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfTotalSides =", nComputeNodeSurfTotalSides
+  IPWRITE(UNIT_StdOut,*) ": RayPartBound               =", RayPartBound
+  CALL abort(__STAMP__,'No boundary found in list of nComputeNodeSurfTotalSides for defined RayPartBound!')
+END IF ! FoundComputeNodeSurfSide
+
+ALLOCATE(RaySide2GlobalSide(nRaySides))
+RaySide2GlobalSide = PACK(RaySide2GlobalSide_temp,RaySide2GlobalSide_temp.NE.0)
+LBWRITE(*,'(A,I0,A)') ' | Found ', nRaySides, ' sides for the ray emission on the specified BC.'
 
 ASSOCIATE( &
       E0      => Ray%Energy             ,&
@@ -493,7 +527,7 @@ END SUBROUTINE InitHighOrderRaySampling
 
 !===================================================================================================================================
 !> Builds the interpolation basis N_Inter_Ray and the Vandermonde matrices PREF_VDM_Ray used for high-order volume sampling for the
-!> reay tracing model
+!> ray tracing model
 !===================================================================================================================================
 SUBROUTINE BuildNInterAndVandermonde()
 ! MODULES
@@ -530,33 +564,23 @@ DO Nloc=Ray%Nmin,Ray%Nmax
   END DO ! i = 1, Nloc
 
   DEALLOCATE(MappedGauss)
-
 END DO
 
 ! Only allocate the following arrays when actual ray tracing is performed
 IF(PerformRayTracing)THEN
   ! Allocate Vandermonde matrices for p-refinement
   ALLOCATE(PREF_VDM_Ray(Ray%Nmin:Ray%Nmax,Ray%Nmin:Ray%Nmax))
-
   ! Fill Vandermonde matrices for p-refinement
   DO Nin=Ray%Nmin,Ray%Nmax
     DO Nout=Ray%Nmin,Ray%Nmax
-      ALLOCATE(PREF_VDM_Ray(Nin,Nout)%Vdm(0:Nin,0:Nout))
-      IF(Nin.EQ.Nout) THEN
-        DO i=0,Nin; DO j=0,Nin
-          IF(i.EQ.j) THEN
-            PREF_VDM_Ray(Nin,Nout)%Vdm(i,j) = 1.
-          ELSE
-            PREF_VDM_Ray(Nin,Nout)%Vdm(i,j) = 0.
-          END IF
-        END DO
-      END DO
-    ELSE IF(Nin.GT.Nout) THEN ! p-coarsening: Project from higher degree to lower degree
-      CALL GetVandermonde(Nin, Ray%NodeType, Nout, Ray%NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.TRUE. )
-    ELSE                   ! p-refinement: Interpolate lower degree to higher degree
-      CALL GetVandermonde(Nin, Ray%NodeType, Nout, Ray%NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.FALSE.)
-    END IF
-  END DO;END DO
+      ALLOCATE(PREF_VDM_Ray(Nin,Nout)%Vdm(0:Nout,0:Nin))
+      IF(Nin.GT.Nout) THEN   ! p-coarsening: Project from higher degree to lower degree
+        CALL GetVandermonde(Nin, Ray%NodeType, Nout, Ray%NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.TRUE. )
+      ELSE                   ! p-refinement: Interpolate lower degree to higher degree
+        CALL GetVandermonde(Nin, Ray%NodeType, Nout, Ray%NodeType, PREF_VDM_Ray(Nin,Nout)%Vdm, modal=.FALSE.)
+      END IF
+    END DO
+  END DO
 END IF ! PerformRayTracing
 
 END SUBROUTINE BuildNInterAndVandermonde
@@ -597,7 +621,7 @@ IF(PerformRayTracing)THEN
   END DO ! iGlobalElem = 1, nGlobalElems
   DEALLOCATE(U_N_Ray)      ! ray tracing
   SDEALLOCATE(PREF_VDM_Ray) ! ray tracing
-
+  SDEALLOCATE(RaySide2GlobalSide)
 #if USE_MPI
   SDEALLOCATE(PhotonSampWallProc) ! ray tracing
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
