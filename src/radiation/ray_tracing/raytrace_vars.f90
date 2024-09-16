@@ -92,6 +92,12 @@ INTEGER,ALLOCATABLE  :: RayElemOffset(:)                  !< Entry offset for hi
 #endif
 REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc1st(:)
 REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc2nd(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc1stBeforeError(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc2ndBeforeError(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyVolBeforeError(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc1stAfterError(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc2ndAfterError(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyVolAfterError(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorX(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorY(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorZ(:)

@@ -139,7 +139,9 @@ END IF ! PerformRayTracing
 Ray%NMin = 1 ! GETINT('RayTracing-NMin')
 WRITE(UNIT=hilf,FMT='(I3)') PP_N
 Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
-IF(Ray%Nmax.LT.Ray%Nmax) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
+! Sanity checks
+IF(Ray%Nmax.LT.Ray%Nmin) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
+IF((Ray%Nmax.EQ.Ray%Nmin).AND.(Ray%VolRefineMode.GT.0)) CALL abort(__STAMP__,'Ray%VolRefineMode>0 only works when RayTracing-Nmax>RayTracing-Nmin=1')
 
 ! Build surface and volume containers
 CALL InitPhotonSurfSample()

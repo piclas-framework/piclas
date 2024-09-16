@@ -41,6 +41,9 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,N_VolMesh
 USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,U_N_Ray_loc,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1st,RayElemPassedEnergyLoc2nd
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1stBeforeError,RayElemPassedEnergyLoc2ndBeforeError
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyVolBeforeError,RayElemPassedEnergyLoc1stAfterError
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc2ndAfterError,RayElemPassedEnergyVolAfterError
 USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ,ElemVolume,RayElemEmission
 USE MOD_HDF5_output          ,ONLY: GatheredWriteArray
 #if USE_MPI
@@ -92,9 +95,21 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
 ALLOCATE(RayElemPassedEnergyLoc1st(1:nElems))
 ALLOCATE(RayElemPassedEnergyLoc2nd(1:nElems))
 ALLOCATE(ElemVolume(1:nElems))
+ALLOCATE(RayElemPassedEnergyLoc1stBeforeError(1:nElems))
+ALLOCATE(RayElemPassedEnergyLoc2ndBeforeError(1:nElems))
+ALLOCATE(RayElemPassedEnergyVolBeforeError(1:nElems))
+ALLOCATE(RayElemPassedEnergyLoc1stAfterError(1:nElems))
+ALLOCATE(RayElemPassedEnergyLoc2ndAfterError(1:nElems))
+ALLOCATE(RayElemPassedEnergyVolAfterError(1:nElems))
 RayElemPassedEnergyLoc1st=-1.0
 RayElemPassedEnergyLoc2nd=-1.0
 ElemVolume=-1.0
+RayElemPassedEnergyLoc1stBeforeError=0.0
+RayElemPassedEnergyLoc2ndBeforeError=0.0
+RayElemPassedEnergyVolBeforeError=0.0
+RayElemPassedEnergyLoc1stAfterError=0.0
+RayElemPassedEnergyLoc2ndAfterError=0.0
+RayElemPassedEnergyVolAfterError=0.0
 ! Add two dummy arrays for comparison with reggie reference file: Remove this in the future and adjust the reference files
 ElemTimeDummy=-1.0
 CALL AddToElemData(ElementOutRay,'ElemTime'     ,RealArray=ElemTimeDummy)
@@ -107,6 +122,12 @@ CALL AddToElemData(ElementOutRay,'RaySecondaryVectorY'   ,RealArray=RaySecondary
 CALL AddToElemData(ElementOutRay,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
 CALL AddToElemData(ElementOutRay,'ElemVolume'            ,RealArray=ElemVolume)
 CALL AddToElemData(ElementOutRay,'NlocRay'               ,IntArray=N_DG_Ray_loc)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc1stBeforeError',RealArray=RayElemPassedEnergyLoc1stBeforeError)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc2ndBeforeError',RealArray=RayElemPassedEnergyLoc2ndBeforeError)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyVolBeforeError',RealArray=RayElemPassedEnergyVolBeforeError)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc1stAfterError',RealArray=RayElemPassedEnergyLoc1stAfterError)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc2ndAfterError',RealArray=RayElemPassedEnergyLoc2ndAfterError)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyVolAfterError',RealArray=RayElemPassedEnergyVolAfterError)
 
 ! Copy data from shared array
 DO iElem = 1, nElems
@@ -226,7 +247,10 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem)     = ", RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))/RayElemPassedEnergyLoc1st(iElem)
-        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',RealInfoOpt=tolerance)
+        !CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',tolerance
+        RayElemPassedEnergyLoc1stBeforeError(iElem) = MAX(RayElemPassedEnergyLoc1stBeforeError(iElem),&
+                                                    SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))/RayElemPassedEnergyLoc1st(iElem))
       END IF
     END IF
     ! 2nd energy
@@ -236,7 +260,10 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem)     = ", RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem)
-        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc2nd does not match U_N_Ray%U(2) for tolerance = ',RealInfoOpt=tolerance)
+        !CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc2nd does not match U_N_Ray%U(2) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] Before: RayElemPassedEnergyLoc2nd does not match U_N_Ray%U(2) for tolerance = ',tolerance
+        RayElemPassedEnergyLoc2ndBeforeError(iElem) = MAX(RayElemPassedEnergyLoc2ndBeforeError(iElem),&
+                                                    SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem))
       END IF
     END IF
     ! volume
@@ -246,7 +273,10 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)                    = ", ElemVolume(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))/ElemVolume(iElem)
-        CALL abort(__STAMP__,'Before: ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',RealInfoOpt=tolerance)
+        !CALL abort(__STAMP__,'Before: ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] Before: ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',tolerance
+        RayElemPassedEnergyVolBeforeError(iElem) = MAX(RayElemPassedEnergyVolBeforeError(iElem),&
+                                                    SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))/ElemVolume(iElem))
       END IF
     END IF
 
@@ -312,8 +342,11 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem) = ", RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(1,:,:,:,iElem))        = ", SUM(UNMax(1,:,:,:,iElem))
-        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc1st(iElem)
-        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(1) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) "ratio =", (SUM(UNMax(1,:,:,:,iElem)) * (Nloc+1)**3 / (Ray%NMax+1)**3)/RayElemPassedEnergyLoc1st(iElem)
+        !CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(1) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] After: RayElemPassedEnergyLoc1st does not match UNMax(1) for tolerance = ',tolerance
+        RayElemPassedEnergyLoc1stAfterError(iElem) = MAX(RayElemPassedEnergyLoc1stAfterError(iElem),&
+                                                         SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc1st(iElem))
       END IF
     END IF
     ! 2nd energy
@@ -322,8 +355,11 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem) = ", RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(2,:,:,:,iElem))        = ", SUM(UNMax(2,:,:,:,iElem))
-        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc2nd(iElem)
-        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc2nd does not match UNMax(2) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) "ratio =", (SUM(UNMax(1,:,:,:,iElem)) * (Nloc+1)**3 / (Ray%NMax+1)**3)/RayElemPassedEnergyLoc2nd(iElem)
+        !CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc2nd does not match UNMax(2) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] After: RayElemPassedEnergyLoc2nd does not match UNMax(2) for tolerance = ',tolerance
+        RayElemPassedEnergyLoc2ndAfterError(iElem) = MAX(RayElemPassedEnergyLoc2ndAfterError(iElem),&
+                                                          SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc2nd(iElem))
       END IF
     END IF
     ! volume
@@ -333,7 +369,10 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)         = ", ElemVolume(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(UNMax(3,:,:,:,iElem)) = ", SUM(UNMax(3,:,:,:,iElem))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(3,:,:,:,iElem))/ElemVolume(iElem)
-        CALL abort(__STAMP__,'After: ElemVolume(iElem) does not match UNMax(3) for tolerance = ',RealInfoOpt=tolerance)
+        !CALL abort(__STAMP__,'After: ElemVolume(iElem) does not match UNMax(3) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] After: ElemVolume(iElem) does not match UNMax(3) for tolerance = ',tolerance
+        RayElemPassedEnergyVolAfterError(iElem) = MAX(RayElemPassedEnergyVolAfterError(iElem),&
+                                                       SUM(UNMax(3,:,:,:,iElem))/ElemVolume(iElem))
       END IF
     END IF
 
