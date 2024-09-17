@@ -89,10 +89,3 @@ Furthermore, the electron number density $n_{e}$ is written to *ElemData.vtu* an
 TODO: combine *Electron\_Density* from the drift-diffusion output with the *ElectronDensityCell* output that is used for PIC and
 PIC-BR. See CalcSourceHDG() on how the drift-diffusion is added to the source terms.
 
-### References 
-[1] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: II. Numerical solution and investigation of planar fronts. Journal of Physics D: Applied Physics, 53(33), 335202. https://doi.org/10.1088/1361-6463/ab8b93
-
-[2] Markosyan, A. H., Teunissen, J., Dujko, S., & Ebert, U. (2015). Comparing plasma fluid models of different order for 1D streamer ionization fronts. Journal of Physics D: Applied Physics. Received 23 March 2015, revised 6 August 2015, accepted for publication 7 September 2015, published 8 October 2015.
-
-[3] Dujko, S., Markosyan, A. H., White, R. D., & Ebert, U. (2020). High-order fluid model for streamer discharges: I. Derivation of model and transport data. Journal of Physics D: Applied Physics, 53(33), 335201. https://doi.org/10.1088/1361-6463/ab8b92
-
