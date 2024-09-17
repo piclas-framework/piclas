@@ -30,7 +30,7 @@ $$
 $$
  
 
-\textit{where } $E = |E|$, $n_{\text{ion}}$ \textit{is the ion density, and where mobility } $\mu$, \textit{diffusion } $D$, \textit{and } $\nu_I$ \textit{are functions of the local electric field.}
+Where $E = |E|$, $n_{\text{ion}}$ is the ion density, and where mobility $\mu$, diffusion $D$ and $\nu_I$ are functions of the local electric field.
 
 
 
