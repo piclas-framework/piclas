@@ -1000,7 +1000,8 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
 
   ALLOCATE(tmpGlobalSideInx(nGlobalSurfSides),tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,nGlobalSurfSides))
 
-  ASSOCIATE (nSurfSample          => INT(nSurfSample,IK), &
+  ASSOCIATE (nVarSurf             => INT(nVarSurf,IK), &
+             nSurfSample          => INT(nSurfSample,IK), &
              nGlobalSides         => INT(nGlobalSurfSides,IK))
     CALL ReadArray('BoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
     CALL ReadArray('CatalyticData',4,(/nVarSurf, nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tempSurfData)

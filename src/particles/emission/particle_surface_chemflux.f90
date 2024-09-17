@@ -183,9 +183,6 @@ DO iSF = 1, SurfChem%CatBoundNum
                 ! Number of products to be inserted into the gas phase
                 ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID) =  Rate * dt * Area * (-LOG(RanNum)) / ReactantCount + &
                                                                     ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID)
-                print*,' ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID), Rate, dt, Area, ReactantCount, nu, AdsDens, E_act, WallTemp'
-                print*, ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID), Rate, dt, Area, ReactantCount, nu, AdsDens, E_act, WallTemp
-                read*,
 
                 DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
                   IF (SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN

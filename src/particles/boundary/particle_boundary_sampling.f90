@@ -468,7 +468,7 @@ USE MOD_Globals_Vars               ,ONLY: StefanBoltzmannConst
 USE MOD_DSMC_Vars                  ,ONLY: DSMC
 USE MOD_Mesh_Vars                  ,ONLY: MeshFile
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfTotalSideOnNode
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, DoChemSurface, ChemWallProp, SurfChem
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, DoChemSurface, ChemWallProp
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides, BoundaryWallTemp
