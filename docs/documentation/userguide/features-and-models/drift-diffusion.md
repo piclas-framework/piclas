@@ -20,7 +20,7 @@ The first-order-fluid model is derived from the Boltzmann equation. Continuity a
 
 The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions, it reads as {cite}`Markosyan2015`:
 
-\begin{align}
+ 
 $$
 \frac{\partial n}{\partial t} = \nabla \cdot \left( \mu(E) E n \right) + D(E) \cdot \nabla n + \nu_I(E, t) \tag{1}
 $$
@@ -28,7 +28,7 @@ $$
 $$
 \frac{\partial n_{\text{ion}}}{\partial t} = \nu_I(E, t) \tag{2}
 $$
-\end{align}
+ 
 
 \textit{where } $E = |E|$, $n_{\text{ion}}$ \textit{is the ion density, and where mobility } $\mu$, \textit{diffusion } $D$, \textit{and } $\nu_I$ \textit{are functions of the local electric field.}
 
