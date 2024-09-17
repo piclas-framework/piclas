@@ -1,10 +1,10 @@
 # Drift-diffusion model
-Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development {cite}Dujko.
+Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development {cite}`Dujko2020`.
 
 Streamer discharge simulations are basically modeled in three ways. These are the Particle Model, Fluid Model, and Hybrid Model.
 In this section, the Hybrid Model which combines the 1st order fluid model with particle model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
 
-The first-order fluid model is the multiply used reaction–drift-diffusion model {cite}Dujko. It is also called 'classical fluid model´. The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
+The first-order fluid model is the multiply used reaction–drift-diffusion model {cite}`Dujko2020`. It is also called 'classical fluid model´. The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
 
 The piclas executable to use the model in created by
 
@@ -16,9 +16,9 @@ HDG solver for electric fields)
 
 **The First-Order Fluid Model** 
 
-The first-order-fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation [3]. 
+The first-order-fluid model is derived from the Boltzmann equation. Continuity and the balance of momentum equations are used and the set is truncated at the momentum balance equation {cite}`Dujko2020JPD_I`. 
 
-The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions, it reads as {cite}Markosyan:
+The first-order-fluid model (Classical Model) considers only the first two balance laws from the system. For electrons and ions, it reads as {cite}`Markosyan2015`:
 
 $$
 \frac{\partial n}{\partial t} = \nabla \cdot \left( \mu(E) E n \right) + D(E) \cdot \nabla n + \nu_I(E, t) \tag{1}
@@ -33,7 +33,7 @@ $$
 
 
 
-Coupling these two equations with the Poisson equation results in the following form {cite}Markosyan: 
+Coupling these two equations with the Poisson equation results in the following form {cite}`Markosyan2015`: 
 
 $$
 \frac{\partial E}{\partial x} = -\varepsilon_0 e n_{\text{ion}} \tag{3}
@@ -61,7 +61,7 @@ The electric feld for x > 0 is calculated by integrating the first order fluid m
 
 ## Plasma chemistry
 
-The diffusion coefficient is considered as a scalar in the model. However, in the case of streamer discharges, the diffusion tensor can be anisotropic. This means that diffusion can occur at different rates in different directions, which would require a tensor instead of a single scalar diffusion coefficient {cite} Markosyan.
+The diffusion coefficient is considered as a scalar in the model. However, in the case of streamer discharges, the diffusion tensor can be anisotropic. This means that diffusion can occur at different rates in different directions, which would require a tensor instead of a single scalar diffusion coefficient {cite}`Markosyan2015`.
 
 Uses *Diffusion-Coefficients* in the SpeciesDatabase.h5 file.
 
