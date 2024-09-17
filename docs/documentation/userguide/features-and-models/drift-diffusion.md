@@ -49,14 +49,6 @@ Overview of boundary conditions
 
 TODO: implement RefState (the same as HDG solver uses for the electric potential BC) + add new reggie
 
-To create steady propagation conditions for the negative front, the electric feld on the left boundary x = 0 is fxed to the time 
-independent value E0.
-
-$$
-E(0, t) = E_0 > 0. \tag{4}
-$$
- 
-
 The electric feld for x > 0 is calculated by integrating the first order fluid model equation (3) numerically over x, with the (4) as a boundary condiition. The system length _L_, the number of grid points, and the grid spacing are adjusted as boundary conditions.
 
 ## Plasma chemistry
