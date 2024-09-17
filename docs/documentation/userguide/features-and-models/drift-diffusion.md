@@ -1,5 +1,5 @@
 # Drift-diffusion model
-Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development \citet{Dujko2020JPD}.
+Streamers are growing ionized fingers that appear when ionizable matter is suddenly exposed to high voltages. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and bullets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development \citep{Dujko2020JPD}.
 
 Streamer discharge simulations are basically modeled in three ways. These are the Particle Model, Fluid Model, and Hybrid Model.
 In this section, the Hybrid Model which combines the 1st order fluid model with particle model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
