@@ -151,35 +151,38 @@ CALL InitPhotonSurfSample()
 CALL InitHighOrderRaySampling()
 
 ! Create a mapping from the sides, where rays are to be emitted to the non-unique global side ID
-nRaySides = 0
-ALLOCATE(RaySide2GlobalSide_temp(nComputeNodeSurfTotalSides))
-RaySide2GlobalSide_temp = 0
+IF(PerformRayTracing)THEN
+  nRaySides = 0
+  ALLOCATE(RaySide2GlobalSide_temp(nComputeNodeSurfTotalSides))
+  RaySide2GlobalSide_temp = 0
 
-FoundComputeNodeSurfSide = .FALSE.
-SurfLoop: DO iSurfSide = 1,nComputeNodeSurfTotalSides
-  NonUniqueGlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-  ! Check if the surface side has a neighbor (and is therefore an inner BCs)
-  IF(SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0) THEN ! BC side
-    ! Get field BC index of side and compare with BC index of the corresponding particle boundary index of the emission side
-    iBC = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID) ! Get field BC index from non-unique global side index
-    IF(iBC.NE.PartBound%MapToFieldBC(RayPartBound)) CYCLE SurfLoop ! Correct BC not found, check next side
-    nRaySides = nRaySides + 1
-    RaySide2GlobalSide_temp(nRaySides) = NonUniqueGlobalSideID
-    FoundComputeNodeSurfSide = .TRUE.
-  END IF ! SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0
-END DO SurfLoop! iSurfSide = 1,nComputeNodeSurfTotalSides
+  FoundComputeNodeSurfSide = .FALSE.
+  SurfLoop: DO iSurfSide = 1,nComputeNodeSurfTotalSides
+    NonUniqueGlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
+    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
+    IF(SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0) THEN ! BC side
+      ! Get field BC index of side and compare with BC index of the corresponding particle boundary index of the emission side
+      iBC = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID) ! Get field BC index from non-unique global side index
+      IF(iBC.NE.PartBound%MapToFieldBC(RayPartBound)) CYCLE SurfLoop ! Correct BC not found, check next side
+      nRaySides = nRaySides + 1
+      RaySide2GlobalSide_temp(nRaySides) = NonUniqueGlobalSideID
+      FoundComputeNodeSurfSide = .TRUE.
+    END IF ! SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0
+  END DO SurfLoop! iSurfSide = 1,nComputeNodeSurfTotalSides
 
-! Sanity check: nRaySides > 0
-IF(.NOT.FoundComputeNodeSurfSide)THEN
-  IPWRITE(UNIT_StdOut,*) ""
-  IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfTotalSides =", nComputeNodeSurfTotalSides
-  IPWRITE(UNIT_StdOut,*) ": RayPartBound               =", RayPartBound
-  CALL abort(__STAMP__,'No boundary found in list of nComputeNodeSurfTotalSides for defined RayPartBound!')
-END IF ! FoundComputeNodeSurfSide
+  ! Sanity check: nRaySides > 0
+  IF(.NOT.FoundComputeNodeSurfSide)THEN
+    IPWRITE(UNIT_StdOut,*) ""
+    IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfTotalSides =", nComputeNodeSurfTotalSides
+    IPWRITE(UNIT_StdOut,*) ": RayPartBound               =", RayPartBound
+    CALL abort(__STAMP__,'No boundary found in list of nComputeNodeSurfTotalSides for defined RayPartBound!')
+  END IF ! FoundComputeNodeSurfSide
 
-ALLOCATE(RaySide2GlobalSide(nRaySides))
-RaySide2GlobalSide = PACK(RaySide2GlobalSide_temp,RaySide2GlobalSide_temp.NE.0)
-LBWRITE(*,'(A,I0,A)') ' | Found ', nRaySides, ' sides for the ray emission on the specified BC.'
+  ALLOCATE(RaySide2GlobalSide(nRaySides))
+  RaySide2GlobalSide = PACK(RaySide2GlobalSide_temp,RaySide2GlobalSide_temp.NE.0)
+  SDEALLOCATE(RaySide2GlobalSide_temp)
+  LBWRITE(*,'(A,I0,A)') ' | Found ', nRaySides, ' sides for the ray emission on the specified BC.'
+END IF ! PerformRayTracing
 
 ASSOCIATE( &
       E0      => Ray%Energy             ,&
