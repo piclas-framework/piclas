@@ -40,7 +40,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, RadialWeighting, DoSpeciesWeighting
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, UseVarTimeStep, Species, usevMPF
 USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -84,7 +84,7 @@ iSpec2 = PartSpecies(iPart2)
                     + Species(iSpec2)%MassIC * PartState(4:6,iPart2) * GetParticleWeight(iPart2)
 #endif /* CODE_ANALYZE */
 
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF ((RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF).AND.(.NOT.DoSpeciesWeighting)) THEN
     FracMassCent1 = Species(iSpec1)%MassIC * GetParticleWeight(iPart1) / (Species(iSpec1)%MassIC &
                   * GetParticleWeight(iPart1) + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2) / (Species(iSpec1)%MassIC  &
@@ -100,14 +100,23 @@ iSpec2 = PartSpecies(iPart2)
 
   cRelaNew(1:3) = PostCollVec(iPair)
 
+IF (DoSpeciesWeighting.AND..NOT.Coll_pData(iPair)%DoVelChange1) THEN
+  PartState(4:6,iPart1) = PartState(4:6,iPart1)
+ELSE
  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1)
   PartState(5,iPart1) = VeloMy + FracMassCent2 * cRelaNew(2)
   PartState(6,iPart1) = VeloMz + FracMassCent2 * cRelaNew(3)
+END IF
+IF (DoSpeciesWeighting.AND..NOT.Coll_pData(iPair)%DoVelChange2) THEN
+  PartState(4:6,iPart2) = PartState(4:6,iPart2)
+ELSE
  ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
   PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1)
   PartState(5,iPart2) = VeloMy - FracMassCent1 * cRelaNew(2)
   PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3)
+END IF
+
 #ifdef CODE_ANALYZE
   Momentum_new(1:3) = Species(iSpec2)%MassIC* (/VeloMx - FracMassCent1*cRelaNew(1),&
                                                 VeloMy - FracMassCent1*cRelaNew(2),&
@@ -921,7 +930,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 ! MODULES
 USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
-USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_DSMC_Vars             ,ONLY: DSMC, DoSpeciesWeighting
 USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
@@ -944,6 +953,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 LOGICAL                       :: RelaxToDo
 INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
 REAL                          :: Distance
+REAL                          :: weight1, weight2, iRan
 REAL                          :: MacroParticleFactor, PairWeight
 !===================================================================================================================================
 IF (DSMC%ReservoirSimu) THEN
@@ -962,6 +972,8 @@ END IF
 
 iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
+weight1 = GetParticleWeight(iPart1)
+weight2 = GetParticleWeight(iPart2)
 
 IF(DSMC%CalcQualityFactors) THEN
   IF(Symmetry%Order.EQ.3) THEN
@@ -976,10 +988,37 @@ IF(DSMC%CalcQualityFactors) THEN
   DSMC%CollSepCount = DSMC%CollSepCount + 1
 END IF
 
+
+!! Calculate probability of velocity change in collition (according to Boyd (36) and (37))
+IF (DoSpeciesWeighting) THEN
+  IF (weight1.LE.weight2) THEN
+    Coll_pData(iPair)%ProbVelChange_12 = 1
+    Coll_pData(iPair)%ProbVelChange_21 = weight1/weight2
+    CALL RANDOM_NUMBER(iRan)
+    IF (iRan.LT.Coll_pData(iPair)%ProbVelChange_21) THEN
+      Coll_pData(iPair)%DoVelChange2 = .TRUE.
+    ELSE
+      Coll_pData(iPair)%DoVelChange2 = .FALSE.
+    END IF
+    Coll_pData(iPair)%DoVelChange1 = .TRUE.
+  ELSE
+    Coll_pData(iPair)%ProbVelChange_12 = weight2/weight1
+    Coll_pData(iPair)%ProbVelChange_21 = 1
+    CALL RANDOM_NUMBER(iRan)
+    IF (iRan.LT.Coll_pData(iPair)%ProbVelChange_12) THEN
+      Coll_pData(iPair)%DoVelChange1 = .TRUE.
+    ELSE
+      Coll_pData(iPair)%DoVelChange1 = .FALSE.
+    END IF
+    Coll_pData(iPair)%DoVelChange2 = .TRUE.
+  END IF
+END IF
+
 SELECT CASE(CollisMode)
   CASE(1) ! elastic collision
     CALL DSMC_Elastic_Col(iPair)
   CASE(2) ! collision with relaxation
+    IF (DoSpeciesWeighting) CALL Abort(__STAMP__,'ERROR: Collision with relaxation not possible with Species Weighting yet')
     SELECT CASE(SelectionProc)
       CASE(1)
         CALL DSMC_Relax_Col_LauxTSHO(iPair)
@@ -989,6 +1028,7 @@ SELECT CASE(CollisMode)
         CALL Abort(__STAMP__,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
     END SELECT
   CASE(3) ! chemical reactions
+    IF (DoSpeciesWeighting) CALL Abort(__STAMP__,'ERROR: Chemical reactions not possible with Species Weighting')
     RelaxToDo = .TRUE.
     IF (PRESENT(NodeVolume).AND.PRESENT(NodePartNum)) THEN
       CALL ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
