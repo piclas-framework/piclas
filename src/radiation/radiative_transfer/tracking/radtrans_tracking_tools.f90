@@ -674,7 +674,7 @@ REAL, INTENT(IN)    :: IntersectionPos(3)
 INTEGER           :: k,l,m,Nloc,NbrOfSamples,iIntersec,idx
 REAL              :: SamplePos(3)
 REAL              :: direction(3),subdirection(3),length,sublength
-REAL              :: RandVal(3)
+REAL              :: RandVal
 !--------------------------------------------------------------------------------------------------!
 ! Calculate the direction and length of the path of the ray through the element
 direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonPos(1:3)
@@ -696,26 +696,16 @@ RayElemPassedEnergy(idx,GlobalElemID)   = RayElemPassedEnergy(idx,GlobalElemID) 
 Nloc = N_DG_Ray(GlobalElemID)
 
 ! Loop over number of sub-samples
-NbrOfSamples = MAX(30,(Nloc+1)**2) ! Nloc+1 ! must be at least 3 for this sampling method (one point between the two intersections of the element)!
+NbrOfSamples = 10*(Nloc+1) ! must be at least 3*(Nloc+1) for this sampling method (one point between the two intersections of the element)!
 subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
 sublength = VECNORM(subdirection(1:3))
 ! Loop over the number of sub lengths and assign them to the nearest DOF. Choose the intersection points at random to prevent artifacts
-IF(ABS(direction(3)).GT.1e6*(ABS(direction(1))+ABS(direction(2))))THEN
-  ! only in z-dir
-  DO iIntersec = 1, NbrOfSamples-1
-    CALL RANDOM_NUMBER(RandVal(1))
-    SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + (/1.0 , 1.0 , RandVal(1)/) * direction(1:3)
-    CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
-    U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
-  END DO
-ELSE
-  DO iIntersec = 1, NbrOfSamples-1
-    CALL RANDOM_NUMBER(RandVal(1:3))
-    SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + RandVal(1:3) * direction(1:3)
-    CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
-    U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
-  END DO
-END IF ! ABS(direction(3).GT.1e6*(ABS(direction(1))+ABS(direction(2))))
+DO iIntersec = 1, NbrOfSamples-1
+  CALL RANDOM_NUMBER(RandVal)
+  SamplePos(1:3) = PhotonProps%PhotonPos(1:3) + RandVal * direction(1:3)
+  CALL GetNestestDOFInRefElem(Nloc,SamplePos(1:3),GlobalElemID,k,l,m)
+  U_N_Ray(GlobalElemID)%U(idx,k,l,m) = U_N_Ray(GlobalElemID)%U(idx,k,l,m) + sublength*PhotonProps%PhotonEnergy
+END DO
 
 ! Store intersection point as new starting point
 PhotonProps%PhotonPos(1:3) = IntersectionPos(1:3)
