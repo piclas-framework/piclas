@@ -78,6 +78,7 @@ LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataE
 LOGICAL                        :: BGFieldExists, ExcitationDataExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
+LOGICAL                        :: ConvertPointToCellData
 INTEGER                        :: iElem, iNode
 INTEGER                        :: iMode,iErrorReturn,dmdSingleModeOutput,dmdMaximumModeOutput
 CHARACTER(LEN=16)              :: hilf
@@ -93,6 +94,7 @@ CALL prms%CreateStringOption( 'NodeTypeVisu'           , 'Node type of the visua
 CALL prms%CreateIntOption(    'NVisu'                  , 'Number of points at which solution is sampled for visualization.')
 CALL prms%CreateLogicalOption('VisuParticles'          , 'Visualize particles (velocity, species, internal energy).', '.FALSE.')
 CALL prms%CreateLogicalOption('VisuAdaptiveInfo'       , 'Visualize the sampled values utilized for the adaptive surface flux and porous BC (velocity, density, pumping speed)', '.FALSE.')
+CALL prms%CreateLogicalOption('ConvertPointToCellData' , 'Visualize the DG solution as constant cell data using the VISU INNER nodes', '.FALSE.')
 CALL prms%CreateIntOption(    'TimeStampLength'        , 'Length of the floating number time stamp', '21')
 CALL prms%CreateIntOption(    'dmdSingleModeOutput'    , 'Convert only a single specific DMD mode.', '0')
 CALL prms%CreateIntOption(    'dmdMaximumModeOutput'   , 'Convert all output DMD modes up to this number.', '1000')
@@ -203,6 +205,14 @@ END IF
 NodeTypeVisuOut  = GETSTR('NodeTypeVisu','VISU')    ! Node type of visualization basis
 VisuParticles    = GETLOGICAL('VisuParticles','.FALSE.')
 VisuAdaptiveInfo    = GETLOGICAL('VisuAdaptiveInfo','.FALSE.')
+ConvertPointToCellData    = GETLOGICAL('ConvertPointToCellData','.FALSE.')
+IF(ConvertPointToCellData) THEN
+  ! Output of DG solution as cell data on the VISU INNER nodes
+  PointToCellSwitch = 1
+ELSE
+  ! Output of DG solution as point data
+  PointToCellSwitch = 0
+END IF
 ! Initialization of I/O routines
 CALL InitIOHDF5()
 ! Get length of the floating number time stamp
@@ -668,7 +678,7 @@ USE MOD_Interpolation         ,ONLY: GetVandermonde
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
 USE MOD_VTK                   ,ONLY: WriteDataToVTK
 USE MOD_IO_HDF5               ,ONLY: HSize
-USE MOD_piclas2vtk_Vars       ,ONLY: NVisuLocal, ElemLocal, Nloc_HDF5
+USE MOD_piclas2vtk_Vars       ,ONLY: NVisuLocal, ElemLocal, Nloc_HDF5, PointToCellSwitch
 USE MOD_ReadInTools           ,ONLY: PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -701,7 +711,7 @@ REAL,ALLOCATABLE                :: ElemData(:,:)                     !< Array fo
 LOGICAL                         :: DGSourceExists,DGTimeDerivativeExists,TimeExists,DGSourceExtExists,DMDMode,DGSolutionDatasetExists
 LOGICAL                         :: ElemDataExists, NlocFound
 CHARACTER(LEN=16)               :: hilf
-CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset
+CHARACTER(LEN=255)              :: DMDFields(1:16), Dataset, NodeType
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
 !===================================================================================================================================
 ! 1.) Open given file to get the number of elements, the order and the name of the mesh file
@@ -766,6 +776,13 @@ nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
 DEALLOCATE(HSize)
 nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
 
+! Check compatibility of ConvertPointToCellData with other features
+IF(PointToCellSwitch.EQ.1) THEN
+  IF(nFields.GT.1) CALL abort(__STAMP__,'ERROR: ConvertPointToCellData and nFields > 1 is not supported!')
+  CALL ReadAttribute(File_ID,'NodeType',1,StrScalar=NodeType)
+  IF(TRIM(NodeType).NE.'VISU_INNER') CALL abort(__STAMP__,'ERROR: ConvertPointToCellData is only implemented for point data using NodeType = VISU_INNER!')
+END IF
+
 ! Default: DGSolutionDataset = 'DG_Solution'
 CALL GetDataProps(TRIM(DGSolutionDataset),nVar_Solution,N_State,nElems_State,NodeType_State,nDimsOffset)
 CALL PrintOption('N_State','HDF5',IntOpt=N_State)
@@ -824,6 +841,7 @@ CALL CloseDataFile()
 
 IF(NlocFound) THEN
   SDEALLOCATE(NVisuLocal)
+  NlocMax = NlocMax + PointToCellSwitch
   ALLOCATE(NVisuLocal(1:NlocMax))
   DO Nloc = 1, NlocMax
     ALLOCATE(NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo))
@@ -833,7 +851,7 @@ IF(NlocFound) THEN
   ALLOCATE(ElemLocal(1:nElems))
   ! Convert coordinates to visu grid
   DO iElem = 1 , nElems
-    Nloc = Nloc_HDF5(iElem)
+    Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
     ALLOCATE(ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc))
     ! ALLOCATE(tempArray(3,0:Nloc,0:Nloc,0:Nloc))
     CALL ChangeBasis3D(3, NGeo, Nloc, NVisuLocal(Nloc)%Vdm_EQNgeo_NVisu(0:Nloc,0:NGeo), NodeCoords(1:3,0:NGeo,0:NGeo,0:NGeo,iElem), &
@@ -984,8 +1002,18 @@ DO iField = 1, nFields
     DO iElem = 1,nElems
       Nloc = Nloc_HDF5(iElem)
       IF(nFields.EQ.1)THEN
-        CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State), U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
+        IF(PointToCellSwitch.EQ.0) THEN
+          CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State), U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
                             ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+        ELSE IF(PointToCellSwitch.EQ.1) THEN
+          IF(Nloc.NE.N_State) THEN
+            ! Temporary solution until output is per DOF instead of on NMax
+            CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu(0:Nloc,0:N_State), U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)       , &
+                              ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc))
+          ELSE
+            ElemLocal(iElem)%U_Visu(1:nVar_State,0:Nloc,0:Nloc,0:Nloc) = U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem)
+          END IF
+        END IF
       ELSE ! more than one field
         ! TODO: is nVar_State correct here?
         CALL ChangeBasis3D(nVar_State, N_State, Nloc, NVisuLocal(Nloc)%Vdm_N_NVisu, U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), &
@@ -1498,7 +1526,7 @@ SUBROUTINE WriteDataToVTKpAdaption(nVar,VarNames,FileString)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_piclas2vtk_Vars     ,ONLY: ElemLocal, Nloc_HDF5
+USE MOD_piclas2vtk_Vars     ,ONLY: ElemLocal, Nloc_HDF5, PointToCellSwitch
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -1532,7 +1560,7 @@ nVTKPoints = 0
 nVTKCells = 0
 
 DO iElem = 1, nElems
-  Nloc = Nloc_HDF5(iElem)
+  Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
   nVTKPoints = nVTKPoints + (Nloc+1)**3
   nVTKCells  = nVTKCells  +  Nloc**3
 END DO
@@ -1552,20 +1580,38 @@ WRITE(TempStr2,'(I16)')nVTKCells
 Buffer='    <Piece NumberOfPoints="'//TRIM(ADJUSTL(TempStr1))//'" &
         &NumberOfCells="'//TRIM(ADJUSTL(TempStr2))//'">'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Specify point data
-Buffer='      <PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
-Offset=0
-WRITE(StrOffset,'(I16)')Offset
-DO iVar=1,nVar
-  Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNames(iVar))//'" '// &
-                    'format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
-  ! INTEGER KIND=4 check
-  CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
-  Offset=          Offset   +    SizeINTdummy   +    nVTKPoints   *    SIZEOF_F(FLOATdummy)
+IF(PointToCellSwitch.EQ.0) THEN
+  Buffer='      <PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+  Offset=0
   WRITE(StrOffset,'(I16)')Offset
-END DO
-Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
-! Specify cell data
-Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+  DO iVar=1,nVar
+    Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNames(iVar))//'" '// &
+                      'format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+    ! INTEGER KIND=4 check
+    CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKPoints,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+    Offset=          Offset   +    SizeINTdummy   +    nVTKPoints   *    SIZEOF_F(FLOATdummy)
+    WRITE(StrOffset,'(I16)')Offset
+  END DO
+  Buffer='      </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+  ! Specify cell data
+  Buffer='      <CellData> </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+ELSE IF(PointToCellSwitch.EQ.1) THEN
+ ! Specify point data
+  Buffer='      <PointData> </PointData>'//lf;WRITE(ivtk) TRIM(Buffer)
+  ! Specify cell data
+  Buffer='      <CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+  Offset=0
+  WRITE(StrOffset,'(I16)')Offset
+  DO iVar=1,nVar
+    Buffer='        <DataArray type="Float32" Name="'//TRIM(VarNames(iVar))//'" '// &
+                      'format="appended" offset="'//TRIM(ADJUSTL(StrOffset))//'"/>'//lf;WRITE(ivtk) TRIM(Buffer)
+    ! INTEGER KIND=4 check
+    CHECKSAFEINT(INT(Offset,8)+INT(SizeINTdummy,8)+INT(nVTKCells,8)*INT(SIZEOF_F(FLOATdummy),8),4)
+    Offset=          Offset   +    SizeINTdummy   +    nVTKCells   *    SIZEOF_F(FLOATdummy)
+    WRITE(StrOffset,'(I16)')Offset
+  END DO
+  Buffer='      </CellData>'//lf;WRITE(ivtk) TRIM(Buffer)
+END IF
 ! Specify coordinate data
 Buffer='      <Points>'//lf;WRITE(ivtk) TRIM(Buffer)
 Buffer='        <DataArray type="Float32" Name="Coordinates" NumberOfComponents="3" format="appended" '// &
@@ -1602,23 +1648,27 @@ Buffer='  <AppendedData encoding="raw">'//lf;WRITE(ivtk) TRIM(Buffer)
 ! Write leading data underscore
 Buffer='_';WRITE(ivtk) TRIM(Buffer)
 
-
 ! Write binary raw data into append section
 ! Solution data: write size per variable, and follow-up with complete data set per variable
-DO iVar=1,nVar
+IF(PointToCellSwitch.EQ.0) THEN
+  ! Write data as PointData
   nBytes = nVTKPoints*SIZEOF_F(FLOATdummy)
+ELSEIF(PointToCellSwitch.EQ.1) THEN
+  ! Write data as CellData
+  nBytes = nVTKCells*SIZEOF_F(FLOATdummy)
+END IF
+DO iVar=1,nVar
   WRITE(ivtk) nBytes
   DO iElem = 1, nElems
     Nloc = Nloc_HDF5(iElem)
     WRITE(ivtk) REAL(ElemLocal(iElem)%U_Visu(iVar,0:Nloc,0:Nloc,0:Nloc),4)
   END DO
 END DO       ! iVar
-
 ! Coordinates
 nBytes = nVTKPoints*SIZEOF_F(FLOATdummy)*3
 WRITE(ivtk) nBytes
 DO iElem = 1, nElems
-  Nloc = Nloc_HDF5(iElem)
+  Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
   WRITE(ivtk) REAL(ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc),4)
 END DO
 
@@ -1658,7 +1708,7 @@ SUBROUTINE CreateConnectivitypAdaption(nNodes,nodeids)
 USE ISO_C_BINDING
 USE MOD_Globals
 USE MOD_Mesh_Vars           ,ONLY: nElems
-USE MOD_piclas2vtk_Vars     ,ONLY: Nloc_HDF5
+USE MOD_piclas2vtk_Vars     ,ONLY: Nloc_HDF5, PointToCellSwitch
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN)  :: nNodes             !< number of nodes
@@ -1674,7 +1724,7 @@ INTEGER           :: Nloc, Nloc_elem, Nloc_p1_2
 NodeID = 0
 NodeIDElem = 0
 DO iElem=1,nElems
-  Nloc = Nloc_HDF5(iElem)
+  Nloc = Nloc_HDF5(iElem) + PointToCellSwitch
   Nloc_elem = (Nloc+1)**3
   Nloc_p1_2 = (Nloc+1)**2
   DO k=1,Nloc

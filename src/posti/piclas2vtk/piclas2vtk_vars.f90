@@ -32,6 +32,7 @@ IMPLICIT NONE
 REAL,ALLOCATABLE            :: NodeCoords_Connect(:,:)
 INTEGER,ALLOCATABLE         :: ElemUniqueNodeID(:,:)
 INTEGER                     :: nUniqueNodes
+INTEGER                     :: PointToCellSwitch
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Mapping of nodes and surface sides, required for connectivity of elements
 !----------------------------------------------------------------------------------------------------------------------------------
