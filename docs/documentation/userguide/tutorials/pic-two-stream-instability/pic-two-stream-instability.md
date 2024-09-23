@@ -205,7 +205,7 @@ The physical parameters for this test case are summarized in {numref}`tab:pic-tw
 
 ```{table} Physical properties
 ---
-name: tab:pic_poisson_plasma_wave_phys
+name: tab:pic-two-stream-instability
 ---
 |             Property            |            Value           |
 | ------------------------------- |  :-----------------------: |
@@ -450,8 +450,24 @@ If the run has completed successfully, which should take only a brief moment, th
 
     4.0K drwxrwxr-x  4.0K Jun 28 13:07 ./
     4.0K drwxrwxr-x  4.0K Jun 25 23:56 ../
-    8.0K -rw-rw-r--  5.8K Jun 28 12:51 ElemTimeStatistics.csvpic_poisson_plasma_wave_phys
-     72K -rw-rw-r--   71K Jun 28 12:51 std.out
+    8.0K -rw-rw-r--  5.8K Jun 28 12:51 ElemTimeStatistics.csv
+    120K -rw-rw-r--  113K Jun 28 12:51 FieldAnalyze.csv
+    4.0K -rw-rw-r--  2.1K Jun 26 16:49 hopr.ini
+    8.0K -rw-rw-r--  5.0K Jun 28 13:07 parameter.ini
+    156K -rw-rw-r--  151K Jun 28 12:51 PartAnalyze.csv
+     32K -rw-rw-r--   32K Jun 26 16:43 plasma_wave_mesh.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:44 two_stream_instability_State_.000000000.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:45 two_stream_instability_State_000.000000004.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:45 two_stream_instability_State_000.000000008.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:46 two_stream_instability_State_000.000000012.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:47 two_stream_instability_State_000.000000016.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:48 two_stream_instability_State_000.000000020.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:49 two_stream_instability_State_000.000000024.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:50 two_stream_instability_State_000.000000028.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:50 two_stream_instability_State_000.000000032.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:51 two_stream_instability_State_000.000000036.h5
+    1.6M -rw-rw-r--  1.6M Jun 28 12:51 two_stream_instability_State_000.000000040.h5
+    72K -rw-rw-r--   71K Jun 28 12:51 std.out
 
 Multiple additional files have been created, which are are named  **Projectname_State_Timestamp.h5**.
 They contain the solution vector of the equation system variables at each interpolation nodes at the given time, which corresponds
