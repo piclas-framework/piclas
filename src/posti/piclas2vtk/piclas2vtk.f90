@@ -898,6 +898,7 @@ ASSOCIATE (&
       offsetElem    => INT(offsetElem    , IK)      , &
       N_State       => INT(N_State       , IK)      , &
       nElems        => INT(nElems        , IK)      , &
+      nDOF          => INT(nDOF          , IK)      , &
       nFields       => INT(nFields       , IK)      )
 
   ! Check if DMD data is to be converted or normal data

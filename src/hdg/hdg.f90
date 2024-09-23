@@ -111,7 +111,7 @@ USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
 USE MOD_Interpolation_Vars    ,ONLY: N_Inter,NMax
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis2D
 USE MOD_Elem_Mat              ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
@@ -159,20 +159,18 @@ INTEGER           :: nDirichletBCsidesGlobal
 PetscErrorCode    :: ierr
 IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iProc
-INTEGER           :: PETScLocalID
 INTEGER           :: MortarSideID,iMortar
 INTEGER           :: locSide,nMortarMasterSides,nMortars
 !INTEGER           :: nAffectedBlockSides
-INTEGER,ALLOCATABLE :: indx(:)
 INTEGER             :: iLocSide
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
-INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
+#if USE_MPI
+INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 #endif
-!#if USE_MPI
+#endif
 REAL              :: tmp(3,0:Nmax,0:Nmax)
-!#endif
 REAL              :: StartT,EndT
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN

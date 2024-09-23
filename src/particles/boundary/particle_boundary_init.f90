@@ -913,9 +913,11 @@ ALLOCATE(GlobalSide2SurfSideProc(1:3,1:nComputeNodeSides))
 
 GlobalSide2SurfSideProc = -1
 nComputeNodeSurfSides   = 0
-nComputeNodeInnerBCs    = 0
 nSurfSidesProc          = 0
 ReflectiveOrOpenBCFound = .FALSE.
+#if USE_MPI
+nComputeNodeInnerBCs    = 0
+#endif /*USE_MPI*/
 
 ! Check every BC side
 DO iSide = firstSide,lastSide
