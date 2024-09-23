@@ -732,7 +732,7 @@ IF(DoV)THEN
     ! do nothing, should not be called
   CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
     DO SideID=firstSideID,lastSideID
-      IF(MaskedSide(sideID).GT.0) THEN
+      IF(MaskedSide(sideID).NE.0) THEN
         HDG_Surf_N(SideID)%V(iVar,:)=0.
       ELSE
         NSideMin = N_SurfMesh(SideID)%NSideMin
@@ -742,7 +742,7 @@ IF(DoV)THEN
     END DO ! SideID=1,nSides
   CASE(2)
     DO SideID=firstSideID,lastSideID
-      IF(MaskedSide(sideID).GT.0) THEN
+      IF(MaskedSide(sideID).NE.0) THEN
         HDG_Surf_N(SideID)%V(iVar,:)=0.
       ELSE
         NSideMin = N_SurfMesh(SideID)%NSideMin
@@ -762,7 +762,7 @@ ELSE
     ! do nothing, should not be called
   CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
     DO SideID=firstSideID,lastSideID
-      IF(MaskedSide(sideID).GT.0) THEN
+      IF(MaskedSide(sideID).NE.0) THEN
         HDG_Surf_N(SideID)%Z(iVar,:)=0.
       ELSE
         NSideMin = N_SurfMesh(SideID)%NSideMin
@@ -772,7 +772,7 @@ ELSE
     END DO ! SideID=1,nSides
   CASE(2)
     DO SideID=firstSideID,lastSideID
-      IF(MaskedSide(sideID).GT.0) THEN
+      IF(MaskedSide(sideID).NE.0) THEN
         HDG_Surf_N(SideID)%Z(iVar,:)=0.
       ELSE
         NSideMin = N_SurfMesh(SideID)%NSideMin

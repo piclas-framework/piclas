@@ -121,8 +121,8 @@ DO SideID=1,nSides
   ELSE
     CALL abort(__STAMP__,'InitMortar_HDG: this case should not appear!!')
   END IF
-  ! TODO new value for mortars
-  IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=1!.TRUE.
+  IF(SmallMortarInfo(SideID).NE.0) MaskedSide(SideID)=-1
+  !TODO SmallMortarInfo=-1 must be the same global side as the corresbonding =1
 END DO !SideID=1,nSides
 
 #if USE_PETSC

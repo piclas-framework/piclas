@@ -554,7 +554,7 @@ CALL BuildPrecond()
 ! MORTARS: Small mortar sides are added as PETScDOFs to the global system!
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0) CYCLE ! TODO is this MaskedSide?
+  IF(MaskedSide(SideID).GT.0) CYCLE ! Skip Dirichlet sides (but keep small mortar sides)
   nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
 END DO
 
