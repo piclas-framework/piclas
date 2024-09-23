@@ -122,9 +122,6 @@ USE MOD_ReadInTools ,ONLY: GETLOGICAL
 #if USE_MPI
 USE MOD_Globals     ,ONLY: MPIRoot
 #endif /*USE_MPI*/
-#ifdef INTEL
-USE IFPORT
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

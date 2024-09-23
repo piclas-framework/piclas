@@ -244,9 +244,7 @@ USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank
 USE MOD_Particle_Boundary_Vars ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
-USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWall
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
-USE MOD_RayTracing_Vars        ,ONLY: Ray
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars     ,ONLY: NMax,PREF_VDM,NodeType,NMin,NodeTypeVISU
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
@@ -268,7 +266,7 @@ CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb, p, q,Nloc,BCSideID,iLocSide,iElem,BCType
+INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb,Nloc,BCSideID,iLocSide,iElem,BCType
 INTEGER                             :: GlobalElemID,iPartBound,GlobalNonUniqueSideID
 INTEGER                             :: nSurfSample, MessageSize
 REAL                                :: tstart,tend
