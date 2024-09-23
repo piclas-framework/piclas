@@ -531,6 +531,13 @@ simulation is then determined by
 $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+
+In some cases it might be useful to utilize averaged values across the complete BC by enabling
+
+    AdaptiveBC-AverageValuesOverBC = T
+
+Here, the cell-local values are averaged and the resulting macroscopic values are utilized for the particle emission.
+
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_Adaptive_ConstMassflow` and `SurfFlux_Tria_Adaptive_ConstPressure`.
 
