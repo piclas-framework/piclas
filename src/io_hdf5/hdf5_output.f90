@@ -25,36 +25,12 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE FlushHDF5
-  MODULE PROCEDURE FlushHDF5
-END INTERFACE
-
-INTERFACE WriteHDF5Header
-  MODULE PROCEDURE WriteHDF5Header
-END INTERFACE
-
-INTERFACE GenerateFileSkeleton
-  MODULE PROCEDURE GenerateFileSkeleton
-END INTERFACE
-
-INTERFACE GenerateNextFileInfo
-  MODULE PROCEDURE GenerateNextFileInfo
-END INTERFACE
-
-INTERFACE WriteTimeAverage
-  MODULE PROCEDURE WriteTimeAverage
-END INTERFACE
-
 INTERFACE
   SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
       USE ISO_C_BINDING, ONLY: C_CHAR
       CHARACTER(KIND=C_CHAR) :: outfilename(*)
       CHARACTER(KIND=C_CHAR) :: infilename(*)
   END SUBROUTINE copy_userblock
-END INTERFACE
-
-INTERFACE WriteAttributeToHDF5
-  MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
 
 PUBLIC :: FlushHDF5,WriteHDF5Header,GatheredWriteArray
@@ -183,9 +159,6 @@ USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Interpolation_Vars     ,ONLY: NodeType
-#ifdef INTEL
-USE IFPORT                     ,ONLY: SYSTEM
-#endif
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 #if USE_HDG
@@ -236,16 +209,6 @@ CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,us
 ! Write file header
 CALL WriteHDF5Header(TRIM(TypeString),File_ID)
 
-! Preallocate the data space for the dataset.
-Dimsf=(/nVar,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
-CALL H5SCREATE_SIMPLE_F(5, Dimsf, FileSpace, iError)
-! Create the dataset with default properties.
-HDF5DataType=H5T_NATIVE_DOUBLE
-CALL H5DCREATE_F(File_ID,'DG_Solution', HDF5DataType, FileSpace, DSet_ID, iError)
-! Close the filespace and the dataset
-CALL H5DCLOSE_F(Dset_id, iError)
-CALL H5SCLOSE_F(FileSpace, iError)
-
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
 CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=Nloc)
 CALL WriteAttributeToHDF5(File_ID,'Time',1,RealScalar=OutputTime)
@@ -291,9 +254,6 @@ SUBROUTINE GenerateNextFileInfo(TypeString,OutputTime,PreviousTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ProjectName
-#ifdef INTEL
-USE IFPORT                 ,ONLY: SYSTEM
-#endif
 !USE MOD_PreProcFlags
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

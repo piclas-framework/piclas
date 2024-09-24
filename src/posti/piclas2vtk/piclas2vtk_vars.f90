@@ -48,6 +48,7 @@ TYPE (tSurfaceConnect)            :: SurfConnect
 ! p-Adaption
 TYPE tElemLocal
   REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:)        !< Coordinates of visualization nodes [1:3,0:Nloc,0:Nloc,0:Nloc]
+  REAL,ALLOCATABLE                :: U(:,:,:,:)                   !< Read-in solution for visualization [1:nVar,0:Nloc,0:Nloc,0:Nloc]
   REAL,ALLOCATABLE                :: U_Visu(:,:,:,:)              !< Interpolated solution for visualization [1:nVar,0:Nloc,0:Nloc,0:Nloc]
 END TYPE tElemLocal
 

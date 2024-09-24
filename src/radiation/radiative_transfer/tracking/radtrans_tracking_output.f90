@@ -56,13 +56,13 @@ USE MOD_HDF5_output          ,ONLY: GenerateFileSkeleton
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars   ,ONLY: NodeType,N_Inter
+USE MOD_Interpolation_Vars   ,ONLY: NodeType
 USE MOD_Interpolation        ,ONLY: GetVandermonde
 USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars   ,ONLY: ElemVolume_Shared
 USE MOD_Photon_TrackingVars  ,ONLY: RadiationVolState
 USE MOD_HDF5_Output_State    ,ONLY: WriteElemDataToSeparateContainer
-USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem,ElemTime
+USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
 USE MOD_DG_Vars              ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars   ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
@@ -75,6 +75,7 @@ USE MOD_Interpolation_Vars   ,ONLY: Nmax
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m,NlocDG
+INTEGER                             :: iDOF,offsetDOF,nDOFOutput,nDOFTotalOutput
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
 REAL                                :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
 REAL                                :: ElemTimeDummy(PP_nElems)
@@ -89,9 +90,13 @@ REAL                                :: scalingFactor, tempValue
 !REAL                                :: Vdm_GaussN_NMax(0:NMax,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL, ALLOCATABLE                   :: Vdm_GaussN_Nloc(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL, ALLOCATABLE                   :: Vdm_GaussN_NMax(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+REAL, ALLOCATABLE                   :: U_N_Ray_2D_local(:,:)   !< for output as 1D array per variable
 REAL, PARAMETER                     :: tolerance=1e-2
+LOGICAL                             :: WriteErrorToElemData
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
+
+WriteErrorToElemData = .FALSE.
 
 ALLOCATE(RayElemPassedEnergyLoc1st(1:nElems))
 ALLOCATE(RayElemPassedEnergyLoc2nd(1:nElems))
@@ -123,12 +128,6 @@ CALL AddToElemData(ElementOutRay,'RaySecondaryVectorY'   ,RealArray=RaySecondary
 CALL AddToElemData(ElementOutRay,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
 CALL AddToElemData(ElementOutRay,'ElemVolume'            ,RealArray=ElemVolume)
 CALL AddToElemData(ElementOutRay,'NlocRay'               ,IntArray=N_DG_Ray_loc)
-CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc1stBeforeError',RealArray=RayElemPassedEnergyLoc1stBeforeError)
-CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc2ndBeforeError',RealArray=RayElemPassedEnergyLoc2ndBeforeError)
-CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyVolBeforeError',RealArray=RayElemPassedEnergyVolBeforeError)
-CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc1stAfterError',RealArray=RayElemPassedEnergyLoc1stAfterError)
-CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc2ndAfterError',RealArray=RayElemPassedEnergyLoc2ndAfterError)
-CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyVolAfterError',RealArray=RayElemPassedEnergyVolAfterError)
 
 ! Copy data from shared array
 DO iElem = 1, nElems
@@ -148,7 +147,6 @@ StrVarNames(5)='PhotonEnergyDensity2nd'
 #if USE_MPI
 CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
-
 
 #if USE_MPI
 ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
@@ -195,8 +193,6 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
       END ASSOCIATE
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
-
-
 
     ! TODO: Maybe pre-compute these Vandermonde matrices at the beginning?
     ! Switch node type from NodeType to Ray%NodeType (e.g. Gauss to VISU)
@@ -250,6 +246,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))/RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) '[WARNING] Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',tolerance
         RayElemPassedEnergyLoc1stBeforeError(iElem) = SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))/RayElemPassedEnergyLoc1st(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
     ! 2nd energy
@@ -261,6 +258,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) '[WARNING] Before: RayElemPassedEnergyLoc2nd does not match U_N_Ray%U(2) for tolerance = ',tolerance
         RayElemPassedEnergyLoc2ndBeforeError(iElem) = SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
     ! volume
@@ -272,6 +270,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))/ElemVolume(iElem)
         IPWRITE(UNIT_StdOut,*) '[WARNING] Before: ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',tolerance
         RayElemPassedEnergyVolBeforeError(iElem) = SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))/ElemVolume(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
 
@@ -342,6 +341,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ratio =", tempValue/RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) '[WARNING] After: RayElemPassedEnergyLoc1st does not match UNMax(1) for tolerance = ',tolerance
         RayElemPassedEnergyLoc1stAfterError(iElem) = tempValue/RayElemPassedEnergyLoc1st(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
     ! 2nd energy
@@ -355,6 +355,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ratio =", tempValue/RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) '[WARNING] After: RayElemPassedEnergyLoc2nd does not match UNMax(2) for tolerance = ',tolerance
         RayElemPassedEnergyLoc2ndAfterError(iElem) = tempValue/RayElemPassedEnergyLoc2nd(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
     ! volume
@@ -366,38 +367,73 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(3,:,:,:,iElem))/ElemVolume(iElem)
         IPWRITE(UNIT_StdOut,*) '[WARNING] After: ElemVolume(iElem) does not match UNMax(3) for tolerance = ',tolerance
         RayElemPassedEnergyVolAfterError(iElem) = SUM(UNMax(3,:,:,:,iElem))/ElemVolume(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
 
   END DO ! iElem=1,PP_nElems
-
-  ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-  ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
-  IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
-#if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
-#endif
-
-  ! Sanity check
-  IF(ANY(ISNAN(UNMax))) CALL abort(__STAMP__,'Found one or more NaN in the array UNMax!')
-
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        nVarRay           => INT(nVarRay,IK)            ,&
-        NMax              => INT(Ray%NMax,IK)           ,&
-        nGlobalElems      => INT(nGlobalElems,IK)       ,&
-        PP_nElems         => INT(PP_nElems,IK)          ,&
-        offsetElem        => INT(offsetElem,IK)         )
-    CALL GatheredWriteArray(RadiationVolState,create=.FALSE.,&
-         DataSetName='DG_Solution', rank=5,&
-         nValGlobal=(/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , nGlobalElems/) , &
-         nVal=      (/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , PP_nElems/)    , &
-         offset=    (/0_IK        , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
-         collective=.TRUE.,RealArray=UNMax)
-  END ASSOCIATE
 #if USE_MPI
 END ASSOCIATE
 #endif /*USE_MPI*/
+
+! Output of errors (if any detected)
+IF(WriteErrorToElemData) THEN
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc1stBeforeError',RealArray=RayElemPassedEnergyLoc1stBeforeError)
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc2ndBeforeError',RealArray=RayElemPassedEnergyLoc2ndBeforeError)
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyVolBeforeError',RealArray=RayElemPassedEnergyVolBeforeError)
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc1stAfterError',RealArray=RayElemPassedEnergyLoc1stAfterError)
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc2ndAfterError',RealArray=RayElemPassedEnergyLoc2ndAfterError)
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyVolAfterError',RealArray=RayElemPassedEnergyVolAfterError)
+END IF
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
+IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NodeType_in=Ray%NodeType)
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif
+
+! Get the number of output DOFs per processor
+nDOFOutput = SUM((N_DG_Ray(1+offSetElem:nElems+offSetElem)+1)**3)
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = SUM((N_DG_Ray(1:offSetElem)+1)**3)
+ELSE
+  offsetDOF = 0
+END IF
+
+nDOFTotalOutput = SUM((N_DG_Ray(1:nGlobalElems)+1)**3)
+
+! Allocate local 2D array
+ALLOCATE(U_N_Ray_2D_local(1:nVarRay,1:nDOFOutput))
+! Write into 2D array
+DO iElem = 1, PP_nElems
+  Nloc = N_DG_Ray_loc(iElem)
+  DO m=0,Nloc
+    DO l=0,Nloc
+      DO k=0,Nloc
+        iDOF = iDOF + 1
+        U_N_Ray_2D_local(1:nVarRay,iDOF) = U_N_Ray_loc(iElem)%U(1:nVarRay,k,l,m)
+        IF(ANY(ISNAN(U_N_Ray_2D_local(1:nVarRay,iDOF)))) CALL abort(__STAMP__,' ERROR: Found one or more NaN in the array U_N_Ray_loc!')
+      END DO ! k
+    END DO ! l
+  END DO ! m
+END DO
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nVarRay         => INT(nVarRay,IK)          ,&
+      nDOFTotalOutput => INT(nDOFTotalOutput,IK)  ,&
+      nDOFOutput      => INT(nDOFOutput,IK)       ,&
+      offsetDOF       => INT(offsetDOF,IK)        )
+  CALL GatheredWriteArray(RadiationVolState,create=.FALSE.,&
+        DataSetName='DG_Solution', rank=2,              &
+        nValGlobal=(/nVarRay     , nDOFTotalOutput/)  , &
+        nVal=      (/nVarRay     , nDOFOutput/)       , &
+        offset=    (/0_IK        , offsetDOF/)        , &
+        collective=.TRUE.,RealArray=U_N_Ray_2D_local(1:nVarRay,1:nDOFOutput))
+END ASSOCIATE
+SDEALLOCATE(U_N_Ray_2D_local)
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(RadiationVolState,ElementOutRay)

@@ -543,7 +543,7 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,Nin,Nout,Nloc
+INTEGER                         :: i,Nin,Nout,Nloc
 REAL, DIMENSION(:), ALLOCATABLE :: MappedGauss(:)
 !===================================================================================================================================
 ! Allocate interpolation variables

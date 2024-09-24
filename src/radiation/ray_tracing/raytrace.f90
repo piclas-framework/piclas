@@ -267,8 +267,11 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_HDF5_input             ,ONLY:ReadAttribute
 #if USE_MPI
 USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,nComputeNodeProcessors
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 !#if MPI
 !#endif /*MPI*/
@@ -280,10 +283,15 @@ LOGICAL,INTENT(IN)   :: onlySurfData
 ! LOCAL VARIABLES
 INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,BCSideID,iLocSide,locElemID,GlobalSideID,SideID
 INTEGER              :: nSurfSampleHDF5,N_HDF5
+INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
 LOGICAL              :: ContainerExists
 REAL                 :: N_DG_Ray_locREAL(1:nElems)
 INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
 REAL, ALLOCATABLE    :: UNMax(:,:,:,:,:),UNMax_loc(:,:,:,:)
+REAL, ALLOCATABLE    :: U_N_Ray_2D_local(:,:)                     !< for read-in as 1D array per variable
+#if USE_MPI
+INTEGER              :: sendbuf,recvbuf
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 ! 1.) Get surface sampled values
@@ -381,6 +389,13 @@ N_DG_Ray_loc = INT(N_DG_Ray_locREAL)
 ! Sanity check
 IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
 
+! Read HDF5
+CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
+
+! Determine size of DG_Solution
+CALL GetDataSize(File_ID,'DG_Solution',nDims,HSize)
+
 ! Get local ray tracing solution (the local DG solution in physical space)
 ALLOCATE(U_N_Ray_loc(1:nElems))
 DO iElem = 1, nElems
@@ -389,24 +404,58 @@ DO iElem = 1, nElems
   U_N_Ray_loc(iElem)%U = 0.
 END DO ! iElem = 1, nElems
 
-! Read HDF5
-CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
-IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
-CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-      nVarRay8          => INT(nVarRay,IK)            ,&
-      N_HDF58           => INT(N_HDF5,IK)             ,&
-      nGlobalElems      => INT(nGlobalElems,IK)       ,&
-      PP_nElems         => INT(PP_nElems,IK)          ,&
-      offsetElem        => INT(offsetElem,IK)          &
-      )
-      !Nres              => INT(N_Restart,4)           ,&
-      !Nres8             => INT(N_Restart,IK)          ,&
+IF(nDims.EQ.2) THEN
+  ! DG_Solution has the form of (nVar,nDOF)
+  ! Find offsetDOFs for each processor
+  nDOFLocal = SUM((N_DG_Ray_loc(1:nElems)+1)**3)
+#if USE_MPI
+  sendbuf = nDOFLocal
+  recvbuf = 0
+  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+  offsetDOF   = recvbuf
+  ! last proc knows CN total number of DOFs
+  sendbuf = offsetDOF + nDOFLocal
+  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+  nDOFTotal = sendbuf
+#else
+  offsetDOF   = 0
+  nDOFTotal = nDOFLocal
+#endif /*USE_MPI*/
+  IF(nDOFTotal.NE.INT(HSize(2),4)) CALL CollectiveStop(__STAMP__,'ERROR: Number of DOFs from NlocRay does not correspond to array size!')
+  ALLOCATE(U_N_Ray_2D_local(1:nVarRay,1:nDOFLocal))
+  ASSOCIATE (&
+    nVarRay8          => INT(nVarRay,IK)            ,&
+    offsetDOF         => INT(offsetDOF,IK)          ,&
+    nDOFLocal         => INT(nDOFLocal,IK)          )
+    CALL ReadArray('DG_Solution',2,(/nVarRay8,nDOFLocal/),offsetDOF,2,RealArray=U_N_Ray_2D_local(1:nVarRay,1:nDOFLocal))
+  END ASSOCIATE
+  ! Write into regular array
+  iDOF = 0
+  DO iElem = 1, nElems
+    Nloc = N_DG_Ray_loc(iElem)
+    DO m=0,Nloc
+      DO l=0,Nloc
+        DO k=0,Nloc
+          iDOF = iDOF + 1
+          U_N_Ray_loc(iElem)%U(1:nVarRay,k,l,m) = U_N_Ray_2D_local(1:nVarRay,iDOF)
+        END DO ! k
+      END DO ! l
+    END DO ! m
+  END DO
+ELSEIF(nDims.EQ.5) THEN
+  ! DG_Solution has the form of (nVar,N,N,N,nGlobalElems)
+  CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
   ALLOCATE(UNMax(    nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,PP_nElems))
   ALLOCATE(UNMax_loc(nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5))
-  CALL ReadArray('DG_Solution' ,5,(/nVarRay8,N_HDF58+1_IK,N_HDF58+1_IK,N_HDF58+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
-
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVarRay8          => INT(nVarRay,IK)            ,&
+        N_HDF58           => INT(N_HDF5,IK)             ,&
+        PP_nElems         => INT(PP_nElems,IK)          ,&
+        offsetElem        => INT(offsetElem,IK)          &
+        )
+    CALL ReadArray('DG_Solution' ,5,(/nVarRay8,N_HDF58+1_IK,N_HDF58+1_IK,N_HDF58+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
+  END ASSOCIATE
   ! Map from N_HDF5 to local polynomial degree
   DO iElem = 1, nElems
     Nloc = N_DG_Ray_loc(iElem)
@@ -423,30 +472,34 @@ ASSOCIATE (&
       ! switch back to nodal basis
       CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
     END IF ! Nloc.EQ.N_HDF5
-
-    ! Sanity check: Very small negative numbers might occur due to the interpolation
-    DO iVar = 1, nVarRay
-      DO m=0,Nloc
-        DO l=0,Nloc
-          DO k=0,Nloc
-            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).LT.0.) U_N_Ray_loc(iElem)%U(iVar,k,l,m) = 0.0
-          END DO ! k
-        END DO ! l
-      END DO ! m
-    END DO ! iVar = 1, nVarRay
-
-    ! Check for emission elements and flag for later volume emission
-    DO iVar = 1, 2
-      DO m=0,Nloc
-        DO l=0,Nloc
-          DO k=0,Nloc
-            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).GT.0.) RayElemEmission(iVar,iElem) = .TRUE.
-          END DO ! k
-        END DO ! l
-      END DO ! m
-    END DO ! iVar = 1, nVarRay
   END DO ! iElem = 1, nElems
-END ASSOCIATE
+END IF
+
+! Sanity checks
+DO iElem = 1, nElems
+  Nloc = N_DG_Ray_loc(iElem)
+  ! Sanity check: Very small negative numbers might occur due to the interpolation
+  DO iVar = 1, nVarRay
+    DO m=0,Nloc
+      DO l=0,Nloc
+        DO k=0,Nloc
+          IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).LT.0.) U_N_Ray_loc(iElem)%U(iVar,k,l,m) = 0.0
+        END DO ! k
+      END DO ! l
+    END DO ! m
+  END DO ! iVar = 1, nVarRay
+
+  ! Check for emission elements and flag for later volume emission
+  DO iVar = 1, 2
+    DO m=0,Nloc
+      DO l=0,Nloc
+        DO k=0,Nloc
+          IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).GT.0.) RayElemEmission(iVar,iElem) = .TRUE.
+        END DO ! k
+      END DO ! l
+    END DO ! m
+  END DO ! iVar = 1, nVarRay
+END DO ! iElem = 1, nElems
 
 CALL DatasetExists(File_ID,'RaySecondaryVectorX',ContainerExists)
 IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'RaySecondaryVectorX container does not exist in '//TRIM(RadiationVolState))
