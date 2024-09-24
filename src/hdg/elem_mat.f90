@@ -407,15 +407,11 @@ INTEGER              :: iGP, jGP, ip, iq, jp, jq
 ! then used to fill SMat
 ! Fill Smat Petsc, TODO do this without filling Smat
 
-! TODO PETSC P-Adaption - MORTARS ....
-! Since mortar sides are just a subset of the sides, we can fill the Smat for the mortar sides
-! TODO ugly...
-! TODO With this, we can shrink preallocation to 12!
-DO jSideID=firstMortarInnerSide,lastMortarInnerSide
+DO jSideID=firstMortarInnerSide,lastMortarInnerSide ! Big side
   jLocSide=MortarType(2,jSideID)
   NSideMin = N_SurfMesh(jSideID)%NSideMin
   nGP = nGP_face(NSideMin)
-  jIndices = OffsetGlobalPETScDOF(jSideID) + (/ (i-1, i=1,nGP) /)
+  jIndices(1:nGP) = OffsetGlobalPETScDOF(jSideID) + (/ (i-1, i=1,nGP) /)
   nMortars=MERGE(4,2,MortarType(1,jSideID).EQ.1)
 
   ASSOCIATE(&
@@ -423,8 +419,20 @@ DO jSideID=firstMortarInnerSide,lastMortarInnerSide
     M_0_2 => N_Mortar(NSideMin)%M_0_2 )
 
   DO iMortar=1,nMortars
-    iSideID = MortarInfo(MI_SIDEID,iMortar,jLocSide) !small sideID
+    iSideID = MortarInfo(MI_SIDEID,iMortar,jLocSide) ! Small side
+    ! flip = 0 ! flip must be 0
     iIndices(1:nGP) = OffsetGlobalPETScDOF(iSideID) + (/ (i-1, i=1,nGP) /)
+
+    ! Let p,q be the indices of the small side and P,Q the indices of the big side. Then we have...
+    ! ... for 1 -> 4 mortar
+    ! I * lambda({p,q}) = M_0_X(P,p) * M_0_X(Q,q) * lambda({P,Q}) => A({p,q},{P,Q}) = -M_0_X(P,p) * M_0_Y(Q,q)
+    ! ... for 1 -> 2 mortar in p
+    ! I * lambda({p,q}) = M_0_X(P,p) * delta(q,Q) * lambda({P,Q}) => A({p,q},{P,Q}) = -M_0_X(P,p) * delta(q, Q)
+    ! ... for 1 -> 2 mortar in q
+    ! I * lambda({p,q}) = M_0_X(Q,q) * delta(p,P) * lambda({P,Q}) => A({p,q},{P,Q}) = -M_0_Y(Q,q) * delta(p, P)
+
+    ! At the rows for the small side, we add I at the diagonal and A at the jIndices of the big side
+    ! At the rows for the big side, we add A^T * A at the diagonal and A^T at the iIndices of the small side
 
     DO ip=0,NSideMin; DO iq=0,NSideMin
       iGP = (NSideMin + 1) * iq + ip + 1
@@ -435,52 +443,48 @@ DO jSideID=firstMortarInnerSide,lastMortarInnerSide
         CASE(1) ! 1 -> 4
           SELECT CASE(iMortar)
           CASE(1)
-            Smatloc(iGP,jGP) = -M_0_1(ip,jp) * M_0_1(iq,jq)
+            Smatloc(iGP,jGP) = -M_0_1(jp,ip) * M_0_1(jq,iq)
           CASE(2)
-            Smatloc(iGP,jGP) = -M_0_2(ip,jp) * M_0_1(iq,jq)
+            Smatloc(iGP,jGP) = -M_0_2(jp,ip) * M_0_1(jq,iq)
           CASE(3)
-            Smatloc(iGP,jGP) = -M_0_1(ip,jp) * M_0_2(iq,jq)
+            Smatloc(iGP,jGP) = -M_0_1(jp,ip) * M_0_2(jq,iq)
           CASE(4)
-            Smatloc(iGP,jGP) = -M_0_2(ip,jp) * M_0_2(iq,jq)
+            Smatloc(iGP,jGP) = -M_0_2(jp,ip) * M_0_2(jq,iq)
           END SELECT
-        CASE(2) ! 1 -> 2 in p
+        CASE(2) ! 1 -> 2 in q
           IF (iMortar.EQ.1) THEN
-            Smatloc(iGP,jGP) = -M_0_1(ip,jp)
+            Smatloc(iGP,jGP) = -M_0_1(jq,iq) * MERGE(1, 0, ip.EQ.jp)
           ELSE
-            Smatloc(iGP,jGP) = -M_0_2(ip,jp)
+            Smatloc(iGP,jGP) = -M_0_2(jq,iq) * MERGE(1, 0, ip.EQ.jp)
           END IF
-        CASE(3) ! 1 -> 2 in q
+        CASE(3) ! 1 -> 2 in p
           IF (iMortar.EQ.1) THEN
-            Smatloc(iGP,jGP) = -M_0_1(iq,jq)
+            Smatloc(iGP,jGP) = -M_0_1(jp,ip) * MERGE(1, 0, iq.EQ.jq)
           ELSE
-            Smatloc(iGP,jGP) = -M_0_2(iq,jq)
+            Smatloc(iGP,jGP) = -M_0_2(jp,ip) * MERGE(1, 0, iq.EQ.jq)
           END IF
         END SELECT
       END DO; END DO
     END DO; END DO
 
+    ! Add S and S' to the offdiagonals
     PetscCallA(MatSetValues(PETScSystemMatrix,nGP,iIndices(1:nGP),nGP,jIndices(1:nGP),Smatloc(1:nGP,1:nGP),ADD_VALUES,ierr))
-  END DO
+    PetscCallA(MatSetValues(PETScSystemMatrix,nGP,jIndices(1:nGP),nGP,iIndices(1:nGP),TRANSPOSE(Smatloc(1:nGP,1:nGP)),ADD_VALUES,ierr))
 
+    ! Add S' * S to the diagonal of the big side
+    Smatloc(1:nGP,1:nGP) = MATMUL(TRANSPOSE(Smatloc(1:nGP,1:nGP)), Smatloc(1:nGP,1:nGP))
+    PetscCallA(MatSetValues(PETScSystemMatrix,nGP,jIndices,nGP,jIndices,Smatloc(1:nGP,1:nGP),ADD_VALUES,ierr))
+
+    ! Add I to the diagonal of the small side
+    Smatloc(1:nGP,1:nGP) = 0
+    DO ip=1,nGP
+      Smatloc(ip,ip) = 1
+    END DO
+    PetscCallA(MatSetValues(PETScSystemMatrix,nGP,iIndices,nGP,iIndices,Smatloc(1:nGP,1:nGP),ADD_VALUES,ierr))
+
+  END DO
   END ASSOCIATE
 END DO
-! Change Smat for all small mortar sides to account for the interpolation from big to small side
-!DO iSide=1,nSides
-!  IF (SmallMortarInfo(iSide).NE.0) THEN
-!    locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,iSide)
-!    iElem    = SideToElem(S2E_NB_ELEM_ID,iSide)
-!    IF (iElem.LT.0) CYCLE
-!  ELSE
-!    CYCLE
-!  END IF
-!  iNloc = N_DG_Mapping(2,iElem+offSetElem)
-!  nGP = nGP_face(iNloc)
-!  intMat(1:nGP,1:nGP) = N_Inter(iNloc)%IntMatMortar(:,:,SmallMortarType(2,iSide),SmallMortarType(1,iSide))
-!  DO iLocSide=1,6
-!    HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,iLocSide,locSideID) = MATMUL(HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,iLocSide,locSideID),intMat(1:nGP,1:nGP))
-!    HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,locSideID,iLocSide) = MATMUL(TRANSPOSE(intMat(1:nGP,1:nGP)),HDG_Vol_N(iElem)%Smat(1:nGP,1:nGP,locSideID,iLocSide))
-!  END DO
-!END DO
 
 ! Fill Smat for PETSc with remaining DOFs
 DO iElem=1,PP_nElems
@@ -632,7 +636,7 @@ CASE(1)
 #endif /*USE_MPI*/
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
-    IF(MaskedSide(SideID).GT.0)CYCLE
+    IF(MaskedSide(SideID).NE.0)CYCLE
     NSideMin = N_SurfMesh(SideID)%NSideMin
     ! do choleski and store into Precond
     CALL DPOTRF('U',nGP_face(NSideMin),HDG_Surf_N(SideID)%Precond(:,:),nGP_face(NSideMin),lapack_info)
@@ -670,7 +674,7 @@ CASE(2)
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   !inverse of the preconditioner matrix
   DO SideID=1,nSides-nMPIsides_YOUR
-    IF(MaskedSide(SideID).GT.0)CYCLE
+    IF(MaskedSide(SideID).NE.0)CYCLE
     IF (MAXVAL(ABS(HDG_Surf_N(SideID)%InvPrecondDiag(:))).GT.1.0e-12) THEN
       HDG_Surf_N(SideID)%InvPrecondDiag(:)=1./HDG_Surf_N(SideID)%InvPrecondDiag(:)
     ELSE
