@@ -1547,7 +1547,6 @@ IF(MPIRoot)THEN
   DO iSpec = 1, nSpecies
     NumSpecTemp = NumSpec(iSpec)
     iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-    !//TODO: calc Trot quantized
     IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)).AND.(NumSpecTemp.GT.0.0)) THEN
       IF(DSMC%RotRelaxModel.EQ.0)THEN  ! continous treatment of rotational energies
         IF (SpecDSMC(iSpec)%PolyatomicMol)THEN    ! polyatomic (also linear)
@@ -1560,7 +1559,6 @@ IF(MPIRoot)THEN
       ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN  ! quantized treatment of rotational energies
         IntTemp(iSpec,2) = CalcTDataset(ERot(iSpec)/NumSpecTemp, iSpec, 'ROTATIONAL')
       END IF
-      PRINT *, "Temp",IntTemp(iSpec,2),"ERot",ERot
       IF (EVib(iSpec)/NumSpecTemp.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
           IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpecTemp, iSpec)
@@ -2273,7 +2271,7 @@ INTEGER                 :: iPolyatMole, iLoop, kLoop, iDOF, iQuant, CutOffPartit
 REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
 REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
 REAL                    :: Qrot, SumOne, SumTwo, EVib
-REAL,PARAMETER          :: eps_prec=1E-8                    !< Relative precision of root-finding algorithm
+REAL,PARAMETER          :: eps_prec=1E-15                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 ! lower limit: very small value or lowest temperature if ionized
 ! upper limit: highest possible temperature
@@ -2285,14 +2283,15 @@ IF (MeanERot.GT.0) THEN
   DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
     MiddleTemp = 0.5*(LowerTemp + UpperTemp)
     EGuess = 0.
+    SumOne = 0
     IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
       ! calculate partition function
-      SumOne = 0
       SumTwo = (2.*REAL(0)+1.)*exp(-REAL(0)*(REAL(0)+1)*SpecDSMC(iSpec)%CharaTRot/MiddleTemp)
-      DO iLoop=1, 500
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
         SumOne = SumTwo
         SumTwo = SumOne + (2.*REAL(iLoop)+1.)*exp(-REAL(iLoop)*(REAL(iLoop)+1)*SpecDSMC(iSpec)%CharaTRot/MiddleTemp)
-        IF(ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec)) EXIT
+        iLoop = iLoop + 1
       END DO
       CutOffPartition = iLoop
       Qrot = SumTwo
@@ -2303,13 +2302,13 @@ IF (MeanERot.GT.0) THEN
       EGuess = EGuess * 1/Qrot
     ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
       ! calculate partition function
-      SumOne = 0
       SumTwo = (2.*REAL(0)+1.)*exp(-REAL(0)*(REAL(0)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
-      DO iLoop=1, 500
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
         SumOne = SumTwo
         SumTwo = SumOne + (2.*REAL(iLoop)+1.)*exp(-REAL(iLoop)*(REAL(iLoop)+1) * &
                  PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
-        IF(ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec)) EXIT
+        iLoop = iLoop + 1
       END DO
       CutOffPartition = iLoop
       Qrot = SumTwo
@@ -2320,13 +2319,13 @@ IF (MeanERot.GT.0) THEN
       EGuess = EGuess * 1/Qrot
     ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
       ! calculate partition function
-      SumOne = 0
       SumTwo = (2.*REAL(0)+1.)**2.*exp(-REAL(0)*(REAL(0)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
-      DO iLoop=1, 500
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
         SumOne = SumTwo
         SumTwo = SumOne + (2.*REAL(iLoop)+1.)**2.*exp(-REAL(iLoop)*(REAL(iLoop)+1) * &
                  PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
-        IF(ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec)) EXIT
+        iLoop = iLoop + 1
       END DO
       CutOffPartition = iLoop
       Qrot = SumTwo
@@ -2338,9 +2337,11 @@ IF (MeanERot.GT.0) THEN
     ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
       ! symmetric top molecule
       ! Find max value numerically
-      SumOne = 0
+      ! sumone not zero to enter loop, get a new value each loop
+      SumOne = 100
       SumTwo = 0
-      DO iLoop=0, 500
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
         ! for k=0 not double degenerate
         SumTwo =SumTwo+(2.*REAL(iLoop)+1.)*exp(-PlanckConst**2./(8.*PI**2.*BoltzmannConst*MiddleTemp)*(REAL(iLoop)*(REAL(iLoop)+1.)&
                  / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
@@ -2351,7 +2352,7 @@ IF (MeanERot.GT.0) THEN
                 (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
                 REAL(kLoop)**2.))
         END DO
-        IF(ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec)) EXIT
+        iLoop = iLoop + 1
       END DO
       CutOffPartition = iLoop
       Qrot = SumTwo

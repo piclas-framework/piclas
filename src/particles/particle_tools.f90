@@ -1117,9 +1117,7 @@ END FUNCTION CalcERot_particle
 REAL FUNCTION CalcERotQuant_particle(iSpec,TRot,iPart)
 !===================================================================================================================================
 ! Calculate rotational quantized energies for inital particle insertion at given rotational temperature
-! Different rotational groups are sampled differently:
-! - linear molecules, spherical molecules and symmetric top molecules - Acceptance-Rejection sampling
-! - asymmetric top molecules                                          - only possible with database of rotational levels
+! split up for different rotational groups are sampled: diatomic, linear, spherical top, symmetric top, asymmetric top 
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort
@@ -1134,24 +1132,65 @@ REAL, INTENT(IN)              :: TRot
 INTEGER, INTENT(IN)           :: iPart    ! not necessary for BGGas internal energy in MCC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: iRan, fNorm
+REAL                          :: iRan, fNorm, MaxValue
 INTEGER                       :: iPolyatMole, J, iQuant
 LOGICAL                       :: ARM
 ! symmetric top variables
-REAL                          :: CurrentValue, MaxValue
+REAL                          :: C, D
 INTEGER                       :: kQuant, kIter, delta
 ! jMax Calculation
 INTEGER                       :: jMax, jIter
 REAL                          :: SumOne, SumTwo
-REAL,PARAMETER                :: eps_prec=1E-10
+REAL,PARAMETER                :: eps_prec=1E-12
 
 !===================================================================================================================================
 CalcERotQuant_particle = 0.
+! if Trot is zero function would lead to endless loop due to diving by zero
+IF(TRot.EQ.0) RETURN
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 ARM = .TRUE.
-IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
+IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN            ! diatomic case
+  ! Quantized treatment of rotational energy
+  J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpec)%CharaTRot) - 1.))
+  MaxValue = (2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot)
+  ! calculate cutoff value for distribution function if not already calculated for current temperature
+  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+    SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
+    SumOne = 0
+    SumTwo = (2.*REAL(0) + 1.) *EXP(-REAL(0)*(REAL(0) + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot) &
+              / MaxValue
+    jIter = 1
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+      SumOne = SumTwo
+      SumTwo = SumOne + (2.*REAL(jIter) + 1.) *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* & 
+                SpecDSMC(iSpec)%CharaTRot/TRot) / MaxValue
+      jIter = jIter + 1
+    END DO
+    SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
+  END IF
+  jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT((1+jMax)*iRan)
+  DO WHILE (ARM)
+    fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot) &
+    / MaxValue
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT((1+jMax)*iRan)
+    ELSE
+      ARM = .FALSE.
+    END IF
+  END DO
+  ! save latest accepted sample to start MH markov chain at this point in post coll sampling
+  ! RotQuantsPar(1,iPart) = iQuant
+  CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
+
+ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
   ! calculate quantum number where f has maximum
   J = NINT(0.5 * (SQRT(2.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
+  MaxValue = (2.*J + 1.)*EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot)
   ! calculate cutoff value for distribution function if not already calculated for current temperature
   IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
   IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
@@ -1159,12 +1198,12 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
     SumOne = 0
     SumTwo = (2.*REAL(0) + 1.) *EXP(-REAL(0)*(REAL(0) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
              / ((2.*J + 1.) *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-    DO jIter=1, 500
+    jIter = 1
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
       SumOne = SumTwo
       SumTwo = SumOne + (2.*REAL(jIter) + 1.) *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* & 
-               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / ((2.*J + 1.) * & 
-               EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-      IF(ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec)) EXIT
+               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / MaxValue
+      jIter = jIter + 1
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
   END IF
@@ -1174,7 +1213,7 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
   iQuant = INT((1+jMax)*iRan)
   DO WHILE (ARM)
     fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
-    / ((2.*J + 1.)*EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
+    / MaxValue
     CALL RANDOM_NUMBER(iRan)
     IF(fNorm .LT. iRan) THEN
       CALL RANDOM_NUMBER(iRan)
@@ -1184,26 +1223,27 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
   ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
   ! calculate quantum number where f has maximum
   J = NINT(0.5 * (SQRT(4.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
+  MaxValue = (2.*J + 1.)**2 *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot)
   ! calculate cutoff value for distribution function if not already calculated for current temperature
   IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
   IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
     SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
     SumOne = 0
     SumTwo = (2.*REAL(0) + 1.)**2 *EXP(-REAL(0)*(REAL(0) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
-             / ((2.*J + 1.)**2 *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-    DO jIter=1, 500
+             / MaxValue
+    jIter = 1
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
       SumOne = SumTwo
       SumTwo = SumOne + (2.*REAL(jIter) + 1.)**2 *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* & 
-               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / ((2.*J + 1.)**2 * & 
-               EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
-      IF(ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec)) EXIT
+               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / MaxValue
+      jIter = jIter + 1
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
   END IF
@@ -1213,7 +1253,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
   iQuant = INT((1+jMax)*iRan)
   DO WHILE (ARM)
     fNorm = (2.*REAL(iQuant) + 1.)**2 *EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
-    / ((2.*J + 1.)**2 *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
+    / MaxValue
     CALL RANDOM_NUMBER(iRan)
     IF(fNorm .LT. iRan) THEN
       CALL RANDOM_NUMBER(iRan)
@@ -1223,41 +1263,46 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(1,iPart) = iQuant
   CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
 
-ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
-  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(3))
+ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10))THEN
+  ! molecule is non-linear -> symmetric top molecule where two are equal and third is different -> oblate top
+  ! constants for easier formula for J
+  C = PlanckConst**2./(8.*PI**2.*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*BoltzmannConst*TRot)
+  D = PlanckConst**2.*(1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))/&
+      (8.*PI**2.*BoltzmannConst*TRot)
+  ! calculate quantum number where f has maximum with k=j
+  J = NINT((SQRT(D**2.+8.*(C+D)) - (2.*C+D)) / (4.*(C+D)))
+  ! maxValue has degeneracy with k!=0 is 2*(2j+1)
+  MaxValue = (2.) * (2. * REAL(J) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
+    (REAL(J) * (REAL(J) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
+    (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+    REAL(J)**2.))
+  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
   IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+    ! calculate cutoff value for distribution function if not already calculated for current temperature
     SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
-    ! Find max value numerically
-    MaxValue = 0.
-    SumOne = 0
+    ! sumone not zero to enter loop, get a new value each loop
+    SumOne = 100
     SumTwo = 0
-    DO jIter=0, 500
+    jIter = 0
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
       ! for k=0 not double degenerate
-      CurrentValue = (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * (REAL(jIter) * &
-                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
-      SumTwo = SumTwo + CurrentValue
-      IF (CurrentValue .GT. MaxValue) MaxValue = CurrentValue
+      SumTwo = SumTwo + (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * (REAL(jIter) * &
+                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))) / MaxValue
       DO kIter=1, jIter
         SumOne = SumTwo
-        CurrentValue = (2.) * (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
-                (REAL(jIter) * (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
-                (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
-                REAL(kIter)**2.))
-        SumTwo = SumTwo + CurrentValue
-        IF (CurrentValue .GT. MaxValue) MaxValue = CurrentValue
+        SumTwo = SumTwo + (2.) * (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
+            (REAL(jIter) * (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
+            (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+            REAL(kIter)**2.)) / MaxValue
       END DO
-      IF(ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))THEN
-        SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
-        SpecDSMC(iSpec)%jMaxAtTemp(3) = MaxValue
-        EXIT
-      END IF
+      jIter = jIter + 1
     END DO
+    SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
   END IF
   jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
-  MaxValue = SpecDSMC(iSpec)%jMaxAtTemp(3)
   ! roll quantum numbers
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT((1+jMax)*iRan)
@@ -1296,12 +1341,97 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC
     END IF
   END DO
   ! save latest accepted sample to start MH markov chain at this point in post coll sampling
-  RotQuantsPar(1,iPart) = iQuant
-  RotQuantsPar(2,iPart) = kQuant
+  ! RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(2,iPart) = kQuant
   CalcERotQuant_particle = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / &
                           PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
                           1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)
 
+ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
+  ! molecule is non-linear -> symmetric top molecule where two are equal and third is different -> prolate top
+  ! function identical to oblate tops other than J calculation but for clarity and less if statements separate 
+  ! calculate quantum number where f has maximum with k=0
+  J = NINT(0.5 * (SQRT(16.*PI**2.*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*BoltzmannConst*TRot/PlanckConst**2.)-1.))
+  ! maxValue has degeneracy with k=0 is (2j+1)
+  IF((1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)).GT.&
+  log(2.)*PlanckConst**2./(8.*PI**2.*BoltzmannConst*TRot))THEN
+    ! maximum for k=0
+    MaxValue = (2. * REAL(J) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
+    (REAL(J) * (REAL(J) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
+  ELSE 
+    ! maximum for k=1
+    MaxValue = (2.) * (2. * REAL(J) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
+    (REAL(J) * (REAL(J) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
+    (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+    REAL(1)**2.))
+  END IF
+  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+    ! calculate cutoff value for distribution function if not already calculated for current temperature
+    SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
+    ! sumone not zero to enter loop, get a new value each loop
+    SumOne = 100
+    SumTwo = 0
+    jIter = 0
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+      ! for k=0 not double degenerate
+      SumTwo = SumTwo + (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * (REAL(jIter) * &
+                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))) / MaxValue
+      DO kIter=1, jIter
+        SumOne = SumTwo
+        SumTwo = SumTwo + (2.) * (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * & 
+            (REAL(jIter) * (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + & 
+            (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+            REAL(kIter)**2.)) / MaxValue
+      END DO
+      jIter = jIter + 1
+    END DO
+    SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
+  END IF
+  jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
+  ! roll quantum numbers
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT((1+jMax)*iRan)
+  CALL RANDOM_NUMBER(iRan)
+  kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+  ! reroll quantum numbers untill condition |k| < j is true
+  DO WHILE(kQuant**2.GT.iQuant**2)
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT((1+jMax)*iRan)
+    CALL RANDOM_NUMBER(iRan)
+    kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+  END DO
+  ! acceptance rejection sampling
+  DO WHILE (ARM)
+    ! set delta for degeneracy in fNorm
+    delta=0
+    IF(kQuant.EQ.0) delta=1
+    fNorm = ((2.-REAL(delta))*(2.*REAL(iQuant) + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot)*(REAL(iQuant)*(REAL(iQuant)+1.)/&
+            PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
+            1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.))) &
+            / MaxValue
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT((1+jMax)*iRan)
+      CALL RANDOM_NUMBER(iRan)
+      kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+      DO WHILE(kQuant**2.GT.iQuant**2)
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT((1+jMax)*iRan)
+        CALL RANDOM_NUMBER(iRan)
+        kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+      END DO
+    ELSE
+      ARM = .FALSE.
+    END IF
+  END DO
+  ! save latest accepted sample to start MH markov chain at this point in post coll sampling
+  ! RotQuantsPar(1,iPart) = iQuant
+  ! RotQuantsPar(2,iPart) = kQuant
+  CalcERotQuant_particle = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / &
+                          PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
+                          1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)                          
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN
   ! asymmetric top molecule, no analytic formula for energy levels -> always use database!
   CalcERotQuant_particle = CalcERotDataset_particle(iSpec,TRot,iPart)
@@ -1339,8 +1469,29 @@ INTEGER                       :: jMax, iQuant, iQuant_old
 INTEGER                       :: kQuant, kQuant_old, delta, delta_old
 !===================================================================================================================================
 CalcERotQuant_particle_MH = 0.
+! if Trot is zero function would lead to endless loop due to diving by zero
+IF(TRot.EQ.0) RETURN
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
+IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN
+  jMax = 50
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT(iRan*(jMax+1))
+  DO iWalk=1, 4000
+    iQuant_old=iQuant
+    CALL RANDOM_NUMBER(iRan)
+    ! random walk
+    iQuant = iQuant_old+NINT((2.0 * iRan - 1.0) * 10)
+    IF(iQuant.LT.0) iQuant = -1*iQuant -1
+    NormProb = ((REAL(iQuant_old)*(REAL(iQuant_old) + 1.))-(REAL(iQuant)*(REAL(iQuant) + 1.)))*SpecDSMC(iSpec)%CharaTRot/TRot
+    NormProb = MIN(1.0,(2.*REAL(iQuant) + 1.)/(2.*REAL(iQuant_old) + 1.)*EXP(NormProb))
+    CALL RANDOM_NUMBER(iRan)
+    IF (NormProb.LT.iRan) iQuant=iQuant_old
+  END DO
+  ! save latest accepted sample to start MH markov chain at this point in post coll sampling
+  RotQuantsPar(1,iPart) = iQuant
+  CalcERotQuant_particle_MH = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
+
+ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
   jMax = 100
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT(iRan*(jMax+1))
@@ -1462,6 +1613,14 @@ INTEGER, INTENT(IN)           :: iPart  ! dummy for func pointer to work (needed
 INTEGER                   :: iQuant, dummy
 REAL                      :: iRan, RotationalPartition, RotationalPartitionTemp
 !===================================================================================================================================
+! switch to continous calculatation if temperature is above the highest level in database
+IF(TRot.GT.SpecDSMC(iSpec)%RotationalState(2,SpecDSMC(iSpec)%MaxRotQuant-1)) THEN
+  CALL ABORT(__STAMP__,&
+    'Please use continous calculation for rotational energy levels, since temperature is above the highest level - Not tested yet!')
+  CalcERotDataset_particle = CalcERot_particle(iSpec,TRot,iPart)
+  RETURN
+END IF
+
 RotationalPartition  = 0.
 CalcERotDataset_particle = 0.
 RotationalPartitionTemp = 0.

@@ -138,8 +138,8 @@ def create_dataset(HDF_UNIFIED_DATA, CURRENT_SPECIES, DATA_ARRAY):
     '''Create new dataset while saving old attributes and adding a new reference\n Inputs: database where dataset is saved and species name'''
     # Store existing attributes
     attrs = HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs
-    del HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES]
-    dataset = HDF_UNIFIED_DATA['Species'].create_dataset(CURRENT_SPECIES, data=DATA_ARRAY)
+    del HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES]['ElectronicLevel']
+    dataset = HDF_UNIFIED_DATA['Species'][CURRENT_SPECIES].create_dataset('ElectronicLevel', data=DATA_ARRAY)
     # Restore attributes
     for attr_name, attr_value in attrs.items():
         dataset.attrs[attr_name] = attr_value
@@ -216,7 +216,7 @@ def check_datasets(current_species, HDF_UNIFIED_DATA, RELATIVE_PATH):
         # data from URL into numpy array
         data_array = data.to_numpy()
         # data from species database into numpy array
-        unified_data_array = np.array(HDF_UNIFIED_DATA["Species"][current_species])
+        unified_data_array = np.array(HDF_UNIFIED_DATA["Species"][current_species]['ElectronicLevel'])
 
         # check if read-in data from species database has wrong format (might be empty)
         if unified_data_array.ndim == 1 or unified_data_array.shape[1] != 2:
@@ -282,7 +282,7 @@ def add_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,ATCT_URL,SPECIES_
     # check if exists
     if current_species not in HDF_UNIFIED_DATA['Species'].keys():
         print("Species "+ green(current_species) + " not found in Species Database - new dataset is being generated at "+ cyan(os.path.abspath(RELATIVE_PATH)))
-        dataset = HDF_UNIFIED_DATA['Species'].create_dataset(current_species, data=data)
+        dataset = HDF_UNIFIED_DATA['Species'][current_species].create_dataset('ElectronicLevel', data=data)
         try:
             SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID = get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, current_species, ATCT_URL)
         except:
@@ -480,10 +480,10 @@ def check_attributes(HDF_UNIFIED_DATA, SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_
     if 'HeatOfFormation_K' not in HDF_UNIFIED_DATA['Species'][CURRENT_SPECIES].attrs:                                   # sanity check: calculate heat of formation for ions and compare with data from ATcT
         Ion_Number =  int(re.search(r'\d+$', CURRENT_SPECIES).group())
         ground_state = re.sub(r'Ion\d+','',CURRENT_SPECIES)
-        HeatOfFormation_Sum = HDF_UNIFIED_DATA['Species'][ground_state].attrs['HeatOfFormation_K']+HDF_UNIFIED_DATA['Species'][ground_state][:][-1,1]
+        HeatOfFormation_Sum = HDF_UNIFIED_DATA['Species'][ground_state].attrs['HeatOfFormation_K']+HDF_UNIFIED_DATA['Species'][ground_state]['ElectronicLevel'][:][-1,1]
         for i in range(1, Ion_Number):
             prev_state = ground_state + 'Ion' + str(i)
-            HeatOfFormation_Sum = HeatOfFormation_Sum + HDF_UNIFIED_DATA['Species'][prev_state][:][-1,1]
+            HeatOfFormation_Sum = HeatOfFormation_Sum + HDF_UNIFIED_DATA['Species'][prev_state]['ElectronicLevel'][:][-1,1]
 
         if not np.isclose(HeatOfFormation_K, HeatOfFormation_Sum, rtol=1e-03, atol=0.0):          # HeatOfFormation_K being value from ATcT and HeatOfFormation_Sum cal value with relative tolerance of 1e-05
             print(red('Caution:')+' Please check the heat of formation of the current species: '+green(CURRENT_SPECIES)+', since it did not matcht with the value from '+blue(ATCT_URL)+'!\nIt is calculated in the PICLas source code like this: HeatOfFormation(CurrentSpecies) = HeatOfFormation(previous state) + Ionization Energy(last entry in electronic level dataset of previous state)')

@@ -578,7 +578,6 @@ DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
                               + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
   VibQuantsPar(iPart)%Quants(iDOF)=iQuant
 END DO
-!//TODO
 ! set initial rotational internal energy
 PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpecies,TRot,iPart)
 
@@ -1225,8 +1224,10 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 ! MODULES
   USE MOD_Globals               ,ONLY: Abort
   USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
-  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
+  USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, usevMPF
+  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, RadialWeighting
   USE MOD_Particle_Vars         ,ONLY: PartSpecies
+  USE MOD_part_tools            ,ONLY: GetParticleWeight
 
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -1264,11 +1265,13 @@ ELSE    ! continous treatment of linear molecules
   CALL RANDOM_NUMBER(iRan)
   PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
 END IF
-
+IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
+END IF
 END SUBROUTINE DSMC_RotRelaxPoly
 
 
-SUBROUTINE DSMC_RotRelaxQuantPoly(iPair, iPart,FakXi)
+SUBROUTINE DSMC_RotRelaxQuantPoly(iPair,iPart,FakXi)
 !===================================================================================================================================
 ! Quantized rotational relaxation routine for given collision energy
 ! Different rotational groups are sampled differently:
@@ -1307,9 +1310,6 @@ ARM = .TRUE.
 IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same routine as diatomic
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy)
   J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
@@ -1335,9 +1335,6 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
   ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy)
   J2 = INT((-1.+SQRT(1.+(4.*Ec)/(BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
@@ -1366,9 +1363,6 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10)THEN
     J2 = INT((-PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + &
     SQRT((PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))**2. + &
     (32.*Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3)*PI**2.)/(PlanckConst**2.)))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
@@ -1391,46 +1385,46 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10)THEN
   kQuant = INT((2. * J2 + 1.) * iRan) - J2
   ! check if condition |k| <= j is true and reroll unitll it is
   DO WHILE(kQuant**2.GT.iQuant**2)
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT((1+J2)*iRan)
-  CALL RANDOM_NUMBER(iRan)
-  kQuant = INT((2. * J2 + 1.) * iRan) - J2
-  END DO
-  ! acceptance rejection sampling
-  DO WHILE (ARM)
-  ! set delta for degeneracy
-  delta=0
-  IF(kQuant.EQ.0) delta=1
-  ! check if rotational energy is possible
-  IF((Ec - (PlanckConst**2.)/(PI**2.*8.) * &
-    ((REAL(iQuant)*(REAL(iQuant)+1))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
-    (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
-    REAL(kQuant)**2.)).LT.0)THEN
-    fNorm = -1! set fNorm to less than than 1 to redo loop since the quantum numbers were not possible due to the collision energy
-  ELSE
-    fNorm = ((2-REAL(delta)) * (2.*REAL(iQuant)+1.) * (Ec - (PlanckConst**2.)/(PI**2.*8.) * &
-            ((REAL(iQuant)*(REAL(iQuant)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
-            (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
-            REAL(kQuant)**2.))**FakXi) &
-            / MaxValue
-  END IF
-  CALL RANDOM_NUMBER(iRan)
-  IF(fNorm .LT. iRan) THEN
-    ! roll new quantum numbers
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT((1+J2)*iRan)
     CALL RANDOM_NUMBER(iRan)
     kQuant = INT((2. * J2 + 1.) * iRan) - J2
-    ! check if condition |k| <= j is true and reroll unitll it is
-    DO WHILE(kQuant**2.GT.iQuant**2)
+  END DO
+  ! acceptance rejection sampling
+  DO WHILE (ARM)
+    ! set delta for degeneracy
+    delta=0
+    IF(kQuant.EQ.0) delta=1
+    ! check if rotational energy is possible
+    IF((Ec - (PlanckConst**2.)/(PI**2.*8.) * &
+      ((REAL(iQuant)*(REAL(iQuant)+1))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
+      (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+      REAL(kQuant)**2.)).LT.0)THEN
+      fNorm = -1! set fNorm to less than than 1 to redo loop since the quantum numbers were not possible due to the collision energy
+    ELSE
+      fNorm = ((2-REAL(delta)) * (2.*REAL(iQuant)+1.) * (Ec - (PlanckConst**2.)/(PI**2.*8.) * &
+              ((REAL(iQuant)*(REAL(iQuant)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
+              (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+              REAL(kQuant)**2.))**FakXi) &
+              / MaxValue
+    END IF
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      ! roll new quantum numbers
       CALL RANDOM_NUMBER(iRan)
       iQuant = INT((1+J2)*iRan)
       CALL RANDOM_NUMBER(iRan)
       kQuant = INT((2. * J2 + 1.) * iRan) - J2
-    END DO
-  ELSE
-    ARM = .FALSE.
-  END IF
+      ! check if condition |k| <= j is true and reroll unitll it is
+      DO WHILE(kQuant**2.GT.iQuant**2)
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT((1+J2)*iRan)
+        CALL RANDOM_NUMBER(iRan)
+        kQuant = INT((2. * J2 + 1.) * iRan) - J2
+      END DO
+    ELSE
+      ARM = .FALSE.
+    END IF
   END DO
 
   PartStateIntEn( 2,iPart) = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / &
@@ -1441,10 +1435,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11)THEN
   ! molecule is non-linear -> symmetric top molecule where two are equal and third is different -> prolate top
   ! function identical to oblate tops other than J2 calculation but for clarity and less if statements separate
   ! calculate maximum allowed energy (all of collision energy in rotatinal energy) with k = 0
-    J2 = INT((-1. + SQRT(1. + (32.*Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*PI**2.)/(PlanckConst**2.)))/2.)
-  ! reduce J2 if too big which would correspond to unphysical quantum numbers, necessary for high velocities since otherwise
-  ! almost no samples will be accepted
-  IF(J2.GT.500) J2 = 500
+  J2 = INT((-1. + SQRT(1. + (32.*Ec*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*PI**2.)/(PlanckConst**2.)))/2.)
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
@@ -1467,46 +1458,46 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11)THEN
   kQuant = INT((2. * J2 + 1.) * iRan) - J2
   ! check if condition |k| <= j is true and reroll unitll it is
   DO WHILE(kQuant**2.GT.iQuant**2)
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT((1+J2)*iRan)
-  CALL RANDOM_NUMBER(iRan)
-  kQuant = INT((2. * J2 + 1.) * iRan) - J2
-  END DO
-  ! acceptance rejection sampling
-  DO WHILE (ARM)
-  ! set delta for degeneracy
-  delta=0
-  IF(kQuant.EQ.0) delta=1
-  ! check if rotational energy is possible
-  IF((Ec - (PlanckConst**2.)/(PI**2.*8.) * &
-    ((REAL(iQuant)*(REAL(iQuant)+1))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
-    (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
-    REAL(kQuant)**2.)).LT.0)THEN
-    fNorm = -1! set fNorm to less than than 1 to redo loop since the quantum numbers were not possible due to the collision energy
-  ELSE
-    fNorm = ((2-REAL(delta)) * (2.*REAL(iQuant)+1.) * (Ec - (PlanckConst**2.)/(PI**2.*8.) * &
-            ((REAL(iQuant)*(REAL(iQuant)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
-            (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
-            REAL(kQuant)**2.))**FakXi) &
-            / MaxValue
-  END IF
-  CALL RANDOM_NUMBER(iRan)
-  IF(fNorm .LT. iRan) THEN
-    ! roll new quantum numbers
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT((1+J2)*iRan)
     CALL RANDOM_NUMBER(iRan)
     kQuant = INT((2. * J2 + 1.) * iRan) - J2
-    ! check if condition |k| <= j is true and reroll unitll it is
-    DO WHILE(kQuant**2.GT.iQuant**2)
+  END DO
+  ! acceptance rejection sampling
+  DO WHILE (ARM)
+    ! set delta for degeneracy
+    delta=0
+    IF(kQuant.EQ.0) delta=1
+    ! check if rotational energy is possible
+    IF((Ec - (PlanckConst**2.)/(PI**2.*8.) * &
+      ((REAL(iQuant)*(REAL(iQuant)+1))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
+      (1/PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+      REAL(kQuant)**2.)).LT.0)THEN
+      fNorm = -1! set fNorm to less than than 1 to redo loop since the quantum numbers were not possible due to the collision energy
+    ELSE
+      fNorm = ((2-REAL(delta)) * (2.*REAL(iQuant)+1.) * (Ec - (PlanckConst**2.)/(PI**2.*8.) * &
+              ((REAL(iQuant)*(REAL(iQuant)+1.))/(PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) + &
+              (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+              REAL(kQuant)**2.))**FakXi) &
+              / MaxValue
+    END IF
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      ! roll new quantum numbers
       CALL RANDOM_NUMBER(iRan)
       iQuant = INT((1+J2)*iRan)
       CALL RANDOM_NUMBER(iRan)
       kQuant = INT((2. * J2 + 1.) * iRan) - J2
-    END DO
-  ELSE
-    ARM = .FALSE.
-  END IF
+      ! check if condition |k| <= j is true and reroll unitll it is
+      DO WHILE(kQuant**2.GT.iQuant**2)
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT((1+J2)*iRan)
+        CALL RANDOM_NUMBER(iRan)
+        kQuant = INT((2. * J2 + 1.) * iRan) - J2
+      END DO
+    ELSE
+      ARM = .FALSE.
+    END IF
   END DO
 
   PartStateIntEn( 2,iPart) = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / &
@@ -1557,7 +1548,7 @@ END IF
 iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
 
 IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same as diatomic
-  jMax = 440
+  jMax = 400
   DO iWalk=1,1000
     NormProb = Ec - PartStateIntEn(2,iPart)
     ! Proper modelling of energy transfer between old and new state in chemistry
@@ -1577,8 +1568,8 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
     END IF
   END DO
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
-  jMax = 330
-  DO iWalk=1,750
+  jMax = 400
+  DO iWalk=1,1000
     NormProb = Ec - PartStateIntEn(2,iPart)
     ! Proper modelling of energy transfer between old and new state in chemistry
     NormProb = NormProb**FakXi
@@ -1598,16 +1589,15 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
   END DO
 ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
   ! molecule is non-linear -> symmetric top molecule where two are equal and third is different
-  jMax = 75
-  DO iWalk=1,1000
-    !//TODO what if NormProb is negative? -> leads to NaN if not value is found in iWalk steps
+  iWalk = 1
+  DO iWalk=1,3500
     NormProb = Ec - PartStateIntEn(2,iPart)
     ! Proper modelling of energy transfer between old and new state in chemistry
     NormProb = NormProb**FakXi
     CALL RANDOM_NUMBER(iRan)
-    iQuant = RotQuantsPar(1,iPart)+NINT((2.0 * iRan - 1.0) * 100)
+    iQuant = RotQuantsPar(1,iPart)+NINT((2.0 * iRan - 1.0) * 75)
     CALL RANDOM_NUMBER(iRan)
-    kQuant = RotQuantsPar(2,iPart)+NINT((2.0 * iRan - 1.0) * 100)
+    kQuant = RotQuantsPar(2,iPart)+NINT((2.0 * iRan - 1.0) * 75)
     ! set delta for degeneracy
     delta=0
     IF(kQuant.EQ.0) delta=1
@@ -1629,7 +1619,6 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC
       END IF
     END IF
   END DO
-
 ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN
   ! -> asymmetric top molecule, no analytic formula for energy levels -> always use rotational levels
   CALL DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)
@@ -1664,6 +1653,13 @@ IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
   CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   CollisionEnergy = Coll_pData(iPair)%Ec
+END IF
+
+IF(CollisionEnergy.GT.(BoltzmannConst*SpecDSMC(iSpec)%RotationalState(2,SpecDSMC(iSpec)%MaxRotQuant-1))) THEN
+  CALL ABORT(__STAMP__, &
+    'Please use continous calculation for rotational energy levels, since temperature is above the highest level - Not tested yet!')
+  CALL DSMC_RotRelaxPoly(iPair,iPart,FakXi)
+  RETURN
 END IF
 
 iQuaMax  = 0
