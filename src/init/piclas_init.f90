@@ -257,6 +257,9 @@ USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_RayTracing_Init            ,ONLY: FinalizeRayTracing
@@ -288,9 +291,6 @@ USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI                        ,ONLY: OutputMPIW8Time
-#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
