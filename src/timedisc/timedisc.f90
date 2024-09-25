@@ -436,7 +436,7 @@ DO !iter_t=0,MaxIter
       CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O
 #endif /*defined(PARTICLES)*/
       ! Write state to file
-      CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+      CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze,ForceInitialLoadBalance)
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
