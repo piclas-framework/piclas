@@ -335,7 +335,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, iInit, iDOF, VarNum, err, NumLevels
+INTEGER               :: iCase, iSpec, jSpec, iInit, iDOF, VarNum, err
 INTEGER               :: iColl, jColl, pColl  ! for collision parameter read in
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
@@ -827,8 +827,7 @@ ELSE !CollisMode.GT.0
                 CALL AttributeExists(file_id_specdb,'Vib-ChiE ',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
                 CALL ReadAttribute(file_id_specdb,'Vib-ChiE',1,DatasetName = dsetname,RealScalar=AHO%chiE(iSpec),ChangeToGroup=.True.)
                 CALL PrintOption('Vib-ChiE','DB',RealOpt=AHO%chiE(iSpec))
-                CALL ReadAttribute(file_id_specdb,'Vib-NumLevels',1,DatasetName = dsetname,IntScalar=NumLevels,ChangeToGroup=.True.)
-                AHO%NumVibLevels(iSpec) = INT(NumLevels)
+                CALL ReadAttribute(file_id_specdb,'Vib-NumLevels',1,DatasetName = dsetname,IntScalar=AHO%NumVibLevels(iSpec),ChangeToGroup=.True.)
                 CALL PrintOption('Vib-NumLevels','DB',IntOpt=AHO%NumVibLevels(iSpec))
                 AHO%NumVibLevels(iSpec) = 5
               ELSE ! SHO model
@@ -933,6 +932,11 @@ ELSE !CollisMode.GT.0
         END IF
       END DO !Species
 
+      ! Close the file.
+      CALL H5FCLOSE_F(file_id_specdb, err)
+      ! Close FORTRAN interface.
+      CALL H5CLOSE_F(err)
+
       ! Finalize read-in for vibrational energy levels of anharmonic oscillator model
       IF(DSMC%VibAHO) THEN
         ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
@@ -946,11 +950,6 @@ ELSE !CollisMode.GT.0
           END IF
         END DO
       END IF
-
-      ! Close the file.
-      CALL H5FCLOSE_F(file_id_specdb, err)
-      ! Close FORTRAN interface.
-      CALL H5CLOSE_F(err)
 
     END IF !database
 
