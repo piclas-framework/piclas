@@ -67,20 +67,11 @@ SUBROUTINE ParticleTriaTracking()
 ! 2) Loop again over all particles that are created in case of using rotational periodic inter planes
 !===================================================================================================================================
 ! MODULES
-USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotRefSubCycling,nSubCyclingSteps
-USE MOD_Particle_Vars               ,ONLY: NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
-USE MOD_Particle_Vars               ,ONLY: InRotRefFrame,InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotRefSubCycling
 USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
 USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
-!----- Used for RotRef Subcycling
-USE MOD_part_RHS                    ,ONLY: CalcPartPosInRotRef
-USE MOD_TimeDisc_Vars               ,ONLY: dt
-USE MOD_Particle_Vars               ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, Species, PartState, LastPartPos, PartSpecies
-USE MOD_Particle_Vars               ,ONLY: PartVeloRotRef, LastPartVeloRotRef
-!-----
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,9 +80,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: i, InterPartID, iStep
-REAL                             :: dtVar
-!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                          :: i, InterPartID
 !===================================================================================================================================
 
 IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
@@ -650,6 +639,10 @@ END DO  ! .NOT.PartisDone
 #if USE_LOADBALANCE
 IF(ParticleOnProc(i)) CALL LBElemPauseTime(PEM%LocalElemID(i),tLBStart)
 #endif /*USE_LOADBALANCE*/
+
+RETURN
+! Avoiding compiler warning
+IF(PRESENT(IsInterPlanePart)) crossedBC = IsInterPlanePart
 
 END SUBROUTINE SingleParticleTriaTracking1D2D
 

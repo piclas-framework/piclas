@@ -74,7 +74,6 @@ USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedE
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,nElems
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing,PerformRayTracing,RayElemEmission
-USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_RayTracing_Init         ,ONLY: FinalizeRayTracing
 USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound
@@ -86,7 +85,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: NonUniqueGlobalSideID,iRaySide,iBC,iPartBound
+INTEGER :: NonUniqueGlobalSideID,iRaySide,iPartBound
 INTEGER :: CNElemID, iRay, photonCount, RayVisCount, LocRayNum, RayDisp
 INTEGER :: ALLOCSTAT
 REAL    :: RectPower,SumPhotonEnACC
@@ -258,20 +257,17 @@ USE MOD_PreProc
 USE MOD_HDF5_Input             ,ONLY: ReadArray,DatasetExists,GetDataSize,nDims,HSize,File_ID
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState,PhotonSampWall_loc
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
 USE MOD_RayTracing_Vars        ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_VDM_Ray,N_Inter_Ray,RayElemEmission
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_RayTracing_Vars        ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,offsetElem,SideToElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_HDF5_input             ,ONLY:ReadAttribute
+USE MOD_HDF5_input             ,ONLY: ReadAttribute
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,nComputeNodeProcessors
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 !#if MPI
 !#endif /*MPI*/

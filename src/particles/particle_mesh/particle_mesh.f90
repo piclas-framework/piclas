@@ -510,7 +510,6 @@ USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Mesh_ReadIn            ,ONLY: FinalizeMeshReadin
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance,PartStateLost
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #if USE_MPI
 USE MOD_MPI_Shared_vars        ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared

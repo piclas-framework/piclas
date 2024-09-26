@@ -654,7 +654,7 @@ END SUBROUTINE PhotonIntersectionWithSide
 
 !===================================================================================================================================
 !> Calculate the absorbed energy in the (sub-)volume of each element. For higher-order sampling, the ray path between element entry
-!> and exit is sampled NbrOfSamples = MAX(30,(Nloc+1)**2) and a nearest neighbour search finds the nearest sub-volume element on
+!> and exit is sampled NbrOfSamples = Ray%nSamples*(Nloc+1) and a nearest neighbour search finds the nearest sub-volume element on
 !> which the energy is deposited. The sum of all sub-volume energies must equal the element-constant value, which is also
 !> determined. Not that only the energies are conserved and not the density, which is the ratio of energy and (sub-)volume when
 !> a change basis is used to switch between point sets (polynomial representations).
@@ -696,7 +696,7 @@ RayElemPassedEnergy(idx,GlobalElemID)   = RayElemPassedEnergy(idx,GlobalElemID) 
 Nloc = N_DG_Ray(GlobalElemID)
 
 ! Loop over number of sub-samples
-NbrOfSamples = 10*(Nloc+1) ! must be at least 3*(Nloc+1) for this sampling method (one point between the two intersections of the element)!
+NbrOfSamples = Ray%nSamples*(Nloc+1) ! must be at least 3*(Nloc+1) for this sampling method (one point between the two intersections of the element)!
 subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
 sublength = VECNORM(subdirection(1:3))
 ! Loop over the number of sub lengths and assign them to the nearest DOF. Choose the intersection points at random to prevent artifacts

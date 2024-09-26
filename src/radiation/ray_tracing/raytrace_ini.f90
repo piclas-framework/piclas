@@ -56,8 +56,9 @@ CALL prms%CreateIntOption(       'RayTracing-VolRefineMode'   , 'High-order ray 
 CALL prms%CreateRealOption(      'RayTracing-VolRefineModeZ'  , 'Z-coordinate for switching between NMin (pos>z) and NMax (pos<z) depending on element position for high-order ray tracing')
 CALL prms%CreateIntOption(       'RayTracing-nSurfSample'     , 'Define polynomial degree of ray tracing BC sampling. Default: nSurfSample (which itself defaults to NGeo)')
 CALL prms%CreateStringOption(    'RayTracing-NodeType'        , 'Node type for volume and surface ray tracing super sampling:  VISU, VISU_INNER or GAUSS', 'VISU_INNER')
-
-
+CALL prms%CreateIntOption(       'RayTracing-nSamples'        , 'Number of samples per ray path (nSamples*(N+1)) to improve energy distribution for high-order sampling'//&
+                                                                '(value should be at least 3, greater values improve result especially for non-cubic elements'//&
+                                                                'but at the expense of simulation duration)', '5')
 END SUBROUTINE DefineParametersRayTracing
 
 
@@ -118,6 +119,7 @@ Ray%Direction      = GETREALARRAY('RayTracing-RayDirection',3)
 Ray%Direction      = UNITVECTOR(Ray%Direction)
 WRITE(UNIT=hilf,FMT='(I0)') nSurfSample
 Ray%nSurfSample    = GETINT('RayTracing-nSurfSample',hilf)
+Ray%nSamples       = GETINT('RayTracing-nSamples')
 Ray%NodeType       = TRIM(GETSTR('RayTracing-NodeType'))
 SELECT CASE(TRIM(Ray%NodeType))
 CASE('VISU','VISU_INNER','GAUSS')
@@ -145,7 +147,7 @@ Ray%Nmax = GETINT('RayTracing-Nmax',hilf)
 ! Sanity checks
 IF(Ray%Nmax.LT.Ray%Nmin) CALL abort(__STAMP__,'RayTracing-Nmax cannot be smaller than Nmin=',IntInfoOpt=Ray%NMin)
 IF((Ray%Nmax.EQ.Ray%Nmin).AND.(Ray%VolRefineMode.GT.0)) CALL abort(__STAMP__,'Ray%VolRefineMode>0 only works when RayTracing-Nmax>RayTracing-Nmin=1')
-
+IF(Ray%nSamples.LT.3) CALL abort(__STAMP__,'RayTracing-nSamples cannot be smaller than 3! RayTracing-nSamples =',IntInfoOpt=Ray%nSamples)
 ! Build surface and volume containers
 CALL InitPhotonSurfSample()
 CALL InitHighOrderRaySampling()
