@@ -266,6 +266,7 @@ def edit_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPE
 
         # check if attribute exists, if yes user input to overwrite or not
         for attrbs in attrs_list:
+            attrbs = attrbs.replace(" ", "")
             if attrbs == 'AddVibLevels':
                 add_vib_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPECIES_DICT_FLAG)
             elif attrbs == 'AddRotLevels':
