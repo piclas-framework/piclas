@@ -45,7 +45,7 @@ user_input = get_valid_input(create_prompt('to maintain/edit species', 'to maint
 # SPECIES
 ###################################################################################################
 if user_input == "1":
-    user_input = get_valid_input(create_prompt('check existing species', 'add new species'), lambda x: x == '1' or x == '2' or x =='3')
+    user_input = get_valid_input(create_prompt('check existing species', 'add new data to existing species', 'add new species'), lambda x: x == '1' or x == '2' or x =='3' or x =='4')
     if user_input == "1":
         print("Checking electronic levels "+red("currently only for atoms")+ " from "+blue(URL_base)+" and from custom csv file for molecules if set\nand attributes for all species from "+ blue(ATcT_URL))
         existing_species_list = list(hdf_unified_data["Species"].keys())
@@ -60,7 +60,7 @@ if user_input == "1":
                         if bool(re.search(r'[A-Za-z]*\d', re.sub(r'Ion\d+','',species))):
                             continue
                         species_list.append(species)
-                
+
                 # Directory path
                 current_directory = os.getcwd()
                 for root, dirs, files in os.walk(current_directory):
@@ -70,13 +70,13 @@ if user_input == "1":
 
             else:
                 species_list = code_species
-    
+
         else:
             species_list = args.species
             existing_species_list = args.species
-        
+
         print('Checking species: ' + ', '.join(species_list))
-        
+
         # check electronic levels for atoms and custom data
         for current_species in species_list:
             if check_datasets(current_species, hdf_unified_data, relative_path) == -1:
@@ -95,12 +95,26 @@ if user_input == "1":
             species_list = user_input_species.split(',')
         else:
             species_list = args.species
-        
+
+        print('Adding data to species: ' + ', '.join(species_list))
+
+        for current_species in species_list:
+            # still fails if species not found in species dict -> edit_species.py line 370
+            edit_dataset(hdf_unified_data,current_species,relative_path,species_dict,species_dict_flag)
+
+    elif user_input == "3":
+        # check if species list was provided as argument, if not use species list provided in python
+        if args.species == None:
+            user_input_species = input(bold('\nPlease enter species list as comma separated string') + ', e.g. Fe,Ar,H,CIon1,CIon2,C\n')
+            species_list = user_input_species.split(',')
+        else:
+            species_list = args.species
+
         for current_species in species_list:
             # still fails if species not found in species dict -> edit_species.py line 370
             add_dataset(hdf_unified_data,current_species,relative_path,ATcT_URL,species_dict,species_dict_flag)
 
-    elif user_input == "3":
+    elif user_input == "4":
         own_exit()
 
 ###################################################################################################
@@ -115,7 +129,7 @@ elif user_input == "2":
         function = delete_reaction
     elif user_input == '3':
      own_exit()
-    
+
     # operation
     if args.reactions == None:
         if len(code_reactions) == 0:
@@ -135,7 +149,7 @@ elif user_input == "2":
 
 elif user_input == "3":
     print("Not implemented yet")
-    
+
 ###################################################################################################
 # SURFACE CHEMISTRY
 ###################################################################################################

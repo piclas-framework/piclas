@@ -335,7 +335,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32)         :: hilf , hilf2
-INTEGER               :: iCase, iSpec, jSpec, iInit, iDOF, VarNum, err
+INTEGER               :: iCase, iSpec, jSpec, iInit, iDOF, VarNum, err, NumLevels
 INTEGER               :: iColl, jColl, pColl  ! for collision parameter read in
 REAL                  :: A1, A2, delta_ij     ! species constant for cross section (p. 24 Laux)
 LOGICAL               :: PostCollPointerSet
@@ -822,12 +822,15 @@ ELSE !CollisMode.GT.0
               CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
               ! Anharmonic Oscillator Model
               IF(DSMC%VibAHO) THEN
-                CALL ReadAttribute(file_id_specdb,'Vib-OmegaE',1,DatasetName = dsetname,RealScalar=AHO%omegaE(iSpec))
+                CALL ReadAttribute(file_id_specdb,'Vib-OmegaE',1,DatasetName = dsetname,RealScalar=AHO%omegaE(iSpec),ChangeToGroup=.True.)
                 CALL PrintOption('Vib-OmegaE','DB',RealOpt=AHO%omegaE(iSpec))
-                CALL ReadAttribute(file_id_specdb,'Vib-ChiE',1,DatasetName = dsetname,RealScalar=AHO%chiE(iSpec))
+                CALL AttributeExists(file_id_specdb,'Vib-ChiE ',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
+                CALL ReadAttribute(file_id_specdb,'Vib-ChiE',1,DatasetName = dsetname,RealScalar=AHO%chiE(iSpec),ChangeToGroup=.True.)
                 CALL PrintOption('Vib-ChiE','DB',RealOpt=AHO%chiE(iSpec))
-                CALL ReadAttribute(file_id_specdb,'Vib-NumLevels',1,DatasetName = dsetname,IntScalar=AHO%NumVibLevels(iSpec))
+                CALL ReadAttribute(file_id_specdb,'Vib-NumLevels',1,DatasetName = dsetname,IntScalar=NumLevels,ChangeToGroup=.True.)
+                AHO%NumVibLevels(iSpec) = INT(NumLevels)
                 CALL PrintOption('Vib-NumLevels','DB',IntOpt=AHO%NumVibLevels(iSpec))
+                AHO%NumVibLevels(iSpec) = 5
               ELSE ! SHO model
                 CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib)
                 CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
@@ -937,7 +940,7 @@ ELSE !CollisMode.GT.0
         DO iSpec = 1, nSpecies
           IF(.NOT.Species(iSpec)%DoOverwriteParameters) THEN
             IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-              ! TO-DO: read the vibrational levels (AHO%VibEnergy)
+              CALL ReadVibrationalSpeciesLevel(iSpec)
               SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
             END IF
           END IF
@@ -1084,16 +1087,18 @@ ELSE !CollisMode.GT.0
     END DO !Species
     ! Finalize read-in for vibrational energy levels of anharmonic oscillator model
     IF(DSMC%VibAHO) THEN
-      ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
-      AHO%VibEnergy = 0.
-      DO iSpec = 1, nSpecies
-        IF(Species(iSpec)%DoOverwriteParameters) THEN
-          IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-            CALL ReadAHOEnergiesFromCSV(FileNameAHO(iSpec),iSpec)
-            SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
+      IF(SpeciesDatabase.EQ.'None') THEN
+        ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
+        AHO%VibEnergy = 0.
+        DO iSpec = 1, nSpecies
+          IF(Species(iSpec)%DoOverwriteParameters) THEN
+            IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+              CALL ReadAHOEnergiesFromCSV(FileNameAHO(iSpec),iSpec)
+              SpecDSMC(iSpec)%EZeroPoint = AHO%VibEnergy(iSpec,1)
+            END IF
           END IF
-        END IF
-      END DO
+        END DO
+      END IF
     END IF
 
     ! Initialization of polyatomic species and burn-in phase (Metropolis-Hastings) per initialization region
@@ -1823,6 +1828,67 @@ ELSE ! If not DoRestart
 END IF
 
 END SUBROUTINE SetVarVibProb2Elems
+
+SUBROUTINE ReadVibrationalSpeciesLevel (iSpec)
+!===================================================================================================================================
+! Subroutine to read the vibrational levels from SpeciesDatabase.h5
+!===================================================================================================================================
+! use module
+USE MOD_io_hdf5
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: AHO
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_Particle_Vars         ,ONLY: Species, SpeciesDatabase
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                                    :: iSpec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                                               :: err
+! HDF5 specifier taken from extractParticles
+CHARACTER(LEN=256)                                    :: LevelDatabase
+CHARACTER(LEN=64)                                     :: datasetname
+INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
+INTEGER(HID_T)                                        :: file_id_dsmc                       ! File identifier
+INTEGER(HID_T)                                        :: dset_id_dsmc                       ! Dataset identifier
+INTEGER(HID_T)                                        :: filespace                          ! filespace identifier
+LOGICAL                                               :: DataSetFound
+!===================================================================================================================================
+datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name)//'/VibrationalLevels')
+LevelDatabase = TRIM(SpeciesDatabase)
+LBWRITE(UNIT_StdOut,'(A)') ' | Read vibrational level entries '//TRIM(datasetname)//' from '//TRIM(LevelDatabase)
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+! Open the file.
+CALL H5FOPEN_F (TRIM(LevelDatabase), H5F_ACC_RDONLY_F, file_id_dsmc, err)
+CALL DatasetExists(File_ID_DSMC,TRIM(datasetname),DataSetFound)
+IF(.NOT.DataSetFound)THEN
+  CALL abort(__STAMP__,'DataSet not found: ['//TRIM(datasetname)//'] ['//TRIM(LevelDatabase)//']')
+END IF
+! Open the  dataset.
+CALL H5DOPEN_F(file_id_dsmc, datasetname, dset_id_dsmc, err)
+! Get the file space of the dataset.
+CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+! get size
+CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+
+! read data
+CALL H5dread_f(dset_id_dsmc, H5T_NATIVE_DOUBLE, AHO%VibEnergy(iSpec, 1:MAXVAL(AHO%NumVibLevels)), dims, err)
+
+! Close the file.
+CALL H5FCLOSE_F(file_id_dsmc, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+
+END SUBROUTINE ReadVibrationalSpeciesLevel
 
 
 SUBROUTINE FinalizeDSMC()

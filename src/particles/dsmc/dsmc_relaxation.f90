@@ -124,7 +124,7 @@ ELSE ! SHO
   PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
 END IF
 
-PartStateIntEn( 2,iPart) = RotInitDiaRoutineFuncPTR(iSpec,TRot,iPart)
+PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpec,TRot,iPart)
 
 
 END SUBROUTINE DSMC_SetInternalEnr_Diatomic

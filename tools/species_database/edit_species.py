@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 from general_functions import *
 
 ###################################################################################################
-#   functions for electronic levels Data handeling 
+#   functions for electronic levels Data handeling
 ###################################################################################################
 def get_data_from_NIST(CURRENT_SPECIES, SPECIES, ION_LEVEL, URL_BASE, HDF_UNIFIED_DATA):
     # Build the species in the NIST database query format: Xe+I
@@ -68,7 +68,7 @@ def convert_electronic_data(DATA):
     DATA.iloc[index_of_limit_ionization,J] = 0
     max_level = len(DATA)-1
     # dropping term column for nan filtering
-    DATA = DATA.drop(columns=['Term'])  
+    DATA = DATA.drop(columns=['Term'])
     # find rows containing nan
     rows_with_nan = [index for index, row in DATA.iterrows() if row.isnull().any()]
     # remove rows with nan
@@ -129,12 +129,12 @@ def convert_electronic_data(DATA):
                 exit(1)
             else:
                 x_old = x
-    # Write to hdf: If DATA set already exists, delete the old set first          
+    # Write to hdf: If DATA set already exists, delete the old set first
     DATA.columns=['Degeneracy', 'Level(K)']
     return DATA
 
-# create dataset and save attributes
-def create_dataset(HDF_UNIFIED_DATA, CURRENT_SPECIES, DATA_ARRAY):
+# create electronic dataset and save attributes
+def create_dataset_elec(HDF_UNIFIED_DATA, CURRENT_SPECIES, DATA_ARRAY):
     '''Create new dataset while saving old attributes and adding a new reference\n Inputs: database where dataset is saved and species name'''
     # Store existing attributes
     attrs = HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs
@@ -207,10 +207,10 @@ def check_datasets(current_species, HDF_UNIFIED_DATA, RELATIVE_PATH):
         data, current_species_NIST = get_data_from_NIST(current_species, species, ion_level, URL_base, HDF_UNIFIED_DATA)
         if type(data) == int:
             return
-    
+
     # convert data from website to fit specifications (e.g. filter unnecessary information )
     data = convert_electronic_data(data)
-    
+
     # check if species is already in Species database
     if current_species in HDF_UNIFIED_DATA['Species'].keys():
         # data from URL into numpy array
@@ -241,7 +241,7 @@ def check_datasets(current_species, HDF_UNIFIED_DATA, RELATIVE_PATH):
             print("Keeping electronic level dataset and attributes for species ",green(current_species), "\n")
             return
         elif user_input == '2':
-            create_dataset(HDF_UNIFIED_DATA, current_species, data_array)
+            create_dataset_elec(HDF_UNIFIED_DATA, current_species, data_array)
             print("Saving electronic level dataset from " + blue('URL') + " for species ",green(current_species), " but keeping attributes\n")
         elif user_input == '3':
             return -1           # to break loop in maintain_database.py
@@ -251,6 +251,64 @@ def check_datasets(current_species, HDF_UNIFIED_DATA, RELATIVE_PATH):
 
     else:
         print("Species "+green(current_species)+" not found in database. Please create new species.")
+
+def edit_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPECIES_DICT_FLAG):
+    # check if exists
+    if current_species not in HDF_UNIFIED_DATA['Species'].keys():
+        print("Species "+ green(current_species) + " not found in Species Database - please select an existing species or add this species to the database first. ")
+        own_exit()
+    else:
+        # user-input attribute, if not valid: print list of valid options
+        user_input_attrs = input(bold('\nPlease enter attribute list as comma separated string') + ', e.g. Tref, HeatOfFormation, ...' + ' If internal energy levels should be added please enter AddVibLevels or AddRotLevels\n')
+        attrs_list = user_input_attrs.split(',')
+        old_attrs = HDF_UNIFIED_DATA["Species"][current_species].attrs
+        DATASET = HDF_UNIFIED_DATA["Species"][current_species]
+
+        # check if attribute exists, if yes user input to overwrite or not
+        for attrbs in attrs_list:
+            if attrbs == 'AddVibLevels':
+                add_vib_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPECIES_DICT_FLAG)
+            elif attrbs == 'AddRotLevels':
+                print("TODO für VALENTIN !!!")
+            else:
+                if attrbs in list(old_attrs):
+                    print("\n\nThe attribute " + attrbs + " already exists. Do you want to overwrite the value?")
+                    user_input = get_valid_input(create_prompt('yes', 'no'), lambda x: x == '1' or x == '2' or x =='3')
+                    if user_input == "1":
+                        # Replace the existing value
+                        DATASET.attrs[attrbs] = float(input(bold('\nPlease enter ' + attrbs + ' of current species %s\n-->') % current_species))
+                    elif user_input == "3":
+                        own_exit()
+                else:
+                    # add attribute if not existing
+                    DATASET.attrs[attrbs] = float(input(bold('\nPlease enter ' + attrbs + ' of current species %s\n-->') % current_species))
+
+def add_vib_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPECIES_DICT_FLAG):
+    if 'VibrationalLevels' in HDF_UNIFIED_DATA["Species"][current_species].keys():
+        print("\n\nThe vibrational levels already exists. Do you want to overwrite them?")
+        user_input = get_valid_input(create_prompt('yes', 'no'), lambda x: x == '1' or x == '2' or x =='3')
+
+        if user_input == "1":
+            # Replace the existing value
+            del HDF_UNIFIED_DATA["Species"][current_species]['VibrationalLevels']
+            user_input_csv = input(bold('\nPlease enter the csv file name containing the vibrational levels: ') )
+            # Attempt to convert data to pandas dataframe from custom csv file
+            data = pd.read_csv(f'{user_input_csv}.csv',skipinitialspace=True,delimiter=",",usecols=['VibLevelJ'], na_values=['---'], dtype=str)
+            data = data.astype(float)
+            print(f'Using custom data from custom_vibrational_levels_{current_species}.csv')
+
+            dataset = HDF_UNIFIED_DATA['Species'][current_species].create_dataset('VibrationalLevels', data=data)
+        elif user_input == "3":
+            own_exit()
+
+    else:
+        user_input_csv = input(bold('\nPlease enter the csv file name containing the vibrational levels: ') )
+        # Attempt to convert data to pandas dataframe from custom csv file
+        data = pd.read_csv(f'{user_input_csv}.csv',skipinitialspace=True,delimiter=",",usecols=['VibLevelJ'], na_values=['---'], dtype=str)
+        data = data.astype(float)
+        print(f'Using custom data from custom_vibrational_levels_{current_species}.csv')
+
+        dataset = HDF_UNIFIED_DATA['Species'][current_species].create_dataset('VibrationalLevels', data=data)
 
 def add_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,ATCT_URL,SPECIES_DICT,SPECIES_DICT_FLAG):
     # Base URL of the query
@@ -276,7 +334,7 @@ def add_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,ATCT_URL,SPECIES_
         if type(data) == int:
             print("Error")
             return
-    
+
     # convert data from website to fit specifications (e.g. filter unnecessary information )
     data = convert_electronic_data(data)
     # check if exists
@@ -293,7 +351,7 @@ def add_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,ATCT_URL,SPECIES_
 
 
 ###################################################################################################
-#   functions for ATcT data handeling 
+#   functions for ATcT data handeling
 ###################################################################################################
 def create_species_dict(SPECIES_DICT, ATCT_URL):
     # Create an HTML session
@@ -320,7 +378,7 @@ def create_species_dict(SPECIES_DICT, ATCT_URL):
     # slice first entry since it only shows the structure
     rows = rows[1:]
     for row in rows:
-        # get species name 
+        # get species name
         row_str = str(row)
         start_index = row_str.index('type="button">') + len('type="button">')
         end_index = row_str.index(' </button>')
@@ -353,7 +411,7 @@ def create_species_dict(SPECIES_DICT, ATCT_URL):
         "HeatOfFormation_K": delta_f_H_298K,
         "MassIC_kg": mass
     })
-    # print(SPECIES_DICT) 
+    # print(SPECIES_DICT)
     return SPECIES_DICT
 
 # Function to search for a species in the dictionary
@@ -417,7 +475,7 @@ def create_attributes(DATASET, CURRENT_SPECIES, ATCT_URL, MassIC_kg, HeatOfForma
         DATASET.attrs['Tref'] = old_attrs['Tref']
     else:
         DATASET.attrs['Tref'] = float(input(bold('\nPlease enter Tref in [K] of current species %s\n-->') % CURRENT_SPECIES))
-    
+
     if 'dref' in list(old_attrs):
         DATASET.attrs['dref'] = old_attrs['dref']
     else:
@@ -466,15 +524,15 @@ def check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, WANTED_VALUE, VALUE_NAM
         elif VALUE_NAME in ['ChargeIC','InteractionID']:
             print("It seems like %s is not set for %s so it will be set as %s"% (VALUE_NAME,CURRENT_SPECIES,WANTED_VALUE))
         return VALUE_NAME
-        
+
 
 # checking all attributes in existing database
 def check_attributes(HDF_UNIFIED_DATA, SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL):
     try:
-        SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID = get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL) 
+        SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID = get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL)
     except:
         return SPECIES_DICT_FLAG, 1
-    
+
     return_list = []
 
     if 'HeatOfFormation_K' not in HDF_UNIFIED_DATA['Species'][CURRENT_SPECIES].attrs:                                   # sanity check: calculate heat of formation for ions and compare with data from ATcT
@@ -491,7 +549,7 @@ def check_attributes(HDF_UNIFIED_DATA, SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_
 
     else:        # dont check heat of formation of ions because it is not stored
         return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, HeatOfFormation_K, 'HeatOfFormation_K', ATCT_URL))
-    
+
     return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, MassIC_kg, 'MassIC', ATCT_URL))
     return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, current_species_charge, 'ChargeIC', ATCT_URL))
     return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, interactionID, 'InteractionID', ATCT_URL))
@@ -504,7 +562,7 @@ def check_attributes(HDF_UNIFIED_DATA, SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_
             old_attrs = HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs
             data_array = HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES][:]
             del HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES]
-            dataset = HDF_UNIFIED_DATA['Species'].create_dataset(CURRENT_SPECIES, data=data_array)
+            dataset = HDF_UNIFIED_DATA['Species'].create_dataset_elec(CURRENT_SPECIES, data=data_array)
             try:
                 SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID = get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL)
             except TypeError:
