@@ -701,9 +701,9 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 USE MOD_Globals            ,ONLY: ElementOnProc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
-USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,nProcessors_Global
 USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape,MPI_halo_eps_velo
 #endif /*USE_MPI && defined(PARTICLES)*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
@@ -717,7 +717,6 @@ INTEGER             :: BCType,BCState,iUniqueFPCBC
 INTEGER             :: SideID,iBC
 #if USE_MPI
 INTEGER             :: color,WithSides
-LOGICAL,ALLOCATABLE :: BConProc(:)
 #if defined(PARTICLES)
 INTEGER             :: iElem,iCNElem
 REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
@@ -844,12 +843,15 @@ END DO ! SideID=1,nBCSides
 
 #if USE_MPI
 ! 4.0) Check if field BC is on current proc (or MPI root)
-ALLOCATE(BConProc(FPC%nUniqueFPCBounds))
-BConProc = .FALSE.
-IF(MPIRoot)THEN
-  BConProc = .TRUE.
-ELSE
+ALLOCATE(FPC%BConProc(FPC%nUniqueFPCBounds))
+FPC%BConProc = .FALSE.
 
+! Check if single-node or multi-node run
+IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  ! For single-node execution, simply add all processes to the communicators and do not bother measuring the distance as the gain
+  ! in performance is negligible here
+  FPC%BConProc = .TRUE.
+ELSE
   ! Check local sides
   DO SideID=1,nBCSides
     iBC    = BC(SideID)
@@ -857,79 +859,100 @@ ELSE
     IF(BCType.NE.BCTypeFPC) CYCLE ! Skip non-FPC boundaries
     BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
     iUniqueFPCBC = FPC%Group(BCState,2)
-    BConProc(iUniqueFPCBC) = .TRUE.
+    FPC%BConProc(iUniqueFPCBC) = .TRUE.
   END DO ! SideID=1,nBCSides
+END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 
 #if defined(PARTICLES)
-  ! Check if all FPCs have already been found
-  IF(.NOT.(ALL(BConProc)))THEN
-    ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
-    ! element that has at least one side, which is an FPC
-    ! 4.1.) Each processor loops over all of his elements
-    iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
+! Check if all FPCs have already been found
+IF(.NOT.(ALL(FPC%BConProc)))THEN
 
-      iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
-                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
-                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
-                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
-                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+  ! Check whether this information has already been created before to skip the costly search below
+  !CALL ReadFPCCommunicationFromH5()
 
-      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
-      ! Loop ALL compute-node elements (use global element index)
-      iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
-        iGlobElem = GetGlobalElemID(iCNElem)
+  ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
+  ! element that has at least one side, which is an FPC
+  ! 4.1.) Each processor loops over all of his elements
+  iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
 
-        ! Skip my own elements as they have already been tested when the local sides are checked
-        IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
+    iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+    iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                              BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                              BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-        ! Check if one of the six sides of the compute-node element is a FPC
-        ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
-        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-          ! Get BC index of the global side index
-          BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
-          ! Only check BC sides with BC index > 0
-          IF(BCIndex.GT.0)THEN
-            ! Get boundary type
-            BCType = BoundaryType(BCIndex,BC_TYPE)
-            ! Check if FPC has been found
-            IF(BCType.EQ.BCTypeFPC)THEN
+    ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+    ! Loop ALL compute-node elements (use global element index)
+    iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
+      iGlobElem = GetGlobalElemID(iCNElem)
 
-              ! Check if the BC can be reached
-              iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
-                                        SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
-                                        SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
-              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
-                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
-                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+      ! Skip my own elements as they have already been tested when the local sides are checked
+      IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
 
-              ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
-              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
-                BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
-                IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
-                iUniqueFPCBC = FPC%Group(BCState,2)
-                ! Flag the i-th FPC
-                BConProc(iUniqueFPCBC) = .TRUE.
-                ! Check if all FPCs have been found -> exit complete loop
-                IF(ALL(BConProc)) EXIT iElemLoop
-                ! Go to next element
-                CYCLE iCNElemLoop
-              END IF ! VECNORM( ...
-            END IF ! BCType.EQ.BCTypeFPC
-          END IF ! BCIndex.GT.0
-        END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-      END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
-    END DO iElemLoop ! iElem = 1, nElems
-  END IF ! .NOT.(ALL(BConProc))
+      ! Check if one of the six sides of the compute-node element is a FPC
+      ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+        ! Get BC index of the global side index
+        BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+        ! Only check BC sides with BC index > 0
+        IF(BCIndex.GT.0)THEN
+          ! Get boundary type
+          BCType = BoundaryType(BCIndex,BC_TYPE)
+          ! Check if FPC has been found
+          IF(BCType.EQ.BCTypeFPC)THEN
+
+            ! Check if the BC can be reached
+            iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+            iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                          BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                          BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+
+            ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+            ! TODO: what about periodic vectors?
+            IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+              BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
+              IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+              iUniqueFPCBC = FPC%Group(BCState,2)
+              ! Flag the i-th FPC
+              FPC%BConProc(iUniqueFPCBC) = .TRUE.
+              ! Check if all FPCs have been found -> exit complete loop
+              IF(ALL(FPC%BConProc)) EXIT iElemLoop
+              ! Go to next element
+              CYCLE iCNElemLoop
+            END IF ! VECNORM( ...
+          END IF ! BCType.EQ.BCTypeFPC
+        END IF ! BCIndex.GT.0
+      END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+    END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
+  END DO iElemLoop ! iElem = 1, nElems
+END IF ! .NOT.(ALL(FPC%BConProc))
 #endif /*defined(PARTICLES)*/
 
-END IF ! MPIRoot
+#if USE_MPI
+! Store FPC%BConProc information to skip the costly search above for the next run of the same setup. Store the info before adding
+! the MPIRoot by force in the next step.
+! CALL WriteFPCCommunicationToH5()
+
+! Store similar to FPCDataHDF5
+! 1.) nProcessors
+! 2.) nFPCs
+! 3.) halo_eps as integer value
+! and check when reading that the value are unchanged or less procs, smaller halo_eps is still okay
+#endif /*USE_MPI*/
+
+! Storing the FPC info requires that the MPIRoot also takes part in the search even though it is not required as the MPIRoot is
+! always part of the communicator anyway as the MPIRoot writes the FPC charge/potential information to the .csv file.
+! The MPIRoot is part of all communicators
+IF(MPIRoot) FPC%BConProc = .TRUE.
 
 ! 5.) Create MPI sub-communicators
 ALLOCATE(FPC%COMM(FPC%nUniqueFPCBounds))
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   ! create new communicator
-  color = MERGE(iUniqueFPCBC, MPI_UNDEFINED, BConProc(iUniqueFPCBC))
+  color = MERGE(iUniqueFPCBC, MPI_UNDEFINED, FPC%BConProc(iUniqueFPCBC))
 
   ! set communicator id
   FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
@@ -938,7 +961,7 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
-  IF(BConProc(iUniqueFPCBC))THEN
+  IF(FPC%BConProc(iUniqueFPCBC))THEN
     CALL MPI_COMM_RANK(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%MyRank, iError)
     CALL MPI_COMM_SIZE(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%nProcs, iError)
 
@@ -950,9 +973,9 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
           WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0)') ' Floating boundary condition: Emission-Communicator ',iUniqueFPCBC,' on ',&
               FPC%COMM(iUniqueFPCBC)%nProcs,' procs for BCState ',FPC%BCState(iUniqueFPCBC)
     END IF
-  END IF ! BConProc(iUniqueFPCBC)
+  END IF ! FPC%BConProc(iUniqueFPCBC)
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-DEALLOCATE(BConProc)
+DEALLOCATE(FPC%BConProc)
 
 ! Get the number of procs that actually have a local BC side that is an FPC (required for voltage output to .csv)
 ! Procs might have zero FPC sides but are in the group because 1.) MPIRoot or 2.) the FPC is in the halo region

@@ -204,6 +204,7 @@ TYPE tFPC
                                                     !<   2: iUniqueFPC (i-th FPC group ID)
                                                     !<   3: number of BCSides for each FPC group
   INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th FPC boundary
+  LOGICAL,ALLOCATABLE         :: BConProc(:)        !< True, if iUniqueFPCBC is on current process
 END TYPE
 
 TYPE(tFPC)   :: FPC

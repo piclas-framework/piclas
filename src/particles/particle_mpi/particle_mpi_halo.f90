@@ -58,7 +58,7 @@ USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,nComputeNodeElems
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,SideInfo_Shared,BoundsOfElem_Shared,NodeCoords_Shared
-USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape
+USE MOD_Particle_MPI_Vars       ,ONLY: SafetyFactor,halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape,MPI_halo_eps_velo
 USE MOD_Particle_MPI_Vars       ,ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc,CheckExchangeProcs
 USE MOD_Particle_MPI_Vars       ,ONLY: AbortExchangeProcs,DoParticleLatencyHiding
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
@@ -102,7 +102,7 @@ INTEGER                        :: ExchangeProcLeader
 LOGICAL,ALLOCATABLE            :: MPISideElem(:)
 LOGICAL                        :: ProcHasExchangeElem
 ! halo_eps reconstruction
-REAL                           :: MPI_halo_eps_velo,MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
+REAL                           :: MPI_halo_diag,vec(1:3),deltaT, MPI_halo_eps_woshape
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 INTEGER                        :: iStage
 #endif
@@ -373,7 +373,7 @@ END DO
 ! if running on one node, halo_eps is meaningless. Get a representative MPI_halo_eps for MPI proc identification
 IF (halo_eps.LE.0.) THEN
   ! reconstruct halo_eps_velo
-  IF (halo_eps_velo.EQ.0.) THEN
+  IF (halo_eps_velo.LE.0.) THEN
     MPI_halo_eps_velo = c
   ELSE
     MPI_halo_eps_velo = halo_eps_velo
@@ -426,7 +426,7 @@ IF (halo_eps.LE.0.) THEN
     MPI_halo_eps = MPI_halo_diag
     LBWRITE(UNIT_stdOUt,'(A,F11.3)') ' | No halo_eps given and could not be reconstructed. Using global diag with ',MPI_halo_eps
   END IF
-ELSE
+ELSE ! Multi-node
   vec(1)   = GEO%xmaxglob-GEO%xminglob
   vec(2)   = GEO%ymaxglob-GEO%yminglob
   vec(3)   = GEO%zmaxglob-GEO%zminglob
@@ -1438,7 +1438,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       ShapeMapping(exProc)%nRecvShapeElems = RecvProcsElems(iProc)
       ShapeMapping(exProc)%nSendShapeElems = 0
       ALLOCATE(ShapeMapping(exProc)%RecvShapeElemID(1:RecvProcsElems(iProc)), &
-            ShapeMapping(exProc)%RecvShapeElemDofOffset(1:RecvProcsElems(iProc)))            
+            ShapeMapping(exProc)%RecvShapeElemDofOffset(1:RecvProcsElems(iProc)))
       exElem = 0
       DO iElem = 1, nElems
         CNElemID = GetCNElemID(iELem+offSetElem)
