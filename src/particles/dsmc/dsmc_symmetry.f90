@@ -1015,7 +1015,7 @@ SELECT CASE(VarWeighting%CloneMode)
 END SELECT
 
 ! Enable the CalcVarMPF routine
-! AdaptMPF%UseOptMPF = .FALSE.
+IF (.NOT.AdaptMPF%DoAdaptMPF) AdaptMPF%UseOptMPF = .FALSE.
 
 END SUBROUTINE DSMC_InitVarWeighting
 
