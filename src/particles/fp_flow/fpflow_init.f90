@@ -40,27 +40,27 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("FP-Flow")
 
-CALL prms%CreateIntOption(    'Particles-FP-CollModel',            'Select the Fokker-Planck method:\n'//&
-                                                                   '1: Cubic (only atomic species)\n'//&
-                                                                   '2: Ellipsoidal Statistical (ESFP)')
-CALL prms%CreateIntOption(    'Particles-ESFP-Model',              'Select the ESFP model:\n'//&
-                                                                   '1: Exact\n'//&
-                                                                   '2: Approximative', '1')
-CALL prms%CreateLogicalOption('Particles-FP-DoVibRelaxation',      'Enable modelling of vibrational excitation','.TRUE.')
-CALL prms%CreateLogicalOption('Particles-FP-UseQuantVibEn',        'Enable quantized modelling of vibrational energy levels','.TRUE.')
-CALL prms%CreateLogicalOption('Particles-FP-DoCellAdaptation',     'Enables octree cell refinement until the given number of '//&
-                                                                   'particles is reached. Equal refinement in all three '//&
-                                                                   'directions (x,y,z)','.FALSE.')
-CALL prms%CreateIntOption(    'Particles-FP-MinPartsPerCell',      'Define minimum number of particles per cell for octree '//&
-                                                                   'cell refinement')
-CALL prms%CreateLogicalOption('Particles-CoupledFPDSMC',           'Perform a coupled DSMC-FP simulation with a given number density'//&
-                                                                   'as a switch parameter','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-FP-CollModel',       'Select the Fokker-Planck method:\n'//&
+                                                              '1: Cubic (only atomic species)\n'//&
+                                                              '2: Ellipsoidal Statistical (ESFP)')
+CALL prms%CreateIntOption(    'Particles-ESFP-Model',         'Select the ESFP model:\n'//&
+                                                              '1: Exact\n'//&
+                                                              '2: Approximative', '1')
+CALL prms%CreateLogicalOption('Particles-FP-DoVibRelaxation', 'Enable modelling of vibrational excitation','.TRUE.')
+CALL prms%CreateLogicalOption('Particles-FP-UseQuantVibEn',   'Enable quantized modelling of vibrational energy levels','.TRUE.')
+CALL prms%CreateLogicalOption('Particles-FP-DoCellAdaptation','Enables octree cell refinement until the given number of '//&
+                                                              'particles is reached. Equal refinement in all three '//&
+                                                              'directions (x,y,z)','.FALSE.')
+CALL prms%CreateIntOption(    'Particles-FP-MinPartsPerCell', 'Define minimum number of particles per cell for octree '//&
+                                                              'cell refinement')
+CALL prms%CreateLogicalOption('Particles-CoupledFPDSMC',      'Perform a coupled DSMC-FP simulation with a given number density'//&
+                                                              'as a switch parameter','.FALSE.')
 CALL prms%CreateStringOption( 'Particles-FP-DSMC-SwitchCriterium', 'Continuum-breakdown criterium used for the coupling: Density'//&
                                                                    'GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
-CALL prms%CreateIntOption(    'Particles-FP-DSMC-SampleIter',      'Iteration number after which a DSMC-FP switch can be performed','1')
-CALL prms%CreateLogicalOption('Particles-FP-DSMC-SampAverage',     'Use average gradient for the decision between FP/DSMC','.FALSE.')
-CALL prms%CreateRealOption(   'Particles-FP-DSMC-SwitchDens',      'Number density [1/m3] above which the FP method is used, below'//&
-                                                                   'which DSMC is performed.','0.0')
+CALL prms%CreateIntOption(    'Particles-FP-DSMC-SampleIter', 'Iteration number after which a DSMC-FP switch can be performed','1')
+CALL prms%CreateLogicalOption('Particles-FP-DSMC-SampAverage','Use average gradient for the decision between FP/DSMC','.FALSE.')
+CALL prms%CreateRealOption(   'Particles-FP-DSMC-SwitchDens', 'Number density [1/m3] above which the FP method is used, below'//&
+                                                              'which DSMC is performed.','0.0')
 CALL prms%CreateRealOption(   'Particles-FP-DSMC-CharLength',      'Characteristic length of the simulation domain for the calculation '//&
                                                                    'of the global Knudsen number','1.0')
 CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxGlobalKnudsen','Global Knudsen number above which DSMC is used instead of FP','0.1')
@@ -84,7 +84,7 @@ USE MOD_Globals_Vars          ,ONLY: PI, BoltzmannConst
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
-USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
+USE MOD_PARTICLE_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge,Symmetry
 USE MOD_FPFlow_Vars
 USE MOD_BGK_Vars              ,ONLY: DoBGKCellAdaptation, BGKMinPartPerCell, CBC
 #if USE_LOADBALANCE
@@ -120,6 +120,7 @@ FPCollModel = GETINT('Particles-FP-CollModel')
 ESFPModel = GETINT('Particles-ESFP-Model')
 DoBGKCellAdaptation = GETLOGICAL('Particles-FP-DoCellAdaptation')
 IF(DoBGKCellAdaptation) THEN
+  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D Fokker-Planck flow with CellAdaptation is not implemented yet')
   BGKMinPartPerCell = GETINT('Particles-FP-MinPartsPerCell')
   IF(.NOT.DSMC%UseOctree) THEN
     DSMC%UseOctree = .TRUE.

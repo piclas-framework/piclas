@@ -243,7 +243,6 @@ USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes3D, OCTANTCUBEID, OCTANTCUBEMIDPOINT
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
-USE MOD_Particle_Mesh_Vars    ,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -388,8 +387,6 @@ DO iLoop = 1, 8
 #endif
   END IF
 END DO
-
-MeshAdapt(1,iElem) = REAL(TreeNode%ChildNode%NodeDepth)
 
 END SUBROUTINE AddBGKOctreeNode
 
@@ -638,7 +635,6 @@ USE MOD_BGK_CollOperator      ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_CalcSubNodeVolumes2D, QUADCUBEMIDPOINT
 USE MOD_BGK_Vars              ,ONLY: BGKMinPartPerCell,tNodeAverage, BGKMovingAverage
 USE MOD_FP_CollOperator       ,ONLY: FP_CollisionOperator
-USE MOD_Particle_Mesh_Vars    ,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -792,8 +788,6 @@ DO iLoop = 1, 4
 #endif
   END IF
 END DO
-
-MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
 
 END SUBROUTINE AddBGKQuadtreeNode
 

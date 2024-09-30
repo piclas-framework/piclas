@@ -55,9 +55,15 @@ INTERFACE PrintStatusLine
   MODULE PROCEDURE PrintStatusLine
 END INTERFACE
 
+INTERFACE PrintStatusLineRadiation
+  MODULE PROCEDURE PrintStatusLineRadiation
+END INTERFACE
+
+
 PUBLIC:: InitOutput
 PUBLIC:: PrintStatusLine
 PUBLIC:: DefineParametersOutput
+PUBLIC:: PrintStatusLineRadiation
 !===================================================================================================================================
 
 CONTAINS
@@ -231,5 +237,70 @@ IF(MPIroot)THEN
 #endif
 END IF
 END SUBROUTINE PrintStatusLine
+
+
+!==================================================================================================================================
+!> Displays the actual status of the simulation
+!==================================================================================================================================
+SUBROUTINE PrintStatusLineRadiation(t,tStart,tEnd,Phot,outputrank)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! description
+!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES                                                                                                                          !
+USE MOD_Globals
+USE MOD_PreProc
+!----------------------------------------------------------------------------------------------------------------------------------!
+! insert modules here
+!----------------------------------------------------------------------------------------------------------------------------------!
+IMPLICIT NONE
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN) :: t      !< current simulation time
+REAL,INTENT(IN) :: tStart !< start time of simulation
+REAL,INTENT(IN) :: tEnd   !< end time of simulation
+LOGICAL, INTENT(IN) :: Phot
+INTEGER, INTENT(IN),OPTIONAL :: outputrank
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL    :: percent,time_remaining,mins,secs,hours,days
+INTEGER :: visRank
+!==================================================================================================================================
+IF (PRESENT(outputrank)) THEN
+  visRank = outputrank
+ELSE
+  visRank = 0
+END IF
+
+IF(myRank.EQ.visRank)THEN
+#ifdef INTEL
+  OPEN(UNIT_stdOut,CARRIAGECONTROL='fortran')
+#endif
+  percent = (t-tStart) / (tend-tStart)
+  CALL CPU_TIME(time_remaining)
+  IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
+  percent =  percent*100.
+  secs = MOD(time_remaining,60.)
+  time_remaining = time_remaining / 60
+  mins = MOD(time_remaining,60.)
+  time_remaining = time_remaining / 60
+  hours = MOD(time_remaining,24.)
+  time_remaining = time_remaining / 24
+  !days = MOD(time_remaining,365.) ! Use this if years are also to be displayed
+  days = time_remaining
+  IF (Phot) THEN
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
+        '  Photon = ', t,'  TotalPhotons = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+        REPEAT('☄️ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
+        ACHAR(13) ! ACHAR(13) is carriage return
+  ELSE
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
+        '  Elem = ', t,'  TotalElems = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
+        REPEAT('☢ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
+        ACHAR(13) ! ACHAR(13) is carriage return
+  END IF
+#ifdef INTEL
+  CLOSE(UNIT_stdOut)
+#endif
+END IF
+END SUBROUTINE PrintStatusLineRadiation
 
 END MODULE MOD_Output

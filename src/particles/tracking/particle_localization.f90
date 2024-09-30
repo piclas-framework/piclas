@@ -54,6 +54,7 @@ SUBROUTINE LocateParticleInElement(PartID,doHALO)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef
+USE MOD_part_operations        ,ONLY: RemoveParticle
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -68,9 +69,10 @@ INTEGER           :: ElemID
 ElemID = SinglePointToElement(PartState(1:3,PartID),doHALO=doHALO)
 PEM%GlobalElemID(PartID) = ElemID
 IF(ElemID.EQ.-1)THEN
-  PDM%ParticleInside(PartID)=.FALSE.
+  CALL RemoveParticle(PartID)
 ELSE
   PDM%ParticleInside(PartID)=.TRUE.
+  PDM%isNewPart(PartID)     = .TRUE.
   IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef(1:3,PartID),ElemID)
 END IF ! ElemID.EQ.-1
 END SUBROUTINE LocateParticleInElement
@@ -90,7 +92,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemRadius2NGeo
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
 USE MOD_Particle_Tracking_Vars ,ONLY: Distance,ListDistance,TrackingMethod
 USE MOD_Utils                  ,ONLY: InsertionSort
 #if USE_MPI
@@ -167,7 +169,7 @@ DO iBGMElem = 1,nBGMElems
 
   SELECT CASE(TrackingMethod)
     CASE(TRIATRACKING)
-      CALL ParticleInsideQuad3D(Pos3D(1:3),ElemID,InElementCheck,Det)
+      CALL ParticleInsideQuad(Pos3D(1:3),ElemID,InElementCheck,Det)
 
     CASE(TRACING)
       CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
@@ -176,7 +178,11 @@ DO iBGMElem = 1,nBGMElems
     CASE(REFMAPPING)
       CNElemID = GetCNElemID(ElemID)
       CALL GetPositionInRefElem(Pos3D(1:3),RefPos,ElemID)
-      doEmission = MERGE(doEmission_opt,.FALSE.,PRESENT(doEmission_opt))
+
+      IF (PRESENT(doEmission_opt)) THEN; doEmission = doEmission_opt
+      ELSE;                              doEmission = .FALSE.
+      END IF
+
       IF(doEmission) THEN
         IF (MAXVAL(ABS(RefPos)).LE.1.0) InElementCheck = .TRUE.
       ELSE

@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
 PUBLIC :: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
-PUBLIC :: DefineParametersParticleSymmetry, Init_Symmetry
+PUBLIC :: DefineParametersParticleSymmetry
 PUBLIC :: DSMC_InitVarWeighting, DSMC_VariableWeighting, DSMC_SetInClones, DSMC_TreatIdenticalParticles
 !===================================================================================================================================
 
@@ -96,9 +96,10 @@ END SUBROUTINE DefineParametersParticleSymmetry
 
 SUBROUTINE DSMC_2D_InitVolumes()
 !===================================================================================================================================
-!> Routine determines a symmetry side and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
-!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
-!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!> Routine determines the symmetry sides and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side (SymmetrySide array) will be used later on to determine in which two
+!> directions the quadtree shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement. Additionally,
+!> symmetry sides will be skipped during tracking (SideIsSymSide_Shared array).
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -110,16 +111,18 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
 USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared, SideIsSymSide
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
-USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -129,27 +132,56 @@ USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,MPI_COMM_LEADERS_SHARED
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID
+INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide
 REAL                            :: radius, triarea(2)
 #if USE_MPI
 REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
 #endif /*USE_MPI*/
 LOGICAL                         :: SymmetryBCExists
-INTEGER                         :: firstElem,lastElem
+INTEGER                         :: firstElem, lastElem, firstSide, lastSide
 !===================================================================================================================================
 
 #if USE_MPI
-FirstElem = offsetElem - offsetComputeNodeElem + 1
-LastElem  = offsetElem - offsetComputeNodeElem + nElems
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
 #else
-firstElem = 1
-lastElem  = nElems
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
 #endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
+END DO
 
 SymmetryBCExists = .FALSE.
 ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
 SymmetrySide = -1
 
+! Sanity check: mesh has to be centered at z = 0
 IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
   SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
   SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
@@ -158,11 +190,12 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
     ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
 END IF
 
+! Calculation of the correct volume and characteristic length
 DO BCSideID=1,nBCSides
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
-  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryBC) THEN
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryDim) THEN
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
     iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
     ! Exclude the symmetry axis (y=0)
@@ -209,12 +242,24 @@ IF(.NOT.SymmetryBCExists) THEN
 END IF
 
 ! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
-LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
 #if USE_MPI
+FirstElem = offsetElem - offsetComputeNodeElem + 1
+LastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
 ! Compute-node mesh volume
-CNVolume = SUM(ElemVolume_Shared(:))
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
 IF (myComputeNodeRank.EQ.0) THEN
   ! All-reduce between node leaders
   CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
@@ -238,16 +283,19 @@ SUBROUTINE DSMC_1D_InitVolumes()
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume,SideIsSymSide_Shared, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 #if USE_MPI
-USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC
+USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared_Win, nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win, ElemInfo_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
@@ -257,10 +305,14 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shar
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iLocSide, iElem, SideID, iDim, CNElemID
+INTEGER                         :: iLocSide, iElem, SideID, iOrder, CNElemID, iSide
 REAL                            :: X(2), MaxCoord, MinCoord
 LOGICAL                         :: SideInPlane, X1Occupied
-INTEGER                         :: firstElem,lastElem
+INTEGER                         :: firstElem,lastElem, firstSide, lastSide
+#if USE_MPI
+REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
+#endif /*USE_MPI*/
 !===================================================================================================================================
 
 #if USE_MPI
@@ -278,7 +330,7 @@ IF(.NOT.ALMOSTEQUALRELATIVE(GEO%ymaxglob,ABS(GEO%yminglob),1e-5)) THEN
   SWRITE(*,*) 'Minimum dimension in y:', GEO%yminglob
   SWRITE(*,*) 'Deviation', (ABS(GEO%ymaxglob)-ABS(GEO%yminglob))/ABS(GEO%yminglob), ' > 1e-5'
   CALL abort(__STAMP__&
-    ,'ERROR: Please orient your mesh with one cell in y-direction around 0, |z_min| = z_max !')
+    ,'ERROR: Please orient your mesh with one cell in y-direction around 0, |y_min| = y_max !')
 END IF
 
 IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
@@ -298,34 +350,34 @@ DO iElem = 1,nElems
     SideInPlane=.FALSE.
     SideID = GetGlobalNonUniqueSideID(offsetElem+iElem,iLocSide)
     CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-    DO iDim=1,3
-      MaxCoord = MAXVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
-      MinCoord = MINVAL(NodeCoords_Shared(iDim,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+    DO iOrder=1,3
+      MaxCoord = MAXVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      MinCoord = MINVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
       IF(ALMOSTALMOSTEQUAL(MaxCoord,MinCoord).OR.(ALMOSTZERO(MaxCoord).AND.ALMOSTZERO(MinCoord))) THEN
         IF(SideInPlane) CALL abort(__STAMP__&
           ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
         SideInPlane=.TRUE.
-        IF(iDim.GE.2)THEN
-          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryBC) &
+        IF(iOrder.GE.2)THEN
+          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryDim) &
             CALL abort(__STAMP__,&
               'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
         END IF
-        IF(iDim.EQ.1) THEN
+        IF(iOrder.EQ.1) THEN
           IF(X1Occupied) THEN
             X(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
           ELSE
             X(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
             X1Occupied = .TRUE.
           END IF
-        END IF !iDim.EQ.1
+        END IF !iOrder.EQ.1
       END IF
-    END DO !iDim=1,3
+    END DO !iOrder=1,3
     IF(.NOT.SideInPlane) THEN
       IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iLocSide
-      DO iDim=1,4
-        IPWRITE(*,*) 'Node',iDim,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
-                                 'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1), &
-                                 'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iDim,iLocSide,CNElemID)+1)
+      DO iOrder=1,4
+        IPWRITE(*,*) 'Node',iOrder,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                 'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                 'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1)
       END DO
       CALL abort(__STAMP__&
     ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
@@ -341,10 +393,61 @@ LocalVolume = SUM(ElemVolume_Shared(firstElem:lastElem))
 #if USE_MPI
 CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
-#endif /*USE_MPI*/
+! Compute-node mesh volume
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
+#else
 MeshVolume = SUM(ElemVolume_Shared)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
+#endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
+END DO
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
+#endif
 
 END SUBROUTINE DSMC_1D_InitVolumes
+
 
 SUBROUTINE DSMC_2D_InitRadialWeighting()
 !===================================================================================================================================
@@ -356,8 +459,10 @@ SUBROUTINE DSMC_2D_InitRadialWeighting()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Restart_Vars            ,ONLY: DoRestart
-USE MOD_PARTICLE_Vars           ,ONLY: PDM
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, ClonedParticles
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -367,12 +472,18 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+
+! Clone read-in during load balance is currently only supported via the HDF5 output
+#if USE_LOADBALANCE
+IF(DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  CALL abort(__STAMP__,'ERROR: Radial weighting only supports a load balance using an HDF5 output (UseH5IOLoadBalance = T)!')
+END IF
+#endif /*USE_LOADBALANCE*/
+
 ! Linear increasing weighting factor in the radial direction up to the domain boundary
 RadialWeighting%PartScaleFactor = GETREAL('Particles-RadialWeighting-PartScaleFactor')
 IF(RadialWeighting%PartScaleFactor.LT.1.) THEN
-  CALL Abort(&
-      __STAMP__,&
-    'ERROR in 2D axisymmetric simulation: PartScaleFactor has to be greater than 1!',RealInfoOpt=RadialWeighting%PartScaleFactor)
+  CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: PartScaleFactor has to be greater than 1!',RealInfoOpt=RadialWeighting%PartScaleFactor)
 END IF
 RadialWeighting%CloneMode = GETINT('Particles-RadialWeighting-CloneMode')
 RadialWeighting%CloneInputDelay = GETINT('Particles-RadialWeighting-CloneDelay')
@@ -385,32 +496,28 @@ RadialWeighting%CellLocalWeighting = GETLOGICAL('Particles-RadialWeighting-CellL
 RadialWeighting%nSubSides=GETINT('Particles-RadialWeighting-SurfFluxSubSides')
 
 RadialWeighting%NextClone = 0
+RadialWeighting%CloneVecLengthDelta = 100
+RadialWeighting%CloneVecLength = RadialWeighting%CloneVecLengthDelta
 
 SELECT CASE(RadialWeighting%CloneMode)
   CASE(1)
     IF(RadialWeighting%CloneInputDelay.LT.1) THEN
-      CALL Abort(&
-          __STAMP__,&
-        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
+      CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 0')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:(RadialWeighting%CloneInputDelay-1)))
-    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:(RadialWeighting%CloneInputDelay-1)))
+    ALLOCATE(ClonedParticles(1:RadialWeighting%CloneVecLength,0:(RadialWeighting%CloneInputDelay-1)))
     RadialWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 1
   CASE(2)
     IF(RadialWeighting%CloneInputDelay.LT.2) THEN
-      CALL Abort(&
-          __STAMP__,&
-        'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
+      CALL Abort(__STAMP__,'ERROR in 2D axisymmetric simulation: Clone delay should be greater than 1')
     END IF
     ALLOCATE(RadialWeighting%ClonePartNum(0:RadialWeighting%CloneInputDelay))
-    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/RadialWeighting%CloneInputDelay),0:RadialWeighting%CloneInputDelay))
+    ALLOCATE(ClonedParticles(1:RadialWeighting%CloneVecLength,0:RadialWeighting%CloneInputDelay))
     RadialWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) RadialWeighting%CloneDelayDiff = 0
   CASE DEFAULT
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+    CALL Abort(__STAMP__,'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
         ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
 END SELECT
 
@@ -489,6 +596,7 @@ IF(DoCloning) THEN
     END IF
   END SELECT
   ! Storing the particle information
+  IF(RadialWeighting%ClonePartNum(DelayCounter)+1.GT.RadialWeighting%CloneVecLength) CALL IncreaseClonedParticlesType()
   RadialWeighting%ClonePartNum(DelayCounter) = RadialWeighting%ClonePartNum(DelayCounter) + 1
   cloneIndex = RadialWeighting%ClonePartNum(DelayCounter)
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
@@ -496,7 +604,7 @@ IF(DoCloning) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
     IF(DSMC%ElectronicModel.GT.0) THEN
       ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
         IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
           DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
         ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
@@ -562,6 +670,7 @@ USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -602,14 +711,7 @@ IF(RadialWeighting%ClonePartNum(DelayCounter).EQ.0) RETURN
 
 ! 2.) Insert the clones at the position they were created
 DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
-  PDM%ParticleVecLength = PDM%ParticleVecLength + 1
-  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-  PositionNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-  IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
-    CALL Abort(&
-       __STAMP__,&
-      'ERROR in 2D axisymmetric simulation: New Particle Number greater max Part Num!')
-  END IF
+  PositionNbr = GetNextFreePosition()
   ! Copy particle parameters
   PDM%ParticleInside(PositionNbr) = .TRUE.
   PDM%IsNewPart(PositionNbr) = .TRUE.
@@ -621,7 +723,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
@@ -646,7 +748,7 @@ DO iPart = 1, RadialWeighting%ClonePartNum(DelayCounter)
   PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
   locElemID = PEM%LocalElemID(PositionNbr)
-  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  LastPartPos(1:3,PositionNbr) = PartState(1:3,PositionNbr)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (UseVarTimeStep) THEN
     PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
@@ -662,6 +764,9 @@ END DO
 
 ! 3.) Reset the list
 RadialWeighting%ClonePartNum(DelayCounter) = 0
+
+! 3.1) Reduce ClonedParticles if necessary
+CALL ReduceClonedParticlesType()
 
 END SUBROUTINE DSMC_2D_SetInClones
 
@@ -823,68 +928,6 @@ RETURN
 END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
 
 
-SUBROUTINE Init_Symmetry()
-!===================================================================================================================================
-!> Initialize if a 2D/1D Simulation is performed and which type
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
-USE MOD_Particle_Vars    ,ONLY: Symmetry
-USE MOD_DSMC_Vars        ,ONLY: RadialWeighting, VarWeighting, DSMC
-USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL                 :: Symmetry2D
-!===================================================================================================================================
-Symmetry%Order = GETINT('Particles-Symmetry-Order')
-Symmetry2D = GETLOGICAL('Particles-Symmetry2D')
-IF(Symmetry2D.AND.(Symmetry%Order.EQ.3)) THEN
-  Symmetry%Order = 2
-  LBWRITE(*,*) 'WARNING: Particles-Symmetry-Order is set to 2 because of Particles-Symmetry2D=.TRUE. .'
-  LBWRITE(*,*) 'Set Particles-Symmetry-Order=2 and remove Particles-Symmetry2D to avoid this warning'
-ELSE IF(Symmetry2D) THEN
-  CALL ABORT(__STAMP__&
-    ,'ERROR: 2D Simulations either with Particles-Symmetry-Order=2 or (but not recommended) with Symmetry2D=.TRUE.')
-END IF
-
-IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
-,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
-
-Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
-IF(Symmetry%Axisymmetric) THEN
-  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
-ELSE
-  RadialWeighting%DoRadialWeighting = .FALSE.
-  RadialWeighting%PerformCloning = .FALSE.
-END IF
-
-! Variable weights in 3D
-VarWeighting%DoVariableWeighting = GETLOGICAL('Part-VariableWeighting')
-
-IF (VarWeighting%DoVariableWeighting.AND.RadialWeighting%DoRadialWeighting) THEN
-  CALL ABORT(__STAMP__&
-      ,'ERROR: Variable and radial weighting cannot be enabled at the same time. ')
-END IF
-
-DSMC%CalcCellMPF = GETLOGICAL('Particles-VisuMPF')
-
-END SUBROUTINE Init_Symmetry
-
 SUBROUTINE DSMC_InitVarWeighting()
 !===================================================================================================================================
 !> Read-in and initialize the variables required for the 3D cloning procedures. Two modes with a delayed clone insertion are
@@ -946,6 +989,8 @@ VarWeighting%CloneInputDelay = GETINT('Part-VarWeighting-CloneDelay')
 VarWeighting%CellLocalWeighting = GETLOGICAL('Part-VarWeighting-CellLocalWeighting')
 
 VarWeighting%NextClone = 0
+VarWeighting%CloneVecLengthDelta = 100
+VarWeighting%CloneVecLength = VarWeighting%CloneVecLengthDelta
 
 SELECT CASE(VarWeighting%CloneMode)
   CASE(1)
@@ -955,7 +1000,7 @@ SELECT CASE(VarWeighting%CloneMode)
         'ERROR in simulation: Clone delay should be greater than 0')
     END IF
     ALLOCATE(VarWeighting%ClonePartNum(0:(VarWeighting%CloneInputDelay-1)))
-    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/VarWeighting%CloneInputDelay),0:(VarWeighting%CloneInputDelay-1)))
+    ALLOCATE(ClonedParticles(1:VarWeighting%CloneVecLength,0:(VarWeighting%CloneInputDelay-1)))
     VarWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) VarWeighting%CloneDelayDiff = 1
   CASE(2)
@@ -965,7 +1010,7 @@ SELECT CASE(VarWeighting%CloneMode)
         'ERROR in simulation: Clone delay should be greater than 1')
     END IF
     ALLOCATE(VarWeighting%ClonePartNum(0:VarWeighting%CloneInputDelay))
-    ALLOCATE(ClonedParticles(1:INT(PDM%maxParticleNumber/VarWeighting%CloneInputDelay),0:VarWeighting%CloneInputDelay))
+    ALLOCATE(ClonedParticles(1:VarWeighting%CloneVecLength,0:VarWeighting%CloneInputDelay))
     VarWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) VarWeighting%CloneDelayDiff = 0
   CASE DEFAULT
@@ -976,7 +1021,7 @@ SELECT CASE(VarWeighting%CloneMode)
 END SELECT
 
 ! Enable the CalcVarMPF routine
-AdaptMPF%UseOptMPF = .FALSE.
+! AdaptMPF%UseOptMPF = .FALSE.
 
 END SUBROUTINE DSMC_InitVarWeighting
 
@@ -1052,6 +1097,7 @@ IF(DoCloning) THEN
     END IF
   END SELECT
   ! Storing the particle information
+  IF(VarWeighting%ClonePartNum(DelayCounter)+1.GT.VarWeighting%CloneVecLength) CALL IncreaseClonedParticlesType()
   VarWeighting%ClonePartNum(DelayCounter) = VarWeighting%ClonePartNum(DelayCounter) + 1
   cloneIndex = VarWeighting%ClonePartNum(DelayCounter)
   ClonedParticles(cloneIndex,DelayCounter)%PartState(1:6)= PartState(1:6,iPart)
@@ -1059,7 +1105,7 @@ IF(DoCloning) THEN
     ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(1:2) = PartStateIntEn(1:2,iPart)
     IF(DSMC%ElectronicModel.GT.0) THEN
       ClonedParticles(cloneIndex,DelayCounter)%PartStateIntEn(3) =   PartStateIntEn(3,iPart)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(SpecID)%InterID.EQ.4).OR.SpecDSMC(SpecID)%FullyIonized))) THEN
         IF(ALLOCATED(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)) &
           DEALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc)
         ALLOCATE(ClonedParticles(cloneIndex,DelayCounter)%DistriFunc(1:SpecDSMC(SpecID)%MaxElecQuant))
@@ -1125,6 +1171,7 @@ USE MOD_Particle_Vars           ,ONLY: Species, UseVarTimeStep, PartTimeStep
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: iter
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1165,34 +1212,19 @@ IF(VarWeighting%ClonePartNum(DelayCounter).EQ.0) RETURN
 
 ! 2.) Insert the clones at the position they were created
 DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
-  PDM%ParticleVecLength = PDM%ParticleVecLength + 1
-  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-  PositionNbr = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-  IF (PDM%ParticleVecLength.GT.PDM%maxParticleNumber) THEN
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in simulation: New Particle Number greater max Part Num!')
-  END IF
-
-  PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
-  ! Set the global element number with the offset
-  PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
-  PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
-  locElemID = PEM%LocalElemID(PositionNbr)
-  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
-  PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
+  PositionNbr = GetNextFreePosition()
 
   ! Copy particle parameters
   PDM%ParticleInside(PositionNbr) = .TRUE.
   PDM%IsNewPart(PositionNbr) = .TRUE.
   PDM%dtFracPush(PositionNbr) = .FALSE.
-  PartState(1:6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:6)
+  PartState(1:6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:6) ! TEST ???
 
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
       PartStateIntEn(3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(3)
-      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
+      IF ((DSMC%ElectronicModel.EQ.2).AND.(.NOT.((Species(ClonedParticles(iPart,DelayCounter)%Species)%InterID.EQ.4) &
           .OR.SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%FullyIonized))) THEN
         IF(ALLOCATED(ElectronicDistriPart(PositionNbr)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc)
         ALLOCATE(ElectronicDistriPart(PositionNbr)%DistriFunc(1:SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%MaxElecQuant))
@@ -1218,14 +1250,14 @@ DO iPart = 1, VarWeighting%ClonePartNum(DelayCounter)
   PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
   PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
   locElemID = PEM%LocalElemID(PositionNbr)
-  LastPartPos(1:3,PositionNbr) = ClonedParticles(iPart,DelayCounter)%LastPartPos(1:3)
+  LastPartPos(1:3,PositionNbr) = PartState(1:3,PositionNbr)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor
   IF (UseVarTimeStep) THEN
     PartTimeStep(PositionNbr) = GetParticleTimeStep(PartState(1,PositionNbr),PartState(2,PositionNbr),locElemID)
   END IF
   ! Counting the number of clones per cell
   IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,6) = DSMC%QualityFacSamp(locElemID,6) + 1
+    IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(locElemID,5) = DSMC%QualityFacSamp(locElemID,5) + 1
   END IF
   IF(CalcPartBalance) THEN
     nPartIn(PartSpecies(PositionNbr))=nPartIn(PartSpecies(PositionNbr)) + 1
@@ -1234,6 +1266,9 @@ END DO
 
 ! 3.) Reset the list
 VarWeighting%ClonePartNum(DelayCounter) = 0
+
+! 3.1) Reduce ClonedParticles if necessary
+CALL ReduceClonedParticlesType()
 
 END SUBROUTINE DSMC_SetInClones
 
@@ -1319,7 +1354,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
       IF(Coll_pData(iPair)%CRela2.EQ.0.0) THEN
         ! If the relative velocity is still zero, add the pair to the identical particles count
         IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-          IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,7) = DSMC%QualityFacSamp(iElem,7) + 1
+          IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
         END IF
       END IF
       ! Increase the appropriate case number and set the right pair type
@@ -1343,7 +1378,7 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                                + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
       ! Add the pair to the number of identical particles output
       IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-        IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,7) = DSMC%QualityFacSamp(iElem,7) + 1
+        IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
       END IF
     END IF  ! nPart.EQ.1/iPair.LT.nPair
   ELSE
@@ -1355,11 +1390,274 @@ IF (Coll_pData(iPair)%CRela2.EQ.0.0) THEN
                              + (PartState(6,iPart_p1) - PartState(6,iPart_p2))**2
     ! Add the pair to the number of identical particles output
     IF(SamplingActive.OR.WriteMacroVolumeValues) THEN
-      IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,7) = DSMC%QualityFacSamp(iElem,7) + 1
+      IF(DSMC%CalcQualityFactors) DSMC%QualityFacSamp(iElem,6) = DSMC%QualityFacSamp(iElem,6) + 1
     END IF
   END IF  ! nPart.EQ.1/iPair.LT.nPair
 END IF    ! Coll_pData(iPair)%CRela2.EQ.0.0
 
 END SUBROUTINE DSMC_TreatIdenticalParticles
+
+SUBROUTINE IncreaseClonedParticlesType()
+!===================================================================================================================================
+!> Increases CloneVecLength and the ClonedParticles(iPart,iDelay) type
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, VarWeighting, ClonedParticles, tClonedParticles
+USE MOD_Particle_Vars         ,ONLY: PDM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                              :: NewSize,i,ii,ALLOCSTAT
+TYPE (tClonedParticles), ALLOCATABLE :: ClonedParticles_new(:,:)
+!===================================================================================================================================
+IF (RadialWeighting%DoRadialWeighting) THEN
+  NewSize = MAX(CEILING(RadialWeighting%CloneVecLength * (1+PDM%MaxPartNumIncrease)),RadialWeighting%CloneVecLength+RadialWeighting%CloneVecLengthDelta)
+
+  SELECT CASE(RadialWeighting%CloneMode)
+  CASE(1)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,RadialWeighting%CloneInputDelay-1
+      DO i=1,RadialWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE(2)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,RadialWeighting%CloneInputDelay
+      DO i=1,RadialWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE DEFAULT
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+  END SELECT
+
+  RadialWeighting%CloneVecLength = NewSize
+ELSE
+  NewSize = MAX(CEILING(VarWeighting%CloneVecLength * (1+PDM%MaxPartNumIncrease)),VarWeighting%CloneVecLength+VarWeighting%CloneVecLengthDelta)
+
+  SELECT CASE(VarWeighting%CloneMode)
+  CASE(1)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:(VarWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,VarWeighting%CloneInputDelay-1
+      DO i=1,VarWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE(2)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:VarWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,VarWeighting%CloneInputDelay
+      DO i=1,VarWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE DEFAULT
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+  END SELECT
+
+  VarWeighting%CloneVecLength = NewSize
+END IF
+
+END SUBROUTINE IncreaseClonedParticlesType
+
+
+SUBROUTINE ReduceClonedParticlesType()
+!===================================================================================================================================
+!> Reduces RadialWeighting%CloneVecLength and the ClonedParticles(iPart,iDelay) type
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, VarWeighting, ClonedParticles, tClonedParticles
+USE MOD_Particle_Vars         ,ONLY: PDM
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                              :: NewSize,i,ii,ALLOCSTAT
+TYPE (tClonedParticles), ALLOCATABLE :: ClonedParticles_new(:,:)
+!===================================================================================================================================
+IF (RadialWeighting%DoRadialWeighting) THEN
+  IF (MAXVAL(RadialWeighting%ClonePartNum(:)).GE.PDM%maxParticleNumber/(1.+PDM%MaxPartNumIncrease)**2) RETURN
+
+  NewSize = MAX(CEILING(MAXVAL(RadialWeighting%ClonePartNum(:))*(1.+PDM%MaxPartNumIncrease)),1)
+
+  IF (NewSize.GT.RadialWeighting%CloneVecLength-RadialWeighting%CloneVecLengthDelta) RETURN
+
+  SELECT CASE(RadialWeighting%CloneMode)
+  CASE(1)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:(RadialWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,RadialWeighting%CloneInputDelay-1
+      DO i=1,RadialWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE(2)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:RadialWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,RadialWeighting%CloneInputDelay
+      DO i=1,RadialWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE DEFAULT
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+  END SELECT
+
+  RadialWeighting%CloneVecLength = NewSize
+ELSE
+  IF (MAXVAL(VarWeighting%ClonePartNum(:)).GE.PDM%maxParticleNumber/(1.+PDM%MaxPartNumIncrease)**2) RETURN
+
+  NewSize = MAX(CEILING(MAXVAL(VarWeighting%ClonePartNum(:))*(1.+PDM%MaxPartNumIncrease)),1)
+
+  IF (NewSize.GT.VarWeighting%CloneVecLength-VarWeighting%CloneVecLengthDelta) RETURN
+
+  SELECT CASE(VarWeighting%CloneMode)
+  CASE(1)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:(VarWeighting%CloneInputDelay-1)),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,VarWeighting%CloneInputDelay-1
+      DO i=1,VarWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE(2)
+    ALLOCATE(ClonedParticles_new(1:NewSize,0:VarWeighting%CloneInputDelay),STAT=ALLOCSTAT)
+    IF (ALLOCSTAT.NE.0) CALL ABORT(&
+  __STAMP__&
+  ,'Cannot allocate increased new ClonedParticles Array')
+    DO ii=0,VarWeighting%CloneInputDelay
+      DO i=1,VarWeighting%ClonePartNum(ii)
+        ClonedParticles_new(i,ii)%Species=ClonedParticles(i,ii)%Species
+        ClonedParticles_new(i,ii)%PartState(1:6)=ClonedParticles(i,ii)%PartState(1:6)
+        ClonedParticles_new(i,ii)%PartStateIntEn(1:3)=ClonedParticles(i,ii)%PartStateIntEn(1:3)
+        ClonedParticles_new(i,ii)%Element=ClonedParticles(i,ii)%Element
+        ClonedParticles_new(i,ii)%LastPartPos(1:3)=ClonedParticles(i,ii)%LastPartPos(1:3)
+        ClonedParticles_new(i,ii)%WeightingFactor=ClonedParticles(i,ii)%WeightingFactor
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%VibQuants,ClonedParticles_new(i,ii)%VibQuants)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%DistriFunc,ClonedParticles_new(i,ii)%DistriFunc)
+        CALL MOVE_ALLOC(ClonedParticles(i,ii)%AmbiPolVelo,ClonedParticles_new(i,ii)%AmbiPolVelo)
+      END DO
+    END DO
+    DEALLOCATE(ClonedParticles)
+    CALL MOVE_ALLOC(ClonedParticles_New,ClonedParticles)
+  CASE DEFAULT
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in Radial Weighting of 2D/Axisymmetric: The selected cloning mode is not available! Choose between 1 and 2.'//&
+        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+  END SELECT
+
+  VarWeighting%CloneVecLength = NewSize
+END IF
+
+END SUBROUTINE ReduceClonedParticlesType
 
 END MODULE MOD_DSMC_Symmetry

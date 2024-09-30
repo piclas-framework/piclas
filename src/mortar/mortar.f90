@@ -53,7 +53,6 @@ SUBROUTINE InitMortar()
 ! Basic Mortar initialization.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType

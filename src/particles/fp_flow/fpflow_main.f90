@@ -46,13 +46,12 @@ SUBROUTINE FP_DSMC_main()
 ! MODULES
 USE MOD_Globals
 USE MOD_FP_BGK_DSMC_Coupling,ONLY: CBC_DoDSMC
-USE MOD_Cell_Adaption       ,ONLY: MeshAdaption
-USE MOD_Particle_Mesh_Vars  ,ONLY: DoSubcellAdaption
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_FPFlow_Vars
+USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
+USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, CBC
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
@@ -70,7 +69,6 @@ USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! LOCAL VARIABLES
 INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
-LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
 DO iElem = 1, nElems
@@ -127,8 +125,6 @@ DO iElem = 1, nElems
     ELSE
       CALL BGK_octree_adapt(iElem)
     END IF
-  ELSE IF (DoSubcellAdaption) THEN
-    CALL MeshAdaption(iElem)
   ELSE
     ALLOCATE(iPartIndx_Node(nPart))
     iPart = PEM%pStart(iElem)
@@ -156,7 +152,7 @@ DO iElem = 1, nElems
   END IF
 END DO
 
-CALL DSMC_main(DoElement)
+CALL DSMC_main(CBC%DoElementDSMC)
 
 END SUBROUTINE FP_DSMC_main
 
@@ -178,8 +174,7 @@ USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared, DoSubcellAdaption
-USE MOD_Cell_Adaption       ,ONLY: MeshAdaption
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
 ! IMPLICIT VARIABLE HANDLING
@@ -202,10 +197,6 @@ IF (DoBGKCellAdaptation) THEN
     ELSE
       CALL BGK_octree_adapt(iElem)
     END IF
-  END DO
-ELSE IF (DoSubcellAdaption) THEN
-  DO iElem = 1, nElems
-    CALL MeshAdaption(iElem)
   END DO
 ELSE
   DO iElem = 1, nElems

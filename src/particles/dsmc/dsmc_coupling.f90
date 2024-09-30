@@ -428,7 +428,7 @@ DO iLoop = 1, PEM%pNumber(ElemID)
   Velo2(PartSpecies(iPart),1:3) = Velo2(PartSpecies(iPart),1:3) + PartState(4:6,iPart)**2 * GetParticleWeight(iPart)
 
   ! Vibrational and rotational energy for the temperature calculation
-  IF ((SpecDSMC(PartSpecies(iPart))%InterID.EQ.2).OR.(SpecDSMC(PartSpecies(iPart))%InterID.EQ.20)) THEN
+  IF ((Species(PartSpecies(iPart))%InterID.EQ.2).OR.(Species(PartSpecies(iPart))%InterID.EQ.20)) THEN
     MolPartNum(PartSpecies(iPart)) = MolPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
     EVib(PartSpecies(iPart)) = EVib(PartSpecies(iPart)) + (PartStateIntEn(1,iPart) - SpecDSMC(PartSpecies(iPart))%EZeroPoint) * GetParticleWeight(iPart)
     ERot(PartSpecies(iPart)) = ERot(PartSpecies(iPart)) + PartStateIntEn(2,iPart) * GetParticleWeight(iPart)
@@ -466,7 +466,7 @@ DO iSpec = 1, nSpecies
 
     ! Internal energies
     IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-      IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         ! Vibrational temperature for polyatomic molecules
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           IF( (EVib(iSpec)/MolPartNum(iSpec)).GT.0.0 ) THEN
@@ -674,7 +674,7 @@ DO iSpec = 1, nSpecies
   SpecPartNum(iSpec) = PartNumIter(iSpec) / REAL(DSMC%SampNum)
   Velo(iSpec,1:3)    = DSMC_Solution(1:3,ElemID,iSpec) / REAL(DSMC%SampNum)
   Velo2(iSpec,1:3)   = DSMC_Solution(4:6,ElemID,iSpec) / REAL(DSMC%SampNum)
-  IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+  IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     MolPartNum(iSpec) = PartNumIter(iSpec) / REAL(DSMC%SampNum)
     EVib(iSpec)  = DSMC_Solution(8,ElemID,iSpec) / REAL(DSMC%SampNum)
     ERot(iSpec)  = DSMC_Solution(9,ElemID,iSpec) / REAL(DSMC%SampNum)
@@ -712,7 +712,7 @@ DO iSpec = 1, nSpecies
 
     ! Internal energies
     IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
-      IF ((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+      IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         ! Vibrational temperature for polyatomic molecules
         IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
           IF( (EVib(iSpec)/MolPartNum(iSpec)).GT.0.0 ) THEN
@@ -737,7 +737,7 @@ DO iSpec = 1, nSpecies
         DoF_VibTotal = DoF_VibTotal + DoF_Vib(iSpec) * MolPartNum(iSpec)
       END IF ! InterID
       IF (DSMC%ElectronicModel.GT.0) THEN
-        IF ((SpecDSMC(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+        IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
           TempElec = TempElec + CalcTelec(EElec(iSpec), iSpec) * MolPartNum(iSpec)
           HeavyPartNum = HeavyPartNum + MolPartNum(iSpec)
         END IF

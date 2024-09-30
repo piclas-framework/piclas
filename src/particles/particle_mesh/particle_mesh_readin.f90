@@ -39,15 +39,10 @@ INTERFACE FinishCommunicateMeshReadin
   MODULE PROCEDURE FinishCommunicateMeshReadin
 END INTERFACE
 
-INTERFACE FinalizeMeshReadin
-  MODULE PROCEDURE FinalizeMeshReadin
-END INTERFACE
-
 PUBLIC :: ReadMeshBasics
 PUBLIC :: ReadMeshSideNeighbors
 PUBLIC :: StartCommunicateMeshReadin
 PUBLIC :: FinishCommunicateMeshReadin
-PUBLIC :: FinalizeMeshReadin
 !===================================================================================================================================
 
 CONTAINS
@@ -150,6 +145,8 @@ INTEGER                        :: nSideIDs,offsetSideID
 #if USE_MPI
 INTEGER                        :: iProc
 INTEGER                        :: offsetNodeID!,nNodeIDs
+INTEGER                        :: MPI_LENGTH(1),MPI_TYPE(1)
+INTEGER(KIND=MPI_ADDRESS_KIND) :: MPI_DISPLACEMENT(1)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -265,14 +262,33 @@ IF (myComputeNodeRank.EQ.0) THEN
 
   ! Gather mesh information in a non-blocking way
   ALLOCATE(MPI_COMM_LEADERS_REQUEST(1:4))
-  CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,ELEMINFOSIZE    *recvcountElem  &
-      ,ELEMINFOSIZE*displsElem     ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
-  CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
-      ,(SIDEINFOSIZE+1)*displsSide ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(2),IERROR)
+  ! ElemInfo_Shared
+  MPI_LENGTH       = ELEMINFOSIZE
+  MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+  MPI_TYPE         = MPI_INTEGER
+  CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_ELEM,iError)
+  CALL MPI_TYPE_COMMIT(MPI_STRUCT_ELEM,iError)
+  CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,ElemInfo_Shared,recvcountElem  &
+      ,displsElem                   ,MPI_STRUCT_ELEM         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(1),IERROR)
+  ! SideInfo_Shared
+  MPI_LENGTH       = SIDEINFOSIZE+1
+  MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+  MPI_TYPE         = MPI_INTEGER
+  CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_SIDE,iError)
+  CALL MPI_TYPE_COMMIT(MPI_STRUCT_SIDE,iError)
+  CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,                 recvcountSide  &
+      ,displsSide                   ,MPI_STRUCT_SIDE         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(2),IERROR)
+  ! NodeInfo_Shared
   CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeInfo_Shared,                 recvcountNode  &
-      ,displsNode                  ,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(3),IERROR)
-  CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,3             *recvcountNode  &
-      ,3*displsNode                ,MPI_DOUBLE_PRECISION,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(4),IERROR)
+      ,displsNode                   ,MPI_INTEGER             ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(3),IERROR)
+  ! NodeCoords_Shared
+  MPI_LENGTH       = 3
+  MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+  MPI_TYPE         = MPI_DOUBLE_PRECISION
+  CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT_NODE,iError)
+  CALL MPI_TYPE_COMMIT(MPI_STRUCT_NODE,iError)
+  CALL MPI_IALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,NodeCoords_Shared,recvcountNode  &
+      ,displsNode                   ,MPI_STRUCT_NODE          ,MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_REQUEST(4),IERROR)
 END IF
 #endif /*USE_MPI*/
 
@@ -402,8 +418,11 @@ END DO
 CALL BARRIER_AND_SYNC(SideInfo_Shared_Win,MPI_COMM_SHARED)
 
 IF (myComputeNodeRank.EQ.0) THEN
-  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,(SIDEINFOSIZE+1)*recvcountSide  &
-      ,(SIDEINFOSIZE+1)*displsSide,MPI_INTEGER         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_ALLGATHERV(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,SideInfo_Shared,recvcountSide  &
+      ,displsSide,MPI_STRUCT_SIDE         ,MPI_COMM_LEADERS_SHARED,IERROR)
+  CALL MPI_TYPE_FREE(MPI_STRUCT_ELEM,iError)
+  CALL MPI_TYPE_FREE(MPI_STRUCT_SIDE,iError)
+  CALL MPI_TYPE_FREE(MPI_STRUCT_NODE,iError)
 END IF
 
 ! Write compute-node local SIDE_NBELEMTYPE
@@ -430,83 +449,6 @@ CommMeshReadinWallTime=EndT-StartT
 CALL DisplayMessageAndTime(CommMeshReadinWallTime, 'DONE!')
 
 END SUBROUTINE FinishCommunicateMeshReadin
-
-
-SUBROUTINE FinalizeMeshReadin()
-!===================================================================================================================================
-! Finalizes the shared mesh readin
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Mesh_Vars
-USE MOD_Particle_Mesh_Vars
-#if USE_MPI
-USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars
-#endif
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
-#if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-
-! volumes
-CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
-CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
-#endif /*USE_MPI*/
-
-! Then, free the pointers or arrays
-ADEALLOCATE(ElemVolume_Shared)
-ADEALLOCATE(ElemCharLength_Shared)
-
-#if USE_MPI
-! Free communication arrays
-SDEALLOCATE(displsElem)
-SDEALLOCATE(recvcountElem)
-SDEALLOCATE(displsSide)
-SDEALLOCATE(recvcountSide)
-
-#if USE_LOADBALANCE
-IF (PerformLoadBalance) THEN
-  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-  RETURN
-END IF
-#endif /*USE_LOADBALANCE*/
-
-! elems
-CALL UNLOCK_AND_FREE(ElemInfo_Shared_Win)
-
-! sides
-CALL UNLOCK_AND_FREE(SideInfo_Shared_Win)
-
-! nodes
-CALL UNLOCK_AND_FREE(NodeInfo_Shared_Win)
-CALL UNLOCK_AND_FREE(NodeCoords_Shared_Win)
-
-CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-#endif /*USE_MPI*/
-
-ADEALLOCATE(ElemInfo_Shared)
-ADEALLOCATE(SideInfo_Shared)
-ADEALLOCATE(NodeInfo_Shared)
-ADEALLOCATE(NodeCoords_Shared)
-
-! Free communication arrays
-#if USE_MPI
-SDEALLOCATE(displsNode)
-SDEALLOCATE(recvcountNode)
-#endif /*USE_MPI*/
-
-END SUBROUTINE FinalizeMeshReadin
 
 
 END MODULE MOD_Particle_Mesh_Readin

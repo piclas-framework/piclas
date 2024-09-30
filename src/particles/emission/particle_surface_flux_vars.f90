@@ -37,10 +37,17 @@ TYPE tSurfFluxSubSideData
                                                                              ! (1:2,0:NGeo,0:NGeo)
 END TYPE tSurfFluxSubSideData
 
-TYPE typeSurfaceflux
+TYPE tSurfaceFlux
   INTEGER                                :: BC                               ! PartBound to be emitted from
+  INTEGER                                :: Type                             ! Type set based on the read-in parameters
+                                                                             ! 0: Standard surface flux
+                                                                             ! 1: Adaptive surface flux (includes RadialWeighting)
+                                                                             ! 2: Radial weighting in axisymmetric simulations
+                                                                             ! 3: DoPoissonRounding .AND. .NOT.DoTimeDepInflow
+                                                                             ! 4: DoTimeDepInflow
+                                                                             ! 5: Thermionic emission with Schottky effect (requires HDG)
   CHARACTER(30)                          :: velocityDistribution             ! specifying keyword for velocity distribution
-  REAL                                   :: VeloIC                           ! velocity for inital Data
+  REAL                                   :: VeloIC                           ! velocity for initial Data
   REAL                                   :: VeloVecIC(3)                     ! normalized velocity vector
   REAL                                   :: MWTemperatureIC                  ! Temperature for Maxwell Distribution
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)

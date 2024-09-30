@@ -181,6 +181,7 @@ IF(AlgebraicExternalFieldDelta.LT.0) CALL abort(__STAMP__,'AlgebraicExternalFiel
 !--- Allocate arrays for interpolation of fields to particles
 ALLOCATE(FieldAtParticle(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__ ,'ERROR in pic_interpolation.f90: Cannot allocate FieldAtParticle array!',ALLOCSTAT)
+FieldAtParticle = 0.
 
 SELECT CASE(TRIM(InterpolationType))
 CASE('particle_position')
@@ -216,6 +217,9 @@ IF(DoInterpolationAnalytic)THEN
     !                              1: relativistic
     AnalyticInterpolationSubType = GETINT('PIC-AnalyticInterpolation-SubType')
     AnalyticInterpolationE       = GETREAL('PIC-AnalyticInterpolationE')
+  CASE(5,51)
+    ! RotRefFrameFreq and RotRefFrameOmega is already defined in particle_init.f90
+    TimeReset = 0.0
   CASE DEFAULT
     WRITE(TempStr,'(I5)') AnalyticInterpolationType
     CALL abort(__STAMP__,'Unknown PIC-AnalyticInterpolation-Type "'//TRIM(ADJUSTL(TempStr))//'" in pic_interpolation.f90')

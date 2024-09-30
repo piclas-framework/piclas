@@ -56,6 +56,7 @@ INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes o
 INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
 INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
 INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
+INTEGER            :: MPI_STRUCT_ELEM,MPI_STRUCT_SIDE,MPI_STRUCT_NODE
 #endif /*USE_MPI*/
 
 ! Surface sampling
@@ -70,10 +71,6 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf si
                                                             !> 1 - sides from local leader to other leader
                                                             !> 2 - sides from other leader to local leader
 
-INTEGER, ALLOCATABLE :: CNTotalElem2GlobalElem(:)           !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
-INTEGER, ALLOCATABLE :: GlobalElem2CNTotalElem(:)           !> Reverse Mapping
-INTEGER, ALLOCATABLE :: CNTotalSide2GlobalSide(:)           !> Compute Nodes mapping 1:nTotal -> 1:nGlobal
-INTEGER, ALLOCATABLE :: GlobalSide2CNTotalSide(:)           !> Reverse Mapping
 
 INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
 

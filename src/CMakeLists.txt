@@ -28,7 +28,6 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           RK4
                                                           RK14
                                                           DSMC
-                                                          RESERVOIR
                                                           FP-Flow
                                                           BGK-Flow
                                                           CN
@@ -39,7 +38,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           ROS3
                                                           ROS4
                                                           ROS46
-                                                          ROS6)
+                                                          ROS6
+                                                          Radiation)
 
 # =========================================================================
 # Shared memory region splitting
@@ -63,14 +63,14 @@ IF(PICLAS_SHARED_MEMORY STREQUAL "MPI_COMM_TYPE_SHARED")
   UNSET(PICLAS_SHARED_MEMORY_CORES CACHE)
   ADD_DEFINITIONS(-DCORE_SPLIT=0)
   MESSAGE(STATUS "Shared memory split type for subcommunicators set to node-level")
-ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "PICLAS_COMM_TYPE_NODE")
-  SET(PICLAS_SHARED_MEMORY_CORES "2" CACHE STRING "Number of cores per node when setting PICLAS_SHARED_MEMORY=PICLAS_COMM_TYPE_NODE. All cores must be on the same physical node!")
-  ADD_DEFINITIONS(-DCORE_SPLIT=${PICLAS_SHARED_MEMORY_CORES})
-  MESSAGE(STATUS "Shared memory split type for subcommunicators set to sub-node-level with user-specific value [PICLAS_SHARED_MEMORY_CORES = ${PICLAS_SHARED_MEMORY_CORES}] cores per node")
 ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "OMPI_COMM_TYPE_CORE")
   UNSET(PICLAS_SHARED_MEMORY_CORES CACHE)
   ADD_DEFINITIONS(-DCORE_SPLIT=1)
   MESSAGE(STATUS "Shared memory split type for subcommunicators set to core-level")
+ELSEIF(PICLAS_SHARED_MEMORY STREQUAL "PICLAS_COMM_TYPE_NODE")
+  SET(PICLAS_SHARED_MEMORY_CORES "2" CACHE STRING "Number of cores per node when setting PICLAS_SHARED_MEMORY=PICLAS_COMM_TYPE_NODE. All cores must be on the same physical node!")
+  ADD_DEFINITIONS(-DCORE_SPLIT=${PICLAS_SHARED_MEMORY_CORES})
+  MESSAGE(STATUS "Shared memory split type for subcommunicators set to sub-node-level with user-specific value [PICLAS_SHARED_MEMORY_CORES = ${PICLAS_SHARED_MEMORY_CORES}] cores per node")
 ENDIF()
 
 # =========================================================================
@@ -79,7 +79,7 @@ ENDIF()
 CMAKE_DEPENDENT_OPTION(PICLAS_LOADBALANCE "Use load balance time measurement" ON "LIBS_USE_MPI" OFF)
 
 OPTION(PICLAS_INTKIND8 "Enable particle numbers larger than 2147483647 (on most systems, huge(4-byte-integer)))" OFF)
-IF (PICLAS_INTKIND8)
+IF(PICLAS_INTKIND8)
    ADD_DEFINITIONS(-DINTKIND8)
 ENDIF()
 
@@ -160,8 +160,6 @@ IF(PICLAS_PARTICLES)
 ELSE()
   IF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
     MESSAGE(SEND_ERROR "DSMC cannot be used without particles.")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-    MESSAGE(SEND_ERROR "RESERVOIR cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
     MESSAGE(SEND_ERROR "BGK-Flow cannot be used without particles.")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
@@ -240,9 +238,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RESERVOIR")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC_Debug.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=42)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
@@ -285,6 +280,9 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_BGK.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=400)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_Radiation.f90)
+   ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -364,7 +362,7 @@ ENDIF()
 IF(BUILD_TYPE_LC MATCHES "sanitize" AND LIBS_USE_MPI)
   SET(ACTIVATE_UNIT_TEST OFF)
   # Check if unit tests were previously activated
-  IF(PICLAS_UNITTESTS)
+  IF(PICLAS_UNITTESTS AND LIBS_MPI_NAME MATCHES "OpenMPI")
     MESSAGE(WARNING "Unit tests automatically disabled (PICLAS_UNITTESTS=OFF) with\n CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}\n LIBS_USE_MPI = ${LIBS_USE_MPI}\nas the tests will always fail due to memory errors returned from the MPI library.")
     SET(PICLAS_UNITTESTS OFF)
   ENDIF()
@@ -386,6 +384,8 @@ FUNCTION(add_exec target)
   ADD_EXECUTABLE(       ${target} ${ARGN})
   TARGET_LINK_LIBRARIES(${target} libpiclasshared)
   SET_TARGET_PROPERTIES(${target} PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                             COMPILE_OPTIONS "-fPIC"
+                                             CMAKE_POSITION_INDEPENDENT_CODE ON
                                              LINKER_LANGUAGE Fortran)
   INSTALL(PROGRAMS ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${target} DESTINATION bin)
   STRING(TOUPPER ${target} TARGETUP)
@@ -397,6 +397,8 @@ FUNCTION(add_lib_shared target)
   TARGET_LINK_LIBRARIES(${target} ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/userblock.o libpiclasstatic userblocklib stacksizelib memusagelib ${linkedlibs})
   SET_TARGET_PROPERTIES(${target} PROPERTIES PREFIX ""
                                              COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                             COMPILE_OPTIONS "-fPIC"
+                                             CMAKE_POSITION_INDEPENDENT_CODE ON
                                              LINKER_LANGUAGE Fortran)
   INSTALL(TARGETS ${target} LIBRARY PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
                                                 GROUP_READ GROUP_EXECUTE
@@ -451,6 +453,7 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/dg/dg_vars.f90
                          ./src/interpolation/prolongtoface.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
+                         ./src/equations/${PICLAS_EQNSYSNAME}/equation_tools.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
@@ -490,7 +493,12 @@ ENDIF()
                   #./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
                                ./src/posti/superB/*.f90
-                               ./src/interpolation/eval_xyz.f90)
+                               ./src/interpolation/eval_xyz.f90
+                               ./src/radiation/ray_tracing/*.f90
+                               ./src/radiation/radiative_transfer/radtrans_vars.f90
+                               ./src/radiation/radiative_transfer/tracking/*.f90
+                               ./src/radiation/radiation_solver/radiation_vars.f90)
+
 FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/particle_mesh/particle_surfaces_vars.f90
                          ./src/particles/particle_mesh/particle_mesh_vars.f90
@@ -501,6 +509,8 @@ FILE(GLOB noparticlesF90 ./src/particles/analyze/particle_analyze_vars.f90
                          ./src/particles/boundary/particle_boundary_vars.f90)
 
 FILE(GLOB_RECURSE extraeF90 ./src/extrae/*.f90)
+
+FILE(GLOB_RECURSE radiationF90 ./src/radiation/*.f90)
 
 IF(PICLAS_EXTRAE)
   LIST(APPEND piclasF90 ${extraeF90})
@@ -527,28 +537,38 @@ IF (PICLAS_PARTICLES)
 ELSE()
   LIST(APPEND piclasF90 ${noparticlesF90})
 ENDIF(PICLAS_PARTICLES)
+IF (PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
+  LIST(APPEND piclasF90 ${radiationF90})
+ENDIF()
 
 # define libs
 ADD_LIBRARY(          libpiclasstaticF90 OBJECT ${piclasF90} )
-SET_TARGET_PROPERTIES(libpiclasstaticF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS})
-ADD_LIBRARY(          libpiclasstatic STATIC $<TARGET_OBJECTS:libpiclasstaticF90>)
-SET_TARGET_PROPERTIES(libpiclasstatic PROPERTIES PREFIX ""
-                                      OUTPUT_NAME "libpiclasf90")
+SET_TARGET_PROPERTIES(libpiclasstaticF90 PROPERTIES COMPILE_FLAGS ${PICLAS_COMPILE_FLAGS}
+                                                    COMPILE_OPTIONS "-fPIC"
+                                                    CMAKE_POSITION_INDEPENDENT_CODE ON)
+ADD_LIBRARY(          libpiclasstatic    STATIC $<TARGET_OBJECTS:libpiclasstaticF90>)
+SET_TARGET_PROPERTIES(libpiclasstatic    PROPERTIES PREFIX ""
+                                                    COMPILE_OPTIONS "-fPIC"
+                                                    CMAKE_POSITION_INDEPENDENT_CODE ON
+                                                    OUTPUT_NAME "libpiclasf90")
 IF(SELFBUILTEXTERNALS)
   ADD_DEPENDENCIES(libpiclasstaticF90 ${SELFBUILTEXTERNALS})
 ENDIF()
 
 ADD_LIBRARY(userblocklib STATIC ./src/output/read_userblock.c)
 SET_TARGET_PROPERTIES(userblocklib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
-                                              COMPILE_FLAGS "-fPIC")
+                                              COMPILE_OPTIONS "-fPIC"
+                                              CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ADD_LIBRARY(stacksizelib STATIC ./src/globals/stacksize.c)
 SET_TARGET_PROPERTIES(stacksizelib PROPERTIES LANGUAGE C LINKER_LANGUAGE C
-                                              COMPILE_FLAGS "-fPIC")
+                                              COMPILE_OPTIONS "-fPIC"
+                                              CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 ADD_LIBRARY(memusagelib STATIC ./src/globals/processmemusage.cxx)
 SET_TARGET_PROPERTIES(memusagelib PROPERTIES LANGUAGE CXX LINKER_LANGUAGE CXX
-                                             COMPILE_FLAGS "-fPIC")
+                                              COMPILE_OPTIONS "-fPIC"
+                                             CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 # we link the statically built libs
 ADD_LIB_SHARED(libpiclasshared ./src/piclaslib.f90)
@@ -556,6 +576,8 @@ SET_TARGET_PROPERTIES(libpiclasshared PROPERTIES OUTPUT_NAME "libpiclas")
 ADD_DEPENDENCIES(libpiclasshared libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
 ADD_EXEC(piclas ./src/piclas.f90)
 ADD_DEPENDENCIES(piclas libpiclasstatic userblocklib stacksizelib memusagelib ${INTERNALLIBS})
+# Make sure that the script is executed even though cmake is not explicitly executed after the commit is changed in git
+ADD_DEPENDENCIES(piclas UpdateGitCommitHash)
 
 # special compiler flags to avoid warnings for empty functions of testcase.f90 and overwrite of intrinsic abort in globals.f90
 IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")

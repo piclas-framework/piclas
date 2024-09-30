@@ -120,12 +120,10 @@ USE MOD_PICDepo_Vars          ,ONLY: DoDeposition,SFAdaptiveDOF,r_sf,DepositionT
 USE MOD_PICDepo_Vars          ,ONLY: SFAdaptiveSmoothing
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL, GETINT, GETSTR, GETINTARRAY, GETREALARRAY, GETREAL
 USE MOD_ReadInTools           ,ONLY: PrintOption
-USE MOD_Particle_Sampling_Vars,ONLY: UseAdaptive
-#if (PP_TimeDiscMethod == 42)
+USE MOD_Particle_Sampling_Vars,ONLY: UseAdaptiveBC
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 USE MOD_TimeDisc_Vars         ,ONLY: ManualTimeStep
 USE MOD_Restart_Vars          ,ONLY: RestartTime
-#endif
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars       ,ONLY: MPI_COMM_SHARED
@@ -420,6 +418,23 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
 #endif
 END IF
 
+! PIC Time Step Approximation
+CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep')
+IF(CalcPICTimeStep)THEN
+  ALLOCATE( PICTimeStepCell(1:PP_nElems) )
+  PICTimeStepCell=0.0
+  CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
+END IF
+
+! Plasma Frequency
+CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency')
+IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
+IF(CalcPlasmaFrequency)THEN
+  ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
+  PlasmaFrequencyCell=0.0
+  CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
+END IF
+
 ! Plasma parameter
 CalcPlasmaParameter   = GETLOGICAL('CalcPlasmaParameter')
 IF(CalcPlasmaParameter)THEN
@@ -430,7 +445,7 @@ END IF
 
 ! Debye Length
 CalcDebyeLength       = GETLOGICAL('CalcDebyeLength')
-IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter) CalcDebyeLength=.TRUE.
+IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter.OR.CalcPICTimeStep) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
   DebyeLengthCell=0.0
@@ -449,23 +464,10 @@ IF(CalcIonizationDegree)THEN
   ALLOCATE( QuasiNeutralityCell(1:PP_nElems) )
   QuasiNeutralityCell=0.0
   CALL AddToElemData(ElementOut,'QuasiNeutralityCell',RealArray=QuasiNeutralityCell(1:PP_nElems))
-END IF
-
-! PIC Time Step Approximation
-CalcPICTimeStep = GETLOGICAL('CalcPICTimeStep')
-IF(CalcPICTimeStep)THEN
-  ALLOCATE( PICTimeStepCell(1:PP_nElems) )
-  PICTimeStepCell=0.0
-  CALL AddToElemData(ElementOut,'PICTimeStepCell',RealArray=PICTimeStepCell(1:PP_nElems))
-END IF
-
-! Plasma Frequency
-CalcPlasmaFrequency = GETLOGICAL('CalcPlasmaFrequency')
-IF(CalcPICTimeStep) CalcPlasmaFrequency=.TRUE.
-IF(CalcPlasmaFrequency)THEN
-  ALLOCATE( PlasmaFrequencyCell(1:PP_nElems) )
-  PlasmaFrequencyCell=0.0
-  CALL AddToElemData(ElementOut,'PlasmaFrequencyCell',RealArray=PlasmaFrequencyCell(1:PP_nElems))
+  ! valid PIC cell: Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
+  ALLOCATE( PICValidPlasmaCell(1:PP_nElems) )
+  PICValidPlasmaCell=0
+  CALL AddToElemData(ElementOut,'PICValidPlasmaCell',IntArray=PICValidPlasmaCell(1:PP_nElems))
 END IF
 
 ! PIC time step approximation for gyro motion
@@ -517,7 +519,7 @@ IF(CalcElectronEnergy) CALL AllocateCalcElectronEnergy()
 PartAnalyzeStep = GETINT('Part-AnalyzeStep','1')
 IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
 
-#if (PP_TimeDiscMethod == 42)
+IF(DSMC%ReservoirSimu) THEN
   IF(PartAnalyzeStep.NE.HUGE(PartAnalyzeStep)) THEN
     IF(MOD(NINT((TEnd-RestartTime)/ManualTimeStep,8),PartAnalyzeStep).NE.0) THEN
       SWRITE(UNIT_stdOut,'(A,I0)') 'NINT((TEnd-RestartTime)/ManualTimeStep) = ',NINT((TEnd-RestartTime)/ManualTimeStep,8)
@@ -525,9 +527,12 @@ IF (PartAnalyzeStep.EQ.0) PartAnalyzeStep = HUGE(PartAnalyzeStep)
       CALL abort(__STAMP__,'Please specify a PartAnalyzeStep, which is a factor of the total number of iterations!')
     END IF
   END IF
-#endif
+END IF
 
 DoPartAnalyze = .FALSE.
+! PIC PPD and time step criteria: Activate DoPartAnalyze flag
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep) DoPartAnalyze = .TRUE.
+
 ! only verifycharge and CalcCharge if particles are deposited onto the grid
 DoVerifyCharge= .FALSE.
 CalcCharge = .FALSE.
@@ -536,7 +541,7 @@ IF(DoDeposition) THEN
   CalcCharge = GETLOGICAL('CalcCharge')
   IF(CalcCharge) DoPartAnalyze = .TRUE.
 ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' Deposition is switched of. VerifyCharge and CalcCharge are deactivated!'
+  LBWRITE(UNIT_stdOut,'(A)') ' | Deposition is switched off. VerifyCharge and CalcCharge are deactivated!'
 END IF
 
 CalcEkin = GETLOGICAL('CalcKineticEnergy')
@@ -571,7 +576,7 @@ END IF
 !-- Coupled Power
 CalcCoupledPower = GETLOGICAL('CalcCoupledPower')
 #if USE_HDG
-IF(UseCoupledPowerPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'Coupled power potential requires CalcCoupledPower=T') 
+IF(UseCoupledPowerPotential.AND.(.NOT.CalcCoupledPower)) CALL abort(__STAMP__,'Coupled power potential requires CalcCoupledPower=T')
 #endif /*USE_HDG*/
 
 IF(CalcCoupledPower) THEN
@@ -625,7 +630,7 @@ CalcSurfFluxInfo = GETLOGICAL('CalcSurfFluxInfo')
 IF(CalcSurfFluxInfo) THEN
   ALLOCATE(FlowRateSurfFlux(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
   FlowRateSurfFlux = 0.
-  IF(UseAdaptive) THEN
+  IF(UseAdaptiveBC) THEN
     ALLOCATE(PressureAdaptiveBC(1:nSpecAnalyze,1:MAXVAL(Species(:)%nSurfacefluxBCs)))
     PressureAdaptiveBC = 0.
   END IF
@@ -807,9 +812,9 @@ IF(CalcBulkElectronTemp)THEN
   END IF ! MPIRoot
 #if USE_MPI
   ! Broadcast from root to other processors. Only root knows if BulkElectronTempExists=T/F so always broadcast message
-  CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iERROR)
-  IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
+  CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
 #endif /*USE_MPI*/
+  IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
 END IF ! CalcBulkElectronTemp
 
 END SUBROUTINE InitBulkElectronTemp
@@ -836,23 +841,22 @@ USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor,FP_MaxRotRelaxFactor,FP_MeanRelaxFactor,FP_MeanRelaxFactorCounter
 USE MOD_FPFlow_Vars             ,ONLY: FP_PrandtlNumber,FPInitDone
 USE MOD_Particle_Analyze_Vars
-USE MOD_Particle_MPI_Vars       ,ONLY: PartMPI
 USE MOD_Particle_Vars           ,ONLY: Species,nSpecies
 USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
-USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcSurfaceFluxInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 USE MOD_DSMC_Vars               ,ONLY: CollisMode
 USE MOD_Particle_Mesh_Vars      ,ONLY: MeshVolume
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: BGGas
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcMixtureTemp, CalcRelaxProbRotVib
 #endif
-#if (PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4)
 USE MOD_DSMC_Vars               ,ONLY: CollInf, useDSMC, ChemReac, SpecDSMC
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_Relaxation
@@ -882,14 +886,14 @@ INTEGER(KIND=IK)    :: SimNumSpec(nSpecAnalyze)
 REAL                :: NumSpec(nSpecAnalyze), NumDens(nSpecAnalyze)
 REAL                :: Ekin(nSpecAnalyze), Temp(nSpecAnalyze)
 REAL                :: EkinMax(nSpecies)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
-REAL                :: MaxCollProb, MeanCollProb, MeanFreePath
+REAL                :: MaxCollProb, MeanCollProb, MeanFreePath, MaxMCSoverMFP, ResolvedCellPercentage, ResolvedTimestep
 REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
 INTEGER             :: bgSpec
 #endif
-#if (PP_TimeDiscMethod==42)
+#if (PP_TimeDiscMethod==4)
 INTEGER             :: jSpec, iCase, iLevel
 REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:)
 #endif
@@ -902,37 +906,41 @@ INTEGER             :: iRegions
 #if USE_MPI
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
+#if USE_HDG
 REAL                :: PCouplDelta
+#endif /*USE_HDG*/
 REAL                :: TimeDelta
 !===================================================================================================================================
 IF(DoRestart) isRestart = .true.
 IF(.NOT.DoPartAnalyze) RETURN
 ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnalyzeSampleTime=Time at the end of this routine
-#if (PP_TimeDiscMethod==42)
-  IF (useDSMC) THEN
-    IF (CollisMode.NE.0) THEN
-      SDEALLOCATE(CRate)
-      ALLOCATE(CRate(CollInf%NumCase + 1))
-      CRate = 0.0
-      IF(CalcRelaxProb) THEN
-        ALLOCATE(VibRelaxRate(CollInf%NumCase))
-        VibRelaxRate = 0.0
-        IF(ANY(SpecDSMC(:)%UseElecXSec)) THEN
-          ALLOCATE(ElecRelaxRate(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
-          ElecRelaxRate = 0.0
+#if (PP_TimeDiscMethod==4)
+  IF (DSMC%ReservoirSimu) THEN
+    IF (useDSMC) THEN
+      IF (CollisMode.NE.0) THEN
+        SDEALLOCATE(CRate)
+        ALLOCATE(CRate(CollInf%NumCase + 1))
+        CRate = 0.0
+        IF(CalcRelaxProb) THEN
+          ALLOCATE(VibRelaxRate(CollInf%NumCase))
+          VibRelaxRate = 0.0
+          IF(ANY(SpecDSMC(:)%UseElecXSec)) THEN
+            ALLOCATE(ElecRelaxRate(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+            ElecRelaxRate = 0.0
+          END IF
         END IF
-      END IF
-      IF (CollisMode.EQ.3) THEN
-        SDEALLOCATE(RRate)
-        ALLOCATE(RRate(ChemReac%NumOfReact))
-        RRate = 0.0
+        IF (CollisMode.EQ.3) THEN
+          SDEALLOCATE(RRate)
+          ALLOCATE(RRate(ChemReac%NumOfReact))
+          RRate = 0.0
+        END IF
       END IF
     END IF
   END IF
 #endif
   OutputCounter = 2
   unit_index = 535
-  IF (PartMPI%MPIRoot) THEN
+  IF (MPIRoot) THEN
     INQUIRE(UNIT   = unit_index , OPENED = isOpen)
     IF (.NOT.isOpen) THEN
       outfile = 'PartAnalyze.csv'
@@ -968,7 +976,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
                 WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Massflow-Spec-',iSpec,'-SF-',iSF
               END IF
               OutputCounter = OutputCounter + 1
-              IF(UseAdaptive) THEN
+              IF(UseAdaptiveBC) THEN
                 WRITE(unit_index,'(A1)',ADVANCE='NO') ','
                 WRITE(unit_index,'(I3.3,A15,I3.3,A4,I3.3)',ADVANCE='NO') OutputCounter,'-Pressure-Spec-',iSpec,'-SF-',iSF
                 OutputCounter = OutputCounter + 1
@@ -1013,9 +1021,15 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledMoAv'
           OutputCounter = OutputCounter + 1
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledIntAv'
-          OutputCounter = OutputCounter + 1
+#if USE_HDG
+          IF(UseCoupledPowerPotential)THEN
+            IF(CoupledPowerMode.EQ.3)THEN
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-PCoupledIntAv'
+              OutputCounter = OutputCounter + 1
+            END IF ! CoupledPowerMode.EQ.3
+          END IF ! UseCoupledPowerPotential
+#endif /*USE_HDG*/
         END IF
         IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
           DO iSpec=1, nSpecies
@@ -1084,7 +1098,7 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
             OutputCounter = OutputCounter + 1
           END DO
         END IF
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
         IF (CollisMode.GT.1) THEN
           IF(CalcEint(2)) THEN
             DO iSpec=1, nSpecAnalyze
@@ -1149,14 +1163,28 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           END IF
         END IF
         IF(DSMC%CalcQualityFactors) THEN ! calculates maximum collision probability, mean collision probability & mean free path
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
-          OutputCounter = OutputCounter + 1
+          IF (DSMC%ReservoirSimu) THEN
+            ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+            ! Otherwise its the ResolvedTimestep
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmean'
+            OutputCounter = OutputCounter + 1
+          ELSE
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ResolvedTimestep'
+            OutputCounter = OutputCounter + 1
+          END IF
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Pmax'
           OutputCounter = OutputCounter + 1
           WRITE(unit_index,'(A1)',ADVANCE='NO') ','
           WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-MeanFreePath'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-MaxMCSoverMFP'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ResolvedCellPercentage'
           OutputCounter = OutputCounter + 1
           IF(CalcRelaxProb) THEN
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1203,55 +1231,57 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
             OutputCounter = OutputCounter + 1
           END IF
         END IF
-#if (PP_TimeDiscMethod==42)
-        IF(CalcCollRates) THEN ! calculates collision rates per collision pair
-          DO iSpec = 1, nSpecies
-            DO jSpec = iSpec, nSpecies
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-CollRate', iSpec, '+', jSpec
-              OutputCounter = OutputCounter + 1
-            END DO
-          END DO
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-TotalCollRate'
-          OutputCounter = OutputCounter + 1
-        END IF
-        IF(CalcRelaxProb) THEN
-          IF(XSec_Relaxation) THEN
+#if (PP_TimeDiscMethod==4)
+        IF (DSMC%ReservoirSimu) THEN
+          IF(CalcCollRates) THEN ! calculates collision rates per collision pair
             DO iSpec = 1, nSpecies
               DO jSpec = iSpec, nSpecies
-                IF(SpecXSec(CollInf%Coll_Case(iSpec,jSpec))%UseVibXSec) THEN
-                  ! Skip entry if both species are NOT molecules
-                  IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                    ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-VibRelaxRate', iSpec, '+', jSpec
-                  OutputCounter = OutputCounter + 1
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-CollRate', iSpec, '+', jSpec
+                OutputCounter = OutputCounter + 1
+              END DO
+            END DO
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-TotalCollRate'
+            OutputCounter = OutputCounter + 1
+          END IF
+          IF(CalcRelaxProb) THEN
+            IF(XSec_Relaxation) THEN
+              DO iSpec = 1, nSpecies
+                DO jSpec = iSpec, nSpecies
+                  IF(SpecXSec(CollInf%Coll_Case(iSpec,jSpec))%UseVibXSec) THEN
+                    ! Skip entry if both species are NOT molecules
+                    IF(((Species(iSpec)%InterID.NE.2).AND.(Species(iSpec)%InterID.NE.20)).AND. &
+                      ((Species(jSpec)%InterID.NE.2).AND.(Species(jSpec)%InterID.NE.20))) CYCLE
+                    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                    WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-VibRelaxRate', iSpec, '+', jSpec
+                    OutputCounter = OutputCounter + 1
+                  END IF
+                END DO
+              END DO
+            END IF
+            DO iSpec = 1, nSpecies
+              DO jSpec = iSpec, nSpecies
+                iCase = CollInf%Coll_Case(iSpec,jSpec)
+                IF(SpecXSec(iCase)%UseElecXSec) THEN
+                  DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+                    WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                    WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A,F0.2)',ADVANCE='NO') OutputCounter,'-ElecRelaxRate', iSpec, '+', jSpec, '-', &
+                      SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
+                    OutputCounter = OutputCounter + 1
+                  END DO
                 END IF
               END DO
             END DO
           END IF
-          DO iSpec = 1, nSpecies
-            DO jSpec = iSpec, nSpecies
-              iCase = CollInf%Coll_Case(iSpec,jSpec)
-              IF(SpecXSec(iCase)%UseElecXSec) THEN
-                DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3,A,F0.2)',ADVANCE='NO') OutputCounter,'-ElecRelaxRate', iSpec, '+', jSpec, '-', &
-                    SpecXSec(iCase)%ElecLevel(iLevel)%Threshold/ElementaryCharge
-                  OutputCounter = OutputCounter + 1
-                END DO
-              END IF
-            END DO
-          END DO
-        END IF
-        IF(CalcReacRates) THEN ! calculates reaction rate per reaction
-          IF(CollisMode.EQ.3) THEN
-            DO iCase=1, ChemReac%NumOfReact
-              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-              WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Reaction', iCase
-              OutputCounter = OutputCounter + 1
-            END DO
+          IF(CalcReacRates) THEN ! calculates reaction rate per reaction
+            IF(CollisMode.EQ.3) THEN
+              DO iCase=1, ChemReac%NumOfReact
+                WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Reaction', iCase
+                OutputCounter = OutputCounter + 1
+              END DO
+            END IF
           END IF
         END IF
 #endif
@@ -1274,6 +1304,20 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-BulkElectronTemp-[K]'
           OutputCounter = OutputCounter + 1
         END IF ! CalcBulkElectronTemp
+        IF(CalcPointsPerDebyeLength)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPD3D'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPDX'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPDY'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPPDZ'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcPointsPerDebyeLength
+        IF(CalcPICTimeStep)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPICTimeStep'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcPICTimeStep
         ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1294,30 +1338,30 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
     IF(CalcLaserInteraction)THEN
       CALL CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 #if USE_MPI
-      IF(PartMPI%MPIRoot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE , EkinMax , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , PartMPI%COMM , iError)
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE , EkinMax , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
       ELSE
-        CALL MPI_REDUCE(EkinMax      , 0.      , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , PartMPI%COMM , iError)
+        CALL MPI_REDUCE(EkinMax      , 0.      , nSpecies     , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
       END IF
 #endif /*USE_MPI*/
     ELSE
       CALL CalcKineticEnergy(Ekin)
     END IF
 #if USE_MPI
-      IF(PartMPI%MPIRoot)THEN
-        CALL MPI_REDUCE(MPI_IN_PLACE , Ekin    , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE , Ekin    , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
       ELSE
-        CALL MPI_REDUCE(Ekin         , 0.      , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , PartMPI%COMM , IERROR)
+        CALL MPI_REDUCE(Ekin         , 0.      , nSpecAnalyze , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
       END IF
 #endif /*USE_MPI*/
   END IF
   IF(CalcTemp(1)) CALL CalcTransTemp(NumSpec, Temp)
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
   ! CalcTemp(1) is required for Temp
   ! CalcEint(1) is required for Ekin
   IF(CalcTemp(1).AND.CalcEint(1)) THEN
     CALL CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
-    IF(PartMPI%MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
+    IF(MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
@@ -1325,6 +1369,9 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   MaxCollProb = 0.0
   MeanCollProb = 0.0
   MeanFreePath = 0.0
+  MaxMCSoverMFP = 0.0
+  ResolvedCellPercentage = 0.0
+  ResolvedTimestep = 0.0
   IF(DSMC%CalcQualityFactors.OR.CalcReacRates) THEN
     NumSpecTmp = NumSpec
     IF(BGGas%NumberOfSpecies.GT.0) THEN
@@ -1347,13 +1394,56 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   END IF
   IF(DSMC%CalcQualityFactors) THEN
     IF(iter.GT.0) THEN
-      MaxCollProb = DSMC%CollProbMax
-      IF(DSMC%CollProbMeanCount.GT.0) MeanCollProb = DSMC%CollProbMean / DSMC%CollProbMeanCount
-      IF (PartMPI%MPIRoot) THEN
+      ! MaxMCSoverMFP  for all processes:
+#if USE_MPI
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%MaxMCSoverMFP,DSMC%MaxMCSoverMFP,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      END IF
+#endif /*USE_MPI*/
+      MaxMCSoverMFP = DSMC%MaxMCSoverMFP
+      ! Maximum MaxCollProb for all processes:
+#if USE_MPI
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%CollProbMaxProcMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%CollProbMaxProcMax,DSMC%CollProbMaxProcMax,1,MPI_DOUBLE_PRECISION,MPI_MAX,0,MPI_COMM_PICLAS, IERROR)
+      END IF
+#endif /*USE_MPI*/
+      MaxCollProb = DSMC%CollProbMaxProcMax
+      ! ResolvedCellPercentage:
+#if USE_MPI
+        IF(MPIRoot)THEN
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        ELSE
+          CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          CALL MPI_REDUCE(DSMC%ParticleCalcCollCounter,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        END IF
+#endif /*USE_MPI*/
+        IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+        IF (DSMC%ReservoirSimu) THEN
+          ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+          ! Otherwise its the ResolvedTimestep
+          MeanCollProb = DSMC%CollProbMean
+        ELSE
+#if USE_MPI
+          IF(MPIRoot)THEN
+            CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          ELSE
+            CALL MPI_REDUCE(DSMC%ResolvedTimestepCounter,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+          END IF
+#endif /*USE_MPI*/
+          IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedTimestep = REAL(DSMC%ResolvedTimestepCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+        END IF
+      ! MeanFreePath:
+      IF (MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
                                                               MeshVolume, TempTotal(nSpecAnalyze))
       END IF
     END IF
+    ! CalcRelaxProb:
     IF(CalcRelaxProb) CALL CalcRelaxProbRotVib(RotRelaxProb,VibRelaxProb)
   END IF
 #endif
@@ -1371,57 +1461,59 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 #if USE_MPI
     ! Collect sum on MPIRoot
     tmpArray = (/PCoupl, PCouplAverage/)
-    IF(PartMPI%MPIRoot)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE, tmpArray, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, IERROR)
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE, tmpArray, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_PICLAS, IERROR)
       PCoupl        = tmpArray(1)
       PCouplAverage = tmpArray(2)
 #endif /*USE_MPI*/
 #if USE_HDG
       ! Only required for integrated average over one cycle
-      IF(CoupledPowerMode.EQ.3)THEN
-        PCouplDelta      = PCouplAverage - PCouplAverageOld ! y2 - new value
-        PCouplAverageOld = PCouplAverage
-        CoupledPowerPotential(4) = CoupledPowerPotential(4) + 0.5*(CoupledPowerPotential(6) + PCouplDelta) ! 0.5*dx*(y1+y2)/dx
-        CoupledPowerPotential(6) = PCouplDelta ! y1 = y2 - store old value ("last energy")
-        ! Check sampling frequency
-        IF(CoupledPowerFrequency.GT.0)THEN
-          TimeDelta = (1.0 / CoupledPowerFrequency) + Time - CoupledPowerPotential(5) ! = 1/f + t - tCPP
-        ELSE
-          TimeDelta = ParticleAnalyzeSampleTime
-        END IF ! CoupledPowerFrequency.GT.0
-        ! Check sampling time
-        IF(ABS(TimeDelta).GT.0.) PCouplIntAverage = CoupledPowerPotential(4) / TimeDelta ! Calculate average from integral
-      END IF ! CoupledPowerMode.EQ.3
+      IF(UseCoupledPowerPotential)THEN
+        IF(CoupledPowerMode.EQ.3)THEN
+          PCouplDelta      = PCouplAverage - PCouplAverageOld ! y2 - new value
+          PCouplAverageOld = PCouplAverage
+          CoupledPowerPotential(4) = CoupledPowerPotential(4) + 0.5*(CoupledPowerPotential(6) + PCouplDelta) ! 0.5*dx*(y1+y2)/dx
+          CoupledPowerPotential(6) = PCouplDelta ! y1 = y2 - store old value ("last energy")
+          ! Check sampling frequency
+          IF(CoupledPowerFrequency.GT.0)THEN
+            TimeDelta = (1.0 / CoupledPowerFrequency) + Time - CoupledPowerPotential(5) ! = 1/f + t - tCPP
+          ELSE
+            TimeDelta = ParticleAnalyzeSampleTime
+          END IF ! CoupledPowerFrequency.GT.0
+          ! Check sampling time
+          IF(ABS(TimeDelta).GT.0.) PCouplIntAverage = CoupledPowerPotential(4) / TimeDelta ! Calculate average from integral
+        END IF ! CoupledPowerMode.EQ.3
+      END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
 #if USE_MPI
     ELSE
-      CALL MPI_REDUCE(tmpArray, 0, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, PartMPI%COMM, IERROR)
+      CALL MPI_REDUCE(tmpArray, 0, 2, MPI_DOUBLE_PRECISION, MPI_SUM, 0, MPI_COMM_PICLAS, IERROR)
       ! Reset for all processes execpt the MPIRoot (this process keeps the old value, which is therefore considered only once in the
       ! next MPI reduce call)
       PCouplAverage = 0.
-    END IF ! PartMPI%MPIRoot
+    END IF ! MPIRoot
   END IF
   ! Switch between root and non-root processes
-  IF (PartMPI%MPIRoot) THEN
+  IF (MPIRoot) THEN
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,nPartIn(1:nSpecAnalyze)    ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,nPartOut(1:nSpecAnalyze)   ,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinIn(1:nSpecAnalyze) ,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(MPI_IN_PLACE,PartEkinOut(1:nSpecAnalyze),nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
     END IF
   ELSE ! no Root
     IF (CalcPartBalance)THEN
-      CALL MPI_REDUCE(nPartIn    ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(nPartOut   ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
-      CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,PartMPI%COMM,IERROR)
+      CALL MPI_REDUCE(nPartIn    ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(nPartOut   ,0,nSpecAnalyze,MPI_INTEGER         ,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(PartEkinIn ,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+      CALL MPI_REDUCE(PartEkinOut,0,nSpecAnalyze,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
     END IF
 #endif /*USE_MPI*/
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Analyze Routines that require MPI_REDUCE of other variables
 ! Moving Average of PCoupl:
-IF(CalcCoupledPower.AND.PartMPI%MPIRoot) THEN
+IF(CalcCoupledPower.AND.MPIRoot) THEN
   ! Moving Average of PCoupl:
   TimeDelta = Time-RestartTime
   IF(ABS(TimeDelta).GT.0.0) PCouplAverage = PCouplAverage / TimeDelta
@@ -1434,7 +1526,7 @@ IF((iter.GT.0).AND.UseCoupledPowerPotential) CALL CalculatePCouplElectricPotenti
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Perform averaging/summation of the MPI communicated variables on the root only (and for the non-MPI case, MPIRoot is set to true)
-IF(PartMPI%MPIRoot) THEN
+IF(MPIRoot) THEN
   IF (CalcPartBalance)THEN
     IF(nSpecies.GT.1) THEN
       nPartIn(nSpecies+1)     = SUM(nPartIn(1:nSpecies))
@@ -1457,7 +1549,7 @@ IF(PartMPI%MPIRoot) THEN
       IF(BGK_MeanRelaxFactorCounter.GT.0) BGK_MeanRelaxFactor = BGK_MeanRelaxFactor / REAL(BGK_MeanRelaxFactorCounter)
     END IF
   END IF
-END IF ! PartMPI%MPIRoot
+END IF ! MPIRoot
 
 IF(CalcCoupledPower) THEN
   ! Moving Average of PCoupl for each species
@@ -1466,17 +1558,19 @@ END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
-#if (PP_TimeDiscMethod==42)
-  IF(iter.GT.0) THEN
-    IF(CalcCollRates) CALL CollRates(CRate)
-    IF(CalcRelaxProb) THEN
-      CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
-      IF(DSMC%ElectronicModel.EQ.3) THEN
-        IF(ANY(SpecXSec(:)%UseElecXSec)) CALL CalcRelaxRatesElec(ElecRelaxRate)
+#if (PP_TimeDiscMethod==4)
+  IF (DSMC%ReservoirSimu) THEN
+    IF(iter.GT.0) THEN
+      IF(CalcCollRates) CALL CollRates(CRate)
+      IF(CalcRelaxProb) THEN
+        CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
+        IF(DSMC%ElectronicModel.EQ.3) THEN
+          IF(ANY(SpecXSec(:)%UseElecXSec)) CALL CalcRelaxRatesElec(ElecRelaxRate)
+        END IF
       END IF
-    END IF
-    IF(CalcReacRates) THEN
-      IF (CollisMode.EQ.3) CALL ReacRates(NumSpecTmp,RRate)
+      IF(CalcReacRates) THEN
+        IF (CollisMode.EQ.3) CALL ReacRates(NumSpecTmp,RRate)
+      END IF
     END IF
   END IF
 #endif
@@ -1486,7 +1580,7 @@ END IF
 ! Output Routines
 !===================================================================================================================================
 #if USE_MPI
-IF (PartMPI%MPIROOT) THEN
+IF (MPIRoot) THEN
 #endif /*USE_MPI*/
   WRITE(unit_index,'(E23.16E3)',ADVANCE='NO') Time
   IF (CalcSimNumSpec) THEN
@@ -1503,7 +1597,7 @@ IF (PartMPI%MPIROOT) THEN
     DO iSpec = 1, nSpecies
       DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', FlowRateSurfFlux(iSpec,iSF)
-        IF(UseAdaptive) WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
+        IF(UseAdaptiveBC) WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PressureAdaptiveBC(iSpec,iSF)
       END DO
     END DO
   END IF
@@ -1528,7 +1622,13 @@ IF (PartMPI%MPIROOT) THEN
   IF (CalcCoupledPower) THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCoupl
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplAverage
-    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplIntAverage
+#if USE_HDG
+    IF(UseCoupledPowerPotential)THEN
+      IF(CoupledPowerMode.EQ.3)THEN
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', PCouplIntAverage
+      END IF ! CoupledPowerMode.EQ.3
+    END IF ! UseCoupledPowerPotential
+#endif /*USE_HDG*/
   END IF
   IF (CalcLaserInteraction) THEN
     DO iSpec=1, nSpecies
@@ -1562,7 +1662,7 @@ IF (PartMPI%MPIROOT) THEN
     END DO
   END IF
 
-#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==42 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
+#if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509))
   IF (CollisMode.GT.1) THEN
     IF(CalcEint(2)) THEN
       DO iSpec=1, nSpecAnalyze
@@ -1605,9 +1705,17 @@ IF (PartMPI%MPIROOT) THEN
     END IF
   END IF
   IF(DSMC%CalcQualityFactors) THEN
-    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
+    IF (DSMC%ReservoirSimu) THEN
+      ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+      ! Otherwise its the ResolvedTimestep
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanCollProb
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ResolvedTimestep
+    END IF
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxCollProb
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MeanFreePath
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', MaxMCSoverMFP
+    WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ResolvedCellPercentage
     IF(CalcRelaxProb) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(2)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RotRelaxProb(1)
@@ -1631,45 +1739,47 @@ IF (PartMPI%MPIROOT) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BGK_MaxRotRelaxFactor
     END IF
   END IF
-#if (PP_TimeDiscMethod==42)
-  IF(CalcCollRates) THEN
-    DO iCase=1, CollInf%NumCase +1
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CRate(iCase)
-    END DO
-  END IF
-  IF(CalcRelaxProb) THEN
-    IF(XSec_Relaxation) THEN
-      DO iSpec = 1, nSpecies
-        DO jSpec = iSpec, nSpecies
-          iCase = CollInf%Coll_Case(iSpec,jSpec)
-          IF(SpecXSec(iCase)%UseVibXSec) THEN
-            ! Skip entry if both species are NOT molecules
-            IF(((SpecDSMC(iSpec)%InterID.NE.2).AND.(SpecDSMC(iSpec)%InterID.NE.20)).AND. &
-                ((SpecDSMC(jSpec)%InterID.NE.2).AND.(SpecDSMC(jSpec)%InterID.NE.20))) CYCLE
-            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxRate(iCase)
-          END IF
-        END DO
+#if (PP_TimeDiscMethod==4)
+  IF (DSMC%ReservoirSimu) THEN
+    IF(CalcCollRates) THEN
+      DO iCase=1, CollInf%NumCase +1
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CRate(iCase)
       END DO
     END IF
-    IF(DSMC%ElectronicModel.EQ.3) THEN
-      DO iSpec = 1, nSpecies
-        DO jSpec = iSpec, nSpecies
-          iCase = CollInf%Coll_Case(iSpec,jSpec)
-          IF(SpecXSec(iCase)%UseElecXSec) THEN
-            DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
-              WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ElecRelaxRate(iCase,iLevel)
-            END DO
-          END IF
+    IF(CalcRelaxProb) THEN
+      IF(XSec_Relaxation) THEN
+        DO iSpec = 1, nSpecies
+          DO jSpec = iSpec, nSpecies
+            iCase = CollInf%Coll_Case(iSpec,jSpec)
+            IF(SpecXSec(iCase)%UseVibXSec) THEN
+              ! Skip entry if both species are NOT molecules
+              IF(((Species(iSpec)%InterID.NE.2).AND.(Species(iSpec)%InterID.NE.20)).AND. &
+                  ((Species(jSpec)%InterID.NE.2).AND.(Species(jSpec)%InterID.NE.20))) CYCLE
+              WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', VibRelaxRate(iCase)
+            END IF
+          END DO
         END DO
+      END IF
+      IF(DSMC%ElectronicModel.EQ.3) THEN
+        DO iSpec = 1, nSpecies
+          DO jSpec = iSpec, nSpecies
+            iCase = CollInf%Coll_Case(iSpec,jSpec)
+            IF(SpecXSec(iCase)%UseElecXSec) THEN
+              DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
+                WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ElecRelaxRate(iCase,iLevel)
+              END DO
+            END IF
+          END DO
+        END DO
+      END IF
+    END IF
+    IF(CalcReacRates) THEN
+      DO iCase=1, ChemReac%NumOfReact
+        WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RRate(iCase)
       END DO
     END IF
   END IF
-  IF(CalcReacRates) THEN
-    DO iCase=1, ChemReac%NumOfReact
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', RRate(iCase)
-    END DO
-  END IF
-#endif /*(PP_TimeDiscMethod==42)*/
+#endif
 #if USE_HDG
   IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)THEN ! variable reference electron temperature
     DO iRegions=1,BRNbrOfRegions
@@ -1685,14 +1795,34 @@ IF (PartMPI%MPIROOT) THEN
   IF(CalcBulkElectronTemp)THEN
     WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BulkElectronTemp*eV2Kelvin ! Temperature in Kelvin
   END IF ! CalcBulkElectronTemp
+  IF(CalcPointsPerDebyeLength)THEN
+    IF(PICValidPlasmaCellSum.GT.0)THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(1)) / REAL(PICValidPlasmaCellSum)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(2)) / REAL(PICValidPlasmaCellSum)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(3)) / REAL(PICValidPlasmaCellSum)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PPDCellResolved(4)) / REAL(PICValidPlasmaCellSum)
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF ! PICValidPlasmaCellSum.GT.0
+  END IF ! CalcPointsPerDebyeLength
+  IF(CalcPICTimeStep)THEN
+    IF(PICValidPlasmaCellSum.GT.0)THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(PICTimeCellResolved) / REAL(PICValidPlasmaCellSum)
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF ! PICValidPlasmaCellSum.GT.0
+  END IF ! CalcPICTimeStep
   ! Finish the line with new line character
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
-END IF ! PartMPI%MPIROOT
+END IF ! MPIRoot
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Reset coupled power to particles if output of coupled power is active
-IF (CalcCoupledPower.AND.PartMPI%MPIRoot) THEN
+IF (CalcCoupledPower.AND.MPIRoot) THEN
   IF(ABS(TimeDelta).GT.0.0) PCouplAverage = PCouplAverage * TimeDelta ! PCouplAverage is reset
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1761,6 +1891,7 @@ SDEALLOCATE(MaxPartDisplacementCellY)
 SDEALLOCATE(MaxPartDisplacementCellZ)
 SDEALLOCATE(PlasmaParameterCell)
 SDEALLOCATE(QuasiNeutralityCell)
+SDEALLOCATE(PICValidPlasmaCell)
 SDEALLOCATE(IonDensityCell)
 SDEALLOCATE(NeutralDensityCell)
 SDEALLOCATE(ChargeNumberCell)

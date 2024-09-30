@@ -77,11 +77,6 @@ CALL prms%CreateLogicalOption('Particles-MacroscopicRestart', &
                               '.FALSE.')
 CALL prms%CreateStringOption( 'Particles-MacroscopicRestart-Filename', &
                               'File name of the DSMCState to be utilized as the input for the particle insertion.')
-CALL prms%CreateLogicalOption('Particles-CatalyticRestart', &
-                              'Utilize a macroscopic result to restart the catalytic simulation', &
-                              '.FALSE.')
-CALL prms%CreateStringOption( 'Particles-CatalyticRestart-Filename', &
-                              'File name of the DSMCState to be utilized as the input for the surface chemistry.')
 CALL prms%CreateLogicalOption('FlushInitialState',&
                               'Check whether (during restart) the statefile from which the restart is performed should be deleted.'&
                             , '.FALSE.')
@@ -154,7 +149,7 @@ RestartNullifySolution = GETLOGICAL('RestartNullifySolution','F')
 IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   DoRestart = .TRUE.
-  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 #ifdef PP_POIS
 #if (PP_nVar==8)
   !The following arrays are read from the file
@@ -237,8 +232,6 @@ END IF
 IF(DoRestart) THEN
   DoMacroscopicRestart = GETLOGICAL('Particles-MacroscopicRestart')
   IF(DoMacroscopicRestart) MacroRestartFileName = GETSTR('Particles-MacroscopicRestart-Filename')
-  DoCatalyticRestart = GETLOGICAL('Particles-CatalyticRestart')
-  IF(DoCatalyticRestart) CatalyticFileName = GETSTR('Particles-CatalyticRestart-Filename')
 END IF
 
 ! Automatically do a load balance step at the beginning of a new simulation or a user-restarted simulation
@@ -325,6 +318,7 @@ USE MOD_Equation_Vars          ,ONLY: Phi
 #endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart       ,ONLY: ParticleRestart
+USE MOD_RayTracing             ,ONLY: RayTracing
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
 USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
@@ -353,6 +347,8 @@ IF(DoRestart)THEN
 #ifdef PARTICLES
   ! Restart particle arrays
   CALL ParticleRestart()
+  ! Get ray tracing volume and surface data
+  CALL RayTracing()
 #endif /*PARTICLES*/
 
 #if USE_HDG

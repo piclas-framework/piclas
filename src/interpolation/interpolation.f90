@@ -46,10 +46,6 @@ INTERFACE GetNodesAndWeights
    MODULE PROCEDURE GetNodesAndWeights
 END INTERFACE
 
-INTERFACE GetVandermonde
-   MODULE PROCEDURE GetVandermonde
-END INTERFACE
-
 INTERFACE GetDerivativeMatrix
    MODULE PROCEDURE GetDerivativeMatrix
 END INTERFACE
@@ -98,7 +94,7 @@ CALL prms%CreateIntOption('NAnalyze' , 'Polynomial degree at which analysis is p
 END SUBROUTINE DefineParametersInterpolation
 
 
-SUBROUTINE InitInterpolation(NIn)
+SUBROUTINE InitInterpolation(NIn,NAnalyzeIn)
 !============================================================================================================================
 ! Initialize basis for Gauss-points of order N.
 ! Prepares Differentiation matrices D, D_Hat, Basis at the boundaries L(1), L(-1), L_Hat(1), L_Hat(-1)
@@ -113,7 +109,8 @@ USE MOD_ReadInTools        ,ONLY: GETINT,CountOption
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !input parameters
-INTEGER,INTENT(IN),OPTIONAL :: NIn  !< optional polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: NIn         !< optional polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: NAnalyzeIn  !< optional analyze polynomial degree
 !----------------------------------------------------------------------------------------------------------------------------
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
@@ -149,8 +146,12 @@ SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
 CALL InitInterpolationBasis(PP_N, xGP, wGP, wBary, L_Minus , L_Plus, L_PlusMinus, swGP=swGP, wGPSurf=wGPSurf)
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-WRITE(DefStr,'(i4)') 2*(PP_N+1)
-NAnalyze = GETINT('NAnalyze',DefStr)
+IF(PRESENT(NAnalyzeIn))THEN
+  NAnalyze = NAnalyzeIn
+ELSE
+  WRITE(DefStr,'(i4)') 2*(PP_N+1)
+  NAnalyze = GETINT('NAnalyze',DefStr)
+END IF ! PRESENT(NAnalyzeIn)
 
 ! Initialize the basis functions for the analyze polynomial
 CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
@@ -161,7 +162,7 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitInterpolation
 
 
-SUBROUTINE InitInterpolationBasis(N_in, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus,swGP, wGPSurf, Vdm_Leg ,sVdm_Leg)
+SUBROUTINE InitInterpolationBasis(N_in, xGP ,wGP, wBary ,L_Minus ,L_Plus , L_PlusMinus,swGP, wGPSurf, Vdm_Leg ,sVdm_Leg, NodeType_in)
 !============================================================================================================================
 ! Initialize basis for Gauss-points of order N.
 ! Calculate positions of Gauss-points, integration weights and barycentric weights. Prepare basis evaluation at -1 and +1.
@@ -187,6 +188,7 @@ REAL,ALLOCATABLE,DIMENSION(:),  INTENT(OUT),OPTIONAL:: swGP                !< In
 REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: wGPSurf            !< Vandermonde Nodal->Modal
 REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: Vdm_Leg            !< Vandermonde Nodal->Modal
 REAL,ALLOCATABLE,DIMENSION(:,:),INTENT(OUT),OPTIONAL:: sVdm_Leg           !< Vandermonde Modal->Nodal
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL                :: NodeType_in        !< Type of 1D points
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -198,7 +200,11 @@ ALLOCATE(xGP(0:N_in), wGP(0:N_in), wBary(0:N_in))
 ALLOCATE(L_Minus(0:N_in), L_Plus(0:N_in))
 ALLOCATE(L_PlusMinus(0:N_in,6))
 
-CALL GetNodesAndWeights(N_in,NodeType,xGP,wGP,wBary)
+IF(PRESENT(NodeType_in))THEN
+  CALL GetNodesAndWeights(N_in , NodeType_in , xGP , wGP , wBary)
+ELSE
+  CALL GetNodesAndWeights(N_in , NodeType    , xGP , wGP , wBary)
+END IF ! PRESENT(NodeType_in)
 
 IF(PRESENT(wGPSurf))THEN
   ALLOCATE(wGPSurf(0:N_in,0:N_in))
@@ -314,8 +320,8 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                 :: N_in                       !> Input polynomial degree
 INTEGER,INTENT(IN)                 :: N_out                      !> Output polynomial degree
-CHARACTER(LEN=255),INTENT(IN)      :: NodeType_in                !> Type of 1D input points
-CHARACTER(LEN=255),INTENT(IN)      :: NodeType_out               !> Type of 1D output points
+CHARACTER(LEN=*),INTENT(IN)        :: NodeType_in                !> Type of 1D input points
+CHARACTER(LEN=*),INTENT(IN)        :: NodeType_out               !> Type of 1D output points
 LOGICAL,INTENT(IN),OPTIONAL        :: modal                      !> Switch if a modal Vandermonde should be build
 REAL,INTENT(OUT)                   :: Vdm_In_out(0:N_out,0:N_in) !> Vandermonde In->Out
 REAL,INTENT(OUT),OPTIONAL          :: Vdm_Out_In(0:N_in,0:N_out) !> Vandermonde Out->in

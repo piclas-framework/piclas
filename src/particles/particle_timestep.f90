@@ -210,7 +210,7 @@ nVar_TimeStep = 0
 
 IF(DoRestart) THEN
 ! Try to get the time step factor distribution directly from state file
-  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL DatasetExists(File_ID,'ElemTimeStep',TimeStepExists)
   IF(TimeStepExists) THEN
     ! Allocate the array for the element-wise time step factor
@@ -247,7 +247,7 @@ IF(VarTimeStep%AdaptDistribution) THEN
     'ERROR: It is required to use a restart and macroscopic restart when adapting the time step distribution!')
   END IF
   ! Open DSMC state file
-  CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 
   CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nGlobalElems)
 
@@ -404,7 +404,7 @@ END SUBROUTINE VarTimeStep_InitDistribution
 
 REAL FUNCTION GetParticleTimeStep(xPos, yPos, iElem)
 !===================================================================================================================================
-!> Calculates/determines the time step 
+!> Calculates/determines the time step
 !> a) at a position x/y (only in 2D/Axi) [VarTimeStep%UseLinearScaling]
 !> b) of the given element number (3D and VTS distribution) [VarTimeStep%UseDistribution]
 !===================================================================================================================================
@@ -466,7 +466,7 @@ END FUNCTION GetParticleTimeStep
 
 PURE REAL FUNCTION GetSpeciesTimeStep(iCase)
 !===================================================================================================================================
-!> Determines the species-specific time step from the collision case
+!> Determines the species-specific time step from the collision case (works only in combination with a background gas)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -565,4 +565,4 @@ END IF
 
 END SUBROUTINE VarTimeStep_CalcElemFacs
 
-END MODULE MOD_Particle_TimeStep   
+END MODULE MOD_Particle_TimeStep

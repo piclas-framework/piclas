@@ -123,21 +123,6 @@ DoParticleLatencyHiding = GETLOGICAL('DoParticleLatencyHiding')
 IF(DoParticleLatencyHiding) CALL abort(__STAMP__,'DoParticleLatencyHiding=T not imeplemented for this time disc!')
 #endif /*!(PP_TimeDiscMethod==400)*/
 
-#if USE_MPI
-CALL MPI_COMM_DUP (MPI_COMM_WORLD,PartMPI%COMM,iError)
-CALL MPI_COMM_RANK(PartMPI%COMM,PartMPI%myRank,iError)
-CALL MPI_COMM_SIZE(PartMPI%COMM,PartMPI%nProcs,iError)
-
-IF(PartMPI%nProcs.NE.nProcessors) CALL ABORT(__STAMP__,' MPI Communicater-size does not match!', IERROR)
-PartCommSize    = 0
-PartMPI%MPIRoot = .FALSE.
-IF(PartMPI%MyRank.EQ.0) PartMPI%MPIRoot=.TRUE.
-#else
-PartMPI%myRank  = 0
-PartMPI%nProcs  = 1
-PartMPI%MPIRoot = .TRUE.
-#endif  /*USE_MPI*/
-
 ParticleMPIInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MPI DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -156,7 +141,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_MPI_Vars
 USE MOD_DSMC_Vars,              ONLY:useDSMC, CollisMode, DSMC
-USE MOD_Particle_Vars,          ONLY:usevMPF, PDM
+USE MOD_Particle_Vars,          ONLY:usevMPF, PDM, UseRotRefFrame
 USE MOD_Particle_Tracking_vars, ONLY:TrackingMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -175,29 +160,19 @@ PartCommSize   = 0
 PartCommSize   = PartCommSize + 6
 ! Tracking: Include Reference coordinates
 IF(TrackingMethod.EQ.REFMAPPING) PartCommSize=PartCommSize+3
+! Velocity (rotational reference frame)
+IF(UseRotRefFrame) PartCommSize = PartCommSize+3
 ! Species-ID
 PartCommSize   = PartCommSize + 1
 ! id of element
 PartCommSize   = PartCommSize + 1
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
-  IF (usevMPF .AND. DSMC%ElectronicModel.GT.0) THEN
-    ! vib. , rot and electronic energy and macroparticle factor for each particle
-    PartCommSize = PartCommSize + 4
-  ELSE IF (usevMPF ) THEN
-    ! vib. and rot energy and macroparticle factor for each particle
-    PartCommSize = PartCommSize + 3
-  ELSE IF (DSMC%ElectronicModel.GT.0) THEN
-    ! vib., rot. and electronic energy
-    PartCommSize = PartCommSize + 3
-  ELSE
-    ! vib. and rot. energy
-    PartCommSize = PartCommSize + 2
-  END IF
-ELSE
-  ! PIC simulation with vMPF
-  IF (usevMPF) PartCommSize = PartCommSize+1
+  PartCommSize = PartCommSize + 2
+  IF(DSMC%ElectronicModel.GT.0) PartCommSize   = PartCommSize + 1
 END IF
+! Simulation with variable particle weights
+IF (usevMPF) PartCommSize = PartCommSize+1
 
 ! time integration
 #if defined(LSERK)
@@ -271,7 +246,7 @@ SUBROUTINE IRecvNbOfParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars,      ONLY:PartMPI,PartMPIExchange
+USE MOD_Particle_MPI_Vars,      ONLY:PartMPIExchange
 USE MOD_Particle_MPI_Vars,      ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -289,7 +264,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%RecvRequest(1,iProc)                       &
                 , IERROR )
  ! IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__&
@@ -299,7 +274,11 @@ END DO ! iProc
 END SUBROUTINE IRecvNbOfParticles
 
 
+#if defined(IMPA)
 SUBROUTINE SendNbOfParticles(doParticle_In)
+#else
+SUBROUTINE SendNbOfParticles()
+#endif /*defined(IMPA)*/
 !===================================================================================================================================
 ! This routine sends the number of send particles, for which the following steps are performed:
 ! 1) Compute number of Send Particles
@@ -316,7 +295,7 @@ USE MOD_Preproc
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_DSMC_Vars              ,ONLY: DSMC,SpecDSMC, useDSMC, PolyatomMolDSMC
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIExchange,PartTargetProc
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartTargetProc
 USE MOD_Particle_MPI_Vars,      ONLY: nExchangeProcessors,ExchangeProcToGlobalProc,GlobalProcToExchangeProc, halo_eps_velo
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 ! variables for parallel deposition
@@ -324,17 +303,23 @@ USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,PEM,PDM,Species
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+#if defined(IMPA)
 LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
+#endif /*defined(IMPA)*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if defined(IMPA)
 LOGICAL                       :: doPartInExists
+#endif /*defined(IMPA)*/
 INTEGER                       :: iPart,ElemID, iPolyatMole
 INTEGER                       :: iProc,ProcID
 !===================================================================================================================================
+#if defined(IMPA)
 doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
+#endif /*defined(IMPA)*/
 
 ! 1) get number of send particles
 !--- Count number of particles in cells in the halo region and add them to the message
@@ -345,12 +330,15 @@ DO iPart=1,PDM%ParticleVecLength
   !         ! Activate phantom/ghost particles
   !         IF(PartSpecies(iPart).LT.0) PDM%ParticleInside(iPart) = .TRUE.
 
-  ! TODO: Info why and under which conditions the following 'CYCLE' is called
+#if defined(IMPA)
   IF(doPartInExists)THEN
     IF (.NOT.(PDM%ParticleInside(iPart).AND.DoParticle_In(iPart))) CYCLE
   ELSE
+#endif /*defined(IMPA)*/
     IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+#if defined(IMPA)
   END IF
+#endif /*defined(IMPA)*/
 
   ! This is already the global ElemID
   ElemID = PEM%GlobalElemID(iPart)
@@ -385,7 +373,7 @@ DO iPart=1,PDM%ParticleVecLength
           PartMPIExchange%nPartsSend(2,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + PolyatomMolDSMC(iPolyatMole)%VibDOF
       END IF
       IF ((DSMC%ElectronicModel.EQ.2).AND. &
-          (.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
+          (.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized))) THEN
         PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) =  &
           PartMPIExchange%nPartsSend(3,GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,ProcID)) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
       END IF
@@ -407,7 +395,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_INTEGER                                                &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1001                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%SendRequest(1,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(&
@@ -438,10 +426,13 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars,               ONLY:useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars,               ONLY:ElectronicDistriPart, AmbipolElecVelo
-USE MOD_Particle_MPI_Vars,       ONLY:PartMPI,PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
+USE MOD_Particle_MPI_Vars,       ONLY:PartMPIExchange,PartCommSize,PartSendBuf,PartRecvBuf,PartTargetProc!,PartHaloElemToProc
 USE MOD_Particle_MPI_Vars,       ONLY:nExchangeProcessors,ExchangeProcToGlobalProc
 USE MOD_Particle_Tracking_Vars,  ONLY:TrackingMethod
 USE MOD_Particle_Vars,           ONLY:PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM,PartPosRef,Species
+USE MOD_Particle_Vars,           ONLY:UseRotRefFrame,PartVeloRotRef
+USE MOD_part_operations         ,ONLY: RemoveParticle
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition
 #if defined(LSERK)
 USE MOD_Particle_Vars,           ONLY:Pt_temp
 #endif
@@ -469,7 +460,7 @@ LOGICAL, INTENT(IN), OPTIONAL :: UseOldVecLength
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart,iPos,iProc,jPos, nPartLenth
+INTEGER                       :: iPart,iPos,iProc,jPos, nPartLength
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
@@ -502,12 +493,12 @@ MsgLengthAmbi(:) = PartMPIExchange%nPartsSend(4,:)
 
 IF (PRESENT(UseOldVecLength)) THEN
   IF (UseOldVecLength) THEN
-    nPartLenth = PDM%ParticleVecLengthOld
+    nPartLength = PDM%ParticleVecLengthOld
   ELSE
-    nPartLenth = PDM%ParticleVecLength
+    nPartLength = PDM%ParticleVecLength
   END IF
 ELSE
-  nPartLenth = PDM%ParticleVecLength
+  nPartLength = PDM%ParticleVecLength
 END IF
 
 ! 3) Build Message
@@ -548,7 +539,7 @@ DO iProc=0,nExchangeProcessors-1
     CALL ABORT(__STAMP__,'  Cannot allocate PartSendBuf, local ProcId, ALLOCSTAT',iProc,REAL(ALLOCSTAT))
 
   ! build message
-  DO iPart=1,nPartLenth
+  DO iPart=1,nPartLength
 
     ! TODO: This seems like a valid check to me, why is it commented out?
     !IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
@@ -561,6 +552,11 @@ DO iProc=0,nExchangeProcessors-1
       !>> particle position in reference space
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         PartSendBuf(iProc)%content(1+jPos:3+jPos) = PartPosRef(1:3,iPart)
+        jPos=jPos+3
+      END IF
+      !>> particle velocity in rotational reference frame
+      IF(UseRotRefFrame) THEN
+        PartSendBuf(iProc)%content(1+jPos:3+jPos) = PartVeloRotRef(1:3,iPart)
         jPos=jPos+3
       END IF
       !>> particle species
@@ -709,7 +705,7 @@ DO iProc=0,nExchangeProcessors-1
         END IF
 
         IF (DSMC%ElectronicModel.EQ.2) THEN
-          IF(.NOT.((SpecDSMC(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
+          IF(.NOT.((Species(PartSpecies(iPart))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(iPart))%FullyIonized)) THEN
             PartSendBuf(iProc)%content(pos_elec(iProc)+1:pos_elec(iProc)+ SpecDSMC(PartSpecies(iPart))%MaxElecQuant) &
                                          = ElectronicDistriPart(iPart)%DistriFunc(1:SpecDSMC(PartSpecies(iPart))%MaxElecQuant)
             pos_elec(iProc) = pos_elec(iProc) + SpecDSMC(PartSpecies(iPart))%MaxElecQuant
@@ -739,13 +735,7 @@ DO iProc=0,nExchangeProcessors-1
       ! increment message position to next element, PartCommSize.EQ.jPos
       iPos=iPos+PartCommSize
       ! particle is ready for send, now it can deleted
-      PDM%ParticleInside(iPart) = .FALSE.
-
-#ifdef IMPA
-      DoPartInNewton(  iPart) = .FALSE.
-      PartLambdaAccept(iPart) = .TRUE.
-      PartIsImplicit(  iPart) = .FALSE.
-#endif /*IMPA*/
+      CALL RemoveParticle(iPart)
     END IF ! Particle is particle with target proc-id equals local proc id
   END DO  ! iPart
 
@@ -780,10 +770,11 @@ END DO ! iProc
 PartMPIExchange%nMPIParticles=SUM(PartMPIExchange%nPartsRecv(1,:))
 
 ! nullify data on old particle position for safety
-DO iPart=1,nPartLenth
+DO iPart=1,nPartLength
   IF(PartTargetProc(iPart).EQ.-1) CYCLE
   PartState(1:6,iPart) = 0.
   PartSpecies(iPart)   = 0
+  IF(UseRotRefFrame) PartVeloRotRef(1:3,iPart) = 0.
 #if defined(LSERK)
   Pt_temp(1:6,iPart)   = 0.
 #endif
@@ -830,7 +821,7 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_DOUBLE_PRECISION                                       &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1002                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%RecvRequest(2,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
@@ -861,13 +852,15 @@ DO iProc=0,nExchangeProcessors-1
                 , MPI_DOUBLE_PRECISION                                       &
                 , ExchangeProcToGlobalProc(EXCHANGE_PROC_RANK,iProc)         &
                 , 1002                                                       &
-                , PartMPI%COMM                                               &
+                , MPI_COMM_PICLAS                                               &
                 , PartMPIExchange%SendRequest(2,iProc)                       &
                 , IERROR )
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 
   ! Deallocate sendBuffer after send was successful, see MPIParticleRecv
 END DO ! iProc
+
+IF(PDM%UNFPafterMPIPartSend) CALL UpdateNextFreePosition()
 
 END SUBROUTINE MPIParticleSend
 
@@ -885,15 +878,17 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf!,PartMPI
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: PartState,PartSpecies,usevMPF,PartMPF,PEM,PDM, PartPosRef, Species, LastPartPos
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef
 USE MOD_Particle_TimeStep      ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Mesh_Vars     ,ONLY: IsExchangeElem
 USE MOD_Particle_MPI_Vars      ,ONLY: ExchangeProcToGlobalProc,DoParticleLatencyHiding
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if defined(LSERK)
 USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #endif
@@ -915,7 +910,7 @@ USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting, DSMC_VariableWeighting
-USE MOD_part_tools             ,ONLY: ParticleOnProc
+USE MOD_part_tools             ,ONLY: ParticleOnProc, InRotRefFrameCheck
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars,       ONLY:MPIW8TimePart,MPIW8CountPart
@@ -930,7 +925,7 @@ LOGICAL, OPTIONAL             :: DoMPIUpdateNextFreePos
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, TempNextFreePosition, ElemID
+INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID, TempNextFreePosition
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
 #if defined(ROS) || defined(IMPA)
@@ -1024,9 +1019,7 @@ DO iProc=0,nExchangeProcessors-1
   DO iPos=0,MessageSize-1-MsgLengthPoly - MsgLengthElec - MsgLengthAmbi,PartCommSize
     ! find free position in particle array
     nRecv  = nRecv+1
-    PartID = PDM%nextFreePosition(nRecv+PDM%CurrentNextFreePosition)
-    IF(PartID.EQ.0) CALL ABORT(__STAMP__,&
-        ' Error in ParticleExchange_parallel. PDM%nextFreePosition=0. Increase Part-MaxParticleNumber! ', nRecv)
+    PartID = GetNextFreePosition(nRecv)
 
     !>> particle position in physical space
     PartState(1:6,PartID)    = PartRecvBuf(iProc)%content(1+iPos: 6+iPos)
@@ -1034,6 +1027,16 @@ DO iProc=0,nExchangeProcessors-1
     !>> particle position in reference space
     IF(TrackingMethod.EQ.REFMAPPING)THEN
       PartPosRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
+      jPos=jPos+3
+    END IF
+    !>> particle velocity in rotational reference frame
+    IF(UseRotRefFrame) THEN
+      PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+      IF(PDM%InRotRefFrame(PartID)) THEN
+        PartVeloRotRef(1:3,PartID) = PartRecvBuf(iProc)%content(1+jPos: 3+jPos)
+      ELSE
+        PartVeloRotRef(1:3,PartID) = 0.
+      END IF
       jPos=jPos+3
     END IF
     !>> particle species
@@ -1229,7 +1232,7 @@ DO iProc=0,nExchangeProcessors-1
       END IF
 
       IF (DSMC%ElectronicModel.EQ.2) THEN
-        IF(.NOT.((SpecDSMC(PartSpecies(PartID))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
+        IF(.NOT.((Species(PartSpecies(PartID))%InterID.EQ.4).OR.SpecDSMC(PartSpecies(PartID))%FullyIonized)) THEN
           IF(ALLOCATED(ElectronicDistriPart(PartID)%DistriFunc)) DEALLOCATE(ElectronicDistriPart(PartID)%DistriFunc)
           ALLOCATE(ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(PartSpecies(PartID))%MaxElecQuant))
           ElectronicDistriPart(PartID)%DistriFunc(1:SpecDSMC(PartSpecies(PartID))%MaxElecQuant) &
@@ -1298,27 +1301,34 @@ DO iProc=0,nExchangeProcessors-1
 
 END DO ! iProc
 
-TempNextFreePosition          = PDM%CurrentNextFreePosition
-PDM%ParticleVecLength         = PDM%ParticleVecLength + PartMPIExchange%nMPIParticles
-PDM%CurrentNextFreePosition   = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
-PartMPIExchange%nMPIParticles = 0
-IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) CALL ABORT(__STAMP__&
-    ,' ParticleVecLegnth>MaxParticleNumber due to MPI-communication! Increase Part-maxParticleNumber or use more processors.')
+IF(PartMPIExchange%nMPIParticles.GT.0) THEN
+  PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + PartMPIExchange%nMPIParticles
+  PDM%ParticleVecLength = MAX(PDM%ParticleVecLength,GetNextFreePosition(0))
+END IF
+#ifdef CODE_ANALYZE
+IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL Abort(__STAMP__,'PDM%ParticleVeclength exceeds PDM%maxParticleNumber, Difference:',IntInfoOpt=PDM%ParticleVeclength-PDM%maxParticleNumber)
+DO PartID=PDM%ParticleVecLength+1,PDM%maxParticleNumber
+  IF (PDM%ParticleInside(PartID)) THEN
+    IPWRITE(*,*) PartID,PDM%ParticleVecLength,PDM%maxParticleNumber
+    CALL Abort(__STAMP__,'Particle outside PDM%ParticleVeclength',IntInfoOpt=PartID)
+  END IF
+END DO
+#endif
 
 IF(RadialWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
-    PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+    PartID = GetNextFreePosition(iPart-PartMPIExchange%nMPIParticles)
     IF(ParticleOnProc(PartID)) CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
   END DO
 ELSE IF (VarWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
-    PartID = PDM%nextFreePosition(iPart+TempNextFreePosition)
+    PartID = GetNextFreePosition(iPart-PartMPIExchange%nMPIParticles)
     IF(ParticleOnProc(PartID)) CALL DSMC_VariableWeighting(PartID,PEM%GlobalElemID(PartID))
   END DO
 END IF
-
+PartMPIExchange%nMPIParticles = 0
 ! deallocate send,receive buffer
 DO iProc=0,nExchangeProcessors-1
   SDEALLOCATE(PartRecvBuf(iProc)%content)
@@ -1354,18 +1364,17 @@ DO iSpec=1,nSpecies
 END DO ! iSpec
 IF(nInitRegions.GT.0) THEN
   DO iInitRegions=1,nInitRegions
-    IF(PartMPI%InitGroup(iInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
-      CALL MPI_COMM_FREE(PartMPI%InitGroup(iInitRegions)%Comm,iERROR)
+    IF(PartMPIInitGroup(iInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
+      CALL MPI_COMM_FREE(PartMPIInitGroup(iInitRegions)%Comm,iERROR)
     END IF
   END DO ! iInitRegions
 END IF
-IF(PartMPI%COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(PartMPI%COMM,iERROR)
 
 SDEALLOCATE( PartMPIExchange%nPartsSend)
 SDEALLOCATE( PartMPIExchange%nPartsRecv)
 SDEALLOCATE( PartMPIExchange%RecvRequest)
 SDEALLOCATE( PartMPIExchange%SendRequest)
-SDEALLOCATE( PartMPI%InitGroup)
+SDEALLOCATE( PartMPIInitGroup)
 SDEALLOCATE( PartSendBuf)
 SDEALLOCATE( PartRecvBuf)
 SDEALLOCATE( ExchangeProcToGlobalProc)

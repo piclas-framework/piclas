@@ -123,6 +123,7 @@ ELSE
 END IF
 LoadBalanceSample   = GETINT('LoadBalanceSample')
 LoadBalanceMaxSteps = GETINT('LoadBalanceMaxSteps')
+IF (LoadBalanceMaxSteps.LE.0) LoadBalanceMaxSteps = HUGE(1)
 PerformPartWeightLB = GETLOGICAL('PartWeightLoadBalance','F')
 IF (PerformPartWeightLB) THEN
   LoadBalanceSample = 0 ! deactivate loadbalance sampling of elemtimes if balancing with partweight is enabled
@@ -404,7 +405,11 @@ CALL extrae_eventandcounters(int(9000001), int8(2))
 SWRITE(UNIT_StdOut,'(132("="))')
 nLoadBalanceSteps=nLoadBalanceSteps+1
 CALL set_formatting("green")
-SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
+IF (LoadBalanceMaxSteps.LT.HUGE(1)) THEN
+  SWRITE(UNIT_stdOut,'(A,I0,A,I0,A)',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' of ',LoadBalanceMaxSteps,' ...'
+ELSE
+  SWRITE(UNIT_stdOut,'(A,I0,A     )',ADVANCE='NO') ' PERFORMING LOAD BALANCE ',nLoadBalanceSteps,' ...'
+END IF
 CALL clear_formatting()
 SWRITE(UNIT_StdOut,'(1X)')
 ! Measure init duration
@@ -488,10 +493,10 @@ SUBROUTINE ComputeImbalance()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_LoadBalance_Vars ,ONLY: WeightSum, TargetWeight,CurrentImbalance, MaxWeight, MinWeight
-USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, PerformPartWeightLB, DeviationThreshold
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_LoadBalance_Vars ,ONLY: ElemTime, PerformLBSample, DeviationThreshold
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeFieldTot,ElemTimeField
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePartTot,ElemTimePart
 #endif /*PARTICLES*/
@@ -506,26 +511,26 @@ IMPLICIT NONE
 REAL :: WeightSum_loc
 !===================================================================================================================================
 
-IF(.NOT.PerformLBSample .AND. .NOT.PerformPartWeightLB) THEN
+IF(.NOT.PerformLBSample) THEN
   WeightSum        = 0.
   TargetWeight     = 0.
   CurrentImbalance = -1.0
 ELSE
 
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
   WeightSum = 0. ! initialize before adding particle info
 #else
   ! Collect ElemTime for particles and field separately (only on root process)
   ! Skip the reduce for DSMC timedisc
-  CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  CALL MPI_REDUCE(ElemTimeField , ElemTimeFieldTot , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   WeightSum = ElemTimeFieldTot ! only correct on MPI root
-#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 #ifdef PARTICLES
-  CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_WORLD , IERROR)
+  CALL MPI_REDUCE(ElemTimePart , ElemTimePartTot  , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   WeightSum = WeightSum + ElemTimePartTot ! only correct on MPI root
 #endif /*PARTICLES*/
   ! send WeightSum from MPI root to all other procs
-  CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_WORLD,iError)
+  CALL MPI_BCAST(WeightSum,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
   ! Sanity check
   IF(.NOT.ISFINITE(WeightSum)) CALL abort(__STAMP__,'Loadbalance: WeightSum is infinite!')
 
@@ -536,9 +541,9 @@ ELSE
     IPWRITE(*,*) 'Info: The measured time of all elems is zero. ALMOSTZERO(WeightSum)=.TRUE., SUM(ElemTime)=',WeightSum_loc
   END IF
 
-  !CALL MPI_ALLREDUCE(WeightSum_loc,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(WeightSum_loc,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_WORLD,iError)
-  CALL MPI_ALLREDUCE(WeightSum_loc,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_WORLD,iError)
+  !CALL MPI_ALLREDUCE(WeightSum_loc,TargetWeight,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
+  CALL MPI_ALLREDUCE(WeightSum_loc,MaxWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
+  CALL MPI_ALLREDUCE(WeightSum_loc,MinWeight   ,1,MPI_DOUBLE_PRECISION,MPI_MIN,MPI_COMM_PICLAS,iError)
 
   !WeightSum    = TargetWeight ! Set total weight for writing to file
   !IF(MPIRoot)THEN

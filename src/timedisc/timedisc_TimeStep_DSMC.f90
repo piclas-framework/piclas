@@ -32,12 +32,13 @@ SUBROUTINE TimeStep_DSMC()
 !> Direct Simulation Monte Carlo
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars            ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 #ifdef PARTICLES
 USE MOD_Globals                  ,ONLY: abort, CROSS
 USE MOD_Particle_Vars            ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega
+USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, LastPartVeloRotRef
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Symmetry, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
@@ -46,19 +47,21 @@ USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux        ,ONLY: ParticleSurfaceflux
+USE MOD_Particle_SurfChemFlux
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Particle_Tracking        ,ONLY: PerformTracking
+USE MOD_SurfaceModel_Chemistry   ,ONLY: SurfChemCoverage
 USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC, DoChemSurface
-USE MOD_Particle_SurfChemFlux
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
-USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_part_RHS                 ,ONLY: CalcPartRHSRotRefFrame, CalcPartPosInRotRef
+USE MOD_part_pos_and_velo        ,ONLY: SetParticleVelocity
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
-USE MOD_Particle_Mesh_Vars       ,ONLY: DoSubcellAdaption
 #if USE_MPI
-USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
+USE MOD_SurfaceModel_Chemistry   ,ONLY: ExchangeSurfChemCoverage
+USE MOD_Particle_MPI             ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers       ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -72,12 +75,25 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: timeEnd, timeStart, dtVar, RandVal, Pt_local(1:3), RotRefVelo(1:3)
 INTEGER                    :: iPart
+REAL                       :: timeEnd, timeStart, dtVar, RandVal
 #if USE_LOADBALANCE
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+! for reservoir simulation: no surface flux, particle push, tracking, ...
+IF (DSMC%ReservoirSimu) THEN ! fix grid should be defined for reservoir simu
+  CALL UpdateNextFreePosition()
+  CALL DSMC_main()
+  IF(DSMC%CompareLandauTeller) THEN
+    DO iPart=1,PDM%ParticleVecLength
+      PDM%nextFreePosition(iPart)=iPart
+    END DO
+    CALL SetParticleVelocity(1,1,PDM%ParticleVecLength)
+  END IF
+  RETURN
+END IF
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -91,13 +107,17 @@ IF (DoSurfaceFlux) THEN
 END IF
 
 IF (DoChemSurface) THEN
+#if USE_MPI
   CALL ExchangeChemSurfData()
-
+#endif /*USE_MPI*/
+  CALL SurfChemCoverage()
   IF (time.GT.0.0) THEN
     CALL ParticleSurfChemFlux()
     CALL ParticleSurfDiffusion()
   END IF
-
+#if USE_MPI
+  CALL ExchangeSurfChemCoverage()
+#endif /*USE_MPI*/
 END IF
 
 #if USE_LOADBALANCE
@@ -124,13 +144,8 @@ DO iPart=1,PDM%ParticleVecLength
       PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
     END IF
     IF(UseRotRefFrame) THEN
-      IF(PDM%InRotRefFrame(iPart)) THEN
-        RotRefVelo(1:3) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
-        CALL CalcPartRHSRotRefFrame(iPart,Pt_local(1:3),RotRefVelo(1:3))
-        PartState(1:3,iPart) = PartState(1:3,iPart) + (RotRefVelo(1:3)+dtVar*0.5*Pt_local(1:3)) * dtVar
-      ELSE
-        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
-      END IF
+      LastPartVeloRotRef(1:3,iPart)=PartVeloRotRef(1:3,iPart)
+      CALL CalcPartPosInRotRef(iPart, dtVar)
     ELSE
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     END IF
@@ -194,13 +209,9 @@ ELSE IF ( (MOD(iter,IterDisplayStep).EQ.0) .OR. &
           (Time.ge.(1-DSMC%TimeFracSamp)*TEnd) .OR. &
           WriteMacroVolumeValues.OR.WriteMacroSurfaceValues ) THEN
   CALL UpdateNextFreePosition() !postpone UNFP for CollisMode=0 to next IterDisplayStep or when needed for DSMC-Sampling
-ELSE IF (PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).GT.PDM%maxParticleNumber .OR. &
-         PDM%nextFreePosition(PDM%CurrentNextFreePosition+1).EQ.0) THEN
-  ! gaps in PartState are not filled until next UNFP and array might overflow more easily!
-  CALL abort(__STAMP__,'maximum nbr of particles reached!')
 END IF
 
-IF(DSMC%UseOctree.OR.DoSubcellAdaption)THEN
+IF(DSMC%UseOctree)THEN
   ! Case Symmetry%Order=1 is performed in DSMC main
   IF(Symmetry%Order.EQ.2)THEN
     DO iPart=1,PDM%ParticleVecLength
@@ -221,24 +232,27 @@ END IF ! DSMC%UseOctree
 
 IF(UseRotRefFrame) THEN
   DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    IF(PDM%ParticleInside(iPart)) THEN
+      IF(InRotRefFrameCheck(iPart)) THEN
+        ! Particle moved into the rotational frame of reference, initialize velocity
+        IF(.NOT.PDM%InRotRefFrame(iPart)) THEN
+          PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+        END IF
+      ELSE
+        ! Particle left (or never was in) the rotational frame of reference
+        PartVeloRotRef(1:3,iPart) = 0.
+      END IF
+      PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+    END IF
   END DO
 END IF
 
 CALL DSMC_main()
 
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-
+! Split & Merge: Variable particle weighting
 IF(UseSplitAndMerge) CALL SplitAndMerge()
 
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DSMC,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
 END SUBROUTINE TimeStep_DSMC
-
 
 END MODULE MOD_TimeStep
 #endif

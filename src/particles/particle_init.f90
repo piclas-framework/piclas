@@ -60,6 +60,7 @@ PUBLIC::InitParticles
 PUBLIC::FinalizeParticles
 PUBLIC::DefineParametersParticles
 PUBLIC::InitialIonization
+PUBLIC::InitSymmetry
 !===================================================================================================================================
 
 CONTAINS
@@ -80,7 +81,16 @@ CALL prms%SetSection("Particle")
 CALL prms%CreateRealOption(     'Particles-ManualTimeStep'  , 'Manual timestep [sec]. This variable is deprecated. '//&
                                                               'Use ManualTimestep instead.', '-1.0')
 CALL prms%CreateIntOption(      'Part-nSpecies' ,                 'Number of species used in calculation', '1')
+CALL prms%CreateStringOption(   'Part-Species[$]-SpeciesName' ,'Species name of Species[$]', 'none', numberedmulti=.TRUE.)
 CALL prms%CreateStringOption(   'Particles-Species-Database', 'File name for the species database', 'none')
+CALL prms%CreateLogicalOption(  'Part-Species[$]-DoOverwriteParameters', 'Flag to set parameters in ini-file manually', '.FALSE.'&
+                                                                        , numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
+                                                                 '  1: Atom\n'//&
+                                                                 '  2: Molecule\n'//&
+                                                                 '  4: Electron\n'//&
+                                                                 ' 10: Atomic Ion\n'//&
+                                                                 ' 20: Molecular Ion', '0', numberedmulti=.TRUE.)
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
@@ -91,8 +101,16 @@ CALL prms%CreateIntArrayOption( 'InitialIonizationSpeciesID', 'Supply a vector w
 CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average charge for each atom/molecule in the cell '//&
                                                                    '(corresponds to the ionization degree)')
 
-CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum number of Particles per proc (used for array init)'&
-                                                                 , '1')
+CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum allowed particles per core, 0=no limit')
+CALL prms%CreateRealOption(     'Part-MaxPartNumIncrease', 'How much shall the PDM%MaxParticleNumber be incresed if it is full'&
+                                                                 , '0.1')
+CALL prms%CreateLogicalOption(  'Part-RearrangePartIDs', 'Rearrange PartIDs in the process of reducing maxPartNum to allow lower memory usage'&
+                                                                 , '.TRUE.')
+#if USE_MPI
+CALL prms%CreateLogicalOption(  'Part-MPI-UNFP-afterPartSend', 'UpdateNextFreePosition after MPIParticleSend to reduce '//&
+                                                                'PDM%maxParticleNummber increase and decreace operations'&
+                                                                 , '.FALSE.')
+#endif
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&
                                                                 'Choose nRandomSeeds \n'//&
                                                                 '=-1    Random \n'//&
@@ -191,11 +209,13 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
   , 'Set [T] to activate sampling, analyze and h5 output for surfaces. Therefore either time fraction or iteration sampling'//&
   ' have to be enabled as well.', '.FALSE.')
 
-CALL prms%CreateLogicalOption(  'Part-SampElectronicExcitation'&
-  , 'Set [T] to activate sampling of electronic energy excitation', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
+  , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
 ! === Rotational frame of reference
-CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate rotational frame of reference', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcyling steps)','10')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
                                 'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
@@ -211,19 +231,28 @@ END SUBROUTINE DefineParametersParticles
 !===================================================================================================================================
 ! Global particle parameters needed for other particle inits
 !===================================================================================================================================
-SUBROUTINE InitParticleGlobals()
+SUBROUTINE InitParticleGlobals(IsLoadBalance)
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
+USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
+USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
+USE MOD_Restart_Vars           ,ONLY: DoRestart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: IsLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -232,7 +261,17 @@ IMPLICIT NONE
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
 
-! Find tracking method immediately, a lot of the later variables depend on it
+!--- Variable time step
+VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
+VarTimeStep%UseDistribution = GETLOGICAL('Part-VariableTimeStep-Distribution')
+IF (VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution)  THEN
+  UseVarTimeStep = .TRUE.
+  IF(.NOT.IsLoadBalance) CALL InitPartTimeStep()
+ELSE
+  UseVarTimeStep = .FALSE.
+END IF
+
+!--- Find tracking method immediately, a lot of the later variables depend on it
 TrackingMethod = GETINTFROMSTR('TrackingMethod')
 SELECT CASE(TrackingMethod)
 CASE(REFMAPPING,TRACING,TRIATRACKING)
@@ -244,6 +283,30 @@ IF (Symmetry%Order.LE.2) THEN
   TrackingMethod = TRIATRACKING
   LBWRITE(UNIT_stdOut,'(A)') "TrackingMethod set to TriaTracking due to Symmetry2D."
 END IF
+
+!--- Particle-in-cell deposition method
+CALL InitDepositionMethod()
+
+!--- Ray Tracing
+! 1) Activate ray tracing based emission (also required for plasma simulation)
+UseRayTracing = GETLOGICAL('UseRayTracing')
+! 2) Activate actual ray tracing algorithms that track rays through the complete mesh (full mesh mode)
+RadiationSurfState = TRIM(ProjectName)//'_RadiationSurfState.h5'
+RadiationVolState  = TRIM(ProjectName)//'_RadiationVolState.h5'
+PerformRayTracing  = .FALSE. ! default
+IF(UseRayTracing)THEN
+  IF(FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState))THEN
+    PerformRayTracing = .FALSE.
+  ELSE
+    PerformRayTracing = .TRUE.
+    IF(DoRestart) CALL abort(__STAMP__,'Restart simulation requires '//TRIM(RadiationSurfState)//' and '//TRIM(RadiationVolState))
+  END IF ! FILEEXISTS(RadiationSurfState).AND.FILEEXISTS(RadiationVolState)
+END IF ! UseRayTracing
+
+#if (PP_TimeDiscMethod==600)
+! Radiation solver/transport always requires PerformRayTracing = T
+PerformRayTracing = .TRUE.
+#endif
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
@@ -265,24 +328,23 @@ USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
 USE MOD_SurfaceModel_Porous        ,ONLY: InitPorousBoundaryCondition
 USE MOD_Particle_Boundary_Sampling ,ONLY: InitParticleBoundarySampling
-USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE,SurfChemReac
-USE MOD_SurfaceModel_Chemistry     ,ONLY: SurfaceModel_Chemistry_Init
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE,DoChemSurface
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
-USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
 USE MOD_SurfaceModel_Init          ,ONLY: InitSurfaceModel
+USE MOD_SurfaceModel_Chemistry     ,ONLY: InitSurfaceModelChemistry
 USE MOD_Particle_Surfaces          ,ONLY: InitParticleSurfaces
-USE MOD_Particle_Mesh_Vars         ,ONLY: GEO, DoSubcellAdaption
-USE MOD_Cell_Adaption
 USE MOD_Particle_Sampling_Adapt    ,ONLY: InitAdaptiveBCSampling
-USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundaryRotPeriodic, InitAdaptiveWallTemp
+USE MOD_Particle_Boundary_Init     ,ONLY: InitParticleBoundarySurfSides
+USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWallTemp, InitRotPeriodicInterPlaneMapping
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs                                                                                                                      ! USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
@@ -296,6 +358,8 @@ USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars           ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_RayTracing_Init            ,ONLY: InitRayTracing
+USE MOD_Mesh_Vars                  ,ONLY: NodeCoords
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -328,6 +392,9 @@ END IF
 
 CALL InitializeVariables()
 
+! Initialize particle surface flux to be performed per iteration
+CALL InitializeParticleSurfaceflux()
+
 ! Initialize volume sampling
 IF(useDSMC .OR. WriteMacroVolumeValues) THEN
 ! definition of DSMC sampling values
@@ -336,54 +403,61 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   DSMC_Solution = 0.0
 END IF
 
-! Initialize surface sampling / rotational periodic mapping
-! (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.(ANY(PartBound%Reactive)).OR.(nPorousBC.GT.0) &
-  .OR.GEO%RotPeriodicBC.OR.(SurfChemReac%NumOfReact.GT.0)) THEN
+! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and
+! mappings (GlobalSide2SurfSide,SurfSide2GlobalSide) of the particle boundary surface sides
+CALL InitParticleBoundarySurfSides()
+! Initialize rotational periodic mappings (requires InitParticleBoundarySurfSides)
+IF(PartBound%UseRotPeriodicBC) CALL InitRotPeriodicMapping()
+IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
+! Initialize surface sampling (the following IF arguments have to be considered in FinalizeParticleBoundarySampling as well)
+#if (PP_TimeDiscMethod==600)
+CALL InitParticleBoundarySampling()
+#endif
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive)) THEN
+#if !(PP_TimeDiscMethod==600)
   CALL InitParticleBoundarySampling()
-  IF(GEO%RotPeriodicBC) CALL InitParticleBoundaryRotPeriodic()
+#endif
   CALL InitAdaptiveWallTemp()
 END IF
 
-! Initialize surface reactions
-CALL SurfaceModel_Chemistry_Init()
+! Initialize arrays for surface chemistry
+IF(DoChemSurface) CALL InitSurfaceModelChemistry()
 
-! Insert the initial particles
-CALL InitialParticleInserting()
-! Initialize particle surface flux to be performed per iteration
-
-CALL InitializeParticleSurfaceflux()
-
-! Initialize porous boundary condition (requires BCdata_auxSF and SurfMesh from InitParticleBoundarySampling)
+! Initialize porous boundary condition (requires BCdata_auxSF and InitParticleBoundarySurfSides)
 IF(nPorousBC.GT.0) CALL InitPorousBoundaryCondition()
 
 ! Allocate sampling of near adaptive boundary element values
-IF(UseAdaptive.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
+IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL InitAdaptiveBCSampling()
 
-! Initialize backrgound gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
+! Initialize background gas regions (requires completed InitParticleGeometry for ElemMidPoint_Shared)
 IF(BGGas%UseRegions) CALL BGGas_InitRegions()
 
-! Init Mesh Adaption
-DoSubcellAdaption  = GETLOGICAL('Part-DoSubcellAdaption')
+! Ray tracing
+CALL InitRayTracing()
+
+! Was deallocated in InitParticleMesh previously
+DEALLOCATE(NodeCoords)
 
 IF (useDSMC) THEN
   CALL InitDSMC()
   CALL InitMCC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
-  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D Fokker-Planck flow is not implemented yet')
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
-  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D BGK is not implemented yet')
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
   DSMC%ElectronicModel = 0
 END IF
 
+! Insert the initial particles
+CALL InitialParticleInserting()
+
+! Both routines have to be called AFTER InitializeVariables and InitDSMC
+CALL InitPartDataSize()
 #if USE_MPI
-! has to be called AFTER InitializeVariables and InitDSMC
 CALL InitParticleCommSize()
 #endif
 
@@ -402,22 +476,22 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_InitVarWeighting
-USE MOD_DSMC_AdaptMPF          ,ONLY: DSMC_InitAdaptiveWeights
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
+USE MOD_DSMC_AdaptMPF          ,ONLY: DSMC_InitAdaptiveWeights
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
 USE MOD_Particle_Boundary_Init ,ONLY: InitializeVariablesPartBoundary
+USE MOD_SurfaceModel_Chemistry ,ONLY: InitializeVariablesSurfaceChemistry
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfChemReac
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfChem
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
 USE MOD_Particle_MPI_Halo      ,ONLY: IdentifyPartExchangeProcs
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolationAnalytic
@@ -437,16 +511,25 @@ USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL              :: ManualTimeStepParticle ! temporary variable
+CHARACTER(32)     :: hilf
 !===================================================================================================================================
 ! Read basic particle parameter
-PDM%maxParticleNumber = GETINT('Part-maxParticleNumber','1')
+WRITE(UNIT=hilf,FMT='(I0)') HUGE(PDM%maxAllowedParticleNumber)
+PDM%maxAllowedParticleNumber = GETINT('Part-maxParticleNumber',TRIM(hilf))
+PDM%MaxPartNumIncrease = GETREAL('Part-MaxPartNumIncrease','0.1')
+PDM%RearrangePartIDs = GETLOGICAL('Part-RearrangePartIDs','.TRUE.')
+#if USE_MPI
+PDM%UNFPafterMPIPartSend = GETLOGICAL('Part-MPI-UNFP-afterPartSend','.FALSE.')
+#endif
+PDM%maxParticleNumber=1
+PDM%ParticleVecLength=0
 CALL AllocateParticleArrays()
 CALL InitializeVariablesRandomNumbers()
 
 ! initialization of surface model flags
 DoPoissonRounding = GETLOGICAL('Particles-DoPoissonRounding','.FALSE.')
 DoTimeDepInflow   = GETLOGICAL('Particles-DoTimeDepInflow','.FALSE.')
-SurfChemReac%NumOfReact = GETINT('Surface-NumOfReactions', '0')
+SurfChem%NumOfReact = GETINT('Surface-NumOfReactions', '0')
 DelayTime = GETREAL('Part-DelayTime','0.')
 !--- Read Manual Time Step: Old variable name still supported
 ManualTimeStepParticle = GETREAL('Particles-ManualTimeStep')
@@ -459,20 +542,21 @@ nSpecies = GETINT('Part-nSpecies','1')
 IF(nSpecies.LE.0) CALL abort(__STAMP__,'ERROR: nSpecies .LE. 0:', nSpecies)
 ALLOCATE(Species(1:nSpecies))
 
+CALL InitializeSpeciesParameter()
 CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
 
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
-#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
 DoDeposition    = .FALSE.
 !DoInterpolation = .FALSE.
 CALL PrintOption('No PIC-related Time discretization, turning deposition off. DoDeposition','INFO',LogOpt=DoDeposition)
 !CALL PrintOption('No PIC-related Time discretization, turning interpolation off. DoInterpolation','*CHANGE',LogOpt=DoDeposition)
 #else
 DoDeposition    = GETLOGICAL('PIC-DoDeposition')
-#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==42) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
@@ -508,12 +592,8 @@ IF(Symmetry%Axisymmetric) THEN
     RadialWeighting%PerformCloning = .TRUE.
     CALL DSMC_2D_InitRadialWeighting()
   END IF
-  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
-  IF(.NOT.TriaSurfaceFlux) CALL abort(&
-    __STAMP__&
-    ,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
+  IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
+  IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
 
 IF(VarWeighting%DoVariableWeighting) THEN
@@ -531,7 +611,7 @@ END IF
 
 #if USE_MPI
 CALL InitEmissionComm()
-CALL MPI_BARRIER(PartMPI%COMM,IERROR)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,IERROR)
 #endif /*USE_MPI*/
 
 #if defined(PARTICLES) && USE_HDG
@@ -544,6 +624,7 @@ CALL InitializeVariablesIonization()
 CALL InitializeVariablesVarTimeStep()
 CALL InitializeVariablesAmbipolarDiff()
 CALL InitializeVariablesRotationalRefFrame()
+CALL InitializeVariablesSurfaceChemistry()
 
 END SUBROUTINE InitializeVariables
 
@@ -623,34 +704,17 @@ PartSpecies        = 0
 PDM%nextFreePosition(1:PDM%maxParticleNumber)=0
 
 ALLOCATE(PEM%GlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PEM%GlobalElemID(1:PDM%maxParticleNumber) array!')
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PEM%GlobalElemID(1:PDM%maxParticleNumber) array!')
 
 ALLOCATE(PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(&
-__STAMP__&
-  ,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
 
-IF (useDSMC) THEN
+IF (useDSMC.OR.usevMPF) THEN
   ALLOCATE(PEM%pStart(1:nElems)                         , &
            PEM%pNumber(1:nElems)                        , &
            PEM%pEnd(1:nElems)                           , &
            PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
-
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-    , ' Cannot allocate DSMC PEM arrays!')
-  END IF
-END IF
-IF (useDSMC) THEN
-  ALLOCATE(PDM%PartInit(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) THEN
-    CALL abort(&
-__STAMP__&
-    ,' Cannot allocate DSMC PEM arrays!')
-  END IF
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays!')
 END IF
 
 END SUBROUTINE AllocateParticleArrays
@@ -824,10 +888,8 @@ ELSE IF(nRandomSeeds.EQ.0) THEN
   CALL InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 ELSE IF(nRandomSeeds.GT.0) THEN
   ! read in numbers from ini
-  IF(nRandomSeeds.GT.SeedSize) THEN
-    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
-  ELSE IF(nRandomSeeds.LT.SeedSize) THEN
-    LBWRITE (*,*) 'Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
+  IF(nRandomSeeds.GT.SeedSize.OR.nRandomSeeds.LT.SeedSize) THEN
+    LBWRITE (*,*) '| Expected ',SeedSize,'seeds. Provided ',nRandomSeeds,'. Computer uses default value for all unset values.'
   END IF
   DO iSeed=1,MIN(SeedSize,nRandomSeeds)
     WRITE(UNIT=hilf,FMT='(I0)') iSeed
@@ -855,10 +917,11 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Vars              ,ONLY: DSMC
 USE MOD_TimeDisc_Vars          ,ONLY: TEnd
-USE MOD_Particle_Boundary_Vars ,ONLY: AdaptWallTemp
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -869,9 +932,16 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! Include surface values in the macroscopic output
-DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
+IF(UseRayTracing)THEN
+  ! Automatically activate when UseRayTracing = T
+  DSMC%CalcSurfaceVal = .TRUE.
+  CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+      LogOpt=DSMC%CalcSurfaceVal)
+ELSE
+  DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
+END IF ! UseRayTracing
 ! Include electronic energy excitation in the macroscopic output
-SampleElecExcitation = GETLOGICAL('Part-SampElectronicExcitation')
+SampleElecExcitation = GETLOGICAL('Part-SampleElectronicExcitation')
 ! Sampling for and output every given number of iterations (sample is reset after an output)
 WriteMacroValues = GETLOGICAL('Part-WriteMacroValues')
 IF(WriteMacroValues)THEN
@@ -912,7 +982,7 @@ ELSE
 END IF
 
 ! Adaptive wall temperature should not be used with continuous sampling with multiple outputs as the sample is not reset
-IF(AdaptWallTemp) THEN
+IF(PartBound%AdaptWallTemp) THEN
   IF (DSMC%NumOutput.GT.1) THEN
     CALL abort(__STAMP__, &
       'ERROR: Enabled adaptation of the wall temperature and multiple outputs during a continuous sample is not supported!')
@@ -976,6 +1046,7 @@ IF (usevMPF) THEN
 
   ALLOCATE(PartMPF(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
   IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
+  PartMPF = 1.
 END IF
 END SUBROUTINE InitializeVariablesvMPF
 
@@ -1215,6 +1286,7 @@ USE MOD_DSMC_Vars           ,ONLY: CollisMode,DSMC,PartStateIntEn
 USE MOD_part_emission_tools ,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_DSMC_Vars           ,ONLY: useDSMC
 USE MOD_Eval_xyz            ,ONLY: TensorProductInterpolation
+USE MOD_Part_Tools          ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1323,12 +1395,11 @@ DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
 
     ! Set the next free position in the particle vector list
-    PDM%CurrentNextFreePosition = PDM%CurrentNextFreePosition + 1
-    ParticleIndexNbr            = PDM%nextFreePosition(PDM%CurrentNextFreePosition)
-    PDM%ParticleVecLength       = PDM%ParticleVecLength + 1
+    ParticleIndexNbr            = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
-    PDM%ParticleInside(ParticleIndexNbr) = .true.
+    PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
+    PDM%isNewPart(ParticleIndexNbr) = .TRUE.
     PartSpecies(ParticleIndexNbr) = ElecSpecIndx
 
     ! Place the electron randomly in the reference cell
@@ -1375,6 +1446,9 @@ USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID,ShapeMapping,CNShapeMapping
 #if USE_HDG
 USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectronRefBackup,BRAverageElemToElem
 #endif /*USE_HDG*/
+USE MOD_Particle_Mesh_Tools ,ONLY: ParticleInsideQuad
+USE MOD_Particle_TriaTracking ,ONLY: SingleParticleTriaTracking
+USE MOD_Particle_InterSection ,ONLY: ParticleThroughSideCheck1D2D
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1382,6 +1456,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                   :: iSpec, iSF
 !===================================================================================================================================
 !#if USE_MPI
 !CALL FinalizeEmissionParticlesToProcs()
@@ -1418,11 +1493,12 @@ SDEALLOCATE(PartIsImplicit)
 SDEALLOCATE(PartPosRef)
 SDEALLOCATE(PartState)
 SDEALLOCATE(LastPartPos)
+SDEALLOCATE(PartVeloRotRef)
+SDEALLOCATE(LastPartVeloRotRef)
 SDEALLOCATE(PartSpecies)
 SDEALLOCATE(Pt)
 SDEALLOCATE(PDM%ParticleInside)
 SDEALLOCATE(PDM%InRotRefFrame)
-SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%nextFreePosition)
 SDEALLOCATE(PDM%dtFracPush)
 SDEALLOCATE(PDM%IsNewPart)
@@ -1431,6 +1507,21 @@ SDEALLOCATE(vMPFSplitThreshold)
 SDEALLOCATE(CellEelec_vMPF)
 SDEALLOCATE(CellEvib_vMPF)
 SDEALLOCATE(PartMPF)
+SDEALLOCATE(InterPlanePartIndx)
+DO iSpec = 1, nSpecies
+  DO iSF=1, Species(iSpec)%nSurfacefluxBCs
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide)
+  END DO
+  IF(ASSOCIATED(Species(iSpec)%Surfaceflux)) THEN
+    DEALLOCATE(Species(iSpec)%Surfaceflux)
+    NULLIFY(Species(iSpec)%Surfaceflux)
+  END IF
+END DO
 SDEALLOCATE(Species)
 SDEALLOCATE(SpecReset)
 SDEALLOCATE(IMDSpeciesID)
@@ -1446,8 +1537,9 @@ SDEALLOCATE(PEM%pEnd)
 SDEALLOCATE(PEM%pNext)
 SDEALLOCATE(seeds)
 SDEALLOCATE(PartPosLandmark)
-SDEALLOCATE(RotRefFramRegion)
+SDEALLOCATE(RotRefFrameRegion)
 SDEALLOCATE(VirtMergedCells)
+SDEALLOCATE(PartDataVarNames)
 #if USE_MPI
 SDEALLOCATE(SendElemShapeID)
 SDEALLOCATE(ShapeMapping)
@@ -1465,6 +1557,11 @@ SDEALLOCATE(isNeutralizationElem)
 SDEALLOCATE(NeutralizationBalanceElem)
 SDEALLOCATE(ExcitationLevelMapping)
 SDEALLOCATE(ExcitationSampleData)
+
+SNULLIFY(SingleParticleTriaTracking)
+SNULLIFY(ParticleInsideQuad)
+SNULLIFY(ParticleThroughSideCheck1D2D)
+
 END SUBROUTINE FinalizeParticles
 
 
@@ -1474,7 +1571,7 @@ SUBROUTINE InitRandomSeed(nRandomSeeds,SeedSize,Seeds)
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
-USE MOD_Particle_MPI_Vars,     ONLY:PartMPI
+USE MOD_Globals
 #endif
 ! IMPLICIT VARIABLE HANDLING
 !===================================================================================================================================
@@ -1526,9 +1623,9 @@ IF(.NOT. uRandomExists) THEN
   DO iSeed = 1, SeedSize
 #if USE_MPI
     IF (nRandomSeeds.EQ.0) THEN
-      AuxilaryClock=AuxilaryClock+PartMPI%MyRank
+      AuxilaryClock=AuxilaryClock+myRank
     ELSE IF(nRandomSeeds.GT.0) THEN
-      AuxilaryClock=AuxilaryClock+(PartMPI%MyRank+1)*INT(Seeds(iSeed),8)*37
+      AuxilaryClock=AuxilaryClock+(myRank+1)*INT(Seeds(iSeed),8)*37
     END IF
 #else
     IF (nRandomSeeds.GT.0) THEN
@@ -1549,6 +1646,112 @@ CALL RANDOM_SEED(PUT=Seeds)
 
 END SUBROUTINE InitRandomSeed
 
+SUBROUTINE InitializeSpeciesParameter()
+!===================================================================================================================================
+!> Initialize the species parameter: read-in the species name, and then either read-in from the database or the parameter file.
+!> Possbility to overwrite specific species with custom values or use species not defined in the database.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_ReadInTools
+USE MOD_Particle_Vars       ,ONLY: nSpecies, Species, SpeciesDatabase
+USE MOD_io_hdf5
+USE MOD_HDF5_input          ,ONLY:ReadAttribute, DatasetExists, AttributeExists
+#if USE_MPI
+USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec,err
+CHARACTER(32)         :: hilf
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
+LOGICAL               :: DataSetFound, AttrExists
+!===================================================================================================================================
+! Read-in of the species database
+SpeciesDatabase       = GETSTR('Particles-Species-Database')
+
+! Read-in of species name and whether to overwrite the database parameters
+DO iSpec = 1, nSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  Species(iSpec)%Name    = TRIM(GETSTR('Part-Species'//TRIM(hilf)//'-SpeciesName'))
+  Species(iSpec)%DoOverwriteParameters = GETLOGICAL('Part-Species'//TRIM(hilf)//'-DoOverwriteParameters')
+END DO ! iSpec
+
+! If no database is used, use the overwrite per default
+IF(SpeciesDatabase.EQ.'none') Species(:)%DoOverwriteParameters = .TRUE.
+
+! Check whether SpeciesName is provided and if not, whether DoOverwriteParameters is activated (regular parameter read-in from file)
+! Abort when SpeciesName is not provided and DoOverwriteParameters is not activated
+DO iSpec = 1, nSpecies
+  IF(Species(iSpec)%Name.EQ.'none'.AND..NOT.Species(iSpec)%DoOverwriteParameters) &
+    CALL abort(__STAMP__,'ERROR: Please define a species name for species:', iSpec)
+END DO ! iSpec
+
+! Read-in the values from the database
+IF(SpeciesDatabase.NE.'none') THEN
+  ! Initialize FORTRAN interface.
+  CALL H5OPEN_F(err)
+  ! Check if file exists
+  IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
+    CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
+  END IF
+  ! Open file
+  CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+  ! Loop over number of species and skip those with overwrite
+  DO iSpec = 1, nSpecies
+    IF (Species(iSpec)%DoOverwriteParameters) CYCLE
+    LBWRITE (UNIT_stdOut,'(68(". "))')
+    CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
+    dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+    CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
+    ! Read-in if dataset is there, otherwise set the overwrite parameter
+    IF(DataSetFound) THEN
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists)
+      IF (AttrExists) THEN
+        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+      ELSE
+        Species(iSpec)%ChargeIC = 0.0
+      END IF
+      CALL PrintOption('ChargeIC','DB',RealOpt=Species(iSpec)%ChargeIC)
+      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+      CALL PrintOption('MassIC','DB',RealOpt=Species(iSpec)%MassIC)
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID)
+      CALL PrintOption('InteractionID','DB',IntOpt=Species(iSpec)%InterID)
+    ELSE
+      Species(iSpec)%DoOverwriteParameters = .TRUE.
+      SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
+    END IF
+  END DO
+  ! Close the file.
+  CALL H5FCLOSE_F(file_id_specdb, err)
+  ! Close FORTRAN interface.
+  CALL H5CLOSE_F(err)
+END IF
+
+! Old parameter file read-in of species values
+DO iSpec = 1, nSpecies
+  IF(Species(iSpec)%DoOverwriteParameters) THEN
+    LBWRITE (UNIT_stdOut,'(68(". "))')
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
+    Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
+    Species(iSpec)%InterID               = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID')
+  END IF
+END DO ! iSpec
+
+IF(nSpecies.GT.0)THEN
+  LBWRITE (UNIT_stdOut,'(68(". "))')
+END IF ! nSpecies.GT.0
+
+END SUBROUTINE InitializeSpeciesParameter
 
 SUBROUTINE InitializeVariablesRotationalRefFrame()
 !===================================================================================================================================
@@ -1560,22 +1763,24 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge, PI
-! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
 REAL               :: omegaTemp
 INTEGER            :: iRegion
 CHARACTER(LEN=5)   :: hilf
 !===================================================================================================================================
 
 UseRotRefFrame = GETLOGICAL('Part-UseRotationalReferenceFrame')
+UseRotSubCycling = GETLOGICAL('Part-RotRefFrame-UseSubCycling')
+nSubCyclingSteps = GETINT('Part-RotRefFrame-SubCyclingSteps')
 
 IF(UseRotRefFrame) THEN
+  ! Abort for other timedisc except DSMC/BGK
+#if (PP_TimeDiscMethod!=4) && (PP_TimeDiscMethod!=400)
+  CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented for the selected simulation method (only for DSMC/BGK)!')
+#endif
+  ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
+  PartVeloRotRef = 0.0
+  ALLOCATE(LastPartVeloRotRef(1:3,1:PDM%maxParticleNumber))
+  LastPartVeloRotRef = 0.0
   RotRefFrameAxis = GETINT('Part-RotRefFrame-Axis')
   RotRefFrameFreq = GETREAL('Part-RotRefFrame-Frequency')
   omegaTemp = 2.*PI*RotRefFrameFreq
@@ -1590,13 +1795,13 @@ IF(UseRotRefFrame) THEN
       CALL abort(__STAMP__,'ERROR Rotational Reference Frame: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
   END SELECT
   nRefFrameRegions = GETINT('Part-nRefFrameRegions')
-  ALLOCATE(RotRefFramRegion(1:2,1:nRefFrameRegions))
+  ALLOCATE(RotRefFrameRegion(1:2,1:nRefFrameRegions))
   IF(nRefFrameRegions.GT.0)THEN
     DO iRegion=1, nRefFrameRegions
       WRITE(UNIT=hilf,FMT='(I0)') iRegion
-      RotRefFramRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
-      RotRefFramRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
-      IF(RotRefFramRegion(1,iRegion).GE.RotRefFramRegion(2,iRegion)) THEN
+      RotRefFrameRegion(1,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MIN')
+      RotRefFrameRegion(2,iRegion)= GETREAL('Part-RefFrameRegion'//TRIM(hilf)//'-MAX')
+      IF(RotRefFrameRegion(1,iRegion).GE.RotRefFrameRegion(2,iRegion)) THEN
         CALL abort(__STAMP__,'ERROR Rotational Reference Frame: MIN > MAX in definition of region ',IntInfoOpt=iRegion)
       END IF
     END DO
@@ -1606,4 +1811,133 @@ END IF
 END SUBROUTINE InitializeVariablesRotationalRefFrame
 
 
+SUBROUTINE InitPartDataSize()
+!===================================================================================================================================
+!> Initialize the PartDataSize variable (required for output of PartState and other variables within the PartData container)
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars ,ONLY: PartDataSize, PartDataVarNames, usevMPF, UseRotRefFrame
+USE MOD_DSMC_Vars     ,ONLY: useDSMC, CollisMode, DSMC
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iPos
+!===================================================================================================================================
+! Position + Velocity + Species Index
+PartDataSize = 7
+! Velocity in rotational frame of reference
+IF(UseRotRefFrame) PartDataSize = PartDataSize + 3
+! DSMC-specific variables
+IF (useDSMC) THEN
+  IF(CollisMode.GT.1) THEN
+    ! Internal energy modelling: vibrational + rotational
+    PartDataSize = PartDataSize + 2
+    ! Electronic energy modelling
+    IF(DSMC%ElectronicModel.GT.0) PartDataSize = PartDataSize + 1
+  END IF
+END IF
+! Variable particle weighting
+IF(usevMPF) PartDataSize = PartDataSize + 1
+
+! Initialize the VarNames
+ALLOCATE(PartDataVarNames(PartDataSize))
+PartDataVarNames(1)='ParticlePositionX'
+PartDataVarNames(2)='ParticlePositionY'
+PartDataVarNames(3)='ParticlePositionZ'
+PartDataVarNames(4)='VelocityX'
+PartDataVarNames(5)='VelocityY'
+PartDataVarNames(6)='VelocityZ'
+PartDataVarNames(7)='Species'
+iPos = 7
+! Velocity in rotational frame of reference
+IF(UseRotRefFrame) THEN
+  PartDataVarNames(1+iPos)='VelocityRotRefX'
+  PartDataVarNames(2+iPos)='VelocityRotRefY'
+  PartDataVarNames(3+iPos)='VelocityRotRefZ'
+  iPos = iPos + 3
+END IF
+! DSMC-specific variables
+IF(useDSMC)THEN
+  IF(CollisMode.GT.1) THEN
+    ! Internal energy modelling: vibrational + rotational
+    PartDataVarNames(1+iPos)='Vibrational'
+    PartDataVarNames(2+iPos)='Rotational'
+    iPos=iPos+2
+    ! Electronic energy modelling
+    IF(DSMC%ElectronicModel.GT.0) THEN
+      PartDataVarNames(1+iPos)='Electronic'
+      iPos=iPos+1
+    END IF
+  END IF
+END IF
+! Variable particle weighting
+IF (usevMPF) THEN
+  PartDataVarNames(1+iPos)='MPF'
+  iPos=iPos+1
+END IF
+
+END SUBROUTINE InitPartDataSize
+
+SUBROUTINE InitSymmetry()
+!===================================================================================================================================
+!> Initialize if a 2D/1D Simulation is performed and which type
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, VarWeighting, DSMC
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETINT
+USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleInsideQuad
+USE MOD_Particle_TriaTracking ,ONLY: InitSingleParticleTriaTracking
+USE MOD_Particle_InterSection ,ONLY: InitParticleThroughSideCheck1D2D
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+Symmetry%Order = GETINT('Particles-Symmetry-Order')
+
+IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
+  ,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
+
+! Initialize the function pointers for triatracking
+CALL InitParticleInsideQuad()
+CALL InitSingleParticleTriaTracking()
+IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
+
+Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
+  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
+  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
+IF(Symmetry%Axisymmetric) THEN
+  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
+ELSE
+  RadialWeighting%DoRadialWeighting = .FALSE.
+  RadialWeighting%PerformCloning = .FALSE.
+END IF
+
+! Variable weights in 3D
+VarWeighting%DoVariableWeighting = GETLOGICAL('Part-VariableWeighting')
+
+IF (VarWeighting%DoVariableWeighting.AND.RadialWeighting%DoRadialWeighting) THEN
+  CALL ABORT(__STAMP__&
+      ,'ERROR: Variable and radial weighting cannot be enabled at the same time. ')
+END IF
+
+DSMC%CalcCellMPF = GETLOGICAL('Particles-VisuMPF')
+
+END SUBROUTINE InitSymmetry
+
 END MODULE MOD_ParticleInit
+

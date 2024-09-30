@@ -17,9 +17,6 @@ MODULE MOD_DSMC_Vars
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
-#if USE_MPI
-USE MOD_Particle_MPI_Vars, ONLY: tPartMPIConnect
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -51,7 +48,7 @@ INTEGER                       :: SelectionProc              ! Mode of Selection 
 INTEGER                       :: PairE_vMPF(2)              ! 1: Pair chosen for energy redistribution
                                                             ! 2: partical with minimal MPF of this Pair
 LOGICAL                       :: useDSMC
-REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax 
+REAL    , ALLOCATABLE         :: PartStateIntEn(:,:)        ! 1st index: 1:npartmax
 !                                                           ! 2nd index: Evib, Erot, Eel
 
 LOGICAL                       :: useRelaxProbCorrFactor     ! Use the relaxation probability correction factor of Lumpkin
@@ -80,6 +77,8 @@ TYPE tRadialWeighting
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
   INTEGER                     :: nSubSides
+  INTEGER                     :: CloneVecLength
+  INTEGER                     :: CloneVecLengthDelta
 END TYPE tRadialWeighting
 
 TYPE(tRadialWeighting)        :: RadialWeighting
@@ -97,16 +96,18 @@ TYPE tVarWeighting
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: CellLocalWeighting
   INTEGER                     :: nSubSides
+  INTEGER                     :: CloneVecLength
+  INTEGER                     :: CloneVecLengthDelta
   INTEGER                     :: nScalePoints               ! Number of sub-cell divisions for the scaling of the weighting factor
                                                             ! Default = 2 (borders of the simulation domain along one axis)
-  INTEGER                     :: ScaleAxis                  ! Direction of the increase in the variable weight 
-                                                            ! 1: x-axis, 2: y-axis, 3: z-axis 
+  INTEGER                     :: ScaleAxis                  ! Direction of the increase in the variable weight
+                                                            ! 1: x-axis, 2: y-axis, 3: z-axis
   REAL                        :: ScalingVector(3)           ! Direction of the increase in the variable weight
                                                             ! For a scaling not along the coordinate axes
   REAL                        :: StartPointScaling(1:3)     ! Start point for the scaling domain not defined by the coordinate axes
   REAL                        :: EndPointScaling(1:3)       ! End point for the scaling domain not defined by the coordinate axes
   REAL, ALLOCATABLE           :: ScalePoint(:)              ! Points along the defined scaling vector on which the MPF is changed(%)
-  REAL, ALLOCATABLE           :: VarMPF(:)                  ! Desired MPF at the respective scaling points     
+  REAL, ALLOCATABLE           :: VarMPF(:)                  ! Desired MPF at the respective scaling points
 END TYPE tVarWeighting
 
 TYPE(tVarWeighting)            :: VarWeighting
@@ -131,8 +132,8 @@ END TYPE tAdaptMPF
 
 TYPE(tAdaptMPF)               :: AdaptMPF
 
-REAL,ALLOCPOINT,DIMENSION(:,:) :: AdaptMPFInfo_Shared
-REAL,ALLOCPOINT,DIMENSION(:)   :: OptimalMPF_Shared
+REAL,ALLOCPOINT :: AdaptMPFInfo_Shared(:,:)
+REAL,ALLOCPOINT :: OptimalMPF_Shared(:)
 
 TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step
@@ -143,8 +144,8 @@ TYPE tClonedParticles
   REAL                        :: LastPartPos(1:3)
   REAL                        :: WeightingFactor
   INTEGER, ALLOCATABLE        :: VibQuants(:)
-  REAL, ALLOCATABLE           :: DistriFunc(:) 
-  REAL, ALLOCATABLE           :: AmbiPolVelo(:) 
+  REAL, ALLOCATABLE           :: DistriFunc(:)
+  REAL, ALLOCATABLE           :: AmbiPolVelo(:)
 END TYPE
 
 TYPE(tClonedParticles),ALLOCATABLE :: ClonedParticles(:,:)
@@ -160,18 +161,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   TYPE(tSpecInit),ALLOCATABLE :: Surfaceflux(:)
   LOGICAL                     :: PolyatomicMol             ! Species is a polyatomic molecule
   INTEGER                     :: SpecToPolyArray           !
-  CHARACTER(LEN=64)           :: Name                      ! Species Name, required for DSMCSpeciesElectronicDatabase
-  INTEGER                     :: InterID                   ! Identification number (e.g. for DSMC_prob_calc), ini_2
-                                                           !     1   : Atom
-                                                           !     2   : Molecule
-                                                           !     4   : Electron
-                                                           !     10  : Atomic ion
-                                                           !     15  : Atomic CEX/MEX ion
-                                                           !     20  : Molecular ion
-                                                           !     40  : Excited atom
-                                                           !     100 : Excited atomic ion
-                                                           !     200 : Excited molecule
-                                                           !     400 : Excited molecular ion
   REAL                        :: Tref                      ! collision model: reference temperature     , ini_2
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2
@@ -220,7 +209,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
                                                             ! using read-in cross-sectional data (currently only with BGG)
   REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
-  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronical landau-teller relaxation
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronic landau-teller relaxation
   REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
 END TYPE tSpeciesDSMC
 
@@ -237,7 +226,7 @@ TYPE tDSMC
   INTEGER                       :: NumOutput                ! number of Outputs
   REAL                          :: DeltaTimeOutput          ! Time interval for Output
   LOGICAL                       :: ReservoirSimu            ! Flag for reservoir simulation
-  LOGICAL                       :: ReservoirSimuRate        ! Does not performe the collision.
+  LOGICAL                       :: ReservoirSimuRate        ! Does not perform the collision.
                                                             ! Switch to enable to create reaction rates curves
   LOGICAL                       :: ReservoirSurfaceRate     ! Switch enabling surface rate output without changing surface coverages
   LOGICAL                       :: ReservoirRateStatistic   ! if false, calculate the reaction coefficient rate by the probability
@@ -250,7 +239,8 @@ TYPE tDSMC
   LOGICAL                       :: CalcSurfaceVal           ! Flag for calculation of surfacevalues like heatflux or force at walls
   LOGICAL                       :: CalcSurfaceTime          ! Flag for sampling in time-domain or iterations
   REAL                          :: CalcSurfaceSumTime       ! Flag for sampling in time-domain or iterations
-  REAL                          :: CollProbMean             ! Summation of collision probability
+  REAL                          :: CollProbSum              ! Summation of collision probability
+  REAL                          :: CollProbMean             ! Mean of collision probability
   REAL                          :: CollProbMax              ! Maximal collision probability per cell
   REAL, ALLOCATABLE             :: CalcRotProb(:,:)         ! Summation of rotation relaxation probability (nSpecies + 1,3)
                                                             !     1: Mean Prob
@@ -261,9 +251,12 @@ TYPE tDSMC
                                                             !     2: Max Prob
                                                             !     3: Sample size
   REAL                          :: MeanFreePath
+  real                          :: CollProbMaxProcMax       ! Maximum CollProbMax of every cell in Process
+  REAL                          :: MaxMCSoverMFP            ! Maximum MCSoverMFP after each time step
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
-  REAL                          :: MCSMFP_Mean              ! Summation of MCSoverMFP
-  REAL                          :: MCSMFP_MeanCount         ! counter of MCSoverMFP sampling
+  INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collison. Used for ResolvedCellPercentage
+  INTEGER                       :: ResolvedCellCounter      ! Counts resolved Cells. Used for ResolvedCellPercentage
+  INTEGER                       :: ResolvedTimestepCounter  ! Counts Cells with MeanCollProb below 1
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
@@ -308,9 +301,7 @@ TYPE tDSMC
                                                             ! coefficient with the equilibrium constant by partition functions
   REAL                          :: PartitionMaxTemp         ! Temperature limit for pre-stored partition function (DEF: 20 000K)
   REAL                          :: PartitionInterval        ! Temperature interval for pre-stored partition function (DEF: 10K)
-#if (PP_TimeDiscMethod==42)
   LOGICAL                       :: CompareLandauTeller      ! Keeps the translational temperature at the fixed value of the init
-#endif
   LOGICAL                       :: MergeSubcells            ! Merge subcells after quadtree division if number of particles within
                                                             ! subcell is less than 7
   LOGICAL                       :: DoAmbipolarDiff
@@ -456,7 +447,7 @@ TYPE tChemReactions
                                                             !    R (molecular recombination
                                                             !    D (molecular dissociation)
                                                             !    E (molecular exchange reaction)
-  CHARACTER(LEN=15),ALLOCATABLE   :: ReactModel(:)          ! Model of Reaction (reaction num)
+  CHARACTER(LEN=255),ALLOCATABLE  :: ReactModel(:)          ! Model of Reaction (reaction num)
                                                             !    TCE (total collision energy)
                                                             !    QK (quantum kinetic)
                                                             !    phIon (photon-ionization)
@@ -496,6 +487,12 @@ TYPE tChemReactions
   TYPE(tCollCaseInfo), ALLOCATABLE:: CollCaseInfo(:)        ! Information of collision cases (nCase)
   ! XSec Chemistry
   LOGICAL                         :: AnyXSecReaction        ! Defines if any XSec reaction is present
+  ! Species database
+  CHARACTER(LEN=255)              :: ChemistryModel         ! Defines a set of chemical reactions to read-in from the species database
+  CHARACTER(LEN=200),ALLOCATABLE  :: ReactionName(:)        ! Name of reaction to identify reaction [NumofReact]
+  INTEGER,ALLOCATABLE             :: totalReacToModel(:)    ! Mapping from all available reactions in the database to the model reactions
+  ! Photo-ionization Chemistry
+  LOGICAL                         :: AnyPhIonReaction       ! Defines if any photo-ionization reaction is present
 END TYPE
 
 TYPE(tChemReactions)              :: ChemReac

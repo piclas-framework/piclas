@@ -17,6 +17,7 @@ MODULE MOD_Particle_Boundary_Vars
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
+USE MOD_Globals
 USE mpi
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -24,7 +25,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 
-LOGICAL                                 :: SurfOnNode
+LOGICAL                                 :: SurfTotalSideOnNode
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
@@ -32,11 +33,11 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
 ! Mesh info
-INTEGER                                 :: nSurfTotalSides
-INTEGER                                 :: nOutputSides
+INTEGER                                 :: nGlobalSurfSides
+INTEGER                                 :: nGlobalOutputSides            ! Simulation-wide number of surface output sides
 
 INTEGER                                 :: nComputeNodeSurfSides         !> Number of surface sampling sides on compute node
-INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once)
+INTEGER                                 :: nComputeNodeSurfOutputSides   !> Number of output surface sampling sides on compute node (inner BCs only counted once and rotationally periodic BCs excluded)
 INTEGER                                 :: nComputeNodeSurfTotalSides    !> Number of surface sampling sides on compute node (including halo region)
 INTEGER                                 :: offsetComputeNodeSurfSide     !> elem offset of compute-node root
 INTEGER                                 :: offsetComputeNodeSurfOutputSide     !> elem offset of compute-node root
@@ -124,9 +125,15 @@ INTEGER                                 :: SampWallImpactNumber_Shared_Win
 
 ! ====================================================================
 ! Rotational periodic sides
+INTEGER                           :: nRotPeriodicSides         ! Number of rotational periodic sides on a compute node
+INTEGER                           :: MaxNumRotPeriodicNeigh    ! Maximum number of rotationally periodic neighbours
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: NumRotPeriodicNeigh       ! Number of adjacent Neigbours sites in rotational periodic BC
 INTEGER,ALLOCPOINT,DIMENSION(:,:) :: RotPeriodicSideMapping    ! Mapping between rotational periodic sides.
 INTEGER,ALLOCPOINT,DIMENSION(:)   :: SurfSide2RotPeriodicSide  ! Mapping between surf side and periodic sides.
+! ====================================================================
+! Intermediate plane for multi rotational periodic sides
+INTEGER,ALLOCATABLE               :: InterPlaneSideMapping(:,:)! Mapping between inter plane BC_ID and SideID.
+! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
 INTEGER                         :: SurfSide2RotPeriodicSide_Shared_Win
@@ -151,70 +158,23 @@ LOGICAL                                 :: CalcSurfaceImpact             ! Sampl
 REAL,ALLOCATABLE                        :: XiEQ_SurfSample(:)            ! position of XiEQ_SurfSample
 REAL                                    :: dXiEQ_SurfSample              ! deltaXi in [-1,1]
 INTEGER                                 :: OffSetSurfSide                ! offset of local surf side
-INTEGER                                 :: OffSetInnerSurfSide           ! offset of local inner surf side
 INTEGER                                 :: nSurfBC                       ! number of surface side BCs
 CHARACTER(LEN=255),ALLOCATABLE          :: SurfBCName(:)                 ! names of belonging surface BC
 #if USE_MPI
-INTEGER,ALLOCATABLE                     :: OffSetSurfSideMPI(:)          ! integer offset for particle boundary sampling
-INTEGER,ALLOCATABLE                     :: OffSetInnerSurfSideMPI(:)     ! integer offset for particle boundary sampling (innerBC)
 INTEGER                                 :: nComputeNodeInnerBCs(2)       ! Number of inner BCs with a larger global side ID on node
 #endif /*USE_MPI*/
 
 #if USE_MPI
-TYPE tSurfaceSendList
-  INTEGER                               :: NativeProcID
-  INTEGER,ALLOCATABLE                   :: SendList(:)                   ! list containing surfsideid of sides to send to proc
-  INTEGER,ALLOCATABLE                   :: RecvList(:)                   ! list containing surfsideid of sides to recv from proc
-
-  INTEGER,ALLOCATABLE                   :: SurfDistSendList(:)           ! list containing surfsideid of sides to send to proc
-  INTEGER,ALLOCATABLE                   :: SurfDistRecvList(:)           ! list containing surfsideid of sides to recv from proc
-  INTEGER,ALLOCATABLE                   :: H2OSendList(:)                ! list containing surfsideid of sides to send to proc
-  INTEGER,ALLOCATABLE                   :: H2ORecvList(:)                ! list containing surfsideid of sides to recv from proc
-  INTEGER,ALLOCATABLE                   :: O2HSendList(:)                ! list containing surfsideid of sides to send to proc
-  INTEGER,ALLOCATABLE                   :: O2HRecvList(:)                ! list containing surfsideid of sides to recv from proc
-
+TYPE tMPIGROUP
+  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for surface sides (including sides inside the halo region)
+  INTEGER                     :: nProcs                 !< number of MPI processes for particles
+  INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE
+TYPE (tMPIGROUP)              :: SurfCOMM
 #endif /*USE_MPI*/
-
-TYPE tSurfaceCOMM
-  LOGICAL                               :: MPIRoot                       ! if root of mpi communicator
-  INTEGER                               :: MyRank                        ! local rank in new group
-  INTEGER                               :: nProcs                        ! number of processes
-  LOGICAL                               :: MPIOutputRoot                 ! if root of mpi communicator
-  INTEGER                               :: MyOutputRank                  ! local rank in new group
-  INTEGER                               :: nOutputProcs                  ! number of output processes
-#if USE_MPI
-  LOGICAL                               :: InnerBCs                      ! are there InnerSides with reflective properties
-  INTEGER                               :: COMM=MPI_COMM_NULL            ! communicator
-  INTEGER                               :: nMPINeighbors                 ! number of processes to communicate with
-  TYPE(tSurfaceSendList),ALLOCATABLE    :: MPINeighbor(:)                ! list containing all mpi neighbors
-  INTEGER                               :: OutputCOMM=MPI_COMM_NULL      ! communicator for output
-#endif /*USE_MPI*/
-END TYPE
-TYPE (tSurfaceCOMM)                     :: SurfCOMM
-
-TYPE tSurfaceMesh
-  INTEGER                               :: SampSize                      ! integer of sampsize
-  INTEGER                               :: ReactiveSampSize              ! additional sample size on the surface due to use of
-                                                                         ! reactive surface modelling (reactions, liquid, etc.)
-  LOGICAL                               :: SurfOnProc                    ! flag if reflective boundary condition is on proc
-  INTEGER                               :: nSides                        ! Number of Sides on Surface (reflective)
-  INTEGER                               :: nBCSides                      ! Number of OuterSides with Surface (reflective) properties
-  INTEGER                               :: nInnerSides                   ! Number of InnerSides with Surface (reflective) properties
-  INTEGER                               :: nOutputSides                  ! Number of surfaces that are assigned to an MPI rank for
-                                                                         ! surface sampling (MacroSurfaceVal and MacroSurfaceSpecVal)
-                                                                         ! and output to .h5 (SurfData) purposes:
-                                                                         ! nOutputSides = bcsides + maser_innersides
-  !INTEGER                               :: nTotalSides                   ! Number of Sides on Surface incl. HALO sides
-  INTEGER                               :: nGlobalSides                  ! Global number of Sides on Surfaces (reflective)
-  INTEGER,ALLOCATABLE                   :: SideIDToSurfID(:)             ! Mapping of side ID to surface side ID (reflective)
-  REAL, ALLOCATABLE                     :: SurfaceArea(:,:,:)            ! Area of Surface
-  INTEGER,ALLOCATABLE                   :: SurfIDToSideID(:)             ! Mapping of surface side ID (reflective) to side ID
-  INTEGER,ALLOCATABLE                   :: innerBCSideToHaloMap(:)       ! map of inner BC ID on slave side to corresp. HaloSide
-END TYPE
-
-TYPE (tSurfaceMesh)                     :: SurfMesh
-
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Porous BC
+!-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER                                 :: nPorousSides                       ! Number of porous sides per compute node
 INTEGER,ALLOCPOINT                      :: MapSurfSideToPorousSide_Shared(:)  ! Mapping of surface side to porous side
 INTEGER,ALLOCPOINT                      :: PorousBCInfo_Shared(:,:)           ! Info and mappings for porous BCs [1:3,1:nPorousSides]
@@ -240,38 +200,50 @@ REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-lo
                                                                   ! REAL variable since the particle weight is used
                                                                   ! 1: Impinging particles
                                                                   ! 2: Deleted particles
-
+!-----------------------------------------------------------------------------------------------------------------------------------
+! Particle Boundary
+!-----------------------------------------------------------------------------------------------------------------------------------
 TYPE tPartBoundary
-  INTEGER                                :: OpenBC                  = 1      ! = 1 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: ReflectiveBC            = 2      ! = 2 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: PeriodicBC              = 3      ! = 3 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SimpleAnodeBC           = 4      ! = 4 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SimpleCathodeBC         = 5      ! = 5 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: RotPeriodicBC           = 6      ! = 6 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryBC              = 10     ! = 10 (s.u.) Boundary Condition Integer Definition
-  INTEGER                                :: SymmetryAxis            = 11     ! = 10 (s.u.) Boundary Condition Integer Definition
-  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)          ! Link part 1 for mapping PICLas BCs to Particle BC
-  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)          ! Link part 2 for mapping PICLas BCs to Particle BC
-!  INTEGER              , ALLOCATABLE     :: Map(:)                      ! Map from PICLas BCindex to Particle BC
-  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)              ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
-  INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)             ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
-  !!INTEGER              , ALLOCATABLE     :: SideBCType(:)            ! list with boundary condition for each side
+  INTEGER                                :: OpenBC                  = 1  ! Particles are deleted at the boundary
+  INTEGER                                :: ReflectiveBC            = 2  ! Specular (default) and diffuse reflection, many other models
+  INTEGER                                :: PeriodicBC              = 3  ! Particles are transformed according to the periodic vectors
+  INTEGER                                :: RotPeriodicBC           = 6  ! Particles are rotated around an axis according to an angle
+  INTEGER                                :: RotPeriodicInterPlaneBC = 7  ! Particles are transferred between non-conform BCs (connecting slices/cutouts with different RotPeriodicBC)
+  INTEGER                                :: SymmetryBC              = 10 ! Same as the default ReflectiveBC but without analysis
+  INTEGER                                :: SymmetryAxis            = 11 ! Symmetry axis for axisymmetric simulations (x-axis)
+  INTEGER                                :: SymmetryDim             = 12 ! BC for 1D, 2D and axisymmetric simulations in the neglected dimension(s)
+  CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
+  INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
+  INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
+  INTEGER              , ALLOCATABLE     :: MapToFieldBC(:)              ! Map from Particle BC (NOT TO TYPE!) to PICLas BCindex
+  ! Constant wall temperature and accommodation coefficients
+  REAL    , ALLOCATABLE                  :: WallTemp(:)
   REAL    , ALLOCATABLE                  :: MomentumACC(:)
-  REAL    , ALLOCATABLE                  :: WallTemp(:), WallTemp2(:), WallTempDelta(:)
-  REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
+  LOGICAL , ALLOCATABLE                  :: OnlySpecular(:)
+  LOGICAL , ALLOCATABLE                  :: OnlyDiffuse(:)
   REAL    , ALLOCATABLE                  :: TransACC(:)
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
+  ! Temperature gradient across reflective BC
+  REAL    , ALLOCATABLE                  :: WallTemp2(:), WallTempDelta(:)
+  REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
+  INTEGER , ALLOCATABLE                  :: TempGradDir(:)
+  ! Linear and rotational wall velocity
   REAL    , ALLOCATABLE                  :: WallVelo(:,:)
+  REAL    , ALLOCATABLE                  :: PhotonEnACC(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEYield(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEWorkFunction(:)
+  REAL    , ALLOCATABLE                  :: PhotonSEEMacroParticleFactor(:)
+  INTEGER , ALLOCATABLE                  :: PhotonSEEElectronSpecies(:)
+  LOGICAL , ALLOCATABLE                  :: PhotonSpecularReflection(:)
   LOGICAL , ALLOCATABLE                  :: RotVelo(:)                    ! Flag for rotating walls
   REAL    , ALLOCATABLE                  :: RotOmega(:,:)                 ! Angular velocity
-  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)           ! Angle and Direction of rotation
-  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)             ! Min rot axi value
-  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)             ! Max rot axi value
+  ! Species swap BCs
   INTEGER , ALLOCATABLE                  :: NbrOfSpeciesSwaps(:)          ! Number of Species to be changed at wall
   REAL    , ALLOCATABLE                  :: ProbOfSpeciesSwaps(:)         ! Probability of SpeciesSwaps at wall
   INTEGER , ALLOCATABLE                  :: SpeciesSwaps(:,:,:)           ! Species to be changed at wall (in, out), out=0: delete
+  ! Surface models
   INTEGER , ALLOCATABLE                  :: SurfaceModel(:)               ! Model used for surface interaction (e.g. SEE models)
   REAL    , ALLOCATABLE                  :: TotalCoverage(:)              ! Total surface coverage
   REAL    , ALLOCATABLE                  :: MaxTotalCoverage(:)           ! Maximum total surface coverage
@@ -281,29 +253,51 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: MaxCoverage(:,:)
   LOGICAL , ALLOCATABLE                  :: Reactive(:)                   ! flag defining if surface is treated reactively
   LOGICAL , ALLOCATABLE                  :: Resample(:)                   ! Resample Equilibrium Distribution with reflection
-  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)         
+  ! Radiative-equilibrium BC
+  LOGICAL                                :: AdaptWallTemp
+  LOGICAL , ALLOCATABLE                  :: UseAdaptedWallTemp(:)
+  LOGICAL                                :: OutputWallTemp                ! Flag to include the wall temperature in the SurfState
+                                                                          ! output, set during InitializeVariablesPartBoundary
+                                                                          ! Required for the initialization of the array for the
+                                                                          ! adaptive wall temperature as well
   REAL    , ALLOCATABLE                  :: RadiativeEmissivity(:)
+  ! Dielectric BC
   LOGICAL , ALLOCATABLE                  :: Dielectric(:)                 ! Define if particle boundary [$] is a dielectric
-!                                                                         ! interface, i.e. an interface between a dielectric and
-!                                                                         ! a non-dielectric or a between to different dielectrics
-!                                                                         ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
-!                                                                         ! (Default=FALSE.)
+                                                                          ! interface, i.e. an interface between a dielectric and
+                                                                          ! a non-dielectric or a between to different dielectrics
+                                                                          ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
+                                                                          ! (Default=FALSE.)
+  ! Multi rotational periodic and interplane BCs
+  LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
+  LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined
+                                                                        ! automatically
+  INTEGER                                :: RotPeriodicAxis             ! Axis of rotational periodicity
+  REAL                                   :: RotPeriodicTol              ! Tolerance for rotationally periodic BC, angle is multiplied
+                                                                        ! by 1 - RotPeriodicTol
+  REAL    , ALLOCATABLE                  :: RotPeriodicAngle(:)         ! Angle and direction of rotation [1:nPartBound]
+  REAL    , ALLOCATABLE                  :: RotPeriodicMin(:)           ! Min rot axi value [1:nPartBound]
+  REAL    , ALLOCATABLE                  :: RotPeriodicMax(:)           ! Max rot axi value [1:nPartBound]
+  LOGICAL                                :: UseInterPlaneBC             ! Flag for inter planes exist
+  INTEGER , ALLOCATABLE                  :: AssociatedPlane(:)          ! Link between both coressponding intermediate planes
+  INTEGER , ALLOCATABLE                  :: nSidesOnInterPlane(:)       ! Number of Sides on intermediate plane
+  REAL    , ALLOCATABLE                  :: NormalizedRadiusDir(:,:)    ! Normalized vector in radius direction that is used to
+                                                                        ! calculate a random position on same radius within the
+                                                                        ! rot periodic segment
+  REAL    , ALLOCATABLE                  :: RotAxisPosition(:)          ! Position of inter plane at rotation axis
+  REAL    , ALLOCATABLE                  :: AngleRatioOfInterPlanes(:)  ! Ratio of rotation angles for the intermediate planes
+  ! Boundary particle output
   LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
-!                                                                         ! PartDataBoundary container for writing to .h5 later
+                                                                          ! PartDataBoundary container for writing to .h5 later
 END TYPE
 
 INTEGER                                  :: nPartBound                    ! number of particle boundaries
 TYPE(tPartBoundary)                      :: PartBound                     ! Boundary Data for Particles
-REAL, PARAMETER                          :: RotPeriodicTol = 0.99999      ! Tolerance for rotationally periodic BC
 
-LOGICAL                                  :: AdaptWallTemp
-
+!-----------------------------------------------------------------------------------------------------------------------------------
 ! Boundary particle output
-LOGICAL              :: DoBoundaryParticleOutputHDF5   ! Flag set automatically if particles crossing specific
-!                                                  ! boundaries are to be saved to .h5 (position of intersection,
-!                                                  ! velocity, species, internal energies)
-REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle,
-!                                                  !                            BCindex
+LOGICAL              :: DoBoundaryParticleOutputHDF5 ! Flag set automatically if particles crossing specific  boundaries are to be saved to .h5 (position of intersection, velocity, species, internal energies)
+LOGICAL              :: DoBoundaryParticleOutputRay ! User-defined flag to output surface SEE or volume ionization emission particles to .h5 based on the ray tracing model
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
 INTEGER, PARAMETER   :: nVarPartStateBoundary=11
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles

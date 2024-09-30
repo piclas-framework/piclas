@@ -82,6 +82,9 @@ REAL                    :: AnalyticInterpolationE        !< Electric field
 INTEGER,PARAMETER       :: AnalyticPartDim=7
 REAL                    :: L_2_Error_Part(1:AnalyticPartDim) !< L2 error for the particle state
 REAL                    :: L_2_Error_Part_time           !< old time for calculating the time step (when it is variable)
+REAL                    :: TimeReset                     !< time when particle hit the wall for AnalyticInterpolationType = 51
+REAL                    :: r_WallVec(3)                  !< new r_0 when particle hit the wall for AnalyticInterpolationType = 51
+REAL                    :: v_WallVec(3)                  !< new v_0 when particle hit the wall for AnalyticInterpolationType = 51
 #endif /*CODE_ANALYZE*/
 !===================================================================================================================================
 END MODULE MOD_PICInterpolation_Vars

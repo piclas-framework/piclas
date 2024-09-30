@@ -42,7 +42,7 @@ SUBROUTINE InitEmissionComm()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Particle_MPI_Vars  ,ONLY: PartMPI,MPI_halo_eps
+USE MOD_Particle_MPI_Vars  ,ONLY: PartMPIInitGroup,MPI_halo_eps
 USE MOD_Particle_Vars      ,ONLY: Species,nSpecies
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO,SideInfo_Shared
 USE MOD_Mesh_Vars          ,ONLY: nElems,BoundaryName
@@ -79,7 +79,7 @@ END DO ! iSpec
 IF(nInitRegions.EQ.0) RETURN
 
 ! allocate communicators
-ALLOCATE( PartMPI%InitGroup(1:nInitRegions))
+ALLOCATE( PartMPIInitGroup(1:nInitRegions))
 
 ! Default value for neutralization regions (Landmark and Liu2010)
 nNeutralizationElems = -1
@@ -361,10 +361,10 @@ DO iSpec=1,nSpecies
           lineVector = UNITVECTOR(normal)
         END IF ! VECNORM(lineVector).LE.0.
 
-        xCoords(1:3,1)=O
-        xCoords(1:3,2)=O+v2
-        xCoords(1:3,3)=O+v3
-        xCoords(1:3,4)=O+v2+v3
+        xCoords(1:3,1)=O(1:3)
+        xCoords(1:3,2)=O(1:3)+v2(1:3)
+        xCoords(1:3,3)=O(1:3)+v3(1:3)
+        xCoords(1:3,4)=O(1:3)+v2(1:3)+v3(1:3)
 
         height= Species(iSpec)%Init(iInit)%CuboidHeightIC
         DO iNode=1,4
@@ -403,11 +403,11 @@ DO iSpec=1,nSpecies
       ! 1. Check if inside outer radius
       radius = Species(iSpec)%Init(iInit)%RadiusIC
       ! here no radius, already included
-        xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC -v1 -v2
+      xCoords(1:3,1)=Species(iSpec)%Init(iInit)%BasePointIC -v1(1:3) -v2(1:3)
 
-        xCoords(1:3,2)=xCoords(1:3,1)+2.0*v1
-        xCoords(1:3,3)=xCoords(1:3,1)+2.0*v2
-        xCoords(1:3,4)=xCoords(1:3,1)+2.0*v1+2.0*v2
+      xCoords(1:3,2)=xCoords(1:3,1)+2.0*v1(1:3)
+      xCoords(1:3,3)=xCoords(1:3,1)+2.0*v2(1:3)
+      xCoords(1:3,4)=xCoords(1:3,1)+2.0*v1(1:3)+2.0*v2(1:3)
 
       height= Species(iSpec)%Init(iInit)%CylinderHeightIC
       DO iNode=1,4
@@ -418,24 +418,6 @@ DO iSpec=1,nSpecies
       END ASSOCIATE
     CASE('cell_local')
       RegionOnProc=.TRUE.
-    CASE('subcell')
-      RegionOnProc=.TRUE. 
-
-       xlen = abs(Species(iSpec)%Init(iInit)%CellLocMaxPos(1) - Species(iSpec)%Init(iInit)%CellLocMinPos(1))
-       ylen = abs(Species(iSpec)%Init(iInit)%CellLocMaxPos(2) - Species(iSpec)%Init(iInit)%CellLocMinPos(2))
-       zlen = abs(Species(iSpec)%Init(iInit)%CellLocMaxPos(3) - Species(iSpec)%Init(iInit)%CellLocMinPos(3))
-
-       DO iNode=1,8
-        xCoords(1:3,iNode) = Species(iSpec)%Init(iInit)%CellLocMinPos(1:3)
-       END DO
-       xCoords(1:3,2) = xCoords(1:3,1) + (/xlen,0.,0./)
-       xCoords(1:3,3) = xCoords(1:3,1) + (/0.,ylen,0./)
-       xCoords(1:3,4) = xCoords(1:3,1) + (/xlen,ylen,0./)
-       xCoords(1:3,5) = xCoords(1:3,1) + (/0.,0.,zlen/)
-       xCoords(1:3,6) = xCoords(1:3,5) + (/xlen,0.,0./)
-       xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
-       xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
-       RegionOnProc=BoxInProc(xCoords,8)
     CASE('cuboid_equal')
        xlen = SQRT(Species(iSpec)%Init(iInit)%BaseVector1IC(1)**2 &
             + Species(iSpec)%Init(iInit)%BaseVector1IC(2)**2 &
@@ -525,18 +507,18 @@ DO iSpec=1,nSpecies
     END SELECT
 
     ! Sanity check if at least one proc will be on the new emission communicator
-    CALL MPI_ALLREDUCE(RegionOnProc,RegionExists,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLREDUCE(RegionOnProc,RegionExists,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
     IF (.NOT. RegionExists) THEN
       WRITE(hilf,'(A,I0,A,I0)') 'Species',iSpec,'-Init',iInit
       CALL CollectiveStop(__STAMP__,'The emission region was not found on any processor.  No processor in range for '//TRIM(hilf))
     END IF
 
-    ! Add PartMPI%MPIRoot to specific inits automatically for output of analysis data to disk
+    ! Add MPIRoot to specific inits automatically for output of analysis data to disk
     ! The root sometimes also reads data during restart and broadcasts it to the other processors in the communicator
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
     CASE('2D_landmark_neutralization','2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo',&
          '3D_Liu2010_neutralization_Szabo')
-      IF(PartMPI%MPIRoot) RegionOnProc=.TRUE.
+      IF(MPIRoot) RegionOnProc=.TRUE.
     END SELECT
 
     ! create new communicator
@@ -545,37 +527,37 @@ DO iSpec=1,nSpecies
     ! set communicator id
     Species(iSpec)%Init(iInit)%InitCOMM=nInitRegions
     ! create new emission communicator for emission communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-    CALL MPI_COMM_SPLIT(PartMPI%COMM,color,MPI_INFO_NULL,PartMPI%InitGroup(nInitRegions)%COMM,iError)
+    CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,MPI_INFO_NULL,PartMPIInitGroup(nInitRegions)%COMM,iError)
 
     ! Find my rank on the shared communicator, comm size and proc name
     IF (RegionOnProc) THEN
-      CALL MPI_COMM_RANK(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%MyRank,iError)
-      CALL MPI_COMM_SIZE(PartMPI%InitGroup(nInitRegions)%COMM,PartMPI%InitGroup(nInitRegions)%nProcs,iError)
+      CALL MPI_COMM_RANK(PartMPIInitGroup(nInitRegions)%COMM,PartMPIInitGroup(nInitRegions)%MyRank,iError)
+      CALL MPI_COMM_SIZE(PartMPIInitGroup(nInitRegions)%COMM,PartMPIInitGroup(nInitRegions)%nProcs,iError)
 
       ! inform about size of emission communicator
-      IF (PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0) THEN
+      IF (PartMPIInitGroup(nInitRegions)%MyRank.EQ.0) THEN
 #if USE_LOADBALANCE
         IF(.NOT.PerformLoadBalance)&
 #endif /*USE_LOADBALANCE*/
             WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0,A)') ' Emission-Region,Emission-Communicator: ',nInitRegions,' on ',&
-      PartMPI%InitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
+      PartMPIInitGroup(nInitRegions)%nProcs,' procs ('//TRIM(Species(iSpec)%Init(iInit)%SpaceIC)//', iSpec=',iSpec,')'
       END IF
     END IF
 
     ! build mapping for procs on emission communicator
-    IF(PartMPI%InitGroup(nInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
-      PartMPI%InitGroup(nInitRegions)%MPIRoot=MERGE(.TRUE.,.FALSE.,PartMPI%InitGroup(nInitRegions)%MyRank.EQ.0)
+    IF(PartMPIInitGroup(nInitRegions)%COMM.NE.MPI_COMM_NULL) THEN
+      PartMPIInitGroup(nInitRegions)%MPIRoot=MERGE(.TRUE.,.FALSE.,PartMPIInitGroup(nInitRegions)%MyRank.EQ.0)
 
-      ALLOCATE(PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1))
-      PartMPI%InitGroup(nInitRegions)%GroupToComm(PartMPI%InitGroup(nInitRegions)%MyRank) = PartMPI%MyRank
-      CALL MPI_ALLGATHER(PartMPI%MyRank,1,MPI_INTEGER&
-                        ,PartMPI%InitGroup(nInitRegions)%GroupToComm(0:PartMPI%InitGroup(nInitRegions)%nProcs-1)&
-                       ,1,MPI_INTEGER,PartMPI%InitGroup(nInitRegions)%COMM,iERROR)
+      ALLOCATE(PartMPIInitGroup(nInitRegions)%GroupToComm(0:PartMPIInitGroup(nInitRegions)%nProcs-1))
+      PartMPIInitGroup(nInitRegions)%GroupToComm(PartMPIInitGroup(nInitRegions)%MyRank) = myRank
+      CALL MPI_ALLGATHER(myRank,1,MPI_INTEGER&
+                        ,PartMPIInitGroup(nInitRegions)%GroupToComm(0:PartMPIInitGroup(nInitRegions)%nProcs-1)&
+                       ,1,MPI_INTEGER,PartMPIInitGroup(nInitRegions)%COMM,iERROR)
 
-      ALLOCATE(PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1))
-      PartMPI%InitGroup(nInitRegions)%CommToGroup(0:PartMPI%nProcs-1) = -1
-      DO iRank = 0,PartMPI%InitGroup(nInitRegions)%nProcs-1
-        PartMPI%InitGroup(nInitRegions)%CommToGroup(PartMPI%InitGroup(nInitRegions)%GroupToComm(iRank))=iRank
+      ALLOCATE(PartMPIInitGroup(nInitRegions)%CommToGroup(0:nProcessors-1))
+      PartMPIInitGroup(nInitRegions)%CommToGroup(0:nProcessors-1) = -1
+      DO iRank = 0,PartMPIInitGroup(nInitRegions)%nProcs-1
+        PartMPIInitGroup(nInitRegions)%CommToGroup(PartMPIInitGroup(nInitRegions)%GroupToComm(iRank))=iRank
       END DO ! iRank
 
     END IF
@@ -600,10 +582,11 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc,FIBGMProcs
 !USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 !USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems, FIBGM_offsetElem, FIBGM_Element
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems,FIBGM_nTotalElems
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI,PartMPIInsert,PartMPILocate
+USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup,PartMPIInsert,PartMPILocate
 USE MOD_Particle_MPI_Vars      ,ONLY: EmissionSendBuf,EmissionRecvBuf
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,Species
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
@@ -641,11 +624,11 @@ REAL(KIND=8)                  :: Rate
 InitGroup = Species(FractNbr)%Init(iInit)%InitCOMM
 
 ! Arrays for communication of particles not located in final element
-ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%nPartsRecv  (1,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%SendRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%RecvRequest (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%send_message(  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%nPartsRecv  (1,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%SendRequest (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%RecvRequest (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , PartMPIInsert%send_message(  0:PartMPIInitGroup(InitGroup)%nProcs-1) &
         , STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) &
   CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
@@ -654,12 +637,12 @@ PartMPIInsert%nPartsSend=0
 PartMPIInsert%nPartsRecv=0
 
 ! Inter-CN communication
-ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPILocate%nPartsRecv (1,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPILocate%SendRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , PartMPILocate%RecvRequest(2,0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , EmissionRecvBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
-        , EmissionSendBuf          (  0:PartMPI%InitGroup(InitGroup)%nProcs-1) &
+ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , PartMPILocate%nPartsRecv (1,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , PartMPILocate%SendRequest(2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , PartMPILocate%RecvRequest(2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , EmissionRecvBuf          (  0:PartMPIInitGroup(InitGroup)%nProcs-1) &
+        , EmissionSendBuf          (  0:PartMPIInitGroup(InitGroup)%nProcs-1) &
         , STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) &
   CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
@@ -683,8 +666,8 @@ IF (ALLOCSTAT.NE.0) &
 chunkState = -1
 
 !--- 1/10 Open receive buffer (located and non-located particles)
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   !--- MPI_IRECV lengths of lists of particles entering local mesh
   CALL MPI_IRECV( PartMPIInsert%nPartsRecv(:,iProc)                           &
@@ -692,7 +675,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1011                                                        &
-                , PartMPI%InitGroup(InitGroup)%COMM                           &
+                , PartMPIInitGroup(InitGroup)%COMM                           &
                 , PartMPIInsert%RecvRequest(1,iProc)                          &
                 , IERROR)
 
@@ -702,7 +685,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1111                                                        &
-                , PartMPI%InitGroup(InitGroup)%COMM                           &
+                , PartMPIInitGroup(InitGroup)%COMM                           &
                 , PartMPILocate%RecvRequest(1,iProc)                          &
                 , IERROR)
 END DO
@@ -767,7 +750,7 @@ DO i = 1, chunkSize
       ProcID = FIBGMProcs(iProc)
       IF (ProcID.EQ.myRank) CYCLE
 
-      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
+      tProc=PartMPIInitGroup(InitGroup)%CommToGroup(ProcID)
       ! Processor is not on emission communicator
       IF(tProc.EQ.-1) CYCLE
 
@@ -779,8 +762,8 @@ DO i = 1, chunkSize
 END DO ! i = 1, chunkSize
 
 !--- 2/10 Send number of non-located particles
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   ! send particles
   !--- MPI_ISEND lengths of lists of particles leaving local mesh
@@ -789,7 +772,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1011                                                        &
-                , PartMPI%InitGroup(InitGroup)%COMM                           &
+                , PartMPIInitGroup(InitGroup)%COMM                           &
                 , PartMPIInsert%SendRequest(1,iProc)                          &
                 , IERROR)
   IF (PartMPIInsert%nPartsSend(1,iProc).GT.0) THEN
@@ -824,7 +807,7 @@ DO i = 1, chunkSize
       ProcID = FIBGMProcs(iProc)
       IF (ProcID.EQ.myRank) CYCLE
 
-      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
+      tProc=PartMPIInitGroup(InitGroup)%CommToGroup(ProcID)
       ! Processor is not on emission communicator
       IF (tProc.EQ.-1) CYCLE
 
@@ -845,8 +828,8 @@ END DO ! i = 1, chunkSize
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   CALL MPI_WAIT(PartMPIInsert%SendRequest(1,iProc),msg_status(:),IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
@@ -863,8 +846,8 @@ MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 ! Inter-CN communication
 ALLOCATE(recvPartPos(1:SUM(PartMPIInsert%nPartsRecv(1,:)*DimSend)), STAT=ALLOCSTAT)
 TotalNbrOfRecvParts = 0
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   IF (PartMPIInsert%nPartsRecv(1,iProc).GT.0) THEN
   !--- MPI_IRECV lengths of lists of particles entering local mesh
@@ -873,7 +856,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                   , MPI_DOUBLE_PRECISION                                      &
                   , iProc                                                     &
                   , 1022                                                      &
-                  , PartMPI%InitGroup(InitGroup)%COMM                         &
+                  , PartMPIInitGroup(InitGroup)%COMM                         &
                   , PartMPIInsert%RecvRequest(2,iProc)                        &
                   , IERROR)
     TotalNbrOfRecvParts = TotalNbrOfRecvParts + PartMPIInsert%nPartsRecv(1,iProc)
@@ -885,7 +868,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                   , MPI_DOUBLE_PRECISION                                      &
                   , iProc                                                     &
                   , 1022                                                      &
-                  , PartMPI%InitGroup(InitGroup)%COMM                         &
+                  , PartMPIInitGroup(InitGroup)%COMM                         &
                   , PartMPIInsert%SendRequest(2,iProc)                        &
                   , IERROR)
   END IF
@@ -912,7 +895,7 @@ DO i = 1, chunkSize
       IF (.NOT.InsideMyBGM(2,i)) CYCLE
 
       ! ProcID on emission communicator
-      tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
+      tProc=PartMPIInitGroup(InitGroup)%CommToGroup(ProcID)
       ! Processor is not on emission communicator
       IF(tProc.EQ.-1) CALL ABORT(__STAMP__,'Error in particle_mpi_emission: proc not on emission communicator')
 
@@ -929,21 +912,14 @@ DO i = 1, chunkSize
     ! Located particle on local proc.
     ELSE
       ! Get the next free position in the PDM array
-      ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
-      IF (ParticleIndexNbr.NE.0) THEN
-        ! Fill the PartState manually to avoid a second localization
-        PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
-        PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
-        IF (TrackingMethod.EQ.REFMAPPING) THEN
-          CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
-        END IF ! TrackingMethod.EQ.REFMAPPING
-        PEM%GlobalElemID(ParticleIndexNbr)         = ElemID
-      ELSE
-        IPWRITE(UNIT_StdOut,'(I0,A,I0,A,I0,A)') " PDM%MaxParticleNumber = ", PDM%MaxParticleNumber," for each processor (",&
-                                                  PDM%MaxParticleNumber*nProcessors," in total)"
-        IPWRITE(UNIT_StdOut,'(I0,A)')           " Increase value for [Part-maxParticleNumber]!"
-        CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-      END IF
+      ParticleIndexNbr = GetNextFreePosition(mySumOfMatchedParticles+1)
+      ! Fill the PartState manually to avoid a second localization
+      PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
+      PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
+      IF (TrackingMethod.EQ.REFMAPPING) THEN
+        CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
+      END IF ! TrackingMethod.EQ.REFMAPPING
+      PEM%GlobalElemID(ParticleIndexNbr)         = ElemID
       mySumOfMatchedParticles = mySumOfMatchedParticles + 1
     END IF ! ElemID.EQ.-1
   END IF ! InsideMyBGM(i)
@@ -951,8 +927,8 @@ END DO ! i = 1, chunkSize
 
 !---  /  Send number of located particles
 ! Inter-CN communication
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   ! send particles
   !--- MPI_ISEND lengths of lists of particles leaving local mesh
@@ -961,7 +937,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                 , MPI_INTEGER                                                 &
                 , iProc                                                       &
                 , 1111                                                        &
-                , PartMPI%InitGroup(InitGroup)%COMM                           &
+                , PartMPIInitGroup(InitGroup)%COMM                           &
                 , PartMPILocate%SendRequest(1,iProc)                          &
                 , IERROR)
   IF (PartMPILocate%nPartsSend(1,iProc).GT.0) THEN
@@ -981,7 +957,7 @@ DO i = 1, chunkSize
   ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
   IF (ProcID.NE.myRank) THEN
     ! ProcID on emission communicator
-    tProc=PartMPI%InitGroup(InitGroup)%CommToGroup(ProcID)
+    tProc=PartMPIInitGroup(InitGroup)%CommToGroup(ProcID)
     ! Processor is not on emission communicator
     IF(tProc.EQ.-1) CYCLE
 
@@ -998,8 +974,8 @@ END DO ! i = 1, chunkSize
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   CALL MPI_WAIT(PartMPILocate%SendRequest(1,iProc),msg_status(:),IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
@@ -1012,8 +988,8 @@ MPIW8TimePart(5)  = MPIW8TimePart(5) + REAL(CounterEnd-CounterStart,8)/Rate
 MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   ! Allocate receive array and open receive buffer if expecting particles from iProc
   IF (PartMPILocate%nPartsRecv(1,iProc).GT.0) THEN
@@ -1029,7 +1005,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                   , MPI_DOUBLE_PRECISION                                       &
                   , iProc                                                      &
                   , 1122                                                       &
-                  , PartMPI%InitGroup(InitGroup)%COMM                          &
+                  , PartMPIInitGroup(InitGroup)%COMM                          &
                   , PartMPILocate%RecvRequest(2,iProc)                         &
                   , IERROR )
     IF(IERROR.NE.MPI_SUCCESS) &
@@ -1044,7 +1020,7 @@ DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
                   , MPI_DOUBLE_PRECISION                                       &
                   , iProc                                                      &
                   , 1122                                                       &
-                  , PartMPI%InitGroup(InitGroup)%COMM                          &
+                  , PartMPIInitGroup(InitGroup)%COMM                          &
                   , PartMPILocate%SendRequest(2,iProc)                         &
                   , IERROR )
     IF(IERROR.NE.MPI_SUCCESS) &
@@ -1056,8 +1032,8 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   IF (PartMPIInsert%nPartsSend(1,iProc).GT.0) THEN
     CALL MPI_WAIT(PartMPIInsert%SendRequest(2,iProc),msg_status(:),IERROR)
@@ -1087,21 +1063,14 @@ DO i = 1,TotalNbrOfRecvParts
   IF (ElemInfo_Shared(ELEM_RANK,ElemID).NE.myRank) CYCLE
 
   ! Find a free position in the PDM array
-  ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
-  IF (ParticleIndexNbr.NE.0) THEN
-    ! Fill the PartState manually to avoid a second localization
-    PartState(1:3,ParticleIndexNbr) = recvPartPos(DimSend*(i-1)+1:DimSend*(i-1)+3)
-    PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
-    IF (TrackingMethod.EQ.REFMAPPING) THEN
-      CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
-    END IF ! TrackingMethod.EQ.REFMAPPING
-    PEM%GlobalElemID(ParticleIndexNbr)    = ElemID
-  ELSE
-    IPWRITE(UNIT_StdOut,'(I0,A,I0,A,I0,A)') " PDM%MaxParticleNumber = ", PDM%MaxParticleNumber," for each processor (",&
-                                              PDM%MaxParticleNumber*nProcessors," in total)"
-    IPWRITE(UNIT_StdOut,'(I0,A)')           " Increase value for [Part-maxParticleNumber]!"
-    CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-  END IF
+  ParticleIndexNbr = GetNextFreePosition(mySumOfMatchedParticles+1)
+  ! Fill the PartState manually to avoid a second localization
+  PartState(1:3,ParticleIndexNbr) = recvPartPos(DimSend*(i-1)+1:DimSend*(i-1)+3)
+  PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
+  IF (TrackingMethod.EQ.REFMAPPING) THEN
+    CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
+  END IF ! TrackingMethod.EQ.REFMAPPING
+  PEM%GlobalElemID(ParticleIndexNbr)    = ElemID
   mySumOfMatchedParticles = mySumOfMatchedParticles + 1
 END DO
 
@@ -1109,8 +1078,8 @@ END DO
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   IF (PartMPILocate%nPartsSend(1,iProc).GT.0) THEN
     CALL MPI_WAIT(PartMPILocate%SendRequest(2,iProc),msg_status(:),IERROR)
@@ -1128,27 +1097,20 @@ MPIW8CountPart(5) = MPIW8CountPart(5) + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 !--- 10/10 Write located particles
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
-  IF (iProc.EQ.PartMPI%InitGroup(InitGroup)%myRank) CYCLE
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
+  IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
   IF (PartMPILocate%nPartsRecv(1,iProc).EQ.0) CYCLE
 
   DO i = 1,PartMPILocate%nPartsRecv(1,iProc)
     ! Find a free position in the PDM array
-    ParticleIndexNbr = PDM%nextFreePosition(mySumOfMatchedParticles + 1 + PDM%CurrentNextFreePosition)
-    IF (ParticleIndexNbr.NE.0) THEN
-      ! Fill the PartState manually to avoid a second localization
-      PartState(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+1:PartCommSize*(i-1)+3)
-      IF (TrackingMethod.EQ.REFMAPPING) THEN
-        PartPosRef(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+4:PartCommSize*(i-1)+6)
-      END IF ! TrackingMethod.EQ.REFMAPPING
-      PEM%GlobalElemID(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
-      PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
-    ELSE
-      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,I0,A)') " PDM%MaxParticleNumber = ", PDM%MaxParticleNumber," for each processor (",&
-                                                PDM%MaxParticleNumber*nProcessors," in total)"
-      IPWRITE(UNIT_StdOut,'(I0,A)')           " Increase value for [Part-maxParticleNumber]!"
-      CALL ABORT(__STAMP__,'ERROR in ParticleMPIEmission:ParticleIndexNbr.EQ.0 - maximum nbr of particles reached?')
-    END IF
+    ParticleIndexNbr = GetNextFreePosition(mySumOfMatchedParticles+1)
+    ! Fill the PartState manually to avoid a second localization
+    PartState(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+1:PartCommSize*(i-1)+3)
+    IF (TrackingMethod.EQ.REFMAPPING) THEN
+      PartPosRef(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+4:PartCommSize*(i-1)+6)
+    END IF ! TrackingMethod.EQ.REFMAPPING
+    PEM%GlobalElemID(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
+    PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
     mySumOfMatchedParticles = mySumOfMatchedParticles + 1
   END DO
 END DO
@@ -1156,7 +1118,7 @@ END DO
 !--- Clean up
 SDEALLOCATE(recvPartPos)
 SDEALLOCATE(chunkState)
-DO iProc=0,PartMPI%InitGroup(InitGroup)%nProcs-1
+DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
   SDEALLOCATE(EmissionRecvBuf(iProc)%content)
   SDEALLOCATE(EmissionSendBuf(iProc)%content)
 END DO

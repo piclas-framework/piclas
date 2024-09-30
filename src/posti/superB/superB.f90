@@ -38,10 +38,14 @@ USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
 USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
 USE MOD_Mesh                  ,ONLY: InitMesh
+#ifdef PARTICLES
+USE MOD_Particle_Vars         ,ONLY: Symmetry
+#endif /*PARTICLES*/
 #if USE_MPI
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 USE MOD_Globals_Init          ,ONLY: DefineParametersGlobals
+USE MOD_Mesh_ReadIn           ,ONLY: FinalizeMeshReadin
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -121,6 +125,9 @@ CALL InitOutput()
 CALL InitIOHDF5()
 
 CALL InitGlobals()
+#ifdef PARTICLES
+Symmetry%Order = 3
+#endif
 #if USE_MPI
 CALL InitMPIShared()
 #endif /*USE_MPI*/
@@ -145,6 +152,7 @@ SDEALLOCATE(BGFieldAnalytic)
 ! Finalize SuperB
 CALL FinalizeSuperB()
 CALL FinalizeMesh()
+CALL FinalizeMeshReadin(2)
 
 GETTIME(SystemTime)
 SWRITE(UNIT_stdOut,'(132("="))')

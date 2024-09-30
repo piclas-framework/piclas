@@ -26,7 +26,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcWallSample
-PUBLIC :: SampleImpactProperties
 PUBLIC :: StoreBoundaryParticleProperties
 PUBLIC :: GetRadialDistance2D
 !===================================================================================================================================
@@ -41,7 +40,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt)
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
-USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC,useDSMC,PartStateIntEn,RadialWeighting,VarWeighting
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartStateIntEn,RadialWeighting, VarWeighting
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -152,7 +151,7 @@ SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) = SampWallState(SAM
 SampWallState(ETransID ,SubP,SubQ,SurfSideID) = SampWallState(ETransID ,SubP,SubQ,SurfSideID) + ETrans * MPF
 IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
-    IF ((SpecDSMC(SpecID)%InterID.EQ.2).OR.SpecDSMC(SpecID)%InterID.EQ.20) THEN
+    IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
       !----  Sampling the internal (rotational) energy accommodation at walls
       SampWallState(ERotID ,SubP,SubQ,SurfSideID) = SampWallState(ERotID ,SubP,SubQ,SurfSideID) + PartStateIntEn(2,PartID) * MPF
       !----  Sampling for internal (vibrational) energy accommodation at walls
@@ -173,7 +172,6 @@ SUBROUTINE SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,P
 !> Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z), angle and number of impacts
 !>
 !===================================================================================================================================
-!USE MOD_DSMC_Vars              ,ONLY: SpecDSMC
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars ,ONLY: SampWallImpactAngle ,SampWallImpactNumber
 USE MOD_Globals_Vars           ,ONLY: PI
@@ -221,7 +219,7 @@ SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,
 END SUBROUTINE SampleImpactProperties
 
 
-SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iPartBound,mode,MPF_optIN)
+SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iPartBound,mode,MPF_optIN,Velo_optIN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -244,6 +242,7 @@ INTEGER,INTENT(IN) :: iPartBound  ! Part-BoundaryX on which the impact occurs
 INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
                            ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
 REAL,INTENT(IN),OPTIONAL :: MPF_optIN ! Supply the MPF in special cases
+REAL,INTENT(IN),OPTIONAL :: Velo_optIN(1:3) ! Supply the velocity in special cases
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                 :: MPF
@@ -291,7 +290,11 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   END IF
 
   PartStateBoundary(1:3,iMax) = PartPos
-  PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
+  IF(PRESENT(Velo_optIN))THEN
+    PartStateBoundary(4:6,iMax) = Velo_optIN
+  ELSE
+    PartStateBoundary(4:6,iMax) = PartState(4:6,iPart)
+  END IF ! PRESENT(Velo_optIN)
   ! Mode 1: store normal species ID, mode 2: store negative species ID (special analysis of emitted particles in/from volume/surface)
   IF(mode.EQ.1)THEN
     PartStateBoundary(7  ,iMax) = REAL(SpecID)

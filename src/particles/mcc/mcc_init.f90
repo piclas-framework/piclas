@@ -72,7 +72,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars  ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars ,ONLY: nSpecies, SampleElecExcitation, ExcitationLevelCounter, ExcitationSampleData, ExcitationLevelMapping
-USE MOD_Particle_Vars ,ONLY: VarTimeStep
+USE MOD_Particle_Vars ,ONLY: VarTimeStep, Species, SpeciesDatabase
 USE MOD_Mesh_Vars     ,ONLY: nElems
 USE MOD_DSMC_Vars     ,ONLY: BGGas, SpecDSMC, CollInf, DSMC, ChemReac, CollisMode
 USE MOD_MCC_Vars      ,ONLY: UseMCC, XSec_Database, SpecXSec, XSec_NullCollision, XSec_Relaxation
@@ -114,17 +114,17 @@ DO iSpec = 1, nSpecies
   IF(SpecDSMC(iSpec)%UseCollXSec.AND.BGGas%BackgroundSpecies(iSpec)) THEN
     CALL Abort(__STAMP__,'ERROR: Please supply the collision cross-section flag for the particle species and NOT the background species!')
   END IF
-  IF(SpecDSMC(iSpec)%UseElecXSec.AND.SpecDSMC(iSpec)%InterID.EQ.4) THEN
+  IF(SpecDSMC(iSpec)%UseElecXSec.AND.Species(iSpec)%InterID.EQ.4) THEN
     CALL Abort(__STAMP__,'ERROR: Electronic relaxation should be enabled for the respective heavy species, not the electrons!')
   END IF
-#if (PP_TimeDiscMethod!=42)
-  IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
-    SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled for the RESERVOIR'
-    SWRITE(*,*) 'NOTE: timedisc to test the calculation of the probabilities during regression testing. For DSMC, a de-excitation'
-    SWRITE(*,*) 'NOTE: model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
-    CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+  IF(.NOT.DSMC%ReservoirSimu) THEN
+    IF(SpecDSMC(iSpec)%UseElecXSec.AND.(.NOT.BGGas%BackgroundSpecies(iSpec))) THEN
+      SWRITE(*,*) 'NOTE: Electronic relaxation via cross-sections for regular DSMC is currently only enabled using the flag'
+      SWRITE(*,*) 'NOTE: Particles-DSMCReservoirSim = T to test the calculation of the probabilities during regression testing.'
+      SWRITE(*,*) 'NOTE: For DSMC, a de-excitation model should be implemented. Regression test: WEK_Reservoir/MCC_N2_XSec_Elec'
+      CALL Abort(__STAMP__,'ERROR: Electronic relaxation via cross-section (-UseElecXSec) is only supported with a background gas!')
+    END IF
   END IF
-#endif
 END DO
 
 ! Enable MCC if any of the flags was set
@@ -146,6 +146,11 @@ IF(UseMCC.AND.(DSMC%VibRelaxProb.EQ.2.0)) CALL abort(__STAMP__&
 IF(.NOT.UseMCC.AND.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__,&
       'ERROR: Only MCC is implemented with a species-specific time step!')
 
+! Disable SampleElecExcitation if electronic excitation has not been enabled for at least one species
+IF(SampleElecExcitation.AND.(.NOT.ANY(SpecDSMC(:)%UseElecXSec))) THEN
+  SampleElecExcitation = .FALSE.
+  LBWRITE(*,*) '| WARNING: Part-SampleElectronicExcitation has been disabled as no electronic excitation has been enabled through -UseElecXSec = T!'
+END IF
 ! Leave the routine
 IF(.NOT.UseMCC) RETURN
 
@@ -153,7 +158,9 @@ IF(.NOT.UseMCC) RETURN
 ! Initialize & read-in of cross-section data
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Read-in of the cross-section database
-XSec_Database = GETSTR('Particles-CollXSec-Database')
+IF (SpeciesDatabase.EQ.'none') THEN
+  XSec_Database = GETSTR('Particles-CollXSec-Database')
+END IF
 ! Checks/read-in depending on background gas
 IF(BGGas%NumberOfSpecies.GT.0) THEN
   ! Null collision method only works with a background gas
@@ -213,13 +220,13 @@ DO iSpec = 1, nSpecies
       ! If the species which was given the UseVibXSec flag is diatomic/polyatomic, use the cross-section for that species
       ! If the species is an atom/electron, use the cross-section for the other collision partner (the background species)
       IF(SpecDSMC(iSpec)%UseVibXSec) THEN
-        IF((SpecDSMC(iSpec)%InterID.EQ.2).OR.(SpecDSMC(iSpec)%InterID.EQ.20)) THEN
+        IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
           SpecXSec(iCase)%SpeciesToRelax = iSpec
         ELSE
           SpecXSec(iCase)%SpeciesToRelax = jSpec
         END IF
       ELSE
-        IF((SpecDSMC(jSpec)%InterID.EQ.2).OR.(SpecDSMC(jSpec)%InterID.EQ.20)) THEN
+        IF((Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
           SpecXSec(iCase)%SpeciesToRelax = jSpec
         ELSE
           SpecXSec(iCase)%SpeciesToRelax = iSpec
@@ -306,7 +313,7 @@ DO iSpec = 1, nSpecies
         END DO
         ! Interpolate and store levels at the collision cross-section intervals
         IF(SpecXSec(iCase)%UseCollXSec) THEN
-          IF((SpecDSMC(iSpec)%InterID.NE.4).AND.(SpecDSMC(jSpec)%InterID.NE.4)) THEN
+          IF((Species(iSpec)%InterID.NE.4).AND.(Species(jSpec)%InterID.NE.4)) THEN
             ! Special treatment required if both collision partners have electronic energy levels (ie. one is not an electron)
             CALL abort(__STAMP__,'ERROR: Electronic relaxation with cross-section is only possible for electron collisions!')
           END IF
@@ -387,8 +394,8 @@ DO iSpec = 1, nSpecies
           CALL abort(__STAMP__,'Total null collision probability is above unity. Please reduce the time step! Probability is: '&
           ,RealInfoOpt=TotalProb(partSpec))
         ELSEIF(TotalProb(partSpec).GT.0.1) THEN
-          SWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
-          SWRITE(*,*) 'Particle Species: ', TRIM(SpecDSMC(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
+          LBWRITE(*,*) 'Total null collision probability is above 0.1. A value of 1E-2 is recommended in literature!'
+          LBWRITE(*,*) 'Particle Species: ', TRIM(Species(partSpec)%Name), ' Probability: ', TotalProb(partSpec)
         END IF ! TotalProb(partSpec).GT.1.0
       END IF ! XSec_NullCollision
     END IF ! SpecXSec(iCase)%UseCollXSec
@@ -412,20 +419,22 @@ END IF
 IF(SampleElecExcitation) THEN
   ExcitationLevelCounter = 0
   ALLOCATE(ExcitationLevelMapping(CollInf%NumCase,MAXVAL(SpecXSec(:)%NumElecLevel)))
+  ! Count the number of excitation levels for all collision cases
   DO iCase = 1, CollInf%NumCase
     IF(.NOT.SpecXSec(iCase)%UseElecXSec) CYCLE
     DO iLevel = 1, SpecXSec(iCase)%NumElecLevel
       ExcitationLevelCounter = ExcitationLevelCounter + 1
       ExcitationLevelMapping(iCase,iLevel) = ExcitationLevelCounter
     END DO
-    IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
-      IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
-      IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
-      CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
-    END IF
-    ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
-    ExcitationSampleData = 0.
   END DO
+  ! Sanity check
+  IF(ExcitationLevelCounter.NE.SUM(SpecXSec(:)%NumElecLevel)) THEN
+    IPWRITE(UNIT_StdOut,*) "ExcitationLevelCounter        =", ExcitationLevelCounter
+    IPWRITE(UNIT_StdOut,*) "SUM(SpecXSec(:)%NumElecLevel) =", SUM(SpecXSec(:)%NumElecLevel)
+    CALL abort(__STAMP__,'Electronic excitation sampling: Wrong level counter!')
+  END IF
+  ALLOCATE(ExcitationSampleData(ExcitationLevelCounter,nElems))
+  ExcitationSampleData = 0.
 END IF
 
 #if defined(PARTICLES) && USE_HDG
@@ -460,25 +469,27 @@ INTEGER,INTENT(IN)            :: iSpec
 INTEGER,INTENT(IN)            :: jSpec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: MaxDOF, bggSpec,iElem
+INTEGER                       :: MaxDOF, bggSpec, iElem, partSpec
 REAL                          :: MaxCollFreq, MaxCollFreqElem, Mass, dtVar
 REAL,ALLOCATABLE              :: Velocity(:)
 !===================================================================================================================================
-
-! Set the correct time step
-IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
-  dtVar = ManualTimeStep * Species(iSpec)%TimeStepFactor
-ELSE
-  dtVar = ManualTimeStep
-END IF
 
 ! Select the background species as the target cloud and use the mass of particle species
 IF(BGGas%BackgroundSpecies(iSpec)) THEN
   bggSpec = BGGas%MapSpecToBGSpec(iSpec)
   Mass = Species(jSpec)%MassIC
+  partSpec = jSpec
 ELSE
   bggSpec = BGGas%MapSpecToBGSpec(jSpec)
   Mass = Species(iSpec)%MassIC
+  partSpec = iSpec
+END IF
+
+! Set the correct time step for the particle species
+IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+  dtVar = ManualTimeStep * Species(partSpec)%TimeStepFactor
+ELSE
+  dtVar = ManualTimeStep
 END IF
 
 MaxDOF = SIZE(SpecXSec(iCase)%CollXSecData,2)
@@ -641,11 +652,12 @@ SUBROUTINE InitPhotoionizationXSec()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_MCC_Vars  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
-USE MOD_MCC_Vars  ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
-USE MOD_MCC_Vars  ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
-USE MOD_MCC_XSec  ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
-USE MOD_DSMC_Vars ,ONLY: SpecDSMC,ChemReac
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSec,PhotoReacToReac,NbrOfPhotonXsecLines
+USE MOD_MCC_Vars      ,ONLY: SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,ReacToPhotoReac
+USE MOD_MCC_Vars      ,ONLY: PhotonSpectrum,PhotonEnergies,MaxPhotonXSec
+USE MOD_MCC_XSec      ,ONLY: ReadReacPhotonXSec,ReadReacPhotonSpectrum
+USE MOD_DSMC_Vars     ,ONLY: ChemReac
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -673,7 +685,7 @@ DO iReac = 1, ReadInNumOfReact
     PhotoReacToReac(iPhotoReac) = iReac
     ReacToPhotoReac(iReac)      = iPhotoReac
 !> 2. Check the educts (photon+X), also switch the ordering of the names.e.g, N2-photon or photon-N2 of the container
-    EductPair = TRIM(SpecDSMC(ChemReac%Reactants(iReac,1))%Name)//'-photon'
+    EductPair = TRIM(Species(ChemReac%Reactants(iReac,1))%Name)//'-photon'
     IF(iPhotoReac.GT.1)THEN
       IF(TRIM(EductPair).NE.TRIM(EductPairOld)) CALL abort(__STAMP__,'Currently only one photo reaction is implemented')
     END IF ! iPhotoReac.GT.1
@@ -828,7 +840,7 @@ DO iLine = PhotoIonFirstLine, PhotoIonLastLine
   IF(SpecPhotonXSecInterpolated(iLine,NbrOfPhotonXsecReactions+3).LE.0.)THEN
     ZeroLine = iLine
     EXIT
-  END IF ! 
+  END IF !
 END DO ! iLine = PhotoIonFirstLine, PhotoIonLastLine
 
 IF(ZeroLine.GT.0)THEN

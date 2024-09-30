@@ -44,14 +44,31 @@ INTERFACE OutputTrajectory
 END INTERFACE
 #endif /*CODE_ANALYZE*/
 
+! Define an interface for the function pointer
+ABSTRACT INTERFACE
+  SUBROUTINE ParticleThroughSideCheck1D2DInterface(PartID,iLocSide,Element,ThroughSide)
+    INTEGER,INTENT(IN)               :: PartID
+    INTEGER,INTENT(IN)               :: iLocSide
+    INTEGER,INTENT(IN)               :: Element
+    LOGICAL,INTENT(OUT)              :: ThroughSide
+  END SUBROUTINE
+END INTERFACE
+
+!> Pointer defining the routine based on the symmetry order
+PROCEDURE(ParticleThroughSideCheck1D2DInterface),POINTER :: ParticleThroughSideCheck1D2D => NULL()
+
 PUBLIC :: IntersectionWithWall
 PUBLIC :: ComputePlanarRectInterSection
 PUBLIC :: ComputePlanarCurvedIntersection
 PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
+PUBLIC :: InitParticleThroughSideCheck1D2D
+PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck1D2D
+PUBLIC :: ParticleThroughSideLastPosCheck
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
 #endif /*CODE_ANALYZE*/
+PUBLIC :: ComputeXi,ComputeSurfaceDistance2
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -145,6 +162,342 @@ IF(ABS(TrackInfo%alpha).GT.0.) TrackInfo%alpha = dist / TrackInfo%alpha
 RETURN
 
 END SUBROUTINE IntersectionWithWall
+
+
+PPURE SUBROUTINE ParticleThroughSideCheck3DFast(PartID,iLocSide,Element,ThroughSide,TriNum, IsMortar)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given triangle of a side. The determinant between the normalized trajectory
+!> vector and the vectors from two of the three nodes to the old particle position is calculated. If the determinants for the three
+!> possible combinations are greater than zero, then the particle went through this triangle of the side.
+!> Note that if this is a mortar side, the side of the small neighbouring mortar element has to be checked. Thus, the orientation
+!> is reversed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars              ,ONLY: EpsMach
+USE MOD_Particle_Vars             ,ONLY: lastPartPos
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+INTEGER,INTENT(IN)               :: TriNum
+LOGICAL, INTENT(IN), OPTIONAL    :: IsMortar
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+INTEGER                          :: n, NodeID
+REAL                             :: Px, Py, Pz
+REAL                             :: Vx, Vy, Vz
+REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
+REAL                             :: det(3)
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+
+Px = lastPartPos(1,PartID)
+Py = lastPartPos(2,PartID)
+Pz = lastPartPos(3,PartID)
+
+! Normalized particle trajectory (PartPos - lastPartPos)/ABS(PartPos - lastPartPos)
+Vx = TrackInfo%PartTrajectory(1)
+Vy = TrackInfo%PartTrajectory(2)
+Vz = TrackInfo%PartTrajectory(3)
+
+! Get the coordinates of the first node and the vector from the particle position to the node
+xNode(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+yNode(1) = NodeCoords_Shared(2,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+zNode(1) = NodeCoords_Shared(3,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+
+Ax(1) = xNode(1) - Px
+Ay(1) = yNode(1) - Py
+Az(1) = zNode(1) - Pz
+! Get the vectors to the other two nodes, depending on the triangle number
+IF(PRESENT(IsMortar)) THEN
+  ! Note: reverse orientation in the mortar case, as the side is treated from the perspective of the smaller neighbouring element
+  !       (TriNum=1: NodeID=3,2; TriNum=2: NodeID=4,3)
+  xNode(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+  zNode(2) = NodeCoords_Shared(3,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+
+  Ax(2) = xNode(2) - Px
+  Ay(2) = yNode(2) - Py
+  Az(2) = zNode(2) - Pz
+
+  xNode(3) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+  yNode(3) = NodeCoords_Shared(2,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+  zNode(3) = NodeCoords_Shared(3,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+
+  Ax(3) = xNode(3) - Px
+  Ay(3) = yNode(3) - Py
+  Az(3) = zNode(3) - Pz
+ELSE
+  DO n = 2,3
+    NodeID = n+TriNum-1       ! m = true node number of the sides (TriNum=1: NodeID=2,3; TriNum=2: NodeID=3,4)
+    xNode(n) = NodeCoords_Shared(1,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+    yNode(n) = NodeCoords_Shared(2,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+    zNode(n) = NodeCoords_Shared(3,ElemSideNodeID_Shared(NodeID,iLocSide,CNElemID)+1)
+
+    Ax(n) = xNode(n) - Px
+    Ay(n) = yNode(n) - Py
+    Az(n) = zNode(n) - Pz
+  END DO
+END IF
+!--- check whether v and the vectors from the particle to the two edge nodes build
+!--- a right-hand-system. If yes for all edges: vector goes potentially through side
+det(1) = (Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + (Az(1) * Vx - Ax(1) * Vz) * Ay(3)  + (Ax(1) * Vy - Ay(1) * Vx) * Az(3)
+det(2) = (Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + (Ax(2) * Vy - Ay(2) * Vx) * Az(1)
+det(3) = (Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + (Ax(3) * Vy - Ay(3) * Vx) * Az(2)
+
+! Comparison of the determinants with eps due to machine precision
+IF ((det(1).ge.-epsMach).AND.(det(2).ge.-epsMach).AND.(det(3).ge.-epsMach)) THEN
+  ThroughSide = .TRUE.
+END IF
+
+RETURN
+
+END SUBROUTINE ParticleThroughSideCheck3DFast
+
+
+!==================================================================================================================================!
+!> Initialize ParticleThroughSideCheck depending on symmetry dimension using a function pointer (1D/2D only)
+!==================================================================================================================================!
+SUBROUTINE InitParticleThroughSideCheck1D2D()
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars            ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!==================================================================================================================================
+
+IF (Symmetry%Order.EQ.2) THEN
+  ParticleThroughSideCheck1D2D => ParticleThroughSideCheck2D
+ELSE IF(Symmetry%Order.EQ.1) THEN
+  ParticleThroughSideCheck1D2D => ParticleThroughSideCheck1D
+ELSE
+  CALL abort(__STAMP__,'ERROR in InitParticleThroughSideCheck1D2D: Function pointer could not be properly defined!')
+END IF
+
+END SUBROUTINE InitParticleThroughSideCheck1D2D
+
+
+SUBROUTINE ParticleThroughSideCheck2D(PartID,iLocSide,Element,ThroughSide)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given 2D side. The intersection of the edge and the particle trajectory is
+!> calculated and checked to see if it is within the side.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                   ,ONLY: VECNORM2D
+USE MOD_Globals_Vars              ,ONLY: EpsMach
+USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID2D_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+REAL                             :: xNode(2), yNode(2), POI(2) , locAlpha, VecPart(2), VecEdge(2)
+REAL                             :: t(2),tmpPoint, PartP1(2), PartP2(2),denominator
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+
+! Get the coordinates of the edge and trajectory
+xNode(1) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+xNode(2) = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+IF (xNode(1).GT.xNode(2)) THEN
+  tmpPoint = xNode(1)
+  xNode(1) = xNode(2)
+  xNode(2) = tmpPoint
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode(1) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+ELSE
+  yNode(1) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+  yNode(2) = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+END IF
+
+IF (LastPartPos(1,PartID).LT.PartState(1,PartID)) THEN
+  PartP1(1:2)=LastPartPos(1:2,PartID)
+  PartP2(1:2)=PartState(1:2,PartID)
+ELSE
+  PartP2(1:2)=LastPartPos(1:2,PartID)
+  PartP1(1:2)=PartState(1:2,PartID)
+END IF
+VecPart = PartP2-PartP1
+VecEdge(1) = xNode(2)-xNode(1)
+VecEdge(2) = yNode(2)-yNode(1)
+denominator = VecPart(1)*VecEdge(2) - VecPart(2)*VecEdge(1)
+
+! Check if the lines are parallel
+IF (ABS(denominator).LT.EpsMach) RETURN
+
+t(1) = ((xNode(1)-PartP1(1))*VecEdge(2)-(yNode(1)-PartP1(2))*VecEdge(1))/denominator
+t(2) = ((xNode(1)-PartP1(1))*VecPart(2)-(yNode(1)-PartP1(2))*VecPart(1))/denominator
+
+! Check if intersection point is within line segments
+IF (t(1) >= 0.0 .AND. t(1) <= 1.0 .AND. t(2) >= 0.0 .AND. t(2) <= 1.0) THEN
+  ! Calculate intersection point
+  POI(1:2) =  PartP1 + t(1)*VecPart
+  POI = POI - LastPartPos(1:2,PartID)
+
+  locAlpha = VECNORM2D(POI)
+  IF (locAlpha.LE.TrackInfo%lengthPartTrajectory) THEN
+    ThroughSide = .TRUE.
+    TrackInfo%alpha = locAlpha
+  END IF
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck2D
+
+SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
+!===================================================================================================================================
+!> Routine to check whether a particle crossed the given 1D  side. It simply checks whether lastpartpos - xnode and partpos-xnode
+!> have different signs. Then the side was crossed.
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars             ,ONLY: lastPartPos,PartState
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared, ElemSideNodeID1D_Shared
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: PartID
+INTEGER,INTENT(IN)               :: iLocSide
+INTEGER,INTENT(IN)               :: Element
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID, DiffSign(2)
+REAL                             :: xNode
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+ThroughSide = .FALSE.
+! Get the coordinates of the first node
+xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(iLocSide, CNElemID))
+
+DiffSign(1) = NINT(SIGN(1.,LastPartPos(1,PartID) - xNode))
+DiffSign(2) = NINT(SIGN(1.,PartState(1,PartID) - xNode))
+
+! Check if intersection point is within line segments
+IF (DiffSign(1).NE.DiffSign(2)) THEN
+  ! Calculate intersection point
+  TrackInfo%alpha = ABS(xNode - LastPartPos(1,PartID))
+  ThroughSide = .TRUE.
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck1D
+
+
+SUBROUTINE ParticleThroughSideLastPosCheck(i,iLocSide,Element,InElementCheck,TriNum,det,isMortarSide,detPartPos)
+!===================================================================================================================================
+!> Routine used in the case of a particle crossing multipe sides. Calculates the determinant of the three vectors from the last
+!> (and current in the case of mortar sides) particle position to the nodes of the triangle in order to determine if the particle
+!> is inside the element. Output of determinant is used to determine which of the sides was crossed first.
+!===================================================================================================================================
+! MODULES
+USE MOD_Mesh_Tools         ,         ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars
+USE MOD_Particle_Vars
+!-----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)               :: i, Element, iLocSide, TriNum
+LOGICAL, INTENT(IN),OPTIONAL     :: isMortarSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: InElementCheck
+REAL   ,INTENT(OUT)              :: det
+REAL   ,INTENT(OUT), OPTIONAL    :: detPartPos
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID
+INTEGER                          :: NodeNum, ind, iNode
+REAL                             :: Ax(3),Ay(3),Az(3)
+REAL                             :: NodeCoord(1:3,1:3)
+!===================================================================================================================================
+
+CNElemID = GetCNElemID(Element)
+
+InElementCheck = .TRUE.
+
+!--- coords of first node:
+DO ind = 1,3
+  NodeCoord(ind,1) = NodeCoords_Shared(ind,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+END DO
+
+!--- coords of other two nodes (depending on triangle):
+IF(PRESENT(isMortarSide)) THEN
+  ! Note: reversed orientation as the triangle is treated from the perspective of the smaller neighbouring mortar element
+  NodeCoord(1:3,2) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(2+TriNum,iLocSide,CNElemID)+1)
+  NodeCoord(1:3,3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1+TriNum,iLocSide,CNElemID)+1)
+ELSE
+  DO iNode = 2,3
+    NodeNum = iNode + TriNum - 1
+    DO ind = 1,3
+      NodeCoord(ind,iNode) = NodeCoords_Shared(ind,ElemSideNodeID_Shared(NodeNum,iLocSide,CNElemID)+1)
+    END DO
+  END DO
+END IF
+!--- vector from lastPos(!) to triangle nodes
+DO ind = 1,3
+  Ax(ind) = NodeCoord(1,ind) - lastPartPos(1,i)
+  Ay(ind) = NodeCoord(2,ind) - lastPartPos(2,i)
+  Az(ind) = NodeCoord(3,ind) - lastPartPos(3,i)
+END DO
+
+!--- determine whether particle is on inner side (rel. to element) of triangle
+!--- set corresponding "flag" (see below)
+det = ((Ay(1) * Az(2) - Az(1) * Ay(2)) * Ax(3) +     &
+       (Az(1) * Ax(2) - Ax(1) * Az(2)) * Ay(3) +     &
+       (Ax(1) * Ay(2) - Ay(1) * Ax(2)) * Az(3))
+
+IF ((det.lt.0).OR.(det.NE.det)) THEN
+  InElementCheck = .FALSE.
+END IF
+
+IF(PRESENT(isMortarSide).AND.PRESENT(detPartPos)) THEN
+  DO ind = 1,3
+    Ax(ind) = NodeCoord(1,ind) - PartState(1,i)
+    Ay(ind) = NodeCoord(2,ind) - PartState(2,i)
+    Az(ind) = NodeCoord(3,ind) - PartState(3,i)
+  END DO
+
+  detPartPos = ((Ay(1) * Az(2) - Az(1) * Ay(2)) * Ax(3) +     &
+                (Az(1) * Ax(2) - Ax(1) * Az(2)) * Ay(3) +     &
+                (Ax(1) * Ay(2) - Ay(1) * Ax(2)) * Az(3))
+END IF
+
+RETURN
+
+END SUBROUTINE ParticleThroughSideLastPosCheck
 
 
 SUBROUTINE ComputePlanarRectIntersection(isHit                       &
@@ -578,9 +931,9 @@ NormalCoeff(:,3) = BiLinearCoeff(:,3) - SUM(BiLinearCoeff(:,3)*PartTrajectory(:)
 NormalCoeff(:,4) = BiLinearCoeff(:,4) - SUM(BiLinearCoeff(:,4)*PartTrajectory(:))*PartTrajectory
 
 ! A1 is X_xz = X_z - X_x
-a1(:) = NormalCoeff(3,:) - NormalCoeff(1,:)
+A1(:) = NormalCoeff(3,:) - NormalCoeff(1,:)
 ! A2 is X_yz = X_z - X_y
-a2(:) = NormalCoeff(3,:) - NormalCoeff(2,:)
+A2(:) = NormalCoeff(3,:) - NormalCoeff(2,:)
 
 ! Bring into quadratic form
 A = a1(1)*a2(3) - a2(1)*a1(3)
@@ -608,11 +961,11 @@ CALL QuadraticSolver(A,B,C,nRoot,Eta(1),Eta(2))
 ! nRoot equals the number of possible intersections with the bilinear surface. However, only values between [-1,1] are valid
 SELECT CASE(nRoot)
   ! No intersection
-  CASE(0)
+  CASE(0) ! nRoot = 0
     RETURN
 
   ! One possible intersection
-  CASE(1)
+  CASE(1) ! nRoot = 1
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(PartID.EQ.PARTOUT)THEN
@@ -679,7 +1032,7 @@ SELECT CASE(nRoot)
       RETURN
     END IF ! ABS(eta(1)).LE.1.0
 
-  CASE(2)
+  CASE(2) ! nRoot = 2
 #ifdef CODE_ANALYZE
     IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
       IF(PartID.EQ.PARTOUT)THEN

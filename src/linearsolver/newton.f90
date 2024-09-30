@@ -172,7 +172,7 @@ END DO ! iElem=1,PP_nElems
 NormArray(1)=Norm_R
 NormArray(2)=Delta_Norm_R
 NormArray(3)=Delta_Norm_Rel
-CALL MPI_ALLREDUCE(NormArray,GlobalNormArray,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_WORLD,iError)
+CALL MPI_ALLREDUCE(NormArray,GlobalNormArray,3,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 Norm_R         = SQRT(GlobalNormArray(1))
 Delta_Norm_R   = SQRT(GlobalNormArray(2))
 Delta_Norm_Rel = SQRT(GlobalNormArray(3))

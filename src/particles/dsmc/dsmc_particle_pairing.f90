@@ -40,7 +40,6 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_init_octree, DSMC_pairing_quadtree, DSMC_CalcSubNodeVolumes3D
 PUBLIC :: DSMC_CalcSubNodeVolumes2D, GeoCoordToMap2D, DSMC_pairing_dotree, OCTANTCUBEID, QUADCUBEMIDPOINT, OCTANTCUBEMIDPOINT
-PUBLIC :: PerformPairingAndCollision, MapToGeo2D, GeoCoordToMap1D
 !===================================================================================================================================
 
 CONTAINS
@@ -440,11 +439,10 @@ SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume
 USE MOD_Globals
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting,VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting, VarWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
 USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, WriteMacroVolumeValues, UseVarTimeStep, Symmetry, usevMPF
-USE MOD_TimeDisc_Vars           ,ONLY: TEnd, time
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, UseVarTimeStep, Symmetry, usevMPF
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
@@ -593,8 +591,7 @@ DO iPair = 1, nPair
     ! 2D axisymmetric with radial weighting: split up pairs of identical particles
     IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
       CALL DSMC_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_NodeTotal)
-    END IF
-    ! Calculate the collision probability and test it against a random number
+    END IF    ! Calculate the collision probability and test it against a random number
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
     IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
@@ -614,16 +611,24 @@ END DO
 
 ! 6.) Calculate the mean free path and the mean collision separation distance within a cell
 IF(DSMC%CalcQualityFactors) THEN
-  IF((Time.GE.(1-DSMC%TimeFracSamp)*TEnd).OR.WriteMacroVolumeValues) THEN
-    ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
-    DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
+  ! Calculation of Mean Collision Probability
+  IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
+  ! Calculation of the mean free path with VHS model and the current translational temperature in the cell
+  DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum), REAL(SUM(CollInf%Coll_SpecPartNum)), NodeVolume, &
                                           DSMC%InstantTransTemp(nSpecies+1))
-    ! Determination of the maximum MCS/MFP for the cell
-    IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) THEN
-      DSMC%MCSoverMFP = MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
-      DSMC%MCSMFP_Mean = DSMC%MCSMFP_Mean + (DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath
-      DSMC%MCSMFP_MeanCount = DSMC%MCSMFP_Mean + 1.
-    END IF
+  IF((DSMC%CollSepCount.GT.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = &
+                                                    MAX(DSMC%MCSoverMFP,(DSMC%CollSepDist/DSMC%CollSepCount)/DSMC%MeanFreePath)
+  ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
+  IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
+  ! Calculate number of resolved Cells for this processor
+  DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
+                                                    DSMC%ResolvedCellCounter + 1
+  ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
+  IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
+    ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+    ! Otherwise its the ResolvedTimestep
+    DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
   END IF
 END IF
 
@@ -657,7 +662,6 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
   USE MOD_DSMC_Vars,              ONLY : tTreeNode, DSMC, tNodeVolume
   USE MOD_Particle_Vars,          ONLY : nSpecies, PartSpecies
   USE MOD_DSMC_Vars,              ONLY : ElemNodeVol
-  USE MOD_Particle_Mesh_Vars,     ONLY : MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -747,8 +751,6 @@ RECURSIVE SUBROUTINE AddOctreeNode(TreeNode, iElem, NodeVol)
                 PartNumChildNode(iLoop), iElem, NodeVol%SubNode(iLoop)%Volume)
     END IF
   END DO
-
-MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
 
 END SUBROUTINE AddOctreeNode
 
@@ -845,7 +847,7 @@ ELSE
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       DO iLoop = 1, nPart
-        ! Attention: LastPartPos is the reference position here
+        ! Attention: LastPartPos is the reference position here, set in timedisc_TimeStep_DSMC.f90 / timedisc_TimeStep_BGK.f90
         TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
         iPart = PEM%pNext(iPart)
       END DO
@@ -875,11 +877,10 @@ RECURSIVE SUBROUTINE AddQuadTreeNode(TreeNode, iElem, NodeVol)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, VarWeighting ,CollInf
+USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, VarWeighting, CollInf
 USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1046,8 +1047,6 @@ DO iLoop = 1, 4
   END IF
 END DO
 
-MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
-
 END SUBROUTINE AddQuadTreeNode
 
 
@@ -1140,7 +1139,6 @@ USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, CollInf
 USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
-USE MOD_Particle_Mesh_Vars,ONLY: MeshAdapt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1233,8 +1231,6 @@ DO iLoop = 1, 2
   END IF
 END DO
 
-MeshAdapt(1,iElem) = REAL(TreeNode%NodeDepth)
-
 END SUBROUTINE AddDoTreeNode
 
 
@@ -1281,7 +1277,6 @@ ELSE
 END IF
 
 ALLOCATE(ElemNodeVol(nElems))
-
 
 !Calculate recursive Volumes
 DO iElem = 1, nElems

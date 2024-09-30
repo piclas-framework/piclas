@@ -335,7 +335,7 @@ IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
   ! ! Determine the MPF based on the particle number from the reference simulation
   DO iCNElem = firstElem, lastElem
     ! Determine the reference MPF
-    IF (AdaptMPFInfo_Shared(7,iCNElem).NE.0.) then
+    IF (AdaptMPFInfo_Shared(7,iCNElem).NE.0.) THEN
       AdaptMPFInfo_Shared(6,iCNElem) = AdaptMPFInfo_Shared(7,iCNElem)
     ELSE IF (VarWeighting%DoVariableWeighting) THEN
       AdaptMPFInfo_Shared(6,iCNElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,iCNElem))

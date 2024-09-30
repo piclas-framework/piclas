@@ -22,6 +22,7 @@ IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC::PerformTracking
+PUBLIC::ParticleInsideCheck
 PUBLIC::ParticleSanityCheck
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
@@ -67,6 +68,49 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 
 END SUBROUTINE PerformTracking
+
+
+LOGICAL FUNCTION ParticleInsideCheck(Position,iPart,GlobalElemID)
+!===================================================================================================================================
+!> Checks if the position is inside the element with the appropriate routine depending on the TrackingMethod
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Particle_Localization   ,ONLY: PartInElemCheck
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Vars           ,ONLY: PartPosRef
+!-----------------------------------------------------------------------------------------------------------------------------------
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: Position(3)
+INTEGER, INTENT(IN)             :: iPart,GlobalElemID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+
+ParticleInsideCheck = .FALSE.
+
+SELECT CASE(TrackingMethod)
+CASE(REFMAPPING)
+  CALL GetPositionInRefElem(Position,PartPosRef(1:3,iPart),GlobalElemID)
+  IF (MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) ParticleInsideCheck=.TRUE.
+CASE(TRACING)
+  CALL PartInElemCheck(Position,iPart,GlobalElemID,ParticleInsideCheck)
+CASE(TRIATRACKING)
+  CALL ParticleInsideQuad(Position,GlobalElemID,ParticleInsideCheck)
+CASE DEFAULT
+  CALL abort(__STAMP__,'TrackingMethod not implemented! TrackingMethod =',IntInfoOpt=TrackingMethod)
+END SELECT
+
+END FUNCTION ParticleInsideCheck
+
 
 SUBROUTINE ParticleSanityCheck(PartID)
 !===================================================================================================================================

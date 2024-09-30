@@ -134,13 +134,14 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars
+!USE MOD_Particle_SurfChemFlux_Init
 USE MOD_Restart_Vars           ,ONLY: DoRestart, RestartTime
 USE MOD_DSMC_Vars              ,ONLY: AmbiPolarSFMapping, DSMC, useDSMC
+USE MOD_Particle_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
 #endif /*USE_MPI*/
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Vars          ,ONLY: CountCircInflowType
@@ -162,7 +163,7 @@ INTEGER               :: iCopy1, iCopy2, iCopy3, MaxSurfacefluxBCs,nDataBC
 REAL                  :: tmp_SubSideDmax(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL                  :: tmp_SubSideAreas(SurfFluxSideSize(1),SurfFluxSideSize(2))
 REAL                  :: tmp_BezierControlPoints2D(2,0:NGeo,0:NGeo,SurfFluxSideSize(1),SurfFluxSideSize(2))
-REAL                  :: VFR_total, RestartTimeVar
+REAL                  :: VFR_total, RestartTimeVar, excludeCircleArea
 TYPE(tBCdata_auxSFRadWeight),ALLOCATABLE          :: BCdata_auxSFTemp(:)
 #if USE_MPI
 REAL                  :: totalAreaSF_global
@@ -174,7 +175,7 @@ SurfMeshSideAreas=0.
 CALL BCSurfMeshSideAreasandNormals()
 
 UseCircularInflow=.FALSE.
-UseAdaptive=.FALSE.
+UseAdaptiveBC=.FALSE.
 MaxSurfacefluxBCs=0
 nDataBC=0
 DoSurfaceFlux=.FALSE.
@@ -182,12 +183,12 @@ DoSurfaceFlux=.FALSE.
 !-- 1.: read/prepare parameters and determine nec. BCs
 CALL ReadInAndPrepareSurfaceFlux(MaxSurfacefluxBCs, nDataBC)
 
-! Call to the reactive surfaces
-IF (SurfChemReac%CatBoundNum.GT.0) CALL ReadInAndPrepareSurfChemFlux(nDataBC)
+!-- 2.: initialize/add surface flux due to reactive surfaces
+IF (SurfChem%CatBoundNum.GT.0) CALL InitSurfChemFlux(nDataBC)
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,PartMPI%COMM,iError) !set T if this is for all procs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoPoissonRounding,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_PICLAS,iError) !set T if this is for all procs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoTimeDepInflow,1,MPI_LOGICAL,MPI_LAND,MPI_COMM_PICLAS,iError) !set T if this is for all procs
 #endif /*USE_MPI*/
 
 CALL CreateSideListAndFinalizeAreasSurfFlux(nDataBC, BCdata_auxSFTemp)
@@ -202,9 +203,17 @@ END IF
 !-- 3.: initialize Surfaceflux-specific data
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-    currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+    ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
+    currentBC = SF%BC
     IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
       CALL abort(__STAMP__,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
+    END IF
+    ! Circular inflow: a circle to be excluded from the surface flux has been defined (only rmin defined, rmax undefined)
+    ! SF%totalAreaSF has been initialized with the negative circle area, which is substracted from the total area after the MPI communication
+    excludeCircleArea = 0.
+    IF(SF%CircularInflow.AND.(SF%totalAreaSF.LT.0.)) THEN
+      excludeCircleArea = SF%totalAreaSF
+      SF%totalAreaSF = 0.
     END IF
     ! Loop over sides on the surface flux
     DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -213,37 +222,34 @@ DO iSpec=1,nSpecies
       iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
       SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
       ! Calculate the total area of the surface flux
-      IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
-        CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
-          ,BezierSurfFluxProjection_opt=.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal &
-          ,SurfMeshSubSideAreas=tmp_SubSideAreas,DmaxSampleN_opt=Species(iSpec)%Surfaceflux(iSF)%ARM_DmaxSampleN &
+      IF (SF%AcceptReject) THEN
+        CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN,BezierSurfFluxProjection_opt=.NOT.SF%VeloIsNormal &
+          ,SurfMeshSubSideAreas=tmp_SubSideAreas,DmaxSampleN_opt=SF%ARM_DmaxSampleN &
           ,Dmax_opt=tmp_SubSideDmax,BezierControlPoints2D_opt=tmp_BezierControlPoints2D)
       ELSE IF (.NOT.TriaSurfaceFlux) THEN
         CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
-          ,BezierSurfFluxProjection_opt=.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal,SurfMeshSubSideAreas=tmp_SubSideAreas)
+          ,BezierSurfFluxProjection_opt=.NOT.SF%VeloIsNormal,SurfMeshSubSideAreas=tmp_SubSideAreas)
       ELSE ! TriaSurfaceFlux
         DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
           tmp_SubSideAreas(iSample,jSample)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area
-          IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
-            Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = Species(iSpec)%Surfaceflux(iSF)%totalAreaSF &
-                                                          + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
+          ! Do not calculate the area if the circular inflow has been activated, unless only the inner radius has been defined
+          IF(.NOT.SF%CircularInflow.OR.excludeCircleArea.LT.0.) THEN
+            SF%totalAreaSF = SF%totalAreaSF + SurfMeshSubSideData(iSample,jSample,BCSideID)%area
           END IF
         END DO; END DO
       END IF
       ! Initialize circular inflow (determine if elements are (partially) inside/outside)
-      IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) CALL DefineCircInflowRejectType(iSpec, iSF, iSide)
+      IF (SF%CircularInflow) CALL DefineCircInflowRejectType(iSpec, iSF, iSide)
       ! Initialize the volume flow rate
       CALL InitVolumeFlowRate(iSpec, iSF, iSide, tmp_SubSideAreas, BCdata_auxSFTemp)
       ! Initialize acceptance-rejection on SF
-      IF (Species(iSpec)%Surfaceflux(iSF)%AcceptReject) THEN
+      IF (SF%AcceptReject) THEN
         DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-          Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
-          IF (.NOT.Species(iSpec)%Surfaceflux(iSF)%VeloIsNormal) THEN
-            ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                        ,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
+          SF%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
+          IF (.NOT.SF%VeloIsNormal) THEN
+            ALLOCATE(SF%SurfFluxSubSideData(iSample,jSample,iSide)%BezierControlPoints2D(1:2,0:NGeo,0:NGeo))
             DO iCopy1=0,NGeo; DO iCopy2=0,NGeo; DO iCopy3=1,2
-              Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample &
-                                                                  ,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
+              SF%SurfFluxSubSideData(iSample,jSample,iSide)%BezierControlPoints2D(iCopy3,iCopy2,iCopy1) &
                 = tmp_BezierControlPoints2D(iCopy3,iCopy2,iCopy1,iSample,jSample)
             END DO; END DO; END DO
           END IF !.NOT.VeloIsNormal
@@ -251,82 +257,45 @@ DO iSpec=1,nSpecies
       END IF
     END DO ! iSide
     !--- 3b: ReduceNoise initialization
-    IF (Species(iSpec)%Surfaceflux(iSF)%ReduceNoise) CALL InitReduceNoiseSF(iSpec, iSF)
+    IF (SF%ReduceNoise) CALL InitReduceNoiseSF(iSpec, iSF)
     ! Calculate the total area per surface flux
 #if USE_MPI
-    IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+    IF(.NOT.SF%CircularInflow.OR.excludeCircleArea.LT.0.) THEN
       totalAreaSF_global = 0.0
-      CALL MPI_ALLREDUCE(Species(iSpec)%Surfaceflux(iSF)%totalAreaSF,totalAreaSF_global,1, &
-                          MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
-      Species(iSpec)%Surfaceflux(iSF)%totalAreaSF = totalAreaSF_global
+      CALL MPI_ALLREDUCE(SF%totalAreaSF,totalAreaSF_global,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
+      IF(SF%CircularInflow.AND.(excludeCircleArea.LT.0.)) THEN
+        ! Circular inflow with rmax undefined: Substract circle area from total BC area (excludeCircleArea is negative)
+        SF%totalAreaSF = totalAreaSF_global + excludeCircleArea
+      ELSE
+        SF%totalAreaSF = totalAreaSF_global
+      END IF
     END IF
 #endif
     ! Inserting particles through a rate instead of particle density. This assumes that the volume flow rate (VFR) has been replaced
     ! by the local area (in InitVolumeFlowRate).
-    IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent) THEN
+    IF(SF%UseEmissionCurrent) THEN
       ! Store the current as particles per second per square meter in the particle density variable.
-      IF(Species(iSpec)%Surfaceflux(iSF)%ThermionicEmission) THEN
+      IF(SF%ThermionicEmission) THEN
         ! Thermionic emission: Richardson-Dushman equation gives directly the current density [A/m2]
-        Species(iSpec)%Surfaceflux(iSF)%PartDensity = Species(iSpec)%Surfaceflux(iSF)%EmissionCurrent / ABS(Species(iSpec)%ChargeIC)
+        SF%PartDensity = SF%EmissionCurrent / ABS(Species(iSpec)%ChargeIC)
       ELSE
-        Species(iSpec)%Surfaceflux(iSF)%PartDensity = Species(iSpec)%Surfaceflux(iSF)%EmissionCurrent &
-                                                      / (ABS(Species(iSpec)%ChargeIC) * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF)
+        SF%PartDensity = SF%EmissionCurrent / (ABS(Species(iSpec)%ChargeIC) * SF%totalAreaSF)
       END IF
     END IF
-    IF(Species(iSpec)%Surfaceflux(iSF)%UseMassflow) THEN
+    IF(SF%UseMassflow) THEN
       ! Store the mass flow as particles per second per square meter in the particle density variable.
-      Species(iSpec)%Surfaceflux(iSF)%PartDensity = Species(iSpec)%Surfaceflux(iSF)%Massflow &
-                                                    / (Species(iSpec)%MassIC * Species(iSpec)%Surfaceflux(iSF)%totalAreaSF)
+      SF%PartDensity = SF%Massflow / (Species(iSpec)%MassIC * SF%totalAreaSF)
     END IF
     ! Output of the number of sides for circular inflow (only if code was compiled with CODE_ANALYZE = TRUE
 #ifdef CODE_ANALYZE
-    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+    IF (BCdata_auxSF(currentBC)%SideNumber.GT.0 .AND. SF%CircularInflow) THEN
       IPWRITE(*,'(I4,A,2(1X,I0),A,3(1X,I0))') ' For Surfaceflux/Spec',iSF,iSpec,' are nType0,1,2: ', &
         CountCircInflowType(1,iSF,iSpec),CountCircInflowType(2, iSF,iSpec), CountCircInflowType(3, iSF,iSpec)
     END IF
 #endif /*CODE_ANALYZE*/
+  END ASSOCIATE
   END DO !iSF
 END DO !iSpec
-
-!initialize Surfaceflux-specific data
-DO iSF=1,SurfChemReac%CatBoundNum
-  currentBC = SurfChemReac%Surfaceflux(iSF)%BC
-  IF (BCdata_auxSF(currentBC)%SideNumber.GT.0) THEN
-
-    ! Loop over sides on the surface flux
-    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-      BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-      ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
-      iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
-      SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
-      IF (SurfChemReac%Surfaceflux(iSF)%AcceptReject) THEN
-        CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
-          ,BezierSurfFluxProjection_opt=.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal  &
-          ,SurfMeshSubSideAreas=tmp_SubSideAreas,DmaxSampleN_opt=SurfChemReac%Surfaceflux(iSF)%ARM_DmaxSampleN &
-          ,Dmax_opt=tmp_SubSideDmax,BezierControlPoints2D_opt=tmp_BezierControlPoints2D)
-      ELSE IF (.NOT.TriaSurfaceFlux) THEN
-        CALL GetBezierSampledAreas(SideID=SideID,BezierSampleN=BezierSampleN &
-          ,BezierSurfFluxProjection_opt=.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal,SurfMeshSubSideAreas=tmp_SubSideAreas)
-      ELSE ! TriaSurfaceFlux
-        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-          tmp_SubSideAreas(iSample,jSample)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area
-        END DO; END DO
-      END IF
-      ! Initialize surface flux
-      CALL InitSurfChemFlux(iSF, iSide)
-      ! Initialize acceptance-rejection on SF
-      IF (SurfChemReac%Surfaceflux(iSF)%AcceptReject) THEN
-        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-          SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Dmax = tmp_SubSideDmax(iSample,jSample)
-        END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
-      END IF
-      !Init adaptive SF
-    END DO ! iSide
-  ELSE IF (BCdata_auxSF(currentBC)%SideNumber.EQ.-1) THEN
-    CALL abort(__STAMP__&
-      ,'ERROR in ParticleSurfaceflux: Someting is wrong with SideNumber of BC ',currentBC)
-  END IF
-END DO !iSF
 
 #ifdef CODE_ANALYZE
 SDEALLOCATE(CountCircInflowType)
@@ -365,6 +334,7 @@ DO iSpec=1,nSpecies
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
         currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+        IF(Symmetry%Axisymmetric) CALL abort(__STAMP__, 'ERROR: AdaptiveType = 4 is not implemented with axisymmetric simulations!')
         ! Weighting factor to account for a
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                   1:BCdata_auxSF(currentBC)%SideNumber))
@@ -373,6 +343,7 @@ DO iSpec=1,nSpecies
         IF(ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
         ! Circular inflow in combination with AdaptiveType = 4 requires the partial circle area per tria side
         IF(Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          IF(Symmetry%Axisymmetric) CALL abort(__STAMP__, 'ERROR: Circular inflow is not implemented with axisymmetric simulations!')
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                   1:BCdata_auxSF(currentBC)%SideNumber))
           Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide = 0.0
@@ -384,7 +355,7 @@ DO iSpec=1,nSpecies
 END DO    ! iSpec=1,nSpecies
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,PartMPI%COMM,iError) !set T if at least 1 proc have SFs
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,DoSurfaceFlux,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError) !set T if at least 1 proc have SFs
 #endif  /*USE_MPI*/
 IF ((.NOT.DoSurfaceFlux).AND. (.NOT.DoChemSurface)) THEN !-- no SFs defined
   LBWRITE(*,*) 'WARNING: No Sides for SurfacefluxBCs found! DoSurfaceFlux is now disabled!'
@@ -427,13 +398,14 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, UseVarTimeStep, VarTimeStep, DoPoissonRounding, DoTimeDepInflow
-USE MOD_Particle_Vars          ,ONLY: Symmetry, UseCircularInflow
-USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptive
+USE MOD_Particle_Vars          ,ONLY: UseCircularInflow
+USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, RadialWeighting, VarWeighting
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
+USE MOD_SurfaceModel_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -475,6 +447,9 @@ DO iSpec=1,nSpecies
     SF%BC = GETINT('Part-Species'//TRIM(hilf2)//'-BC')
     ! Sanity check: BC index must be within the number of defined particle boundary conditions
     IF (SF%BC.LT.1 .OR. SF%BC.GT.nPartBound) CALL abort(__STAMP__, 'SurfacefluxBCs must be between 1 and nPartBound!')
+    ! Default surface flux type (constant particle number per side)
+    SF%Type = 0
+    SF%AdaptiveType = 0
     ! Initialize SF-specific variables
     WRITE(UNIT=hilf2,FMT='(I0)') iSF
     hilf2=TRIM(hilf)//'-Surfaceflux'//TRIM(hilf2)
@@ -520,12 +495,21 @@ DO iSpec=1,nSpecies
         SF%rmax     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmax',TRIM(hilf3))
         SF%rmin     = GETREAL('Part-Species'//TRIM(hilf2)//'-rmin')
         ! Total area of surface flux
-        SF%totalAreaSF = Pi*(SF%rmax*SF%rmax - SF%rmin*SF%rmin)
+        IF(.NOT.ALMOSTEQUALRELATIVE(SF%rmax,HUGE(SF%rmax),1E-1)) THEN
+          ! rmax has been defined and a regular circular/ring-shaped inflow is performed
+          SF%totalAreaSF = Pi*(SF%rmax*SF%rmax - SF%rmin*SF%rmin)
+        ELSE IF (SF%rmin.GT.0.) THEN
+          ! rmax has NOT been defined to exclude a circle from the inflow
+          SF%totalAreaSF = -Pi*SF%rmin*SF%rmin
+        ELSE
+          ! Neither rmin nor rmax have been defined
+          CALL abort(__STAMP__,'ERROR in Surface Flux with CircularInflow: A maximum (=rmax) and/or a minimum radius(=rmin) have to be defined!')
+        END IF
       END IF
     END IF !.NOT.VeloIsNormal
     IF (.NOT.SF%VeloIsNormal) THEN
       !--- normalize VeloVecIC
-      IF (.NOT. ALL(SF%VeloVecIC(:).EQ.0.)) SF%VeloVecIC = SF%VeloVecIC / SQRT(DOT_PRODUCT(SF%VeloVecIC,SF%VeloVecIC))
+      IF (.NOT. ALL(SF%VeloVecIC(:).EQ.0.)) SF%VeloVecIC = SF%VeloVecIC / VECNORM(SF%VeloVecIC)
     END IF
     SF%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC')
     SF%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity')
@@ -588,17 +572,20 @@ DO iSpec=1,nSpecies
     ELSE
       SF%ARM_DmaxSampleN = 0
     END IF
+    ! === Set the surface flux type
+    IF(DoPoissonRounding) SF%Type = 3
+    IF(DoTimeDepInflow)   SF%Type = 4
+    IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) SF%Type = 2
     ! === ADAPTIVE BC ==============================================================================================================
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
-      DoPoissonRounding = .TRUE.
-      UseAdaptive  = .TRUE.
+      UseAdaptiveBC  = .TRUE.
+      SF%Type = 1
       IF(TrackingMethod.EQ.REFMAPPING) THEN
         CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with RefMapping!')
       END IF
-      IF((Symmetry%Order.LE.2).OR.(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution)) THEN
-        CALL abort(__STAMP__&
-            ,'ERROR: Adaptive surface flux boundary conditions are not implemented with 2D/axisymmetric or variable time step!')
+      IF(UseVarTimeStep.AND..NOT.VarTimeStep%UseDistribution) THEN
+        CALL abort(__STAMP__,'ERROR: Adaptive surface flux boundary conditions are not implemented with variable time step!')
       END IF
       SF%AdaptiveType         = GETINT('Part-Species'//TRIM(hilf2)//'-Adaptive-Type')
       SELECT CASE(SF%AdaptiveType)
@@ -625,8 +612,6 @@ DO iSpec=1,nSpecies
             ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
         END IF
       END IF
-    ELSE
-      SF%AdaptiveType = 0
     END IF
     ! === THERMIONIC EMISSION ======================================================================================================
     SF%ThermionicEmission = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-ThermionicEmission')
@@ -649,6 +634,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, Bez
 USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, SideToElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas, CalcNormAndTangTriangle
+USE MOD_SurfaceModel_Vars
 #if CODE_ANALYZE && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*CODE_ANALYZE && USE_LOADBALANCE*/
@@ -673,9 +659,8 @@ DO BCSideID=1,nBCSides
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   SideID=GetGlobalNonUniqueSideID(offsetElem+ElemID,iLocSide)
   IF (TriaSurfaceFlux) THEN
-    IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(&
-__STAMP__&
-, 'SurfFluxSideSize must be 1,2 for TriaSurfaceFlux!')
+    IF (SurfFluxSideSize(1).NE.1 .OR. SurfFluxSideSize(2).NE.2) CALL abort(__STAMP__,&
+      'SurfFluxSideSize must be 1,2 for TriaSurfaceFlux!')
     DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
       CALL CalcNormAndTangTriangle(SideID=SideID,nVec=tmp_Vec_nOut(:,iSample,jSample) &
         ,tang1=tmp_Vec_t1(:,iSample,jSample) &
@@ -685,9 +670,8 @@ __STAMP__&
       SurfMeshSideAreas(BCSideID)=SurfMeshSideAreas(BCSideID)+tmp_SubSideAreas(iSample,jSample)
     END DO; END DO
   ELSE
-    IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(&
-__STAMP__&
-, 'SurfFluxSideSize must be BezierSampleN,BezierSampleN for .NOT.TriaSurfaceFlux!')
+    IF (ANY(SurfFluxSideSize.NE.BezierSampleN)) CALL abort(__STAMP__,&
+      'SurfFluxSideSize must be BezierSampleN,BezierSampleN for .NOT.TriaSurfaceFlux!')
     CALL GetBezierSampledAreas(SideID=SideID &
       ,BezierSampleN=BezierSampleN &
       ,SurfMeshSubSideAreas=tmp_SubSideAreas &
@@ -738,12 +722,8 @@ USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies, Symmetry
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
-USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
-USE MOD_SurfaceModel_Vars
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*USE_MPI*/
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -834,13 +814,6 @@ DO iBC=1,countDataBC
     END DO
   END DO
 
-  DO iSF=1,SurfChemReac%CatBoundNum
-    IF (TmpMapToBC(iBC).EQ.SurfChemReac%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
-      ALLOCATE(SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
-      ALLOCATE(SurfChemReac%SFAux(iSF)%a_nIn(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC),nSpecies))
-    END IF
-  END DO
-
   BCSideID=TmpSideStart(iBC)
   iCount=0
   DO !follow BCSideID list seq. with iCount
@@ -882,7 +855,7 @@ DO iBC=1,countDataBC
               BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &
                                                                         + ymax/(GEO%ymaxglob)*(RadialWeighting%PartScaleFactor-1.)
             END IF
-          END IF ! Radial weighting
+          END IF
           ! Determination of the mean variable weighting factor for calculation of the number of particles to be inserted
           IF (VarWeighting%DoVariableWeighting) THEN
             IF((ymax - ymin).GT.0.0) THEN
@@ -909,7 +882,6 @@ DO iBC=1,countDataBC
         END IF
       ELSE IF(Symmetry%Order.EQ.1) THEN
         SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
-        ! Calculate the mean variable weighting factor in 3D
       ELSE IF (VarWeighting%DoVariableWeighting) THEN
         GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
         CNElemID     = GetCNElemID(GlobalElemID)
@@ -919,9 +891,8 @@ DO iBC=1,countDataBC
       !----- symmetry specific area calculation end
       IF (TrackingMethod.NE.TRIATRACKING) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
         CNSideID = GetCNSideID(SideID)
-        IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(&
-__STAMP__&
-,'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
+        IF (SideType(CNSideID).NE.PLANAR_RECT .AND. SideType(CNSideID).NE.PLANAR_NONRECT) CALL abort(__STAMP__,&
+          'every surfaceflux-sides must be planar if TriaSurfaceFlux is used for tracing or refmapping!!!')
       END IF ! TrackingMethod.NE.TRIATRACKING
 
       DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
@@ -943,9 +914,7 @@ __STAMP__&
     !-- next Side
     IF (BCSideID .EQ. TmpSideEnd(iBC)) THEN
       IF (TmpSideNumber(iBC).NE.iCount) THEN
-        CALL abort(&
-__STAMP__&
-,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
+        CALL abort(__STAMP__,'Someting is wrong with TmpSideNumber of iBC',iBC,999.)
       ELSE
 #ifdef CODE_ANALYZE
         IPWRITE(*,'(I4,I7,A53,I0)') iCount,' Sides have been found for Surfaceflux-linked PartBC ',TmpMapToBC(iBC)
@@ -965,7 +934,7 @@ END DO !iBC
    DO iPartBound=1,nPartBound
      areasLoc(iPartBound)=BCdata_auxSF(iPartBound)%LocalArea
    END DO
-   CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,PartMPI%COMM,IERROR)
+   CALL MPI_ALLREDUCE(areasLoc,areasGlob,nPartBound,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,IERROR)
 #endif
    DO iPartBound=1,nPartBound
 #if USE_MPI
@@ -973,8 +942,6 @@ END DO !iBC
 #else
      BCdata_auxSF(iPartBound)%GlobalArea=BCdata_auxSF(iPartBound)%LocalArea
 #endif
-!     IPWRITE(*,'(I4,A,I4,2(x,E16.8))') 'areas:-', &
-!       iPartBound,BCdata_auxSF(iPartBound)%GlobalArea,BCdata_auxSF(iPartBound)%LocalArea
    END DO
 #if USE_MPI
    DEALLOCATE(areasLoc,areasGlob)
@@ -1051,7 +1018,7 @@ USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tB
 USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
 ! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
+ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)   :: iSpec, iSF, iSide
@@ -1080,8 +1047,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
   !-- compute total volume flow rate through surface
   SELECT CASE(TRIM(Species(iSpec)%Surfaceflux(iSF)%velocityDistribution))
   CASE('constant')
-    vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak ! Velo proj. to inwards normal
-    nVFR = MAX(tmp_SubSideAreas(iSample,jSample) * vSF,0.) ! VFR proj. to inwards normal (only positive parts!)
+    vSF = MAX(Species(iSpec)%Surfaceflux(iSF)%VeloIC * projFak,0.) ! VFR proj. to inwards normal (only positive parts!)
   CASE('maxwell','maxwell_lpn')
     IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
       CALL abort(__STAMP__,' ERROR in SurfaceFlux: Calculated thermal velocity is zero! Temperature input might be missing (-MWTemperatureIC) ')
@@ -1092,34 +1058,35 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       vSF = v_thermal / (2.0*SQRT(PI))  ! mean flux velocity through normal sub-face
     END IF
-    ! Calculate the volume flow rate. In case of an emission current and mass flow, it contains only the area
-    IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent.OR.Species(iSpec)%Surfaceflux(iSF)%UseMassflow) THEN
-      nVFR = tmp_SubSideAreas(iSample,jSample) ! Area
-      ! vSF set to 1 to allow the utilization with radial weighting (untested)
-      vSF = 1.
-    ELSE
-      nVFR = tmp_SubSideAreas(iSample,jSample) * vSF ! VFR projected to inwards normal of sub-side
-    END IF
-    IF(RadialWeighting%DoRadialWeighting) THEN
-      nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
-      DO iSub = 1, RadialWeighting%nSubSides
-        IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
-          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
-                                                              * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
-        END IF
-      END DO
-    ELSE IF(VarWeighting%DoVariableWeighting) THEN
-      nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
-      DO iSub = 1, VarWeighting%nSubSides
-        IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
-          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
-                                                              * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
-        END IF
-      END DO
-    END IF
   CASE DEFAULT
     CALL abort(__STAMP__, 'ERROR in SurfaceFlux: Wrong velocity distribution!')
   END SELECT
+  ! Calculate the volume flow rate. In case of an emission current and mass flow, it contains only the area
+  IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent .OR. Species(iSpec)%Surfaceflux(iSF)%UseMassflow .OR. &
+      Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
+    nVFR = tmp_SubSideAreas(iSample,jSample) ! Area
+    ! vSF set to 1 to allow the utilization with radial weighting (untested)
+    vSF = 1.
+  ELSE
+    nVFR = tmp_SubSideAreas(iSample,jSample) * vSF ! VFR projected to inwards normal of sub-side
+  END IF
+  IF(RadialWeighting%DoRadialWeighting) THEN
+    nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+    DO iSub = 1, RadialWeighting%nSubSides
+      IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+        Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
+                                                            * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+      END IF
+    END DO
+  ELSE IF(VarWeighting%DoVariableWeighting) THEN
+    nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+    DO iSub = 1, VarWeighting%nSubSides
+      IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+        Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) * vSF &
+        *Species(iSpec)%MacroParticleFactor/ BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+      END IF
+    END DO
+  END IF
   IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
     ! Check whether cell is completely outside of the circular inflow region and set the volume flow rate to zero
     IF (Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(iSide).EQ.1) nVFR = 0.
@@ -1152,9 +1119,6 @@ SUBROUTINE InitReduceNoiseSF(iSpec, iSF)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
-#if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPI
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1176,9 +1140,9 @@ ELSE
 END IF !MPIroot
 #if USE_MPI
 CALL MPI_GATHER(Species(iSpec)%Surfaceflux(iSF)%VFR_total,1,MPI_DOUBLE_PRECISION &
-  ,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs,1,MPI_DOUBLE_PRECISION,0,PartMPI%COMM,iError)
+  ,Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
 IF(MPIroot)THEN
-  DO iProc=0,PartMPI%nProcs-1
+  DO iProc=0,nProcessors-1
     Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal = Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcsTotal &
       + Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs(iProc)
   END DO
@@ -1192,7 +1156,7 @@ END SUBROUTINE InitReduceNoiseSF
 
 SUBROUTINE CalcCircInflowAreaPerTria(iSpec,iSF)
 !===================================================================================================================================
-!> Routine calculates the partial area of the circular infow per triangle for AdaptiveType=4 (Monte Carlo integration)
+!> Routine calculates the partial area of the circular inflow per triangle for AdaptiveType=4 (Monte Carlo integration)
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1216,9 +1180,7 @@ REAL                            :: PartDistance, TriaNode(1:3), midpoint(1:3), n
 MCVar = 1000000
 
 IF (.NOT.TriaSurfaceFlux) THEN
-  CALL abort(&
-__STAMP__&
-,'ERROR: CircularInflow only with TriaSurfaceFlux!')
+  CALL abort(__STAMP__,'ERROR: CircularInflow only with TriaSurfaceFlux!')
 END IF
 
 currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
@@ -1302,87 +1264,20 @@ END DO
 END SUBROUTINE CalcConstMassflowWeightForZeroMassFlow
 
 
-SUBROUTINE InitSurfChemFlux(iSF, iSide)
+SUBROUTINE InitSurfChemFlux(nDataBC)
 !===================================================================================================================================
-!> Initialize surface flux variables in SurfFluxSubSideData type
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
-USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tBCdata_auxSFRadWeight, BCdata_auxSF
-USE MOD_Particle_Vars           ,ONLY: Species, nSpecies
-USE MOD_SurfaceModel_Vars
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)   :: iSF, iSide
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: iSpec
-INTEGER               :: jSample, iSample, currentBC, BCSideID
-REAL                  :: vec_nIn(3), vec_t1(3), vec_t2(3), projFak, v_thermal, a
-!===================================================================================================================================
-currentBC = SurfChemReac%Surfaceflux(iSF)%BC
-BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-  vec_nIn = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn
-  vec_t1 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t1
-  vec_t2 = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_t2
-  IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
-    projFak = DOT_PRODUCT(vec_nIn,SurfChemReac%Surfaceflux(iSF)%VeloVecIC) !VeloVecIC projected to inwards normal
-  ELSE
-    projFak = 1.
-  END IF
-
-  DO iSpec=1,nSpecies
-    v_thermal = SQRT(2.*BoltzmannConst*SurfChemReac%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) !thermal speed
-    a = 0 !dummy for projected speed ratio in constant v-distri
-    !-- compute total volume flow rate through surface
-    SELECT CASE(TRIM(SurfChemReac%Surfaceflux(iSF)%velocityDistribution))
-    CASE('constant')
-    CASE('maxwell','maxwell_lpn')
-      a = SurfChemReac%Surfaceflux(iSF)%VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
-    CASE DEFAULT
-      CALL abort(__STAMP__,&
-        'ERROR in SurfaceFlux: Wrong velocity distribution!')
-    END SELECT
-    !-- store species-specific data in separate arrays to be able to re-use the surface flux types
-    SurfChemReac%SFAux(iSF)%a_nIn(iSample,jSample,iSide,iSpec) = a
-  END DO !iSpec
-
-  SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%projFak = projFak
-  IF (.NOT.SurfChemReac%Surfaceflux(iSF)%VeloIsNormal) THEN
-    SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 &
-      = SurfChemReac%Surfaceflux(iSF)%VeloIC &
-      * DOT_PRODUCT(vec_t1,SurfChemReac%Surfaceflux(iSF)%VeloVecIC) !v in t1-dir
-    SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 &
-      = SurfChemReac%Surfaceflux(iSF)%VeloIC &
-      * DOT_PRODUCT(vec_t2,SurfChemReac%Surfaceflux(iSF)%VeloVecIC) !v in t2-dir
-  ELSE
-    SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t1 = 0. !v in t1-dir
-    SurfChemReac%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%Velo_t2 = 0. !v in t2-dir
-  END IF! .NOT.VeloIsNormal
-END DO; END DO !jSample=1,SurfFluxSideSize(2); iSample=1,SurfFluxSideSize(1)
-
-END SUBROUTINE InitSurfChemFlux
-
-
-SUBROUTINE ReadInAndPrepareSurfChemFlux(nDataBC)
-!===================================================================================================================================
-! Initialize the variables first
+!> Initialize the BCdata_auxSF mapping to utilize the surface flux for surface chemistry
+!> Boundary side list is created by setting SideNumber = 0, the list is created later in CreateSideListAndFinalizeAreasSurfFlux
+!> Otherwise only SurfMeshSubSideData is required for the simplified surface flux (SetChemFluxVelocities)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, Pi
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_SurfaceModel_Tools     ,ONLY: GetWallTemperature
+USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound
 USE MOD_SurfaceModel_Vars
-USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, TriaSurfaceFlux
-USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
+USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
+USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1393,44 +1288,35 @@ INTEGER, INTENT(INOUT) :: nDataBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: iSF, iBound
-INTEGER               :: CatBoundNum
 !===================================================================================================================================
-CatBoundNum = SurfChemReac%CatBoundNum
-ALLOCATE(SurfChemReac%SurfaceFlux(1:CatBoundNum))
-! Type for variables different from the regular surface flux type
-ALLOCATE(SurfChemReac%SFAux(1:CatBoundNum))
-! Initialize Surfaceflux to BC mapping
-SurfChemReac%Surfaceflux(:)%BC=-1
+ALLOCATE(SurfChem%SurfaceFluxBC(1:SurfChem%CatBoundNum))
 
+! Initialize Surfaceflux to BC mapping
+SurfChem%SurfacefluxBC = -1
 iSF = 1
 DO iBound=1,nPartBound
-  IF (SurfChemReac%BoundisChemSurf(iBound)) THEN
-    SurfChemReac%Surfaceflux(iSF)%BC = iBound
+  IF (SurfChem%BoundIsChemSurf(iBound)) THEN
+    SurfChem%SurfacefluxBC(iSF) = iBound
     iSF = iSF + 1
   END IF
 END DO
 
-DO iSF = 1, CatBoundNum
-  IF (TriaSurfaceFlux) THEN
-    SurfChemReac%Surfaceflux(iSF)%AcceptReject=.FALSE.
-  END IF
-
-  SurfChemReac%Surfaceflux(iSF)%Adaptive = .FALSE.
-  ! get surfaceflux data
-  IF (SurfChemReac%Surfaceflux(iSF)%BC.LT.1 .OR. SurfChemReac%Surfaceflux(iSF)%BC.GT.nPartBound) THEN
+! Add the BC to the surface flux data array BCdata_auxSF, which will be populated later
+DO iSF = 1, SurfChem%CatBoundNum
+  IF (SurfChem%SurfacefluxBC(iSF).LT.1 .OR. SurfChem%SurfacefluxBC(iSF).GT.nPartBound) THEN
     CALL abort(__STAMP__, 'Chemistry Surfaceflux BCs must be between 1 and nPartBound!')
-  ELSE IF (BCdata_auxSF(SurfChemReac%Surfaceflux(iSF)%BC)%SideNumber.EQ. -1) THEN !not set yet
-    BCdata_auxSF(SurfChemReac%Surfaceflux(iSF)%BC)%SideNumber=0
+  ELSE IF (BCdata_auxSF(SurfChem%SurfacefluxBC(iSF))%SideNumber.EQ. -1) THEN !not set yet
+    BCdata_auxSF(SurfChem%SurfacefluxBC(iSF))%SideNumber=0
     nDataBC=nDataBC+1
   END IF
-
-  SurfChemReac%Surfaceflux(iSF)%velocityDistribution = 'maxwell_lpn'
-  SurfChemReac%Surfaceflux(iSF)%VeloIC = 0.
-  SurfChemReac%Surfaceflux(iSF)%VeloIsNormal = .FALSE.
-  SurfChemReac%Surfaceflux(iSF)%MWTemperatureIC = PartBound%WallTemp(SurfChemReac%Surfaceflux(iSF)%BC)
 END DO !iSF
 
-END SUBROUTINE ReadInAndPrepareSurfChemFlux
+! Sanity check
+IF(.NOT.TriaSurfaceFlux) THEN
+  CALL abort(__STAMP__, 'Chemistry Surfaceflux is only supported with TriaSurfaceFlux = T!')
+END IF
+
+END SUBROUTINE InitSurfChemFlux
 
 
 SUBROUTINE ReadInThermionicEmission(iSpec,iSF)
@@ -1476,11 +1362,12 @@ help2=TRIM(help)//'-Surfaceflux'//TRIM(help2)
 
 ! Consider influence of electric field on the material work function (Schottky effect)
 SF%SchottkyEffectTE = GETLOGICAL('Part-Species'//TRIM(help2)//'-ThermionicEmission-SchottkyEffect')
-#if !(USE_HDG)
 IF(SF%SchottkyEffectTE) THEN
+  SF%Type = 5
+#if !(USE_HDG)
   CALL abort(__STAMP__,'ERROR in Surface Flux: Thermionic emission with Schottky effect requires an electric field!')
-END IF
 #endif
+END IF
 ! Material-specific work function read-in in eV and converted to K
 SF%WorkFunctionTE = GETREAL('Part-Species'//TRIM(help2)//'-ThermionicEmission-WorkFunction') * eV2Joule
 ! Material-specific constant read-in in A/(cm^2 K^2) and converted to m^2
