@@ -104,8 +104,9 @@ USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
-USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge, Symmetry
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, DSMC, RadialWeighting, VarWeighting, CollInf
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
+USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, VarWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -132,7 +133,7 @@ ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
-  ! Calculation of the prefacor of the collision frequency per species
+  ! Calculation of the prefactor of the collision frequency per species
   ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
   DO iSpec2=1, nSpecies
     SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*CollInf%dref(iSpec,iSpec2)**2.0 &
@@ -140,9 +141,6 @@ DO iSpec=1, nSpecies
         /(2.*(Species(iSpec)%MassIC * Species(iSpec2)%MassIC)))/CollInf%Tref(iSpec,iSpec2)**(-CollInf%omega(iSpec,iSpec2) +0.5)
   END DO
 END DO
-
-ALLOCATE(CBC%OutputKnudsen(8,nElems))
-CBC%OutputKnudsen = 0.0
 
 BGKCollModel = GETINT('Particles-BGK-CollModel')
 IF ((nSpecies.GT.1).AND.(BGKCollModel.GT.1)) THEN
@@ -154,53 +152,23 @@ ESBGKModel = GETINT('Particles-ESBGK-Model')
 
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
-ALLOCATE(CBC%DoElementDSMC(nElems))
-CBC%DoElementDSMC = .FALSE.
+
 IF(CoupledBGKDSMC) THEN
   IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,'Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
   END IF
-  ! Coupling criteria DSMC
-  CBC%SwitchCriterium    = TRIM(GETSTR('Particles-BGK-DSMC-SwitchCriterium'))
-  CBC%CharLength        = GETREAL('Particles-BGK-DSMC-CharLength')
-  SELECT CASE (TRIM(CBC%SwitchCriterium))
-  CASE('Density')
-    CBC%SwitchDens       = GETREAL('Particles-BGK-DSMC-SwitchDens')
-  CASE('GlobalKnudsen')
-    CBC%MaxGlobalKnudsen = GETREAL('Particles-BGK-DSMC-MaxGlobalKnudsen')
-  CASE('LocalKnudsen')
-    CBC%MaxLocalKnudsen  = GETREAL('Particles-BGK-DSMC-MaxLocalKnudsen')
-  CASE('ThermNonEq')
-    CBC%MaxThermNonEq    = GETREAL('Particles-BGK-DSMC-MaxThermNonEq')
-  CASE('Combination')
-    CBC%MaxLocalKnudsen  = GETREAL('Particles-BGK-DSMC-MaxLocalKnudsen')
-    CBC%MaxThermNonEq    = GETREAL('Particles-BGK-DSMC-MaxThermNonEq')
-  CASE('ChapmanEnskog')
-    CBC%MaxChapmanEnskog = GETREAL('Particles-BGK-DSMC-MaxChapmanEnskog')
-  CASE('Output')
-    SWRITE(*,*) 'Switch-Criterium = Output, BGK is used for the simulation'
-  CASE DEFAULT
-    SWRITE(*,*) ' Coupling criterium is not defined or does not exist: ', TRIM(CBC%SwitchCriterium)
-    CALL abort(__STAMP__,'Wrong coupling criterium given')
-  END SELECT
-
-  ALLOCATE(CBC%Max_HeatVec(nElems))
-  CBC%Max_HeatVec = 0.0
-  ALLOCATE(CBC%Max_StressTens(nElems))
-  CBC%Max_StressTens = 0.0
-
-  ! Number of iterations between a possible BGK-DSMC switch
-  CBC%SwitchIter = GETINT('Particles-BGK-DSMC-SampleIter')
-  ! Use of average values for the sampling routine of the gradient
-  CBC%AverageSamp = GETLOGICAL('Particles-BGK-DSMC-SampAverage')
-  ALLOCATE(CBC%Iter_Count(nElems))
-  CBC%Iter_Count = 0
-END IF
-
-IF(RadialWeighting%DoRadialWeighting) THEN
-  RadialWeighting%PerformCloning = .TRUE.
-ELSE IF(VarWeighting%DoVariableWeighting) THEN
-  VarWeighting%PerformCloning = .TRUE.
+  IF(DSMC%RotRelaxProb.GT.1.0.OR.DSMC%VibRelaxProb.GT.1.0) THEN
+    CALL abort(__STAMP__,'Variable relaxation probabilities not implemented for coupled DSMC-BGK simulations!')
+  END IF
+#if USE_MPI
+  IF (DoParticleLatencyHiding) THEN
+    CALL abort(__STAMP__,'Particle latency hiding not implemented for coupled DSMC-BGK simulations!')
+  END IF
+#endif /*USE_MPI*/
+  BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
+ELSE
+  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
+  IF(VarWeighting%DoVariableWeighting) VarWeighting%PerformCloning = .TRUE.
 END IF
 
 ! Octree-based cell refinement, up to a certain number of particles
@@ -296,13 +264,6 @@ IMPLICIT NONE
 
 SDEALLOCATE(SpecBGK)
 SDEALLOCATE(BGK_QualityFacSamp)
-SDEALLOCATE(CBC%DoElementDSMC)
-SDEALLOCATE(CBC%OutputKnudsen)
-IF (CoupledBGKDSMC) THEN
-  SDEALLOCATE(CBC%Iter_Count)
-  SDEALLOCATE(CBC%Max_HeatVec)
-  SDEALLOCATE(CBC%Max_StressTens)
-END IF
 IF(BGKMovingAverage) CALL DeleteElemNodeAverage()
 
 END SUBROUTINE FinalizeBGK
@@ -344,7 +305,7 @@ RECURSIVE SUBROUTINE DeleteNodeAverage(NodeAverage)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_BGK_Vars
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES

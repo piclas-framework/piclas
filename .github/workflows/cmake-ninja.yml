@@ -1,0 +1,427 @@
+name: cmake-ninja
+
+on:
+  push:
+  #pull_request:
+  release:
+    types: published
+
+jobs:
+  build:
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ubuntu-latest
+
+    # Use centos8
+    container:
+      image: centos:8
+      options: --privileged
+
+    steps:
+
+    - name: Install GIT
+      shell: bash
+      run: |
+        cd /etc/yum.repos.d/
+        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
+        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
+        yum -y install https://packages.endpointdev.com/rhel/8/main/x86_64/endpoint-repo.noarch.rpm
+        yum -y install git
+        git --version
+
+    - name: Checkout repository including the .git directory
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Dependencies
+      shell: bash
+      run: |
+        git config --global --add safe.directory '*'
+        git status
+        curl -L -O https://github.com/Kitware/CMake/releases/download/v3.16.4/cmake-3.16.4-Linux-x86_64.sh
+        chmod +x cmake-3.16.4-Linux-x86_64.sh
+        ./cmake-3.16.4-Linux-x86_64.sh --skip-license --prefix=/usr/local
+        curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-16.02-20.el8.x86_64.rpm
+        curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-plugins-16.02-20.el8.x86_64.rpm
+        rpm -U --quiet p7zip-16.02-20.el8.x86_64.rpm
+        rpm -U --quiet p7zip-plugins-16.02-20.el8.x86_64.rpm
+        yum install -y epel-release
+        yum install -y 'dnf-command(config-manager)'
+        yum config-manager --set-enabled powertools
+        yum install -y make libasan gcc-gfortran gcc-c++ unzip openblas-devel lapack-devel zlib-devel tree fuse-sshfs fuse-libs file openmpi-devel wget python3 diffutils
+        groupadd fuse
+        user="$(whoami)"
+        usermod -a -G fuse "$user"
+        curl -L -O https://github.com/ninja-build/ninja/releases/download/v1.11.1/ninja-linux.zip
+        unzip ninja-linux.zip
+        mv ./ninja /usr/bin
+        curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+        chmod +x linuxdeploy-x86_64.AppImage
+
+    - name: Install GNU GCC 8
+      shell: bash
+      run: |
+        #yum install -y centos-release-scl
+        #yum install -y devtoolset-8-gcc*
+        #source /opt/rh/devtoolset-8/enable
+        #scl enable devtoolset-8 bash
+        #which gcc
+        #echo 'source /opt/rh/devtoolset-8/enable' >> ~/.bashrc
+        #echo 'scl enable devtoolset-8 bash' >> ~/.bashrc
+        #GCC_DIR='/opt/rh/devtoolset-8/root/usr'
+        GCC_DIR=$(dirname $(dirname $(which gcc)))
+        echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo 'export CC="'${GCC_DIR}'/bin/gcc"' >> ~/.bashrc
+        echo 'export GCC="'${GCC_DIR}'/bin/gcc"' >> ~/.bashrc
+        echo 'export FC="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
+        echo 'export F77="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
+        echo 'export F90="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
+        echo 'export CXX="'${GCC_DIR}'/bin/g++"' >> ~/.bashrc
+        echo 'export FC="'${GCC_DIR}'/bin/gfortran"' >> ~/.bashrc
+        CFLAGS='-march=generic -mtune=generic -O3 -pipe'
+        echo 'CHOST="x86_64-pc-linux-gnu"' >> ~/.bashrc
+        echo 'CFLAGS="'${CFLAGS}'"' >> ~/.bashrc
+        echo 'CXXFLAGS="'${CFLAGS}'"' >> ~/.bashrc
+        echo "======================================================================="
+        gcc --version
+        cat ~/.bashrc
+        echo "======================================================================="
+
+    - name: Install OpenMPI 4.1.0
+      run: |
+        source ~/.bashrc
+        yum install -y rdma-core-devel
+        wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.0.tar.gz
+        tar -xvf openmpi-4.1.0.tar.gz
+        cd openmpi-4.1.0
+        ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
+        #./configure --enable-debug --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
+        make -j && make install
+        echo "======================================================================="
+        MPI_DIR='/opt/openmpi/4.1.0'
+        echo 'MPI_DIR="'${MPI_DIR}'"' >> $GITHUB_ENV
+        echo ${MPI_DIR}
+        echo 'export MPI_DIR="'${MPI_DIR}'"' >> ~/.bashrc
+        echo 'export PATH="'${MPI_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${MPI_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo "======================================================================="
+        cat ~/.bashrc
+        echo "======================================================================="
+
+    - name: Install HDF5 1.12.2
+      run: |
+        source ~/.bashrc
+        wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz
+        tar -xvf hdf5-1.12.2.tar.gz
+        cd hdf5-1.12.2
+        ./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+        #./configure --enable-build-mode=debug --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+        make -j && make install
+        echo "======================================================================="
+        HDF5_DIR='/opt/hdf5/1.12.2'
+        echo ${HDF5_DIR}
+        echo 'HDF5_DIR="'${HDF5_DIR}'"' >> $GITHUB_ENV
+        echo 'export HDF5_DIR="'${HDF5_DIR}'"' >> ~/.bashrc
+        echo 'export HDF5_ROOT="'${HDF5_DIR}'"' >> ~/.bashrc
+        echo 'export PATH="'${HDF5_DIR}'/include:$PATH"' >> ~/.bashrc
+        echo 'export PATH="'${HDF5_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${HDF5_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo "======================================================================="
+        cat ~/.bashrc
+        echo "======================================================================="
+
+    - name: Install PETSc 3.19.3
+      run: |
+        PETSCVERSION='3.19.3'
+        source ~/.bashrc
+        wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
+        tar -xvf petsc-${PETSCVERSION}.tar.gz
+        cd petsc-${PETSCVERSION}
+          #--with-cc=$(which mpicc) \
+          #--with-cxx=$(which mpicxx) \
+          #--with-fc=$(which mpifort) \
+        ./configure \
+          PETSC_ARCH=arch-linux \
+          --prefix=/opt/petsc/${PETSCVERSION} \
+          --with-mpi-dir=${MPI_DIR} \
+          --with-debugging=0 \
+          COPTFLAGS='-O3 -march=native -mtune=native' \
+          CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+          FOPTFLAGS='-O3 -march=native -mtune=native' \
+          --download-hypre \
+          --download-mumps \
+          --download-scalapack \
+          --download-fblaslapack=1
+        make -j && make install
+        echo "======================================================================="
+        PETSC_DIR='/opt/petsc/'${PETSCVERSION}
+        echo ${PETSC_DIR}
+        echo 'export PETSC_DIR="'${PETSC_DIR}'"' >> ~/.bashrc
+        echo 'export PATH="'${PETSC_DIR}'/bin:$PATH"' >> ~/.bashrc
+        echo 'export LD_LIBRARY_PATH="'${PETSC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
+        echo 'export PETSC_ARCH=' >> ~/.bashrc
+        echo "======================================================================="
+        cat ~/.bashrc
+        echo "======================================================================="
+
+    - name: Configure CMake Piclas Single-core
+      shell: bash
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        source ~/.bashrc
+        cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Build Piclas Single-core
+      shell: bash
+      run: |
+        source ~/.bashrc
+        cmake --build build_single
+
+    - name: Configure CMake Piclas DSMC
+      shell: bash
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        source ~/.bashrc
+        cmake -G Ninja -B build_DSMC -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Build Piclas DSMC
+      shell: bash
+      run: |
+        source ~/.bashrc
+        cmake --build build_DSMC
+
+    - name: Configure CMake Piclas BGK
+      shell: bash
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        source ~/.bashrc
+        cmake -G Ninja -B build_BGK -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=BGK-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Build Piclas BGK
+      shell: bash
+      run: |
+        source ~/.bashrc
+        cmake --build build_BGK
+
+    - name: Configure CMake Piclas FP
+      shell: bash
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        source ~/.bashrc
+        cmake -G Ninja -B build_FP -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=FP-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Build Piclas FP
+      shell: bash
+      run: |
+        source ~/.bashrc
+        cmake --build build_FP
+
+    - name: Configure CMake Piclas Poisson Leapfrog
+      shell: bash
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+        source ~/.bashrc
+        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        #cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=OFF -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+
+    - name: Build Piclas Poisson Leapfrog
+      shell: bash
+      run: |
+        source ~/.bashrc
+        cmake --build build_poisson_leapfrog
+
+    - name: Create AppImages
+      shell: bash
+      run: |
+        source ~/.bashrc
+
+        echo "======================================================================="
+        ls -la build_single/bin
+        echo "======================================================================="
+        cd build_single
+
+        # Declare an array of strings
+        declare -a PROGS=("piclas2vtk" "superB")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+        # Check folder contents
+        ls -la
+        cd ..
+
+
+        echo "======================================================================="
+        ls -la build_DSMC/bin
+        echo "======================================================================="
+        cd build_DSMC
+
+        # Declare an array of strings
+        declare -a PROGS=("piclas")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+        # Check folder contents
+        ls -la
+        cd ..
+
+        echo "======================================================================="
+        ls -la build_BGK/bin
+        echo "======================================================================="
+        cd build_BGK
+
+        # Declare an array of strings
+        declare -a PROGS=("piclas")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+        # Check folder contents
+        ls -la
+        cd ..
+
+        echo "======================================================================="
+        ls -la build_FP/bin
+        echo "======================================================================="
+        cd build_FP
+
+        # Declare an array of strings
+        declare -a PROGS=("piclas")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+        # Check folder contents
+        ls -la
+        cd ..
+
+        echo "======================================================================="
+        ls -la build_poisson_leapfrog/bin
+        echo "======================================================================="
+        cd build_poisson_leapfrog
+
+        # Declare an array of strings
+        declare -a PROGS=("piclas")
+
+        # Iterate the string array
+        for PROG in ${PROGS[@]}; do
+          rm -rf AppDir
+          DESTDIR=AppDir ninja install
+          mkdir -p AppDir/usr/share/icons
+          cp ../docs/logo.png AppDir/usr/share/icons/${PROG}.png
+          mkdir -p AppDir/usr/share/icons/hicolor/64x64/apps/
+          ln -sf ../../../${PROG}.png AppDir/usr/share/icons/hicolor/64x64/apps/
+          cp ../.github/workflows/piclas.desktop template.desktop
+          mv template.desktop ${PROG}.desktop
+          sed -i -e "s/Name=.*/Name=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Exec=.*/Exec=${PROG}/" ${PROG}.desktop
+          sed -i -e "s/Icon=.*/Icon=${PROG}/" ${PROG}.desktop
+          ./../linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage --desktop-file=${PROG}.desktop
+        done
+
+        # Check folder contents
+        ls -la
+        cd ..
+
+    - name: Create archives
+      shell: bash
+      run: |
+        mkdir artifacts
+        mkdir release-assets
+        cp build_single/piclas2vtk*x86_64.AppImage piclas2vtk
+        cp build_single/superB*x86_64.AppImage superB
+        cp build_DSMC/piclas-*x86_64.AppImage piclasDSMC
+        cp build_BGK/piclas-*x86_64.AppImage piclasBGK
+        cp build_FP/piclas-*x86_64.AppImage piclasFP
+        cp build_poisson_leapfrog/piclas-*x86_64.AppImage piclasLeapfrogHDG
+        md5sum piclasDSMC > md5sum.txt
+        md5sum piclasBGK > md5sum.txt
+        md5sum piclasFP > md5sum.txt
+        md5sum piclasLeapfrogHDG >> md5sum.txt
+        md5sum piclas2vtk >> md5sum.txt
+        md5sum superB >> md5sum.txt
+        cat md5sum.txt
+        7z a release-assets/piclas-linux64.zip piclasDSMC piclasBGK piclasFP piclasLeapfrogHDG piclas2vtk superB md5sum.txt
+        ls -la release-assets
+        mv piclasDSMC piclasBGK piclasFP piclasLeapfrogHDG piclas2vtk superB md5sum.txt artifacts/.
+        ls -la artifacts
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: piclas-binaries-v3.3.1
+        path: artifacts
+
+    - name: Upload release asset
+      if: github.event.action == 'published'
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ github.event.release.upload_url }}
+        asset_path: ./release-assets/piclas-linux64.zip
+        asset_name: piclas-linux64.zip
+        asset_content_type: application/zip
+

@@ -78,9 +78,16 @@ load_module () {
 # --------------------------------------------------------------------------------------------------
 # Check command line arguments
 RERUNMODE=0
+UPDATEMODE=0
 LOADMODULES=1
+# default to openmpi
+WHICHMPI='openmpi'
 for ARG in "$@"
 do
+
+  if [ ${ARG} == "--update" ] || [ ${ARG} == "-u" ]; then
+    UPDATEMODE=1
+  fi
 
   if [ ${ARG} == "--help" ] || [ ${ARG} == "-h" ]; then
     echo "Input arguments:"
@@ -96,23 +103,49 @@ do
     #CMAKEVERSION=3.15.3-d
     #CMAKEVERSION=3.17.0-d
     #CMAKEVERSION=3.20.3
-    CMAKEVERSION=3.21.3
+    #CMAKEVERSION=3.21.3
+    #CMAKEVERSION=3.24.2
+    CMAKEVERSION=3.26.4
 
     #GCCVERSION=9.2.0
     #GCCVERSION=9.3.0
     #GCCVERSION=10.1.0
     #GCCVERSION=10.2.0
-    GCCVERSION=11.2.0
+    #GCCVERSION=11.2.0
+    #GCCVERSION=13.1.0
+    GCCVERSION=13.2.0
 
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
     #OPENMPIVERSION=4.0.2
     #OPENMPIVERSION=3.1.6
-    OPENMPIVERSION=4.1.1
+    #OPENMPIVERSION=4.1.1
+    #OPENMPIVERSION=4.1.5
+
+    MPICHVERSION=4.1.2
+
+    # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
+    if [[ -n ${MPICHVERSION} ]]; then
+      # Set mpich or mpich-debug
+      # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
+      # This will use the older ch3:sock channel that does not busy poll.
+      # This channel will be slower for intra-node communication, but it will perform much better in the oversubscription scenario.
+      WHICHMPI='mpich'
+      #WHICHMPI='mpich-debug'
+      MPIVERSION=${MPICHVERSION}
+    else
+      if [[ -z ${OPENMPIVERSION} ]]; then
+        echo "${RED}ERROR: Set either OPENMPIVERSION or MPICHVERSION in InstallPETSc.sh when running with '-m'${NC}. Exit."
+        exit
+      else
+        MPIVERSION=${OPENMPIVERSION}
+      fi
+    fi
 
     #HDF5VERSION=1.10.5
     #HDF5VERSION=1.10.6
-    HDF5VERSION=1.12.1
+    #HDF5VERSION=1.12.1
+    HDF5VERSION=1.14.0
   fi
 
   # Check if re-run mode is selected by the user
@@ -154,14 +187,14 @@ if [[ -n $(module purge 2>&1) ]]; then
   exit
 fi
 
-# take the first gcc compiler installed with first compatible openmpi and hdf5
+# take the first gcc compiler installed with first compatible openmpi/mpich and hdf5
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
   CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\nOPENMPIVERSION=${OPENMPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
+  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   fi
@@ -170,23 +203,31 @@ else
 fi
 
 check_module "cmake" "${CMAKEVERSION}"
-check_module "gcc  " "${GCCVERSION}"
-check_module "mpi  " "${OPENMPIVERSION}"
-check_module "hdf5 " "${HDF5VERSION}"
+check_module "gcc" "${GCCVERSION}"
+check_module "${WHICHMPI}" "${MPIVERSION}"
+check_module "hdf5" "${HDF5VERSION}"
 
-HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
+HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}/hdf5
 MODULEFILE=${HOPRMODULEFILEDIR}/${HDF5VERSION}
 
 # if no HOPR module for this compiler found, install HOPR and create module
-if [ ! -e "${MODULEFILE}" ]; then
+if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
+  # Check if module already exists and update mode is enabled (this will remove the existing module)
+  if [[ -e "${MODULEFILE}" && ${UPDATEMODE} -eq 1 ]]; then
+    echo " "
+    echo -e "${YELLOW}Update mode detected (--update or -u): This will overwrite the installed module version with the latest one.${NC}"
+    echo -e "${YELLOW}The 'HOPR-${HOPRVERSION}' module file already exists under [${MODULEFILE}] and will be deleted now.${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+    rm -rf ${MODULEFILE}
+  fi
   echo -e "$GREEN""creating HOPR-${HOPRVERSION} for GCC-${GCCVERSION} under$NC"
   echo -e "$GREEN""$MODULEFILE$NC"
   echo " "
   module purge
   load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
-  load_module "openmpi/${OPENMPIVERSION}/gcc/${GCCVERSION}"
-  load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}"
+  load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
+  load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}"
   module list
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
@@ -197,7 +238,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
 
   # Install destination
-  HOPRINSTALLDIR=/opt/hopr/${HOPRVERSION}/gcc-${GCCVERSION}/openmpi-${OPENMPIVERSION}/hdf5-${HDF5VERSION}
+  HOPRINSTALLDIR=/opt/hopr/${HOPRVERSION}/gcc-${GCCVERSION}/${WHICHMPI}-${MPIVERSION}/hdf5-${HDF5VERSION}
 
   # Create and change to install directory
   mkdir -p ${HOPRINSTALLDIR}
@@ -205,15 +246,26 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # Check if repo is already downloaded
   CLONEDIR=${HOPRINSTALLDIR}/hopr
+
+  # If repo already exists and update is performed, remove the directory first.
+  if [[ -d ${CLONEDIR} && ${UPDATEMODE} -eq 1 ]]; then
+    echo " "
+    echo -e "${YELLOW}Update mode detected (--update or -u): This will remove the existing git repository and clone a new one.${NC}"
+    echo -e "${YELLOW}The cloned directory already exists under [${CLONEDIR}] and will be deleted now.${NC}"
+    read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+    rm -rf ${CLONEDIR}
+  fi
+
+  # Check if directory exists
   if [[ -d ${CLONEDIR} ]]; then
     # Inquiry: Continue the installation with the existing files OR remove them all and start fresh
     while true; do
       echo " "
       echo "${YELLOW}${CLONEDIR} already exists.${NC}"
-      echo "${YELLOW}Do you want to continue the installation (y/n)?${NC}"
+      echo "${YELLOW}Do you want to continue the installation? Otherwise the directory will be removed and a fresh installation will be performed.${NC}"
       # Inquiry
       if [[ ${RERUNMODE} -eq 0 ]]; then
-        read -p "${YELLOW}Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]${NC}" yn
+        read -p "${YELLOW}Continue the installation without removing? [Y/n]${NC}" yn
       else
         yn=y
       fi
@@ -303,9 +355,10 @@ if [ ! -e "${MODULEFILE}" ]; then
     sed -i 's/hoprversion/'${HOPRVERSION}'/gI' ${MODULEFILE}
     sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
-    sed -i 's/MPIVERSIONFLAG/'${OPENMPIVERSION}'/gI' ${MODULEFILE}
+    sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${MODULEFILE}
     sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${MODULEFILE}
     sed -i 's\HOPRTOPDIR\'${HOPRBUILDDIR}'\gI' ${MODULEFILE}
+    sed -i 's\HOPRWHICHMPI\'${WHICHMPI}'\gI' ${MODULEFILE}
   else
     echo -e "$RED""No module file created for HOPR-${HOPRVERSION} for GCC-${GCCVERSION}$NC"
     echo -e "$RED""no installation found in ${HOPRBUILDDIR}/bin$NC"

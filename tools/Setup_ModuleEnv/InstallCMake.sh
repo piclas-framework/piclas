@@ -59,14 +59,7 @@ fi
 
 # DOWNLOAD and INSTALL CMAKE (example cmake-3.4.3)
 # For current releases, see: https://github.com/Kitware/CMake/releases/
-#CMAKEVERSION='3.4.3'
-#CMAKEVERSION='3.13.3'
-#CMAKEVERSION='3.15.3'
-#CMAKEVERSION='3.17.0'
-#CMAKEVERSION='3.20.3'
-#CMAKEVERSION='3.21.3'
-#CMAKEVERSION='3.24.0'
-CMAKEVERSION='3.24.2'
+CMAKEVERSION='3.28.2'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
@@ -103,13 +96,14 @@ if [ ! -e "${MODULEFILE}" ]; then
 
   # Download tar.gz file from FTP server
   if [ ! -f ${TARFILE} ]; then
-    wget "https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
+    DOWNLOADPATH="https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz"
+    wget ${DOWNLOADPATH}
   fi
 
   # Check if tar.gz file was correctly downloaded, abort script if non-existent
   if [ ! -f ${TARFILE} ]; then
     echo "no cmake install-file downloaded for cmake-${CMAKEVERSION}"
-    echo "check if https://github.com/Kitware/CMake/releases/download/v${CMAKEVERSION}/cmake-${CMAKEVERSION}.tar.gz exists"
+    echo "check if ${DOWNLOADPATH} exists"
     exit
   fi
 

@@ -45,20 +45,20 @@ SUBROUTINE FP_DSMC_main()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_FP_BGK_DSMC_Coupling,ONLY: CBC_DoDSMC
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
-USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, Symmetry, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber
+USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber, FPDSMCSwitchDens
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
-USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation, CBC
+USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_DSMC                ,ONLY: DSMC_main
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,6 +69,7 @@ USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 ! LOCAL VARIABLES
 INTEGER               :: iElem, nPart, iLoop, iPart, CNElemID
 INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
+LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
 DO iElem = 1, nElems
@@ -82,41 +83,15 @@ DO iElem = 1, nElems
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
     dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
-
-  SELECT CASE (TRIM(CBC%SwitchCriterium))
-  CASE('Density')
-    CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
-    IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
-      ! Check if the particle number density is smaller than the BGK-DSMC switch criterium
-      IF (dens.LT.CBC%SwitchDens) THEN
-        CBC%DoElementDSMC(iElem) = .TRUE.
-      ELSE
-        CBC%DoElementDSMC(iElem) = .FALSE.
-      END IF
-      ! reset the counter values
-      CBC%Iter_Count(iElem) = 0
-    END IF
-
-  CASE('LocalKnudsen', 'GlobalKnudsen', 'ThermNonEq', 'Combination', 'ChapmanEnskog', 'Output')
-    CBC%Iter_Count(iElem) = CBC%Iter_Count(iElem) + 1
-    IF (CBC%Iter_Count(iElem).GE.CBC%SwitchIter) THEN
-      ! Call the subroutine to decide between FP and DSMC for the element
-      CBC%DoElementDSMC(iElem) = CBC_DoDSMC(iElem)
-      ! reset the counter values
-      CBC%Iter_Count(iElem) = 0
-    END IF
-
-  CASE DEFAULT
-    CBC%DoElementDSMC(iELem) = .FALSE.
-  END SELECT
-
-  IF (CBC%DoElementDSMC(iElem)) CYCLE
-
+  IF (dens.LT.FPDSMCSwitchDens) THEN
+    DoElement(iElem) = .TRUE.
+    CYCLE
+  END IF
   IF (nPart.LT.3) CYCLE
 
   IF (DoBGKCellAdaptation) THEN
@@ -152,7 +127,7 @@ DO iElem = 1, nElems
   END IF
 END DO
 
-CALL DSMC_main(CBC%DoElementDSMC)
+CALL DSMC_main(DoElement)
 
 END SUBROUTINE FP_DSMC_main
 
@@ -167,7 +142,7 @@ SUBROUTINE FPFlow_main()
 USE MOD_Globals
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
-USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, Symmetry, DoVirtualCellMerge, VirtMergedCells
+USE MOD_Particle_Vars       ,ONLY: PEM, WriteMacroVolumeValues, WriteMacroSurfaceValues, DoVirtualCellMerge, VirtMergedCells
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
@@ -177,6 +152,7 @@ USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_M
 USE MOD_Particle_Mesh_Vars  ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
 USE MOD_DSMC_Analyze        ,ONLY: DSMCMacroSampling
+USE MOD_Symmetry_Vars       ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

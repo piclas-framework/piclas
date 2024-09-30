@@ -396,7 +396,7 @@ SUBROUTINE BGK_AllocateAveragingNode(Averaging)
 !===================================================================================================================================
 ! MODULES
 USE MOD_BGK_Vars,               ONLY: tNodeAverage,BGKCollModel
-USE MOD_Particle_Vars,          ONLY: Symmetry
+USE MOD_Symmetry_Vars,          ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

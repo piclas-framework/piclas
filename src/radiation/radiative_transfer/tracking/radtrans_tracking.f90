@@ -52,9 +52,9 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideAr
 #else
 USE MOD_Particle_Boundary_Vars ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
+USE MOD_Particle_Mesh_Tools    ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,NodeCoords_Shared
@@ -300,7 +300,7 @@ INTEGER                          :: LocalSide
 INTEGER                          :: NrOfThroughSides, ind2
 INTEGER                          :: SideID,TempSideID,iLocSide
 INTEGER                          :: TriNum, LocSidesTemp(1:6),TriNumTemp(1:6), GlobSideTemp(1:6)
-INTEGER                          :: SecondNrOfThroughSides, indSide 
+INTEGER                          :: SecondNrOfThroughSides, indSide
 INTEGER                          :: DoneLastElem(1:4,1:6) ! 1:3: 1=Element,2=LocalSide,3=TriNum 1:2: 1=last 2=beforelast
 LOGICAL                          :: ThroughSide, Done, TempPointSelect(2), LastInterPointSelect(2),DummyPointSelect(2),FallBack
 LOGICAL                          :: oldElemIsMortar, isMortarSideTemp(1:6), doCheckSide, InterPointSelect(2), InterPointSelectTemp(2,6)
@@ -332,7 +332,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
   oldElemIsMortar = .FALSE.
   NrOfThroughSides = 0
   LocSidesTemp(:) = 0
-  DistTemp = 0.0  
+  DistTemp = 0.0
   TriNumTemp(:) = 0
   GlobSideTemp = 0
   isMortarSideTemp = .FALSE.
@@ -393,7 +393,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
         ThroughSide = .FALSE.
         !CALL ComputeBiLinearIntersection(foundHit,PartTrajectory,lengthPartTrajectory,locAlpha,xi,eta,iPart,SideID,alpha2=currentIntersect%alpha)
         IF (SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.DoneLastElem(1,1)) THEN
-          DummyPointSelect = LastInterPointSelect 
+          DummyPointSelect = LastInterPointSelect
         ELSE
           DummyPointSelect = (/.FALSE.,.FALSE./)
         END IF
@@ -455,7 +455,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
       END IF
     END DO LocSideLoop2
   END IF
-!  
+!
   TriNum = TriNumTemp(1)
   ! ----------------------------------------------------------------------------
   ! Additional treatment if particle did not cross any sides or it crossed multiple sides
@@ -634,7 +634,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
 
     CASE(3) ! PartBound%PeriodicBC
       IF((NrOfThroughSides.LT.2).AND.(UsePhotonTriaTracking.OR.Fallback))THEN
-        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)      
+        CALL PhotonIntersectionWithSide(LocalSide,ElemID,TriNum, IntersectionPos, PhotonLost)
         IF(PhotonLost)THEN
           ! Error in periodic Photon TriaTracking! PhotonIntersectionWithSide() cannot determine intersection because photon is
           ! parallel to side
@@ -1043,7 +1043,7 @@ SELECT CASE(nRoot)
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global SideID:      ', SideID
         IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' global ElemID:      ', SideInfo_Shared(SIDE_ELEMID,SideID)
         IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' LastPhotonPos:   ', PhotonProps%PhotonPos(1:3)
-        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)        
+        IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.17E3))') ' PhotonDirection:       ', PhotonProps%PhotonDirection(1:3)
         CALL ABORT(__STAMP__,'Invalid intersection with bilinear side!',SideID)
       END IF
 
@@ -1140,7 +1140,7 @@ SELECT CASE(nRoot)
         t(2) = ComputeSurfaceDistance2(BiLinearCoeff,xi(2),eta(2),PhotonProps%PhotonDirection)
 
 #ifdef CODE_ANALYZE
-        IF(MPIRANKOUT.EQ.MyRank)THEN          
+        IF(MPIRANKOUT.EQ.MyRank)THEN
           WRITE(UNIT_stdout,'(A,G0,A,G0)') '     | xi: ',xi(2),' | t: ',t(2)
         END IF
 #endif /*CODE_ANALYZE*/

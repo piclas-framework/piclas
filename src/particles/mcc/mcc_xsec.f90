@@ -846,13 +846,11 @@ ProductReac(1:4) = ChemReac%Products(iReac,1:4)
 
 DatasetFound = .FALSE.; GroupFound = .FALSE.
 
-
 IF (SpeciesDatabase.EQ.'none') THEN
   EductPair = TRIM(Species(EductReac(1))%Name)//'-'//TRIM(Species(EductReac(2))%Name)
 ELSE
   EductPair = TRIM('/Cross-Sections/'//TRIM(Species(EductReac(1))%Name)//'-'//TRIM(Species(EductReac(2))%Name))
 END IF
-CALL H5LEXISTS_F(file_id_dsmc, TRIM(EductPair), GroupFound, err)
 
 IF(SpeciesDatabase.EQ.'none') THEN
   XSecDatabaseName = TRIM(XSec_Database)

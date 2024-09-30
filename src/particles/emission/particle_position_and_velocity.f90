@@ -44,10 +44,11 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, Symmetry, UseVarTimeStep, PartTimeStep, PartMPF, PartSpecies
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, PartState, PEM, UseVarTimeStep, PartTimeStep, PartMPF, PartSpecies
 USE MOD_Particle_Vars           ,ONLY: usevMPF, UseSplitAndMerge, vMPFSplitThreshold
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Part_Tools              ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
@@ -406,6 +407,15 @@ IF (PartMPIInitGroup(InitGroup)%nProcs.GT.1) THEN
 ! Finish emission on local proc
 ELSE
 #endif /*USE_MPI*/
+  ParticleIndexNbr = 1
+  ALLOCATE(AcceptedParts(0:chunkSize))
+  AcceptedParts=-1
+  AcceptedParts(0)=0
+  DO i = 1,chunkSize
+    AcceptedParts(i) = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend),doHALO=.FALSE.)
+    IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
+  END DO
+  Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
   ParticleIndexNbr = 1
   ALLOCATE(AcceptedParts(0:chunkSize))
   AcceptedParts=-1

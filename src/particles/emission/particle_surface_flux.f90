@@ -48,6 +48,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
@@ -1055,7 +1056,7 @@ SUBROUTINE CalcPartInsVarWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVe
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: Species, Symmetry, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
 USE MOD_DSMC_Vars               ,ONLY: VarWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1446,6 +1447,8 @@ END SUBROUTINE CalcConstMassflowWeight
 
 !===================================================================================================================================
 !> SurfaceFlux: Determine the particle velocity of each inserted particle when inserted at a surface
+!> Based on: Garcia, A. L., & Wagner, W. (2006). Generation of the Maxwellian inflow distribution. Journal of Computational Physics,
+!>           217(2), 693–708. https://doi.org/10.1016/j.jcp.2006.01.025
 !===================================================================================================================================
 SUBROUTINE SetSurfacefluxVelocities(Mode,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartIns,particle_xis)
 ! MODULES

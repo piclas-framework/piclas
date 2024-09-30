@@ -44,12 +44,11 @@ CONTAINS
 SUBROUTINE InitSingleParticleTriaTracking()
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars            ,ONLY: Symmetry
+USE MOD_Symmetry_Vars            ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
-! PROBLEM
-!SingleParticleTriaTracking => SingleParticleTriaTracking3D
+
 IF (Symmetry%Order.EQ.3) THEN
   SingleParticleTriaTracking => SingleParticleTriaTracking3D
 ELSE IF (Symmetry%Order.EQ.2.OR.Symmetry%Order.EQ.1) THEN
@@ -109,13 +108,8 @@ doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
-#if (PP_TimeDiscMethod==400)
-IF(RadialWeighting%PerformCloning.AND.SampleSurf) CALL DSMC_2D_SetInClones()
-IF(VarWeighting%PerformCloning.AND.SampleSurf)    CALL DSMC_SetInClones()
-#else
 IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
 IF(VarWeighting%PerformCloning)    CALL DSMC_SetInClones()
-#endif
 
 InterPlanePartNumber = 0
 ! 1) Loop over all particles that are still inside
@@ -186,18 +180,12 @@ DO i = 1,PDM%ParticleVecLength
     END IF
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
-  #if (PP_TimeDiscMethod==400)
-  IF (SampleSurf) THEN
-#endif
   IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
       CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
       CALL DSMC_VariableWeighting(i,PEM%GlobalElemID(i))
     END IF
   END IF
-#if (PP_TimeDiscMethod==400)
-  END IF
-#endif
 END DO ! i = 1,PDM%ParticleVecLength
 ! 2) Loop again over all inter plane particles
 IF(InterPlanePartNumber.GT.0) THEN
@@ -286,7 +274,7 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,PartSpecies
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
-USE MOD_Particle_Vars               ,ONLY: Symmetry
+USE MOD_Symmetry_Vars               ,ONLY: Symmetry
 USE MOD_Particle_Vars               ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Mesh_Tools         ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Mesh_Vars
@@ -335,12 +323,7 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (MeasureTrackTime) nTracks=nTracks+1
 PartisDone = .FALSE.
-!ElemID = PEM%LastGlobalElemID(i)
-IF (PEM%LastGlobalElemID(i).LE.0) THEN
-  ElemID = PEM%GlobalElemID(i)
-ELSE
-  ElemID = PEM%LastGlobalElemID(i)
-END IF
+ElemID = PEM%LastGlobalElemID(i)
 TrackInfo%CurrElem=ElemID
 SideID = 0
 DoneLastElem(:,:) = 0
@@ -635,7 +618,6 @@ USE MOD_Globals
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
 USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
-USE MOD_Particle_Vars               ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Tracking_vars      ,ONLY: ntracks,MeasureTrackTime, TrackInfo
 USE MOD_Particle_Boundary_Vars      ,ONLY: PartBound

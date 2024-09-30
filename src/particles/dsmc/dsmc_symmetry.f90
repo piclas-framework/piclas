@@ -42,13 +42,7 @@ SUBROUTINE DefineParametersParticleSymmetry()
 USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 
-CALL prms%SetSection("Particle Symmetry")
-CALL prms%CreateIntOption(    'Particles-Symmetry-Order',  &
-                              'Order of the Simulation 1, 2 or 3 D', '3')
-CALL prms%CreateLogicalOption('Particles-Symmetry2D', 'Activating a 2D simulation on a mesh with one cell in z-direction in the '//&
-                              'xy-plane (y ranging from 0 to the domain boundaries)', '.FALSE.')
-CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
-                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%SetSection("Particle Radial Weighting")
 CALL prms%CreateLogicalOption('Particles-RadialWeighting', 'Activates a radial weighting in y for the axisymmetric '//&
                               'simulation based on the particle position.', '.FALSE.')
 CALL prms%CreateRealOption(   'Particles-RadialWeighting-PartScaleFactor', 'Axisymmetric radial weighting factor, defining '//&
@@ -106,10 +100,10 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_PreProc
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,SideToElem
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
-USE MOD_DSMC_Vars               ,ONLY: SymmetrySide
+USE MOD_Particle_Mesh_Vars      ,ONLY: SymmetrySide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide_Shared, SideIsSymSide
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -779,7 +773,7 @@ REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: Pi
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

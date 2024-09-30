@@ -189,6 +189,10 @@ END SUBROUTINE InitMPIInfo
 SUBROUTINE OpenDataFile(FileString,create,single,readOnly,communicatorOpt,userblockSize)
 ! MODULES
 USE MOD_Globals
+! #if USE_LOADBALANCE
+! USE MOD_LoadBalance_Vars, ONLY: PerformLoadBalance
+! #endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -205,6 +209,10 @@ INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
 INTEGER(HSIZE_T),PARAMETER     :: userblockSize_512=512 ! For correct type comparison
 !==================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
+
+! #if USE_LOADBALANCE
+! IF (PerformLoadBalance) CALL Abort(__STAMP__,'OpenDataFile called during PerformLoadBalance. This can cause memory leaks!')
+! #endif /*USE_LOADBALANCE*/
 
 userblockSize_loc = 0
 IF (PRESENT(userblockSize)) userblockSize_loc = userblockSize

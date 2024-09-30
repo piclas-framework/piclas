@@ -171,7 +171,8 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
-USE MOD_Particle_Vars          ,ONLY: Symmetry, DoVirtualCellMerge
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
@@ -200,6 +201,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5,nSurfSample,D
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonModeBPO,UsePhotonTriaTracking
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
+USE MOD_Particle_Mesh_Tools    ,ONLY: InitVolumes_1D,InitVolumes_2D
 !USE MOD_DSMC_Vars              ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -349,7 +351,7 @@ ELSE
 END IF
 WRITE(tmpStr,'(I2.2)') RefMappingGuessProposal
 RefMappingGuess = GETINT('RefMappingGuess',tmpStr)
-IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear intial guess on curved meshes might cause problems.
+IF((RefMappingGuess.LT.1).AND.(UseCurveds)) THEN ! Linear initial guess on curved meshes might cause problems.
   LBWRITE(UNIT_stdOut,'(A)')' WARNING: read-in [RefMappingGuess=1] when using [UseCurveds=T] may create problems!'
 END IF
 RefMappingEps   = GETREAL('RefMappingEps','1e-4')
@@ -462,6 +464,10 @@ END SELECT
 ! Build mappings UniqueNodeID->CN Element IDs and CN Element ID -> CN Element IDs
 IF(FindNeighbourElems) CALL BuildNodeNeighbourhood()
 
+! Calculate the volumes for 2D/1D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
+IF(Symmetry%Order.EQ.2) CALL InitVolumes_2D()
+IF(Symmetry%Order.EQ.1) CALL InitVolumes_1D()
+
 ! BezierAreaSample stuff:
 IF (TriaSurfaceFlux) THEN
   BezierSampleN = 1
@@ -495,7 +501,7 @@ SUBROUTINE FinalizeParticleMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
@@ -905,6 +911,7 @@ SDEALLOCATE(ElemToGlobalElemID)
 ADEALLOCATE(ConcaveElemSide_Shared)
 ADEALLOCATE(ElemSideNodeID_Shared)
 ADEALLOCATE(ElemMidPoint_Shared)
+SDEALLOCATE(SymmetrySide)
 
 ! Load Balance
 !#if !USE_LOADBALANCE

@@ -47,7 +47,6 @@ USE MOD_DSMC_Vars               ,ONLY: CollisMode, RadialWeighting, VarWeighting
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Part_Emission_Tools     ,ONLY: SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
@@ -57,6 +56,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideA
 USE MOD_SurfaceModel_Vars       ,ONLY: SurfChem, SurfChemReac, ChemWallProp, ChemDesorpWall
 USE MOD_Particle_SurfFlux       ,ONLY: CalcPartPosTriaSurface, DefineSideDirectVec2D
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_MPI_Shared_vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared              ,ONLY: BARRIER_AND_SYNC

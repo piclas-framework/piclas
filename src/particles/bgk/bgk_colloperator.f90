@@ -50,6 +50,7 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
+USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, PDM
 USE MOD_DSMC_Vars             ,ONLY: DSMC, PartStateIntEn, PolyatomMolDSMC, RadialWeighting, VarWeighting, CollInf
@@ -185,6 +186,12 @@ IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   IF(DSMC%CalcQualityFactors) THEN
     BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dtCell)
   END IF
+ELSE
+  rotrelaxfreqSpec(:) = 0.0
+  vibrelaxfreqSpec(:) = 0.0
+  IF(DSMC%CalcQualityFactors) THEN
+    BGK_MaxRotRelaxFactor          = 0.0
+  END IF
 END IF
 
 ! 4.) Determine the relaxation temperatures and the number of particles undergoing a relaxation (including vibration + rotation)
@@ -299,10 +306,12 @@ END IF
 DO iSpec = 1, nSpecies
   ! Calculate scaling factor alpha per species, see F. Hild, M. Pfeiffer, "Multi-species modeling in the particle-based ellipsoidal
   ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
-  IF (NewEnRot(iSpec).GT.0.0) THEN
-    alphaRot(iSpec) = OldEn/NewEnRot(iSpec)*(Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)/(Xi_RotTotal+3.*(totalWeight-1.)))
-  ELSE
-    alphaRot(iSpec) = 0.0
+  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+    IF (NewEnRot(iSpec).GT.0.0) THEN
+      alphaRot(iSpec) = OldEn/NewEnRot(iSpec)*(Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)/(Xi_RotTotal+3.*(totalWeight-1.)))
+    ELSE
+      alphaRot(iSpec) = 0.0
+    END IF
   END IF
 END DO
 DO iLoop = 1, nRotRelax

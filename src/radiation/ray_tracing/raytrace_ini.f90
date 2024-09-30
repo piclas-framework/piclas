@@ -213,7 +213,7 @@ END SUBROUTINE InitRayTracing
 SUBROUTINE InitHighOrderRaySampling()
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: abort,IERROR,UNIT_StdOut
+USE MOD_Globals            ,ONLY: abort,UNIT_StdOut
 USE MOD_Mesh_Vars          ,ONLY: nGlobalElems,nElems,offSetElem
 !USE MOD_RayTracing_Vars    ,ONLY: N_VolMesh_Ray
 USE MOD_RayTracing_Vars    ,ONLY: N_DG_Ray,Ray,U_N_Ray,U_N_Ray_loc,nVarRay,PerformRayTracing
@@ -221,7 +221,7 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_ReadInTools        ,ONLY: GETREAL
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemBaryNGeo
 #if USE_MPI
-USE MOD_Globals            ,ONLY: MPI_COMM_PICLAS
+USE MOD_Globals            ,ONLY: MPI_COMM_PICLAS,IERROR
 USE MPI
 !USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 USE MOD_RayTracing_Vars    ,ONLY: N_DG_Ray_Shared,N_DG_Ray_Shared_Win

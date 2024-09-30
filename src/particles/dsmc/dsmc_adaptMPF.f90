@@ -288,7 +288,8 @@ USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems, offSetElem, SideToElem, nBCSides, BC
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
-USE MOD_Particle_Vars           ,ONLY: Symmetry, Species
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, ElemMidPoint_Shared, nComputeNodeElems, GEO
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_DSMC_Vars

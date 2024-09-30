@@ -26,7 +26,7 @@ As (@gleichung1) shows, blabla.
 ## Bibtex, cite
 Hindenlang [@Hindenlang2015]. Only works with pandoc!
 
-[bibshow file=https://www.flexi-project.org/wp-content/uploads/2016/07/userguide-1.bib]
+[bibshow file=references.bib]
 
 Hindenlang [bibcite key=Hindenlang2015], Gassner [bibcite key=gassner2011disp]
 
@@ -34,7 +34,7 @@ Hindenlang [bibcite key=Hindenlang2015], Gassner [bibcite key=gassner2011disp]
 ## section references
 ## Figures, caption
 
-```{figure} https://www.flexi-project.org/wp-content/uploads/2016/01/M7_ROE_N7M10_q_0000060p2000000.jpg
+```{figure} https://github.com/piclas-framework/piclas/blob/master/docs/logo.png?raw=true
 ---
 name: fig:mylabel
 width: 400px

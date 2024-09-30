@@ -561,8 +561,8 @@ TYPE tSampler ! DSMC sampling for Steady-State Detection       ! DSMC sampling f
   REAL                           :: EElec                      ! Energy of Cell (Electronic State)
 END TYPE
 
-INTEGER, ALLOCATABLE      :: SymmetrySide(:,:)
-REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:) !1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_Solution(:,:,:)           ! 1:3 v, 4:6 v^2, 7 dens, 8 Evib, 9 erot, 10 eelec
+REAL,ALLOCATABLE          :: DSMC_SolutionPressTens(:,:)    ! 1:3 pressure tensor, 4:6 heatflux
 
 TYPE tTreeNode
 !  TYPE (tTreeNode), POINTER       :: One, Two, Three, Four, Five, Six, Seven, Eight !8 Childnodes of Octree Treenode

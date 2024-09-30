@@ -70,10 +70,10 @@ USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPorousSides, PorousBCInfo_Shared, SurfSide2GlobalSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, ElemVolume_Shared
-USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, PerformLoadBalance
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -497,7 +497,7 @@ IF(AdaptBCAverageValBC) THEN
             ! AdaptBCTruncAverage: continuous average of the last AdaptBCSampIter iterations
             IF(AdaptBCSampIter.GT.0) THEN
               ! Calculate the average number density
-              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
                                                       / AdaptBCVolSurfaceFlux(iSpec,iSF)
               ELSE
@@ -518,7 +518,7 @@ IF(AdaptBCAverageValBC) THEN
             ! ================================================================
             ! Relaxation factor: updating the macro values with a certain percentage of the current sampled value
               ! Calculate the average number density
-              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
                   + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF)
               ELSE

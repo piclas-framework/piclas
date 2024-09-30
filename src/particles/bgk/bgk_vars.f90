@@ -39,6 +39,7 @@ REAL                                           :: BGKMovingAverageFac
 LOGICAL                                        :: BGKUseQuantVibEn
 LOGICAL                                        :: BGKDoVibRelaxation
 REAL                                           :: BGKSplittingDens
+REAL                                           :: BGKDSMCSwitchDens
 LOGICAL                                        :: CoupledBGKDSMC
 REAL, ALLOCATABLE                              :: BGK_QualityFacSamp(:,:)
 INTEGER                                        :: BGK_MeanRelaxFactorCounter
@@ -62,23 +63,5 @@ END TYPE
 
 TYPE (tElemNodeAveraging), ALLOCATABLE         :: ElemNodeAveraging(:)
 
-TYPE tCouplingCriteria
-  CHARACTER(LEN=50)                            :: SwitchCriterium
-  REAL                                         :: SwitchDens
-  REAL                                         :: CharLength
-  REAL                                         :: MaxGlobalKnudsen
-  REAL                                         :: MaxLocalKnudsen
-  REAL                                         :: MaxThermNonEq
-  REAL                                         :: MaxChapmanEnskog
-  INTEGER                                      :: SwitchIter
-  LOGICAL                                      :: AverageSamp
-  INTEGER, ALLOCATABLE                         :: Iter_Count(:)
-  LOGICAL,ALLOCATABLE                          :: DoElementDSMC(:)
-  REAL, ALLOCATABLE                            :: OutputKnudsen(:,:)
-  REAL, ALLOCATABLE                            :: Max_HeatVec(:)
-  REAL, ALLOCATABLE                            :: Max_StressTens(:)
-END TYPE
-
-TYPE (tCouplingCriteria)                       :: CBC
 !===================================================================================================================================
 END MODULE MOD_BGK_Vars

@@ -40,8 +40,12 @@ extensions = [
         'sphinx.ext.autosectionlabel',
         'sphinxcontrib.bibtex',
         'sphinx_rtd_theme',
+        'sphinx_rtd_size',
         'myst_parser'
         ]
+
+# Set width
+sphinx_rtd_size_width='98%'
 
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
@@ -92,3 +96,14 @@ autosectionlabel_prefix_document = True
 # -- Table and Figure labelling ----------------------------------------------
 # Activate using: {numref}`tab:some-name` -> Table 1
 numfig = True
+
+# -- MyST-Parser Syntax Extensions -------------------------------------------
+# https://myst-parser.readthedocs.io/en/latest/syntax/optional.html#math-shortcuts
+#
+#   "dollarmath" for parsing of dollar $ and $$ encapsulated math.
+#   "amsmath" for direct parsing of amsmath LaTeX environments.
+#
+myst_enable_extensions = [
+    "amsmath",
+    "dollarmath",
+]

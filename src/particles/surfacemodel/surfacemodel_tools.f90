@@ -285,19 +285,18 @@ SUBROUTINE DiffuseReflection(PartID,SideID,n_loc)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: TwoepsMach
 USE MOD_Particle_Mesh_Vars
-USE MOD_Globals                 ,ONLY: ABORT, OrthoNormVec, VECNORM, DOTPRODUCT
 USE MOD_DSMC_Vars               ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,Symmetry,PartVeloRotRef
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,PartVeloRotRef
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,RotRefSubTimeStep,nSubCyclingSteps
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
-USE MOD_Globals_Vars            ,ONLY: TwoepsMach
-USE MOD_Part_Tools              ,ONLY: CalcPartSymmetryPos
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -314,7 +313,7 @@ REAL                              :: tang1(1:3), tang2(1:3), NewVelo(3), POI_vec
 REAL                              :: POI_fak, TildTrajectory(3), dtVar
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
-REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:3), Vector2(1:3), OldVelo(1:3)
+REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:2), OldVelo(1:3)
 REAL                              :: NewVeloPush(1:3)
 !===================================================================================================================================
 ! 1.) Get the wall velocity, temperature and accommodation coefficients
@@ -476,9 +475,14 @@ IF(Symmetry%Axisymmetric) THEN
   NewVelo(2) = rotVelY
   NewVelo(3) = rotVelZ
 
-  IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
-    LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
-    TrackInfo%LastSide = 0
+  ! First check ensures that the normal vector of the side is not almost entirely in the x-direction (thus avoiding ny = 0)
+  IF (ABS(nx).LT.0.999) THEN
+    ! If particle has been rotated in the opposite direction of the normal vector, shift last particle position slightly
+    ! away from the wall and reset LastSide to check side again.
+    IF (NINT(SIGN(1.,rotPosY-POI_vec(2))).NE.NINT(SIGN(1.,ny))) THEN
+      LastPartPos(2, PartID) = LastPartPos(2, PartID) + SIGN(1.,ny)*TwoepsMach
+      TrackInfo%LastSide = 0
+    END IF
   END IF
 END IF ! Symmetry%Axisymmetric
 

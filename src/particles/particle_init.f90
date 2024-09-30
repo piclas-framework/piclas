@@ -60,7 +60,6 @@ PUBLIC::InitParticles
 PUBLIC::FinalizeParticles
 PUBLIC::DefineParametersParticles
 PUBLIC::InitialIonization
-PUBLIC::InitSymmetry
 !===================================================================================================================================
 
 CONTAINS
@@ -212,6 +211,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
 CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
   , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
+CALL prms%CreateLogicalOption(  'Particles-SamplePressTensHeatflux' ,'Flag to sample pressure tensor and heatflux.', '.FALSE.')
+
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
@@ -237,7 +238,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -322,7 +323,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,BGGas
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_SolutionPressTens,BGGas
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -332,6 +333,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE,DoChemSu
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars              ,ONLY: SamplePressTensHeatflux
 USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
@@ -348,11 +350,11 @@ USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
-USE MOD_Particle_Vars              ,ONLY: Symmetry
+USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Init                   ,ONLY: InitBGK
-USE MOD_Particle_Vars              ,ONLY: Symmetry
+USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 #if USE_LOADBALANCE
@@ -401,6 +403,12 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   DSMC%SampNum = 0
   ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
   DSMC_Solution = 0.0
+  ! Additional sampling of pressure tensor and heatflux
+  SamplePressTensHeatflux = GETLOGICAL('Particles-SamplePressTensHeatflux')
+  IF (SamplePressTensHeatflux) THEN
+    ALLOCATE(DSMC_SolutionPressTens(1:6,1:nElems))
+    DSMC_SolutionPressTens = 0.0
+  END IF
 END IF
 
 ! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and
@@ -488,6 +496,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfChem
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
@@ -583,9 +592,6 @@ CALL IdentifyPartExchangeProcs()
 CALL InitPIC()
 
 ! === 2D/1D/Axisymmetric initialization
-! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
-IF(Symmetry%Order.EQ.2) CALL DSMC_2D_InitVolumes()
-IF(Symmetry%Order.EQ.1) CALL DSMC_1D_InitVolumes()
 IF(Symmetry%Axisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
     ! Initialization of RadialWeighting in 2D axisymmetric simulations
@@ -812,6 +818,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_Particle_TimeStep       ,ONLY: VarTimeStep_CalcElemFacs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1882,62 +1889,6 @@ IF (usevMPF) THEN
 END IF
 
 END SUBROUTINE InitPartDataSize
-
-SUBROUTINE InitSymmetry()
-!===================================================================================================================================
-!> Initialize if a 2D/1D Simulation is performed and which type
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Particle_Vars         ,ONLY: Symmetry
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, VarWeighting, DSMC
-USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETINT
-USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleInsideQuad
-USE MOD_Particle_TriaTracking ,ONLY: InitSingleParticleTriaTracking
-USE MOD_Particle_InterSection ,ONLY: InitParticleThroughSideCheck1D2D
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-!===================================================================================================================================
-Symmetry%Order = GETINT('Particles-Symmetry-Order')
-
-IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
-  ,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
-
-! Initialize the function pointers for triatracking
-CALL InitParticleInsideQuad()
-CALL InitSingleParticleTriaTracking()
-IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
-
-Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
-IF(Symmetry%Axisymmetric) THEN
-  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
-ELSE
-  RadialWeighting%DoRadialWeighting = .FALSE.
-  RadialWeighting%PerformCloning = .FALSE.
-END IF
-
-! Variable weights in 3D
-VarWeighting%DoVariableWeighting = GETLOGICAL('Part-VariableWeighting')
-
-IF (VarWeighting%DoVariableWeighting.AND.RadialWeighting%DoRadialWeighting) THEN
-  CALL ABORT(__STAMP__&
-      ,'ERROR: Variable and radial weighting cannot be enabled at the same time. ')
-END IF
-
-DSMC%CalcCellMPF = GETLOGICAL('Particles-VisuMPF')
-
-END SUBROUTINE InitSymmetry
 
 END MODULE MOD_ParticleInit
 

@@ -1,18 +1,21 @@
 (sec:particle-initialization-and-emission)=
 # Particle Initialization & Emission
 
+The RAM to store the particles is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
+
+    Part-MaxParticleNumber=1000000
+
+New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
+
+    Part-MaxPartNumIncrease=0.1
+
+A higher value increases the amount of unnecessary RAM allocated to particles, while a lower value increases the number of memory adjustment operations. The optimal trade-off depends on the simulation and the machine, but it only affects the performance of the simulations, not the quality of the results.
+
 The following section gives an overview of the available options regarding the definition of species and particle initialization
 and emission. Simulation particles can be inserted initially within the computational domain and/or emitted at every time step.
 First of all, the number of species is defined by
 
     Part-nSpecies=1
-    Part-MaxParticleNumber=1000000
-
-The maximum particle number is defined per core and should be chosen according to the number of simulation particles you expect,
-including a margin to account for imbalances due transient flow features and/or the occurrence of new particles due to chemical
-reactions. Example: A node of a HPC cluster has 2 CPUs, each has 12 cores. Thus, the node has 24 cores that share a total of
-128GB RAM. Allocating 1000000 particles per core means, you can simulate up to 24 Million particles on a single node in this
-example (assuming an even particle distribution). The limiting factor here is the amount of RAM available per node.
 
 Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the
 weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), are required for each species.
@@ -63,20 +66,20 @@ The type of the region is defined by the following parameter
 
 Different `SpaceIC` are available and an overview is given in the table below.
 
-|     Distribution     |                                    Description                                   |                   Reference                  |
-|    ---------------   | -------------------------------------------------------------------------------- |  ------------------------------------------  |
-|      cell_local      |         Particles are inserted in every cell at a constant number density        |                                              |
-|         disc         |                     Particles are inserted on a circular disc                    |     Section {ref}`sec:particle-disk-init`    |
-|        cuboid        |  Particles are inserted in the given cuboid volume at a constant number density  |    Section {ref}`sec:particle-cuboid-init`   |
-|       cylinder       | Particles are inserted in the given cylinder volume at a constant number density |   Section {ref}`sec:particle-cylinder-init`  |
-|        sphere        |  Particles are inserted in the given sphere volume at a constant number density  |    Section {ref}`sec:particle-sphere-init`   |
-|    photon_cylinder   |   Ionization of a background gas through photon impact (cylinder distribution)   | Section {ref}`sec:particle-photo-ionization` |
-|    photon_SEE_disc   |       Secondary electron emission through photon impact (disk distribution)      | Section {ref}`sec:particle-photo-ionization` |
-|   photon_honeycomb   |   Ionization of a background gas through photon impact (honeycomb distribution)  | Section {ref}`sec:particle-photo-ionization` |
-| photon_SEE_honeycomb |    Secondary electron emission through photon impact (honeycomb distribution)    | Section {ref}`sec:particle-photo-ionization` |
-|   photon_rectangle   |  Ionization of a background gas through photon impact (rectangular distribution) | Section {ref}`sec:particle-photo-ionization` |
-| photon_SEE_rectangle |   Secondary electron emission through photon impact (rectangular distribution)   | Section {ref}`sec:particle-photo-ionization` |
-| EmissionDistribution |    Initial only ($t=0$) field-based ($n, T, v$) particle distribution from .h5   |  Section {ref}`sec:particle-emission-distri` |
+| Distribution         | Description                                                                      | Reference                                    |
+| -------------------- | -------------------------------------------------------------------------------- | -------------------------------------------- |
+| cell_local           | Particles are inserted in every cell at a constant number density                | Section {ref}`sec:particle-cell-local`       |
+| disc                 | Particles are inserted on a circular disc                                        | Section {ref}`sec:particle-disk-init`        |
+| cuboid               | Particles are inserted in the given cuboid volume at a constant number density   | Section {ref}`sec:particle-cuboid-init`      |
+| cylinder             | Particles are inserted in the given cylinder volume at a constant number density | Section {ref}`sec:particle-cylinder-init`    |
+| sphere               | Particles are inserted in the given sphere volume at a constant number density   | Section {ref}`sec:particle-sphere-init`      |
+| photon_cylinder      | Ionization of a background gas through photon impact (cylinder distribution)     | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_disc      | Secondary electron emission through photon impact (disk distribution)            | Section {ref}`sec:particle-photo-ionization` |
+| photon_honeycomb     | Ionization of a background gas through photon impact (honeycomb distribution)    | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_honeycomb | Secondary electron emission through photon impact (honeycomb distribution)       | Section {ref}`sec:particle-photo-ionization` |
+| photon_rectangle     | Ionization of a background gas through photon impact (rectangular distribution)  | Section {ref}`sec:particle-photo-ionization` |
+| photon_SEE_rectangle | Secondary electron emission through photon impact (rectangular distribution)     | Section {ref}`sec:particle-photo-ionization` |
+| EmissionDistribution | Initial only ($t=0$) field-based ($n, T, v$) particle distribution from .h5      | Section {ref}`sec:particle-emission-distri`  |
 
 Common parameters required for most of the insertion routines are given below. The drift velocity is defined by the direction
 vector `VeloVecIC`, which is a unit vector, and a velocity magnitude [m/s]. The thermal velocity of particle is determined based
@@ -99,6 +102,21 @@ considered, the electronic temperature [K] has to be defined
 
 The parameters given so far are sufficient to define an initialization region for a molecular species using the `cell_local` option.
 Additional options required for other insertion regions are described in the following.
+
+(sec:particle-cell-local)=
+### Cell local
+
+Additional options are available to limit the local emission to certain limits in each dimension (x,y,z) as defined by:
+
+    Part-Species1-Init1-MinimalLocation       = (/ -1.0, -1.0, -999. /)
+    Part-Species1-Init1-MaximalLocation       = (/  1.0,  1.0,  999. /)
+
+To limit the insertion only to a specific dimension, simply provide a sufficiently large number for the other dimensions. This approach
+can also be utilized for 2D and axisymmetric simulations.
+
+When using a variable particle weighting as described in Section {ref}`sec:variable-particle-weighting`, the variable `Part-Species1-vMPFSplitThreshold`
+will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
+given number density and cell volume.
 
 (sec:particle-disk-init)=
 ### Circular Disc
@@ -292,12 +310,12 @@ There are different methods implemented to neutralize a charged particle flow, e
 propulsion systems. Currently all methods require a specific geometry to function properly. For more details, see the regression
 tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
 
-|           Distribution          |                                                                Description                                                               |
-|         ---------------         |                             --------------------------------------------------------------------------------                             |
-|    2D_landmark_neutralization   |                   Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative        |
-|    2D_Liu2010_neutralization    |                    Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| Distribution                    | Description                                                                                                                              |
+| ------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 2D_landmark_neutralization      | Charoy 2019 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative                          |
+| 2D_Liu2010_neutralization       | Liu 2010 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
 | 2D_Liu2010_neutralization_Szabo | Liu 2010 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
-|    3D_Liu2010_neutralization    |                    Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                   |
+| 3D_Liu2010_neutralization       | Liu 2010 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
 | 3D_Liu2010_neutralization_Szabo | Liu 2010 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
 
 For the *XD_Liu2010_neutralization* emission, a constant emitted electron temperature is defined via
@@ -428,22 +446,22 @@ The provided temperature for the surface flux of the species determines the ener
 
 ### Circular Inflow
 
-The emission of particles from a surface flux can be limited to the area within a circle or a ring. The respective boundary has to
+The emission of particles from a surface flux can be limited to the area within a circle, ring or circle cut-out. The respective boundary has to
 coincide or be parallel to the xy-, xz, or yz-planes. This allows to define inflow boundaries without specifically meshing the
 geometrical feature, e.g. small orifices. The feature can be enabled per species and surface flux
 
-    Part-Species1-Surfaceflux1-CircularInflow=TRUE
+    Part-Species1-Surfaceflux1-CircularInflow = TRUE
 
 The normal direction of the respective boundary has to be defined by
 
-    Part-Species1-Surfaceflux1-axialDir=1
+    Part-Species1-Surfaceflux1-axialDir = 1
 
 Finally, the origin of the circle/ring on the surface and the radius have to be given. In the case of a ring, a maximal and minimal
-radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius is sufficient.
+radius is required (`-rmax` and `-rmin`, respectively), whereas for a circle only the input of maximal radius and for the circle cut-out only the minimal radius is sufficient.
 
-    Part-Species1-Surfaceflux1-origin=(/5e-6,5e-6/)
-    Part-Species1-Surfaceflux1-rmax=2.5e-6
-    Part-Species1-Surfaceflux1-rmin=1e-6
+    Part-Species1-Surfaceflux1-origin   = (/5e-6,5e-6/)
+    Part-Species1-Surfaceflux1-rmax     = 2.5e-6
+    Part-Species1-Surfaceflux1-rmin     = 1e-6
 
 The absolute coordinates are defined as follows for the respective normal direction.
 
@@ -453,7 +471,7 @@ The absolute coordinates are defined as follows for the respective normal direct
 |      y (=2)      |    (z,x)    |
 |      z (=3)      |    (x,y)    |
 
-Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction.
+Multiple circular inflows can be defined on a single boundary through multiple surface fluxes, e.g. to enable the simulation of multiple inlets on a chamber wall. Circular inflows are also supported with axisymmetric simulations, under the assumptions that the chosen surface is in the yz-plane (and thus has a normal direction in x) and the minimal and maximum radii are in the positive y-direction. Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_CircularInflow_Circle`, `SurfFlux_Tria_CircularInflow_CircleCutout` and `SurfFlux_Tria_CircularInflow_Ring`.
 
 (sec:particle-emission-adaptive)=
 ### Adaptive/Subsonic Boundaries
@@ -461,8 +479,8 @@ Multiple circular inflows can be defined on a single boundary through multiple s
 Different adaptive boundaries can be defined as a part of a surface flux to model subsonic in- and outflows, where the emission is
 adapted based on the prevalent conditions at the boundary. The modelling is based on the publications by Ref. {cite}`Farbar2014` and Ref. {cite}`Lei2017`.
 
-    Part-Species1-Surfaceflux1-Adaptive=TRUE
-    Part-Species1-Surfaceflux1-Adaptive-Type=1
+    Part-Species1-Surfaceflux1-Adaptive = TRUE
+    Part-Species1-Surfaceflux1-Adaptive-Type = 1
 
 An overview over the available types is given below.
 
@@ -476,8 +494,8 @@ An overview over the available types is given below.
 
 Depending of the type of the chosen boundary type either the mass flow [kg/s] or the static pressure [Pa] have to be given
 
-    Part-Species1-Surfaceflux1-Adaptive-Massflow=1.00E-14
-    Part-Species1-Surfaceflux1-Adaptive-Pressure=10
+    Part-Species1-Surfaceflux1-Adaptive-Massflow = 1.00E-14
+    Part-Species1-Surfaceflux1-Adaptive-Pressure = 10
 
 The adaptive boundaries require the sampling of macroscopic properties such as flow velocity at the boundary. To compensate for
 the statistical fluctuations, three possible sampling approaches are available. The first approach uses a relaxation factor
@@ -513,7 +531,15 @@ simulation is then determined by
 $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+
+In some cases it might be useful to utilize averaged values across the complete BC by enabling
+
+    AdaptiveBC-AverageValuesOverBC = T
+
+Here, the cell-local values are averaged and the resulting macroscopic values are utilized for the particle emission.
+
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
+Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_Adaptive_ConstMassflow` and `SurfFlux_Tria_Adaptive_ConstPressure`.
 
 ### Verification
 

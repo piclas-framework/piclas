@@ -275,7 +275,7 @@ INTEGER,INTENT(IN)        :: iInit
 INTEGER,INTENT(INOUT)     :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: iPart,PositionNbr,iElem
+INTEGER                   :: iPart,PositionNbr, iElem
 !===================================================================================================================================
 DO iPart=1,NbrOfParticle
   PositionNbr = GetNextFreePosition(iPart)
@@ -1077,7 +1077,8 @@ SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_p
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
@@ -1176,7 +1177,8 @@ SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Species, Symmetry
+USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 !----------------------------------------------------------------------------------------------------------------------------------

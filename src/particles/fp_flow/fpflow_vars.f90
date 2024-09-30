@@ -29,6 +29,7 @@ INTEGER               :: ESFPModel
 LOGICAL               :: FPDoVibRelaxation
 LOGICAL               :: FPUseQuantVibEn
 LOGICAL               :: CoupledFPDSMC
+REAL                  :: FPDSMCSwitchDens
 
 TYPE tSpecFP
   REAL, ALLOCATABLE          ::  CollFreqPreFactor(:)

@@ -925,7 +925,7 @@ LOGICAL, OPTIONAL             :: DoMPIUpdateNextFreePos
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID, TempNextFreePosition
+INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID
 INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
 #if defined(ROS) || defined(IMPA)

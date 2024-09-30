@@ -279,8 +279,9 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, Symmetry, UseVarTimeStep, usevMPF
-USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase, SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs
@@ -1702,6 +1703,7 @@ CollInf%ProhibitDoubleColl=.FALSE.
 !SDEALLOCATE(VibQuantsPar)
 ! SDEALLOCATE(XiEq_Surf)
 SDEALLOCATE(DSMC_Solution)
+SDEALLOCATE(DSMC_SolutionPressTens)
 CALL DeleteElemNodeVol()
 
 SDEALLOCATE(BGGas%PairingPartner)
@@ -1723,7 +1725,6 @@ SDEALLOCATE(VarWeighting%ClonePartNum)
 SDEALLOCATE(VarWeighting%ScalePoint)
 SDEALLOCATE(VarWeighting%VarMPF)
 SDEALLOCATE(ClonedParticles)
-SDEALLOCATE(SymmetrySide)
 SDEALLOCATE(AmbiPolarSFMapping)
 END SUBROUTINE FinalizeDSMC
 
@@ -1763,7 +1764,7 @@ RECURSIVE SUBROUTINE DeleteNodeVolume(Node)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_DSMC_Vars
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
