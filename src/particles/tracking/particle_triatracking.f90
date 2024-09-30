@@ -109,8 +109,14 @@ doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
+#if (PP_TimeDiscMethod==400)
+IF(RadialWeighting%PerformCloning.AND.SampleSurf) CALL DSMC_2D_SetInClones()
+IF(VarWeighting%PerformCloning.AND.SampleSurf)    CALL DSMC_SetInClones()
+#else
 IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
 IF(VarWeighting%PerformCloning)    CALL DSMC_SetInClones()
+#endif
+
 InterPlanePartNumber = 0
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
@@ -180,15 +186,18 @@ DO i = 1,PDM%ParticleVecLength
     END IF
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
+  #if (PP_TimeDiscMethod==400)
+  IF (SampleSurf) THEN
+#endif
   IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
       CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
-    END IF
-  ELSE IF(VarWeighting%PerformCloning) THEN
-    IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
       CALL DSMC_VariableWeighting(i,PEM%GlobalElemID(i))
     END IF
   END IF
+#if (PP_TimeDiscMethod==400)
+  END IF
+#endif
 END DO ! i = 1,PDM%ParticleVecLength
 ! 2) Loop again over all inter plane particles
 IF(InterPlanePartNumber.GT.0) THEN
