@@ -747,10 +747,13 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 USE MOD_Globals            ,ONLY: ElementOnProc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
-USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems,nComputeNodeProcessors,nProcessors_Global
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
 USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape,MPI_halo_eps_velo
 #endif /*USE_MPI && defined(PARTICLES)*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
+#endif /*USE_MPI*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
