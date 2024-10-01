@@ -262,11 +262,11 @@ REAL,INTENT(IN)                :: OutputTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileName
+CHARACTER(LEN=255)                  :: FileName
 CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb,Nloc,BCSideID,iLocSide,iElem,BCType
+INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb,Nloc,BCSideID,iLocSide,iElem,BCType,iBC
 INTEGER                             :: GlobalElemID,iPartBound,GlobalNonUniqueSideID
 INTEGER                             :: nSurfSample, MessageSize
 REAL                                :: tstart,tend
@@ -320,11 +320,12 @@ helpArray = 0.
 DO BCSideID=1,nBCSides
 
   ! Exclude periodic sides
-  BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+  iBC = BC(BCSideID)
+  BCType = Boundarytype(iBC,BC_TYPE)
   IF(BCType.EQ.1) CYCLE ! Skip periodic side
 
   ! Exclude non-VDL boundaries
-  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+  iPartBound = PartBound%MapToPartBC(iBC)
   IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
     iElem                 = SideToElem(S2E_ELEM_ID,BCSideID)
     GlobalElemID          = iElem + offsetElem
@@ -334,18 +335,22 @@ DO BCSideID=1,nBCSides
     iSurfSide             = GlobalSide2SurfSide(SURF_SIDEID,GlobalNonUniqueSideID)
     ! Map from Nloc to NMax
     IF(Nloc.EQ.NMax)THEN
-      helpArray(1:nVarSurfData,1:nSurfSample,1:nSurfSample,iSurfSide) = N_SurfVDL(BCSideID)%U(1:nVarSurfData,0:Nloc,0:Nloc)
+      helpArray(1:nVarSurfData-2,1:nSurfSample,1:nSurfSample,iSurfSide) = N_SurfVDL(BCSideID)%U(1:nVarSurfData-2,0:Nloc,0:Nloc)
     ELSE
       ! From low to high
-      CALL ChangeBasis2D(nVarSurfData, Nloc, NMax, PREF_VDM(Nloc,NMax)%Vdm ,&
-             N_SurfVDL(BCSideID)%U(1:nVarSurfData,0:Nloc,0:Nloc),&
-                         helpArray(1:nVarSurfData,1:nSurfSample,1:nSurfSample,iSurfSide))
+      CALL ChangeBasis2D(nVarSurfData-2, Nloc, NMax, PREF_VDM(Nloc,NMax)%Vdm ,&
+             N_SurfVDL(BCSideID)%U(1:nVarSurfData-2,0:Nloc,0:Nloc),&
+                         helpArray(1:nVarSurfData-2,1:nSurfSample,1:nSurfSample,iSurfSide))
     END IF ! Nloc.EQ.NMax
 
     ! Map from Gauss or Gauss-Lobatto nodes to equidistant VISU for .h5 storage
-    CALL ChangeBasis2D(nVarSurfData, NMax, NMax, NtonSurfSample(NMax)%Vdm_N_EQ_SurfaceData ,&
-                                      helpArray(1:nVarSurfData,1:nSurfSample,1:nSurfSample,iSurfSide) ,&
-                                      helpArray(1:nVarSurfData,1:nSurfSample,1:nSurfSample,iSurfSide) )
+    CALL ChangeBasis2D(nVarSurfData-2, NMax, NMax, NtonSurfSample(NMax)%Vdm_N_EQ_SurfaceData ,&
+                                      helpArray(1:nVarSurfData-2,1:nSurfSample,1:nSurfSample,iSurfSide) ,&
+                                      helpArray(1:nVarSurfData-2,1:nSurfSample,1:nSurfSample,iSurfSide) )
+
+    ! Set iBC and iPartBound
+    helpArray(1:nVarSurfData-1,1:nSurfSample,1:nSurfSample,iSurfSide) = iBC        ! iBC
+    helpArray(1:nVarSurfData  ,1:nSurfSample,1:nSurfSample,iSurfSide) = iPartBound ! iPartBound
   END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 END DO ! BCSideID=1,nBCSides
 
@@ -428,6 +433,8 @@ IF (mySurfRank.EQ.0) THEN
   Str2DVarNames(10) ='E_From_PhiF_From_Currentsx'
   Str2DVarNames(11) ='E_From_PhiF_From_Currentsy'
   Str2DVarNames(12) ='E_From_PhiF_From_Currentsz'
+  Str2DVarNames(nVarSurfData-1) ='iBC'
+  Str2DVarNames(nVarSurfData) ='iPartBound'
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVarSurfData,StrArray=Str2DVarNames)
 
   CALL CloseDataFile()

@@ -323,9 +323,11 @@ TYPE, PUBLIC :: VDLSurfMesh
                                !< 10: E_From_PhiF_From_Currentsx - E-field from PhiF_From_Currents (current density+electric displacement field) and ThicknessVDL (thickness of the dielectric layer)
                                !< 11: E_From_PhiF_From_Currentsy
                                !< 12: E_From_PhiF_From_Currentsz
+                               !< 13: iBC
+                               !< 14: iPartBound
 END TYPE VDLSurfMesh
 
-INTEGER,PARAMETER              :: nVarSurfData=12
+INTEGER,PARAMETER              :: nVarSurfData=14
 TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Electric potential and fields strength on VDL surfaces
 !===================================================================================================================================
 

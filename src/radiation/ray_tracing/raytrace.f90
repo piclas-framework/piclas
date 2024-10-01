@@ -163,7 +163,12 @@ IF(nProcessors.GT.NumRays) CALL abort(__STAMP__,'Use more rays! Number of proces
 LocRayNum = NumRays/nProcessors
 IF(myrank.LT.MOD(NumRays,nProcessors)) LocRayNum = LocRayNum + 1
 ! Output to screen every 20 rays to show that the tool is still running
-RayDisp = MAX(1,INT(LocRayNum/100)) ! This value cannot be zero
+IF (LocRayNum.GE.1000000) THEN
+  RayDisp = INT(LocRayNum/10000)
+ELSE
+  RayDisp = INT(LocRayNum/100)
+END IF ! RayDisp.GE.10000000
+RayDisp = MAX(1,RayDisp) ! This value cannot be zero
 RectPower = Ray%IntensityAmplitude * Ray%Area / REAL(NumRays)
 
 ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
