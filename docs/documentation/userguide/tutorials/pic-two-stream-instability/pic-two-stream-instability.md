@@ -129,13 +129,13 @@ Always compile the code within the *build* directory, hence, navigate to the *bu
 For this specific tutorial, make sure to set the correct compile flags
 
     PICLAS_EQNSYSNAME     = poisson
-    PICLAS_PETSC          = ON
+    LIBS_USE_PETSC          = ON
     PICLAS_TIMEDISCMETHOD = Leapfrog
 
 
 using the ccmake (gui for cmake) or simply run the following command from inside the *build* directory
 
-    cmake ../ -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
+    cmake ../ -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
 
 to configure the build process and run
 

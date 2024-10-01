@@ -21,7 +21,7 @@ To create the .h5 mesh file, simply run
 
     hopr hopr.ini
 
-This creates the mesh file *landau_damping_mesh.h5* in HDF5 format.
+This creates the mesh file *landau_damping_mesh.h5* in HDF5 format.This command should be run in the terminal of your newly created folder.
 Alternatively, if you do not want to run **hopr** yourself, you can also use the provided mesh. The only difference from the mesh created in previous tutorial, is the size of the simulation domain in this tutorial which is set to [$4\pi\times1\times1$] m$^{3}$ and is defined by the single block information
 in the line, where each node of the hexahedral element is defined
 
@@ -65,10 +65,35 @@ Periodic boundaries always have to be defined in the hopr.ini.
 For the simulation make sure to set the compile flags as mentioned in the *build_settings* file to
 
     PICLAS_EQNSYSNAME       = poisson
-    PICLAS_PETSC            = ON
+    LIBS_USE_PETSC          = ON
     PICLAS_READIN_CONSTANTS = ON
     PICLAS_TIMEDISCMETHOD   = Leapfrog
 
+using the ccmake (gui for cmake) or simply run the following command from inside the *build* directory
+
+    cmake ../ -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
+
+to configure the build process and run
+
+    make -j
+
+afterwards to compile the executable. For this setup, we have chosen the Poisson solver
+and selected the Leapfrog time discretization method. An overview over the available solver
+and discretization options is given in Section {ref}`sec:solver-settings`.
+To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run.
+To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
+create a link to the files via
+
+    ln -s $PICLAS_PATH/build/bin/piclas
+    ln -s $PICLAS_PATH/build/bin/piclas2vtk
+
+where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, the two commands
+
+    ln -s /home/$(whoami)/piclas/build/bin/piclas
+    ln -s /home/$(whoami)/piclas/build/bin/piclas2vtk
+
+can be executed.
 
 
 The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
@@ -373,7 +398,7 @@ Additionally, the flag `VisuParticles` activates the output of particle position
 
 Run the command
 
-    ./piclas2vtk parameter.ini plasma_wave_State_000.000000*
+    ./piclas2vtk parameter.ini landau_damping_State_000.0*
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
