@@ -598,7 +598,7 @@ ELSE
   CALL MPI_BARRIER(MPI_COMM_SHARED,IERROR)
 
   ! sum all MPI-side of compute-node and create correct offset mapping in SideInfo_Shared
-  !nBorderSidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2) + nBCSides
+  ! nBorderSidesShared = COUNT(SideInfo_Shared(SIDE_NBELEMTYPE,:).EQ.2) + nBCSides
   ALLOCATE(MPISideElem(offsetElem+1:offsetElem+nElems))
   nBorderElems = 0
   MPISideElem  = .FALSE.
