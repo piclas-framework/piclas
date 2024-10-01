@@ -51,6 +51,7 @@ INTEGER,ALLOCATABLE :: OffsetGlobalPETScDOF(:)  !< offset of each SideID to the 
 #endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
+LOGICAL             :: UseNSideMin =.FALSE.   !< Flag to use NSideMin instead of NSideMax for the sides
 
 ! HDG volume variables
 TYPE, PUBLIC :: HDG_Vol_N_Type
@@ -66,6 +67,7 @@ TYPE(HDG_Vol_N_Type),ALLOCATABLE :: HDG_Vol_N(:)      !<
 
 ! HDG side variables
 TYPE HDG_Surf_N_Type
+! TODO NSideMin - LambdaMax: Rename it so that it actually makes sense
   REAL,ALLOCATABLE    :: lambda(:,:)          !< lambda, ((NSideMin+1)^2,nSides) where NSideMin is the minimum of the two faces
   REAL,ALLOCATABLE    :: lambdaMax(:,:)       !< lambda, ((NSideMax+1)^2,nSides) where NSideMax is the maximum of the two faces
   REAL,ALLOCATABLE    :: Precond(:,:)         !< block diagonal preconditioner for lambda(nGP_face, nGP-face, nSides)

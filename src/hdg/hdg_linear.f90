@@ -81,7 +81,7 @@ REAL,INTENT(IN)     :: time !time
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL    :: lambdatmp(1:nGP_face(NMax))
-INTEGER :: i,j,k,r,p,q,iElem, iVar,NSideMin,Nloc, jNloc, iNloc
+INTEGER :: i,j,k,r,p,q,iElem, iVar,NSide,Nloc, jNloc, iNloc
 INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
 REAL    :: RHS_facetmp(nGP_face(NMax))
 REAL    :: rtmp(nGP_vol(NMax))
@@ -121,7 +121,7 @@ DO iVar = 1, PP_nVar
 #endif
   DO BCsideID=1,nDirichletBCSides
     SideID=DirichletBC(BCsideID)
-    Nloc = N_SurfMesh(SideID)%NSideMin
+    Nloc = N_SurfMesh(SideID)%NSide
     BCType =BoundaryType(BC(SideID),BC_TYPE)
     BCState=BoundaryType(BC(SideID),BC_STATE)
     SELECT CASE(BCType)
@@ -235,7 +235,7 @@ END DO !iElem
 !replace lambda with exact function (debugging)
 IF(ExactLambda)THEN
   DO SideID=1,nSides
-    Nloc = N_SurfMesh(SideID)%NSideMin
+    Nloc = N_SurfMesh(SideID)%NSide
     DO q=0,Nloc; DO p=0,Nloc
       r=q*(Nloc+1) + p+1
       CALL ExactFunc(IniExactFunc,N_SurfMesh(SideID)%Face_xGP(:,p,q),HDG_Surf_N(SideID)%lambda( 1:PP_nVar,r))
@@ -262,14 +262,14 @@ DO iVar = 1, PP_nVar
                           rtmp(1:nGP_face(Nloc)),1,0.,& ! 1: add to RHS_face, 0: set value
                           RHS_facetmp(1:nGP_face(Nloc)),1)
 
-      NSideMin = N_SurfMesh(SideID)%NSideMin
-      IF(Nloc.EQ.NSideMin)THEN
+      ! TODO NSideMin - LOW/HIGH
+      NSide = N_SurfMesh(SideID)%NSide
+      IF(Nloc.EQ.NSide)THEN
         HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(Nloc))
       ELSE
-        ! From high to low
-        CALL ChangeBasis2D(1, Nloc, NSideMin, TRANSPOSE(PREF_VDM(NSideMin,Nloc)%Vdm) , RHS_facetmp(1:nGP_face(Nloc)), RHS_facetmp(1:nGP_face(NSideMin)))
-        HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSideMin))
-      END IF ! Nloc.NE.NSideMin
+        CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , RHS_facetmp(1:nGP_face(Nloc)), RHS_facetmp(1:nGP_face(NSide)))
+        HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
+      END IF ! Nloc.NE.NSide
     END DO
   END DO !iElem
 END DO !ivar
@@ -287,17 +287,17 @@ DO iBCSide=1,nDirichletBCSides
   ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
   jLocSide  = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
   ! At BCSides, jNLoc = Nmax
-  jNloc     = N_SurfMesh(BCsideID)%NSideMin
+  jNloc     = N_SurfMesh(BCsideID)%NSide
   DO iLocSide=1,6
     SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-    iNloc     = N_SurfMesh(SideID)%NSideMin
+    iNloc     = N_SurfMesh(SideID)%NSide
     IF(MaskedSide(SideID).GT.0) CYCLE
 
     ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
     ! TODO PETSC P-Adaption: ij vs ji
     Smatloc(1:nGP_face(jNloc),1:nGP_face(jNloc)) = HDG_Vol_N(ElemID)%Smat(:,:,iLocSide,jLocSide)
     ! 1. S_{Ij} = (V^T)_{Ii} * S_{ij}
-    IF(jNloc.GT.iNloc)THEN
+    IF(jNloc.NE.iNloc)THEN
       DO j=1,nGP_face(jNloc)
         CALL ChangeBasis2D(1, jNloc, iNloc, TRANSPOSE(PREF_VDM(iNloc,jNloc)%Vdm), Smatloc(1:nGP_face(jNloc),j), Smatloc(1:nGP_face(iNloc),j))
       END DO
@@ -352,7 +352,7 @@ DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
 
   ! TODO Create a function to map localToGlobalDOFs
-  Nloc = N_SurfMesh(SideID)%NSideMin
+  Nloc = N_SurfMesh(SideID)%NSide
   DO i=1,nGP_face(Nloc)
     DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
   END DO
@@ -412,7 +412,7 @@ PetscCallA(VecGetArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
 DOF_stop = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
-  Nloc = N_SurfMesh(SideID)%NSideMin
+  Nloc = N_SurfMesh(SideID)%NSide
   DOF_start = 1 + DOF_stop
   DOF_stop = DOF_start + nGP_face(Nloc) - 1
   ! MORTARS: All Mortar stuff (BigToSmall, ...) is done when solving the system!
@@ -424,7 +424,7 @@ IF(UseFPC) THEN
   FPC%VoltageProc = 0. ! nullify just to be safe
   DO BCsideID=1,nConductorBCsides
     SideID       = ConductorBC(BCSideID)
-    Nloc         = N_SurfMesh(SideID)%NSideMin
+    Nloc         = N_SurfMesh(SideID)%NSide
     BCState      = BoundaryType(BC(SideID),BC_STATE)
     iUniqueFPCBC = FPC%Group(BCState,2)
     DO i=1,nGP_face(Nloc)
@@ -456,13 +456,14 @@ PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
     ! for post-proc
     DO iLocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      NSideMin = N_SurfMesh(SideID)%NSideMin
-      IF(Nloc.EQ.NSideMin)THEN
+      ! TODO NSideMin - LOW/HIGH
+      NSide = N_SurfMesh(SideID)%NSide
+      IF(Nloc.EQ.NSide)THEN
         lambdatmp(1:nGP_face(Nloc)) = HDG_Surf_N(SideID)%lambda(iVar,:)
       ELSE
         ! From low to high
-        CALL ChangeBasis2D(1, NSideMin, Nloc, PREF_VDM(NSideMin,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,1:nGP_face(NSideMin)), lambdatmp(1:nGP_face(Nloc)))
-      END IF ! Nloc.EQ.NSideMin
+        CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
+      END IF ! Nloc.EQ.NSide
       CALL DGEMV('T',nGP_face(Nloc),nGP_vol(Nloc),1., &
                           HDG_Vol_N(iElem)%Ehat(:,:,iLocSide), nGP_face(Nloc), &
                           lambdatmp(1:nGP_face(Nloc)),1,1.,& ! 1: add to RHS_face, 0: set value

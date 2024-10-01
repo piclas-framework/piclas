@@ -278,6 +278,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
       END IF ! MortarType(1,iSide).EQ.0
 
       ! Get NSideMin from last entry. Here no change basis is required as the NMax array is only filled up to the degree NSideMin
+      ! TODO NSideMin - What to do here?
       NSideMin = INT(lambdaLBTmp(1,nGP_face(NMax)+1,NonUniqueGlobalSideID))
 
       ! Rotate data into correct orientation
@@ -629,7 +630,8 @@ ELSE ! Normal restart
               END DO ! iVar=1,PP_nVar
 
               ! Get NSideMin
-              NSideMin = N_SurfMesh(iSide)%NSideMin
+              ! TODO NSideMin - What to do here?
+              NSideMin = N_SurfMesh(iSide)%NSide
 
               ! Map lambda from Nres to NSideMin
               IF(NSideMin.EQ.N_Restart)THEN ! N is equal
@@ -670,7 +672,7 @@ ELSE ! Normal restart
       DO iSide=1,nSides
         IF(MaskedSide(iSide).GT.0) CYCLE
         ! TODO: Create a function to map localToGlobalDOFs
-        Nloc = N_SurfMesh(iSide)%NSideMin
+        Nloc = N_SurfMesh(iSide)%NSide
         DO i=1,nGP_face(Nloc)
           DOFindices(i) = i + OffsetGlobalPETScDOF(iSide) - 1
         END DO

@@ -899,6 +899,7 @@ DO iElem = 1, nElems
       ! Map surface elem to Nloc, multiply with wGPSurf and store in SurfElemwGP
       ! SurfElem is built on N = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
       NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+      ! TODO NSideMin - What to do here?
       ! Map SurfElem from NSideMax to NSideMin
       IF(Nloc.EQ.NSideMax)THEN ! N is equal
         SurfElem(0:Nloc,0:Nloc) = N_SurfMesh(SideID)%SurfElem(0:NSideMax,0:NSideMax)

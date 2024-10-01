@@ -86,7 +86,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin
+INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin,NSideMax
 INTEGER              :: i,j,iElem, i_m,i_p,j_m,j_p
 INTEGER              :: iDir,jDir
 INTEGER              :: iLocSide, jLocSide
@@ -143,13 +143,14 @@ DO iElem=1,PP_nElems
                      q => N_Mesh(Nloc)%VolToSideA(2,g1,g2,g3,Flip(iLocSide),iLocSide), &
                      l1=> N_Mesh(Nloc)%VolToSideIJKA(1,g1,g2,g3,Flip(iLocSide),iLocSide), &
                      l2=> N_Mesh(Nloc)%VolToSideIJKA(2,g1,g2,g3,Flip(iLocSide),iLocSide)  )
-             iSide = SideID(iLocSide)
-             NSideMin = N_SurfMesh(iSide)%NSideMin
-             IF(Nloc.EQ.NSideMin)THEN
-               Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElemMin(p,q)
-             ELSE
-               Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElem(p,q)
-             END IF ! Nloc.EQ.NSideMin
+              iSide = SideID(iLocSide)
+              ! TODO NSideMin - SurfElemMin
+              NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+              IF(Nloc.EQ.NSideMax)THEN
+                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElem(p,q)
+              ELSE
+                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElemMin(p,q)
+              END IF
            END ASSOCIATE
          END DO !iLocSide
 
@@ -300,12 +301,13 @@ DO iElem=1,PP_nElems
     DO q=0,Nloc; DO p=0,Nloc
       i=q*(Nloc+1)+p+1
       iSide = SideID(jLocSide)
-      NSideMin = N_SurfMesh(iSide)%NSideMin
-      IF(Nloc.EQ.NSideMin)THEN
-        Fdiag_i = - Tau(ielem)*N_SurfMesh(SideID(jLocSide))%SurfElemMin(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+      ! TODO NSideMin - SurfElemMin
+      NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      IF(Nloc.EQ.NSideMax)THEN
+        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElem(p,q)
       ELSE
-        Fdiag_i = - Tau(ielem)*N_SurfMesh(SideID(jLocSide))%SurfElem(p,q)   *N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
-      END IF ! Nloc.EQ.NSideMin
+        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElemMin(p,q)
+      END IF
       HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
     END DO; END DO !p,q
 
@@ -394,7 +396,7 @@ INTEGER              :: iElem,NElem
 INTEGER              :: iLocSide,iSideID,iNloc,iPETScGlobal, iNdof, iIndices(nGP_face(Nmax))
 INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP_face(Nmax))
 REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
-INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMin
+INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSide
 INTEGER              :: i,j,i_m,i_p,j_m,j_p
 INTEGER              :: BCsideID, BCState
 INTEGER              :: locSideID,nGP
@@ -409,14 +411,14 @@ INTEGER              :: iGP, jGP, ip, iq, jp, jq
 
 DO jSideID=firstMortarInnerSide,lastMortarInnerSide ! Big side
   jLocSide=MortarType(2,jSideID)
-  NSideMin = N_SurfMesh(jSideID)%NSideMin
-  nGP = nGP_face(NSideMin)
+  NSide = N_SurfMesh(jSideID)%NSide
+  nGP = nGP_face(NSide)
   jIndices(1:nGP) = OffsetGlobalPETScDOF(jSideID) + (/ (i-1, i=1,nGP) /)
   nMortars=MERGE(4,2,MortarType(1,jSideID).EQ.1)
 
   ASSOCIATE(&
-    M_0_1 => N_Mortar(NSideMin)%M_0_1 ,&
-    M_0_2 => N_Mortar(NSideMin)%M_0_2 )
+    M_0_1 => N_Mortar(NSide)%M_0_1 ,&
+    M_0_2 => N_Mortar(NSide)%M_0_2 )
 
   DO iMortar=1,nMortars
     iSideID = MortarInfo(MI_SIDEID,iMortar,jLocSide) ! Small side
@@ -434,10 +436,10 @@ DO jSideID=firstMortarInnerSide,lastMortarInnerSide ! Big side
     ! At the rows for the small side, we add I at the diagonal and A at the jIndices of the big side
     ! At the rows for the big side, we add A^T * A at the diagonal and A^T at the iIndices of the small side
 
-    DO ip=0,NSideMin; DO iq=0,NSideMin
-      iGP = (NSideMin + 1) * iq + ip + 1
-      DO jp=0,NSideMin; DO jq=0,NSideMin
-        jGP = (NSideMin + 1) * jq + jp + 1
+    DO ip=0,NSide; DO iq=0,NSide
+      iGP = (NSide + 1) * iq + ip + 1
+      DO jp=0,NSide; DO jq=0,NSide
+        jGP = (NSide + 1) * jq + jp + 1
 
         SELECT CASE(MortarType(1,jSideID))
         CASE(1) ! 1 -> 4
@@ -491,11 +493,11 @@ DO iElem=1,PP_nElems
   NElem=N_DG_Mapping(2,iElem+offsetElem)
   DO iLocSide=1,6
     iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    iNloc=N_SurfMesh(iSideID)%NSideMin
+    iNloc=N_SurfMesh(iSideID)%NSide
     IF(MaskedSide(iSideID).GT.0) CYCLE
     DO jLocSide=1,6
       jSideID=ElemToSide(E2S_SIDE_ID,jLocSide,iElem)
-      jNloc=N_SurfMesh(jSideID)%NSideMin
+      jNloc=N_SurfMesh(jSideID)%NSide
       IF(MaskedSide(jSideID).GT.0) CYCLE
       IF(OffsetGlobalPETScDOF(iSideID).GT.OffsetGlobalPETScDOF(jSideID)) CYCLE ! Only fill upper triangle
       IF(SetZeroPotentialDOF.AND.(OffsetGlobalPETScDOF(iSideID).EQ.0)) THEN
@@ -515,14 +517,15 @@ DO iElem=1,PP_nElems
         jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
+      ! TODO NSideMin - Same when NElem<Nloc and NElem>Nloc?
       Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide)
-      IF(NElem.GT.jNloc)THEN
+      IF(NElem.NE.jNloc)THEN
         ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T
         DO i=1,nGP_face(NElem)
           CALL ChangeBasis2D(1, NElem, jNloc, TRANSPOSE(PREF_VDM(jNloc,NElem)%Vdm), Smatloc(i,1:nGP_face(NElem)), Smatloc(i,1:jNdof))
         END DO
       END IF
-      IF(NElem.GT.iNloc)THEN
+      IF(NElem.NE.iNloc)THEN
         ! 2. S_{IJ} = (V^T)_{Ii} * S_{iJ}
         DO j=1,jNdof
           CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
@@ -538,7 +541,7 @@ END DO
 DO BCsideID=1,nConductorBCsides
   jSideID=ConductorBC(BCsideID)
   jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
-  jNloc=N_SurfMesh(jSideID)%NSideMin
+  jNloc=N_SurfMesh(jSideID)%NSide
 
   iElem=SideToElem(S2E_ELEM_ID,jSideID)
   NElem=N_DG_Mapping(2,iElem+offsetElem)
@@ -565,7 +568,7 @@ DO BCsideID=1,nConductorBCsides
       CYCLE
     ELSE
       ! From Conductor to normal side: iNdof x 1 matrix
-      iNloc=N_SurfMesh(iSideID)%NSideMin
+      iNloc=N_SurfMesh(iSideID)%NSide
       iNdof=nGP_face(iNloc)
       CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),1), Smatloc(1:iNdof,1))
 
@@ -607,15 +610,15 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER          :: lapack_info
-INTEGER          :: NSideMin
+INTEGER          :: NSide
 !===================================================================================================================================
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
 CASE(1)
   DO SideID=1,nSides
-    NSideMin = N_SurfMesh(SideID)%NSideMin
-    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%Precond)) ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(NSideMin),nGP_face(NSideMin)))
+    NSide = N_SurfMesh(SideID)%NSide
+    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%Precond)) ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(NSide),nGP_face(NSide)))
     HDG_Surf_N(SideID)%Precond = 0.
     !master element
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
@@ -627,7 +630,8 @@ CASE(1)
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      IF(NSideMin.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
+      ! TODO NSideMin - We may need to check if NSide != NMin when HDGNSideMin is set to false or sth...
+      IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
@@ -637,23 +641,24 @@ CASE(1)
   CALL SmallToBigMortarPrecond_HDG(PrecondType) !assemble big side
   DO SideID=1,nSides-nMPIsides_YOUR
     IF(MaskedSide(SideID).NE.0)CYCLE
-    NSideMin = N_SurfMesh(SideID)%NSideMin
+    NSide = N_SurfMesh(SideID)%NSide
     ! do choleski and store into Precond
-    CALL DPOTRF('U',nGP_face(NSideMin),HDG_Surf_N(SideID)%Precond(:,:),nGP_face(NSideMin),lapack_info)
+    CALL DPOTRF('U',nGP_face(NSide),HDG_Surf_N(SideID)%Precond(:,:),nGP_face(NSide),lapack_info)
     IF (lapack_info .NE. 0) CALL abort(__STAMP__,'MATRIX INVERSION FAILED for PrecondType=1!')
   END DO ! SideID=1,nSides
 
 CASE(2)
   DO SideID=1,nSides
-    NSideMin = N_SurfMesh(SideID)%NSideMin
-    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%InvPrecondDiag)) ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(NSideMin)))
+    NSide = N_SurfMesh(SideID)%NSide
+    IF(.NOT.ALLOCATED(HDG_Surf_N(SideID)%InvPrecondDiag)) ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(NSide)))
     HDG_Surf_N(SideID)%InvPrecondDiag = 0.
     !master element
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-      IF(NSideMin.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
-      DO igf = 1, nGP_face(NSideMin)
+      ! TODO NSideMin - We may need to check if NSide != NMin when HDGNSideMin is set to false or sth...
+      IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
+      DO igf = 1, nGP_face(NSide)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
                               HDG_Vol_N(ElemID)%Smat(igf,igf,locSideID,locSideID)
       END DO ! igf
@@ -662,7 +667,7 @@ CASE(2)
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      DO igf = 1, nGP_face(NSideMin)
+      DO igf = 1, nGP_face(NSide)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
                               HDG_Vol_N(ElemID)%Smat(igf,igf,locSideID,locSideID)
       END DO ! igf
@@ -743,22 +748,29 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iElem,Nloc,idx_m,idx_p,SideIDm,SideIDp,NSideMin,NSideMax,iSide
+INTEGER          :: iElem,Nloc,idx_m,idx_p,SideIDm,SideIDp,NSideMin,NSideMax,iSide,NSide
 INTEGER          :: SideID(6),Flip(6)
 INTEGER          :: q,g1,g2,g3,gdx(3),jdx(3),jDir
 REAL             :: aCon(3,3),q_loc
 REAL,DIMENSION(1,0:NMax,0:NMax) :: tmp2,tmp3
 !===================================================================================================================================
 DO iSide = 1, nSides
-  NSideMin = N_SurfMesh(iSide)%NSideMin
+  ! TODO NSideMin - LambdaMax: Calculate it
+  NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+
   IF(NSideMin.EQ.NSideMax)THEN
     HDG_Surf_N(iSide)%lambdaMax(1,:) = HDG_Surf_N(iSide)%lambda(1,:)
   ELSE
-    ! From low to high
-    tmp2(1:1,0:NSideMin,0:NSideMin) = RESHAPE(HDG_Surf_N(iSide)%lambda(1,:),(/1,NSideMin+1,NSideMin+1/))
-    CALL ChangeBasis2D(1, NSideMin, NSideMax, PREF_VDM(NSideMin,NSideMax)%Vdm , tmp2(1,0:NSideMin,0:NSideMin), tmp3(1,0:NSideMax,0:NSideMax))
-    HDG_Surf_N(iSide)%lambdaMax(1,:) = RESHAPE(tmp3(1,0:NSideMax,0:NSideMax),(/nGP_face(NSideMax)/))
+    NSide = N_SurfMesh(iSide)%NSide
+    tmp2(1:1,0:NSide,0:NSide) = RESHAPE(HDG_Surf_N(iSide)%lambda(1,:),(/1,NSide+1,NSide+1/))
+    IF(NSide.EQ.NSideMax)THEN
+      CALL ChangeBasis2D(1, NSide, NSideMin, PREF_VDM(NSide,NSideMin)%Vdm , tmp2(1,0:NSide,0:NSide), tmp3(1,0:NSideMin,0:NSideMin))
+      HDG_Surf_N(iSide)%lambdaMax(1,:) = RESHAPE(tmp3(1,0:NSideMin,0:NSideMin),(/nGP_face(NSideMin)/))
+    ELSE
+      CALL ChangeBasis2D(1, NSide, NSideMax, PREF_VDM(NSide,NSideMax)%Vdm , tmp2(1,0:NSide,0:NSide), tmp3(1,0:NSideMax,0:NSideMax))
+      HDG_Surf_N(iSide)%lambdaMax(1,:) = RESHAPE(tmp3(1,0:NSideMax,0:NSideMax),(/nGP_face(NSideMax)/))
+    END IF
   END IF ! NSideMin.EQ.NSideMax
 END DO ! iSide = 1, nSides
 
@@ -805,22 +817,23 @@ DO iElem=1,PP_nElems
                       q_m => N_Mesh(Nloc)%VolToSideA(2,g1,g2,g3,Flip(mLocSide),mLocSide), &
                       p_p => N_Mesh(Nloc)%VolToSideA(1,g1,g2,g3,Flip(pLocSide),pLocSide), &
                       q_p => N_Mesh(Nloc)%VolToSideA(2,g1,g2,g3,Flip(pLocSide),pLocSide), &
-                      mNSideMin => N_SurfMesh(SideID(mLocSide))%NSideMin, &
-                      pNSideMin => N_SurfMesh(SideID(pLocSide))%NSideMin  )
+                      mNSide => N_SurfMesh(SideID(mLocSide))%NSide, &
+                      pNSide => N_SurfMesh(SideID(pLocSide))%NSide  )
               idx_m = q_m*(Nloc+1)+p_m+1
               idx_p = q_p*(Nloc+1)+p_p+1
 
-              IF(Nloc.EQ.mNSideMin)THEN
+              ! TODO NSideMin - LambdaMax: Only place where it is used
+              IF(Nloc.EQ.mNSide)THEN
                 q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*HDG_Surf_N(SideID(mLocSide))%lambda(1,idx_m)
               ELSE
                 q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*HDG_Surf_N(SideID(mLocSide))%lambdaMax(1,idx_m)
-              END IF ! Nloc.EQ.mNSideMin
+              END IF ! Nloc.EQ.mNSide
 
-              IF(Nloc.EQ.pNSideMin)THEN
+              IF(Nloc.EQ.pNSide)THEN
                 q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*HDG_Surf_N(SideID(pLocSide))%lambda(1,idx_p)
               ELSE
                 q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*HDG_Surf_N(SideID(pLocSide))%lambdaMax(1,idx_p)
-              END IF ! Nloc.EQ.mNSideMin
+              END IF ! Nloc.EQ.mNSide
             END ASSOCIATE
           END ASSOCIATE
           U_N(iElem)%E(:,g1,g2,g3)=U_N(iElem)%E(:,g1,g2,g3)+aCon(:,jDir)*q_loc

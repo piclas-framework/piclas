@@ -178,7 +178,7 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
-INTEGER             :: Nloc,iSide,NSideMin
+INTEGER             :: Nloc,iSide,NSideMin,NSide
 LOGICAL             :: validMesh,ReadNodes
 #if USE_HDG
 INTEGER             :: iMortar,nMortars,MortarSideID
@@ -429,7 +429,7 @@ IF (ABS(meshMode).GT.1) THEN
     ! Allocate with max. polynomial degree of the two master-slave sides
     Nloc     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-    N_SurfMesh(iSide)%NSideMin = NSideMin
+    N_SurfMesh(iSide)%NSide = NSideMin
     ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:Nloc,0:Nloc))
     ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:Nloc,0:Nloc))
@@ -443,25 +443,6 @@ IF (ABS(meshMode).GT.1) THEN
     N_SurfMesh(iSide)%SurfElem = 0.
     N_SurfMesh(iSide)%SurfElemMin= 0.
   END DO ! iSide = 1, nSides
-
-#if USE_HDG
-  ! Mortars: Get minimum of all sides the Mortar interface
-  DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-    nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-    locSide  = MortarType(2,MortarSideID)
-    NSideMin = N_SurfMesh(MortarSideID)%NSideMin
-    DO iMortar = 1,nMortars
-      SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
-      NSideMin = MIN(NSideMin,N_SurfMesh(SideID)%NSideMin)
-    END DO !iMortar
-
-    N_SurfMesh(MortarSideID)%NSideMin = NSideMin
-    DO iMortar = 1,nMortars
-      SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
-      N_SurfMesh(SideID)%NSideMin = NSideMin
-    END DO !iMortar
-  END DO !MortarSideID
-#endif /*USE_HDG*/
 
   ! Due to possible load balance, this is done outside of CalcMetrics() now
   DO iElem = 1, nElems

@@ -465,7 +465,7 @@ END SUBROUTINE GetMasteriLocSides
 !===================================================================================================================================
 !> Transform lambda solution from local coordinate system into master orientation for iSide and return as array "MasterSide"
 !===================================================================================================================================
-SUBROUTINE LambdaSideToMaster(ExtraDim,iSide,MasterSide,NSideMin)
+SUBROUTINE LambdaSideToMaster(ExtraDim,iSide,MasterSide,NSide)
 ! MODULES
 USE MOD_PreProc
 USE MOD_globals            ,ONLY: abort
@@ -480,8 +480,8 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)                                          :: ExtraDim,iSide,NSideMin
-REAL,DIMENSION(PP_nVar,nGP_face(NMax)+ExtraDim),INTENT(OUT) :: MasterSide ! +1 comes from the NSideMin info that is sent additionally
+INTEGER,INTENT(IN)                                          :: ExtraDim,iSide,NSide
+REAL,DIMENSION(PP_nVar,nGP_face(NMax)+ExtraDim),INTENT(OUT) :: MasterSide ! +1 comes from the NSide info that is sent additionally
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: p,q,r,rr,pq(1:2),iVar
@@ -500,25 +500,25 @@ END IF ! iSide.GT.lastMPISide_MINE
 !1 of 2: Master element with iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
 IF(iLocSide.NE.-1)THEN ! MINE side
 
-  ! Store NSideMin
+  ! Store NSide
   MasterSide = 0.
-  IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSideMin
+  IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSide
 
   ! Store lambda
-  DO q=0,NSideMin
-    DO p=0,NSideMin
-      pq=CGNS_SideToVol2(NSideMin,p,q,iLocSide)
-      r  = q    *(NSideMin+1)+p    +1
-      rr = pq(2)*(NSideMin+1)+pq(1)+1
+  DO q=0,NSide
+    DO p=0,NSide
+      pq=CGNS_SideToVol2(NSide,p,q,iLocSide)
+      r  = q    *(NSide+1)+p    +1
+      rr = pq(2)*(NSide+1)+pq(1)+1
       MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
     END DO
   END DO !p,q
 
   ! Do we need to map to NMax?
-  !IF(NSideMin.NE.NMax)THEN
+  !IF(NSide.NE.NMax)THEN
   !  ! From low to high
-  !  CALL ChangeBasis2D(PP_nVar, NSideMin, NMax, PREF_VDM(NSideMin,NMax)%Vdm, MasterSide(:,1:nGP_face(NSideMin)), MasterSide(:,1:nGP_face(NMax)))
-  !END IF ! NSideMin.NE.NMax
+  !  CALL ChangeBasis2D(PP_nVar, NSide, NMax, PREF_VDM(NSide,NMax)%Vdm, MasterSide(:,1:nGP_face(NSide)), MasterSide(:,1:nGP_face(NMax)))
+  !END IF ! NSide.NE.NMax
   RETURN
 END IF !iLocSide.NE.-1
 
@@ -534,14 +534,14 @@ IF(MortarType(1,iSide).EQ.0)THEN
       IF(iSide.EQ.SideID)THEN
         iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
         IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-          ! Store NSideMin
-          IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSideMin
+          ! Store NSide
+          IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSide
           ! Store lambda
-          DO q=0,NSideMin
-            DO p=0,NSideMin
-              pq=CGNS_SideToVol2(NSideMin,p,q,iLocSide)
-              r  = q    *(NSideMin+1)+p    +1
-              rr = pq(2)*(NSideMin+1)+pq(1)+1
+          DO q=0,NSide
+            DO p=0,NSide
+              pq=CGNS_SideToVol2(NSide,p,q,iLocSide)
+              r  = q    *(NSide+1)+p    +1
+              rr = pq(2)*(NSide+1)+pq(1)+1
               MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
             END DO
           END DO !p,q

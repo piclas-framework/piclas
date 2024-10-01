@@ -85,6 +85,7 @@ CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step ite
 CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSkipInit is used instead of HDGSkip (if HDGSkip > 0)', '0.')
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 CALL prms%CreateRealArrayOption( 'EPC-Resistance'      , 'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
+CALL prms%CreateLogicalOption('HDGNSideMin'            ,'Use the minimum polynomial degree at the sides for the HDG solver', '.FALSE.')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
 CALL prms%CreateIntOption(      'BiasVoltage-NPartBoundaries' , 'Number of particle boundaries where the total ion excess is to be calculated for bias voltage model')
@@ -140,10 +141,11 @@ USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 #endif /*USE_MPI*/
 USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
-USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
-USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars             ,ONLY: ElemToSide
 #endif /*USE_PETSC*/
+USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Interpolation_Vars    ,ONLY: PREF_VDM
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -151,7 +153,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax, iSide, iUniqueFPCBC
+INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide, iUniqueFPCBC
 INTEGER           :: BCType,BCState
 REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
@@ -159,8 +161,6 @@ INTEGER           :: nDirichletBCsidesGlobal
 PetscErrorCode    :: ierr
 IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iProc
-INTEGER           :: MortarSideID,iMortar
-INTEGER           :: locSide,nMortarMasterSides,nMortars
 !INTEGER           :: nAffectedBlockSides
 INTEGER             :: iLocSide
 INTEGER             :: iLocalPETScDOF,iDOF
@@ -170,6 +170,8 @@ INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
 INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 #endif
 #endif
+INTEGER           :: locSide,nMortars
+INTEGER           :: MortarSideID,iMortar
 REAL              :: tmp(3,0:Nmax,0:Nmax)
 REAL              :: StartT,EndT
 !===================================================================================================================================
@@ -221,6 +223,7 @@ OutIterCG            = GETINT('OutIterCG')
 useRelativeAbortCrit = GETLOGICAL('useRelativeAbortCrit')
 MaxIterCG            = GETINT('MaxIterCG')
 ExactLambda          = GETLOGICAL('ExactLambda')
+UseNSideMin          = GETLOGICAL('HDGNSideMin')
 
 ! Initialize element containers
 ALLOCATE(HDG_Vol_N(1:PP_nElems))
@@ -249,6 +252,39 @@ dirPm2iSide(1,2) = ETA_MINUS
 dirPm2iSide(2,2) = ETA_PLUS
 dirPm2iSide(1,3) = ZETA_MINUS
 dirPm2iSide(2,3) = ZETA_PLUS
+
+! -------------------------------------------------------------------------------------------------
+! TODO NSideMin - N_SurfMesh: Fill NSide. I do not know if it is a good idea to do that here...
+DO iSide = 1, nSides
+  IF(UseNSideMin) THEN
+    NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    N_SurfMesh(iSide)%NSide = NSideMin
+  ElSE
+    NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    N_SurfMesh(iSide)%NSide = NSideMax
+  END IF
+END DO
+
+! Mortars: Get minimum/maximum of all sides the Mortar interface
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide  = MortarType(2,MortarSideID)
+  NSide = N_SurfMesh(MortarSideID)%NSide
+  DO iMortar = 1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+    IF(UseNSideMin) THEN
+      NSide = MIN(NSide,N_SurfMesh(SideID)%NSide)
+    ELSE
+      NSide = MAX(NSide,N_SurfMesh(SideID)%NSide)
+    END IF
+  END DO !iMortar
+
+  N_SurfMesh(MortarSideID)%NSide = NSide
+  DO iMortar = 1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+    N_SurfMesh(SideID)%NSide = NSide
+  END DO !iMortar
+END DO !MortarSideID
 
 
 ! -------------------------------------------------------------------------------------------------
@@ -283,20 +319,25 @@ END DO !iProc=1,nNBProcs
 
 ! -------------------------------------------------------------------------------------------------
 ! 3. Build SurfElemMin for all sides (including Mortar sides)
+! TODO NSideMin - SurfElemMin
 DO iSide = 1, nSides
   ! Get SurfElemMin
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  NSideMin = N_SurfMesh(iSide)%NSideMin
+  NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
   IF(NSideMax.EQ.NSideMin)THEN
     N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
   ELSE
-    ! From high to low
-    ! Transform the slave side to the same degree as the master: switch to Legendre basis
-    CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
-                                                                                                       tmp(1,0:NSideMax,0:NSideMax))
-     !Switch back to nodal basis
-    CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMin,0:NSideMin), &
-                                                                               N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+    ! We just evaluate the SurfElem at the gauss points of the lower degree...
+    CALL ChangeBasis2D(1,NSideMax,NSideMin,PREF_VDM(NSideMax,NSideMin)%Vdm,N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
+                                                                          N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+
+    !!!! From high to low
+    !!!! Transform the slave side to the same degree as the master: switch to Legendre basis
+    !!!CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
+    !!!                                                                                                   tmp(1,0:NSideMax,0:NSideMax))
+    !!! !Switch back to nodal basis
+    !!!CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMin,0:NSideMin), &
+    !!!                                                                           N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
   END IF ! NSideMax.EQ.NSideMin
 END DO ! iSide = 1, nSides
 
@@ -504,29 +545,34 @@ DO iElem = 1, PP_nElems
 END DO ! iElem = 1, PP_nElems
 
 DO SideID = 1, nSides
-  NSideMin = N_SurfMesh(SideID)%NSideMin
-  ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSideMin)))
+  NSide = N_SurfMesh(SideID)%NSide
+  ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%lambda=0.
-  NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  ! TODO NSideMin - LambdaMax: It is actually the "other" polynomial degree, not necessarily the maximum
+  IF(UseNSideMin)THEN
+    NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  ELSE
+    NSideMax = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+  END IF
   ALLOCATE(HDG_Surf_N(SideID)%lambdaMax(PP_nVar,nGP_face(NSideMax)))
   HDG_Surf_N(SideID)%lambdaMax=0.
-  ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSideMin)))
+  ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%RHS_face=0.
-  ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSideMin)))
+  ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%mv=0.
-  ALLOCATE(HDG_Surf_N(SideID)%R(PP_nVar,nGP_face(NSideMin)))
+  ALLOCATE(HDG_Surf_N(SideID)%R(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%R=0.
-  ALLOCATE(HDG_Surf_N(SideID)%V(PP_nVar,nGP_face(NSideMin)))
+  ALLOCATE(HDG_Surf_N(SideID)%V(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%V=0.
-  ALLOCATE(HDG_Surf_N(SideID)%Z(PP_nVar,nGP_face(NSideMin)))
+  ALLOCATE(HDG_Surf_N(SideID)%Z(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%Z=0.
 #if USE_MPI
-  ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSideMin)))
+  ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%buf=0.
 #if USE_PETSC
 #else
   IF(PrecondType.EQ.1)THEN
-    ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSideMin),nGP_face(NSideMin)))
+    ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSide),nGP_face(NSide)))
     HDG_Surf_N(SideID)%buf2=0.
   END IF ! PrecondType.EQ.1
 #endif /*USE_PETSC*/
@@ -553,7 +599,7 @@ CALL BuildPrecond()
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
   IF(MaskedSide(SideID).GT.0) CYCLE ! Skip Dirichlet sides (but keep small mortar sides)
-  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSide)
 END DO
 
 ! 3.1.2) Calculate nGlobalPETScDOFs
@@ -577,7 +623,7 @@ ALLOCATE(OffsetGlobalPETScDOF(nSides))
 DO SideID=1,nSides-nMPISides_YOUR
   IF(MaskedSide(SideID).GT.0) CYCLE
   OffsetGlobalPETScDOF(SideID) = OffsetCounter
-  OffsetCounter = OffsetCounter + nGP_face(N_SurfMesh(SideID)%NSideMin)
+  OffsetCounter = OffsetCounter + nGP_face(N_SurfMesh(SideID)%NSide)
 END DO
 #if USE_MPI
 CALL StartReceiveMPIDataInt(1,OffsetGlobalPETScDOF,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
@@ -591,7 +637,7 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 ! 4. Add the nMPISides_YOUR to nLocalPETScDOFs
 DO SideID=nSides-nMPISides_YOUR+1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
-  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSideMin)
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSide)
 END DO
 #endif
 
@@ -601,7 +647,7 @@ ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds))
 iLocalPETScDOF = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
-  DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSideMin)
+  DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSide)
     iLocalPETScDOF = iLocalPETScDOF + 1
     LocalToGlobalPETScDOF(iLocalPETScDOF) = OffsetGlobalPETScDOF(SideID) + iDOF - 1
   END DO
@@ -2253,18 +2299,19 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
     ALLOCATE(lambdaLB(PP_nVar,nGP_face(NMax)+1,firstSide:lastSide)) ! +1 comes from the NSideMin info that is sent additionally
+    ! TODO NSideMin - What?
     lambdaLB=0.
   END ASSOCIATE
   IF(nProcessors.GT.1) CALL GetMasteriLocSides()
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
+    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSideMin)
+      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides
