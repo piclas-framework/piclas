@@ -46,7 +46,7 @@ USE MOD_Particle_Readin
 USE MOD_Particle_Restart_Vars
 ! DSMC
 USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,VibQuantsPar,PolyatomMolDSMC,SpecDSMC
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 ! Localization
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad

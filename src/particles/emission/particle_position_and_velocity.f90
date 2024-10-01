@@ -416,15 +416,6 @@ ELSE
     IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
   END DO
   Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
-  ParticleIndexNbr = 1
-  ALLOCATE(AcceptedParts(0:chunkSize))
-  AcceptedParts=-1
-  AcceptedParts(0)=0
-  DO i = 1,chunkSize
-    AcceptedParts(i) = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend),doHALO=.FALSE.)
-    IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
-  END DO
-  Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
   IF (Species(FractNbr)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(AcceptedParts(0))
   DO i = 1,chunkSize
     ! Find a free position in the PDM array

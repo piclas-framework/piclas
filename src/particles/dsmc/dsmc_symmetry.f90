@@ -933,7 +933,6 @@ SUBROUTINE DSMC_InitVarWeighting()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Restart_Vars            ,ONLY: DoRestart
-USE MOD_PARTICLE_Vars           ,ONLY: PDM
 USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles, AdaptMPF
 USE MOD_part_tools              ,ONLY: CalcAverageMPF, CalcScalePoint
 ! IMPLICIT VARIABLE HANDLING
