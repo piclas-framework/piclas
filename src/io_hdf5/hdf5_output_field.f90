@@ -314,7 +314,7 @@ END DO ! Nloc = 1, NMax
 nSurfSample = NMax+1
 
 ALLOCATE(helpArray(nVarSurfData,1:nSurfSample,1:nSurfSample,nComputeNodeSurfTotalSides))
-helpArray = 0.
+helpArray = 0. ! Must be zero because it will be summed up over MPI
 
 ! Loop over all local boundary sides
 DO BCSideID=1,nBCSides
@@ -322,7 +322,7 @@ DO BCSideID=1,nBCSides
   ! Exclude periodic sides
   iBC = BC(BCSideID)
   BCType = Boundarytype(iBC,BC_TYPE)
-  IF(BCType.EQ.1) CYCLE ! Skip periodic side
+  IF(BCType.EQ.1) CYCLE ! Skip periodic sides
 
   ! Exclude non-VDL boundaries
   iPartBound = PartBound%MapToPartBC(iBC)
@@ -349,8 +349,8 @@ DO BCSideID=1,nBCSides
                                       helpArray(1:nVarSurfData-2,1:nSurfSample,1:nSurfSample,iSurfSide) )
 
     ! Set iBC and iPartBound
-    helpArray(1:nVarSurfData-1,1:nSurfSample,1:nSurfSample,iSurfSide) = iBC        ! iBC
-    helpArray(1:nVarSurfData  ,1:nSurfSample,1:nSurfSample,iSurfSide) = iPartBound ! iPartBound
+    helpArray(nVarSurfData-1,1:nSurfSample,1:nSurfSample,iSurfSide) = REAL(iBC)        ! iBC
+    helpArray(nVarSurfData  ,1:nSurfSample,1:nSurfSample,iSurfSide) = REAL(iPartBound) ! iPartBound
   END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 END DO ! BCSideID=1,nBCSides
 
