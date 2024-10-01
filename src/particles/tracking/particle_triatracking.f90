@@ -183,6 +183,9 @@ DO i = 1,PDM%ParticleVecLength
   IF(RadialWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
       CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
+    END IF
+  ELSE IF(VarWeighting%PerformCloning) THEN
+    IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
       CALL DSMC_VariableWeighting(i,PEM%GlobalElemID(i))
     END IF
   END IF

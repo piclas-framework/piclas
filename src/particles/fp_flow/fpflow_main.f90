@@ -72,6 +72,8 @@ INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
+DoElement = .FALSE.
+
 DO iElem = 1, nElems
   CNElemID = GetCNElemID(iElem + offsetElem)
   nPart = PEM%pNumber(iElem)

@@ -75,6 +75,8 @@ INTEGER, ALLOCATABLE  :: iPartIndx_Node(:)
 LOGICAL               :: DoElement(nElems)
 REAL                  :: dens, partWeight, totalWeight
 !===================================================================================================================================
+DoElement = .FALSE.
+
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
 ELSE
