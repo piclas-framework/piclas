@@ -64,6 +64,9 @@ END TYPE tVarVibRelaxProb
 
 TYPE(tVarVibRelaxProb) VarVibRelaxProb
 
+LOGICAL                       :: DoSpeciesWeighting         ! Enables different MPFs for different species
+LOGICAL                       :: DovMPF_nonAvCollProb
+
 TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
   INTEGER                     :: NextClone
@@ -354,6 +357,10 @@ TYPE tPairData
   REAL                          :: Prob                         ! collision probability
   INTEGER                       :: iPart_p1                     ! first particle of the pair
   INTEGER                       :: iPart_p2                     ! second particle of the pair
+  REAL                          :: ProbVelChange_12             ! Probability of velocity change in collision for DoSpeciesWeighting
+  REAL                          :: ProbVelChange_21             ! Probability of velocity change in collision for DoSpeciesWeighting
+  LOGICAL                       :: DoVelChange1                 ! Flag for velocity change in collision for DoSpeciesWeighting
+  LOGICAL                       :: DoVelChange2                 ! Flag for velocity change in collision for DoSpeciesWeighting
   INTEGER                       :: PairType                     ! type of pair (=iCase, CollInf%Coll_Case)
   REAL                          :: Ec                           ! Collision Energy
   LOGICAL                       :: NeedForRec                   ! Flag if pair is needed for Recombination

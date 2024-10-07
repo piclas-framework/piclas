@@ -171,6 +171,8 @@ CALL prms%CreateStringOption(   'IMDInputFile'                , 'Laser data file
 ! Variable particle weighting factor
 CALL prms%SetSection("vMPF")
 CALL prms%CreateLogicalOption(  'Part-vMPF'                   , 'Flag to use variable Macro Particle Factor.'    , '.FALSE.')
+CALL prms%CreateLogicalOption(  'Part-DoSpeciesWeighting'       , 'Flag to use Species Weighting to use different Macro Particle'//&
+                                                                      'Factors for different species.' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-BGGasSplit'             , 'Flag to use variable vMPF splitting for BGGas.' , '.FALSE.')
 CALL prms%CreateIntOption(      'Part-Species[$]-vMPFMergeThreshold', 'Particle number threshold for merge routines' //&
                                                                       'per cell and species.', '0',numberedmulti=.TRUE.)
@@ -484,7 +486,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting, DSMC_InitVarWeighting
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
+USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, DoSpeciesWeighting, VarWeighting, AdaptMPF
 USE MOD_DSMC_AdaptMPF          ,ONLY: DSMC_InitAdaptiveWeights
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
@@ -550,6 +552,19 @@ END IF ! ManualTimeStepParticle.GT.0.0
 nSpecies = GETINT('Part-nSpecies','1')
 IF(nSpecies.LE.0) CALL abort(__STAMP__,'ERROR: nSpecies .LE. 0:', nSpecies)
 ALLOCATE(Species(1:nSpecies))
+
+! SpeciesWeighting with different MPF (only for DSMC - todo for BGK/FP: no Species(1)%MacroParticleFactor)
+DoSpeciesWeighting = GETLOGICAL('Part-DoSpeciesWeighting')
+IF (DoSpeciesWeighting) THEN
+  useVMPF = .TRUE.
+  IF (UseVarTimeStep) CALL abort(__STAMP__&
+  ,'ERROR: DoSpeciesWeighting not possible with variable time step')
+#if (PP_TimeDiscMethod==300)
+  CALL abort(__STAMP__,'ERROR: SpeciesWeighting not possible with FP')
+#elif (PP_TimeDiscMethod==400)
+  CALL abort(__STAMP__,'ERROR: SpeciesWeighting not possible with BGK')
+#endif
+END IF
 
 CALL InitializeSpeciesParameter()
 CALL InitializeVariablesSpeciesInits()

@@ -61,6 +61,8 @@ CALL prms%CreateIntOption(    'Particles-RadialWeighting-SurfFluxSubSides', &
                               'error in the particle distribution across the cell (visible in the number density)', '20')
 CALL prms%CreateLogicalOption('Particles-VisuMPF', 'Activates a visualization of the predefined MPF in each sub-cell', '.FALSE.')
 CALL prms%CreateLogicalOption('Part-VariableWeighting', 'Activates a variable weighting in 3D', '.FALSE.')
+CALL prms%CreateLogicalOption('Part-VarWeighting-NonAverageCollProb', 'Activates a variable weighting in 3D, with a non average '//&
+                              'collision probability', '.FALSE.')
 CALL prms%CreateIntOption(    'Part-VarWeighting-nScalePointsMPF', &
                               'Number of coordinates with distinct weighting factors', '2')
 CALL prms%CreateIntOption(    'Part-VarWeighting-CoordinateAxis', &
@@ -933,7 +935,7 @@ SUBROUTINE DSMC_InitVarWeighting()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Restart_Vars            ,ONLY: DoRestart
-USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles, AdaptMPF
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles, AdaptMPF, DovMPF_nonAvCollProb
 USE MOD_part_tools              ,ONLY: CalcAverageMPF, CalcScalePoint
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -980,6 +982,9 @@ VarWeighting%CloneMode       = GETINT('Part-VarWeighting-CloneMode')
 VarWeighting%CloneInputDelay = GETINT('Part-VarWeighting-CloneDelay')
 ! Cell local variable weighting (all particles have the same weighting factor within a cell)
 VarWeighting%CellLocalWeighting = GETLOGICAL('Part-VarWeighting-CellLocalWeighting')
+
+! Use of the minimum in the calculation of the collision probability
+DovMPF_nonAvCollProb = GETLOGICAL('Part-VariableWeighting')
 
 VarWeighting%NextClone = 0
 VarWeighting%CloneVecLengthDelta = 100
