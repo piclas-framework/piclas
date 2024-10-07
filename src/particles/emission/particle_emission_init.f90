@@ -888,21 +888,21 @@ DO iSpec=1,nSpecies
         CASE DEFAULT
           CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
         END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
+        IF(VarWeighting%DoVariableWeighting) THEN
+          Species(iSpec)%Init(iInit)%ParticleNumber=INT(Species(iSpec)%MacroParticleFactor*Species(iSpec)%Init(iInit)%ParticleNumber&
+                                                      /(VarWeighting%AverageScaleFactor),8)
+        END IF
+        IF(Symmetry%Order.LE.2) THEN
+          ! The radial scaling of the weighting factor has to be considered
+          IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
+                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
+        END IF
       CASE('background')
         ! do nothing
       CASE DEFAULT
         SWRITE(*,*) 'SpaceIC is: ', TRIM(Species(iSpec)%Init(iInit)%SpaceIC)
         CALL abort(__STAMP__,'ERROR: Unknown SpaceIC for species: ', iSpec)
       END SELECT    ! Species(iSpec)%Init(iInit)%SpaceIC
-    END IF
-    IF(VarWeighting%DoVariableWeighting) THEN
-      Species(iSpec)%Init(iInit)%ParticleNumber=INT(Species(iSpec)%MacroParticleFactor*Species(iSpec)%Init(iInit)%ParticleNumber&
-                                                  /(VarWeighting%AverageScaleFactor),8)
-    END IF
-    IF(Symmetry%Order.LE.2) THEN
-      ! The radial scaling of the weighting factor has to be considered
-      IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
-                                  INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
     END IF
     ! Sum-up the number of particles to be inserted
 #if USE_MPI
