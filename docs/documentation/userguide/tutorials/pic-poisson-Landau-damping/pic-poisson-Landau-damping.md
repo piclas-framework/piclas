@@ -1,42 +1,46 @@
 # Landau Damping (PIC, Poisson's Equation)
 
-Landau damping is a fundamental concept in plasma physics where the amplitude of electrostatic waves decreases over time without energy dissipation through collisions. This effect, first described by Lev Landau in 1946, occurs due to the resonant interaction between the wave and particles in the plasma whose velocities are close to the wave's phase velocity.
+Landau damping is a fundamental concept in plasma physics, where the amplitude of electrostatic waves decreases over time without energy dissipation through collisions. This effect, first described by Lev Landau in 1946, occurs due to the resonant interaction between the wave and particles in the plasma whose velocities are close to the wave's phase velocity.
 
-In detail, Landau damping happens because some particles in the plasma move at velocities that resonate with the phase velocity of the electrostatic wave. These particles can either gain or lose energy from the wave depending on their initial velocities. If a greater number of particles gain energy (typically slower particles that are accelerated by the wave) than lose energy (faster particles that are decelerated by the wave), the wave loses overall energy, causing its amplitude to decrease over time. This process is purely kinetic and does not rely on collisions between particles.
+In detail, Landau damping happens because some particles in the plasma move at velocities that resonate with the phase velocity of the electrostatic wave. These particles can either gain or lose energy from the wave depending on their initial velocities. If a greater number of particles gain energy (typically slower particles that are accelerated by the wave) than lose energy (faster particles that are decelerated by the wave), the wave loses energy, causing its amplitude to decrease over time. This process is purely kinetic and does not rely on collisions between particles.
 
 The phenomenon is often analyzed using the Vlasov-Poisson equations, which describe the behavior of the plasma in terms of particle velocity distributions and electric fields. Advanced mathematical techniques, such as Laplace transforms and contour integration, are used to solve these equations and derive the damping rate {cite}`finn2023numerical` {cite}`10.1063/1.1706419`. An understanding of the phenomenon using simple derivations "which does not require the application of methods of complex analysis" is shown and discussed in {cite}`physics3040059`.
 
 
-The general information needed to setup the simulation is given in the previous tutorial ({ref}`sec:tutorial-pic-poisson-plasma-wave`). 
+The general information needed to setup the simulation is given in the previous tutorial in {ref}`sec:tutorial-pic-poisson-plasma-wave`.
 
-Before beginning with the tutorial, copy the `pic-poisson-landau-damping` directory from the tutorial folder in the top level
+Before beginning with the tutorial, copy the *pic-poisson-landau-damping* directory from the tutorial folder in the top level
 directory to a separate location
 
     cp -r $PICLAS_PATH/tutorials/pic-poisson-landau-damping .
     cd pic-poisson-landau-damping
 
+where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
+
 ## Mesh Generation with HOPR (pre-processing)
 
-To create the .h5 mesh file, simply run
+First, the mesh file has to be created by running
 
     hopr hopr.ini
 
-This creates the mesh file *landau_damping_mesh.h5* in HDF5 format.This command should be run in the terminal of your newly created folder.
-Alternatively, if you do not want to run **hopr** yourself, you can also use the provided mesh. The only difference from the mesh created in previous tutorial, is the size of the simulation domain in this tutorial which is set to [$4\pi\times1\times1$] m$^{3}$ and is defined by the single block information
+within the *pic-poisson-landau-damping* directory.
+
+This creates the mesh file *landau_damping_mesh.h5* in HDF5 format.
+The size of the simulation domain is [$4\pi\times1\times1$] m$^{3}$ and is defined by the single block information
 in the line, where each node of the hexahedral element is defined
 
-    Corner         =   (/0.,0.,0.,,12.5663706144,0.,0.,,12.5663706144, ... /)
+    Corner = (/0.,0.,0.,,12.5663706144,0.,0.,,12.5663706144, ... /)
 
 The number of mesh elements for the block in each direction can be adjusted by changing the line
 
-    nElems         = (/30,1,1/)                ! number of elements in each direction (x,y,z)
+    nElems = (/30,1,1/) ! number of elements in each direction (x,y,z)
 
 Each side of the block has to be assigned a boundary index, which corresponds to the boundaries defined in the next steps
 
-    BCIndex        = (/5,3,2,4,1,6/)
+    BCIndex = (/5,3,2,4,1,6/)
 
 
-Periodic boundaries always have to be defined in the hopr.ini.
+Periodic boundaries have to be defined in the hopr.ini via
 
     !=============================================================================== !
     ! BOUNDARY CONDITIONS
@@ -55,34 +59,40 @@ Periodic boundaries always have to be defined in the hopr.ini.
     BoundaryType = (/1,0,0,-3/)  ! Periodic (-vv3)
 
     VV = (/12.5663706144 , 0.  , 0./)   ! Displacement vector 1 (x-direction)
-    VV = (/0.     , 1 , 0./)   ! Displacement vector 2 (y-direction)
-    VV = (/0.     , 0.  , 1/)  ! Displacement vector 3 (z-direction)
-
+    VV = (/0.            , 1   , 0./)   ! Displacement vector 2 (y-direction)
+    VV = (/       0.     , 0.  , 1 /)   ! Displacement vector 3 (z-direction)
 
 
 ## PIC Simulation with PICLas
 
-For the simulation make sure to set the compile flags as mentioned in the *build_settings* file to
+For the PIC simulation, following cmake compile flags are required
 
     PICLAS_EQNSYSNAME       = poisson
     LIBS_USE_PETSC          = ON
     PICLAS_READIN_CONSTANTS = ON
     PICLAS_TIMEDISCMETHOD   = Leapfrog
 
-using the ccmake (gui for cmake) or simply run the following command from inside the *build* directory
+which are forwarded to cmake by running the following command from inside the `build` directory
 
-    cmake ../ -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
+    cmake ../ -DPICLAS_READIN_CONSTANTS=ON -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
 
 to configure the build process and run
 
     make -j
 
-afterwards to compile the executable. For this setup, we have chosen the Poisson solver
-and selected the Leapfrog time discretization method. An overview over the available solver
-and discretization options is given in Section {ref}`sec:solver-settings`.
-To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run.
-To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
-create a link to the files via
+afterwards to compile the executable.
+For this setup, the Poisson solver is used with the Leapfrog time discretization method.
+An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`.
+To run the simulation, the `piclas` binary is used and to visualize the resulting `.h5` output files, the post-processing
+too `piclas2vtk` is required.
+
+The compile flag `PICLAS_READIN_CONSTANT` enables user-defined natural constants for the speed of light c0, permittivity eps and
+permeability mu of vacuum, which must then be supplied in the parameter file in this test case.
+The physical constants used for defining the species properties (mass and charge) in this tutorial are also normalized.
+
+After a successful compilation, a symbolic 
+To avoid having to use the absolute file path of the executable, an alias or a symbolic link may be created.
+To create a symbolic link within the directory of the tutorial, run
 
     ln -s $PICLAS_PATH/build/bin/piclas
     ln -s $PICLAS_PATH/build/bin/piclas2vtk
@@ -93,37 +103,32 @@ If the piclas repository is located in the home directory, the two commands
     ln -s /home/$(whoami)/piclas/build/bin/piclas
     ln -s /home/$(whoami)/piclas/build/bin/piclas2vtk
 
-can be executed.
+can directly be executed without needing to modify them.
 
-
-The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
-given by
+Note that for a given electron number density, the plasma frequency of the system is given by
 
 $$\omega_{p}=\omega_{e}=\sqrt{\frac{e^{2}n_{e}}{\varepsilon_{0}m_{e}}}~,$$
 
 which is the frequency with which the charge density of the electrons oscillates, where
 $\varepsilon_{0}$ is the permittivity of vacuum, $e$ is the elementary charge, $n_{e}$ and $m_{e}$
-are the electron density and mass, respectively.
-For the standard PIC method, the plasma frequency yields the smallest time step that has to be resolved numerically. The
-Debye length
+are the electron density and mass at rest, respectively.
+For an explicit PIC method, the plasma frequency yields the smallest time step that has to be resolved numerically.
+The Debye length
 
 $$\lambda_{D}=\sqrt{\frac{\varepsilon_{0}k_{B}T_{e}}{e^{2}n_{e}}}~,$$
 
 where $\varepsilon_{0}$ is the permittivity of vacuum, $k_{B}$ is the Boltzmann constant, $e$ is the
-elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively, gives a spatial resolution
-constraint. In this test case, however, the electron temperature is not the defining factor for the spatial resolution because of the 1D nature
-of the setup. Therefore, the resolution that is required is dictated by the gradient of the electric potential solution, i.e., the
-electric field, which accelerates the charged particles and must be adequately resolved.
-The restriction on the spatial resolution is simply the number of elements (and polynomial degree $N$) that are required to resolve
-the physical properties of the PIC simulation. If the temporal and spatial constraints are violated, the simulation will not yield
-physical results and might even result in a termination of the simulation.
-
-`PICLAS_READIN_CONSTANT` enables user-defined natural constants for the speed of light c0, permittivity eps and permeability mu of vacuum, which must then be supplied in the parameter file. The other physical parameters unlike the previous tutorial are normalized values of the species which can be found in parameter.ini and are stated later in the tutorial where parameters for the particle solver are defined.
+elementary charge and $T_{e}$ and $n_{e}$ are the electron temperature and density, respectively, sets the spatial resolution
+constraint.
+The restriction on the spatial resolution is therefore given by the number of elements (and polynomial degree $N$) that are required to resolve
+the Debye length within the PIC simulation. If the temporal and spatial constraints are violated, the simulation cannot remain
+stable over time.
 
 
 
-### General numerical setup
 
+### Numerical Setup
+The input parameters for the simulation setup are defined in *parameter.ini*.
 The general numerical parameters (defined in the parameter.ini) are selected by the following
 
     ! =============================================================================== !
@@ -161,7 +166,7 @@ between restart/checkpoint file output `Analyze_dt` (also the output time for sp
 step iterations `IterDisplayStep` between information output regarding the current status of the simulation that is written to std.out.
 The remaining parameters are selected for the field and particle solver as well as run-time analysis.
 
-### Boundary conditions
+#### Boundary conditions
 
 As there are no walls present in the setup, all boundaries are set as periodic boundary conditions for the field as well as the
 particle solver. The particle boundary conditions are set by the following lines
@@ -193,7 +198,7 @@ the boundaries (given by the hopr.ini file) and the type `periodic`. Furthermore
 of the Cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells)
 in each direction given by `Part-FactorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
 
-### Field solver
+#### Field solver
 
 The settings for the field solver (HDGSEM) are given by
 
@@ -233,7 +238,7 @@ electro(-magnetic) fields are interpolated to the position of the charged partic
 The dimension `PIC-shapefunction-dimension`, here 1D and direction `PIC-shapefunction-direction`, are selected specifically
 for the one-dimensional setup that is simulated here. The different available deposition types are described in more detail in Section {ref}`sec:PIC-deposition`.
 
-### Particle solver
+#### Particle solver
 
 For the treatment of particles, the maximum number of particles `Part-maxParticleNumber` that each processor can hold has to be supplied and
 the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
@@ -295,7 +300,7 @@ In case of the `SpaceIC=sin_deviation`, the number of simulation particles must 
 three Cartesian coordinates, which is not required for this 1D example.
 
 
-### Analysis setup
+#### Analysis setup
 
 Finally, some parameters for run-time analysis are chosen by setting them `T` (true). Further, with `TimeStampLength = 13`, the names of the output files are shortened for better postprocessing. If this is not done, e.g. Paraview does not sort the files correctly and will display faulty behaviour over time.
 
