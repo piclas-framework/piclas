@@ -412,11 +412,12 @@ IF(nDims.EQ.2) THEN
 #if USE_MPI
   sendbuf = nDOFLocal
   recvbuf = 0
-  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+  ! Each processors sums up the DOFs of the previous processors
+  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
   offsetDOF   = recvbuf
-  ! last proc knows CN total number of DOFs
+  ! Last processor (nProcessors-1) knows the total number and communicates to everybody else
   sendbuf = offsetDOF + nDOFLocal
-  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nProcessors-1,MPI_COMM_PICLAS,iError)
   nDOFTotal = sendbuf
 #else
   offsetDOF   = 0
