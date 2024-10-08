@@ -535,7 +535,7 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: GEO,ElemRadiusNGeo
 USE MOD_Particle_Surfaces_Vars      ,ONLY: SideType
 USE MOD_Particle_Tracking_Vars      ,ONLY: CartesianPeriodic, TrackInfo
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM
-USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos
+USE MOD_Particle_Vars               ,ONLY: PartState,LastPartPos,PartSpecies
 USE MOD_Utils                       ,ONLY: InsertionSort
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
@@ -741,8 +741,9 @@ DO WHILE(DoTracing)
         IF(ElemID.NE.OldElemID)THEN
           ! Try to recursively calculate the intersection 1000 times. Threshold might be changed...
           IF (iCount.GE.1000 .AND. MOD(iCount,1000).EQ.0) THEN
-            IPWRITE(*,'(I4,A,I0,A,3(1X,I0))') ' WARNING: proc has called BCTracking ',iCount &
-                                             ,'x recursively! Part, Side, Elem:'    ,PartId,SideID,ElemID
+            IPWRITE(*,'(I4,A,I0,A,4(1X,I0))') ' WARNING: proc has called BCTracking ',iCount &
+                                             ,'x recursively! Part, SpecID, Side, Elem:'    ,&
+                                           PartId,PartSpecies(PartId),SideID,ElemID
           END IF
 
           ! check if a periodic boundary was crossed during boundary interaction

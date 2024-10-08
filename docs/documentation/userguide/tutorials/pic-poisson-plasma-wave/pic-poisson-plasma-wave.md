@@ -159,12 +159,12 @@ to configure the build process and run
 
     make -j
 
-afterwards to compile the executable. For this setup, we have chosen the Poisson solver
-and selected the three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
+afterwards to compile the executable. For this setup, the Poisson solver was chosen in combination with the
+three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
 and discretization options is given in Section {ref}`sec:solver-settings`.
 
 To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be executed.
-To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
+To avoid having to use the absolute file path, you can either set aliases for both, copy them to your local tutorial directory or
 create a link to the files via
 
     ln -s $PICLAS_PATH/build_poisson_RK3/bin/piclas

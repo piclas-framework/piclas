@@ -65,14 +65,59 @@ Periodic boundaries have to be defined in the hopr.ini via
 
 ## PIC Simulation with PICLas
 
-For the PIC simulation, following cmake compile flags are required
+Install the required **piclas** executable by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
+described under Section {ref}`userguide/installation:Compiling the code`.
+Always build the code in a separate directory located in the piclas top level directory.
+For this PIC tutorial, e.g., create a directory *build_poisson_Leapfrog* in the piclas repository by running
+
+    cd $PICLAS_PATH
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd /home/$(whoami)/piclas
+
+and the create the build directory, in which the compilation process will take place
+
+    mkdir build_poisson_Leapfrog
+
+and the directory structure, which can be viewed via
+
+    ls -l
+
+should look like this
+
+     build_poisson_Leapfrog
+     cmake
+     CMakeListsLib.txt
+     CMakeListsMachine.txt
+     CMakeLists.txt
+     CONTRIBUTORS.md
+     docs
+     LICENCE.md
+     README.md
+     REFERENCE.md
+     REGGIE.md
+     regressioncheck
+     share
+     SpeciesDatabase.h5
+     src
+     tools
+     tutorials
+     unitTests
+
+Always compile the code within the *build* directory, hence, navigate to the *build_poisson_Leapfrog* directory before running cmake
+
+    cd build_poisson_Leapfrog
+
+For this specific tutorial, make sure to set the correct compile flags
 
     PICLAS_EQNSYSNAME       = poisson
     LIBS_USE_PETSC          = ON
     PICLAS_READIN_CONSTANTS = ON
     PICLAS_TIMEDISCMETHOD   = Leapfrog
 
-which are forwarded to cmake by running the following command from inside the `build` directory
+which are forwarded to cmake by running the following command from inside the `build_poisson_Leapfrog` directory
 
     cmake ../ -DPICLAS_READIN_CONSTANTS=ON -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
 
@@ -83,25 +128,24 @@ to configure the build process and run
 afterwards to compile the executable.
 For this setup, the Poisson solver is used with the Leapfrog time discretization method.
 An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`.
-To run the simulation, the `piclas` binary is used and to visualize the resulting `.h5` output files, the post-processing
-too `piclas2vtk` is required.
+To run the simulation, the *piclas* binary is used and to visualize the resulting *.h5* output files, the post-processing
+too *piclas2vtk* is required to convert them into the standard *.vtu* format.
 
-The compile flag `PICLAS_READIN_CONSTANT` enables user-defined natural constants for the speed of light c0, permittivity eps and
-permeability mu of vacuum, which must then be supplied in the parameter file in this test case.
+The compile flag `PICLAS_READIN_CONSTANT=ON` enables user-defined natural constants for the speed of light $c0$, permittivity $eps$ and
+permeability $mu$ of vacuum, which must then be supplied in the parameter input file in this test case.
 The physical constants used for defining the species properties (mass and charge) in this tutorial are also normalized.
 
-After a successful compilation, a symbolic 
-To avoid having to use the absolute file path of the executable, an alias or a symbolic link may be created.
+To avoid having to use the absolute file path of the executables, an alias or a symbolic link may be created.
 To create a symbolic link within the directory of the tutorial, run
 
-    ln -s $PICLAS_PATH/build/bin/piclas
-    ln -s $PICLAS_PATH/build/bin/piclas2vtk
+    ln -s $PICLAS_PATH/build_poisson_Leapfrog/bin/piclas
+    ln -s $PICLAS_PATH/build_poisson_Leapfrog/bin/piclas2vtk
 
 where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
 If the piclas repository is located in the home directory, the two commands
 
-    ln -s /home/$(whoami)/piclas/build/bin/piclas
-    ln -s /home/$(whoami)/piclas/build/bin/piclas2vtk
+    ln -s /home/$(whoami)/piclas/build_poisson_Leapfrog/bin/piclas
+    ln -s /home/$(whoami)/piclas/build_poisson_Leapfrog/bin/piclas2vtk
 
 can directly be executed without needing to modify them.
 
@@ -125,11 +169,8 @@ the Debye length within the PIC simulation. If the temporal and spatial constrai
 stable over time.
 
 
-
-
 ### Numerical Setup
-The input parameters for the simulation setup are defined in *parameter.ini*.
-The general numerical parameters (defined in the parameter.ini) are selected by the following
+The input parameters for the simulation setup are defined in *parameter.ini* and the general numerical parameters are the following
 
     ! =============================================================================== !
     ! DISCRETIZATION
@@ -146,19 +187,18 @@ The general numerical parameters (defined in the parameter.ini) are selected by 
     ! =============================================================================== !
     ProjectName       = landau_damping      ! Project name that is used for naming state files
     doPrintStatusLine = T                   ! Output live of ETA
-    TrackingMethod    = refmapping
 
-where, among others, the polynomial degree $N$, the path to the mesh file `MeshFile`, project name and the option to print the ETA
-to the terminal output in each time step.
+where, among others, the polynomial degree $N$ (results in a spatial order of convergence of $N+1$), the path to the mesh file
+`MeshFile`, project name and the option to print the ETA to the terminal output in each time step.
 
 The temporal parameters of the simulation are controlled via
 
     ! =============================================================================== !
     ! CALCULATION
     ! =============================================================================== !
-    ManualTimeStep  = 0.1 ! Fixed pre-defined time step only when using the Poisson solver. Maxwell solver calculates dt that considers the CFL criterion
+    ManualTimeStep  = 0.1 ! Fixed pre-defined time step only when using the Poisson solver.
     tend            = 5e1 ! Final simulation time
-    Analyze_dt      = 1   ! Simulation time between analysis
+    Analyze_dt      = 1   ! Simulation time between analysis output to .h5
     IterDisplayStep = 10  ! Number of iterations between terminal output showing the current time step iteration
 
 where the time step for the field and particle solver is set via `ManualTimeStep`, the final simulation time `tend`, the time
@@ -240,19 +280,17 @@ for the one-dimensional setup that is simulated here. The different available de
 
 #### Particle solver
 
-For the treatment of particles, the maximum number of particles `Part-maxParticleNumber` that each processor can hold has to be supplied and
-the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
-through chemical reactions).
+The number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
+through chemical reactions) defines the number of subsequent parameters that will be defined in the parameter input file
 
     ! =============================================================================== !
     ! PARTICLE Emission
     ! =============================================================================== !
-    Part-maxParticleNumber    = 40101 ! Maximum number of particles (per processor/thread)
-    Part-nSpecies             = 2     ! Number of particle species
+    Part-nSpecies = 2 ! Number of particle species
 
-The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation
-is controlled via the following parameters. Here, only
-the parameters for the electrons are shown, however, the parameters for the ions are set analogously and included in the supplied parameter.ini.
+The creation (sometimes labelled emission or initialization) of particles at the beginning or during the simulation
+is controlled via the following parameters. Here, the parameters for the electrons are shown, however, the parameters for the ions
+are set analogously and included in the supplied parameter.ini.
 For each species, the mass (`Part-SpeciesX-MassIC`), charge (`Part-SpeciesX-ChargeIC`) and weighting factor (`Part-SpeciesX-MacroParticleFactor`)
 have to be defined.
 
@@ -272,9 +310,9 @@ equidistantly on a line and dislocates them in a cosine pattern, representing an
 Each type of the initialization set might have a different set of parameters and an overview is given in Section
 {ref}`sec:particle-initialization-and-emission`.
 
+    Part-Species1-Init1-SpaceIC               = cos_distribution          ! Cosine distribution is space
     Part-Species1-Init1-ParticleNumber        = 40000                     ! Number of simulation particles for species #1 and initialization #1
     Part-Species1-Init1-maxParticleNumber-x   = 40000                     ! Number of simulation particles in x-direction for species #1 and initialization #1
-    Part-Species1-Init1-SpaceIC               = cos_distribution          ! Cosine distribution is space
     Part-Species1-Init1-velocityDistribution  = maxwell_distribution_1D   ! Constant velocity distribution
     Part-Species1-Init1-MWTemperatureIC       = 0.72429730341e23          ! Translational temprature 
     Part-Species1-Init1-maxParticleNumber-y   = 1                         ! Number of particles in y
@@ -437,7 +475,6 @@ The best fit line (analytical) in {numref}`fig:plasma-wave-visual` was calculate
 $$ 002-E-El = a \cdot e^{b*001-time} $$
 
 In plasma physics, the electric field oscillates periodically. The term "frequency of oscillations" refers to how often the electric field completes a full cycle of oscillation per unit time. The maximum value of the electric field, denoted as $E_{max}$​, reaches its peak value twice during each full cycle of the electric field's oscillation. Therefore, for every complete oscillation of the electric field, $E_{max}$​ hits its maximum value twice. This implies that the number of $E_{max}$​ peaks observed is double the number of full oscillations of the electric field itself. Thus, if we count the oscillations of $E_{max}$​, we get twice the number of full electric field oscillations.
-
 
 
 
