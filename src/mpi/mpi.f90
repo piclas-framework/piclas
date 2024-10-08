@@ -185,33 +185,17 @@ IF(.NOT.InterpolationInitIsDone) CALL Abort(__STAMP__,'InitMPITypes called befor
 ALLOCATE(SendRequest_U(nNbProcs)     )
 ALLOCATE(SendRequest_U2(nNbProcs)     )
 ALLOCATE(SendRequest_GEO(nNbProcs)     )
-!ALLOCATE(SendRequest_UMinus(nNbProcs)     )
 ALLOCATE(SendRequest_Flux(nNbProcs)  )
-ALLOCATE(SendRequest_gradUx(nNbProcs))
-ALLOCATE(SendRequest_gradUy(nNbProcs))
-ALLOCATE(SendRequest_gradUz(nNbProcs))
 ALLOCATE(RecRequest_U(nNbProcs)     )
 ALLOCATE(RecRequest_U2(nNbProcs)     )
 ALLOCATE(RecRequest_Geo(nNbProcs)     )
-!ALLOCATE(RecRequest_UMinus(nNbProcs)     )
 ALLOCATE(RecRequest_Flux(nNbProcs)  )
-ALLOCATE(RecRequest_gradUx(nNbProcs))
-ALLOCATE(RecRequest_gradUy(nNbProcs))
-ALLOCATE(RecRequest_gradUz(nNbProcs))
 SendRequest_U      = MPI_REQUEST_NULL
 SendRequest_U2      = MPI_REQUEST_NULL
-!SendRequest_UMinus           = MPI_REQUEST_NULL
 SendRequest_Flux   = MPI_REQUEST_NULL
-SendRequest_gradUx = MPI_REQUEST_NULL
-SendRequest_gradUy = MPI_REQUEST_NULL
-SendRequest_gradUz = MPI_REQUEST_NULL
 RecRequest_U       = MPI_REQUEST_NULL
 RecRequest_U2       = MPI_REQUEST_NULL
-!RecRequest_UMinus            = MPI_REQUEST_NULL
 RecRequest_Flux    = MPI_REQUEST_NULL
-RecRequest_gradUx  = MPI_REQUEST_NULL
-RecRequest_gradUy  = MPI_REQUEST_NULL
-RecRequest_gradUz  = MPI_REQUEST_NULL
 SendRequest_Geo    = MPI_REQUEST_NULL
 RecRequest_Geo     = MPI_REQUEST_NULL
 DataSizeSide  =(PP_N+1)*(PP_N+1)
@@ -1436,16 +1420,9 @@ SDEALLOCATE(SendRequest_U2)
 SDEALLOCATE(SendRequest_Flux)
 SDEALLOCATE(SendRequest_GEO)
 SDEALLOCATE(RecRequest_Geo)
-!ALLOCATE(SendRequest_UMinus(nNbProcs)     )
-SDEALLOCATE(SendRequest_gradUx)
-SDEALLOCATE(SendRequest_gradUy)
-SDEALLOCATE(SendRequest_gradUz)
 SDEALLOCATE(RecRequest_U)
 SDEALLOCATE(RecRequest_U2)
 SDEALLOCATE(RecRequest_Flux)
-SDEALLOCATE(RecRequest_gradUx)
-SDEALLOCATE(RecRequest_gradUy)
-SDEALLOCATE(RecRequest_gradUz)
 SDEALLOCATE(nMPISides_send)
 SDEALLOCATE(OffsetMPISides_send)
 SDEALLOCATE(nMPISides_rec)
