@@ -271,7 +271,7 @@ USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_HDF5_input             ,ONLY: ReadAttribute
 #if USE_MPI
 USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank,nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
 #endif /*USE_MPI*/
 !#if MPI
@@ -300,7 +300,7 @@ INTEGER              :: sendbuf,recvbuf
 ! Only shared memory leaders load the data from .h5
 IF(myComputeNodeRank.EQ.0)THEN
 #endif
-  CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS)
+  CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS_SHARED)
   CALL DatasetExists(File_ID,'SurfaceDataGlobalSideIndex',ContainerExists)
   IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceDataGlobalSideIndex container not in '//TRIM(RadiationSurfState))
   CALL GetDataSize(File_ID,'SurfaceDataGlobalSideIndex',nDims,HSize,attrib=.FALSE.)
