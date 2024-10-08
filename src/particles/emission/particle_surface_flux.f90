@@ -1205,6 +1205,8 @@ END SUBROUTINE CalcConstMassflowWeight
 
 !===================================================================================================================================
 !> SurfaceFlux: Determine the particle velocity of each inserted particle when inserted at a surface
+!> Based on: Garcia, A. L., & Wagner, W. (2006). Generation of the Maxwellian inflow distribution. Journal of Computational Physics,
+!>           217(2), 693–708. https://doi.org/10.1016/j.jcp.2006.01.025
 !===================================================================================================================================
 SUBROUTINE SetSurfacefluxVelocities(Mode,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartIns,particle_xis)
 ! MODULES

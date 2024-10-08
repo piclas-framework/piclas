@@ -27,7 +27,7 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Sampling of elements with a boundary for adaptive surface flux and porous BC
 LOGICAL                                 :: UseAdaptiveBC                  ! Flag is set if an adaptive boundary is present
-LOGICAL                                 :: AdaptBCAverageValBC            ! Flag to enable/disable averaging accross the whole BC
+LOGICAL                                 :: AdaptBCAverageValBC            ! Flag to enable/disable averaging across the whole BC
 REAL, ALLOCATABLE                       :: AdaptBCAverageMacroVal(:,:,:)  ! Macroscopic values averaged over BC
                                                                           ! (1:3, 1:nSpecies, 1:nSurfaceFluxBCs)
                                                                           !  1: Number density
