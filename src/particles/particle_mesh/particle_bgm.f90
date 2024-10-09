@@ -713,13 +713,18 @@ ELSE
   ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
-  IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (PartBound%UseRotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (PartBound%UseInterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-
+  IF (MeshHasPeriodic) THEN
+    CALL CheckPeriodicSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
+  IF (PartBound%UseRotPeriodicBC) THEN
+    CALL CheckRotPeriodicSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
+  IF (PartBound%UseInterPlaneBC) THEN
+    CALL CheckInterPlaneSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
   ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
   !
   !   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with

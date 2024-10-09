@@ -299,8 +299,10 @@ INTEGER              :: sendbuf,recvbuf
 #if USE_MPI
 ! Only shared memory leaders load the data from .h5
 IF(myComputeNodeRank.EQ.0)THEN
-#endif
   CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS_SHARED)
+#else
+  CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.TRUE. ,readOnly=.TRUE.)
+#endif
   CALL DatasetExists(File_ID,'SurfaceDataGlobalSideIndex',ContainerExists)
   IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceDataGlobalSideIndex container not in '//TRIM(RadiationSurfState))
   CALL GetDataSize(File_ID,'SurfaceDataGlobalSideIndex',nDims,HSize,attrib=.FALSE.)
