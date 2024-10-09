@@ -730,7 +730,7 @@ DO WHILE(DoTracing)
         TrackInfo%alpha = locAlpha(ilocSide)
         TrackInfo%xi    = xi(hitlocSide)
         TrackInfo%eta   = eta(hitlocSide)
-        CALL GetBoundaryInteraction(PartId,SideID,flip,ElemID,reflected)
+        CALL GetBoundaryInteraction(PartID,SideID,flip,ElemID,reflected)
         PartTrajectory = TrackInfo%PartTrajectory(1:3)
         lengthPartTrajectory = TrackInfo%lengthPartTrajectory
         locAlpha(ilocSide) = TrackInfo%alpha
@@ -741,9 +741,8 @@ DO WHILE(DoTracing)
         IF(ElemID.NE.OldElemID)THEN
           ! Try to recursively calculate the intersection 1000 times. Threshold might be changed...
           IF (iCount.GE.1000 .AND. MOD(iCount,1000).EQ.0) THEN
-            IPWRITE(*,'(I4,A,I0,A,4(1X,I0))') ' WARNING: proc has called BCTracking ',iCount &
-                                             ,'x recursively! Part, SpecID, Side, Elem:'    ,&
-                                           PartId,PartSpecies(PartId),SideID,ElemID
+            IPWRITE(*,'(I4,A,I8,A,3(1X,G0),A,4(1X,I0))') ' WARNING: proc has called BCTracking ',iCount ,'x recursively. xyz-pos',&
+              PartState(1:3,PartID),' PartID, SpecID, SideID, ElemID:',PartID,PartSpecies(PartID),SideID,ElemID
           END IF
 
           ! check if a periodic boundary was crossed during boundary interaction
