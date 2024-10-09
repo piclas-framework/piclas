@@ -117,7 +117,7 @@ For this specific tutorial, make sure to set the correct compile flags
     PICLAS_READIN_CONSTANTS = ON
     PICLAS_TIMEDISCMETHOD   = Leapfrog
 
-which are forwarded to cmake by running the following command from inside the `build_poisson_Leapfrog` directory
+which are forwarded to cmake by running the following command from inside the *build_poisson_Leapfrog* directory
 
     cmake ../ -DPICLAS_READIN_CONSTANTS=ON -DLIBS_USE_PETSC=0N -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog
 
@@ -131,8 +131,8 @@ An overview over the available solver and discretization options is given in Sec
 To run the simulation, the *piclas* binary is used and to visualize the resulting *.h5* output files, the post-processing
 too *piclas2vtk* is required to convert them into the standard *.vtu* format.
 
-The compile flag `PICLAS_READIN_CONSTANT=ON` enables user-defined natural constants for the speed of light $c0$, permittivity $eps$ and
-permeability $mu$ of vacuum, which must then be supplied in the parameter input file in this test case.
+The compile flag `PICLAS_READIN_CONSTANT=ON` enables user-defined natural constants for the speed of light $c$, permittivity $\varepsilon_0$ and
+permeability $\mu$ of vacuum, which must then be supplied in the parameter input file in this test case.
 The physical constants used for defining the species properties (mass and charge) in this tutorial are also normalized.
 
 To avoid having to use the absolute file path of the executables, an alias or a symbolic link may be created.
@@ -265,18 +265,29 @@ from particle locations to the grid) are selected via
     ! =============================================================================== !
     ! PIC: Interpolation/Deposition
     ! =============================================================================== !
-    PIC-DoInterpolation            = T                        ! Activate Lorentz forces acting on charged particles
-    PIC-Interpolation-Type         = particle_position        ! Field interpolation method for Lorentz force calculation
-    PIC-Deposition-Type            = shape_function           ! Particle-field coupling method. shape_function_adaptive determines the cut-off radius of the shape function automatically
-    PIC-shapefunction-radius       = 0.5
-    PIC-shapefunction-dimension    = 1                        ! Shape function specific dimensional setting
-    PIC-shapefunction-direction    = 1                        ! Shape function specific coordinate direction setting
-    PIC-shapefunction-alpha        = 10                       ! Shape function specific parameter that scales the waist diameter of the shape function
+    PIC-DoInterpolation             = T              ! Activate Lorentz forces acting on charged particles
+    PIC-DoDeposition                = T              ! Activate charge deposition to the grid
+    PIC-Deposition-Type             = shape_function ! Particle-field coupling method. shape_function_adaptive determines the cut-off radius of the shape function automatically
+    PIC-shapefunction-dimension     = 1              ! Sets the shape function 1D (the default is 3D)
+    PIC-shapefunction-direction     = 1              ! Sets the axial direction of the 1D shape function (1:x, 2:y, 3:z)
+    PIC-shapefunction-alpha         = 10             ! Sets the shape function exponent, which effectively scales the waist diameter of the shape function
+    PIC-shapefunction-radius        = 0.5            ! Radius of influence for the shape function deposition method
+    PIC-shapefunction-3D-deposition = F              ! Deposit the charge over volume (3D) is true or over a line (1D) or area (2D) if set false
 
-where the interpolation type `PIC-Interpolation-Type = particle_position` is currently the only option for specifying how
-electro(-magnetic) fields are interpolated to the position of the charged particles.
-The dimension `PIC-shapefunction-dimension`, here 1D and direction `PIC-shapefunction-direction`, are selected specifically
-for the one-dimensional setup that is simulated here. The different available deposition types are described in more detail in Section {ref}`sec:PIC-deposition`.
+Electro(-magnetic) forces that act on charged particles and accelerate these are activated by setting `PIC-DoInterpolation=T`.
+The deposition of charges to the grid, which is required to consider source terms in the field solver, is activated via `PIC-DoDeposition=T`.
+For the deposition method, the shape function is selected via `PIC-Deposition-Type=shape_function`, which has multiple additional
+parameters to set the dimensionality and form of the shape function.
+The dimension `PIC-shapefunction-dimension=1` and direction `PIC-shapefunction-direction=1` sets a 1D shape function in
+x-direction and are specific to the one-dimensional setup that is simulated here.
+The form of the shape function is adjusted by setting the radius of influence via `PIC-shapefunction-radius = 0.5` and the waist
+radius via `PIC-shapefunction-alpha = 10`.
+The parameter `PIC-shapefunction-3D-deposition` decides whether the charge is deposited in a volume or on a line/area, depending on
+the dimensionality that is set for the shape function.
+The different available deposition types are described in more detail in Section {ref}`sec:PIC-deposition` and piclas can display a
+help section for the deposition methods by running
+
+    ./piclas --help "PIC Deposition"
 
 #### Particle solver
 
@@ -475,7 +486,6 @@ The best fit line (analytical) in {numref}`fig:plasma-wave-visual` was calculate
 $$ 002-E-El = a \cdot e^{b*001-time} $$
 
 In plasma physics, the electric field oscillates periodically. The term "frequency of oscillations" refers to how often the electric field completes a full cycle of oscillation per unit time. The maximum value of the electric field, denoted as $E_{max}$​, reaches its peak value twice during each full cycle of the electric field's oscillation. Therefore, for every complete oscillation of the electric field, $E_{max}$​ hits its maximum value twice. This implies that the number of $E_{max}$​ peaks observed is double the number of full oscillations of the electric field itself. Thus, if we count the oscillations of $E_{max}$​, we get twice the number of full electric field oscillations.
-
 
 
 
