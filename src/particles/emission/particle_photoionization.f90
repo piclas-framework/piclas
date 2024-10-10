@@ -422,7 +422,7 @@ DO iVar = 1, 2
                 ! Get the physical coordinates that correspond to the reference coordinates
                 CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),RandomPos(1:3))
                 IF(TrackingMethod.EQ.TRIATRACKING) THEN
-                  CALL ParticleInsideQuad3D(RandomPos,iElem,positionIsInside)
+                  CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,positionIsInside)
                 ELSE
                   positionIsInside = .TRUE.
                 END IF
