@@ -954,12 +954,110 @@ END SUBROUTINE CalcPartInsRadWeight
 !===================================================================================================================================
 !>
 !===================================================================================================================================
+SUBROUTINE CalcPartPosVarWeight(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,PartInsSideVarWeight,particle_positions,allowedRejections)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec, iSF, iSide
+INTEGER, INTENT(IN)         :: PartInsSubSide, PartInsSideVarWeight(:)
+REAL, INTENT(IN)            :: minPos(2), RVec(2)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER, INTENT(OUT)        :: allowedRejections
+REAL, INTENT(OUT)           :: particle_positions(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                        :: RandVal1, PminTemp, PmaxTemp, Particle_pos(2)
+INTEGER                     :: iSub, iPart, iPartSub, allowedRejectionsSub
+!===================================================================================================================================
+iPart=1
+allowedRejections = 0
+IF (VarWeighting%DoVariableWeighting.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
+  IF(VarWeighting%CellLocalWeighting) THEN
+    DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
+      CALL RANDOM_NUMBER(RandVal1)
+      Particle_pos(2) = minPos(2) + RandVal1 * RVec(2)
+      ! x-position depending on the y-location
+      Particle_pos(1) = minPos(1) + (Particle_pos(2)-minPos(2)) * RVec(1) / RVec(2)
+      particle_positions(iPart*3-2) = Particle_pos(1)
+      particle_positions(iPart*3-1) = Particle_pos(2)
+      particle_positions(iPart*3  ) = 0.
+      IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+        IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
+          allowedRejections = allowedRejections + 1
+          CYCLE
+        END IF
+      END IF ! CircularInflow
+      iPart = iPart + 1
+    END DO
+  ELSE
+    DO iSub = 1, VarWeighting%nSubSides
+      iPartSub = 1
+      allowedRejectionsSub = 0
+      DO WHILE (iPartSub+allowedRejectionsSub.LE.PartInsSideVarWeight(iSub))
+        CALL RANDOM_NUMBER(RandVal1)
+        PminTemp = minPos(2) + RVec(2)/VarWeighting%nSubSides*(iSub-1.)
+        PmaxTemp = minPos(2) + RVec(2)/VarWeighting%nSubSides*iSub
+        Particle_pos(2) = PminTemp + RandVal1 * (PmaxTemp - PminTemp)
+        ! x-position depending on the y-location
+        Particle_pos(1) = minPos(1) + (Particle_pos(2)-minPos(2)) * RVec(1) / RVec(2)
+        particle_positions(iPart*3-2) = Particle_pos(1)
+        particle_positions(iPart*3-1) = Particle_pos(2)
+        particle_positions(iPart*3  ) = 0.
+        IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+          IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
+            allowedRejectionsSub = allowedRejectionsSub + 1
+            CYCLE
+          END IF
+        END IF ! CircularInflow
+        iPart = iPart + 1
+        iPartSub = iPartSub + 1
+      END DO
+      allowedRejections = allowedRejections + allowedRejectionsSub
+    END DO
+  END IF
+ELSE
+  DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
+    CALL RANDOM_NUMBER(RandVal1)
+    IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+      ! y_min = y_max, faces parallel to x-direction, constant distribution
+      Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
+    ELSE
+    ! No VarWeighting, regular linear distribution of particle positions
+      Particle_pos(1:2) = minPos(1:2) + RVec(1:2) &
+          * ( SQRT(RandVal1*((minPos(2) + RVec(2))**2-minPos(2)**2)+minPos(2)**2) - minPos(2) ) / (RVec(2))
+    END IF
+    particle_positions(iPart*3-2) = Particle_pos(1)
+    particle_positions(iPart*3-1) = Particle_pos(2)
+    particle_positions(iPart*3  ) = 0.
+    IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
+      IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
+        allowedRejections = allowedRejections + 1
+        CYCLE
+      END IF
+    END IF ! CircularInflow
+    iPart = iPart + 1
+  END DO
+END IF
+
+END SUBROUTINE CalcPartPosVarWeight
+
+
+!===================================================================================================================================
+!>
+!===================================================================================================================================
 SUBROUTINE CalcPartInsVarWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide, PartInsSideVarWeight)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_Vars               ,ONLY: VarWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -981,19 +1079,20 @@ ELSE
 END IF
 
 CALL RANDOM_NUMBER(RandVal)
-PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity &
+PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
   * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal,8)
 
-IF(.NOT.VarWeighting%CellLocalWeighting) THEN
-  IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
-    PartInsSubSide = 0
-    DO iSub = 1, VarWeighting%nSubSides
-      CALL RANDOM_NUMBER(RandVal)
-      PartInsSideVarWeight(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity &
-              * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal,8)
-      PartInsSubSide = PartInsSubSide + PartInsSideVarWeight(iSub)
-
-    END DO
+IF (Symmetry%Axisymmetric) THEN
+  IF(.NOT.VarWeighting%CellLocalWeighting) THEN
+    IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+      PartInsSubSide = 0
+      DO iSub = 1, VarWeighting%nSubSides
+        CALL RANDOM_NUMBER(RandVal)
+        PartInsSideVarWeight(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+                * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal,8)
+        PartInsSubSide = PartInsSubSide + PartInsSideVarWeight(iSub)
+      END DO
+    END IF
   END IF
 END IF
 

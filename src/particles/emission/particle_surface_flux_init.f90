@@ -1085,7 +1085,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     DO iSub = 1, VarWeighting%nSubSides
       IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
         Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) * vSF &
-        *Species(iSpec)%MacroParticleFactor/ BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+                                                            / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
       END IF
     END DO
   END IF

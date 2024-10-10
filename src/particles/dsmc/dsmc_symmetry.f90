@@ -984,7 +984,7 @@ VarWeighting%CloneInputDelay = GETINT('Part-VarWeighting-CloneDelay')
 VarWeighting%CellLocalWeighting = GETLOGICAL('Part-VarWeighting-CellLocalWeighting')
 
 ! Use of the minimum in the calculation of the collision probability
-DovMPF_nonAvCollProb = GETLOGICAL('Part-VariableWeighting')
+DovMPF_nonAvCollProb = GETLOGICAL('Part-VarWeighting-NonAverageCollProb')
 
 VarWeighting%NextClone = 0
 VarWeighting%CloneVecLengthDelta = 100
@@ -1034,7 +1034,7 @@ SUBROUTINE DSMC_VariableWeighting(iPart,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_DSMC_Vars               ,ONLY: VarWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo, DovMPF_nonAvCollProb
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
@@ -1066,11 +1066,16 @@ CALL RANDOM_NUMBER(iRan)
 IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
   DoCloning = .TRUE.
   IF(INT(OldMPF/NewMPF).GT.1) THEN
-    IPWRITE(*,*) 'New weighting factor:', NewMPF/(10.**10), 'Old weighting factor:', OldMPF/(10.**10)
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
-        ' the variable weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
+    IF (DovMPF_nonAvCollProb) THEN
+      ! Set the NewMPF to half of the old MPF
+      NewMPF = OldMPF/2.
+    ELSE
+      IPWRITE(*,*) 'New weighting factor:', NewMPF/(10.**10), 'Old weighting factor:', OldMPF/(10.**10)
+      CALL Abort(&
+          __STAMP__,&
+        'ERROR in simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
+          ' the variable weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
+    END IF
   END IF
 END IF
 PartMPF(iPart) = NewMPF
@@ -1136,10 +1141,16 @@ ELSE
     IF((INT(iter,4)+VarWeighting%CloneDelayDiff).LE.VarWeighting%CloneInputDelay) RETURN
     DeleteProb = 1. - CloneProb
     IF (DeleteProb.GT.0.5) THEN
-      IPWRITE(*,*) 'New weighting factor:', NewMPF/(10.**10), 'Old weighting factor:', OldMPF/(10.**10)
-      CALL abort(__STAMP__,&
-        'ERROR in Variable Weighting: The deletion probability is higher than 0.5! Reduce the time step or'//&
-        ' the variable weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
+      IF (DovMPF_nonAvCollProb) THEN
+        ! Set the new MPF to just half of the old MPF
+        NewMPF = 2.*OldMPF
+        DeleteProb = 0.5
+      ELSE
+        IPWRITE(*,*) 'New weighting factor:', NewMPF/(10.**10), 'Old weighting factor:', OldMPF/(10.**10)
+        CALL abort(__STAMP__,&
+          'ERROR in Variable Weighting: The deletion probability is higher than 0.5! Reduce the time step or'//&
+          ' the variable weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
+      END IF
     END IF
     CALL RANDOM_NUMBER(iRan)
     IF(DeleteProb.GT.iRan) THEN
