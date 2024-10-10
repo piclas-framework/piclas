@@ -973,6 +973,31 @@ NIG_Photoionization_petsc_debug_Leapfrog:
       when: never
     - if: '$DO_NIGHTLY'
 
+# Raytracing regression tests
+NIG_Raytracing_release_Leapfrog:
+  <<: *defaults_poisson_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_poisson_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
+
+NIG_Raytracing_debug_Leapfrog:
+  <<: *defaults_poisson_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
+
 NIG_Radiation:
   <<: *defaults_nightly
   stage: reggie_nightly
