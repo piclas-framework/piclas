@@ -336,14 +336,12 @@ The different available deposition types are described in more detail in Section
 
 ### Particle solver
 
-For the treatment of particles, the maximum number of particles `Part-maxParticleNumber` that each processor can hold has to be supplied and
-the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
-through chemical reactions).
+The number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
+through chemical reactions) determines the number of subsequently required parameters for each species.
 
     ! =============================================================================== !
     ! PARTICLE Emission
     ! =============================================================================== !
-    Part-maxParticleNumber    = 4000 ! Maximum number of particles (per processor/thread)
     Part-nSpecies             = 2    ! Number of particle species
 
 The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation
@@ -510,7 +508,6 @@ width: 700px
 
 Resulting electric potential and field.
 ```
-
 
 
 

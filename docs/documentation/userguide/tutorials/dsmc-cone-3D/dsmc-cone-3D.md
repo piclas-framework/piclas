@@ -82,7 +82,6 @@ First, the mesh file name is adapted. The number of boundaries is reduced from f
 
     MeshFile                        = 70degCone_3D_mesh.h5
     Part-nBounds                    = 4
-    Part-maxParticleNumber          = 1500000
     Particles-OctreePartNumNode     = 80
     Particles-OctreePartNumNodeMin  = 60
 

@@ -1,10 +1,11 @@
 (sec:particle-initialization-and-emission)=
 # Particle Initialization & Emission
 
-The RAM to store the particles is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
+The RAM to store the particle information is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
 
     Part-MaxParticleNumber=1000000
 
+which results in a program abort, if one of the processes reaches this limit.
 New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
 
     Part-MaxPartNumIncrease=0.1

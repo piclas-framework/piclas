@@ -219,12 +219,11 @@ where, the number of boundaries `Part-nBounds` is followed by the names of the b
 (sec:tutorial-dsmc-particle-solver)=
 ### Particle solver
 
-For the treatment of particles, the maximum number of particles `Part-maxParticleNumber` that each processor can hold has to be supplied and the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time through chemical reactions).
+For the treatment of particles, the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time through chemical reactions).
 
     ! =============================================================================== !
     ! PARTICLES
     ! =============================================================================== !
-    Part-maxParticleNumber = 420000
     Part-nSpecies          = 1
     Part-FIBGMdeltas       = (/4.64E-6,4.64E-6,4.64E-6/)
 
