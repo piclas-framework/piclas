@@ -214,9 +214,8 @@ between restart/checkpoint file output `Analyze_dt` (also the output time for sp
 step iterations `IterDisplayStep` between information output regarding the current status of the simulation that is written to std.out.
 The format of the restart/checkpoint files, which are created every time the simulation time reaches a multiple of
 `Analyze_dt`, is set via `TimeStampLength = 5`, the names of the output files are shortened for better postprocessing.
+This is done, because some visualisation tools might otherwise incorrectly group the files when opening a complete set of output files.
 The remaining parameters are selected for the field and particle solver as well as run-time analysis.
-This is done, because some visualisation tools might otherwise incorrectly group the files when opening a complete set of output
-files.
 
 #### Boundary conditions
 
@@ -477,8 +476,8 @@ where `NVisu` is the polynomial visualisation degree on which the field solution
 Depending on the used polynomial degree `N`, the degree of visualisation `NVisu` should always be higher than
 `N` because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and
 polynomial degree as well as number of particles) and is visible in the solution results of the simulation.
-Additionally, the flag `VisuParticles` activates the output of particle position, velocity and species index to the *vtk*-files.
-Runining the command
+Additionally, the flag `VisuParticles=T` activates the output of particle position, velocity and species index to the *vtk*-files.
+Running the command
 
     ./piclas2vtk parameter.ini landau_damping_State_000.0*
 
