@@ -334,10 +334,9 @@ def generatePythonFilterFromFiles(scriptFile, outputFile):
 
     namespace = {}
     #execfile(scriptFile, namespace)
-    #exec(open(scriptFile).read(), namespace)
-    with open(scriptFile) as f:
-        code = compile(f.read(), scriptFile, 'exec')
-        exec(code,namespace)
+    with open(scriptFile, "rb") as source_file:
+        code = compile(source_file.read(), scriptFile, "exec")
+    exec(code, namespace)
 
     replaceFunctionWithSourceString(namespace, 'RequestData')
     replaceFunctionWithSourceString(namespace, 'RequestInformation', allowEmpty=True)
