@@ -4,12 +4,13 @@ Streamers are growing ionized fingers that appear when ionizable matter is sudde
 Streamer discharge simulations are basically modeled in three ways. These are the Particle Model, Fluid Model, and Hybrid Model.
 In this section, the Hybrid Model which combines the 1st order fluid model with particle model approach is explained. In the Hybrid Model Simulations, ions are represented by particles.
 
-The first-order fluid model is the multiply used reaction–drift-diffusion model {cite}`Dujko2020`. It is also called 'classical fluid model´. The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
+The first-order fluid model is the multiply used reaction-drift-diffusion model {cite}`Dujko2020`. It is also termed "classical fluid model".
+The drift-diffusion scheme can be used to model the electrons species in the plasma as a continuum instead of kinetic particles.
 
 The piclas executable to use the model in created by
 
     mkdir build_electron_fluid && cd build_electron_fluid
-    cmake .. -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -D PICLAS_PETSC=ON
+    cmake .. -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DPICLAS_PETSC=ON
 
 TODO: add different time integration possibilities for field (FV solver for electrons) and charged heavy species (particle push +
 HDG solver for electric fields)
@@ -72,7 +73,7 @@ BGGas-DriftDiff-Database = Phelps: This line indicates that the database used fo
 
 ### Visualisation 
 
-Convert state file with `piclas2vtk` to view charge $\rho$ and current density $j$ as well as the electric potential $\Phi$ and
+Convert state file with *piclas2vtk* to view charge $\rho$ and current density $j$ as well as the electric potential $\Phi$ and
 field strengths $E$ in the *Solution.vtu* file.
 
 TODO: Introduce new subroutine, similar to AddBRElectronFluidToPartSource() but for the drift-diffusion electrons.
