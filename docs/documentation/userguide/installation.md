@@ -43,70 +43,27 @@ If problems occur when executing the AppImage, check the [troubleshooting]( http
 section for possible fixes.
 
 ## Prerequisites
-**PICLas** has been used on various Linux distributions in the past. This includes Ubuntu 16.04 LTS and 18.04 LTS, 20.04 LTS
-20.10 and 21.04, OpenSUSE 42.1 and CentOS 7.
-For a list of tested library version combinations, see Section {ref}`sec:required-libs`.
+**PICLas** has been used on various Linux distributions in the past. This includes different (K)Ubuntu version up to 23.10, OpenSUSE 42.1 and CentOS 7. For a list of tested library version combinations, see Section {ref}`sec:required-libs`. The suggested packages in this section can be replaced by self compiled versions.
 
-The suggested packages in this section can be replaced by self compiled versions. The required packages for the Ubuntu Linux
-distributions are listed in {numref}`tab:installation_prereqs_ubuntu` and for CentOS Linux in
-{numref}`tab:installation_prereqs_centos`.
-Under Ubuntu, they can be obtained using the apt environment:
+### Ubuntu or similar
 
-    sudo apt-get install git cmake
+ The required packages for the Ubuntu or similar Linux distributions can be obtained using the apt environment:
 
-```{table} Debian/Ubuntu packages. x: required, o: optional, -: not available
----
-name: tab:installation_prereqs_ubuntu
----
-|     Package      | Ubuntu 16.04/18.04 |   Ubuntu 20.04   |
-| :--------------: | :----------------: | :--------------: |
-|       git        |         x          |        x         |
-|      cmake       |         x          |        x         |
-| cmake-curses-gui |         o          |        o         |
-|    liblapack3    |         x          |        x         |
-|  liblapack-dev   |         x          |        x         |
-|     gfortran     |         x          |        x         |
-|       g++        |         x          |        x         |
-| mpi-default-dev  |         x          |        x         |
-|    zlib1g-dev    |         x          |        x         |
-| exuberant-ctags  |         o          |        o         |
-|      ninja       |         o          |        o         |
-|   libmpfr-dev    |                    | x (GCC >= 9.3.0) |
-|    libmpc-dev    |                    | x (GCC >= 9.3.0) |
-```
+    sudo apt-get install git cmake cmake-curses-gui liblapack3 liblapack-dev gfortran g++ mpi-default-dev zlib1g-dev
 
-and under CentOS via
+The following packages are optional:
 
-    sudo yum install git
+    sudo apt-get install exuberant-ctags ninja pkg-config
 
-For extra packages install EPEL and SCL
+Additionally, the most recent versions of the GCC compiler (>13) require the following packages:
 
-    sudo yum install epel-release centos-release-scl
+    sudo apt-get install libmpfr-dev libmpc-dev libgmp-dev
 
-```{table} Centos packages. x: required, o: optional, -: not available
----
-name: tab:installation_prereqs_centos
----
-|     Package     | CentOS 7 |
-| :-------------: | :------: |
-|       git       |    x     |
-|      cmake      |    x     |
-|     cmake3      |    x     |
-|     libtool     |    x     |
-|  ncurses-devel  |    x     |
-|  lapack-devel   |    x     |
-| openblas-devel  |    x     |
-|  devtoolset-9   |    x     |
-|       gcc       |    x     |
-|     gcc-c++     |    x     |
-|     zlib1g      |    x     |
-|  zlib1g-devel   |    o     |
-| exuberant-ctags |    o     |
-|  numactl-devel  |    x     |
-| rdma-core-devel |    o     |
-|    binutils     |    x     |
-|       tar       |    x     |
-```
+### CentOS
+
+For CentOS, the packages can be installed using the following command
+
+    sudo yum install git cmake cmake3 libtool ncurses-devel lapack-devel openblas-devel devtoolset-9 gcc gcc-c++ zlib1g zlib1g-devel exuberant-ctags numactl-devel rdma-core-devel binutils tar epel-release centos-release-scl
 
 On some systems it may be necessary to increase the size of the stack (part of the memory used to store information about active
 subroutines) in order to execute **PICLas** correctly. This is done using the command
@@ -119,23 +76,27 @@ from the command line. For convenience, you can add this line to your `.bashrc`.
 ## Required Libraries
 The following list contains the **recommended library combinations** for the Intel and GNU compiler in combination with HDF5, OpenMPI, CMake etc.
 
-| PICLas Version |  Compiler |  HDF5  |      MPI      |  CMake |
-| :------------: | :-------: | :----: | :-----------: | :----: |
-|      2.8.0     | gcc12.2.0 | 1.12.2 | openmpi-4.1.4 | 3.24.2 |
-|  2.3.0 - 2.7.0 | gcc11.2.0 | 1.12.1 | openmpi-4.1.1 | 3.21.3 |
-|      2.0.0     | intel19.1 |  1.10  |    impi2019   |  3.17  |
-|  2.0.0 - 2.2.2 | intel19.1 |  1.10  |    impi2019   |  3.17  |
+| PICLas Version | CMake  | Compiler  |      MPI      |  HDF5  | PETSc  |
+| :------------: | :----: | :-------: | :-----------: | :----: | :----: |
+|     3.3.0      | 3.26.4 | gcc13.2.0 | openmpi-4.1.5 | 1.14.0 | 3.19.3 |
+|     2.8.0      | 3.24.2 | gcc12.2.0 | openmpi-4.1.4 | 1.12.2 |   -    |
+| 2.3.0 - 2.7.0  | 3.21.3 | gcc11.2.0 | openmpi-4.1.1 | 1.12.1 |   -    |
+|     2.0.0      |  3.17  | intel19.1 |   impi2019    |  1.10  |   -    |
+| 2.0.0 - 2.2.2  |  3.17  | intel19.1 |   impi2019    |  1.10  |   -    |
 
 and the **minimum requirements**
 
-| PICLas Version |  Compiler |  HDF5  |      MPI      | CMake |
+| PICLas Version | Compiler  |  HDF5  |      MPI      | CMake |
 | :------------: | :-------: | :----: | :-----------: | :---: |
-|  2.3.0 - 2.8.0 |  gnu9.2.0 | 1.10.6 | openmpi-3.1.6 |  3.17 |
-|  2.0.0 - 2.2.2 | intel18.1 |  1.10  |    impi2018   |  3.17 |
+| 2.3.0 - 2.8.0  | gnu9.2.0  | 1.10.6 | openmpi-3.1.6 | 3.17  |
+| 2.0.0 - 2.2.2  | intel18.1 |  1.10  |   impi2018    | 3.17  |
 
 A full list of all previously tested combinations is found in Chapter {ref}`userguide/appendix:Appendix`. Alternative combinations might work as well, however, have not been tested.
 
-If you are setting-up a fresh system for the simulation with PICLas, we recommend using a Module environment, which can be setup with the provided shell scripts in `piclas/tools/Setup_ModuleEnv`. A description is available here: `piclas/tools/Setup_ModuleEnv/README.md`. This allows you to install and switch between different compiler, MPI and HDF5 versions.
+If you are setting-up a fresh system for the simulation with PICLas, it is recommended using a Module environment, which can be set
+up with the provided shell scripts in `piclas/tools/Setup_ModuleEnv`.
+A description is available here: `piclas/tools/Setup_ModuleEnv/README.md`.
+This allows installing and switching between different compiler, MPI, and HDF5 versions.
 
 ### Installing GCC
 
@@ -249,10 +210,11 @@ For convenience, you can add these lines to your `.bashrc`.
 
 The following list contains the **recommended/working library versions** for PETSc and PICLas
 
-| PICLas Version |    3.18   |    3.17   |
-| :------------: | :-------: | :-------: |
-|      3.0.0     |    yes    |    yes    |
-|      2.9.0     |    no     |    yes    |
+| PICLas Version | 3.17  | 3.18  | 3.19.3 |
+| :------------: | :---: | :---: | :----: |
+|     3.3.0      |   -   |   -   |  yes   |
+|     3.0.0      |  yes  |  yes  |   -    |
+|     2.9.0      |  yes  |  no   |   -    |
 
 #### Local machine
 Download PETSc from the git repository
@@ -278,7 +240,7 @@ export PETSC_ARCH=arch-linux
 Set the PETSc flag to ON in during cmake configuration of PICLas
 
 ````
-PICLAS_PETSC   ON
+LIBS_USE_PETSC   ON
 ````
 
 #### Cluster (HLRS) with restricted internet access
@@ -362,13 +324,12 @@ Set the environment variables
 
 ````
 export PETSC_DIR=/home/user/petsc
-export PETSC_ARCH=arch-linux
 ````
 
 Set the PETSc flag to ON in during cmake configuration of PICLas
 
 ````
-PICLAS_PETSC   ON
+LIBS_USE_PETSC   ON
 ````
 
 Load the paths and modules in the submit.sh script on hawk by adding the following lines to the submit.sh script
@@ -376,7 +337,6 @@ Load the paths and modules in the submit.sh script on hawk by adding the followi
 ````
 module load cmake/3.16.4  gcc/9.2.0  hdf5/1.10.5  libflame/2.1  openmpi/4.0.4  aocl/2.1.0  blis/2.1
 export PETSC_DIR=/zhome/academic/HLRS/irs/iagcopp/petsc-3.17.0
-export PETSC_ARCH=arch-linux
 ````
 
 (sec:obtaining-the-source)=

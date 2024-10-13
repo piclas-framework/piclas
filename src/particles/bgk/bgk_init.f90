@@ -92,7 +92,8 @@ USE MOD_ReadInTools
 USE MOD_BGK_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
-USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge, Symmetry
+USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
@@ -120,7 +121,7 @@ ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
-  ! Calculation of the prefacor of the collision frequency per species
+  ! Calculation of the prefactor of the collision frequency per species
   ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
   DO iSpec2=1, nSpecies
     SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*CollInf%dref(iSpec,iSpec2)**2.0 &
@@ -142,6 +143,9 @@ CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
 IF(CoupledBGKDSMC) THEN
   IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,'Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
+  END IF
+  IF(DSMC%RotRelaxProb.GT.1.0.OR.DSMC%VibRelaxProb.GT.1.0) THEN
+    CALL abort(__STAMP__,'Variable relaxation probabilities not implemented for coupled DSMC-BGK simulations!')
   END IF
 #if USE_MPI
   IF (DoParticleLatencyHiding) THEN
@@ -287,7 +291,7 @@ RECURSIVE SUBROUTINE DeleteNodeAverage(NodeAverage)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_BGK_Vars
-USE MOD_Particle_Vars         ,ONLY: Symmetry
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES

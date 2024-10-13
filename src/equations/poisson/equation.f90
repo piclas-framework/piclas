@@ -152,7 +152,7 @@ IniExactFunc = GETINT('IniExactFunc')
 SELECT CASE (IniExactFunc)
 CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
 #if ! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)
-  CALL abort(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, PICLAS_PETSC=ON and PICLAS_PARTICLES=ON')
+  CALL abort(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, LIBS_USE_PETSC=ON and PICLAS_PARTICLES=ON')
 #endif /*! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)*/
 END SELECT
 
@@ -789,7 +789,7 @@ CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
     END ASSOCIATE
   END ASSOCIATE
 #if !(USE_PETSC)
-  CALL abort(__STAMP__,'ExactFunc=500 requires PICLAS_PETSC=ON')
+  CALL abort(__STAMP__,'ExactFunc=500 requires LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 CASE(600) ! 2 cubes with two different charges
   IF(ALLOCATED(FPC%Charge))THEN
@@ -798,7 +798,7 @@ CASE(600) ! 2 cubes with two different charges
   END IF ! ALLOCATED(FPC%Charge)
   resu = 0.
 #if !(USE_PETSC)
-  CALL abort(__STAMP__,'ExactFunc=600 requires PICLAS_PETSC=ON')
+  CALL abort(__STAMP__,'ExactFunc=600 requires LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 CASE(700) ! Analytical solution of a charged particle moving in cylindrical coordinates between two grounded walls
 #if defined(PARTICLES)
@@ -1001,12 +1001,13 @@ REAL,INTENT(IN),OPTIONAL        :: Phi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: xvec(3)
-REAL                            :: r1,r2,dx
+REAL                            :: r1,r2
 REAL,DIMENSION(3)               :: dx1,dx2,dr1dx,dr2dx,dr1dx2,dr2dx2
 #ifdef PARTICLES
 REAL                            :: source_e ! Electron charge density for Boltzmann relation (electrons as isothermal fluid!)
 INTEGER                         :: RegionID
 #if defined(CODE_ANALYZE)
+REAL                            :: dx
 REAL                            :: ElemCharLengthX
 #endif /*defined(CODE_ANALYZE)*/
 #endif /*PARTICLES*/

@@ -46,6 +46,8 @@ REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)
 REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
 REAL,ALLOCATABLE :: DCL_NGeo(:,:)
 REAL,ALLOCATABLE :: DCL_N(:,:)
+REAL,ALLOCATABLE :: Vdm_CLN_N(:,:)
+REAL,ALLOCATABLE :: XCL_N(:,:,:,:,:)             !< mapping X(xi) P\in N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,19 +76,20 @@ REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
 !< #endif /*PARTICLES*/
 REAL,ALLOCATABLE        :: XiCL_NGeo(:)
 REAL,ALLOCATABLE,TARGET :: XCL_NGeo(:,:,:,:,:)
-REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:) !jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)      !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !< jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:)    !< jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)  !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+REAL,ALLOCATABLE        :: JaCL_N(:,:,:,:,:,:)    !< metric terms P\in N
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! surface vectors
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE :: NormVec(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec1(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec2(:,:,:,:)          !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: SurfElem(:,:,:)            !< surface area for each side        (    0:N,0:N,nSides)
-REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)         !< surface  metrics for each side
-REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)         !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
-REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)           !< element local surface element     (    0:N,0:N,1:6,1:nElems)
+REAL,ALLOCATABLE :: NormVec(:,:,:,:)              !< normal vector for each side       (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec1(:,:,:,:)             !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec2(:,:,:,:)             !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: SurfElem(:,:,:)               !< surface area for each side        (    0:N,0:N,nSides)
+REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)            !< surface  metrics for each side
+REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)            !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
+REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)              !< element local surface element     (    0:N,0:N,1:6,1:nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Finite volumes metrics
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -101,6 +104,16 @@ REAL,ALLOCATABLE :: Metrics_gTilde_FV(:,:,:,:,:)
 REAL,ALLOCATABLE :: Metrics_hTilde_FV(:,:,:,:,:)
 REAL,ALLOCATABLE,TARGET :: Elem_xGP_FV(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
 REAL,ALLOCATABLE :: Face_xGP_FV(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+REAL,ALLOCATABLE :: Face_xGP_PP_1(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+REAL,ALLOCATABLE :: NormVec_PP_1(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec1_PP_1(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: TangVec2_PP_1(:,:,:,:)          !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
+REAL,ALLOCATABLE :: SurfElem_PP_1(:,:,:)            !< surface area for each side        (    0:N,0:N,nSides)
+REAL,ALLOCATABLE :: Ja_Face_PP_1(:,:,:,:,:)         !< surface  metrics for each side
+REAL,ALLOCATABLE :: Vdm_CLN_N_PP_1(:,:)
+REAL,ALLOCATABLE :: XCL_N_PP_1(:,:,:,:,:)             !< mapping X(xi) P\in N
+REAL,ALLOCATABLE :: dXCL_N_PP_1(:,:,:,:,:,:)    !< jacobi matrix of the mapping P\in NGeo
+REAL,ALLOCATABLE :: JaCL_N_PP_1(:,:,:,:,:,:)    !< metric terms P\in N
 #endif /*USE_FV*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from GaussPoints to Side or Neighbor Volume
@@ -116,7 +129,7 @@ INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and revers
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from element to sides and sides to element
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and side connectivity of the elments as stored in the
+INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and side connectivity of the elements as stored in the
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
                                                !< mesh file
@@ -134,7 +147,7 @@ INTEGER,ALLOCATABLE :: BoundaryType(:,:) !< BCType    = BoundaryType(BC(SideID),
 INTEGER,ALLOCATABLE :: BoundaryType_FV(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
                                             !< BCState   = BoundaryType(BC(SideID),BC_STATE)
 #endif
-INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, wheter a side belongs to a group of analyze sides (e.g. to a BC group)
+INTEGER,ALLOCATABLE :: AnalyzeSide(:)    !< Marks, whether a side belongs to a group of analyze sides (e.g. to a BC group)
                                          !< SurfIndex = AnalyzeSide(SideID), 1:nSides
 
 INTEGER,PARAMETER :: NormalDirs(6) = (/ 3 , 2 , 1 , 2 , 1 , 3 /) !< normal vector direction for element local side
@@ -236,7 +249,7 @@ TYPE tSide
   INTEGER                      :: flip=-999
 #ifdef PARTICLES
   LOGICAL                      :: InnerBCOutput   !< Logical if proc writes InnerBC information
-  INTEGER                      :: BC_Alpha        !< inital value for periodic displacement before mapping in pos. bc-index range
+  INTEGER                      :: BC_Alpha        !< initial value for periodic displacement before mapping in pos. bc-index range
 #endif /*PARTICLES*/
   INTEGER                      :: nMortars        !< number of slave mortar sides associated with master mortar
   INTEGER                      :: MortarType      !< type of mortar from mesh file: =0: conforming side or small side of bigside

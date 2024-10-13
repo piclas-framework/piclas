@@ -10,7 +10,7 @@ The drift-diffusion scheme can be used to model the electrons species in the pla
 The piclas executable to use the model in created by
 
     mkdir build_electron_fluid && cd build_electron_fluid
-    cmake .. -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DPICLAS_PETSC=ON
+    cmake .. -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON
 
 TODO: add different time integration possibilities for field (FV solver for electrons) and charged heavy species (particle push +
 HDG solver for electric fields)

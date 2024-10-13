@@ -331,6 +331,18 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   CALL MOVE_ALLOC(UTmp,U_FV)
 #endif /*FV*/
 
+  ! ! PML is not sorted along SFC, normal restart
+  ! ! > PP_N always matches during loadbalance
+  ! IF(DoPML)THEN
+  !   ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+  !   CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),&
+  !                  OffsetElemTmp,5,RealArray=U_local)
+  !   DO iPML = 1,nPMLElems
+  !     U2(:,:,:,:,iPML) = U_local(:,:,:,:,PMLToElem(iPML))
+  !   END DO ! iPML
+  !   DEALLOCATE(U_local)
+  ! END IF ! DoPML
+
 ELSE ! normal restart
 #endif /*USE_LOADBALANCE*/
 

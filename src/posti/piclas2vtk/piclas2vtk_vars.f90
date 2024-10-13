@@ -35,12 +35,12 @@ INTEGER                     :: nUniqueNodes
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Mapping of nodes and surface sides, required for connectivity of elements
 !----------------------------------------------------------------------------------------------------------------------------------
+INTEGER, ALLOCATABLE        :: SurfOutputSideToUniqueSide(:)
 TYPE tSurfaceConnect
   INTEGER                         :: nSurfaceNode                 !< Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceBCSides              !< Number of Sides on Surface (reflective)
+  INTEGER                         :: nSurfaceOutputSides              !< Number of Sides on Surface (reflective)
   REAL, ALLOCATABLE               :: NodeCoords(:,:)
-  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceBCSides)
-  INTEGER, ALLOCATABLE            :: SurfSideToSide(:)
+  INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceOutputSides)
 END TYPE
 
 TYPE (tSurfaceConnect)               :: SurfConnect

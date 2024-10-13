@@ -62,7 +62,7 @@ USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange
 #endif
-USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle
+USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle,CalcPartSymmetryPos
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
@@ -114,6 +114,7 @@ IF (time.GE.DelayTime) THEN
       ! 1st part of the position update (also neutral particles)
       !-- x(n) => x(n+1/2) by v(n) = u(n)/gamma(n):
       PartState(1:3,iPart) = PartState(1:3,iPart) + 0.5 * PartState(4:6,iPart) * dt
+      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
     END IF ! PDM%ParticleInside(iPart)
   END DO ! iPart=1,PDM%ParticleVecLength
 #if USE_LOADBALANCE

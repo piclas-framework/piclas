@@ -32,8 +32,8 @@ END INTERFACE
 
 ! Define an interface for the function pointer
 ABSTRACT INTERFACE
-  SUBROUTINE ParticleInsideQuadInterface(PartStateLoc,ElemID,InElementCheck,Det_Out)
-    INTEGER,INTENT(IN)            :: ElemID
+  SUBROUTINE ParticleInsideQuadInterface(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
+    INTEGER,INTENT(IN)            :: GlobalElemID
     REAL   ,INTENT(IN)            :: PartStateLoc(3)
     LOGICAL,INTENT(OUT)           :: InElementCheck
     REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
@@ -45,8 +45,9 @@ PROCEDURE(ParticleInsideQuadInterface),POINTER :: ParticleInsideQuad => NULL()
 
 PUBLIC :: ParticleInsideQuad3D, InitPEM_LocalElemID, InitPEM_CNElemID, GetGlobalNonUniqueSideID, GetSideBoundingBoxTria
 PUBLIC :: GetMeshMinMax, IdentifyElemAndSideType, WeirdElementCheck, CalcParticleMeshMetrics, CalcXCL_NGeo
-PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec, ParticleInsideQuad2D, ParticleInsideQuad
-PUBLIC :: InitParticleInsideQuad
+PUBLIC :: CalcBezierControlPoints, InitParticleGeometry, ComputePeriodicVec
+PUBLIC :: InitParticleInsideQuad, ParticleInsideQuad
+PUBLIC :: InitVolumes_2D, InitVolumes_1D, DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 !===================================================================================================================================
 CONTAINS
 
@@ -56,7 +57,7 @@ CONTAINS
 SUBROUTINE InitParticleInsideQuad()
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars            ,ONLY: Symmetry
+USE MOD_Symmetry_Vars            ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
@@ -73,8 +74,8 @@ END IF
 
 END SUBROUTINE InitParticleInsideQuad
 
-!PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
-SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,GlobalElemID,InElementCheck,Det)
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
 !> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
@@ -93,7 +94,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -109,10 +110,10 @@ REAL                          :: A(1:3,1:4), crossP(3), Det(6,2)
 InElementCheck = .TRUE.
 InElementCheckMortar = .TRUE.
 !--- Loop over the 6 sides of the element
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
-CNElemID = GetCNElemID(ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 DO iLocSide = 1,nlocSides
-  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
   IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
@@ -163,11 +164,11 @@ DO iLocSide = 1,nlocSides
         nNbMortars = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
         DO ind = 1, nNbMortars
           InElementCheckMortarNb = .TRUE.
-          SideIDMortar = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
+          SideIDMortar = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide + ind
           NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideIDMortar)
           ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
           ! no way to recover it during runtime
-          IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+          IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',GlobalElemID)
 
           CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
           IF (InElementCheckMortarNb) THEN
@@ -220,7 +221,8 @@ RETURN
 
 END SUBROUTINE ParticleInsideQuad3D
 
-SUBROUTINE ParticleInsideQuad2D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+
+SUBROUTINE ParticleInsideQuad2D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear 2D element with 4  faces, compatible with mortars. The "Ray Casting Algorithm" is used.
 !===================================================================================================================================
@@ -234,7 +236,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -246,12 +248,12 @@ INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID
 INTEGER                       :: CNElemID
 REAL                          :: x_int, xNode1, xNode2, yNode1, yNode2
 !===================================================================================================================================
-CNElemID = GetCNElemID(ElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 InElementCheck = .FALSE.
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
 
 DO iLocSide=1,nlocSides
-  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
   ! Side is not one of the 6 local sides
   IF (localSideID.LE.0) CYCLE
@@ -272,9 +274,9 @@ DO iLocSide=1,nlocSides
 END DO
 END SUBROUTINE ParticleInsideQuad2D
 
-SUBROUTINE ParticleInsideQuad1D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+SUBROUTINE ParticleInsideQuad1D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
-!> Checks if particle is inside of a 1D element. 
+!> Checks if particle is inside of a 1D element.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -286,7 +288,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -298,12 +300,12 @@ INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID, D
 INTEGER                       :: CNElemID
 REAL                          :: xNode
 !===================================================================================================================================
-CNElemID = GetCNElemID(ElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 InElementCheck = .FALSE.
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
 iSide = 0
 DO iLocSide=1,nlocSides
-  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
   ! Side is not one of the 6 local sides
   IF (localSideID.LE.0) CYCLE
@@ -316,7 +318,8 @@ END DO
 IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
 END SUBROUTINE ParticleInsideQuad1D
 
-PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
+
+PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,GlobalElemID,InElementCheck)
 !===================================================================================================================================
 !> Routines checks if the particle is inside the neighbouring mortar element. Used for the regular ParticleInsideQuad3D routine
 !> after it was determined that the particle is not in the concave part but in the convex part of the element.
@@ -330,7 +333,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -343,10 +346,10 @@ REAL                          :: A(1:3,1:4), cross(3)
 REAL                          :: Det(2)
 !===================================================================================================================================
 InElementCheck = .TRUE.
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
-CNElemID = GetCNElemID(ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 DO iLocSide = 1,nlocSides
-  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
   IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
@@ -612,9 +615,9 @@ END FUNCTION GetGlobalElem2CNTotalElem_iPart
 #endif /*USE_MPI*/
 
 
-FUNCTION GetGlobalNonUniqueSideID(ElemID,localSideID)
+FUNCTION GetGlobalNonUniqueSideID(GlobalElemID,localSideID)
 !===================================================================================================================================
-!> Determines the non-unique global side ID of the local side in global element ElemID
+!> Determines the non-unique global side ID of the local side in global element ID
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -624,7 +627,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared, SideInfo_Shared
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID                              !< global element ID
+INTEGER,INTENT(IN) :: GlobalElemID                        !< global element ID
 INTEGER,INTENT(IN) :: localSideID                         !< local side id of an element (1:6)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -633,8 +636,8 @@ INTEGER :: iSide,firstSide,lastSide
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 !===================================================================================================================================
-firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + 1
-lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND, ElemID)
+firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + 1
+lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND, GlobalElemID)
 
 ! Small mortar sides are added after
 DO iSide = firstSide,lastSide
@@ -646,7 +649,7 @@ END DO
 
 ! We should never arrive here
 GetGlobalNonUniqueSideID=-1
-CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',ElemID)
+CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',GlobalElemID)
 END FUNCTION GetGlobalNonUniqueSideID
 
 !==================================================================================================================================!
@@ -879,7 +882,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,SideID,CNSideID,flip
-INTEGER                                  :: iElem,firstElem,lastElem,ElemID
+INTEGER                                  :: iCNElem,CNElemID,firstElem,lastElem,iGlobalElem,GlobalElemID
 REAL,DIMENSION(1:3)                      :: v1,v2,v3
 LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
 REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
@@ -962,10 +965,10 @@ firstElem = 1
 lastElem  = nElems
 #endif
 
-DO iElem=firstElem,lastElem
-  ElemID = GetGlobalElemID(iElem)
+DO iCNElem=firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iCNElem)
 
-  XCL_NGeoLoc = XCL_NGeo_Shared(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID)
+  XCL_NGeoLoc = XCL_NGeo_Shared(1:3,0:NGeo,0:NGeo,0:NGeo,GlobalElemID)
   ! 1) check if elem is curved
   !   a) get the coordinates of the eight nodes of the hexahedral
   XCL_NGeo1(1:3,0,0,0) = XCL_NGeoLoc(1:3, 0  , 0  , 0  )
@@ -982,18 +985,18 @@ DO iElem=firstElem,lastElem
   !     For NGeo=1, this should always be true, because the mappings are identical
   CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
   ! check the coordinates of all Chebychev-Lobatto geometry points between the bi-linear and used mapping
-  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,0:NGeo),ElemCurved(iElem))
+  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,0:NGeo),ElemCurved(iCNElem))
 
   ! 2) check sides
   ! loop over all 6 sides of element
   ! a) check if the sides are straight
   ! b) use curved information to decide side type
   DO ilocSide=1,6
-    SideID   = GetGlobalNonUniqueSideID(ElemID,iLocSide)
+    SideID   = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
     CNSideID = GetCNSideID(SideID)
     flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
-    IF(.NOT.ElemCurved(iElem))THEN
+    IF(.NOT.ElemCurved(iCNElem))THEN
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
       ! linear element
       IF(BoundingBoxIsEmpty(CNSideID))THEN
@@ -1008,7 +1011,7 @@ DO iElem=firstElem,lastElem
                 +BezierControlPoints_loc(:,0,NGeo   )  &
                 +BezierControlPoints_loc(:,NGeo,NGeo))
         ! check if normal vector points outwards
-        v2=v1-ElemBaryNGeo(:,iElem)
+        v2=v1-ElemBaryNGeo(:,iCNElem)
         IF(flip.EQ.0)THEN
           IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
         ELSE
@@ -1078,7 +1081,7 @@ DO iElem=firstElem,lastElem
                   +BezierControlPoints_loc(:,0,NGeo)  &
                   +BezierControlPoints_loc(:,NGeo,NGeo))
           ! check if normal vector points outwards
-          v2=v1-ElemBaryNGeo(:,iElem)
+          v2=v1-ElemBaryNGeo(:,iCNElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
@@ -1101,7 +1104,7 @@ DO iElem=firstElem,lastElem
                   +BezierControlPoints_loc(:,0,NGeo)  &
                   +BezierControlPoints_loc(:,NGeo,NGeo))
           ! check if normal vector points outwards
-          v2=v1-ElemBaryNGeo(:,iElem)
+          v2=v1-ElemBaryNGeo(:,iCNElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
@@ -1141,7 +1144,7 @@ DO iElem=firstElem,lastElem
     END IF
     SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide=1,6
-END DO ! iElem=1,nTotalElems
+END DO ! iCNElem = firstElem, lastElem (nComputeNodeTotalElems)
 
 DEALLOCATE(SideIsDone)
 
@@ -1168,9 +1171,9 @@ lastElem  = nElems
 #endif
 
 
-DO iElem = firstElem,lastElem
-  ElemID = GetCNElemID(iElem)
-  IF (ElemCurved(ElemID)) THEN
+DO iGlobalElem = firstElem,lastElem
+  CNElemID = GetCNElemID(iGlobalElem)
+  IF (ElemCurved(CNElemID)) THEN
     nCurvedElems = nCurvedElems+1
   ELSE
     nLinearElems = nLinearElems+1
@@ -1178,7 +1181,7 @@ DO iElem = firstElem,lastElem
 
   DO ilocSide = 1,6
     ! ignore small mortar sides attached to big mortar sides
-    SideID   = GetGlobalNonUniqueSideID(iElem,ilocSide)
+    SideID   = GetGlobalNonUniqueSideID(iGlobalElem,ilocSide)
     CNSideID = GetCNSideID(SideID)
     SELECT CASE(SideType(CNSideID))
       CASE (PLANAR_RECT)
@@ -1927,7 +1930,7 @@ IMPLICIT NONE
 INTEGER,PARAMETER              :: iNode=1
 INTEGER                        :: iVec,iBC,iPartBC
 INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
-INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart,NodeMap(4,6)
+INTEGER                        :: SideID,iGlobalElem,NbElemID,localSideID,localSideNbID,nStart,NodeMap(4,6)
 REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords,Vec
 LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
 #if USE_MPI
@@ -1958,11 +1961,11 @@ GEO%PeriodicVectors = 0.
 
 CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
 
-DO ElemID = firstElem,lastElem
+DO iGlobalElem = firstElem,lastElem
   ! Every periodic vector already found
   IF (ALL(PeriodicFound(:))) EXIT
 
-SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElem)
     ! Get BC
     iBC = SideInfo_Shared(SIDE_BCID,SideID)
     IF(iBC.EQ.0) CYCLE
@@ -1990,7 +1993,7 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Share
       nStart        = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,NbSideID),10)-1)
 
       ! Only take the first node into account, no benefit in accuracy if running over others as well
-      MasterCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)  +NodeMap(iNode                  ,localSideID))
+      MasterCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,iGlobalElem)+NodeMap(iNode                  ,localSideID))
       SlaveCoords   = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,NbElemID)+NodeMap(MOD(nStart+5-iNode,4)+1,localSideNbID))
       Vec           = SlaveCoords-MasterCoords
 
@@ -2050,6 +2053,496 @@ END IF
 #endif /*USE_MPI*/
 
 END SUBROUTINE ComputePeriodicVec
+
+
+SUBROUTINE InitVolumes_2D()
+!===================================================================================================================================
+!> Routine determines the symmetry sides and calculates the 2D (area faces in symmetry plane) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side (SymmetrySide array) will be used later on to determine in which two
+!> directions the quadtree shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement. Additionally,
+!> symmetry sides will be skipped during tracking (SideIsSymSide_Shared array).
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: Pi
+USE MOD_PreProc
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,nBCSides,SideToElem
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume
+USE MOD_Particle_Mesh_Vars      ,ONLY: SymmetrySide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win,SideIsSymSide_Shared,SideIsSymSide_Shared_Win
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+#endif /*USE_MPI*/
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide
+REAL                            :: radius, triarea(2)
+#if USE_MPI
+REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
+#endif /*USE_MPI*/
+LOGICAL                         :: SymmetryBCExists
+INTEGER                         :: firstElem, lastElem, firstSide, lastSide
+!===================================================================================================================================
+
+#if USE_MPI
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
+#endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
+END DO
+
+SymmetryBCExists = .FALSE.
+ALLOCATE(SymmetrySide(1:nElems,1:2))                ! 1: GlobalSide, 2: LocalSide
+SymmetrySide = -1
+
+! Sanity check: mesh has to be centered at z = 0
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
+  SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%zmaxglob)-ABS(GEO%zminglob))/ABS(GEO%zminglob), ' > 1e-5'
+  CALL abort(__STAMP__,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
+END IF
+
+! Calculation of the correct volume and characteristic length
+DO BCSideID=1,nBCSides
+  locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+  iLocSide = SideToElem(S2E_LOC_SIDE_ID,BCSideID)
+  SideID=GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).EQ.PartBound%SymmetryDim) THEN
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+    iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
+    ! Exclude the symmetry axis (y=0)
+    IF(Symmetry%Axisymmetric) THEN
+      IF(MAXVAL(NodeCoords_Shared(2,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).LE.0.0) CYCLE
+    END IF
+    ! The z-plane with the positive z component is chosen
+    IF(MINVAL(NodeCoords_Shared(3,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1)).GT.(GEO%zmaxglob+GEO%zminglob)/2.) THEN
+      IF(SymmetrySide(locElemID,1).GT.0) THEN
+        CALL abort(__STAMP__&
+          ,'ERROR: PICLas could not determine a unique symmetry surface for 2D/axisymmetric calculation!'//&
+          ' Please orient your mesh with x as the symmetry axis and positive y as the second/radial direction!')
+      END IF
+      SymmetrySide(locElemID,1) = BCSideID
+      SymmetrySide(locElemID,2) = iLocSide
+      ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
+      ! the xy-plane.
+      ElemVolume_Shared(CNElemID) = 0.0
+      CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
+      CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
+      ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
+      ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
+      ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
+      ! requirement.
+      ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
+      ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
+      ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
+      IF (Symmetry%Axisymmetric) THEN
+        radius = 0.
+        DO iNode = 1, 4
+          radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+        END DO
+        radius = radius / 4.
+        ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
+      END IF
+      SymmetryBCExists = .TRUE.
+    END IF      ! Greater z-coord
+  END IF
+END DO
+
+IF(.NOT.SymmetryBCExists) CALL abort(__STAMP__,'At least one symmetric BC (in the xy-plane) has to be defined for 2D simulations')
+
+! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
+#if USE_MPI
+FirstElem = offsetElem - offsetComputeNodeElem + 1
+LastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+LocalVolume = SUM(ElemVolume_Shared(FirstElem:LastElem))
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
+! Compute-node mesh volume
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
+#else
+MeshVolume = LocalVolume
+#endif /*USE_MPI*/
+
+END SUBROUTINE InitVolumes_2D
+
+
+SUBROUTINE InitVolumes_1D()
+!===================================================================================================================================
+!> Routine determines a symmetry side and calculates the 1D (area faces at x axis) and axisymmetric volumes (cells are
+!> revolved around the symmetry axis). The symmetry side will be used later on to determine in which two directions the quadtree
+!> shall refine the mesh, skipping the z-dimension to avoid an unnecessary refinement.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared,SideIsSymSide_Shared_Win,nNonUniqueGlobalSides
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared_Win,ElemCharLength_Shared_Win, ElemInfo_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors,MPI_COMM_LEADERS_SHARED
+#else
+USE MOD_Particle_Mesh_Vars      ,ONLY: nComputeNodeSides
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+  IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iLocSide, iElem, SideID, iOrder, CNElemID, iSide
+REAL                            :: X(2), MaxCoord, MinCoord
+LOGICAL                         :: SideInPlane, X1Occupied
+INTEGER                         :: firstElem,lastElem, firstSide, lastSide
+#if USE_MPI
+REAL                            :: CNVolume
+INTEGER                         :: offsetElemCNProc
+#endif /*USE_MPI*/
+!===================================================================================================================================
+
+#if USE_MPI
+firstElem = offsetElem - offsetComputeNodeElem + 1
+lastElem  = offsetElem - offsetComputeNodeElem + nElems
+#else
+firstElem = 1
+lastElem  = nElems
+#endif  /*USE_MPI*/
+
+ALLOCATE(GEO%XMinMax(2,nElems))
+
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%ymaxglob,ABS(GEO%yminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in y:', GEO%ymaxglob
+  SWRITE(*,*) 'Minimum dimension in y:', GEO%yminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%ymaxglob)-ABS(GEO%yminglob))/ABS(GEO%yminglob), ' > 1e-5'
+  CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with one cell in y-direction around 0, |y_min| = y_max !')
+END IF
+
+IF(.NOT.ALMOSTEQUALRELATIVE(GEO%zmaxglob,ABS(GEO%zminglob),1e-5)) THEN
+  SWRITE(*,*) 'Maximum dimension in z:', GEO%zmaxglob
+  SWRITE(*,*) 'Minimum dimension in z:', GEO%zminglob
+  SWRITE(*,*) 'Deviation', (ABS(GEO%zmaxglob)-ABS(GEO%zminglob))/ABS(GEO%zminglob), ' > 1e-5'
+  CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with one cell in z-direction around 0, |z_min| = z_max !')
+END IF
+
+DO iElem = 1,nElems
+  ! Check if all sides of the element are parallel to xy-, xz-, or yz-plane and Sides parallel to xy-,and xz-plane are symmetric
+  ! And determine xmin and xmax of the element
+  X = 0
+  X1Occupied = .FALSE.
+  DO iLocSide = 1,6
+    SideInPlane=.FALSE.
+    SideID = GetGlobalNonUniqueSideID(offsetElem+iElem,iLocSide)
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+    DO iOrder=1,3
+      MaxCoord = MAXVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      MinCoord = MINVAL(NodeCoords_Shared(iOrder,ElemSideNodeID_Shared(:,iLocSide,CNElemID)+1))
+      IF(ALMOSTALMOSTEQUAL(MaxCoord,MinCoord).OR.(ALMOSTZERO(MaxCoord).AND.ALMOSTZERO(MinCoord))) THEN
+        IF(SideInPlane) CALL abort(__STAMP__&
+          ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
+        SideInPlane=.TRUE.
+        IF(iOrder.GE.2)THEN
+          IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))).NE.PartBound%SymmetryDim) &
+            CALL abort(__STAMP__,&
+              'ERROR: Sides parallel to xy-,and xz-plane has to be the symmetric boundary condition')
+        END IF
+        IF(iOrder.EQ.1) THEN
+          IF(X1Occupied) THEN
+            X(2) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+          ELSE
+            X(1) = NodeCoords_Shared(1,ElemSideNodeID_Shared(1,iLocSide,CNElemID)+1)
+            X1Occupied = .TRUE.
+          END IF
+        END IF !iOrder.EQ.1
+      END IF
+    END DO !iOrder=1,3
+    IF(.NOT.SideInPlane) THEN
+      IPWRITE(*,*) 'ElemID:',iElem,'SideID:',iLocSide
+      DO iOrder=1,4
+        IPWRITE(*,*) 'Node',iOrder,'x:',NodeCoords_Shared(1,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                  'y:',NodeCoords_Shared(2,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1), &
+                                  'z:',NodeCoords_Shared(3,ElemSideNodeID_Shared(iOrder,iLocSide,CNElemID)+1)
+      END DO
+      CALL abort(__STAMP__&
+    ,'ERROR: Please orient your mesh with all element sides parallel to xy-,xz-,or yz-plane')
+    END IF
+  END DO ! iLocSide = 1,6
+  GEO%XMinMax(1,iElem) = MINVAL(X)
+  GEO%XMinMax(2,iElem) = MAXVAL(X)
+  ElemVolume_Shared(CNElemID) = ABS(X(1)-X(2))
+  ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)
+END DO
+! LocalVolume & MeshVolume: Recalculate the volume of the mesh of a single process and the total mesh volume
+LocalVolume = SUM(ElemVolume_Shared(firstElem:lastElem))
+#if USE_MPI
+CALL BARRIER_AND_SYNC(ElemVolume_Shared_Win    ,MPI_COMM_SHARED)
+CALL BARRIER_AND_SYNC(ElemCharLength_Shared_Win,MPI_COMM_SHARED)
+! Compute-node mesh volume
+offsetElemCNProc = offsetElem - offsetComputeNodeElem
+CNVolume = SUM(ElemVolume_Shared(offsetElemCNProc+1:offsetElemCNProc+nElems))
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,CNVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_SHARED,iError)
+IF (myComputeNodeRank.EQ.0) THEN
+  ! All-reduce between node leaders
+  CALL MPI_ALLREDUCE(CNVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_LEADERS_SHARED,IERROR)
+END IF
+! Broadcast from node leaders to other processors on the same node
+CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
+#else
+MeshVolume = SUM(ElemVolume_Shared)
+#endif /*USE_MPI*/
+
+#if USE_MPI
+CALL Allocate_Shared((/nNonUniqueGlobalSides/),SideIsSymSide_Shared_Win,SideIsSymSide_Shared)
+CALL MPI_WIN_LOCK_ALL(0,SideIsSymSide_Shared_Win,IERROR)
+SideIsSymSide => SideIsSymSide_Shared
+! only CN root nullifies
+IF(myComputeNodeRank.EQ.0) SideIsSymSide = .FALSE.
+! This sync/barrier is required as it cannot be guaranteed that the zeros have been written to memory by the time the MPI_REDUCE
+! is executed (see MPI specification). Until the Sync is complete, the status is undefined, i.e., old or new value or utter nonsense.
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(SideIsSymSide(nComputeNodeSides))
+SideIsSymSide = .FALSE.
+#endif  /*USE_MPI*/
+
+! Flag of symmetry sides to be skipped during tracking
+#if USE_MPI
+  firstSide = INT(REAL( myComputeNodeRank   *nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = INT(REAL((myComputeNodeRank+1)*nNonUniqueGlobalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nComputeNodeSides
+#endif
+
+DO iSide = firstSide, lastSide
+  SideIsSymSide(iSide) = .FALSE.
+  ! ignore non-BC sides
+  IF (SideInfo_Shared(SIDE_BCID,iSide).LE.0) CYCLE
+#if USE_MPI
+  ! ignore sides outside of halo region
+  IF (ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.0) CYCLE
+#endif /*USE_MPI*/
+  IF (PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,iSide))).EQ.PartBound%SymmetryDim) &
+    SideIsSymSide(iSide) = .TRUE.
+END DO
+
+#if USE_MPI
+CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
+#endif
+
+END SUBROUTINE InitVolumes_1D
+
+
+REAL FUNCTION DSMC_2D_CalcSymmetryArea(iLocSide,iElem, ymin, ymax)
+!===================================================================================================================================
+!> Calculates the actual area of an element for 2D simulations (plane/axisymmetric) regardless of the mesh dimension in z
+!> Utilized in the particle emission (surface flux) and boundary sampling
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: Pi
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iElem,iLocSide           !> iElem is the compute-node element ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, OPTIONAL, INTENT(OUT)   :: ymax,ymin
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iNode
+REAL                          :: P(1:2,1:4), Pmin(2), Pmax(2), Length, MidPoint
+!===================================================================================================================================
+
+Pmin = HUGE(Pmin)
+Pmax = -HUGE(Pmax)
+
+DO iNode = 1,4
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1)
+END DO
+
+Pmax(1) = MAXVAL(P(1,:))
+Pmax(2) = MAXVAL(P(2,:))
+Pmin(1) = MINVAL(P(1,:))
+Pmin(2) = MINVAL(P(2,:))
+
+IF (PRESENT(ymax).AND.PRESENT(ymin)) THEN
+  ymin = Pmin(2)
+  ymax = Pmax(2)
+END IF
+
+Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
+
+MidPoint = (Pmax(2)+Pmin(2)) / 2.
+IF(Symmetry%Axisymmetric) THEN
+  DSMC_2D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
+  ! Area of the cells on the rotational symmetry axis is set to one
+  IF(.NOT.(DSMC_2D_CalcSymmetryArea.GT.0.0)) DSMC_2D_CalcSymmetryArea = 1.
+ELSE
+  DSMC_2D_CalcSymmetryArea = Length
+END IF
+RETURN
+
+END FUNCTION DSMC_2D_CalcSymmetryArea
+
+
+REAL FUNCTION DSMC_1D_CalcSymmetryArea(iLocSide,iElem)
+!===================================================================================================================================
+!> Calculates the actual area of an element for 1D simulations regardless of the mesh dimension in z and y
+!> Utilized in the particle emission (surface flux) and boundary sampling
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Mesh_Vars    ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)            :: iElem,iLocSide
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: Pmin, Pmax, Length
+!===================================================================================================================================
+
+Pmax = MAXVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))
+Pmin = MINVAL(NodeCoords_Shared(1,ElemSideNodeID_Shared(:,iLocSide,iElem)+1))
+
+Length = ABS(Pmax-Pmin)
+
+! IF(Symmetry%Axisymmetric) THEN
+!   MidPoint = (Pmax(2)+Pmin(2)) / 2.
+!   DSMC_1D_CalcSymmetryArea = Length * MidPoint * Pi * 2.
+!   ! Area of the cells on the rotational symmetry axis is set to one
+!   IF(.NOT.(DSMC_1D_CalcSymmetryArea.GT.0.0)) DSMC_1D_CalcSymmetryArea = 1.
+! ELSE
+  DSMC_1D_CalcSymmetryArea = Length
+  IF (DSMC_1D_CalcSymmetryArea.EQ.0.) DSMC_1D_CalcSymmetryArea = 1.
+! END IF
+RETURN
+
+END FUNCTION DSMC_1D_CalcSymmetryArea
+
+
+FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)
+!===================================================================================================================================
+!> Calculates the area of the subsides for the insertion with the surface flux
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: Pi
+USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: iLocSide,iElem           !> iElem is the compute-node element ID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: iNode
+REAL                              :: P(1:2,1:4), Pmin(2), Pmax(2), MidPoint, PminTemp, PmaxTemp, Length
+!===================================================================================================================================
+
+Pmin = HUGE(Pmin)
+Pmax = -HUGE(Pmax)
+
+DO iNode = 1,4
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1)
+END DO
+
+Pmax(1) = MAXVAL(P(1,:))
+Pmax(2) = MAXVAL(P(2,:))
+Pmin(1) = MINVAL(P(1,:))
+Pmin(2) = MINVAL(P(2,:))
+Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
+
+DO iNode = 1, RadialWeighting%nSubSides
+  PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
+  PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
+  MidPoint = (PmaxTemp+PminTemp) / 2.
+  DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
+END DO
+
+RETURN
+
+END FUNCTION DSMC_2D_CalcSymmetryAreaSubSides
 
 
 END MODULE MOD_Particle_Mesh_Tools

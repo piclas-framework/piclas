@@ -77,14 +77,14 @@ Always compile the code within the build directory, hence, navigate to the build
 For this specific tutorial, make sure to set the correct compile flags
 
     PICLAS_EQNSYSNAME       = drift_diffusion
-    PICLAS_PETSC            = ON
+    LIBS_USE_PETSC          = ON
     PICLAS_READIN_CONSTANTS = ON
     PICLAS_TIMEDISCMETHOD   = Explicit-FV
 
 
 using the ccmake (gui for cmake) or simply run the following command from inside the build directory
 
-    cmake .. -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -D PICLAS_PETSC=ON
+    cmake .. -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -LIBS_USE_PETSC=ON
 
 to configure the build process and run
 

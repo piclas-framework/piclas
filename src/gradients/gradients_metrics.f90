@@ -167,11 +167,11 @@ DO ElemID = 1, nElems
     IF (flip.EQ.0) THEN
       Grad_SysSol_master(:,SideID) = dmaster(:,SideID) - dslave(:,SideID)
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,Grad_SysSol_master(1:PP_dim,SideID),PP_dim,info_dgesv)
-      IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error')
+      IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error: info_dgesv.NE.0')
     ELSE
       Grad_SysSol_slave(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,Grad_SysSol_slave(1:PP_dim,SideID),PP_dim,info_dgesv)
-      IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error')
+      IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error: info_dgesv.NE.0')
     END IF
   END DO
 
@@ -221,14 +221,14 @@ DO ElemID = 1, nElems
         dMatrixBC2(2,1) = dMatrixBC(dblDir2,dblDir1)
         dMatrixBC2(2,2) = dMatrixBC(dblDir2,dblDir2)
         CALL DGESV(2,1,dMatrixBC2,2,IPIV,vector2,2,info_dgesv)
-        IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics BC error')
+        IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics BC error: info_dgesv.NE.0')
         Grad_SysSol_BC(:,SideID) = 0.
         Grad_SysSol_BC(dblDir1,SideID) = vector2(1)
         Grad_SysSol_BC(dblDir2,SideID) = vector2(2)
       ELSE
         Grad_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
         CALL DGESV(PP_dim,1,dMatrixBC,PP_dim,IPIV,Grad_SysSol_BC(1:PP_dim,SideID),PP_dim,info_dgesv)
-        IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics BC error')
+        IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics BC error: info_dgesv.NE.0')
       END IF
     END DO
   END IF

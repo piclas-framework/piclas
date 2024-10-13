@@ -70,7 +70,7 @@ CALL prms%CreateRealOption(     'PIC-shapefunction-adaptive-DOF'  ,'Average numb
    '1D: 2*(N+1)\n'//&
    '2D: Pi*(N+1)^2\n'//&
    '3D: (4/3)*Pi*(N+1)^3\n')
-CALL prms%CreateLogicalOption('PIC-shapefunction-adaptive-smoothing', 'Enable smooth transition of element-dependent radius when'//&
+CALL prms%CreateLogicalOption(  'PIC-shapefunction-adaptive-smoothing', 'Enable smooth transition of element-dependent radius when'//&
                                                                       ' using shape_function_adaptive.', '.FALSE.')
 
 END SUBROUTINE DefineParametersPICDeposition
@@ -86,8 +86,8 @@ USE MOD_Basis                  ,ONLY: BarycentricWeights,InitializeVandermonde
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_Interpolation_Vars     ,ONLY: xGP,wBary
-USE MOD_Mesh_Vars              ,ONLY: nElems,sJ
+USE MOD_Interpolation_Vars     ,ONLY: xGP, wGP, NodeType
+USE MOD_Mesh_Vars              ,ONLY: nElems, sJ
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: nUniqueGlobalNodes, GEO
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
@@ -97,6 +97,8 @@ USE MOD_PICInterpolation_Vars  ,ONLY: InterpolationType
 USE MOD_Preproc
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GETSTR,GETREALARRAY,GETINTARRAY
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
+USE MOD_Interpolation          ,ONLY: GetVandermonde
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeToElemInfo,NodeToElemMapping,ElemNodeID_Shared,NodeInfo_Shared
@@ -121,8 +123,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE          :: xGP_tmp(:),wGP_tmp(:)
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode
-REAL                      :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N), DetJac(1,0:1,0:1,0:1)
-REAL, ALLOCATABLE         :: Vdm_tmp(:,:)
 CHARACTER(255)            :: TimeAverageFile
 #if USE_MPI
 INTEGER                   :: UniqueNodeID
@@ -210,28 +210,19 @@ CASE('cell_volweight')
   ALLOCATE(CellVolWeight_Volumes(0:1,0:1,0:1,nElems))
   CellVolWeightFac(0:PP_N) = xGP(0:PP_N)
   CellVolWeightFac(0:PP_N) = (CellVolWeightFac(0:PP_N)+1.0)/2.0
-  CALL LegendreGaussNodesAndWeights(1,xGP_tmp,wGP_tmp)
-  ALLOCATE( Vdm_tmp(0:1,0:PP_N))
-  CALL InitializeVandermonde(PP_N,1,wBary,xGP,xGP_tmp,Vdm_tmp)
+  CellVolWeight_Volumes=0.0
   DO iElem=1, nElems
-    DO k=0,PP_N
-      DO j=0,PP_N
-        DO i=0,PP_N
-          DetLocal(1,i,j,k)=1./sJ(i,j,k,iElem)
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
-    CALL ChangeBasis3D(1,PP_N, 1,Vdm_tmp, DetLocal(:,:,:,:),DetJac(:,:,:,:))
-    DO k=0,1
-      DO j=0,1
-        DO i=0,1
-          CellVolWeight_Volumes(i,j,k,iElem) = DetJac(1,i,j,k)*wGP_tmp(i)*wGP_tmp(j)*wGP_tmp(k)
-        END DO ! i=0,PP_N
-      END DO ! j=0,PP_N
-    END DO ! k=0,PP_N
+    DO i=0,PP_N;DO j=0,PP_N;DO k=0,PP_N
+      CellVolWeight_Volumes(0,0,0,iElem) = CellVolWeight_Volumes(0,0,0,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(0,0,1,iElem) = CellVolWeight_Volumes(0,0,1,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(0,1,0,iElem) = CellVolWeight_Volumes(0,1,0,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(0,1,1,iElem) = CellVolWeight_Volumes(0,1,1,iElem) + 1/sJ(i,j,k,iElem)*((1.-xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,0,0,iElem) = CellVolWeight_Volumes(1,0,0,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,0,1,iElem) = CellVolWeight_Volumes(1,0,1,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,1,0,iElem) = CellVolWeight_Volumes(1,1,0,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      CellVolWeight_Volumes(1,1,1,iElem) = CellVolWeight_Volumes(1,1,1,iElem) + 1/sJ(i,j,k,iElem)*((1.+xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+    END DO; END DO; END DO
   END DO
-  DEALLOCATE(Vdm_tmp)
-  DEALLOCATE(wGP_tmp, xGP_tmp)
 CASE('cell_volweight_mean')
 #if USE_MPI
   ALLOCATE(DoNodeMapping(0:nProcessors_Global-1),SendNode(1:nUniqueGlobalNodes))
@@ -503,9 +494,12 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
   SELECT CASE(TRIM(DepositionType))
   CASE('shape_function_cc', 'shape_function_adaptive')
     w_sf  = 1.0 ! set dummy value
+  CASE('shape_function')
+    IF(Symmetry%axisymmetric) CALL abort(__STAMP__,'Axisymmetric simulations only with shape_function_cc or shape_function_adaptive!')
   END SELECT
 
   ! --- Set periodic case matrix for shape function deposition (virtual displacement of particles in the periodic directions)
+  CALL InitAxisymmetrySF()
   CALL InitPeriodicSFCaseMatrix()
 
   ! --- Set element flag for cycling already completed elements
@@ -526,7 +520,7 @@ CASE('shape_function', 'shape_function_cc', 'shape_function_adaptive')
 #else
   ALLOCATE(ChargeSFDone(1:nElems))
 #endif /*USE_MPI*/
-
+CASE('cell_mean')
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown DepositionType in pic_depo.f90')
 END SELECT
@@ -764,7 +758,7 @@ INTEGER           :: I,J
 IF (GEO%nPeriodicVectors.LE.0) THEN
 
   ! Set defaults and return in non-periodic case
-  NbrOfPeriodicSFCases = 1
+  NbrOfPeriodicSFCases = 0
   ALLOCATE(PeriodicSFCaseMatrix(1:1,1:3))
   PeriodicSFCaseMatrix(:,:) = 0
 
@@ -823,6 +817,38 @@ ELSE
 END IF
 
 END SUBROUTINE InitPeriodicSFCaseMatrix
+
+
+!===================================================================================================================================
+!> Fill PeriodicSFCaseMatrix when using shape function deposition in combination with periodic boundaries
+!===================================================================================================================================
+SUBROUTINE InitAxisymmetrySF()
+! MODULES
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Mesh_Vars     ,ONLY: AxisymmetricSF
+USE MOD_ReadInTools            ,ONLY: PrintOption
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER           :: iPartBound
+!===================================================================================================================================
+AxisymmetricSF = .FALSE.
+IF (Symmetry%Axisymmetric) THEN
+  ! Check boundaries for symmetry axis
+  DO iPartBound=1,nPartBound
+    IF(PartBound%TargetBoundCond(iPartBound).EQ.PartBound%SymmetryAxis) THEN
+      AxisymmetricSF = .TRUE.
+      CALL PrintOption('Found symmetry axis for shape function deposition','INFO',LogOpt=AxisymmetricSF)
+      RETURN
+    END IF
+  END DO
+END IF
+
+END SUBROUTINE InitAxisymmetrySF
 
 
 SUBROUTINE Deposition(doParticle_In, stage_opt)

@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_TrackingVars
 !===================================================================================================================================
-! Contains the tadiation transport variables
+! Contains the radiation transport variables
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

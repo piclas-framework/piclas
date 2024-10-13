@@ -14,7 +14,7 @@
 
 MODULE MOD_Mesh
 !===================================================================================================================================
-! Contains subroutines to build (curviilinear) meshes and provide metrics, etc.
+! Contains subroutines to build (curvilinear) meshes and provide metrics, etc.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -105,20 +105,24 @@ USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
-USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics
 #if USE_FV
 #ifndef PARTICLES
 USE MOD_Mesh_Tools             ,ONLY: InitGetCNElemID
 #endif /*PARTICLES*/
-USE MOD_Metrics                ,ONLY: CalcMetrics_PP_1
+USE MOD_Metrics                ,ONLY: CalcMetrics_PP_1,CalcSurfMetrics_PP_1
 #endif /*FV*/
+USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
+#if USE_HDG
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+#endif
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
+USE MOD_LoadBalance_Metrics    ,ONLY: MoveCoords,MoveMetrics
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
@@ -197,9 +201,15 @@ IF (PRESENT(MeshFile_IN)) THEN
 ELSE
   MeshFile = GETSTR('MeshFile')
 END IF
-validMesh = ISVALIDMESHFILE(MeshFile)
-IF(.NOT.validMesh) &
-    CALL CollectiveStop(__STAMP__,'ERROR - Mesh file ['//TRIM(MeshFile)//'] is not a valid HDF5 mesh.')
+
+#if USE_LOADBALANCE
+IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+  validMesh = ISVALIDMESHFILE(MeshFile)
+  IF(.NOT.validMesh) CALL CollectiveStop(__STAMP__,'ERROR - Mesh file not a valid HDF5 mesh.')
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 
 useCurveds=GETLOGICAL('useCurveds')
@@ -225,7 +235,7 @@ IF(useCurveds)THEN
   END IF
 ELSE
   IF(NGeo.GT.1) THEN
-    LBWRITE(*,*) ' WARNING: Using linear elements although NGeo>1! NGeo will be set to 1 after coordinates read-in!'
+    LBWRITE(UNIT_stdOut,'(A)') ' WARNING: Using linear elements although NGeo>1! NGeo will be set to 1 after coordinates read-in!'
   END IF
 END IF
 
@@ -254,12 +264,25 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
-ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
+#if USE_LOADBALANCE
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  CALL MoveCoords()
 #if USE_FV
-ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))
-CALL BuildCoords(NodeCoords,0,Elem_xGP_FV)
+  CALL abort(__STAMP__,'Load balancing not implemented for FV: Elem_xGP_FV')
 #endif
+ELSE
+! Build the coordinates of the solution gauss points in the volume
+#endif /*USE_LOADBALANCE*/
+  SDEALLOCATE(Elem_xGP)
+  ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
+  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
+#if USE_FV
+  ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))
+  CALL BuildCoords(NodeCoords,0,Elem_xGP_FV)
+#endif
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
 
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (ABS(meshMode).GT.0) THEN
@@ -319,69 +342,106 @@ IF (ABS(meshMode).GT.0) THEN
 
 END IF ! meshMode.GT.0
 
-IF ((ABS(meshMode).GT.1)) THEN
+! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
-  ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
+IF (ABS(meshMode).GT.1) THEN
+#if USE_LOADBALANCE
+  IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+    ! Shift metric arrays during load balance
+    CALL MoveMetrics()
+  ELSE
+    ! deallocate existing arrays
+    ! mesh basis
+    ! SDEALLOCATE(Xi_NGeo)
+    ! SDEALLOCATE(XiCL_NGeo)
+    ! SDEALLOCATE(DCL_N)
+    ! SDEALLOCATE(DCL_NGeo)
+    ! SDEALLOCATE(Vdm_CLN_GaussN)
+    ! SDEALLOCATE(Vdm_CLNGeo_GaussN)
+    ! SDEALLOCATE(Vdm_CLNGeo_CLN)
+    ! SDEALLOCATE(Vdm_NGeo_CLNGeo)
+    ! SDEALLOCATE(wBaryCL_NGeo)
 
-  ! volume data
-  ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! temp
-  ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
-  NGeoRef=3*NGeo ! build jacobian at higher degree
-  ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+    ! mesh metrics
+    SDEALLOCATE(      dXCL_N)
+    SDEALLOCATE(      JaCL_N)
+    SDEALLOCATE(Metrics_fTilde)
+    SDEALLOCATE(Metrics_gTilde)
+    SDEALLOCATE(Metrics_hTilde)
+    SDEALLOCATE(sJ)
 
-  ! surface data
-  ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,             1:nSides)) ! temp
-  Face_xGP=0.
-  NormVec=0.
-  TangVec1=0.
-  TangVec2=0.
-  SurfElem=0.
+    ! Vandermonde
+    SDEALLOCATE(Vdm_CLN_N)
+    SDEALLOCATE(XCL_N)
+
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)
-  ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
-  ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
-  nVecLoc=0.
-  SurfLoc=0.
+    SDEALLOCATE(nVecLoc)
+    SDEALLOCATE(SurfLoc)
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 
+    SDEALLOCATE(XCL_NGeo)
+#ifdef PARTICLES
+    SDEALLOCATE(dXCL_NGeo)
+#endif /*PARTICLES*/
+
+    ! Calculate metric arrays
+#endif /*USE_LOADBALANCE*/
+    ! volume data
+    ALLOCATE(       XCL_N(  3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! built in CalcMetrics(), required in CalcSurfMetrics()
+    ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! built in CalcMetrics()
+    ALLOCATE(      JaCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! built in CalcMetrics(), required in CalcSurfMetrics()
+    ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! built in CalcMetrics()
+    ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! built in CalcMetrics()
+    ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems)) ! built in CalcMetrics()
+    ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems)) ! built in CalcMetrics()
+    NGeoRef = 3*NGeo ! build jacobian at higher degree
+    JaCL_N  = 0.
+
+    ! Vandermonde
+    ALLOCATE(Vdm_CLN_N(       0:PP_N,0:PP_N))
+
 #if USE_FV
-  ALLOCATE(Metrics_fTilde_FV(3,0:0,0:0,0:0,nElems))
-  ALLOCATE(Metrics_gTilde_FV(3,0:0,0:0,0:0,nElems))
-  ALLOCATE(Metrics_hTilde_FV(3,0:0,0:0,0:0,nElems))
-  ALLOCATE(Face_xGP_FV      (3,0:0,0:0,1:nSides))
-  ALLOCATE(NormVec_FV       (3,0:0,0:0,1:nSides))
-  ALLOCATE(TangVec1_FV      (3,0:0,0:0,1:nSides))
-  ALLOCATE(TangVec2_FV      (3,0:0,0:0,1:nSides))
-  ALLOCATE(SurfElem_FV      (  0:0,0:0,1:nSides))
-  ALLOCATE(Ja_Face_FV       (3,3,0:0,0:0,1:nSides)) ! temp
-  Face_xGP_FV=0.
-  NormVec_FV=0.
-  TangVec1_FV=0.
-  TangVec2_FV=0.
-  SurfElem_FV=0.
+    ALLOCATE(       XCL_N_PP_1(  3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics(), required in CalcSurfMetrics()
+    ALLOCATE(      dXCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics()
+    ALLOCATE(      JaCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems))
+    ALLOCATE(Metrics_fTilde_FV(3,0:0,0:0,0:0,nElems))
+    ALLOCATE(Metrics_gTilde_FV(3,0:0,0:0,0:0,nElems))
+    ALLOCATE(Metrics_hTilde_FV(3,0:0,0:0,0:0,nElems))
+    JaCL_N_PP_1 = 0.
+
+    ! Vandermonde
+    ALLOCATE(Vdm_CLN_N_PP_1(   0:PP_1,0:PP_1))
 #endif /*FV*/
 
+#ifdef maxwell
+#if defined(ROS) || defined(IMPA)
+    ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
+    ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
+    nVecLoc  = 0.
+    SurfLoc  = 0.
+#endif /*ROS or IMPA*/
+#endif /*maxwell*/
 
-! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
-! assign 1/detJ (sJ)
-! assign normal and tangential vectors and surfElems on faces
+    ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
+    ! assign 1/detJ (sJ)
+    ! assign normal and tangential vectors and surfElems on faces
 
-  crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
-  LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-  CALL InitMeshBasis(NGeo,PP_N,xGP)
+    crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
+#if USE_HDG
+    IF(Symmetry%axisymmetric.AND..NOT.crossProductMetrics) THEN
+      crossProductMetrics = .TRUE.
+      LBWRITE(UNIT_stdOut,'(A)') 'WARNING: setting ""crossProductMetrics" to true for axisymmetric simulations!'
+    END IF
+#endif /*USE_HDG*/
+    LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
+    CALL InitMeshBasis(NGeo,PP_N,xGP)
 
-  ! get XCL_NGeo
-  ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-  XCL_NGeo = 0.
+    ! get XCL_NGeo
+    ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+    XCL_NGeo = 0.
+
 #if USE_FV
 #ifdef PARTICLES
   ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
@@ -394,13 +454,73 @@ IF ((ABS(meshMode).GT.1)) THEN
 #endif /*USE_FV*/
 #if !(USE_FV) || (USE_HDG)
 #ifdef PARTICLES
-  IF(.NOT.ALLOCATED(dXCL_NGeo)) ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-  dXCL_NGeo = 0.
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+    IF(.NOT.ALLOCATED(dXCL_NGeo)) ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+    dXCL_NGeo = 0.
+    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else
-  CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
+    CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 #endif /*PARTICLES*/
-#endif /*FV/HDG*/
+#endif /*!(USE_FV) || (USE_HDG)*/
+#if USE_LOADBALANCE
+  END IF ! PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)
+#endif /*USE_LOADBALANCE*/
+
+  ! surface data
+  ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
+  ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,1:nSides)) ! temp
+  Face_xGP = 0.
+  NormVec  = 0.
+  TangVec1 = 0.
+  TangVec2 = 0.
+  SurfElem = 0.
+
+  DO iElem=1,nElems
+    CALL CalcSurfMetrics(JaCL_N(:,:,:,:,:,iElem),iElem)
+  END DO
+
+#if USE_FV
+  ALLOCATE(Face_xGP_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(NormVec_FV       (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec1_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec2_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(SurfElem_FV      (  0:0,0:0,1:nSides))
+  ALLOCATE(Ja_Face_FV       (3,3,0:0,0:0,1:nSides)) ! temp
+  Face_xGP_FV=0.
+  NormVec_FV=0.
+  TangVec1_FV=0.
+  TangVec2_FV=0.
+  SurfElem_FV=0.
+  Ja_Face_FV=0.
+
+  ALLOCATE(Face_xGP_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(NormVec_PP_1    (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(TangVec1_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(TangVec2_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(SurfElem_PP_1     (0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(Ja_Face_PP_1  (3,3,0:PP_1,0:PP_1,1:nSides))
+  Face_xGP_PP_1       = 0.
+  NormVec_PP_1        = 0.
+  TangVec1_PP_1       = 0.
+  TangVec2_PP_1       = 0.
+  SurfElem_PP_1       = 0.
+  Ja_Face_PP_1        = 0.
+
+  DO iElem=1,nElems
+    CALL CalcSurfMetrics_PP_1(JaCL_N_PP_1(:,:,:,:,:,iElem),iElem)
+  END DO
+
+  ! PP_1 metrics to global ones
+  Face_xGP_FV(:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
+  NormVec_FV (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
+  TangVec1_FV(:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
+  TangVec2_FV(:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
+  SurfElem_FV(0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
+  Ja_Face_FV (:,:,0,0,:) = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
+#endif /*FV*/
 
   ! Compute element bary and element radius for processor-local elements (without halo region)
   ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
@@ -418,11 +538,13 @@ IF ((ABS(meshMode).GT.1)) THEN
 #ifndef PARTICLES
   IF(meshMode.GT.1) DEALLOCATE(NodeCoords)
 #endif
-  DEALLOCATE(dXCL_N)
+! #if !USE_LOADBALANCE
+  ! DEALLOCATE(dXCL_N)
   DEALLOCATE(Ja_Face)
 #if USE_FV
   DEALLOCATE(Ja_Face_FV)
 #endif
+! #endif /*!USE_LOADBALANCE*/
 
   IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
@@ -463,10 +585,12 @@ SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 ! Read Parameter from inputfile
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars ,ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N
-USE MOD_Mesh_Vars ,ONLY: wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo
-USE MOD_Basis     ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
-USE MOD_Basis     ,ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
+USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
+USE MOD_Basis              ,ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
+USE MOD_Mesh_Vars          ,ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N
+USE MOD_Mesh_Vars          ,ONLY: wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo,NGeo
+USE MOD_Interpolation      ,ONLY: GetNodesAndWeights
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -482,31 +606,34 @@ REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
 REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
 INTEGER                                    :: i
 !===================================================================================================================================
-ALLOCATE(DCL_N(0:N_in,0:N_in),Vdm_CLN_GaussN(0:N_in,0:N_in))
-ALLOCATE(Xi_NGeo(0:NGeo_in))
-ALLOCATE(DCL_NGeo(0:NGeo_in,0:NGeo_in))
-ALLOCATE(Vdm_CLNGeo_GaussN(0:N_in,0:NGeo_in))
-ALLOCATE(Vdm_CLNGeo_CLN(0:N_in,0:NGeo_in))
-ALLOCATE(Vdm_NGeo_CLNGeo(0:NGeo_in,0:NGeo_in))
+ALLOCATE(Xi_NGeo(          0:NGeo_in))
+ALLOCATE(XiCL_NGeo(        0:NGeo_in))
+ALLOCATE(DCL_N(            0:N_in   ,0:N_in   ))
+ALLOCATE(DCL_NGeo(         0:NGeo_in,0:NGeo_in))
+ALLOCATE(Vdm_CLN_GaussN(   0:N_in   ,0:N_in   ))
+ALLOCATE(Vdm_CLNGeo_GaussN(0:N_in   ,0:NGeo_in))
+ALLOCATE(Vdm_CLNGeo_CLN(   0:N_in   ,0:NGeo_in))
+ALLOCATE(Vdm_NGeo_CLNGeo(  0:NGeo_in,0:NGeo_in))
+ALLOCATE(wBaryCL_NGeo(     0:NGeo_in))
 
-ALLOCATE(wBaryCL_NGeo(0:NGeo_In))
-ALLOCATE(XiCL_NGeo(0:NGeo_In))
+CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
+
 ! Chebyshev-Lobatto N
 CALL ChebyGaussLobNodesAndWeights(N_in,XiCL_N)
-CALL BarycentricWeights(N_in,XiCL_N,wBaryCL_N)
-CALL PolynomialDerivativeMatrix(N_in,XiCL_N,DCL_N)
-CALL InitializeVandermonde(N_in,N_in,wBaryCL_N,XiCL_N,xGP,Vdm_CLN_GaussN)
+CALL BarycentricWeights(          N_in,XiCL_N,wBaryCL_N)
+CALL PolynomialDerivativeMatrix(  N_in,XiCL_N,DCL_N)
+CALL InitializeVandermonde(       N_in,N_in  ,wBaryCL_N,XiCL_N,xGP,Vdm_CLN_GaussN)
 !equidistant-Lobatto NGeo
 DO i=0,NGeo_in
   Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
 END DO
 DeltaXi_NGeo=2./NGeo_in
-CALL BarycentricWeights(NGeo_in,Xi_NGeo,wBary_NGeo)
+CALL BarycentricWeights(          NGeo_in,Xi_NGeo,wBary_NGeo)
 
 ! Chebyshev-Lobatto NGeo
 CALL ChebyGaussLobNodesAndWeights(NGeo_in,XiCL_NGeo)
-CALL BarycentricWeights(NGeo_in,XiCL_NGeo,wBaryCL_NGeo)
-CALL PolynomialDerivativeMatrix(NGeo_in,XiCL_NGeo,DCL_NGeo)
+CALL BarycentricWeights(          NGeo_in,XiCL_NGeo,wBaryCL_NGeo)
+CALL PolynomialDerivativeMatrix(  NGeo_in,XiCL_NGeo,DCL_NGeo)
 
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,xGP      ,Vdm_CLNGeo_GaussN)
 CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_CLNGeo_CLN   )
@@ -755,7 +882,6 @@ IF(GetMeshMinMaxBoundariesIsDone) RETURN
 
 ! Get global min/max for all directions x, y and z
 #if USE_MPI
-
    ! Map global min/max values from xyzMinMax(1:6) that were determined in metric.f90 for each processor
    xmin_loc(1) = xyzMinMax(1)
    xmin_loc(2) = xyzMinMax(3)
@@ -1053,7 +1179,7 @@ SUBROUTINE FinalizeMesh()
 USE MOD_Globals
 USE MOD_Mesh_Vars
 #if defined(PARTICLES) && USE_LOADBALANCE
-USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1066,62 +1192,18 @@ IMPLICIT NONE
 !============================================================================================================================
 ! Deallocate global variables, needs to go somewhere else later
 SDEALLOCATE(ElemInfo)
-! geometry information and VDMS
-SDEALLOCATE(Xi_NGeo)
-SDEALLOCATE(DCL_N)
-SDEALLOCATE(DCL_NGeo)
-SDEALLOCATE(VdM_CLN_GaussN)
-SDEALLOCATE(VdM_CLNGeo_GaussN)
-SDEALLOCATE(Vdm_CLNGeo_CLN)
-SDEALLOCATE(Vdm_NGeo_CLNgeo)
-SDEALLOCATE(Vdm_EQ_N)
-SDEALLOCATE(Vdm_N_EQ)
-SDEALLOCATE(Vdm_GL_N)
-SDEALLOCATE(Vdm_N_GL)
 ! mapping from elems to sides and vice-versa
 SDEALLOCATE(ElemToSide)
 SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
 SDEALLOCATE(GlobalUniqueSideID)
-! elem-xgp and metrics
-SDEALLOCATE(Elem_xGP)
-SDEALLOCATE(Metrics_fTilde)
-SDEALLOCATE(Metrics_gTilde)
-SDEALLOCATE(Metrics_hTilde)
-SDEALLOCATE(sJ)
-SDEALLOCATE(NormVec)
-SDEALLOCATE(TangVec1)
-SDEALLOCATE(TangVec2)
-SDEALLOCATE(SurfElem)
-#if USE_FV
-SDEALLOCATE(Elem_xGP_FV)
-SDEALLOCATE(Metrics_fTilde_FV)
-SDEALLOCATE(Metrics_gTilde_FV)
-SDEALLOCATE(Metrics_hTilde_FV)
-SDEALLOCATE(NormVec_FV)
-SDEALLOCATE(TangVec1_FV)
-SDEALLOCATE(TangVec2_FV)
-SDEALLOCATE(SurfElem_FV)
-SDEALLOCATE(Face_xGP_FV)
-#endif
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-SDEALLOCATE(nVecLoc)
-SDEALLOCATE(SurfLoc)
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
 !#ifdef CODE_ANALYZE
 !#ifndef PARTICLES
 !SDEALLOCATE(SideBoundingBoxVolume)
 !#endif
 !#endif
-SDEALLOCATE(Face_xGP)
 SDEALLOCATE(ElemToElemGlob)
-SDEALLOCATE(XCL_NGeo)
-SDEALLOCATE(dXCL_NGeo)
-SDEALLOCATE(wbaryCL_NGeo)
-SDEALLOCATE(XiCL_NGeo)
 ! mortars
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
@@ -1134,7 +1216,24 @@ SDEALLOCATE(SideToVolA)
 SDEALLOCATE(SideToVol2A)
 SDEALLOCATE(CGNS_SideToVol2A)
 SDEALLOCATE(FS2M)
-SDEALLOCATE(DetJac_Ref)
+! Sides
+SDEALLOCATE(Face_xGP)
+SDEALLOCATE(NormVec)
+SDEALLOCATE(TangVec1)
+SDEALLOCATE(TangVec2)
+SDEALLOCATE(SurfElem)
+#if USE_FV
+SDEALLOCATE(NormVec_FV)
+SDEALLOCATE(TangVec1_FV)
+SDEALLOCATE(TangVec2_FV)
+SDEALLOCATE(SurfElem_FV)
+SDEALLOCATE(Face_xGP_FV)
+SDEALLOCATE(NormVec_PP_1)
+SDEALLOCATE(TangVec1_PP_1)
+SDEALLOCATE(TangVec2_PP_1)
+SDEALLOCATE(SurfElem_PP_1)
+SDEALLOCATE(Face_xGP_PP_1)
+#endif
 SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)
@@ -1146,15 +1245,61 @@ SDEALLOCATE(myInvisibleRank)
 SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
+! Arrays are being shifted along load balancing, so they need to be kept allocated
 #if defined(PARTICLES) && USE_LOADBALANCE
-IF (PerformLoadBalance) RETURN
+IF (PerformLoadBalance .AND. .NOT.UseH5IOLoadBalance) RETURN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+
+! geometry information and VDMS
+SDEALLOCATE(DCL_N)
+SDEALLOCATE(DCL_NGeo)
+SDEALLOCATE(Vdm_CLN_GaussN)
+SDEALLOCATE(Vdm_CLNGeo_GaussN)
+SDEALLOCATE(Vdm_CLNGeo_CLN)
+SDEALLOCATE(Vdm_NGeo_CLNGeo)
+SDEALLOCATE(Xi_NGeo)
+SDEALLOCATE(XiCL_NGeo)
+SDEALLOCATE(wBaryCL_NGeo)
+! particle input/output
+SDEALLOCATE(Vdm_N_EQ)
+SDEALLOCATE(Vdm_EQ_N)
+! superb
+SDEALLOCATE(Vdm_GL_N)
+SDEALLOCATE(Vdm_N_GL)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
 #if USE_FV && USE_HDG
 SDEALLOCATE(BoundaryType_FV)
 #endif
+! elem-xgp and metrics
+SDEALLOCATE(XCL_NGeo)
+SDEALLOCATE(dXCL_NGeo)
+SDEALLOCATE(Metrics_fTilde)
+SDEALLOCATE(Metrics_gTilde)
+SDEALLOCATE(Metrics_hTilde)
+SDEALLOCATE(Elem_xGP)
+SDEALLOCATE(sJ)
+#if USE_FV
+SDEALLOCATE(Elem_xGP_FV)
+SDEALLOCATE(Metrics_fTilde_FV)
+SDEALLOCATE(Metrics_gTilde_FV)
+SDEALLOCATE(Metrics_hTilde_FV)
+SDEALLOCATE(JaCL_N_PP_1)
+#endif
+#ifdef maxwell
+#if defined(ROS) || defined(IMPA)
+SDEALLOCATE(nVecLoc)
+SDEALLOCATE(SurfLoc)
+#endif /*ROS or IMPA*/
+#endif /*maxwell*/
+SDEALLOCATE(JaCL_N)
+SDEALLOCATE(Vdm_CLN_N)
+SDEALLOCATE(XCL_N)
+! #if USE_LOADBALANCE
+SDEALLOCATE(dXCL_N)
+! SDEALLOCATE(Ja_Face)
+! #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE FinalizeMesh
 

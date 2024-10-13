@@ -42,10 +42,11 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF,InitializeParticleMaxwell, IncreaseMaxParticleNumber
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
-USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, Symmetry, UseVarTimeStep
+USE MOD_Particle_Vars           ,ONLY: Species, PDM, nSpecies, PartState, UseVarTimeStep
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared, ElemMidPoint_Shared
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
