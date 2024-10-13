@@ -58,10 +58,7 @@ USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D,ChangeBasis2D
 USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 USE MOD_HDF5_Output        ,ONLY: FlushHDF5
-USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM
-#if USE_HDG
-USE MOD_Interpolation_Vars ,ONLY: NMax
-#endif /*USE_HDG*/
+USE MOD_Interpolation_Vars ,ONLY: NMax,N_Inter,PREF_VDM
 USE MOD_DG_Vars            ,ONLY: U_N
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
@@ -112,14 +109,13 @@ USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 ! Non-HDG stuff
 USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
 #endif /*USE_HDG*/
-USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
 USE MOD_Mesh_Vars          ,ONLY: nElems,OffsetElem
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

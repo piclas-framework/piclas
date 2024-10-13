@@ -490,7 +490,7 @@ DO iSide=1,nSides
   !WRITE (*,*) "MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master2),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave2) =", MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master2),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave2)
 END DO
   !write(*,*) ""
-  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
 !     Dielectric_dummy_Slave2
@@ -524,7 +524,7 @@ DO iSide =1, nSides
   !WRITE (*,*) "MINVAL(DielectricSurf(iSide)%Dielectric_Master),MINVAL(DielectricSurf(iSide)%Dielectric_Slave)               =", MINVAL(DielectricSurf(iSide)%Dielectric_Master),MINVAL(DielectricSurf(iSide)%Dielectric_Slave)
   !write(*,*) ""
 END DO ! iSide =1, nSides
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
   ! 7. Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
   !    master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
@@ -558,7 +558,7 @@ DO iSide =1, nSides
   DEALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master2)
 #endif /*USE_MPI*/
 END DO ! iSide =1, nSides
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_WORLD,iError)
+!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 END SUBROUTINE SetDielectricFaceProfile
 #endif /* not USE_HDG*/
