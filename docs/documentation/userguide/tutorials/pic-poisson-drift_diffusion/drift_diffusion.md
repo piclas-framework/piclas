@@ -1,4 +1,4 @@
-# Drift Diffusion Model Tutorial
+# Drift Diffusion Electron Fluid Model (PIC, Poisson's Equation)
 
 Streamers, as seen in lightning and sprite events, are also observed in industrial applications such as lighting, purification of dirty gases and water, plasma jets and bullets for disinfection, and plasma-assisted combustion. Using this setup, a 1D streamer simulation will be carried out using PICLas.
 
@@ -375,7 +375,6 @@ Run the command
     ./piclas2vtk parameter_streamer.ini streamer_N2_DSMCState_000.00000000**
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
-
 
 
 

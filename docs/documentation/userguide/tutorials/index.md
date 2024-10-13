@@ -27,6 +27,7 @@ caption: Table of Contents
 pic-poisson-plasma-wave/pic-poisson-plasma-wave.md
 pic-poisson-Landau-damping/pic-poisson-Landau-damping.md
 pic-two-stream-instability/pic-two-stream-instability.md
+pic-poisson-drift_diffusion/drift_diffusion.md
 dsmc-reservoir/dsmc-reservoir.md
 dsmc-cone-2D/dsmc-cone-2D.md
 dsmc-cone-3D/dsmc-cone-3D.md
