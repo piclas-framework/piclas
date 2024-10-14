@@ -401,7 +401,7 @@ CASE('cell_volweight_mean')
                   , 1                            &
                   , MPI_INTEGER                  &
                   , iProc                        &
-                  , 1999                         &
+                  , 2000                         &
                   , MPI_COMM_PICLAS               &
                   , RecvRequestNonSymDepo(iProc)           &
                   , IERROR)
@@ -414,7 +414,7 @@ CASE('cell_volweight_mean')
                   , 1                                 &
                   , MPI_INTEGER                       &
                   , iProc                             &
-                  , 1999                              &
+                  , 2000                              &
                   , MPI_COMM_PICLAS                    &
                   , SendRequestNonSymDepo(iProc)      &
                   , IERROR)

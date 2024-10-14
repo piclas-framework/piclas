@@ -208,7 +208,7 @@ USE MOD_IO_HDF5
 USE MOD_Mesh_Vars            ,ONLY: tElem,tSide
 USE MOD_Mesh_Vars            ,ONLY: NGeo
 USE MOD_Mesh_Vars            ,ONLY: NodeCoords
-USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems,nNodes
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
 USE MOD_Mesh_Vars            ,ONLY: nSides,nInnerSides,nBCSides,nMPISides,nAnalyzeSides,nGlobalMortarSides
 USE MOD_Mesh_Vars            ,ONLY: nFEMEdges, nFEMVertices, readFEMconnectivity, nFEMEdgeConnections, nFEMVertexConnections, nNonUniqueGlobalEdges, nNonUniqueGlobalVertices
 USE MOD_Mesh_Vars            ,ONLY: nMortarSides
@@ -219,7 +219,7 @@ USE MOD_Mesh_Vars            ,ONLY: MeshInitIsDone
 USE MOD_Mesh_Vars            ,ONLY: Elems!,Nodes
 USE MOD_Mesh_Vars            ,ONLY: GETNEWELEM,GETNEWSIDE
 USE MOD_Mesh_Vars            ,ONLY: ElemInfo,SideInfo,EdgeInfo,EdgeConnectInfo,VertexInfo,VertexConnectInfo
-USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
+USE MOD_Particle_Mesh_Vars   ,ONLY: nComputeNodeElems,nNonUniqueGlobalSides,nNonUniqueGlobalNodes,nUniqueGlobalNodes
 #if USE_MPI
 USE MOD_MPI_Vars             ,ONLY: nMPISides_Proc,nNbProcs,NbProc,offsetElemMPI
 USE MOD_Particle_Mesh_Vars   ,ONLY: offsetComputeNodeElem
@@ -267,7 +267,7 @@ INTEGER                        :: FirstSideInd,LastSideInd,FirstElemInd,LastElem
 INTEGER                        :: FirstEdgeInd,LastEdgeInd,FirstEdgeConnectInd,LastEdgeConnectInd
 INTEGER                        :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 INTEGER                        :: nPeriodicSides,nMPIPeriodics
-INTEGER                        :: ReduceData(11)
+INTEGER                        :: ReduceData(9)
 INTEGER                        :: nSideIDs,offsetSideID
 INTEGER                        :: nEdgeIDs,offsetEdgeID,nEdgeConnectIDs,offsetEdgeConnectID
 INTEGER                        :: nVertexIDs,offsetVertexID,nVertexConnectIDs,offsetVertexConnectID
@@ -971,15 +971,13 @@ DEALLOCATE(MPISideCount)
 
 ReduceData(1)=nElems
 ReduceData(2)=nSides
-ReduceData(3)=nNodes
+ReduceData(3)=nMPIPeriodics
 ReduceData(4)=nInnerSides
 ReduceData(5)=nPeriodicSides
 ReduceData(6)=nBCSides
 ReduceData(7)=nMPISides
 ReduceData(8)=nAnalyzeSides
 ReduceData(9)=nMortarSides
-ReduceData(10)=nMPIPeriodics
-ReduceData(11)=nNodeIDs
 
 #ifdef PARTICLES
 ! Finish non-blocking communication of mesh information
@@ -987,7 +985,7 @@ CALL FinishCommunicateMeshReadin()
 #endif
 
 #if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,11,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,ReduceData,9,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 
 nGlobalMortarSides=ReduceData(9)
@@ -997,16 +995,16 @@ IF(MPIRoot)THEN
   IF(.NOT.PerformLoadBalance)THEN
 #endif /*USE_LOADBALANCE*/
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nElems | ',ReduceData(1) !nElems
-    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',ReduceData(3) !nNodes
-    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',ReduceData(11) !nNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, unique | ',nUniqueGlobalNodes
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nNodes, total  | ',nNonUniqueGlobalNodes
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides         | ',ReduceData(2)-ReduceData(7)/2
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,    BC  | ',ReduceData(6) !nBCSides
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,   MPI  | ',ReduceData(7)/2 !nMPISides
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides, Inner  | ',ReduceData(4) !nInnerSides
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nSides,Mortar  | ',nGlobalMortarSides
-    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(10)/2
-    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(10)
-    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(10)/2 !nPeriodicSides
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Total | ',ReduceData(5)-ReduceData(3)/2
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,Inner | ',ReduceData(5)-ReduceData(3)
+    WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nPeriodicSides,  MPI | ',ReduceData(3)/2 !nPeriodicSides
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','nAnalyzeSides | ',ReduceData(8) !nAnalyzeSides
     WRITE(UNIT_stdOut,'(A,A34,L1)')' |','useCurveds | ',useCurveds
     WRITE(UNIT_stdOut,'(A,A34,I0)')' |','Ngeo | ',Ngeo
@@ -1110,9 +1108,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: FirstElemInd,LastElemInd
-INTEGER                        :: nSideIDs,offsetSideID,nEdgeIDs,nEdgeConnectIDs,nVertexIDs,nVertexConnectIDs
-INTEGER                        :: FirstEdgeInd,LastEdgeInd,offsetEdgeID,FirstVertexInd,LastVertexInd,offsetVertexID
-INTEGER                        :: FirstEdgeConnectInd,LastEdgeConnectInd,offsetEdgeConnectID,FirstVertexConnectInd,LastVertexConnectInd,offsetVertexConnectID
+INTEGER                        :: nSideIDs,offsetSideID
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -1170,7 +1166,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: FirstElemInd,LastElemInd
-INTEGER                        :: nSideIDs,offsetSideID,nEdgeIDs,nEdgeConnectIDs,nVertexIDs,nVertexConnectIDs
+INTEGER                        :: nEdgeIDs,nEdgeConnectIDs,nVertexIDs,nVertexConnectIDs
 INTEGER                        :: FirstEdgeInd,LastEdgeInd,offsetEdgeID,FirstVertexInd,LastVertexInd,offsetVertexID
 INTEGER                        :: FirstEdgeConnectInd,LastEdgeConnectInd,offsetEdgeConnectID,FirstVertexConnectInd,LastVertexConnectInd,offsetVertexConnectID
 !===================================================================================================================================
@@ -1181,9 +1177,6 @@ IF (PerformLoadBalance) RETURN
 
 FirstElemInd = offsetElem+1
 LastElemInd  = offsetElem+nElems
-! offsetSideID = ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
-! nSideIDs     = ElemInfo(ELEM_LASTSIDEIND ,LastElemInd)-ElemInfo(ELEM_FIRSTSIDEIND,FirstElemInd)
-
 
 offsetEdgeID = ElemInfo(ELEM_FIRSTEDGEIND,FirstElemInd) ! hdf5 array starts at 0-> -1
 nEdgeIDs     = ElemInfo(ELEM_LASTEDGEIND,LastElemInd)-ElemInfo(ELEM_FIRSTEDGEIND,FirstElemInd)

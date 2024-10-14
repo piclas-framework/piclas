@@ -184,7 +184,6 @@ INTEGER          :: nAnalyzeSides=0         !< marker for each side (BC,analyze 
 INTEGER          :: nMPISides=0             !< number of MPI sides in mesh
 INTEGER          :: nMPISides_MINE=0        !< number of MINE MPI sides (on local processor)
 INTEGER          :: nMPISides_YOUR=0        !< number of YOUR MPI sides (on neighbour processors)
-INTEGER          :: nNodes=0                !< SIZE of Nodes pointer array, number of unique nodes
 INTEGER          :: nBCs=0                  !< number of BCs in mesh
 INTEGER          :: nUserBCs=0              !< number of BC in inifile
 LOGICAL          :: ChangedPeriodicBC       !< is set true if BCs are changed from periodic to non-periodic (default is false)
@@ -446,14 +445,6 @@ DO iElem=FirstElemInd,LastElemInd
   DEALLOCATE(aElem)
 END DO
 DEALLOCATE(Elems)
-
-! Free the node pointer
-DO iNode=1,nNodes
-  IF(ASSOCIATED(Nodes(iNode)%np))THEN
-    DEALLOCATE(Nodes(iNode)%np)
-  END IF
-END DO
-!DEALLOCATE(Nodes)
 
 END SUBROUTINE deleteMeshPointer
 
