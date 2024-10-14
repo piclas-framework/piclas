@@ -327,7 +327,7 @@ DO iVar=1, PP_nVar
 CALL LBPauseTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-#if USE_MPI
+#if USE_MPI && !USE_PETSC
 CALL Mask_MPIsides('RHS_face',iVar)
 #endif /*USE_MPI*/
 
