@@ -1045,7 +1045,7 @@ DO q=0,Nloc; DO p=0,Nloc
     TangVec2(:,p,q) = (/0., 0., 1./)
 #endif /*USE_HDG*/
   ELSE
-    IF(ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'Nloc='//TRIM(hilf)//&
+    IF(Nloc.GT.0.AND.ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'Nloc='//TRIM(hilf)//&
       ': SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
     SurfElem(  p,q) = SQRT(SurfElem(p,q))
     NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
