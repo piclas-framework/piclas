@@ -153,7 +153,7 @@ INTEGER                        :: FirstElem,LastElem
 INTEGER                        :: firstNodeID,lastNodeID
 INTEGER                        :: offsetNodeID,nNodeIDs,currentOffset
 INTEGER,PARAMETER              :: moveBGMindex=1,increment=1,haloChange=4
-REAL                           :: xmin,xmax,ymin,ymax,zmin,zmax
+REAL                           :: xmin,xmax,ymin,ymax,zmin,zmax,origin(3),radius
 INTEGER                        :: iBGM,jBGM,kBGM
 INTEGER                        :: BGMimax,BGMimin,BGMjmax,BGMjmin,BGMkmax,BGMkmin
 INTEGER                        :: BGMCellXmax,BGMCellXmin,BGMCellYmax,BGMCellYmin,BGMCellZmax,BGMCellZmin
@@ -266,19 +266,35 @@ SELECT CASE(TrackingMethod)
       firstNodeID  = offsetNodeID+1
       lastNodeID   = offsetNodeID+nNodeIDs
 
-      xmin=MINVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
-      xmax=MAXVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
-      ymin=MINVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
-      ymax=MAXVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
-      zmin=MINVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
-      zmax=MAXVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
+      ! xmin=MINVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
+      ! xmax=MAXVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
+      ! ymin=MINVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
+      ! ymax=MAXVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
+      ! zmin=MINVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
+      ! zmax=MAXVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
 
-      BoundsOfElem_Shared(1,1,iElem) = xmin
-      BoundsOfElem_Shared(2,1,iElem) = xmax
-      BoundsOfElem_Shared(1,2,iElem) = ymin
-      BoundsOfElem_Shared(2,2,iElem) = ymax
-      BoundsOfElem_Shared(1,3,iElem) = zmin
-      BoundsOfElem_Shared(2,3,iElem) = zmax
+      BoundsOfElem_Shared(1,1,iElem) = MINVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
+      BoundsOfElem_Shared(2,1,iElem) = MAXVAL(NodeCoords_Shared(1,firstNodeID:lastNodeID))
+      BoundsOfElem_Shared(1,2,iElem) = MINVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
+      BoundsOfElem_Shared(2,2,iElem) = MAXVAL(NodeCoords_Shared(2,firstNodeID:lastNodeID))
+      BoundsOfElem_Shared(1,3,iElem) = MINVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
+      BoundsOfElem_Shared(2,3,iElem) = MAXVAL(NodeCoords_Shared(3,firstNodeID:lastNodeID))
+
+      ! Flag elements depending on radius
+      origin(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
+                       SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
+                       SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      ! Calculate halo element outer radius
+      radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                              BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                              BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+
+      xmin = origin(1) - radius
+      xmax = origin(1) + radius
+      ymin = origin(2) - radius
+      ymax = origin(2) + radius
+      zmin = origin(3) - radius
+      zmax = origin(3) + radius
 
       ! BGM indices must be >0 --> move by 1
       ElemToBGM_Shared(1,iElem) = MAX(FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
@@ -322,6 +338,22 @@ SELECT CASE(TrackingMethod)
       BoundsOfElem_Shared(2,2,iElem) = ymax
       BoundsOfElem_Shared(1,3,iElem) = zmin
       BoundsOfElem_Shared(2,3,iElem) = zmax
+
+      ! Flag elements depending on radius
+      origin(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
+                       SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
+                       SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      ! Calculate halo element outer radius
+      radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                              BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                              BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+
+      xmin = origin(1) - radius
+      xmax = origin(1) + radius
+      ymin = origin(2) - radius
+      ymax = origin(2) + radius
+      zmin = origin(3) - radius
+      zmax = origin(3) + radius
 
       ! BGM indices must be >0 --> move by 1
       ElemToBGM_Shared(1,iElem) = MAX(FLOOR((xmin-GEO%xminglob)/GEO%FIBGMdeltas(1)),0) + moveBGMindex
@@ -684,19 +716,19 @@ ELSE
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
     DO iElem = 1, nComputeNodeBorderElems
       ! compare distance of bounding boxes along each direction
-      CartBox(1) = BoundsOfElem_Shared(1,1,ElemID)
-      CartBox(2) = BoundsOfElem_Shared(2,1,ElemID)
-      CartBox(3) = BoundsOfElem_Shared(1,2,ElemID)
-      CartBox(4) = BoundsOfElem_Shared(2,2,ElemID)
-      CartBox(5) = BoundsOfElem_Shared(1,3,ElemID)
-      CartBox(6) = BoundsOfElem_Shared(2,3,ElemID)
-
-      ! Check whether the bounding boxes intersect
-      ASSOCIATE(CartNode => MPISideBoundsOfElem_Shared(:,iElem))
-        IF ((CartBox(1).GT.CartNode(2)+halo_eps).OR.(CartBox(2).LT.CartNode(1)-halo_eps)) CYCLE
-        IF ((CartBox(3).GT.CartNode(4)+halo_eps).OR.(CartBox(4).LT.CartNode(3)-halo_eps)) CYCLE
-        IF ((CartBox(5).GT.CartNode(6)+halo_eps).OR.(CartBox(6).LT.CartNode(5)-halo_eps)) CYCLE
-      END ASSOCIATE
+      ! CartBox(1) = BoundsOfElem_Shared(1,1,ElemID)
+      ! CartBox(2) = BoundsOfElem_Shared(2,1,ElemID)
+      ! CartBox(3) = BoundsOfElem_Shared(1,2,ElemID)
+      ! CartBox(4) = BoundsOfElem_Shared(2,2,ElemID)
+      ! CartBox(5) = BoundsOfElem_Shared(1,3,ElemID)
+      ! CartBox(6) = BoundsOfElem_Shared(2,3,ElemID)
+      !
+      ! ! Check whether the bounding boxes intersect
+      ! ASSOCIATE(CartNode => MPISideBoundsOfElem_Shared(:,iElem))
+      !   IF ((CartBox(1).GT.CartNode(2)+halo_eps).OR.(CartBox(2).LT.CartNode(1)-halo_eps)) CYCLE
+      !   IF ((CartBox(3).GT.CartNode(4)+halo_eps).OR.(CartBox(4).LT.CartNode(3)-halo_eps)) CYCLE
+      !   IF ((CartBox(5).GT.CartNode(6)+halo_eps).OR.(CartBox(6).LT.CartNode(5)-halo_eps)) CYCLE
+      ! END ASSOCIATE
 
       ! compare distance of centers with sum of element outer radii+halo_eps
       IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
@@ -1766,6 +1798,7 @@ INTEGER                        :: iElem,firstElem,lastElem,iDir,jDir,kDir
 INTEGER                        :: iLocElem
 INTEGER                        :: iPeriodicVector,jPeriodicVector
 REAL                           :: BoundsOfElemCenter(1:4),LocalBoundsOfElemCenter(1:4)
+! REAL                           :: BoundsOfElem(      1:6),LocalBoundsOfElem(      1:6)
 !===================================================================================================================================
 
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
@@ -1809,12 +1842,12 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
                   .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
           ! compare distance of bounding boxes along each direction
-          IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,1)*REAL(iDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
-          IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,1)*REAL(iDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
-          IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,1)*REAL(iDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
-          IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,1)*REAL(iDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
-          IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,1)*REAL(iDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
-          IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,1)*REAL(iDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
+          ! IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,1)*REAL(iDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
+          ! IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,1)*REAL(iDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
+          ! IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,1)*REAL(iDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
+          ! IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,1)*REAL(iDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
+          ! IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,1)*REAL(iDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
+          ! IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,1)*REAL(iDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
 
           ! add element back to halo region
           ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
@@ -1836,12 +1869,12 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
                       .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
             ! compare distance of bounding boxes along each direction
-            IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
-            IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
-            IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
-            IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
-            IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
-            IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
+            ! IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
+            ! IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
+            ! IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
+            ! IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
+            ! IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
+            ! IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
 
             ! add element back to halo region
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
@@ -1862,14 +1895,14 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
                           .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
                 ! compare distance of bounding boxes along each direction
-                ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
-                  IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
-                  IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
-                  IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
-                  IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
-                  IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
-                  IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
-                END ASSOCIATE
+                ! ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
+                !   IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
+                !   IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
+                !   IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
+                !   IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
+                !   IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
+                !   IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
+                ! END ASSOCIATE
 
                 ! add element back to halo region
                 ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
@@ -1896,12 +1929,12 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
                       .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
             ! compare distance of bounding boxes along each direction
-            IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
-            IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
-            IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
-            IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
-            IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
-            IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
+            ! IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + halo_eps) CYCLE
+            ! IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - halo_eps) CYCLE
+            ! IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + halo_eps) CYCLE
+            ! IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - halo_eps) CYCLE
+            ! IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + halo_eps) CYCLE
+            ! IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - halo_eps) CYCLE
 
             ! add element back to halo region
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
@@ -1922,14 +1955,14 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
                           .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
                 ! compare distance of bounding boxes along each direction
-                ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
-                  IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2)+halo_eps) CYCLE
-                  IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1)-halo_eps) CYCLE
-                  IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4)+halo_eps) CYCLE
-                  IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3)-halo_eps) CYCLE
-                  IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6)+halo_eps) CYCLE
-                  IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5)-halo_eps) CYCLE
-                END ASSOCIATE
+                ! ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
+                !   IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2)+halo_eps) CYCLE
+                !   IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1)-halo_eps) CYCLE
+                !   IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4)+halo_eps) CYCLE
+                !   IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3)-halo_eps) CYCLE
+                !   IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6)+halo_eps) CYCLE
+                !   IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5)-halo_eps) CYCLE
+                ! END ASSOCIATE
 
                 ! add element back to halo region
                 ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
@@ -1953,14 +1986,14 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
                         .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
               ! compare distance of bounding boxes along each direction
-              ASSOCIATE( pVec => GEO%PeriodicVectors)
-                IF (BoundsOfElem(1) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).GT.localBoundsOfElem(2)+halo_eps) CYCLE
-                IF (BoundsOfElem(2) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).LT.localBoundsOfElem(1)-halo_eps) CYCLE
-                IF (BoundsOfElem(3) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).GT.localBoundsOfElem(4)+halo_eps) CYCLE
-                IF (BoundsOfElem(4) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).LT.localBoundsOfElem(3)-halo_eps) CYCLE
-                IF (BoundsOfElem(5) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).GT.localBoundsOfElem(6)+halo_eps) CYCLE
-                IF (BoundsOfElem(6) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).LT.localBoundsOfElem(5)-halo_eps) CYCLE
-              END ASSOCIATE
+              ! ASSOCIATE( pVec => GEO%PeriodicVectors)
+              !   IF (BoundsOfElem(1) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).GT.localBoundsOfElem(2)+halo_eps) CYCLE
+              !   IF (BoundsOfElem(2) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).LT.localBoundsOfElem(1)-halo_eps) CYCLE
+              !   IF (BoundsOfElem(3) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).GT.localBoundsOfElem(4)+halo_eps) CYCLE
+              !   IF (BoundsOfElem(4) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).LT.localBoundsOfElem(3)-halo_eps) CYCLE
+              !   IF (BoundsOfElem(5) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).GT.localBoundsOfElem(6)+halo_eps) CYCLE
+              !   IF (BoundsOfElem(6) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).LT.localBoundsOfElem(5)-halo_eps) CYCLE
+              ! END ASSOCIATE
 
               ! add element back to halo region
               ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3

@@ -125,7 +125,7 @@ INTEGER                        :: k,iLocElem
 LOGICAL                        :: InInterPlaneRegion
 REAL                           :: InterPlaneDistance
 
-REAL                           :: BoundsOfElem(      1:6),LocalBoundsOfElem(      1:6)
+! REAL                           :: BoundsOfElem(      1:6),LocalBoundsOfElem(      1:6)
 !=================================================================================================================================
 
 WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
@@ -459,12 +459,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                                         BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                         BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
 
-  BoundsOfElem(1) = BoundsOfElem_Shared(1,1,ElemID)
-  BoundsOfElem(2) = BoundsOfElem_Shared(2,1,ElemID)
-  BoundsOfElem(3) = BoundsOfElem_Shared(1,2,ElemID)
-  BoundsOfElem(4) = BoundsOfElem_Shared(2,2,ElemID)
-  BoundsOfElem(5) = BoundsOfElem_Shared(1,3,ElemID)
-  BoundsOfElem(6) = BoundsOfElem_Shared(2,3,ElemID)
+  ! BoundsOfElem(1) = BoundsOfElem_Shared(1,1,ElemID)
+  ! BoundsOfElem(2) = BoundsOfElem_Shared(2,1,ElemID)
+  ! BoundsOfElem(3) = BoundsOfElem_Shared(1,2,ElemID)
+  ! BoundsOfElem(4) = BoundsOfElem_Shared(2,2,ElemID)
+  ! BoundsOfElem(5) = BoundsOfElem_Shared(1,3,ElemID)
+  ! BoundsOfElem(6) = BoundsOfElem_Shared(2,3,ElemID)
 
   IF(DoParticleLatencyHiding)THEN
     IF (HaloProc.EQ.myRank) THEN
@@ -707,15 +707,15 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   END IF
 
   DO iSide = 1, nExchangeSides
-    exSideID = ExchangeSides(iSide)
-    exElemID = SideInfo_Shared(SIDE_ELEMID,exSideID)
-
-    localBoundsOfElem(1) = BoundsOfElem_Shared(1,1,exElemID)
-    localBoundsOfElem(2) = BoundsOfElem_Shared(2,1,exElemID)
-    localBoundsOfElem(3) = BoundsOfElem_Shared(1,2,exElemID)
-    localBoundsOfElem(4) = BoundsOfElem_Shared(2,2,exElemID)
-    localBoundsOfElem(5) = BoundsOfElem_Shared(1,3,exElemID)
-    localBoundsOfElem(6) = BoundsOfElem_Shared(2,3,exElemID)
+    ! exSideID = ExchangeSides(iSide)
+    ! exElemID = SideInfo_Shared(SIDE_ELEMID,exSideID)
+    !
+    ! localBoundsOfElem(1) = BoundsOfElem_Shared(1,1,exElemID)
+    ! localBoundsOfElem(2) = BoundsOfElem_Shared(2,1,exElemID)
+    ! localBoundsOfElem(3) = BoundsOfElem_Shared(1,2,exElemID)
+    ! localBoundsOfElem(4) = BoundsOfElem_Shared(2,2,exElemID)
+    ! localBoundsOfElem(5) = BoundsOfElem_Shared(1,3,exElemID)
+    ! localBoundsOfElem(6) = BoundsOfElem_Shared(2,3,exElemID)
     ! compare distance of centers with sum of element outer radii+halo_eps
     IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
         .GT. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide)) THEN
@@ -733,12 +733,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                        + MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
 
             ! compare distance of bounding boxes along each direction
-            IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,1)*REAL(iDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
-            IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,1)*REAL(iDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
-            IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,1)*REAL(iDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
-            IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,1)*REAL(iDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
-            IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,1)*REAL(iDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
-            IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,1)*REAL(iDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
+            ! IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,1)*REAL(iDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
+            ! IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,1)*REAL(iDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
+            ! IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,1)*REAL(iDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
+            ! IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,1)*REAL(iDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
+            ! IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,1)*REAL(iDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
+            ! IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,1)*REAL(iDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
 
             ! flag the proc as exchange proc (in halo region)
             IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -764,12 +764,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                          + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
               ! compare distance of bounding boxes along each direction
-              IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
 
               ! flag the proc as exchange proc (in halo region)
               IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -794,14 +794,14 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                            + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
                 ! compare distance of bounding boxes along each direction
-                ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
-                  IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
-                  IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
-                  IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
-                  IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
-                  IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
-                  IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
-                END ASSOCIATE
+                ! ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
+                !   IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
+                !   IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
+                !   IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
+                !   IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
+                !   IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
+                !   IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
+                ! END ASSOCIATE
 
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -830,12 +830,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                          + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
               ! compare distance of bounding boxes along each direction
-              IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
-              IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(1) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(2) + GEO%PeriodicVectors(1,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(3) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(4) + GEO%PeriodicVectors(2,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(5) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
+              ! IF (BoundsOfElem(6) + GEO%PeriodicVectors(3,iPeriodicVector)*REAL(iDir).LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
 
               ! flag the proc as exchange proc (in halo region)
               IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -860,14 +860,14 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                              + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
                   ! compare distance of bounding boxes along each direction
-                  ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
-                    IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2)+MPI_halo_eps) CYCLE
-                    IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1)-MPI_halo_eps) CYCLE
-                    IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4)+MPI_halo_eps) CYCLE
-                    IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3)-MPI_halo_eps) CYCLE
-                    IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6)+MPI_halo_eps) CYCLE
-                    IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5)-MPI_halo_eps) CYCLE
-                  END ASSOCIATE
+                  ! ASSOCIATE( iVec => iPeriodicVector, jVec => jPeriodicVector, pVec => GEO%PeriodicVectors)
+                  !   IF (BoundsOfElem(1) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).GT.localBoundsOfElem(2)+MPI_halo_eps) CYCLE
+                  !   IF (BoundsOfElem(2) + pVec(1,iVec)*REAL(iDir) + pVec(1,jVec)*REAL(jDir).LT.localBoundsOfElem(1)-MPI_halo_eps) CYCLE
+                  !   IF (BoundsOfElem(3) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).GT.localBoundsOfElem(4)+MPI_halo_eps) CYCLE
+                  !   IF (BoundsOfElem(4) + pVec(2,iVec)*REAL(iDir) + pVec(2,jVec)*REAL(jDir).LT.localBoundsOfElem(3)-MPI_halo_eps) CYCLE
+                  !   IF (BoundsOfElem(5) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).GT.localBoundsOfElem(6)+MPI_halo_eps) CYCLE
+                  !   IF (BoundsOfElem(6) + pVec(3,iVec)*REAL(iDir) + pVec(3,jVec)*REAL(jDir).LT.localBoundsOfElem(5)-MPI_halo_eps) CYCLE
+                  ! END ASSOCIATE
 
                   ! flag the proc as exchange proc (in halo region)
                   IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -896,14 +896,14 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                            + MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
 
                 ! compare distance of bounding boxes along each direction
-                ASSOCIATE( pVec => GEO%PeriodicVectors)
-                  IF (BoundsOfElem(1) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).GT.localBoundsOfElem(2)+halo_eps) CYCLE
-                  IF (BoundsOfElem(2) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).LT.localBoundsOfElem(1)-halo_eps) CYCLE
-                  IF (BoundsOfElem(3) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).GT.localBoundsOfElem(4)+halo_eps) CYCLE
-                  IF (BoundsOfElem(4) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).LT.localBoundsOfElem(3)-halo_eps) CYCLE
-                  IF (BoundsOfElem(5) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).GT.localBoundsOfElem(6)+halo_eps) CYCLE
-                  IF (BoundsOfElem(6) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).LT.localBoundsOfElem(5)-halo_eps) CYCLE
-                END ASSOCIATE
+                ! ASSOCIATE( pVec => GEO%PeriodicVectors)
+                !   IF (BoundsOfElem(1) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).GT.localBoundsOfElem(2)+halo_eps) CYCLE
+                !   IF (BoundsOfElem(2) + pVec(1,1)*REAL(iDir) + pVec(1,2)*REAL(jDir) + pVec(1,3)*REAL(kDir).LT.localBoundsOfElem(1)-halo_eps) CYCLE
+                !   IF (BoundsOfElem(3) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).GT.localBoundsOfElem(4)+halo_eps) CYCLE
+                !   IF (BoundsOfElem(4) + pVec(2,1)*REAL(iDir) + pVec(2,2)*REAL(jDir) + pVec(2,3)*REAL(kDir).LT.localBoundsOfElem(3)-halo_eps) CYCLE
+                !   IF (BoundsOfElem(5) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).GT.localBoundsOfElem(6)+halo_eps) CYCLE
+                !   IF (BoundsOfElem(6) + pVec(3,1)*REAL(iDir) + pVec(3,2)*REAL(jDir) + pVec(3,3)*REAL(kDir).LT.localBoundsOfElem(5)-halo_eps) CYCLE
+                ! END ASSOCIATE
 
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -958,12 +958,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
       END IF
 
       ! compare distance of bounding boxes along each direction
-      IF (BoundsOfElem(1) .GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
-      IF (BoundsOfElem(2) .LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
-      IF (BoundsOfElem(3) .GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
-      IF (BoundsOfElem(4) .LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
-      IF (BoundsOfElem(5) .GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
-      IF (BoundsOfElem(6) .LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
+      ! IF (BoundsOfElem(1) .GT.localBoundsOfElem(2) + MPI_halo_eps) CYCLE
+      ! IF (BoundsOfElem(2) .LT.localBoundsOfElem(1) - MPI_halo_eps) CYCLE
+      ! IF (BoundsOfElem(3) .GT.localBoundsOfElem(4) + MPI_halo_eps) CYCLE
+      ! IF (BoundsOfElem(4) .LT.localBoundsOfElem(3) - MPI_halo_eps) CYCLE
+      ! IF (BoundsOfElem(5) .GT.localBoundsOfElem(6) + MPI_halo_eps) CYCLE
+      ! IF (BoundsOfElem(6) .LT.localBoundsOfElem(5) - MPI_halo_eps) CYCLE
 
       GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 2
       GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
