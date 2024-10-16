@@ -1030,10 +1030,11 @@ INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 DO iElem =1, nElems
   DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-    CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),tDeriv,tau,tilde)
     SELECT CASE (tilde)
       CASE(1) ! f~  -----> f2^    (tDeriv=dt)
-        DVMMomentSave(1:9,iElem) = MacroVal(6:14)
+        CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),tDeriv,tau,tilde)
+        DVMMomentSave(1:14,iElem) = MacroVal(1:14)
+        DVMMomentSave(15,iElem) = tau
         SELECT CASE(DVMMethod)
         CASE(1)
           prefac = (EXP(-tDeriv/tau/2.)-EXP(-3.*tDeriv/tau/2.))/(1.-EXP(-tDeriv/tau/2.))/2.
@@ -1041,7 +1042,8 @@ DO iElem =1, nElems
           prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
         END SELECT
       CASE(2) ! f2^ -----> f^     (tDeriv=dt/2)
-        MacroVal(6:14) = DVMMomentSave(1:9,iElem)
+        MacroVal(1:14) = DVMMomentSave(1:14,iElem)
+        tau = DVMMomentSave(15,iElem)
         SELECT CASE(DVMMethod)
         CASE(1)
           prefac = 2.*(EXP(-tDeriv/tau)-EXP(-2.*tDeriv/tau))/(1.-EXP(-2.*tDeriv/tau))

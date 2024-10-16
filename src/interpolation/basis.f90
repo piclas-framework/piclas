@@ -1363,8 +1363,10 @@ INTEGER :: iNewt, iGlob
 REAL :: Nreal
 !===================================================================================================================================
 
-IF (MOD(N_in,N_deg).GT.0) CALL abort(__STAMP__,&
+IF (N_deg.GT.0) THEN
+  IF (MOD(N_in,N_deg).GT.0) CALL abort(__STAMP__,&
                  'ERROR: Number of interpolation points has to be a multiple of the Newton-Cotes formula degree')
+END IF
 
 IF (N_deg.EQ.1) THEN
   Nreal = REAL(N_in,8)

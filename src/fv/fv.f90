@@ -233,7 +233,8 @@ REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-CALL GetGradients(U_FV(:,0,0,0,:))
+! Compute the FV solution gradients
+CALL GetGradients(U_FV(:,0,0,0,:)) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
 
 #ifdef drift_diffusion
 U_DD(:,:,:,:,:) = 0.

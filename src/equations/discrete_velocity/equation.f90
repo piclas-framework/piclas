@@ -187,7 +187,7 @@ END IF
 
 DVMForce = GETREALARRAY('DVM-Accel',3)
 
-ALLOCATE(DVMMomentSave(9,nElems))
+ALLOCATE(DVMMomentSave(15,nElems))
 DVMMomentSave = 0.
 
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
