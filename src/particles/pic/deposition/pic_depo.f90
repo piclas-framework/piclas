@@ -138,17 +138,16 @@ LOGICAL                   :: bordersMyrank
 ! Non-symmetric particle exchange
 INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
-
 TYPE NodeDepoMapping
   INTEGER               :: NodeID
   TYPE (NodeDepoMapping), POINTER :: next => null()
 END TYPE
 TYPE tElemNodeDepoMap
-  TYPE (NodeDepoMapping), POINTER :: first => null() 
+  TYPE (NodeDepoMapping), POINTER :: first => null()
   LOGICAL               :: firstNode
   INTEGER               :: nNodes
 END TYPE
-TYPE(tElemNodeDepoMap),ALLOCATABLE :: ElemNodeDepoMap(:)
+TYPE(tElemNodeDepoMap), ALLOCATABLE :: ElemNodeDepoMap(:)
 TYPE (NodeDepoMapping), POINTER :: node
 #endif
 !===================================================================================================================================
@@ -261,6 +260,7 @@ CASE('cell_volweight')
       END ASSOCIATE
     END DO; END DO; END DO
   END DO
+! ------------------------------------------------
 CASE('cell_volweight_mean')
 ! ------------------------------------------------
 #if USE_MPI
@@ -284,7 +284,7 @@ CASE('cell_volweight_mean')
     NodeSourceExt    = 0.
   END IF ! DoDielectricSurfaceCharge
 
-  IF (GEO%nPeriodicVectors.GT.0) Call InitializePeriodicNodes(&
+  IF (GEO%nPeriodicVectors.GT.0) CALL InitializePeriodicNodes(&
 #if USE_MPI
                                         DoNodeMapping,SendNode&
 #endif /*USE_MPI*/
@@ -329,6 +329,7 @@ CASE('cell_volweight_mean')
     END IF
   END DO
 
+  ! Flag the unique deposition nodes per processor
   nDepoNodes = 0
   ALLOCATE(IsDepoNode(1:nUniqueGlobalNodes))
   IsDepoNode = .FALSE.
@@ -340,14 +341,16 @@ CASE('cell_volweight_mean')
       IsDepoNode(UniqueNodeID) = .TRUE.
     END DO
   END DO
+  ! Count the number of unique deposition nodes per processor
   nDepoNodes = COUNT(IsDepoNode)
+  ! Add number of nodes to be sent
   nDepoNodesTotal = nDepoNodes
   DO iNode=1, nUniqueGlobalNodes
     IF (.NOT.IsDepoNode(iNode).AND.SendNode(iNode)) THEN
       nDepoNodesTotal = nDepoNodesTotal + 1
     END IF
   END DO
-
+  ! Create mapping from unique deposition node to global unique node
   ALLOCATE(DepoNodetoGlobalNode(1:nDepoNodesTotal))
   nDepoNodesTotal = 0
   DO iNode=1, nUniqueGlobalNodes
@@ -362,7 +365,7 @@ CASE('cell_volweight_mean')
       DepoNodetoGlobalNode(nDepoNodesTotal) = iNode
     END IF
   END DO
-
+  ! Create mapping of exchange processor rank to global rank
   GlobalRankToNodeSendDepoRank = -1
   nNodeSendExchangeProcs = COUNT(DoNodeMapping)
   ALLOCATE(NodeSendDepoRankToGlobalRank(1:nNodeSendExchangeProcs))
@@ -376,8 +379,8 @@ CASE('cell_volweight_mean')
       NodeSendDepoRankToGlobalRank(nNodeSendExchangeProcs) = iRank
     END IF
   END DO
-!  ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
-!  NodeDepoMapping = .FALSE.
+  ! ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
+  ! NodeDepoMapping = .FALSE.
   ALLOCATE(ElemNodeDepoMap(1:nNodeSendExchangeProcs))
   ElemNodeDepoMap(:)%firstNode = .TRUE.
   ElemNodeDepoMap(:)%nNodes = 0
@@ -390,7 +393,7 @@ CASE('cell_volweight_mean')
         IF (GlobalElemRank.NE.myRank) THEN
           iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
           IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
-!            NodeDepoMapping(iRank, iNode) = .TRUE.
+          ! NodeDepoMapping(iRank, iNode) = .TRUE.
           IF (ElemNodeDepoMap(iRank)%firstNode) THEN
             ElemNodeDepoMap(iRank)%firstNode = .FALSE.
             ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
@@ -404,7 +407,7 @@ CASE('cell_volweight_mean')
               node => node%next
             END DO
             ALLOCATE(node)
-            ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1   
+            ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
             node%next => ElemNodeDepoMap(iRank)%first%next
             ElemNodeDepoMap(iRank)%first%next => node
             node%NodeID = iNode
@@ -413,16 +416,15 @@ CASE('cell_volweight_mean')
       END DO ElemLoop
     END IF
   END DO
-
   ! Get number of send nodes for each proc: Size of each message for each proc for deposition
   nSendUniqueNodesNonSymDepo         = 0
   nRecvUniqueNodesNonSymDepo(myrank) = 0
   ALLOCATE(NodeMappingSend(1:nNodeSendExchangeProcs))
   DO iProc = 1, nNodeSendExchangeProcs
     NodeMappingSend(iProc)%nSendUniqueNodes = 0
-!    DO iNode = 1, nUniqueGlobalNodes
-!      IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
-!    END DO
+    ! DO iNode = 1, nUniqueGlobalNodes
+    !   IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
+    ! END DO
     NodeMappingSend(iProc)%nSendUniqueNodes =  ElemNodeDepoMap(iProc)%nNodes
     ! local to global array
     nSendUniqueNodesNonSymDepo(NodeSendDepoRankToGlobalRank(iProc)) = NodeMappingSend(iProc)%nSendUniqueNodes
@@ -1227,6 +1229,9 @@ USE MOD_MPI_Shared_Vars        ,ONLY: nProcessors_Global,MPI_COMM_SHARED
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -1271,7 +1276,10 @@ TYPE tNodewoBCSide
 END TYPE
 TYPE(tNodewoBCSide), ALLOCATABLE :: NodewoBCSide(:)
 #endif
+REAL              :: StartT,EndT
 !===================================================================================================================================
+LBWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' | Initializing periodic nodes for cell_volweight_mean...'
+GETTIME(StartT)
 
 ALLOCATE(PeriodicNodeSourceMap(1:2*GEO%nPeriodicVectors,1:nUniqueGlobalNodes))
 ALLOCATE(PeriodicNodeMap(1:nUniqueGlobalNodes))
@@ -2053,6 +2061,9 @@ CALL MPI_WIN_FLUSH(0 ,Periodic_Nodes_Shared_Win,iError)
 CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!',DisplayLine=.FALSE.)
+
 END SUBROUTINE InitializePeriodicNodes
 
 
@@ -2064,11 +2075,10 @@ SUBROUTINE FinalizeDeposition()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix,ElemNodeID_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: GEO,PeriodicSFCaseMatrix
 USE MOD_PICDepo_Vars
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectricSurfaceCharge
 #if USE_MPI
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared_Win
 USE MOD_MPI_Shared_vars    ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared
 #endif
@@ -2078,7 +2088,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 !USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
 USE MOD_LoadBalance_Vars   ,ONLY: NodeSourceExtEquiLB!,PartSourceLB
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: NodeInfo_Shared,ElemNodeID_Shared
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #endif /*USE_LOADBALANCE*/
