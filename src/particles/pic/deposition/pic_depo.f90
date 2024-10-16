@@ -127,17 +127,29 @@ IMPLICIT NONE
 INTEGER                   :: ALLOCSTAT, iElem, i, j, k, kk, ll, mm, iNode, Nloc
 CHARACTER(255)            :: TimeAverageFile
 #if USE_MPI
-INTEGER                   :: UniqueNodeID
+INTEGER                   :: UniqueNodeID, testNode
 INTEGER                   :: GlobalRankToNodeSendDepoRank(0:nProcessors_Global-1)
 INTEGER                   :: jElem,TestElemID
 INTEGER                   :: NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: GlobalElemRankOrig, iRank
-LOGICAL,ALLOCATABLE       :: NodeDepoMapping(:,:), DoNodeMapping(:), SendNode(:), IsDepoNode(:)
+LOGICAL,ALLOCATABLE       :: DoNodeMapping(:), SendNode(:), IsDepoNode(:)!, NodeDepoMapping(:,:)
 LOGICAL                   :: bordersMyrank
 ! Non-symmetric particle exchange
 INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
+
+TYPE NodeDepoMapping
+  INTEGER               :: NodeID
+  TYPE (NodeDepoMapping), POINTER :: next => null()
+END TYPE
+TYPE tElemNodeDepoMap
+  TYPE (NodeDepoMapping), POINTER :: first => null() 
+  LOGICAL               :: firstNode
+  INTEGER               :: nNodes
+END TYPE
+TYPE(tElemNodeDepoMap),ALLOCATABLE :: ElemNodeDepoMap(:)
+TYPE (NodeDepoMapping), POINTER :: node
 #endif
 !===================================================================================================================================
 
@@ -364,20 +376,41 @@ CASE('cell_volweight_mean')
       NodeSendDepoRankToGlobalRank(nNodeSendExchangeProcs) = iRank
     END IF
   END DO
-  ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
-  NodeDepoMapping = .FALSE.
+!  ALLOCATE(NodeDepoMapping(1:nNodeSendExchangeProcs, 1:nUniqueGlobalNodes))
+!  NodeDepoMapping = .FALSE.
+  ALLOCATE(ElemNodeDepoMap(1:nNodeSendExchangeProcs))
+  ElemNodeDepoMap(:)%firstNode = .TRUE.
+  ElemNodeDepoMap(:)%nNodes = 0
 
   DO iNode = 1, nUniqueGlobalNodes
     IF (SendNode(iNode)) THEN
-      DO jElem = NodeToElemMapping(1,iNode) + 1, NodeToElemMapping(1,iNode) + NodeToElemMapping(2,iNode)
-          TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
-          GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
-          IF (GlobalElemRank.NE.myRank) THEN
-            iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
-            IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
-            NodeDepoMapping(iRank, iNode) = .TRUE.
+      ElemLoop: DO jElem = NodeToElemMapping(1,iNode) + 1, NodeToElemMapping(1,iNode) + NodeToElemMapping(2,iNode)
+        TestElemID = GetGlobalElemID(NodeToElemInfo(jElem))
+        GlobalElemRank = ElemInfo_Shared(ELEM_RANK,TestElemID)
+        IF (GlobalElemRank.NE.myRank) THEN
+          iRank = GlobalRankToNodeSendDepoRank(GlobalElemRank)
+          IF (iRank.LT.1) CALL ABORT(__STAMP__,'Found not connected Rank!', myRank)
+!            NodeDepoMapping(iRank, iNode) = .TRUE.
+          IF (ElemNodeDepoMap(iRank)%firstNode) THEN
+            ElemNodeDepoMap(iRank)%firstNode = .FALSE.
+            ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
+            ALLOCATE(ElemNodeDepoMap(iRank)%first)
+            ElemNodeDepoMap(iRank)%first%NodeID = iNode
+          ELSE
+            ALLOCATE(node)
+            node => ElemNodeDepoMap(iRank)%first
+            DO testNode = 1, ElemNodeDepoMap(iRank)%nNodes
+              IF (node%NodeID.EQ.iNode) CYCLE ElemLoop
+              node => node%next
+            END DO
+            ALLOCATE(node)
+            ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1   
+            node%next => ElemNodeDepoMap(iRank)%first%next
+            ElemNodeDepoMap(iRank)%first%next => node
+            node%NodeID = iNode
           END IF
-        END DO
+        END IF
+      END DO ElemLoop
     END IF
   END DO
 
@@ -387,9 +420,10 @@ CASE('cell_volweight_mean')
   ALLOCATE(NodeMappingSend(1:nNodeSendExchangeProcs))
   DO iProc = 1, nNodeSendExchangeProcs
     NodeMappingSend(iProc)%nSendUniqueNodes = 0
-    DO iNode = 1, nUniqueGlobalNodes
-      IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
-    END DO
+!    DO iNode = 1, nUniqueGlobalNodes
+!      IF (NodeDepoMapping(iProc,iNode)) NodeMappingSend(iProc)%nSendUniqueNodes = NodeMappingSend(iProc)%nSendUniqueNodes + 1
+!    END DO
+    NodeMappingSend(iProc)%nSendUniqueNodes =  ElemNodeDepoMap(iProc)%nNodes
     ! local to global array
     nSendUniqueNodesNonSymDepo(NodeSendDepoRankToGlobalRank(iProc)) = NodeMappingSend(iProc)%nSendUniqueNodes
   END DO
@@ -473,12 +507,32 @@ CASE('cell_volweight_mean')
     NodeMappingSend(iProc)%SendNodeSourceCurrent=0.
     IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceExt(1:NodeMappingSend(iProc)%nSendUniqueNodes))
     SendNodeCount = 0
-    DO iNode = 1, nUniqueGlobalNodes
-      IF (NodeDepoMapping(iProc,iNode)) THEN
-        SendNodeCount = SendNodeCount + 1
-        NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
-      END IF
+!    DO iNode = 1, nUniqueGlobalNodes
+!      IF (NodeDepoMapping(iProc,iNode)) THEN
+!        SendNodeCount = SendNodeCount + 1
+!        NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
+!      END IF
+!    END DO
+    ALLOCATE(node)
+    node => ElemNodeDepoMap(iProc)%first
+    DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
+      SendNodeCount = SendNodeCount + 1
+      NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = node%NodeID
+      node => node%next
     END DO
+    node => ElemNodeDepoMap(iProc)%first
+    DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
+      ElemNodeDepoMap(iProc)%first => ElemNodeDepoMap(iProc)%first%next
+      DEALLOCATE(node)
+      node => ElemNodeDepoMap(iProc)%first
+    END DO
+    IF(ASSOCIATED(ElemNodeDepoMap(iProc)%first)) THEN
+      DEALLOCATE(ElemNodeDepoMap(iProc)%first)
+    END IF
+    IF(ASSOCIATED(node)) THEN
+      DEALLOCATE(node)
+    END IF
+
     CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeUniqueGlobalID                   &
                   , NodeMappingSend(iProc)%nSendUniqueNodes                         &
                   , MPI_INTEGER                                                 &
