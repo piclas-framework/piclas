@@ -88,7 +88,8 @@ Weight2 = GetParticleWeight(iPart_p2)
 
 ! Determing the particle weight (2D/VTS: Additional scaling of the weighting according to the position within the cell)
 IF (usevMPF) THEN
-  IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+  IF((RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting).AND. &
+    (.NOT.(DoSpeciesWeighting.OR.DovMPF_nonAvCollProb))) THEN
     ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
     ! Not the actual weighting factor, since the weighting factor is included in SpecNum
     MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
