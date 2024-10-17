@@ -222,6 +222,11 @@ stages:
   rules:
     - if: '$DO_NIGHTLY'
 
+.defaults_poisson_weekly: &defaults_poisson_weekly
+  <<: *defaults_poisson
+  rules:
+    - if: '$DO_WEEKLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
 .defaults_poisson_petsc: &defaults_poisson_petsc
@@ -978,7 +983,7 @@ NIG_Raytracing_release_Leapfrog:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
   script:
-    - cd build_poisson_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Raytracing -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -986,17 +991,29 @@ NIG_Raytracing_release_Leapfrog:
       when: never
     - if: '$DO_NIGHTLY'
 
-NIG_Raytracing_debug_Leapfrog:
-  <<: *defaults_poisson_nightly
-  stage: reggie_nightly
+WEK_Raytracing_debug_Leapfrog:
+  <<: *defaults_poisson_weekly
+  stage: reggie_weekly
   script:
-    - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/WEK_Raytracing -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: '$DO_WEEKLY'
+
+WEK_NIG_Raytracing_debug_Leapfrog:
+  <<: *defaults_poisson_weekly
+  stage: reggie_weekly
+  script:
+    - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Raytracing -e ./bin/piclas
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_WEEKLY'
 
 NIG_Radiation:
   <<: *defaults_nightly
