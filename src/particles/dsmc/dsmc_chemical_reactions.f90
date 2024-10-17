@@ -354,8 +354,8 @@ USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChe
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_RotRelaxPoly, DSMC_RelaxVibPolyProduct
-USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RelaxVibPolyProduct
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, CalcXiTotalEqui, RotRelaxDiaRoutineFuncPTR
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
@@ -830,14 +830,22 @@ END DO
 !--------------------------------------------------------------------------------------------------
 DO iProd = 1, NumProd
   IF ((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
-    IF(SpecDSMC(ProductReac(iProd))%Xi_Rot.EQ.3) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, ReactInx(iProd), FakXi)
+    FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
+    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+      CALL RotRelaxPolyRoutineFuncPTR(iPair, ReactInx(iProd), FakXi)
     ELSE
-      CALL RANDOM_NUMBER(iRan)
-      PartStateIntEn(2,ReactInx(iProd)) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-      FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
+      CALL RotRelaxDiaRoutineFuncPTR(iPair, ReactInx(iProd), FakXi)
     END IF
+    ! //TODO Testcase - Paul?
+    ! IF(SpecDSMC(ProductReac(iProd))%Xi_Rot.EQ.3) THEN
+    !   FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
+    !   CALL DSMC_RotRelaxPoly(iPair, ReactInx(iProd), FakXi)
+    ! ELSE
+    !   CALL RANDOM_NUMBER(iRan)
+    !   PartStateIntEn(2,ReactInx(iProd)) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
+    !   FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
+    ! END IF
+
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(iProd))
     ! Sanity check
     IF(Coll_pData(iPair)%Ec.LT.0.) THEn

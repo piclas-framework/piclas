@@ -39,7 +39,7 @@ PROCEDURE(RotRelaxDiaRoutine),POINTER :: RotRelaxDiaRoutineFuncPTR !< pointer de
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, CalcXiVib, CalcXiTotalEqui, DSMC_calc_P_rot, DSMC_calc_var_P_vib
 PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
 PUBLIC :: DSMC_SetInternalEnr_Diatomic, RotRelaxDiaRoutineFuncPTR
-PUBLIC :: DSMC_RotRelaxDiaContinuous, DSMC_RotRelaxDiaQuantMH, DSMC_RotRelaxDiaQuant
+PUBLIC :: DSMC_RotRelaxDiaContinuous, DSMC_RotRelaxDiaQuant
 
 !===================================================================================================================================
 
@@ -102,60 +102,6 @@ DO WHILE (ARM)
 END DO
 PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
 END SUBROUTINE DSMC_RotRelaxDiaQuant
-
-
-SUBROUTINE DSMC_RotRelaxDiaQuantMH(iPair,iPart,FakXi)
-!===================================================================================================================================
-!> Rotational relaxation of diatomic molecules using quantized energy levels with metropolis hastings sampling
-!> only for comparison with acceptance rejection sampling
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, RadialWeighting, RotQuantsPar
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
-USE MOD_part_tools            ,ONLY: GetParticleWeight
-
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iPart, iPair
-REAL, INTENT(IN)              :: FakXi
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                          :: iRan, tempEng, tempProb, NormProb, Ec
-INTEGER                       :: iSpec, iWalk
-INTEGER                       :: jMax, iQuant
-!===================================================================================================================================
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
-  Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
-ELSE
-  Ec = Coll_pData(iPair)%Ec
-END IF
-iSpec = PartSpecies(iPart)
-
-jMax = 440
-DO iWalk=1,1000
-  NormProb = Ec - PartStateIntEn(2,iPart)
-  ! Proper modelling of energy transfer between old and new state in chemistry
-  NormProb = NormProb**FakXi
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = RotQuantsPar(1,iPart)+NINT((2.0 * iRan - 1.0) * jMax)
-  IF(iQuant.LT.0) iQuant = -1*iQuant -1
-  tempEng= REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
-  tempProb = Ec - tempEng
-  IF(tempProb.GT.0) THEN
-    NormProb = MIN(1.0,(2.*REAL(iQuant) + 1.)*tempProb**FakXi/((2.*REAL(RotQuantsPar(1,iPart)) + 1.)*NormProb))
-    CALL RANDOM_NUMBER(iRan)
-    IF(NormProb.GE.iRan) THEN
-      PartStateIntEn(2,iPart) = tempEng
-      RotQuantsPar(1,iPart)=iQuant
-    END IF
-  END IF
-END DO
-END SUBROUTINE DSMC_RotRelaxDiaQuantMH
 
 
 SUBROUTINE DSMC_RotRelaxDiaContinuous(iPair,iPart,FakXi)

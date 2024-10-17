@@ -209,6 +209,22 @@ It is not recommended to use this model with the prohibiting double-relaxation s
 If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used. However, it is only
 implemented for nitrogen and not tested. It is not recommended for use.
 
+For simulations involving low temperatures relative to the characteristic rotational temperatures of the species, it is possible to activate a quantized treatment of rotational degrees of freedom with DSMC. This feature is enables with 
+
+    Particles-DSMC-RotationalRelaxModel = 1 
+
+This model requires the moments of inertia ($kgm^{2}$) for each species, which can be provided either through the unified species database or defined with
+
+    Part-Species1-MomentOfInertia = 7.198e-46
+
+for linear and spherical molecules since all moments of inertia are equal. For symmetric molecules one moment of inertia is different so two have to be defined with
+
+    Part-Species1-MomentOfInertia1 = 2.939e-47
+    Part-Species1-MomentOfInertia2 = 5.878e-47
+
+Moment of ineratia data can be retrieved from the [Nist database](https://cccbdb.nist.gov) {cite}`CCCBDB-web-page`.
+Please note that the quantized model has not yet been implemented for asymmetric top molecules. Additionally, it is not currently available for coupled simulations using BGK or Fokker-Planck models.
+
 ### Vibrational Relaxation
 
 Analogous to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be

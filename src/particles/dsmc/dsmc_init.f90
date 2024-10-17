@@ -291,14 +291,13 @@ USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge, Plan
 USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase,  SampleElecExcitation
 USE MOD_part_tools             ,ONLY: RotInitPolyRoutineFuncPTR, CalcERotQuant_particle, CalcERot_particle, CalcERotDataset_particle
-USE MOD_part_tools             ,ONLY: CalcERotQuant_particle_MH
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
 USE MOD_DSMC_ChemInit          ,ONLY: DSMC_chemical_init
 USE MOD_DSMC_ElectronicModel   ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: InitPolyAtomicMolecs, DSMC_RotRelaxDatabasePoly, DSMC_RotRelaxQuantPoly, DSMC_RotRelaxPoly
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RotRelaxQuantPolyMH
-USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinuous,DSMC_RotRelaxDiaQuant, DSMC_RotRelaxDiaQuantMH, RotRelaxDiaRoutineFuncPTR
+USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR
+USE MOD_DSMC_Relaxation        ,ONLY: DSMC_RotRelaxDiaContinuous,DSMC_RotRelaxDiaQuant, RotRelaxDiaRoutineFuncPTR
 USE MOD_DSMC_CollisVec         ,ONLY: DiceDeflectedVelocityVector4Coll, DiceVelocityVector4Coll, PostCollVec
 USE MOD_DSMC_BGGas             ,ONLY: BGGas_RegionsSetInternalTemp
 USE MOD_io_hdf5
@@ -353,14 +352,8 @@ IF(CollisMode.GE.2) THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPoly
     RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuant
-    ! set sampling routine to Metropolis Hastings
-    ! RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPolyMH
-    ! RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle_MH
-    ! RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaQuantMH
-    ! Initialization for burn in phase of metropolis hastings method
-    !//TODO fails with load balance in increase part num
-    ! IF(.NOT.ALLOCATED(RotQuantsPar)) ALLOCATE(RotQuantsPar(2,PDM%maxParticleNumber))
   ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN
+    CALL ABORT(__STAMP__,'Rotational Relaxation with database of energy levels and degeneracies not tested yet!')
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxDatabasePoly
     RotInitPolyRoutineFuncPTR  => CalcERotDataset_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDatabasePoly

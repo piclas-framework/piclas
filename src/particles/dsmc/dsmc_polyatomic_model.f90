@@ -1313,7 +1313,7 @@ IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is l
   ! Find max value of distribution for ARM numerically
   MaxValue = 0.
   DO jIter=0, J2
-    CurrentValue = (2.*REAL(jIter) + 1.)*(Ec - REAL(jIter)*(REAL(jIter) + 1.)*BoltzmannConst*SpecDSMC(iSpec)%CharaTRot)**FakXi
+    CurrentValue = (2.*REAL(jIter) + 1.)*(Ec - REAL(jIter)*(REAL(jIter) + 1.)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))**FakXi
     IF (CurrentValue .GT. MaxValue) MaxValue = CurrentValue
   END DO
   CALL RANDOM_NUMBER(iRan)
@@ -1511,121 +1511,6 @@ ELSE
 END IF
 
 END SUBROUTINE DSMC_RotRelaxQuantPoly
-
-
-SUBROUTINE DSMC_RotRelaxQuantPolyMH(iPair, iPart, FakXi)
-!===================================================================================================================================
-! rotational relaxation routine with the Metropolis-Hastings method (no burn-in phase) but uses last quantum numbers from inital
-! particle insertion - ONLY for comparison with acceptance rejection sapmling
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals               ,ONLY: Abort
-  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC, Coll_pData, RadialWeighting, RotQuantsPar
-  USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
-  USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
-  USE MOD_part_tools            ,ONLY: GetParticleWeight
-
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair, iPart
-  REAL, INTENT(IN)              :: FakXi
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  REAL                          :: iRan, tempEng, tempProb, NormProb, Ec
-  INTEGER                       :: iPolyatMole, iSpec, iWalk
-  INTEGER                       :: jMax, iQuant, kQuant, delta, delta_old
-!===================================================================================================================================
-iSpec = PartSpecies(iPart)
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
-  Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
-ELSE
-  Ec = Coll_pData(iPair)%Ec
-END IF
-iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
-
-IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear, same as diatomic
-  jMax = 400
-  DO iWalk=1,1000
-    NormProb = Ec - PartStateIntEn(2,iPart)
-    ! Proper modelling of energy transfer between old and new state in chemistry
-    NormProb = NormProb**FakXi
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = RotQuantsPar(1,iPart)+NINT((2.0 * iRan - 1.0) * jMax)
-    IF(iQuant.LT.0) iQuant = -1*iQuant -1
-    tempEng= REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
-    tempProb = Ec - tempEng
-    IF(tempProb.GT.0) THEN
-      NormProb = MIN(1.0,(2.*REAL(iQuant) + 1.)*tempProb**FakXi/((2.*REAL(RotQuantsPar(1,iPart)) + 1.)*NormProb))
-      CALL RANDOM_NUMBER(iRan)
-      IF(NormProb.GE.iRan) THEN
-        PartStateIntEn(2,iPart) = tempEng
-        RotQuantsPar(1,iPart)=iQuant
-      END IF
-    END IF
-  END DO
-ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
-  jMax = 400
-  DO iWalk=1,1000
-    NormProb = Ec - PartStateIntEn(2,iPart)
-    ! Proper modelling of energy transfer between old and new state in chemistry
-    NormProb = NormProb**FakXi
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = RotQuantsPar(1,iPart)+NINT((2.0 * iRan - 1.0) * jMax)
-    IF(iQuant.LT.0) iQuant = -1*iQuant -1
-    tempEng= REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
-    tempProb = Ec - tempEng
-    IF(tempProb.GT.0) THEN
-      NormProb = MIN(1.0,(2.*REAL(iQuant) + 1.)**2.*tempProb**FakXi/((2.*REAL(RotQuantsPar(1,iPart)) + 1.)**2.*NormProb))
-      CALL RANDOM_NUMBER(iRan)
-      IF(NormProb.GE.iRan) THEN
-        PartStateIntEn(2,iPart) = tempEng
-        RotQuantsPar(1,iPart)=iQuant
-      END IF
-    END IF
-  END DO
-ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
-  ! molecule is non-linear -> symmetric top molecule where two are equal and third is different
-  iWalk = 1
-  DO iWalk=1,3500
-    NormProb = Ec - PartStateIntEn(2,iPart)
-    ! Proper modelling of energy transfer between old and new state in chemistry
-    NormProb = NormProb**FakXi
-    CALL RANDOM_NUMBER(iRan)
-    iQuant = RotQuantsPar(1,iPart)+NINT((2.0 * iRan - 1.0) * 75)
-    CALL RANDOM_NUMBER(iRan)
-    kQuant = RotQuantsPar(2,iPart)+NINT((2.0 * iRan - 1.0) * 75)
-    ! set delta for degeneracy
-    delta=0
-    IF(kQuant.EQ.0) delta=1
-    delta_old=0
-    IF(RotQuantsPar(2,iPart).EQ.0) delta_old=1
-    IF(iQuant.LT.0) iQuant = -1*iQuant -1
-    tempEng = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / & 
-      PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - & 
-      1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)
-    tempProb = Ec - tempEng
-    IF(tempProb.GT.0) THEN
-      NormProb = MIN(1.0,(2.-REAL(delta))*(2.*REAL(iQuant) + 1.)*tempProb**FakXi / &
-                ((2.-REAL(delta_old))*(2.*REAL(RotQuantsPar(1,iPart)) + 1.)*NormProb))
-      CALL RANDOM_NUMBER(iRan)
-      IF((NormProb.GE.iRan).AND.(kQuant**2.LE.iQuant**2)) THEN
-        PartStateIntEn(2,iPart) = tempEng
-        RotQuantsPar(1,iPart)=iQuant
-        RotQuantsPar(2,iPart)=kQuant
-      END IF
-    END IF
-  END DO
-ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN
-  ! -> asymmetric top molecule, no analytic formula for energy levels -> always use rotational levels
-  CALL DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)
-ELSE
-  CALL abort(__STAMP__,'Unexpected relations of moments of inertia of species!')
-END IF
-END SUBROUTINE DSMC_RotRelaxQuantPolyMH
 
 
 SUBROUTINE DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)

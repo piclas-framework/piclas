@@ -486,11 +486,6 @@ END TYPE
 
 TYPE (tPolyatomMolVibQuant), ALLOCATABLE    :: VibQuantsPar(:)
 
-INTEGER, ALLOCATABLE                        :: RotQuantsPar(:,:)  ! Rot quants for each particle
-                                                                  ! Dimensions: 2 | MaxParticleNumber, where first row is first
-                                                                  ! first quantum number (iQuant) and second row second quantum
-                                                                  ! number (kQuant) only for symmetric Tops
-
 TYPE tAmbipolElecVelo !DSMC Species Param
   REAL, ALLOCATABLE            :: ElecVelo(:)            ! Vib quants of each DOF for each particle
 END TYPE

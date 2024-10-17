@@ -1159,7 +1159,7 @@ PartStateIntEn(1,iPart1) = (jQVib + DSMC%GammaQuant) * BoltzmannConst &
 
 END SUBROUTINE TVEEnergyExchange
 
-!//TODO move to new module species database
+
 SUBROUTINE ReadSpeciesLevel ( Dsetname, iSpec )
 !===================================================================================================================================
 ! Subroutine to read the electronic levels from DSMCSpeciesElectronicState.h5
