@@ -2039,38 +2039,44 @@ CALL MPI_BCAST(nTotalPeriodicNodes,1,MPI_INTEGER,0,MPI_COMM_SHARED,iERROR)
 
 CALL BARRIER_AND_SYNC(Periodic_nNodes_Shared_Win    ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(Periodic_offsetNode_Shared_Win,MPI_COMM_SHARED)
-
-CALL Allocate_Shared((/nTotalPeriodicNodes/),Periodic_Nodes_Shared_Win,Periodic_Nodes_Shared)
-CALL MPI_WIN_LOCK_ALL(0,Periodic_Nodes_Shared_Win     ,IERROR)
-Periodic_Nodes => Periodic_Nodes_Shared
-IF (myComputeNodeRank.EQ.0) Periodic_Nodes = 0
-CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
-#else
-ALLOCATE(Periodic_Nodes(1:nTotalPeriodicNodes))
-Periodic_Nodes = 0
 #endif /*USE_MPI*/
 
-! Every processor loops over its own periodic map and fills the Periodic_Nodes_Shared_Win array. MPI_ACCUMULATE ensures that data
-! is consistent
-DO iNode = 1,nUniqueGlobalNodes
-  ASSOCIATE(offset => Periodic_offsetNode(iNode))
-
-    IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
+IF(nTotalPeriodicNodes.GT.0) THEN
 #if USE_MPI
-      CALL MPI_ACCUMULATE(PeriodicNodeMap(iNode)%Mapping             ,PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
-                          0    ,INT(offset*SIZE_INT,MPI_ADDRESS_KIND),PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
-                          MPI_REPLACE                                ,Periodic_Nodes_Shared_Win            , iError)
+  CALL Allocate_Shared((/nTotalPeriodicNodes/),Periodic_Nodes_Shared_Win,Periodic_Nodes_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,Periodic_Nodes_Shared_Win     ,IERROR)
+  Periodic_Nodes => Periodic_Nodes_Shared
+  IF (myComputeNodeRank.EQ.0) Periodic_Nodes = 0
+  CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
 #else
-      Periodic_Nodes(1+offset:offset+PeriodicNodeMap(iNode)%nPeriodicNodes) = PeriodicNodeMap(iNode)%Mapping
+  ALLOCATE(Periodic_Nodes(1:nTotalPeriodicNodes))
+  Periodic_Nodes = 0
 #endif /*USE_MPI*/
-  END IF ! PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0
 
-  END ASSOCIATE
-END DO ! iNode = nUniqueGlobalNodes
+  ! Every processor loops over its own periodic map and fills the Periodic_Nodes_Shared_Win array. MPI_ACCUMULATE ensures that data
+  ! is consistent
+  DO iNode = 1,nUniqueGlobalNodes
+    ASSOCIATE(offset => Periodic_offsetNode(iNode))
+
+      IF (PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0) THEN
 #if USE_MPI
-CALL MPI_WIN_FLUSH(0 ,Periodic_Nodes_Shared_Win,iError)
-CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
+        CALL MPI_ACCUMULATE(PeriodicNodeMap(iNode)%Mapping             ,PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
+                            0    ,INT(offset*SIZE_INT,MPI_ADDRESS_KIND),PeriodicNodeMap(iNode)%nPeriodicNodes, MPI_INTEGER, &
+                            MPI_REPLACE                                ,Periodic_Nodes_Shared_Win            , iError)
+#else
+        Periodic_Nodes(1+offset:offset+PeriodicNodeMap(iNode)%nPeriodicNodes) = PeriodicNodeMap(iNode)%Mapping
 #endif /*USE_MPI*/
+    END IF ! PeriodicNodeMap(iNode)%nPeriodicNodes.GT.0
+
+    END ASSOCIATE
+  END DO ! iNode = nUniqueGlobalNodes
+#if USE_MPI
+  CALL MPI_WIN_FLUSH(0 ,Periodic_Nodes_Shared_Win,iError)
+  CALL BARRIER_AND_SYNC(Periodic_Nodes_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+END IF
+
+SDEALLOCATE(PeriodicNodesPerNode)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE!',DisplayLine=.FALSE.)
@@ -2166,9 +2172,9 @@ IF(DoDeposition)THEN
   CASE('cell_volweight_mean')
     CALL UNLOCK_AND_FREE(NodeVolume_Shared_Win)
     IF(GEO%nPeriodicVectors.GT.0)THEN
-      CALL UNLOCK_AND_FREE(Periodic_Nodes_Shared_Win)
       CALL UNLOCK_AND_FREE(Periodic_nNodes_Shared_Win)
       CALL UNLOCK_AND_FREE(Periodic_offsetNode_Shared_Win)
+      IF(nTotalPeriodicNodes.GT.0) CALL UNLOCK_AND_FREE(Periodic_Nodes_Shared_Win)
     END IF ! GEO%nPeriodicVectors.GT.0
   CASE('shape_function_adaptive')
     CALL UNLOCK_AND_FREE(SFElemr2_Shared_Win)
@@ -2185,12 +2191,19 @@ END IF ! DoDeposition
 ! Then, free the pointers or arrays
 #endif /*USE_MPI*/
 
-! Deposition-dependent pointers/arrays
-SELECT CASE(TRIM(DepositionType))
-  CASE('cell_volweight_mean')
-  CASE('shape_function_adaptive')
-    ADEALLOCATE(SFElemr2_Shared)
-END SELECT
+IF(DoDeposition)THEN
+  ADEALLOCATE(NodeVolume)
+  ADEALLOCATE(Periodic_Nodes)
+  ADEALLOCATE(Periodic_nNodes)
+  ADEALLOCATE(Periodic_offsetNode)
+
+  ! Deposition-dependent pointers/arrays
+  SELECT CASE(TRIM(DepositionType))
+    CASE('cell_volweight_mean')
+    CASE('shape_function_adaptive')
+      ADEALLOCATE(SFElemr2_Shared)
+  END SELECT
+END IF
 
 #if USE_LOADBALANCE
 IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
