@@ -478,9 +478,11 @@ IF (ABS(meshMode).GT.1) THEN
   TangVec2 = 0.
   SurfElem = 0.
 
+#if !(USE_FV) || (USE_HDG)
   DO iElem=1,nElems
     CALL CalcSurfMetrics(JaCL_N(:,:,:,:,:,iElem),iElem)
   END DO
+#endif
 
 #if USE_FV
   ALLOCATE(Face_xGP_FV      (3,0:0,0:0,1:nSides))
