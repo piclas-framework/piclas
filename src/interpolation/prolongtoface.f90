@@ -28,16 +28,6 @@ PRIVATE
 INTERFACE ProlongToFace
   MODULE PROCEDURE ProlongToFace_SideBased
 END INTERFACE
-
-INTERFACE ProlongToFace_TypeBased
-  MODULE PROCEDURE ProlongToFace_TypeBased
-END INTERFACE
-
-! NO interface because of possibility to MAP arrays, dimension reduction, increase
-!INTERFACE ProlongToFace_Elementlocal
-!  MODULE PROCEDURE ProlongToFace_Elementlocal
-!END INTERFACE
-
 PUBLIC::ProlongToFace
 PUBLIC::ProlongToFace_Elementlocal
 PUBLIC::ProlongToFace_TypeBased, ProlongToFace_Side
@@ -326,7 +316,6 @@ END ASSOCIATE
 END SUBROUTINE ProlongToFace_SideBased
 
 
-
 SUBROUTINE ProlongToFace_TypeBased(doDielectricSides, doMPISides)
 !===================================================================================================================================
 ! Interpolates the interior volume data (stored at the Gauss or Gauss-Lobatto points) to the surface
@@ -334,28 +323,25 @@ SUBROUTINE ProlongToFace_TypeBased(doDielectricSides, doMPISides)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Interpolation_Vars ,ONLY: N_Inter
-USE MOD_DG_Vars            ,ONLY: U_N,DG_Elems_slave,DG_Elems_master,U_Surf_N, N_DG_Mapping
+USE MOD_DG_Vars            ,ONLY: U_N,U_Surf_N, N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: firstBCSide,firstInnerSide
-USE MOD_Mesh_Vars          ,ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,nSides,firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars          ,ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
 USE MOD_Dielectric_Vars    ,ONLY: DielectricSurf, DielectricVolDummy
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN) :: doDielectricSides  !  .TRUE.: use DielectricVolDummy()%U, DielectricSurf(:)%Dielectric_dummy_Master and 
+LOGICAL,INTENT(IN) :: doDielectricSides  !  .TRUE.: use DielectricVolDummy()%U, DielectricSurf(:)%Dielectric_dummy_Master and
 !                                        !                                      DielectricSurf(:)%Dielectric_dummy_Slave
-!                                        ! .FALSE.: use U_N(:)%U, U_Surf_N(:)%U_master and 
+!                                        ! .FALSE.: use U_N(:)%U, U_Surf_N(:)%U_master and
 !                                        !                        U_Surf_N(:)%U_slave
 LOGICAL,INTENT(IN) :: doMPISides         != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: l,p,q,nbElemID,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID,Nloc
-REAL,ALLOCATABLE   :: Uface(:,:,:)
+INTEGER            :: nbElemID,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID,Nloc
 !===================================================================================================================================
 IF(doMPISides)THEN
   ! only YOUR MPI Sides are filled
@@ -380,7 +366,7 @@ DO SideID=firstSideID,lastSideID
   ELSE
     CALL ProlongToFace_Side(PP_nVar, Nloc, locSideID, flip, U_N(nbElemID)%U, U_Surf_N(SideID)%U_slave)
   END IF ! doDielectricSides
-  
+
 END DO !SideID
 
 ! Second process Minus/Master sides, U_Minus is always MINE

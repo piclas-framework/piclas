@@ -157,7 +157,6 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_Interpolation_Vars     ,ONLY: NodeType
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
@@ -183,8 +182,6 @@ CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER(HID_T)                               :: DSet_ID,FileSpace,HDF5DataType
-INTEGER(HSIZE_T)                             :: Dimsf(5)
 CHARACTER(LEN=255)                           :: FileName
 #ifdef PARTICLES
 CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  ', 'tracing     ', 'triatracking'/)

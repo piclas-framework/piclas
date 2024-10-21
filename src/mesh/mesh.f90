@@ -24,19 +24,6 @@ PRIVATE
 ! GLOBAL VARIABLES (PUBLIC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE InitMesh
-  MODULE PROCEDURE InitMesh
-END INTERFACE
-
-INTERFACE FinalizeMesh
-  MODULE PROCEDURE FinalizeMesh
-END INTERFACE
-
-INTERFACE GetMeshMinMaxBoundaries
-  MODULE PROCEDURE GetMeshMinMaxBoundaries
-END INTERFACE
-
 PUBLIC::InitMesh
 PUBLIC::FinalizeMesh
 PUBLIC::GetMeshMinMaxBoundaries
@@ -178,12 +165,8 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
-INTEGER             :: Nloc,iSide,NSideMin,NSide
+INTEGER             :: Nloc,iSide,NSideMin
 LOGICAL             :: validMesh,ReadNodes
-#if USE_HDG
-INTEGER             :: iMortar,nMortars,MortarSideID
-INTEGER             :: SideID,locSide
-#endif /*USE_HDG*/
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
@@ -618,11 +601,11 @@ END SUBROUTINE InitpAdaption
 SUBROUTINE SetpAdaptionBCLevel()
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: nFEMEdges, nFEMVertices, readFEMconnectivity, offsetElem, nElems
-USE MOD_Mesh_Vars          ,ONLY: ElemInfo,SideInfo,EdgeInfo,EdgeConnectInfo,VertexInfo,VertexConnectInfo
-USE MOD_Mesh_Vars          ,ONLY: SideToElem,BoundaryType,BC
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems
+USE MOD_Mesh_Vars          ,ONLY: ElemInfo,VertexInfo,VertexConnectInfo
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared
-USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,N_DG_Mapping
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
@@ -637,11 +620,9 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iElem,BCSideID,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,OffsetCounter
-INTEGER :: iVertex,iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,SideID,iLocSide,localSideID
-INTEGER :: FirstSideInd,LastSideInd,FirstElemInd,LastElemInd
-INTEGER :: FirstEdgeInd,LastEdgeInd,FirstEdgeConnectInd,LastEdgeConnectInd
-INTEGER :: nVertexIDs,offsetVertexID,nVertexConnectIDs,offsetVertexConnectID
+INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,OffsetCounter
+INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,iLocSide
+INTEGER :: FirstElemInd,LastElemInd
 INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
 !===================================================================================================================================
 ! Do not re-allocate during load balance here as it is communicated between the processors
@@ -793,12 +774,14 @@ END SUBROUTINE GetLocSideList
 SUBROUTINE Allocate_N_DG_Mapping()
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars         ,ONLY: N_DG_Mapping,N_DG_Mapping_Shared,N_DG,NDGAllocationIsDone
-USE MOD_Mesh_Vars       ,ONLY: nElems,offSetElem,nGlobalElems
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping,NDGAllocationIsDone
 #if USE_MPI
-USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared_Win
-USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
 USE MOD_MPI_Shared
+USE MOD_Mesh_Vars       ,ONLY: nGlobalElems
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared,N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
+#else
+USE MOD_Mesh_Vars       ,ONLY: nElems
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -857,7 +840,7 @@ END SUBROUTINE Set_N_DG_Mapping
 SUBROUTINE Build_N_DG_Mapping()
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,displsDofs, recvcountDofs, N_DG_Mapping_Shared, nDofsMapping, N_DG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,displsDofs, recvcountDofs, nDofsMapping
 USE MOD_DG_Vars            ,ONLY: NDGAllocationIsDone
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nGlobalElems
 #if USE_MPI
@@ -1459,7 +1442,6 @@ SDEALLOCATE(GlobalUniqueSideID)
 !SDEALLOCATE(SideBoundingBoxVolume)
 !#endif
 !#endif
-SDEALLOCATE(ElemToElemGlob)
 ! mortars
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)

@@ -24,24 +24,6 @@ PRIVATE
 ! GLOBAL VARIABLES (PUBLIC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE GetGlobalElemID
-  PROCEDURE GetGlobalElemID
-END INTERFACE
-
-INTERFACE GetCNElemID
-  PROCEDURE GetCNElemID
-END INTERFACE
-
-INTERFACE GetGlobalSideID
-  PROCEDURE GetGlobalSideID
-END INTERFACE
-
-INTERFACE GetCNSideID
-  PROCEDURE GetCNSideID
-END INTERFACE
-
-!----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: GetGlobalElemID
 PUBLIC :: GetCNElemID
 PUBLIC :: GetGlobalSideID
@@ -411,7 +393,7 @@ USE MOD_PreProc
 USE MOD_globals   ,ONLY: abort
 USE MOD_Mesh_Vars ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_HDG_Vars  ,ONLY: nGP_face, iLocSides
+USE MOD_HDG_Vars  ,ONLY: iLocSides
 USE MOD_Mesh_Vars ,ONLY: nSides
 #if USE_MPI
 USE MOD_MPI_Vars  ,ONLY: RecRequest_U,SendRequest_U
@@ -474,7 +456,6 @@ USE MOD_Mesh_Vars          ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
 USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
@@ -484,7 +465,7 @@ INTEGER,INTENT(IN)                                          :: ExtraDim,iSide,NS
 REAL,DIMENSION(PP_nVar,nGP_face(NMax)+ExtraDim),INTENT(OUT) :: MasterSide ! +1 comes from the NSide info that is sent additionally
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: p,q,r,rr,pq(1:2),iVar
+INTEGER          :: p,q,r,rr,pq(1:2)
 INTEGER          :: SideID,iLocSide,iMortar,nMortars,MortarSideID
 !===================================================================================================================================
 
