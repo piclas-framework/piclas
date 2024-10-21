@@ -17,17 +17,14 @@ MODULE MOD_PICDepo
 !===================================================================================================================================
 ! MOD PIC Depo
 !===================================================================================================================================
- IMPLICIT NONE
- PRIVATE
+IMPLICIT NONE
+PRIVATE
+
+TYPE NodeDepoMapping
+  INTEGER                                     :: NodeID
+  TYPE (NodeDepoMapping), POINTER             :: next => NULL()
+END TYPE
 !===================================================================================================================================
-INTERFACE Deposition
-  MODULE PROCEDURE Deposition
-END INTERFACE
-
-INTERFACE FinalizeDeposition
-  MODULE PROCEDURE FinalizeDeposition
-END INTERFACE
-
 PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersPICDeposition
 #if USE_MPI
 PUBLIC :: ExchangeNodeSourceExtTmp
@@ -133,17 +130,17 @@ INTEGER                   :: jElem,TestElemID
 INTEGER                   :: NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: GlobalElemRankOrig, iRank
-LOGICAL,ALLOCATABLE       :: DoNodeMapping(:), SendNode(:), IsDepoNode(:)!, NodeDepoMapping(:,:)
+LOGICAL,ALLOCATABLE       :: DoNodeMapping(:), SendNode(:), IsDepoNode(:)
 LOGICAL                   :: bordersMyrank
 ! Non-symmetric particle exchange
 INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
-TYPE NodeDepoMapping
-  INTEGER               :: NodeID
-  TYPE (NodeDepoMapping), POINTER :: next => null()
-END TYPE
+! TYPE NodeDepoMapping
+!   INTEGER               :: NodeID
+!   TYPE (NodeDepoMapping), POINTER :: next => NULL()
+! END TYPE
 TYPE tElemNodeDepoMap
-  TYPE (NodeDepoMapping), POINTER :: first => null()
+  TYPE (NodeDepoMapping), POINTER :: first => NULL()
   LOGICAL               :: firstNode
   INTEGER               :: nNodes
 END TYPE
@@ -400,17 +397,17 @@ CASE('cell_volweight_mean')
             ALLOCATE(ElemNodeDepoMap(iRank)%first)
             ElemNodeDepoMap(iRank)%first%NodeID = iNode
           ELSE
-            ALLOCATE(node)
+            ! Check if node already exists
             node => ElemNodeDepoMap(iRank)%first
             DO testNode = 1, ElemNodeDepoMap(iRank)%nNodes
               IF (node%NodeID.EQ.iNode) CYCLE ElemLoop
+              IF (.NOT.ASSOCIATED(node%next)) EXIT
               node => node%next
             END DO
-            ALLOCATE(node)
+             ! Add new node at the end of the list
+            ALLOCATE(node%next)
+            node%next%NodeID = iNode
             ElemNodeDepoMap(iRank)%nNodes = ElemNodeDepoMap(iRank)%nNodes + 1
-            node%next => ElemNodeDepoMap(iRank)%first%next
-            ElemNodeDepoMap(iRank)%first%next => node
-            node%NodeID = iNode
           END IF
         END IF
       END DO ElemLoop
@@ -509,31 +506,45 @@ CASE('cell_volweight_mean')
     NodeMappingSend(iProc)%SendNodeSourceCurrent=0.
     IF(DoDielectricSurfaceCharge) ALLOCATE(NodeMappingSend(iProc)%SendNodeSourceExt(1:NodeMappingSend(iProc)%nSendUniqueNodes))
     SendNodeCount = 0
-!    DO iNode = 1, nUniqueGlobalNodes
-!      IF (NodeDepoMapping(iProc,iNode)) THEN
-!        SendNodeCount = SendNodeCount + 1
-!        NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
-!      END IF
-!    END DO
-    ALLOCATE(node)
+    ! DO iNode = 1, nUniqueGlobalNodes
+    !   IF (NodeDepoMapping(iProc,iNode)) THEN
+    !     SendNodeCount = SendNodeCount + 1
+    !     NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = iNode
+    !   END IF
+    ! END DO
+    ! ALLOCATE(node)
+    ! node => ElemNodeDepoMap(iProc)%first
+    ! DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
+    !   SendNodeCount = SendNodeCount + 1
+    !   NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = node%NodeID
+    !   node => node%next
+    ! END DO
+
+    ! First loop: Traverse the list and populate NodeMappingSend
     node => ElemNodeDepoMap(iProc)%first
-    DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
+    DO WHILE (ASSOCIATED(node))
       SendNodeCount = SendNodeCount + 1
       NodeMappingSend(iProc)%SendNodeUniqueGlobalID(SendNodeCount) = node%NodeID
       node => node%next
     END DO
-    node => ElemNodeDepoMap(iProc)%first
-    DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
-      ElemNodeDepoMap(iProc)%first => ElemNodeDepoMap(iProc)%first%next
-      DEALLOCATE(node)
-      node => ElemNodeDepoMap(iProc)%first
-    END DO
-    IF(ASSOCIATED(ElemNodeDepoMap(iProc)%first)) THEN
-      DEALLOCATE(ElemNodeDepoMap(iProc)%first)
-    END IF
-    IF(ASSOCIATED(node)) THEN
-      DEALLOCATE(node)
-    END IF
+
+    ! node => ElemNodeDepoMap(iProc)%first
+    ! DO testNode = 1, ElemNodeDepoMap(iProc)%nNodes
+    !   ElemNodeDepoMap(iProc)%first => ElemNodeDepoMap(iProc)%first%next
+    !   DEALLOCATE(node)
+    !   node => ElemNodeDepoMap(iProc)%first
+    ! END DO
+    ! IF(ASSOCIATED(ElemNodeDepoMap(iProc)%first)) THEN
+    !   DEALLOCATE(ElemNodeDepoMap(iProc)%first)
+    ! END IF
+    ! IF(ASSOCIATED(node)) THEN
+    !   DEALLOCATE(node)
+    ! END IF
+
+    ! Deallocate the list
+    CALL DeallocateNodeList(ElemNodeDepoMap(iProc)%first)
+    NULLIFY(ElemNodeDepoMap(iProc)%first)
+    ElemNodeDepoMap(iProc)%nNodes = 0
 
     CALL MPI_ISEND( NodeMappingSend(iProc)%SendNodeUniqueGlobalID                   &
                   , NodeMappingSend(iProc)%nSendUniqueNodes                         &
@@ -2065,6 +2076,20 @@ GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE!',DisplayLine=.FALSE.)
 
 END SUBROUTINE InitializePeriodicNodes
+
+
+RECURSIVE SUBROUTINE DeallocateNodeList(node)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+TYPE(NodeDepoMapping), POINTER    :: node
+!===================================================================================================================================
+
+IF (ASSOCIATED(node)) THEN
+  CALL DeallocateNodeList(node%next)
+  DEALLOCATE(node)
+END IF
+
+END SUBROUTINE DeallocateNodeList
 
 
 SUBROUTINE FinalizeDeposition()
