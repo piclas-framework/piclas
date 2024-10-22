@@ -1120,11 +1120,14 @@ TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide
 INTEGER             :: iElem,LocSideID
 INTEGER             :: iMortar,nMortars
-INTEGER             :: Flip_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_MINE(nNBProcs))
-INTEGER             :: Flip_YOUR(offsetMPISides_YOUR(0)+1:offsetMPISides_YOUR(nNBProcs))
 INTEGER             :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+INTEGER,ALLOCATABLE :: Flip_MINE(:),Flip_YOUR(:)
 !===================================================================================================================================
 IF(nProcessors.EQ.1) RETURN
+
+ALLOCATE(Flip_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_MINE(nNBProcs)))
+ALLOCATE(Flip_YOUR(offsetMPISides_YOUR(0)+1:offsetMPISides_YOUR(nNBProcs)))
+
 !fill MINE flip info
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
@@ -1183,6 +1186,8 @@ DO iElem=1,nElems
     END DO ! iMortar
   END DO ! LocSideID
 END DO ! iElem
+
+DEALLOCATE(Flip_MINE,Flip_YOUR)
 
 END SUBROUTINE exchangeFlip
 #endif

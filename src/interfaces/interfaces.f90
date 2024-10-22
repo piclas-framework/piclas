@@ -466,7 +466,7 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem,info_opt)
 !===================================================================================================================================
 !> Check if a face is in a special region (e.g. Dielectric) and/or connects a special region (e.g. Dielectric) to the physical
 !> region. This is used, e.g., for dielectric or PML regions
-!> indentifies the following connections and stores them in "isFace_combined"
+!> identifies the following connections and stores them in "isFace_combined"
 !> use numbering: 1: Master side is special (e.g. dielectric)
 !>                2: Slave  side is special (e.g. dielectric)
 !>                3: both sides are special (e.g. dielectric) sides
@@ -489,25 +489,25 @@ USE MOD_MPI                    ,ONLY: StartReceiveMPIData,StartSendMPIData,Finis
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)                   :: isElem(1:PP_nElems) ! True/False element: special region
-CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: info_opt            ! Optional information regarding the type of faces/interfaces to be found
+LOGICAL,INTENT(IN)                    :: isElem(1:PP_nElems) ! True/False element: special region
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL  :: info_opt            ! Optional information regarding the type of faces/interfaces to be found
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isFace(:)      ! True/False face: special region <-> special region
-LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isInterFace(:) ! True/False face: special region <-> physical region (or vice versa)
+LOGICAL,ALLOCATABLE,INTENT(INOUT)     :: isFace(:)      ! True/False face: special region <-> special region
+LOGICAL,ALLOCATABLE,INTENT(INOUT)     :: isInterFace(:) ! True/False face: special region <-> physical region (or vice versa)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides) :: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
-                                                                                       ! the prolong to face routine and MPI logic
-INTEGER                                  :: iSide ! Side iterator
-CHARACTER(LEN=255)                       :: info  ! Output info on failure
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
+                                                                                    ! the prolong to face routine and MPI logic
+INTEGER                               :: iSide ! Side iterator
+CHARACTER(LEN=255)                    :: info  ! Output info on failure
 !===================================================================================================================================
 ! General workflow:
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 ! 3.  MPI: communicate slave sides to master
-! 4.  comminucate the values to the slave sides (currently done but not used anywhere)
-! 5.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
+! 4.  communicate the values to the slave sides (currently done but not used anywhere)
+! 5.  calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 
@@ -517,10 +517,10 @@ ALLOCATE(isInterFace(1:nSides))
 isFace=.FALSE.
 isInterFace=.FALSE.
 ! For MPI sides send the info to all other procs
+ALLOCATE(isFace_Slave(1,0:PP_N,0:PP_N,1:nSides),isFace_Master(1,0:PP_N,0:PP_N,1:nSides),isFace_combined(1,0:PP_N,0:PP_N,1:nSides))
 isFace_Slave    = -3.
 isFace_Master   = -3.
 isFace_combined = -3.
-
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides
@@ -626,6 +626,8 @@ DO iSide=1,nSides
   END IF
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
+
+DEALLOCATE(isFace_Slave,isFace_Master,isFace_combined)
 
 END SUBROUTINE FindInterfacesInRegion
 
