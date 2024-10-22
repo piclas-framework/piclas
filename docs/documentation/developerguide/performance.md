@@ -328,11 +328,24 @@ be redirected to a shell that is displayed in VTune by Setting: Options → Gene
 Valgrind is a complete suite of tools for debugging/profiling licenced under GPL. The complete documentation can be found [here](https://www.valgrind.org/docs/manual/index.html).
 
 ### Installation of Valgrind
-Valgrind is provided through the repository of all major Linux distributions. Install it with the package manager of your choice.
+Valgrind is provided through the repository of all major Linux distributions. Install it with the package manager of your choice. However, to use Valgrind with OpenMPI, the latter has to be configured with the following options:
+
+    --enable-debug --enable-memchecker --with-valgrind=/usr/
+
+pointing to the Valgrind installation. To check whether OpenMPI has been properly configured and compiled, the following command
+
+    ompi_info | grep memchecker
+
+should show the following output:
+
+    MCA memchecker: valgrind (MCA v2.1.0, API v2.0.0, Component v4.1.6)
 
 ### Execution of Valgrind
-Valgrind is composed of individual tools, each tailered to debug or profil a specific aspect. All tools need PICLas compiled with
-"-g" to produce debugging information in the operating system's native format.
+Valgrind is composed of individual tools, each tailored to debug or profile a specific aspect. All tools need PICLas compiled with
+"-g" to produce debugging information in the operating system's native format. If OpenMPI has been properly configured, the commands
+in the following subsections can be utilized by prepending `mpirun`
+
+    mpirun -np 2 valgrind ./piclas parameter.ini
 
 #### Callgrind
 Callgrind tracks the call graph and duration for each function.
@@ -352,13 +365,14 @@ Memcheck keeps track of every allocated memory and shows memory leaks or invalid
     valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes -s --suppressions=/share/openmpi/openmpi-valgrind.supp ./piclas parameter.ini
 
 OpenMPI handles its memory independently, so memcheck will always report memory leaks due to OpenMPI. Using the provided
-suppressions hides these falls flags. Combining memcheck with the GCC sanitize flag should provide full memory coverage.
+suppressions hides these false-positives. Combining memcheck with the GCC sanitize flag should provide full memory coverage.
+When PETSc is used, please refer to the [PETSc documentation](https://petsc.org/release/faq/#valgrind).
 
 #### Massif
 Massif keeps track of the current memory usage as well as the overall heap usage. It helps finding code segments that hold on to
 memory after they should. Run it with
 
-    valgrind --tool=massif ./piclas parameter.ini
+    valgrind --tool=massif --pages-as-heap=yes ./piclas parameter.ini
 
 The output file can be opened with massif-visualizer.
 

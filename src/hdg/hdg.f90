@@ -710,6 +710,9 @@ PetscCallA(VecScatterCreate(PETScSolution,PETScISGlobal,PETScSolutionLocal,PETSc
 
 ! (Delete local allocated vectors)
 DEALLOCATE(localToGlobalPETScDOF)
+! Clean-up local PETSc objects
+PetscCallA(ISDestroy(PETScISLocal,ierr))
+PetscCallA(ISDestroy(PETScISGlobal,ierr))
 #endif
 
 GETTIME(EndT)
@@ -2210,6 +2213,8 @@ HDGInitIsDone = .FALSE.
 PetscCallA(KSPDestroy(PETScSolver,ierr))
 PetscCallA(MatDestroy(PETScSystemMatrix,ierr))
 PetscCallA(VecDestroy(PETScSolution,ierr))
+PetscCallA(VecDestroy(PETScSolutionLocal,ierr))
+PetscCallA(VecScatterDestroy(PETScScatter,ierr))
 PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
 SDEALLOCATE(SmallMortarType)

@@ -42,7 +42,7 @@ Vec                 :: PETScRHS                 !< Right hand side of the PETSc 
 Vec                 :: PETScSolution            !< Solution vector of the PETSc System (lambda, potential on the sides)
 KSP                 :: PETScSolver              !< Krylov subspace method and preconditioner used in PETSc
 Vec                 :: PETScSolutionLocal       !< Local portion of the solution vector (including YOUR sides!)
-VecScatter          :: PETScScatter            !< Scatter object used to extract the local solution from the global vector
+VecScatter          :: PETScScatter             !< Scatter object used to extract the local solution from the global vector
 INTEGER             :: nPETScSides              !< nSides - nDirichletSides
 INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
 INTEGER             :: nLocalPETScDOFs          !< Number of local PETSc DOFs (size of PETSc Vectors & Matrices)
