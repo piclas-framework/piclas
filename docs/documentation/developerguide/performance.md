@@ -328,17 +328,27 @@ be redirected to a shell that is displayed in VTune by Setting: Options → Gene
 Valgrind is a complete suite of tools for debugging/profiling licenced under GPL. The complete documentation can be found [here](https://www.valgrind.org/docs/manual/index.html).
 
 ### Installation of Valgrind
-Valgrind is provided through the repository of all major Linux distributions. Install it with the package manager of your choice. However, to use Valgrind with OpenMPI, the latter has to be configured with the following options:
+Valgrind is provided through the repository of all major Linux distributions. Install it with the package manager of your choice.
+However, to use Valgrind with OpenMPI, the latter has to be configured with the following options:
 
     --enable-debug --enable-memchecker --with-valgrind=/usr/
 
-pointing to the Valgrind installation. To check whether OpenMPI has been properly configured and compiled, the following command
+pointing to the Valgrind installation. The location of Valgrind can be determined through `whereis valgrind`. The output shows the
+location of the executable and include file:
+
+    valgrind: /usr/bin/valgrind /usr/include/valgrind /usr/libexec/valgrind /usr/share/man/man1/valgrind.1.gz
+
+For the configuration of OpenMPI, the folder, where the `bin/` and `include/` folders are
+located have to be provided, in this example it is simply `/usr/`. To check whether OpenMPI has been properly configured and compiled, the following command
 
     ompi_info | grep memchecker
 
 should show the following output:
 
     MCA memchecker: valgrind (MCA v2.1.0, API v2.0.0, Component v4.1.6)
+
+The script in `tools/Setup_ModuleEnv/InstallMPIallCOMPILERS.sh` can be utilized to install OpenMPI with Valgrind withing the module
+environment by setting `WHICHMPI=openmpi-debug` in the script.
 
 ### Execution of Valgrind
 Valgrind is composed of individual tools, each tailored to debug or profile a specific aspect. All tools need PICLas compiled with
@@ -352,7 +362,7 @@ Callgrind tracks the call graph and duration for each function.
 
     valgrind --tool=callgrind ./piclas parameter.ini
 
-The output file can be opened with KCacheGrind or converted using gprof2dot. The options `-n PERCENTAGE, --node-thres=PERCENTAGE / -e PERCENTAGE, --edge-thres=PERCENTAGE` eliminate nodes/edges below this threshold [default: 0.5].
+The output file can be opened with kcachegrind or converted using gprof2dot. The options `-n PERCENTAGE, --node-thres=PERCENTAGE / -e PERCENTAGE, --edge-thres=PERCENTAGE` eliminate nodes/edges below this threshold [default: 0.5].
 
     gprof2dot -n0 -e0 ./callgrind.out.1992 -f callgrind > out.dot
     dot -Tpng out.dot -o out.png
@@ -370,14 +380,19 @@ When PETSc is used, please refer to the [PETSc documentation](https://petsc.org/
 
 #### Massif
 Massif keeps track of the current memory usage as well as the overall heap usage. It helps finding code segments that hold on to
-memory after they should. Run it with
+memory after they should not. Run it with
 
-    valgrind --tool=massif --pages-as-heap=yes ./piclas parameter.ini
+    valgrind --tool=massif --pages-as-heap=yes --xtree-memory=full ./piclas parameter.ini
 
-The output file can be opened with massif-visualizer.
+The output files `massif.out.pid` can be opened with massif-visualizer and the files `xtmemory.kcg.pid` with kcachegrind. By default, reports are generated at the end of the run.
+Alternatively, the user can trigger, for example, an output to the file `snapshot.kcg` of the current memory tree for the specific process `540006` by
+
+    vgdb xtmemory snapshot.kcg --pid=540006
+
+during the runtime. The process id can be determined through `top`/`htop`.
 
 #### DHAT
-DHAT tracks memory allocations and inspects every memory access to a block. It is exceptionally useful to find code segments
+DHAT tracks memory allocations and inspects every memory access to a block. It is exceptionally useful to find code segments,
 where memory is allocated unused or rapidly re-allocated. Run it with
 
     valgrind --tool=dhat ./piclas parameter.ini
