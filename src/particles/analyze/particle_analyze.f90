@@ -645,10 +645,10 @@ IF(CalcRelaxProb.AND.(Collismode.LE.1)) CALL abort(__STAMP__,&
 ! Calculate the global density if for BGGas distribution at the beginning
 IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReacRates)) CALL CalcNumberDensityBGGasDistri()
 
-IF(CalcReacRates) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) CALL abort(__STAMP__,&
-      'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
-END IF
+! IF(CalcReacRates) THEN
+!   IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) CALL abort(__STAMP__,&
+!       'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
+! END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
 

@@ -1203,7 +1203,6 @@ SELECT CASE(CollisMode)
         CALL Abort(__STAMP__,'ERROR in DSMC_perform_collision: Wrong Selection Procedure:',SelectionProc)
     END SELECT
   CASE(3) ! chemical reactions
-    IF (DoSpeciesWeighting.OR.DovMPF_nonAvCollProb) CALL Abort(__STAMP__,'ERROR: Chemical reactions not possible with Species Weighting')
     RelaxToDo = .TRUE.
     IF (PRESENT(NodeVolume).AND.PRESENT(NodePartNum)) THEN
       CALL ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
@@ -1251,9 +1250,10 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: DoSpeciesWeighting, DovMPF_nonAvCollProb
 USE MOD_MCC_Vars                ,ONLY: SpecXSec
 USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, UseVarTimeStep, usevMPF, VarTimeStep
-USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
+USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry, DSMC_Chemistry_vMPF
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -1352,12 +1352,20 @@ IF(ReacCounter.GT.0) THEN
         ! Determine which reaction will occur, perform it and leave the loop
         ReactionProb = ReactionProb + 1./REAL(ReacCounter)
         IF(ReactionProb.GT.iRan) THEN
-          CALL DSMC_Chemistry(iPair, ReacTest)
+          IF (DoSpeciesWeighting.OR.DovMPF_nonAvCollProb) THEN
+            CALL DSMC_Chemistry_vMPF(iPair, ReacTest)
+          ELSE
+            CALL DSMC_Chemistry(iPair, ReacTest)
+          END IF
           ! Exit the routine
           RETURN
         END IF
       ELSE
-        CALL DSMC_Chemistry(iPair, ReacTest)
+        IF (DoSpeciesWeighting.OR.DovMPF_nonAvCollProb) THEN
+          CALL DSMC_Chemistry_vMPF(iPair, ReacTest)
+        ELSE
+          CALL DSMC_Chemistry(iPair, ReacTest)
+        END IF
         ! Exit the routine
         RETURN
       END IF
@@ -1383,7 +1391,11 @@ IF(ChemReac%CollCaseInfo(iCase)%HasXSecReaction) THEN
     IF(TRIM(ChemReac%ReactModel(ReacTest)).EQ.'XSec') THEN
       ReactionProb = ReactionProb + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
       IF((ReactionProb/ReactionProbSum).GT.iRan) THEN
-        CALL DSMC_Chemistry(iPair, ReacTest)
+        IF (DoSpeciesWeighting.OR.DovMPF_nonAvCollProb) THEN
+          CALL DSMC_Chemistry_vMPF(iPair, ReacTest)
+        ELSE
+          CALL DSMC_Chemistry(iPair, ReacTest)
+        END IF
         ! Do not perform a relaxation after the chemical reaction
         RelaxToDo = .FALSE.
         ! Exit the routine
