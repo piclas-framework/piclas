@@ -345,6 +345,7 @@ USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
 USE MOD_Particle_Vars      ,ONLY: UseVarTimeStep, usevMPF
 USE MOD_part_tools         ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars          ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn, DSMC, useRelaxProbCorrFactor, CollInf, RadialWeighting
+USE MOD_DSMC_Vars          ,ONLY: VarWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -360,7 +361,7 @@ REAL                      :: TransEn, RotEn, RotDOF, CorrFact           ! CorrFa
                                                                         ! (fewer DSMC particles than natural ones)
 !===================================================================================================================================
 ! Note that during probability calculation, collision energy only contains translational part
-IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) THEN
   TransEn = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
   TransEn = Coll_pData(iPair)%Ec
