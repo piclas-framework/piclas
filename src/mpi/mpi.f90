@@ -392,6 +392,7 @@ SUBROUTINE StartReceiveMPISurfDataType(MPIRequest, SendID, mode)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
+USE MOD_HDG_Vars, ONLY: UseNSideMin
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -412,11 +413,19 @@ DO iNbProc=1,nNbProcs
       CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSEIF (mode.EQ.8) THEN
-      nRecVal = DataSizeSurfRecMin(iNbProc,SendID)**2
+      IF(UseNSideMin)THEN
+        nRecVal = DataSizeSurfRecMin(iNbProc,SendID)**2
+      ELSE
+        nRecVal = DataSizeSurfRecMax(iNbProc,SendID)**2
+      END IF
       CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv2(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
-      nRecVal = DataSizeSurfRecMin(iNbProc,SendID)
+      IF(UseNSideMin)THEN
+        nRecVal = DataSizeSurfRecMin(iNbProc,SendID)
+      ELSE
+        nRecVal = DataSizeSurfRecMax(iNbProc,SendID)
+      END IF
       CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     END IF
@@ -508,7 +517,7 @@ USE MOD_PreProc
 USE MOD_MPI_Vars
 USE MOD_DG_Vars   ,ONLY: U_Surf_N,DG_Elems_slave
 USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
-USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
+USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N,UseNSideMin
 USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -547,12 +556,20 @@ DO iNbProc=1,nNbProcs
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSEIF(mode.EQ.8)THEN
       ! Exchange HDG solver variables on Nmin
-      nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)**2
+      IF(UseNSideMin)THEN
+        nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)**2
+      ELSE
+        nSendVal     = DataSizeSurfSendMax(iNbProc,SendID)**2
+      END IF
       SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
       SideID_end   = OffsetMPISides_send(iNbProc,SendID)
       i = 1
       DO iSide = SideID_start, SideID_end
-        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        IF(UseNSideMin)THEN
+          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        ELSE
+          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        END IF
         DO p = 1, (Nloc+1)**2
           DO q = 1, (Nloc+1)**2
             SurfExchange(iNbProc)%SurfDataSend2(i) = HDG_Surf_N(iSide)%Precond(p,q)
@@ -564,12 +581,20 @@ DO iNbProc=1,nNbProcs
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
       ! Exchange HDG solver variables on Nmin
-      nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)
+      IF(UseNSideMin)THEN
+        nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)
+      ELSE
+        nSendVal     = DataSizeSurfSendMax(iNbProc,SendID)
+      END IF
       SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
       SideID_end   = OffsetMPISides_send(iNbProc,SendID)
       i = 1
       DO iSide = SideID_start, SideID_end
-        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        IF(UseNSideMin)THEN
+          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        ELSE
+          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        END IF
         DO p = 0, Nloc
           DO q = 0, Nloc
             r=p*(Nloc+1) + q+1
@@ -941,7 +966,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
 USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
-USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
+USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N,UseNSideMin
 USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -989,7 +1014,11 @@ DO iNbProc=1,nNbProcs
       END DO ! iSide = SideID_start, SideID_end
     ELSEIF(mode.EQ.8)THEN
       DO iSide = SideID_start, SideID_end
-        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        IF(UseNSideMin)THEN
+          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        ELSE
+          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        END IF
         DO p = 1, (Nloc+1)**2
           DO q = 1, (Nloc+1)**2
             HDG_Surf_N(iSide)%Precond(p,q) = SurfExchange(iNbProc)%SurfDataRecv2(i)
@@ -999,7 +1028,11 @@ DO iNbProc=1,nNbProcs
       END DO ! iSide = SideID_start, SideID_end
     ELSE
       DO iSide = SideID_start, SideID_end
-        Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        IF(UseNSideMin)THEN
+          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        ELSE
+          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+        END IF
         DO p = 0, Nloc
           DO q = 0, Nloc
             r=p*(Nloc+1) + q+1

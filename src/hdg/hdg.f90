@@ -310,10 +310,17 @@ CALL FinishExchangeMPISurfDataType(SendRequest_Geo,RecRequest_Geo,1, 1)
 DO iNbProc=1,nNbProcs
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataRecv)
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataSend)
-  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMin( iNbProc,:))))
-  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMin(iNbProc,:))))
-  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv2(MAXVAL(DataSizeSurfRecMin( iNbProc,:))**2))
-  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend2(MAXVAL(DataSizeSurfSendMin(iNbProc,:))**2))
+  IF(UseNSideMin)THEN
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMin( iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMin(iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv2(MAXVAL(DataSizeSurfRecMin( iNbProc,:))**2))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend2(MAXVAL(DataSizeSurfSendMin(iNbProc,:))**2))
+  ELSE
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMax( iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMax(iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv2(MAXVAL(DataSizeSurfRecMax( iNbProc,:))**2))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend2(MAXVAL(DataSizeSurfSendMax(iNbProc,:))**2))
+  END IF
 END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 
