@@ -354,7 +354,7 @@ DO
   IF(iError.NE.0) EXIT  ! iError is set in GetHDF5NextFileName !
 END DO
 
-WRITE(UNIT_stdOut,'(A)',ADVANCE='YES')'DONE'
+WRITE(UNIT_stdOut,'(A)',ADVANCE='YES')' DONE!'
 
 END SUBROUTINE FlushHDF5
 

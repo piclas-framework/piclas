@@ -640,13 +640,15 @@ IF(PerformRayTracing)THEN
   END IF ! nProcessors.GT.1
 
   CALL UNLOCK_AND_FREE(N_DG_Ray_Shared_Win)
-
+  CALL UNLOCK_AND_FREE(PhotonSurfSideSamplingMidPoints_Shared_Win)
   CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
   ADEALLOCATE(RayElemPassedEnergy_Shared)
   ADEALLOCATE(RayElemPassedEnergyHO_Shared)
   ADEALLOCATE(N_DG_Ray_Shared)
+  ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)
 #endif /*USE_MPI*/
+  ADEALLOCATE(PhotonSurfSideSamplingMidPoints)
 ELSE
   ! 2: at the end of the simulation or during load balance
   SDEALLOCATE(U_N_Ray_loc)  ! ray tracing + plasma simulation

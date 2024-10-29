@@ -85,8 +85,9 @@ REAL, ALLOCATABLE                   :: Vdm_GaussN_Nloc(:,:)    !< for interpolat
 REAL, ALLOCATABLE                   :: U_N_Ray_2D_local(:,:)   !< for output as 1D array per variable
 REAL, PARAMETER                     :: tolerance=1e-2
 LOGICAL                             :: WriteErrorToElemData
+REAL                                :: StartT,EndT
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE RADIATION VOLSTATE TO HDF5 FILE...'
 
 WriteErrorToElemData = .FALSE.
 
@@ -331,7 +332,9 @@ CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecond
 CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorY')
 CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorZ')
 
-SWRITE(*,*) 'DONE'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT,' DONE!', DisplayLine=.FALSE.)
+
 END SUBROUTINE WritePhotonVolSampleToHDF5
 
 
@@ -389,7 +392,7 @@ CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
 IF (nGlobalSurfSides.EQ.0) RETURN
 #endif /*USE_MPI*/
 IF (mySurfRank.EQ.0) THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE Radiation SurfSTATE TO HDF5 FILE...'
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE RADIATION SURFSTATE TO HDF5 FILE...'
   tstart=LOCALTIME()
 END IF
 
@@ -489,7 +492,7 @@ CALL CloseDataFile()
 
 IF (mySurfRank.EQ.0) THEN
   tend=LOCALTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' DONE!  [',tend-tstart,' sec]'
 END IF
 
 END SUBROUTINE WritePhotonSurfSampleToHDF5

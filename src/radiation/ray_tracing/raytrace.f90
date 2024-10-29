@@ -128,7 +128,7 @@ END DO
 IF(SumPhotonEnACC.LE.0.0) CALL CollectiveStop(__STAMP__,'The sum of all Part-Boundary[$]-PhotonEnACC is zero, which is not allowed!')
 
 GETTIME(StartT)
-SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
+SWRITE(UNIT_stdOut,'(A)') ' Start ray tracing calculation...'
 
 ! Sanity check
 IF(nComputeNodeSurfTotalSides.EQ.0) CALL abort(__STAMP__,'nComputeNodeSurfTotalSides is zero, no surfaces for ray tracing found! ')
@@ -244,7 +244,7 @@ CALL FinalizeRayTracing()
 PerformRayTracing = .FALSE.
 
 GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+CALL DisplayMessageAndTime(EndT-StartT, 'Ray tracing calculation DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE RayTracing
 
@@ -274,6 +274,9 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !#if MPI
 !#endif /*MPI*/
 IMPLICIT NONE
@@ -286,14 +289,18 @@ INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,BCSid
 INTEGER              :: nSurfSampleHDF5,N_HDF5
 INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
 LOGICAL              :: ContainerExists
-REAL                 :: N_DG_Ray_locREAL(1:nElems)
 INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
+REAL, ALLOCATABLE    :: N_DG_Ray_locREAL(:)
 REAL, ALLOCATABLE    :: UNMax(:,:,:,:,:),UNMax_loc(:,:,:,:)
 REAL, ALLOCATABLE    :: U_N_Ray_2D_local(:,:)                     !< for read-in as 1D array per variable
 #if USE_MPI
 INTEGER              :: sendbuf,recvbuf
 #endif /*USE_MPI*/
+REAL                 :: StartT,EndT
 !===================================================================================================================================
+
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Reading ray tracing result from file...'
+GETTIME(StartT)
 
 ! 1.) Get surface sampled values
 #if USE_MPI
@@ -378,17 +385,22 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
   END DO ! BCSideID = 1,nBCSides
 END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
 
-
 ! Check if only the surface data is to be loaded (non-restart and non-load balance case)
-IF(onlySurfData) RETURN
+IF(onlySurfData) THEN
+  GETTIME(EndT)
+  CALL DisplayMessageAndTime(EndT-StartT,' DONE!', DisplayLine=.FALSE.)
+  RETURN
+END IF
 
 ! 2. Get local element polynomial
 CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL DatasetExists(File_ID,'NlocRay',ContainerExists)
 IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'NlocRay container does not exist in '//TRIM(RadiationVolState))
 ! Array is stored as REAL value, hence, convert back to integer
+ALLOCATE(N_DG_Ray_locREAL(1:nElems))
 CALL ReadArray('NlocRay',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=N_DG_Ray_locREAL)
 N_DG_Ray_loc = INT(N_DG_Ray_locREAL)
+DEALLOCATE(N_DG_Ray_locREAL)
 ! Sanity check
 IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
 
@@ -519,6 +531,8 @@ CALL ReadArray('RaySecondaryVectorZ',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK
 
 CALL CloseDataFile()
 
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 END SUBROUTINE ReadRayTracingDataFromH5
 

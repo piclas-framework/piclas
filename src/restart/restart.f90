@@ -151,7 +151,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-  IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
+  IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initialization of N_Restart!')
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'
   ELSE ! Use the solution in the restart file
@@ -310,7 +310,7 @@ IF(DoRestart)THEN
   CALL FlushHDF5(RestartTime)
 
   GETTIME(EndT)
-  CALL DisplayMessageAndTime(EndT-StartT, 'DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+  CALL DisplayMessageAndTime(EndT-StartT, 'RESTART DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 ELSE ! no restart
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()
