@@ -64,8 +64,8 @@ END INTERFACE
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
-PUBLIC :: StartReceiveMPISurfDataType
 #if USE_HDG
+PUBLIC :: StartReceiveMPISurfDataType
 PUBLIC :: StartSendMPISurfDataType,FinishExchangeMPISurfDataType
 PUBLIC :: Mask_MPIsides
 #endif /*USE_HDG*/
@@ -384,6 +384,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIDataType
 
 
+#if USE_HDG
 !===================================================================================================================================
 !> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
 !===================================================================================================================================
@@ -434,6 +435,7 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPISurfDataType
+#endif /*USE_MPI*/
 
 
 !===================================================================================================================================
