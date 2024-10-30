@@ -354,6 +354,17 @@ DO BCSideID=1,nBCSides
   END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 END DO ! BCSideID=1,nBCSides
 
+! Deallocate NtonSurfSample before some processors leave
+DO Nloc = NMin, NMax
+  DEALLOCATE(NtonSurfSample(Nloc)%densityVISU)
+  DEALLOCATE(NtonSurfSample(Nloc)%J_NAnalyze)
+  DEALLOCATE(NtonSurfSample(Nloc)%Coords_NAnalyze)
+  DEALLOCATE(NtonSurfSample(Nloc)%xIP_VISU)
+  DEALLOCATE(NtonSurfSample(Nloc)%wIP_VISU)
+  DEALLOCATE(NtonSurfSample(Nloc)%Vdm_N_EQ_SurfaceData)
+END DO ! Nloc = 1, NMax
+DEALLOCATE(NtonSurfSample)
+
 #if USE_MPI
 ! collect the information from the proc-local arrays in the compute-node array
 MessageSize = nVarSurfData*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides

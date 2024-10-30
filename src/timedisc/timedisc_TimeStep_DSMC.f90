@@ -196,13 +196,7 @@ CALL MPIParticleRecv()
 CALL LBPauseTime(LB_PARTCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
 CALL ParticleInserting()
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_EMISSION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 
 IF (CollisMode.NE.0) THEN
   CALL UpdateNextFreePosition()

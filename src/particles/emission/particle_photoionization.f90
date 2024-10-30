@@ -71,6 +71,9 @@ USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: nSpecies
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -88,6 +91,9 @@ REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3),
 #if USE_HDG
 INTEGER               :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Check if ray tracing based SEE is active
 ! 1) Boundary from which rays are emitted
@@ -147,6 +153,10 @@ t_2 = t_2 - tShift - NbrOfRepetitions * Period
 IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
 TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
+
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 DO BCSideID=1,nBCSides
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
@@ -291,6 +301,9 @@ DO BCSideID=1,nBCSides
       END IF ! NbrOfSEE.GT.0
     END DO ! q = 1, Ray%nSurfSample
   END DO ! p = 1, Ray%nSurfSample
+#if USE_LOADBALANCE
+CALL LBElemSplitTime(locElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END DO
 
 END ASSOCIATE
@@ -329,6 +342,9 @@ USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputRay
 USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -346,6 +362,9 @@ REAL                  :: density, NbrOfPhotons, NbrOfReactions
 REAL                  :: RandNum,RandVal(3),Xi(3)
 REAL                  :: RandomPos(1:3),MPF
 REAL                  :: RayDirection(1:3),RayBaseVector1IC(1:3),RayBaseVector2IC(1:3)
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 IF(.NOT.UseRayTracing) RETURN
@@ -391,6 +410,10 @@ t_2 = t_2 - tShift - NbrOfRepetitions * Period
 IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
 TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
+
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! Loop over the first and secondary rays
 DO iVar = 1, 2
@@ -542,6 +565,9 @@ DO iVar = 1, 2
         END DO      ! k
       END DO        ! l
     END DO          ! m
+#if USE_LOADBALANCE
+    CALL LBElemSplitTime(iElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END DO            ! iElem = 1, nElems
 END DO              ! iVar = 1, 2
 
