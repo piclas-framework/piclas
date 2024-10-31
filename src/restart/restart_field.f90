@@ -146,6 +146,7 @@ INTEGER                            :: NonUniqueGlobalSideID
 #if USE_PETSC
 INTEGER                            :: PETScLocalID
 PetscErrorCode                     :: ierr
+INTEGER,ALLOCATABLE                :: DOFindices(:)
 #endif
 #else /*! USE_HDG*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
@@ -167,9 +168,6 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 INTEGER                            :: Nloc
-#if USE_PETSC
-INTEGER :: DOFindices(nGP_face(NMax))
-#endif /*USE_PETSC*/
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -514,7 +512,7 @@ ELSE ! Normal restart
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state
 
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0)')'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+    SWRITE(UNIT_stdOut,'(A,I0,A,I0)')' Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
 
 #if USE_HDG
     ! TODO: Do we need this for the HDG solver? It seems so ....
@@ -665,6 +663,7 @@ ELSE ! Normal restart
 
 #if USE_PETSC
       ! Write the lambda to the solution vector
+      ALLOCATE(DOFindices(nGP_face(NMax)))
       DO iSide=1,nSides
         IF(MaskedSide(iSide).GT.0) CYCLE
         ! TODO: Create a function to map localToGlobalDOFs
@@ -676,6 +675,7 @@ ELSE ! Normal restart
       END DO
       PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
       PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
+      DEALLOCATE(DOFindices)
 #endif
 
       ! RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda

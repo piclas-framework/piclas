@@ -141,7 +141,6 @@ USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 #endif /*USE_MPI*/
 USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
-USE MOD_Mesh_Vars             ,ONLY: ElemToSide
 #endif /*USE_PETSC*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
@@ -161,8 +160,6 @@ INTEGER           :: nDirichletBCsidesGlobal
 PetscErrorCode    :: ierr
 IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iProc
-!INTEGER           :: nAffectedBlockSides
-INTEGER             :: iLocSide
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
 INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
@@ -172,7 +169,6 @@ INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 #endif
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
-REAL              :: tmp(3,0:Nmax,0:Nmax)
 REAL              :: StartT,EndT
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
@@ -759,7 +755,7 @@ USE MOD_Globals            ,ONLY: ElementOnProc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
-USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps,halo_eps_velo,MPI_halo_eps,halo_eps_woshape,MPI_halo_eps_velo
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 #endif /*USE_MPI && defined(PARTICLES)*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
@@ -1703,7 +1699,7 @@ IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
 IF(MPIRoot)THEN
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
   ! Check old parameter name
-  ContainerName='ElectricPotenitalCondition'
+  ContainerName='ElectricPotentialCondition'
   CALL DatasetExists(File_ID,TRIM(ContainerName),EPCExists)
   ! Check for new parameter name
   IF(EPCExists)THEN
@@ -2030,7 +2026,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC
 USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
 USE MOD_PICDepo_Vars           ,ONLY: PS_N
-USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound
 USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
 USE MOD_TimeDisc_Vars          ,ONLY: time
 IMPLICIT NONE
@@ -2135,7 +2131,6 @@ USE MOD_Equation_Vars ,ONLY: B
 #else
 USE MOD_Equation_Vars ,ONLY: B, E
 #endif
-USE MOD_DG_Vars  ,ONLY: U_N
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 !-----------------------------------------------------------------------------------------------------------------------------------
