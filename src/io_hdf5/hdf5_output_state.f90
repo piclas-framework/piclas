@@ -138,7 +138,7 @@ LOGICAL                        :: usePreviousTime_loc
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #if defined(PARTICLES) || USE_HDG
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
-INTEGER(KIND=IK)               :: nVar
+INTEGER                        :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
