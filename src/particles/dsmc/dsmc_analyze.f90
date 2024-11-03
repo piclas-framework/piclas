@@ -407,15 +407,28 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iElem, iSpec
-REAL                          :: partWeight, TotalMass(nElems), totalWeight(nElems), totalWeight2(nElems), totalWeight3(nElems)
-REAL                          :: vBulk(3,nElems), presstens(3,nElems), heatflux(3,nElems), V_rel(3), vmag2
+REAL                          :: partWeight
+REAL                          :: V_rel(3), vmag2
+REAL,ALLOCATABLE              :: TotalMass(:), totalWeight(:), totalWeight2(:), totalWeight3(:)
+REAL,ALLOCATABLE              :: vBulk(:,:), presstens(:,:), heatflux(:,:)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 DSMC%SampNum = DSMC%SampNum + 1
-vBulk = 0.0; presstens = 0.0; heatflux = 0.0
-TotalMass = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
+
+IF(SamplePressTensHeatflux) THEN
+  ALLOCATE(TotalMass(nElems))
+  ALLOCATE(totalWeight(nElems))
+  ALLOCATE(totalWeight2(nElems))
+  ALLOCATE(totalWeight3(nElems))
+  TotalMass = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
+  ALLOCATE(vBulk(3,nElems))
+  ALLOCATE(presstens(3,nElems))
+  ALLOCATE(heatflux(3,nElems))
+  vBulk = 0.0; presstens = 0.0; heatflux = 0.0
+END IF
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -502,6 +515,14 @@ IF (SamplePressTensHeatflux) THEN
     DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem)**2 &
       / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
   END DO
+  ! Deallocate temporary arrays
+  DEALLOCATE(TotalMass)
+  DEALLOCATE(totalWeight)
+  DEALLOCATE(totalWeight2)
+  DEALLOCATE(totalWeight3)
+  DEALLOCATE(vBulk)
+  DEALLOCATE(presstens)
+  DEALLOCATE(heatflux)
 END IF
 
 #if USE_LOADBALANCE

@@ -382,7 +382,7 @@ When PETSc is used, please refer to the [PETSc documentation](https://petsc.org/
 Massif keeps track of the current memory usage as well as the overall heap usage. It helps finding code segments that hold on to
 memory after they should not. Run it with
 
-    valgrind --tool=massif --pages-as-heap=yes --xtree-memory=full ./piclas parameter.ini
+    valgrind --tool=massif --pages-as-heap=yes --xtree-memory=full --stacks=yes ./piclas parameter.ini
 
 The output files `massif.out.pid` can be opened with massif-visualizer and the files `xtmemory.kcg.pid` with kcachegrind. By default, reports are generated at the end of the run.
 Alternatively, the user can trigger, for example, an output to the file `snapshot.kcg` of the current memory tree for the specific process `540006` by
