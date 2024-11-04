@@ -20,6 +20,8 @@ fi
 # --------------------------------------------------------------------------------------------------
 # Colors
 # --------------------------------------------------------------------------------------------------
+dashes='...............................................'
+dashesshort='........'
 
 if test -t 1; then # if terminal
   NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
@@ -50,7 +52,7 @@ check_module () {
                    echo "module for ${1} not found. Exit"
                    exit
                  else
-                   echo "${1}: [${2}]"
+                   printf '%s %s [%s]\n' "$1" "${dashesshort:${#1}}" "$2"
                  fi
                 }
 
@@ -94,7 +96,8 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    CMAKEVERSION=3.28.2
+    CMAKEVERSION=3.24.2
+    #CMAKEVERSION=3.28.2
 
     GCCVERSION=13.2.0
 
@@ -161,7 +164,7 @@ NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
 MODULESDIR=/opt/modules/modulefiles
-TEMPLATEPATH=$(echo `pwd`/moduletemplates/utilities/petsc/petsc_temp)
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/petsc/petsc_temp)
 if [[ ! -f ${TEMPLATEPATH} ]]; then
   echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
   exit
@@ -181,7 +184,10 @@ fi
 # take the first gcc compiler installed with first compatible openmpi or mpich
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
-  CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  CMAKEVERSION=$(ls ${MODULESDIR}/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  if [[ -z $CMAKEVERSION ]]; then
+    CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  fi
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\n\nWARNING: The combination might not be possible!"
@@ -196,14 +202,19 @@ check_module "cmake" "${CMAKEVERSION}"
 check_module "gcc" "${GCCVERSION}"
 check_module "${WHICHMPI}" "${MPIVERSION}"
 
-PETSCMODULEFILEDIR=${MODULESDIR}/utilities/petsc/${PETSCVERSION}${DEBUGDIR}/gcc/${GCCVERSION}/${WHICHMPI}
+PETSCMODULEFILEDIR=${MODULESDIR}/petsc/petsc/${PETSCVERSION}${DEBUGDIR}/gcc/${GCCVERSION}/${WHICHMPI}
 MODULEFILE=${PETSCMODULEFILEDIR}/${MPIVERSION}
 
 # if no PETSc module for this compiler found, install PETSc and create module
 if [ ! -e "${MODULEFILE}" ]; then
-  echo -e "$GREEN""creating PETSc-${PETSCVERSION} for GCC-${GCCVERSION} under$NC"
-  echo -e "$GREEN""$MODULEFILE$NC"
-  echo " "
+
+  # Install destination
+  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}${DEBUGDIR}/gcc-${GCCVERSION}/${WHICHMPI}-${MPIVERSION}
+
+  MYSTR="Creating PETSc-${PETSCVERSION} for GCC-${GCCVERSION} under"
+  printf ${GREEN}'\n%s %s %s\n'${NC} "$MYSTR" "${dashes:${#MYSTR}}" "$PETSCINSTALLDIR"
+  MYSTR="creating module file"
+  printf ${GREEN}'%s %s %s\n\n'${NC} "$MYSTR" "${dashes:${#MYSTR}}" "$MODULEFILE"
   module purge
   load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
@@ -216,9 +227,6 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Have the correct modules been loaded? If yes, press [Enter] to continue or [Crtl+c] to abort!"
   fi
-
-  # Install destination
-  PETSCINSTALLDIR=/opt/petsc/${PETSCVERSION}${DEBUGDIR}/gcc-${GCCVERSION}/${WHICHMPI}-${MPIVERSION}
 
   # Change to sources directors
   cd ${SOURCESDIR}
