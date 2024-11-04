@@ -50,7 +50,7 @@ USE MOD_Globals_Vars            ,ONLY: c,ProjectName
 USE MOD_Preproc
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteMyInvisibleRankToHDF5
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,myInvisibleRank!,BoundaryType
+USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem,myInvisibleRank
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
@@ -125,8 +125,6 @@ CHARACTER(LEN=255)             :: hilf
 INTEGER                        :: k,iLocElem
 LOGICAL                        :: InInterPlaneRegion
 REAL                           :: InterPlaneDistance
-
-! REAL                           :: BoundsOfElem(      1:6),LocalBoundsOfElem(      1:6)
 !=================================================================================================================================
 
 WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
@@ -236,15 +234,6 @@ DO iElem = firstElem,lastElem
       IF(.NOT.DoParticleLatencyHiding) MPISideElem(iElem) = .TRUE.
       CYCLE
     END IF
-
-    ! ! Also take periodic elements into account as they might become asymetric
-    ! IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
-    !   IF (BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_TYPE).EQ.1) THEN
-    !     nExchangeSides = nExchangeSides + 1
-    !     IF(.NOT.DoParticleLatencyHiding) MPISideElem(iElem) = .TRUE.
-    !     CYCLE
-    !   END IF
-    ! END IF
   END DO
 END DO
 
@@ -300,16 +289,6 @@ DO iElem = firstElem,lastElem
       IF(.NOT.DoParticleLatencyHiding) MPISideElem(iElem) = .TRUE.
       CYCLE
     END IF
-
-    ! ! Also take periodic elements into account as they might become asymetric
-    ! IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
-    !   IF (BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_TYPE).EQ.1) THEN
-    !     nExchangeSides = nExchangeSides + 1
-    !     ExchangeSides(nExchangeSides) = SideID
-    !     IF(.NOT.DoParticleLatencyHiding) MPISideElem(iElem) = .TRUE.
-    !     CYCLE
-    !   END IF
-    ! END IF
   END DO
 END DO
 
@@ -388,20 +367,6 @@ DO iSide = 1, nExchangeSides
                                                         BoundsOfElem_Shared(2  ,3,NbElemID)-BoundsOfElem_Shared(1,3,NbElemID) /) / 2.)
       CYCLE
     END IF
-
-    ! ! Also take periodic elements into account as they might become asymetric
-    ! IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) THEN
-    !   IF (BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_TYPE).EQ.1) THEN
-    !     PVID = BoundaryType(SideInfo_Shared(SIDE_BCID,SideID),BC_ALPHA)
-    !     ! Non-mortar (MPI interfaces) sides and rotperiodic sides (BC sides)
-    !     MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,NbElemID)+SIGN(GEO%PeriodicVectors(1,ABS(PVID)),REAL(PVID))), &
-    !                                                 SUM(  BoundsOfElem_Shared(1:2,2,NbElemID)+SIGN(GEO%PeriodicVectors(2,ABS(PVID)),REAL(PVID))), &
-    !                                                 SUM(  BoundsOfElem_Shared(1:2,3,NbElemID)+SIGN(GEO%PeriodicVectors(3,ABS(PVID)),REAL(PVID))) /) / 2.
-    !     MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,NbElemID)-BoundsOfElem_Shared(1,1,NbElemID), &
-    !                                                       BoundsOfElem_Shared(2  ,2,NbElemID)-BoundsOfElem_Shared(1,2,NbElemID), &
-    !                                                       BoundsOfElem_Shared(2  ,3,NbElemID)-BoundsOfElem_Shared(1,3,NbElemID) /) / 2.)
-    !   END IF
-    ! END IF
   END IF ! DoParticleLatencyHiding
 END DO
 
@@ -915,7 +880,11 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
               nExchangeProcessors = nExchangeProcessors + 1
               CYCLE ElemLoop
+            END DO
+          END DO
 
+          DO iPeriodicVector = 1,3
+            DO iDir = -1,1,2
               DO jPeriodicVector = 1,3
                 DO jDir = -1,1,2
                   IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
@@ -1251,7 +1220,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
   ! 1st loop to determine the number of nSendShapeElems
   nSendShapeElems = 0
-  DO iELem = 1,nComputeNodeTotalElems
+  DO iElem = 1,nComputeNodeTotalElems
     IF (FlagShapeElem(iElem)) nSendShapeElems = nSendShapeElems + 1
   END DO
 
@@ -1263,7 +1232,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
   ! 2nd loop to fill the array of size nSendShapeElems
   nSendShapeElems = 0
-  DO iELem = 1,nComputeNodeTotalElems
+  DO iElem = 1,nComputeNodeTotalElems
     IF (FlagShapeElem(iElem)) THEN
       nSendShapeElems                  = nSendShapeElems + 1
       SendShapeElemID(nSendShapeElems) = iElem
@@ -1318,7 +1287,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       END DO
     END DO
     ! Own contribution
-    DO iELem = 1,nSendShapeElems
+    DO iElem = 1,nSendShapeElems
       ShapeElemProcSend_Shared(SendShapeElemID(iElem), 1+ComputeNodeRootRank) = .TRUE.
     END DO
 
@@ -1545,7 +1514,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   RecvProcs = .FALSE.
   RecvProcsElems = 0
   DO iElem = 1, nElems
-    CNElemID = GetCNElemID(iELem+offSetElem)
+    CNElemID = GetCNElemID(iElem+offSetElem)
     DO iProc = 1, nProcessors
       IF (myRank.EQ.iProc-1) CYCLE
       IF (ShapeElemProcSend_Shared(CNElemID,iProc)) THEN
@@ -1573,7 +1542,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
             ShapeMapping(exProc)%RecvBuffer(4,0:PP_N,0:PP_N,0:PP_N,1:RecvProcsElems(iProc)))
       exElem = 0
       DO iElem = 1, nElems
-        CNElemID = GetCNElemID(iELem+offSetElem)
+        CNElemID = GetCNElemID(iElem+offSetElem)
         IF (ShapeElemProcSend_Shared(CNElemID,iProc)) THEN
           exElem = exElem + 1
           ShapeMapping(exProc)%RecvShapeElemID(exElem) = iElem+offSetElem
@@ -1639,7 +1608,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    DO iELem = 1, ShapeMapping(iProc)%nSendShapeElems
+    DO iElem = 1, ShapeMapping(iProc)%nSendShapeElems
       SendElemShapeID(GetCNElemID(ShapeMapping(iProc)%SendShapeElemID(iElem))) = iElem
     END DO
   END DO

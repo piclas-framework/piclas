@@ -1865,7 +1865,9 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
             IF (EnlargeBGM) CALL AddElementToFIBGM(iElem)
             EXIT ElemLoop
           END DO ! iDir = -1, 1, 2
+        END DO ! iPeriodicVector = 1,2
 
+        DO iPeriodicVector = 1,2
           ! Check linear combination of two periodic vectors
           DO jPeriodicVector = 1,2
             IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
