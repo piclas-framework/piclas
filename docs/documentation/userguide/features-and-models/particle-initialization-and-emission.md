@@ -1,10 +1,11 @@
 (sec:particle-initialization-and-emission)=
 # Particle Initialization & Emission
 
-The RAM to store the particles is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
+The RAM to store the particle information is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
 
     Part-MaxParticleNumber=1000000
 
+which results in a program abort, if one of the processes reaches this limit.
 New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
 
     Part-MaxPartNumIncrease=0.1
@@ -532,6 +533,13 @@ simulation is then determined by
 $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+
+In some cases it might be useful to utilize averaged values across the complete BC by enabling
+
+    AdaptiveBC-AverageValuesOverBC = T
+
+Here, the cell-local values are averaged and the resulting macroscopic values are utilized for the particle emission.
+
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_Adaptive_ConstMassflow` and `SurfFlux_Tria_Adaptive_ConstPressure`.
 

@@ -1,11 +1,29 @@
 (sec:tutorial-dsmc-reservoir)=
+
 # Adiabatic Box/Reservoir (DSMC, Relaxation/Chemistry)
-An essential feature of DSMC simulations is their ability to treat thermal and chemical non-equilibrium in a physically correct manner. A simple example for such a use case are adiabatic box/reservoir simulations, which start in a non-equilibrium state. The subsequent simulation should lead to the correct relaxation towards equilibrium. Hence, this tutorial provides an example case at thermal non-equilibrium with disabled chemistry and another based on chemical non-equilibrium with chemistry enabled.
+An essential feature of DSMC simulations is their ability to treat a thermal and chemical non-equilibrium in a physically correct manner.
+A simple example for such a case is a reservoir simulation (adiabatic box), which starts in a non-equilibrium state.
+The subsequent simulation should lead the system towards equilibrium via a relaxation process.
+The first part of this tutorial provides an example at thermal non-equilibrium with disabled chemistry and the second part is
+based on chemical non-equilibrium with chemistry enabled.
 
-Before beginning with the tutorial, copy the `dsmc-reservoir` directory from the tutorial folder in the top level directory to a separate location
+Before beginning with the tutorial, copy the `dsmc-reservoir` directory from the tutorials in the top level directory of the
+piclas repository to a separate location
 
+    cd ~
+    mkdir -p workspace && cd workspace
     cp -r $PICLAS_PATH/tutorials/dsmc-reservoir .
     cd dsmc-reservoir
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd ~
+    mkdir -p workspace && cd workspace
+    cp -r /home/$(whoami)/piclas/tutorials/dsmc-reservoir .
+    cd dsmc-reservoir
+
+Change the command to comply with your path if the piclas repository is somewhere else.
 
 ## Mesh Generation with HOPR (pre-processing)
 
@@ -56,15 +74,72 @@ For more information about hopr, visit [https://github.com/hopr-framework/hopr](
 
 ## Simulation: Chemistry disabled
 
-Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation` and make sure to set the correct compile flags (ie. chose the correct simulation method)
+Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
+described under Section {ref}`userguide/installation:Compiling the code`.
+Always build the code in a separate directory located in the piclas top level directory.
+For this PIC tutorial, e.g., create a directory *build_poisson_RK3* in the piclas repository by running
 
+    cd $PICLAS_PATH
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd /home/$(whoami)/piclas
+
+and the create the build directory, in which the compilation process will take place
+
+    mkdir build_DSMC
+
+and the directory structure, which can be viewed via
+
+    ls -l
+
+should look like this
+
+     build_DSMC
+     cmake
+     CMakeListsLib.txt
+     CMakeListsMachine.txt
+     CMakeLists.txt
+     CONTRIBUTORS.md
+     docs
+     LICENCE.md
+     README.md
+     REFERENCE.md
+     REGGIE.md
+     regressioncheck
+     share
+     SpeciesDatabase.h5
+     src
+     tools
+     tutorials
+     unitTests
+
+Always compile the code within the *build* directory, hence, navigate to the *build_DSMC* directory before running cmake
+
+    cd build_DSMC
+
+For this specific tutorial, make sure to set the correct compile flags
+
+    PICLAS_EQNSYSNAME     = maxwell
     PICLAS_TIMEDISCMETHOD = DSMC
 
 or simply run the following command from inside the *build* directory
 
-    cmake ../ -DPICLAS_TIMEDISCMETHOD=DSMC
+    cmake .. -DPICLAS_TIMEDISCMETHOD=DSMC -DPICLAS_EQNSYSNAME=maxwell
 
-to configure the build process and run `make` afterwards to build the executable. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The physical parameters for this test case are summarized in {numref}`tab:dsmc_chem_off_phys`.
+to configure the build process and run
+
+    make -j
+
+afterwards to compile the executable.
+
+It is recommended to utilize a separate *build* folder whenever compiling a different solver in piclas to avoid confusion.
+Especially when switching between this DSMC tutorial and the PIC plasma wave tutorial as fundamentally different compiler settings
+are required.
+
+An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`.
+The physical parameters for this test case are summarized in {numref}`tab:dsmc_chem_off_phys`.
 
 ```{table} Physical properties at the simulation start
 ---
@@ -105,8 +180,9 @@ where, the path to the mesh file `MeshFile`, project name and particle tracking 
     Analyze_dt            = 5E-6
     IterDisplayStep       = 100
     Particles-HaloEpsVelo = 5000
+    doPrintStatusLine     = T
 
-where the final simulation time `tend` [s], the time step for the field and particle solver is set via `ManualTimeStep` [s]. The time between restart/checkpoint file output is defined via `Analyze_dt` (which is also the output time for specific analysis functions in the field solver context). The number of time step iterations `IterDisplayStep` defines the interval between information output regarding the current status of the simulation, which is written to std.out. The `Particles-HaloEpsVelo` [m/s] determines the size of the halo region for MPI communication and should not be smaller than the fastest particles in the simulation.
+where the final simulation time `tend` [s], the time step for the field and particle solver is set via `ManualTimeStep` [s]. The time between restart/checkpoint file output is defined via `Analyze_dt` (which is also the output time for specific analysis functions in the field solver context). The number of time step iterations `IterDisplayStep` defines the interval between information output regarding the current status of the simulation, which is written to std.out. The `Particles-HaloEpsVelo` [m/s] determines the size of the halo region for MPI communication and should not be smaller than the fastest particles in the simulation.The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
 
 (sec:tutorial-dsmc-analysis-setup)=
 ### Analysis setup
@@ -143,12 +219,11 @@ where, the number of boundaries `Part-nBounds` is followed by the names of the b
 (sec:tutorial-dsmc-particle-solver)=
 ### Particle solver
 
-For the treatment of particles, the maximum number of particles `Part-maxParticleNumber` that each processor can hold has to be supplied and the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time through chemical reactions).
+For the treatment of particles, the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time through chemical reactions).
 
     ! =============================================================================== !
     ! PARTICLES
     ! =============================================================================== !
-    Part-maxParticleNumber = 420000
     Part-nSpecies          = 1
 
 The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation is controlled via the following parameters. For each species, the mass (`Part-Species[$]-MassIC`), charge (`Part-Species[$]-ChargeIC`) and weighting factor $w$ (`Part-Species[$]-MacroParticleFactor`) have to be defined.
@@ -221,13 +296,35 @@ Besides the data given in the **parameter.ini**, a proper DSMC simulation needs 
 
 The first block from `Part-Species[$]-InteractionID` to `Part-Species[$]-LinearMolec` declares the structure of the species. Available species types set by `Part-Species[$]-InteractionID` are listed in Section {ref}`sec:DSMC-species`. The second one from `Part-Species[$]-Tref` to `Part-Species[$]-omega` are the basis of the collision model utilized, in this case the Variable Hard Sphere (VHS) model. It is important to keep in mind that the $\omega$ in this file differs from the $\omega$ used by Bird. $\omega = \omega_\text{bird1994} - 0.5$. The last block from `Part-Species[$]-CharaTempVib1` to `Part-Species[$]-CharaTempRot` defines the vibrational excitation modes and sets the characteristic rotational temperature (utilized for the partition function). Finally, `Part-Species1-Ediss_eV` defines the dissociation energy of the molecule in [eV].
 
-### Running the code
+### Running the code without chemical reactions (single-core execution)
+
+To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be executed in the directory where
+the results are going to be created and analysed.
+Navigate to the first example of the tutorial without chemical reactions
+
+    cd ~/workspace/dsmc-reservoir/chemistry-off
+
+To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
+create a link to the files via
+
+    ln -s $PICLAS_PATH/build_DSMC/bin/piclas
+    ln -s $PICLAS_PATH/build_DSMC/bin/piclas2vtk
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, the two commands
+
+    ln -s /home/$(whoami)/piclas/build_DSMC/bin/piclas
+    ln -s /home/$(whoami)/piclas/build_DSMC/bin/piclas2vtk
+
+can be executed instead of using `$PICLAS_PATH`.
+Please check where piclas is located before running the commands.
+Make sure to use the DSMC executable and not the PIC executable as this will result in extremely long simulation times.
 
 The command
 
     ./piclas parameter.ini DSMC.ini | tee std.out
 
-executes the code and dumps all output into the file *std.out*.
+executes the code and dumps all output into the log file *std.out*.
 If the run has completed successfully, which should take only a brief moment, the contents of the working folder should look like
 
     drwxrwxr-x 4,0K Okt 21 07:59 ./
@@ -335,13 +432,33 @@ As with the species, the number of reactions must first be defined by `DSMC-NumO
 
 Therefore, in this example with one reaction and each of the three species as possible non-reactive partner as well as the corresponding backward reaction lead to a number of six reactions in total. For more information see Section {ref}`sec:DSMC-chemistry`.
 
-### Running the code (Parallel computing)
+### Running the code with chemical reactions (Parallel computing)
 
-In order to investigate the transient behavior, a longer simulation time was chosen. This results in comparatively long computing times, which is why the use of several computing cores is recommended. The number of cores may not exceed the number of cells. This results in a maximum of 4 cores for the described simulation. Another important note is that bash does not understand aliases which are not at the start of a line. Thus a copy of the **piclas** binary must be located in the current folder
+In order to investigate the transient behavior, a longer simulation time was chosen. This results in comparatively long computing times,
+which is why the use of several computing cores is recommended.
+The number of cores may not exceed the number of cells. This results in a maximum of 4 cores for the described simulation.
 
-    cp $PICLAS_PATH/build/bin/piclas .
+Navigate to the second example of the tutorial with chemical reactions
 
-or the whole path to the binary must be used instead. Assuming a run with 4 cores is desired and the **piclas** binary is located at the current directory, the command
+    cd ~/workspace/dsmc-reservoir/chemistry-on
+
+To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
+create a link to the files via
+
+    ln -s $PICLAS_PATH/build_DSMC/bin/piclas
+    ln -s $PICLAS_PATH/build_DSMC/bin/piclas2vtk
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, the two commands
+
+    ln -s /home/$(whoami)/piclas/build_DSMC/bin/piclas
+    ln -s /home/$(whoami)/piclas/build_DSMC/bin/piclas2vtk
+
+can be executed instead of using `$PICLAS_PATH`.
+Please check where piclas is located before running the commands.
+Make sure to use the DSMC executable and not the PIC executable as this will result in extremely long simulation times.
+
+Assuming a run with 4 cores is desired and the **piclas** binary is located at the current directory, the command
 
     mpirun -np 4 piclas parameter.ini DSMC.ini | tee std.out
 

@@ -2,7 +2,7 @@
 ##
 ## modules petsc/petscversion
 ##
-## modulefiles/utilities/petsc/petscversion
+## modulefiles/petsc/petscversion
 ##
 proc ModulesHelp { } {
         global version modroot

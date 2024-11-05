@@ -146,8 +146,9 @@ SUBROUTINE WriteMyInvisibleRankToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars    ,ONLY: MeshFile
 USE MOD_Globals_Vars ,ONLY: ProjectName
+USE MOD_Mesh_Vars    ,ONLY: MeshFile
+USE MOD_HDF5_Output  ,ONLY: MarkWriteSuccessful
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -169,11 +170,13 @@ StrVarNames(1)='dummy'
 FileName=TRIM(ProjectName)//'_MyInvisibleRank.h5'
 IF(MPIRoot) CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
 CALL WriteAdditionalElemData(FileName,ElementOut)
+
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
