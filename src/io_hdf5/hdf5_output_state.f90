@@ -39,7 +39,6 @@ PUBLIC :: WriteElemDataToSeparateContainer
 
 CONTAINS
 
-
 SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
 !===================================================================================================================================
 ! Subroutine to write the solution U to HDF5 format
@@ -211,7 +210,6 @@ IF(.NOT.DoWriteStateToHDF5) RETURN
 
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
 GETTIME(StartT)
-
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
@@ -695,6 +693,8 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
+
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
@@ -776,7 +776,7 @@ END SUBROUTINE ModifyElemData
 #if defined(PARTICLES)
 SUBROUTINE WriteIMDStateToHDF5()
 !===================================================================================================================================
-! Write the particles data aquired from an IMD *.chkpt file to disk and abort the program
+! Write the particles data acquired from an IMD *.chkpt file to disk and abort the program
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

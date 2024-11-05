@@ -53,6 +53,10 @@ INTERFACE
   END SUBROUTINE copy_userblock
 END INTERFACE
 
+INTERFACE MarkWriteSuccessful
+  MODULE PROCEDURE MarkWriteSuccessful
+END INTERFACE
+
 INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
@@ -60,6 +64,7 @@ END INTERFACE
 PUBLIC :: FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage,GenerateNextFileInfo, copy_userblock
+PUBLIC :: MarkWriteSuccessful
 #if USE_MPI && defined(PARTICLES)
 PUBLIC :: DistributedWriteArray
 #endif /*USE_MPI && defined(PARTICLES)*/
@@ -78,6 +83,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars ,ONLY: ProjectName
 USE MOD_Mesh_Vars    ,ONLY: offsetElem,nGlobalElems,nElems
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -166,6 +172,8 @@ IF(nVar_Fluc.GT.0)THEN
                             collective      = .TRUE.        , RealArray = UFluc)
   END ASSOCIATE
 END IF
+
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
 
 GETTIME(endT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
@@ -713,8 +721,8 @@ IF(AttribExists)THEN
   ELSE
     Overwrite_loc = .FALSE.
   END IF
-  IF(.NOT.Overwrite_loc) CALL abort(__STAMP__,'Attribute '//TRIM(AttribName)//' alreay exists in HDF5 File')
-  ! Delete the old attribute only if it is re-writen below(otherwise the original info is lost)
+  IF(.NOT.Overwrite_loc) CALL abort(__STAMP__,'Attribute '//TRIM(AttribName)//' already exists in HDF5 File')
+  ! Delete the old attribute only if it is re-written below(otherwise the original info is lost)
   CALL H5ADELETE_F(Loc_ID, TRIM(AttribName), iError)
 END IF ! AttribExists
 
@@ -743,6 +751,28 @@ IF(Loc_ID.NE.Loc_ID_in)THEN
 END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE WriteAttributeToHDF5
+
+
+!==================================================================================================================================
+!> Add time attribute, after all relevant data has been written to a file,
+!> to indicate the writing process has been finished successfully
+!==================================================================================================================================
+SUBROUTINE MarkWriteSuccessful(FileName)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: FileName           !< Name of the file
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: Time(8)
+!==================================================================================================================================
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+CALL DATE_AND_TIME(VALUES=time)
+CALL WriteAttributeToHDF5(File_ID,'TIME',8,IntegerArray=time)
+CALL CloseDataFile()
+END SUBROUTINE MarkWriteSuccessful
 
 
 SUBROUTINE GatheredWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,RealArray,IntegerArray,StrArray)
