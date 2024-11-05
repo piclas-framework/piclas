@@ -301,7 +301,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
   ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
   ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
-  IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
+  CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif

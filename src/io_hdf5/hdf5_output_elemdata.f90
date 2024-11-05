@@ -168,7 +168,7 @@ ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_MyInvisibleRank.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
+CALL GenerateFileSkeleton('MyInvisibleRank',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -213,7 +213,7 @@ ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(1)='dummy'
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 FileName=TRIM(ProjectName)//'_LostRotPeriodicSides.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
+CALL GenerateFileSkeleton('LostRotPeriodicSides',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameIn=FileName)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif

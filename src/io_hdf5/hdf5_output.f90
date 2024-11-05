@@ -81,7 +81,6 @@ SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,Var
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars ,ONLY: ProjectName
 USE MOD_Mesh_Vars    ,ONLY: offsetElem,nGlobalElems,nElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -115,9 +114,8 @@ END IF
 ! Write timeaverages ---------------------------------------------------------------------------------------------------------------
 IF(nVar_Avg.GT.0)THEN
   ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TimeAvg',OutputTime))//'.h5'
+  CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FileNameOut=FileName)
   IF(MPIRoot)THEN
-    CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime)
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -145,9 +143,8 @@ END IF
 
 ! Write fluctuations ---------------------------------------------------------------------------------------------------------------
 IF(nVar_Fluc.GT.0)THEN
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Fluc',OutputTime))//'.h5'
+  CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FileNameOut=FileName)
   IF(MPIRoot)THEN
-    CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime)
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -180,7 +177,7 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -214,6 +211,7 @@ CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
+CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -227,18 +225,25 @@ CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  
 LOGICAL                                      :: WriteUserblock
 INTEGER                                      :: Nloc
 !===================================================================================================================================
+! Create filename
+IF(PRESENT(FileNameIn))THEN
+  FileName=FileNameIn
+ELSE
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+END IF ! PRESENT(FileNameIn)
+IF(.NOT.MPIRoot) THEN
+  IF(PRESENT(FileNameOut)) FileNameOut = FileName
+  RETURN
+END IF
+
 ! Check if NIn is to be used
 IF(PRESENT(NIn))THEN
   Nloc = NIn
 ELSE
   Nloc = PP_N
 END IF ! PRESENT(NIn)
+
 ! Create file
-IF(PRESENT(FileNameIn))THEN
-  FileName=FileNameIn
-ELSE
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-END IF ! PRESENT(FileNameIn)
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 
 ! Write file header
@@ -287,6 +292,8 @@ ELSE
   WriteUserblock = .TRUE.
 END IF ! PRESENT(WriteUserblockIn)
 IF(WriteUserblock) CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
+
+IF(PRESENT(FileNameOut)) FileNameOut = FileName
 
 END SUBROUTINE GenerateFileSkeleton
 
