@@ -100,12 +100,12 @@ ELSE IF (UseVarTimeStep) THEN
   ! Not the actual weighting factor, since the weighting factor is included in SpecNum
   MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
   ! Sum over the mean variable time step factors (NO particle weighting factor included during SumPairMPF summation)
-  CollCaseNum = CollInf%SumPairMPF(PairType) * Species(1)%MacroParticleFactor
+  CollCaseNum = CollInf%SumPairMPF(PairType) * Species(iSpec_p1)%MacroParticleFactor
   ! Weighting factor has to be included
-  SpecNum1 = SpecNum1 * Species(1)%MacroParticleFactor
-  SpecNum2 = SpecNum2 * Species(1)%MacroParticleFactor
+  SpecNum1 = SpecNum1 * Species(iSpec_p1)%MacroParticleFactor
+  SpecNum2 = SpecNum2 * Species(iSpec_p1)%MacroParticleFactor
 ELSE
-  MacroParticleFactor = Species(1)%MacroParticleFactor
+  MacroParticleFactor = Species(iSpec_p1)%MacroParticleFactor
   CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType))
 END IF
 IF (UseVarTimeStep) THEN

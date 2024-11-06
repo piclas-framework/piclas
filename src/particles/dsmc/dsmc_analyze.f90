@@ -123,7 +123,13 @@ IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
-  MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
+  DO iSpec = 1, nSpecies
+    IF(Species(iSpec)%InterID.NE.100) THEN
+      MacroParticleFactor = Species(iSpec)%MacroParticleFactor
+      EXIT
+    END IF
+  END DO
+  !MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
 END IF
 
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)

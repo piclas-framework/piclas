@@ -888,7 +888,7 @@ SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
     !===================================================================================================================================
     ! MODULES
     USE MOD_Globals
-    USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, PartMPF, SkipGranularUpdate
+    USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, PartMPF, SkipGranularUpdate,ForceAverage
     USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
     USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn
     USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
@@ -928,7 +928,6 @@ SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
           R_p     =>  SpecDSMC(PartSpecies(iPart))%dref / 2.0 ,&
           T_p     =>  PartStateIntEn( 1,iPart),&
           W_g     =>  Species(PartSpecies(locPart))%MacroParticleFactor,&
-!          W_g     =>  GetParticleWeight(locPart) ,&
           m_g     =>  Species(PartSpecies(locPart))%MassIC ,&
           V_c     =>  ElemVolume_Shared(GetCNElemID(ElemID+offSetElem)) ,&
           tau_g   =>  SpecDSMC(PartSpecies(locPart))%ThermalACCGranularPart ,&
@@ -936,18 +935,12 @@ SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
           e_rot   =>  PartStateIntEn( 2,locPart) ,&
           Lambda  =>  SpecDSMC(PartSpecies(locPart))%Xi_Rot &
           )
-          !print*,'R_p,T_p, W_g, m_g, V_c, tau_g, eps_g, e_rot, Lambda'
-          !print*,R_p,T_p, W_g, m_g, V_c, tau_g, eps_g, e_rot, Lambda
-          !read*
           Force = Force + c_r * W_g * (PI * R_p * R_p) / V_c &
                         * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
                         * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
 
-          !print*,'Force',Force
-
           Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / V_c &
           * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
-
         END ASSOCIATE
       END IF
       locPart = PEM%pNext(locPart)
@@ -958,7 +951,15 @@ SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
       PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) + Energy * dtVar &
                                / ( SpecDSMC(PartSpecies(iPart))%SpecificHeatSolid * Species(PartSpecies(iPart))%MassIC )
     ELSE
-!      print*,Force
+    !  PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) + Energy * dtVar &
+    !  / ( SpecDSMC(PartSpecies(iPart))%SpecificHeatSolid * Species(PartSpecies(iPart))%MassIC )
+    !  print*,Force(1)!,Energy  !,PartStateIntEn( 1,iPart)
+      ForceAverage(1) = ForceAverage(1) + 1.0
+      ForceAverage(2) = ForceAverage(2) + Force(1)
+      ForceAverage(3) = ForceAverage(3) + Force(2)
+      ForceAverage(4) = ForceAverage(4) + Force(3)
+      ForceAverage(5) = ForceAverage(5) + Energy
+    !  print*,Energy  !,PartStateIntEn( 1,iPart)
     END IF
 
     

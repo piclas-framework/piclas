@@ -245,7 +245,7 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
-USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep, GravityDir, UseGravitation, SkipGranularUpdate
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep, GravityDir, UseGravitation, SkipGranularUpdate, ForceAverage
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL, GETREALARRAY
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
@@ -318,6 +318,7 @@ IF(UseGravitation) THEN
   GravityDir(:) = UNITVECTOR(GravityDir)
 END IF
 SkipGranularUpdate = GETLOGICAL('SkipGranularUpdate')
+ForceAverage = 0.0
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
