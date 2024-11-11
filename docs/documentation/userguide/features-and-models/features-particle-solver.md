@@ -234,7 +234,76 @@ only at the stagnation point, the time step defined during the initialization is
 (sec:variable-particle-weighting)=
 ## Variable Particle Weighting
 
-Variable particle weighting is currently supported for PIC (with and without background gas) or a background gas (an additional trace species feature is described in Section {ref}`sec:background-gas`). The general functionality can be enabled with the following flag:
+### Variable Particle Weighting in 3D
+
+Linearly increasing particle weights in 3D can be defined similary to the radial weighting factor in the 2D case.
+
+    Part-VariableWeighting = T
+
+As a first step, the scaling direction needs to be defined, either as one of the coordinate axes or by start and end coordinates from which a scaling vector is generated.
+
+    Part-VarWeighting-CoordinateAxis = 2 ! y-axis
+
+    Part-VarWeighting-StartPointForScaling = (/0,0,0/)
+    Part-VarWeighting-EndPointForScaling = (/1,1,1/)
+
+In each case, scaling points with a given particle weight can be defined along the axis or the vector. The weight between two scaling points is then linearly interpolated based on the relative particle position. If the weight is to be increased along one of the coordinate axes, the absolute position [m] has to be given for the scaling points.
+
+In the example below, the weights are increased from $10^8$ to $10^{10}$, over a length of 1 cm along the axes.
+
+    Part-VarWeighting-nScalePointsMPF = 2
+
+    Part-VarWeighting-ScalePoint1-Coordinate = 0.0
+    Part-VarWeighting-ScalePoint1-Factor = 1E8
+
+    Part-VarWeighting-ScalePoint1-Coordinate = 0.01
+    Part-VarWeighting-ScalePoint1-Factor = 1E10
+
+Analogously to the radial weightng factor, the particles will be cloned or deleted when they move to a new cell with a different weigting factor.
+
+The cloning and deletion probability is again calculated by:
+
+$$ P_{\mathrm{clone}} = \frac{w_{\mathrm{old}}}{w_{\mathrm{new}}} - \mathrm{INT}\left(\frac{w_{\mathrm{old}}}{w_{\mathrm{new}}}\right)\qquad \text{for}\quad w_{\mathrm{new}}<w_{\mathrm{old}}.$$
+
+$$ P_{\mathrm{delete}} = 1 - P_{\mathrm{clone}}\qquad \text{for}\quad w_{\mathrm{old}}<w_{\mathrm{new}}.$$
+
+Parameters such as a cell-local weighting or the clone delay are defined in the parameter file with the same command as for the radial weighting, however the prefix 'RadialWeighting' needs to be substituted by 'VarWeighting'.
+
+### Adaptive Particle Weights
+
+An automatic determination of the optimal particle weights in each cell can be performed during a macroscopic restart, starting from a simulation with a defined variable weighting. The process is enabled by
+
+    Part-Adaptive-Weighting = T
+
+The adaption is based on multiple criteria. If a quality factor {ref}`sec:DSMC-quality` is not resolved in a cell, the weighting factor is lowered. For a 3D case, the following equation is used to set the bound of the weight.
+
+$$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3}$$
+
+If all quality factors are resolved, the weight is adapted in such a way, that the simulation particle numbers stays in a predefined range.
+
+    Part-AdaptMPF-MinParticleNumber = 10
+    Part-AdaptMPF-MaxParticleNumber = 100
+
+A further refinement, with a higher minimum particle number can be additionally given close to the symmetry axis or close to catalytic boundaries. In addition, the upper limit of the weights can be disabled for simulations in which the weight should only be lowered.
+
+    Part-AdaptMPF-IncludeMaxPartNum = F
+
+To avoid large jumps in the optimal weight between neighboring cells, a median filtering routine can be applied, together with the number of times that the algorithm should be called.
+
+    Part-AdaptMPF-ApplyMedianFilter = T
+    Part-AdaptMPF-RefinementNumber = 2
+
+If a restart should be performed from an already adapted simulation, without further optimization of the weights, the following flag can be set in the input file.
+
+    Part-AdaptMPF-SkipAdaption = T
+
+In this case, the weight distribution from the given restart files is read in and used.
+
+As for the variable weightig in 3D, particles are cloned or deleted with a given probability when moving to a new cell.
+
+### Split-And-Merge
+
+Variable particle weighting based on a split and merge algorithm is currently supported for PIC (with and without background gas) or a background gas (an additional trace species feature is described in Section {ref}`sec:background-gas`). The general functionality can be enabled with the following flag:
 
     Part-vMPF                           = T
 

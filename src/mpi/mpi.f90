@@ -112,7 +112,7 @@ ELSE
   IF(.NOT.initDone) CALL MPI_INIT(iError)
   IF(iError .NE. 0) CALL Abort(__STAMP__,'Error in MPI_INIT',iError)
   ! General communicator
-  CALL MPI_COMM_DUP (MPI_COMM_PICLAS,MPI_COMM_PICLAS,iError)
+  CALL MPI_COMM_DUP (MPI_COMM_WORLD,MPI_COMM_PICLAS,iError)
   MPI_COMM_LOC = MPI_COMM_PICLAS
 END IF
 
