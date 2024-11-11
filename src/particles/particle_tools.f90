@@ -693,7 +693,7 @@ INTEGER              :: NodeID(1:8), iNode, iScale
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 !===================================================================================================================================
 IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
-  ! determine the adaptive MPF
+  ! Determine the adaptive MPF based on the interpolation of the MPF at the node coordinates onto the particle position
   CALL GetPositionInRefElem(Pos(1:3),TempPartPos(1:3),(iElem+offSetElem),ForceMode=.TRUE., isSuccessful = SucRefPos)
 
   IF (SucRefPos) THEN
@@ -728,7 +728,7 @@ IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
     CalcVarWeightMPF = MPFSum
   END IF
 ELSE ! regular routine with variable weights
-  ! Linear scaling in all possible directions
+  ! Linear scaling along a defined vector, the relative position along the vector is defined first
   IF (VarWeighting%ScaleAxis.EQ.0) THEN
     PosIn = CalcScalePoint(Pos, iPart)
   ! Linear scaling along the coordinate axis
@@ -740,7 +740,7 @@ ELSE ! regular routine with variable weights
 
   ! Loop over the number of scaling points
   DO iScale=1, (VarWeighting%nScalePoints-1)
-    ! Test if the particle is inside the cell
+    ! Test if the particle particle position is between the two scaling points
     IF ((PosIn.GE.VarWeighting%ScalePoint(iScale)).AND.(PosIn.LE.VarWeighting%ScalePoint(iScale+1))) THEN
       PosMax = VarWeighting%ScalePoint(iScale+1)
       MaxWeight = VarWeighting%VarMPF(iScale+1)
@@ -768,7 +768,7 @@ END FUNCTION CalcVarWeightMPF
 
 REAL FUNCTION CalcAverageMPF()
 !===================================================================================================================================
-!> Determination of the average weighting factor in the simulation domain
+!> Determination of the average weighting factor in the simulation domain for the initial particle insertion
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -792,7 +792,7 @@ MPF = VarWeighting%VarMPF
 ALLOCATE(Coord(VarWeighting%nScalePoints))
 Coord = VarWeighting%ScalePoint
 
-! Average MPF for each sub-cell, scaled by the size of the cell
+! Determinazion of the average MPF for each sub-cell, scaled by the size of the cell
 DO iScale=1, (VarWeighting%nScalePoints-1)
   SubWeight = (MPF(iScale+1)+MPF(iScale))/2. * ((Coord(iScale+1)-Coord(iScale))/(MAXVAL(Coord(:))-MINVAL(Coord(:))))
   CalcAverageMPF = CalcAverageMPF + SubWeight
@@ -807,7 +807,7 @@ END FUNCTION CalcAverageMPF
 
 REAL FUNCTION CalcScalePoint(Pos, iPart)
 !===================================================================================================================================
-!> Determine the relative position of the point to the scaling vector
+!> Determine the relative position of the point along the scaling vector
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

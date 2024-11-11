@@ -42,7 +42,6 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, CollisMode
-USE MOD_DSMC_Vars               ,ONLY: DoSpeciesWeighting, DovMPF_nonAvCollProb
 USE MOD_DSMC_Vars               ,ONLY: VarWeighting
 USE MOD_MCC_Vars                ,ONLY: UseMCC, SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep, PartState
@@ -97,11 +96,7 @@ IF (usevMPF) THEN
   END IF
   ! Sum over the mean weighting factor of all collision pairs, is equal to the number of collision pairs
   ! (incl. weighting factor)
-  IF(DoSpeciesWeighting.OR.DovMPF_nonAvCollProb) THEN
-    CollCaseNum = CollInf%Coll_CaseNum(PairType)*MIN(Weight1,Weight2)
-  ELSE
-    CollCaseNum = CollInf%SumPairMPF(PairType)
-  END IF
+  CollCaseNum = CollInf%SumPairMPF(PairType)
 ELSE IF (UseVarTimeStep) THEN
   ! Not the actual weighting factor, since the weighting factor is included in SpecNum
   MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)

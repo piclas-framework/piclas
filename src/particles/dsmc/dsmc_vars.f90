@@ -64,9 +64,6 @@ END TYPE tVarVibRelaxProb
 
 TYPE(tVarVibRelaxProb) VarVibRelaxProb
 
-LOGICAL                       :: DoSpeciesWeighting         ! Enables different MPFs for different species
-LOGICAL                       :: DovMPF_nonAvCollProb
-
 TYPE tRadialWeighting
   REAL                        :: PartScaleFactor
   INTEGER                     :: NextClone
@@ -87,7 +84,7 @@ END TYPE tRadialWeighting
 TYPE(tRadialWeighting)        :: RadialWeighting
 
 TYPE tVarWeighting
-  REAL                        :: AverageScaleFactor
+  REAL                        :: AverageScaleFactor         ! Average scaling factor along the simulation domain
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
   LOGICAL                     :: DoVariableWeighting        ! Logical to enable variable weighting in 3D
@@ -104,7 +101,7 @@ TYPE tVarWeighting
   INTEGER                     :: nScalePoints               ! Number of sub-cell divisions for the scaling of the weighting factor
                                                             ! Default = 2 (borders of the simulation domain along one axis)
   INTEGER                     :: ScaleAxis                  ! Direction of the increase in the variable weight
-                                                            ! 1: x-axis, 2: y-axis, 3: z-axis
+                                                            ! 1: x-axis, 2: y-axis, 3: z-axis, 0: use of scaling vector
   REAL                        :: ScalingVector(3)           ! Direction of the increase in the variable weight
                                                             ! For a scaling not along the coordinate axes
   REAL                        :: StartPointScaling(1:3)     ! Start point for the scaling domain not defined by the coordinate axes
@@ -118,12 +115,12 @@ TYPE(tVarWeighting)            :: VarWeighting
 ! Automatic adaption of the particle weight
 TYPE tAdaptMPF
   LOGICAL                     :: DoAdaptMPF                  ! Enables an automatic adaption of the MPF in each cell
-  LOGICAL                     :: SkipAdaption                ! Skip further changes of the MPF
+  LOGICAL                     :: SkipAdaption                ! Use of the MPF distribution from the previous adaption
   LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
   LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
   LOGICAL                     :: IncludeMaxPartNum           ! Enables the refinement based on the max. particle number
   REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
-  REAL                        :: QualityFactor               ! Refinement factor in cases where the refinement factor is not resolved
+  REAL                        :: QualityFactor               ! Refinement factor in cases where the quality factor is not resolved
   REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
   REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
   REAL                        :: BGKFactor                   ! Ratio between the BGK- and DSMC-MPF for further refinement of BGK simulations
@@ -357,10 +354,6 @@ TYPE tPairData
   REAL                          :: Prob                         ! collision probability
   INTEGER                       :: iPart_p1                     ! first particle of the pair
   INTEGER                       :: iPart_p2                     ! second particle of the pair
-  REAL                          :: ProbVelChange_12             ! Probability of velocity change in collision for DoSpeciesWeighting
-  REAL                          :: ProbVelChange_21             ! Probability of velocity change in collision for DoSpeciesWeighting
-  LOGICAL                       :: DoVelChange1                 ! Flag for velocity change in collision for DoSpeciesWeighting
-  LOGICAL                       :: DoVelChange2                 ! Flag for velocity change in collision for DoSpeciesWeighting
   INTEGER                       :: PairType                     ! type of pair (=iCase, CollInf%Coll_Case)
   REAL                          :: Ec                           ! Collision Energy
   LOGICAL                       :: NeedForRec                   ! Flag if pair is needed for Recombination

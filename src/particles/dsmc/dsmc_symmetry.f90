@@ -61,16 +61,12 @@ CALL prms%CreateIntOption(    'Particles-RadialWeighting-SurfFluxSubSides', &
                               'error in the particle distribution across the cell (visible in the number density)', '20')
 CALL prms%CreateLogicalOption('Particles-VisuMPF', 'Activates a visualization of the predefined MPF in each sub-cell', '.FALSE.')
 CALL prms%CreateLogicalOption('Part-VariableWeighting', 'Activates a variable weighting in 3D', '.FALSE.')
-CALL prms%CreateLogicalOption('Part-VarWeighting-NonAverageCollProb', 'Activates a variable weighting in 3D, with a non average '//&
-                              'collision probability', '.FALSE.')
-CALL prms%CreateIntOption(    'Part-VarWeighting-nScalePointsMPF', &
-                              'Number of coordinates with distinct weighting factors', '2')
-CALL prms%CreateIntOption(    'Part-VarWeighting-CoordinateAxis', &
-                              '1: x-Axis, 2: y-Axis, 3: z-Axis', '0')
+CALL prms%CreateIntOption(    'Part-VarWeighting-nScalePointsMPF', 'Number of coordinates with distinct weighting factors', '2')
+CALL prms%CreateIntOption(    'Part-VarWeighting-CoordinateAxis', '1: x-Axis, 2: y-Axis, 3: z-Axis', '0')
 CALL prms%CreateRealArrayOption('Part-VarWeighting-StartPointForScaling', &
-                              'Start coordinate for the scaling in all possible directions' , '0.0 , 0.0 , 0.0')
+                              'Start coordinate for the scaling along a given vector' , '0.0 , 0.0 , 0.0')
 CALL prms%CreateRealArrayOption('Part-VarWeighting-EndPointForScaling', &
-                              'End coordinate for the scaling in all possible directions' , '0.0 , 0.0 , 0.0')
+                              'End coordinate for the scaling along a given vector' , '0.0 , 0.0 , 0.0')
 CALL prms%CreateRealOption(   'Part-VarWeighting-ScalePoint[$]-Coordinate', &
                               '(Relative ) Coordinate of the respective scale point on the axis', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-VarWeighting-ScalePoint[$]-Factor', &
@@ -935,7 +931,7 @@ SUBROUTINE DSMC_InitVarWeighting()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Restart_Vars            ,ONLY: DoRestart
-USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles, AdaptMPF, DovMPF_nonAvCollProb
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, ClonedParticles, AdaptMPF
 USE MOD_part_tools              ,ONLY: CalcAverageMPF, CalcScalePoint
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -982,9 +978,6 @@ VarWeighting%CloneMode       = GETINT('Part-VarWeighting-CloneMode')
 VarWeighting%CloneInputDelay = GETINT('Part-VarWeighting-CloneDelay')
 ! Cell local variable weighting (all particles have the same weighting factor within a cell)
 VarWeighting%CellLocalWeighting = GETLOGICAL('Part-VarWeighting-CellLocalWeighting')
-
-! Use of the minimum in the calculation of the collision probability
-DovMPF_nonAvCollProb = GETLOGICAL('Part-VarWeighting-NonAverageCollProb')
 
 VarWeighting%NextClone = 0
 VarWeighting%CloneVecLengthDelta = 100
@@ -1034,7 +1027,7 @@ SUBROUTINE DSMC_VariableWeighting(iPart,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
-USE MOD_DSMC_Vars               ,ONLY: VarWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo, DovMPF_nonAvCollProb
+USE MOD_DSMC_Vars               ,ONLY: VarWeighting, DSMC, PartStateIntEn, useDSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, VibQuantsPar, SpecDSMC, PolyatomMolDSMC, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PartMPF, PartSpecies, PartState, Species, LastPartPos
 USE MOD_TimeDisc_Vars           ,ONLY: iter
@@ -1066,16 +1059,11 @@ CALL RANDOM_NUMBER(iRan)
 IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
   DoCloning = .TRUE.
   IF(INT(OldMPF/NewMPF).GT.1) THEN
-    IF (DovMPF_nonAvCollProb) THEN
-      ! Set the NewMPF to half of the old MPF
-      NewMPF = OldMPF/2.
-    ELSE
-      IPWRITE(*,*) 'New weighting factor:', NewMPF/(10.**10), 'Old weighting factor:', OldMPF/(10.**10)
-      CALL Abort(&
-          __STAMP__,&
-        'ERROR in simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
-          ' the variable weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
-    END IF
+    IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
+    CALL Abort(&
+        __STAMP__,&
+      'ERROR in simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
+        ' the variable weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
   END IF
 END IF
 PartMPF(iPart) = NewMPF
@@ -1141,16 +1129,10 @@ ELSE
     IF((INT(iter,4)+VarWeighting%CloneDelayDiff).LE.VarWeighting%CloneInputDelay) RETURN
     DeleteProb = 1. - CloneProb
     IF (DeleteProb.GT.0.5) THEN
-      IF (DovMPF_nonAvCollProb) THEN
-        ! Set the new MPF to just half of the old MPF
-        NewMPF = 2.*OldMPF
-        DeleteProb = 0.5
-      ELSE
-        IPWRITE(*,*) 'New weighting factor:', NewMPF/(10.**10), 'Old weighting factor:', OldMPF/(10.**10)
-        CALL abort(__STAMP__,&
-          'ERROR in Variable Weighting: The deletion probability is higher than 0.5! Reduce the time step or'//&
-          ' the variable weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
-      END IF
+      IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
+      CALL abort(__STAMP__,&
+        'ERROR in Variable Weighting: The deletion probability is higher than 0.5! Reduce the time step or'//&
+        ' the variable weighting factor! Deletion probability is:',RealInfoOpt=DeleteProb)
     END IF
     CALL RANDOM_NUMBER(iRan)
     IF(DeleteProb.GT.iRan) THEN

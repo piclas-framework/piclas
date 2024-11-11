@@ -105,7 +105,7 @@ nVar_TotalPartNum = 0; nVar_TotalDens = 0; nVar_Ratio_FP = 0; nVar_Ratio_BGK = 0
 IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
   CALL InitNodeMapping
 
-  ! No further adaption process
+  ! No further adaption process, use of the MPF distribution from the previous adaption process
   AdaptMPF%SkipAdaption       = GETLOGICAL('Part-AdaptMPF-SkipAdaption')
 
   IF (.NOT.(AdaptMPF%SkipAdaption)) THEN
@@ -129,7 +129,7 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
     END IF
 
     ! Open DSMC state file
-    CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+    CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL GetDataProps('ElemData',nVar_HDF5,N_HDF5,nGlobalElems)
 
     IF(nVar_HDF5.LE.0) THEN
@@ -474,7 +474,7 @@ ELSE ! Skip Adaption
   ! Read-in of the MPF per element from a previous adaption process
   ALLOCATE(MPFData_HDF5(1:nGlobalElems))
   MPFData_HDF5 = 0.
-  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_WORLD)
+  CALL OpenDataFile(TRIM(RestartFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL DatasetExists(File_ID,'AdaptMPF',MPFExists)
   IF(MPFExists) THEN
     ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK))
@@ -699,7 +699,7 @@ DO iProc = 0,nProcessors_Global-1
                 , MPI_INTEGER                   &
                 , iProc                         &
                 , 1999                          &
-                , MPI_COMM_WORLD                &
+                , MPI_COMM_PICLAS                &
                 , RecvRequestNonSym(iProc)      &
                 , IERROR)
 END DO
@@ -712,7 +712,7 @@ DO iProc = 0,nProcessors_Global-1
                 , MPI_INTEGER                   &
                 , iProc                         &
                 , 1999                          &
-                , MPI_COMM_WORLD                &
+                , MPI_COMM_PICLAS                &
                 , SendRequestNonSym(iProc)      &
                 , IERROR)
 END DO
@@ -752,7 +752,7 @@ DO iProc = 1, nNodeRecvExchangeProcs
                 , MPI_INTEGER                                                 &
                 , NodeRecvRankToGlobalRank(iProc)                         &
                 , 666                                                         &
-                , MPI_COMM_WORLD                                              &
+                , MPI_COMM_PICLAS                                              &
                 , RecvRequest(iProc)                                          &
                 , IERROR)
 END DO
@@ -776,7 +776,7 @@ DO iProc = 1, nNodeSendExchangeProcs
                 , MPI_INTEGER                                                 &
                 , NodeSendRankToGlobalRank(iProc)                         &
                 , 666                                                         &
-                , MPI_COMM_WORLD                                              &
+                , MPI_COMM_PICLAS                                              &
                 , SendRequest(iProc)                                          &
                 , IERROR)
 END DO
@@ -865,7 +865,7 @@ END DO
         , MPI_DOUBLE_PRECISION                                  &
         , NodeRecvRankToGlobalRank(iProc)                       &
         , 666                                                   &
-        , MPI_COMM_WORLD                                        &
+        , MPI_COMM_PICLAS                                        &
         , RecvRequest(iProc)                                    &
         , IERROR)
   END DO
@@ -881,7 +881,7 @@ END DO
         , MPI_DOUBLE_PRECISION                                      &
         , NodeSendRankToGlobalRank(iProc)                           &
         , 666                                                       &
-        , MPI_COMM_WORLD                                            &
+        , MPI_COMM_PICLAS                                            &
         , SendRequest(iProc)                                        &
         , IERROR)
   END DO
@@ -981,7 +981,7 @@ END DO
         , MPI_DOUBLE_PRECISION                                  &
         , NodeRecvRankToGlobalRank(iProc)                       &
         , 666                                                   &
-        , MPI_COMM_WORLD                                        &
+        , MPI_COMM_PICLAS                                        &
         , RecvRequest(iProc)                                    &
         , IERROR)
   END DO
@@ -997,7 +997,7 @@ END DO
         , MPI_DOUBLE_PRECISION                                      &
         , NodeSendRankToGlobalRank(iProc)                           &
         , 666                                                       &
-        , MPI_COMM_WORLD                                            &
+        , MPI_COMM_PICLAS                                            &
         , SendRequest(iProc)                                        &
         , IERROR)
   END DO
