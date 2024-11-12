@@ -193,8 +193,9 @@ To achieve consistency between continuum and particle-based relaxation modelling
 To adjust the rotational relaxation this variable has to be changed:
 
     Particles-DSMC-RotRelaxProb = 0.2   ! Value between 0 and 1 as a constant probability
-                                    2   ! Model by Boyd
+                                    2   ! Model by Boyd (general model)
                                     3   ! Model by Zhang
+                                    4   ! Model by Boyd (only for Hydrogen)
 
 If `RotRelaxProb` is between 0 and 1, it is set as a constant rotational relaxation probability (default = 0.2). `RotRelaxProb = 2`
 activates the variable rotational relaxation model according to Boyd {cite}`Boyd1990a`. Consequently, for each molecular species
@@ -206,8 +207,8 @@ example, nitrogen is used {cite}`Boyd1990b`.
 
 It is not recommended to use this model with the prohibiting double-relaxation selection procedure (`Particles-DSMC-SelectionProcedure = 2`). Low collision energies result in high relaxation probabilities, which can lead to cumulative collision probabilities greater than 1.
 
-If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used. However, it is only
-implemented for nitrogen and not tested. It is not recommended for use.
+If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used, which is currently only implemented for nitrogen. A relaxation probability of 4 enables the model of Boyd, which is specifically constructed for hydrogen {cite}`Boyd1994`.
+However, both of these models are not tested yet and not recommended for use.
 
 For simulations involving low temperatures relative to the characteristic rotational temperatures of the species, it is possible to activate a quantized treatment of rotational degrees of freedom with DSMC. This feature is enables with 
 

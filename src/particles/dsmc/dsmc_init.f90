@@ -366,6 +366,11 @@ ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
 END IF
+#if ((PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+IF(DSMC%RotRelaxProb.GT.1.0.OR.DSMC%VibRelaxProb.GT.1.0)THEN
+  CALL Abort(__STAMP__,'ERROR: Rotational and vibrational relaxation probabilities must be between 0 and 1 for BGK or FP!')
+END IF
+#endif /*((PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
