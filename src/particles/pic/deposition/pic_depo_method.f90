@@ -42,6 +42,7 @@ INTEGER,PARAMETER      :: PRM_DEPO_SF_CC= 1  ! shape_function_cc
 INTEGER,PARAMETER      :: PRM_DEPO_SF_ADAPTIVE= 2  ! shape_function_adaptive
 INTEGER,PARAMETER      :: PRM_DEPO_CVW  = 6  ! cell_volweight
 INTEGER,PARAMETER      :: PRM_DEPO_CVWM = 12 ! cell_volweight_mean
+INTEGER,PARAMETER      :: PRM_DEPO_CM   = 27 ! cell_mean
 
 INTERFACE InitDepositionMethod
   MODULE PROCEDURE InitDepositionMethod
@@ -79,7 +80,9 @@ CALL prms%CreateIntFromStringOption('PIC-Deposition-Type', "Type/Method used in 
                                     '1.2)  shape_function_cc ('//TRIM(int2strf(PRM_DEPO_SF_CC))//')\n'             //&
                                     '1.3)  shape_function_adaptive ('//TRIM(int2strf(PRM_DEPO_SF_ADAPTIVE))//')\n' //&
                                     '2.)   cell_volweight ('//TRIM(int2strf(PRM_DEPO_CVW))//')\n'                  //&
-                                    '3.)   cell_volweight_mean ('//TRIM(int2strf(PRM_DEPO_CVWM))//')'                &
+                                    '3.)   cell_volweight_mean ('//TRIM(int2strf(PRM_DEPO_CVWM))//')\n'            //&
+                                    '4.)   cell_mean ('//TRIM(int2strf(PRM_DEPO_CM))//')'                            &
+
                                     ,'cell_volweight')
 
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function'             , PRM_DEPO_SF)
@@ -87,6 +90,7 @@ CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_cc'          , PRM_
 CALL addStrListEntry('PIC-Deposition-Type' , 'shape_function_adaptive'    , PRM_DEPO_SF_ADAPTIVE)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight'             , PRM_DEPO_CVW)
 CALL addStrListEntry('PIC-Deposition-Type' , 'cell_volweight_mean'        , PRM_DEPO_CVWM)
+CALL addStrListEntry('PIC-Deposition-Type' , 'cell_mean'                  , PRM_DEPO_CM)
 END SUBROUTINE DefineParametersDepositionMethod
 
 
@@ -154,6 +158,9 @@ Case(PRM_DEPO_CVW) ! cell_volweight
 Case(PRM_DEPO_CVWM) ! cell_volweight_mean
   DepositionType   = 'cell_volweight_mean'
   DepositionMethod => DepositionMethod_CVWM
+Case(PRM_DEPO_CM) ! cell_mean
+  DepositionType   = 'cell_mean'
+  DepositionMethod => DepositionMethod_CM
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown DepositionMethod!' ,IntInfo=DepositionType_loc)
 END SELECT
@@ -208,6 +215,7 @@ RETURN
 CALL DepositionMethod_SF()
 CALL DepositionMethod_CVW()
 CALL DepositionMethod_CVWM()
+CALL DepositionMethod_CM()
 
 END SUBROUTINE InitDepositionMethod
 
@@ -413,7 +421,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, ElemID
 INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -709,7 +717,8 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! Interpolate node source values to volume polynomial
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  ElemID = iElem+offsetElem
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(ElemID)))
   DO kk = 0, PP_N
     DO ll = 0, PP_N
       DO mm = 0, PP_N
@@ -740,6 +749,113 @@ CALL LBElemPauseTime_avg(tLBStart) ! Average over the number of elems
 RETURN
 iNode=stage_opt
 END SUBROUTINE DepositionMethod_CVWM
+
+
+SUBROUTINE DepositionMethod_CM(doParticle_In, stage_opt)
+!===================================================================================================================================
+! 'cell_volweight'
+! Linear charge density distribution within a cell (discontinuous across cell interfaces)
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
+USE MOD_Particle_Vars          ,ONLY: PartState
+USE MOD_PICDepo_Vars           ,ONLY: PartSource
+USE MOD_Part_Tools             ,ONLY: isDepositParticle
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
+USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
+#endif /*USE_LOADBALANCE*/
+USE MOD_Mesh_Vars              ,ONLY: nElems
+#if ((USE_HDG) && (PP_nVar==1))
+USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
+#endif
+#if USE_MPI
+USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
+INTEGER,INTENT(IN),OPTIONAL :: stage_opt
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL               :: Charge, TSource(1:4)
+#if USE_LOADBALANCE
+REAL               :: tLBStart
+#endif /*USE_LOADBALANCE*/
+#if !((USE_HDG) && (PP_nVar==1))
+INTEGER, PARAMETER :: SourceDim=1
+LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
+#else
+LOGICAL            :: doCalculateCurrentDensity
+INTEGER            :: SourceDim
+#endif
+INTEGER            :: iPart,iElem, iDim
+!===================================================================================================================================
+
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart) ! Start time measurement
+#endif /*USE_LOADBALANCE*/
+
+! Check whether charge and current density have to be computed or just the charge density
+#if ((USE_HDG) && (PP_nVar==1))
+IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)))THEN
+  doCalculateCurrentDensity=.TRUE.
+  SourceDim=1
+ELSE ! do not calculate current density
+  doCalculateCurrentDensity=.FALSE.
+  SourceDim=4
+END IF
+#endif
+
+DO iPart = 1,PDM%ParticleVecLength
+  ! TODO: The cycle with .AND.doParticle_In is used for analysis or IMPA
+  IF(PRESENT(doParticle_In))THEN
+    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
+  ELSE
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+  END IF
+  ! Don't deposit neutral particles!
+  IF(.NOT.isDepositParticle(iPart)) CYCLE
+  IF (usevMPF) THEN
+    Charge= Species(PartSpecies(iPart))%ChargeIC * PartMPF(iPart)
+  ELSE
+    Charge= Species(PartSpecies(iPart))%ChargeIC * Species(PartSpecies(iPart))%MacroParticleFactor
+  END IF ! usevMPF
+  IF(doCalculateCurrentDensity)THEN
+    TSource(1:3) = PartState(4:6,iPart)*Charge
+  ELSE
+    TSource(1:3) = 0.0
+  END IF
+  iElem = PEM%LocalElemID(iPart)
+  TSource(4) = Charge
+  DO iDim=SourceDim,4
+    PartSource(iDim,:,:,:,iElem) = PartSource(iDim,:,:,:,iElem) + TSource(iDim)
+  END DO
+#if USE_LOADBALANCE
+  CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
+#endif /*USE_LOADBALANCE*/
+END DO
+
+DO iElem=1, nElems
+  PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+END DO
+
+#if USE_LOADBALANCE
+CALL LBElemSplitTime_avg(tLBStart) ! Average over the number of elems (and Start again)
+#endif /*USE_LOADBALANCE*/
+
+! Suppress compiler warnings
+RETURN
+iPart=stage_opt
+END SUBROUTINE DepositionMethod_CM
 
 
 SUBROUTINE DepositionMethod_SF(doParticle_In, stage_opt)
@@ -877,7 +993,7 @@ END SUBROUTINE DepositionMethod_SF
 !===================================================================================================================================
 !> Set NodeSource to zero on Dirichlet sides to account for mirror charges
 !===================================================================================================================================
-SUBROUTINE NullifyNodeSourceDirichletSides(SourceDim )
+SUBROUTINE NullifyNodeSourceDirichletSides(SourceDim)
 ! MODULES
 USE MOD_HDG_Vars           ,ONLY: nDirichletBCSides,DirichletBC
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemSideNodeID_Shared,NodeInfo_Shared
@@ -917,6 +1033,5 @@ DO iDirichletBCID = 1,nDirichletBCSides
 END DO ! iDirichletBCID = 1,nDirichletBCSides
 END SUBROUTINE NullifyNodeSourceDirichletSides
 #endif /*USE_HDG*/
-
 
 END MODULE MOD_PICDepo_Method

@@ -67,7 +67,7 @@ END INTERFACE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
-PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums
+PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums, BuildTransGaussNums2
 PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
 PUBLIC :: InitializeParticleMaxwell
 PUBLIC :: InterpolateEmissionDistribution2D
@@ -620,7 +620,7 @@ USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
-USE MOD_Particle_Vars           ,ONLY: Symmetry
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -848,6 +848,49 @@ DO iLoop = 1, nPart
 END DO
 
 END SUBROUTINE BuildTransGaussNums
+
+SUBROUTINE BuildTransGaussNums2(nPart, iRanPart)
+!===================================================================================================================================
+!> Builds "not so random" Gauss numbers with a zero mean and a variance of one
+!===================================================================================================================================
+! MODULES
+  USE MOD_Globals_Vars            ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: nPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)             :: iRanPart(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: sample, val
+REAL                          :: tmp, tmp2
+INTEGER                       :: iLoop
+!===================================================================================================================================
+tmp = 0
+DO iLoop = 1, nPart
+  ! TODO, ideally sample over all global particles. Right now, sampling is done for each processor locally
+  sample = tmp + 1. / (2. * nPart) ! "Random sampling from uniform distribution"
+
+  ! Newton's algorithm to find inverse of error function
+  val = 0.
+  DO WHILE(ABS(0.5 * (1 + ERF(val / SQRT(2.))) - sample).GT.1.E-12)
+    val = val - (0.5 * (1 + ERF(val / SQRT(2.))) - sample) / (EXP(-val**2 / 2) / SQRT(2.*PI))
+  END DO
+  iRanPart(iLoop) = val
+
+  ! Scramble using bit-reversed counter (see Birdsall)
+  tmp2 = 1.
+  DO WHILE(tmp.GE.0.)
+    tmp2 = 0.5 * tmp2
+    tmp = tmp - tmp2
+  END DO
+  tmp = tmp + 2 * tmp2
+END DO
+
+END SUBROUTINE BuildTransGaussNums2
 
 
 PPURE REAL FUNCTION CalcXiElec(Telec, iSpec)
@@ -1318,7 +1361,6 @@ END DO ElemLoop
 END SUBROUTINE MergeCells
 
 
-
 SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode,iInit)
 !===================================================================================================================================
 !> Initialize a particle from a given macroscopic result, requires the macroscopic velocity, translational and internal temperatures
@@ -1334,10 +1376,6 @@ USE MOD_Particle_Emission_Vars  ,ONLY: EmissionDistributionDim
 !USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcEElec_particle, CalcEVib_particle, CalcERot_particle
 !USE MOD_part_tools              ,ONLY: CalcVelocity_maxwell_particle
 !-----------------------------------------------------------------------------------------------------------------------------------
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iPart, iSpec, iElem
 INTEGER, INTENT(IN)             :: Mode                  !< 1: Macroscopic restart (data for each element)
                                                          !< 2: Emission distribution (equidistant data from .h5 file)
@@ -1551,11 +1589,11 @@ END FUNCTION InterpolateEmissionDistribution2D
 
 SUBROUTINE CalcPartSymmetryPos(Pos,Velo,ElectronVelo)
 !===================================================================================================================================
-! Calculates the symmetry possition (and velocity) of an particle from its 3D position
+! Calculates the symmetry position (and velocity) of a particle from its 3D position
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -49,7 +49,7 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,CollisMode,PartStateIntEn,DSMC,Vib
 USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
 ! Localization
 USE MOD_Particle_Localization  ,ONLY: LocateParticleInElement,SinglePointToElement
-USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles,CountNbrOfLostParts
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum,NbrOfLostParticlesTotal_old
@@ -306,7 +306,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
       CASE(TRIATRACKING)
         DO iPart = 1,PDM%ParticleVecLength
           ! Check if particle is inside the correct element
-          CALL ParticleInsideQuad3D(PartState(1:3,iPart),PEM%GlobalElemID(iPart),InElementCheck,det)
+          CALL ParticleInsideQuad(PartState(1:3,iPart),PEM%GlobalElemID(iPart),InElementCheck,det)
 
           ! Particle not in correct element, try to find them within MyProc
           IF (.NOT.InElementCheck) THEN
@@ -624,14 +624,12 @@ IF(.NOT.DoMacroscopicRestart) THEN
       CounterElec = 0
       CounterAmbi = 0
 
+      ! Increase the array size by TotalNbrOfMissingParticlesSum if needed
+      IF(PDM%ParticleVecLength+TotalNbrOfMissingParticlesSum.GT.PDM%maxParticleNumber) &
+        CALL IncreaseMaxParticleNumber(TotalNbrOfMissingParticlesSum)
+
       DO iPart = 1, TotalNbrOfMissingParticlesSum
         ! Sanity check
-        IF(CurrentPartNum.GT.PDM%maxParticleNumber)THEn
-          IPWRITE(UNIT_StdOut,'(I0,A,I0)') " CurrentPartNum        = ",  CurrentPartNum
-          IPWRITE(UNIT_StdOut,'(I0,A,I0)') " PDM%maxParticleNumber = ",  PDM%maxParticleNumber
-          CALL abort(__STAMP__,'Missing particle ID > PDM%maxParticleNumber. Increase Part-MaxParticleNumber!')
-        END IF !CurrentPartNum.GT.PDM%maxParticleNumber
-
         ! Do not search particles twice: Skip my own particles, because these have already been searched for before they are
         ! sent to all other procs
         ASSOCIATE( myFirst => OffsetTotalNbrOfMissingParticles(myRank) + 1 ,&
@@ -743,7 +741,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
         END IF
       END DO
 #endif
-      ! IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
 
       ! Combine number of found particles to make sure none are lost completely or found twice
       IF(MPIroot)THEN

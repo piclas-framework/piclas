@@ -52,9 +52,9 @@ USE MOD_Photon_TrackingVars    ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideAr
 #else
 USE MOD_Particle_Boundary_Vars ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Basis                  ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
+USE MOD_Particle_Mesh_Tools    ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
 USE MOD_Mesh_Vars              ,ONLY: NGeo
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,NodeCoords_Shared

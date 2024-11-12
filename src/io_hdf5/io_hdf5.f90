@@ -85,7 +85,11 @@ INTERFACE GetDatasetNamesInGroup
   MODULE PROCEDURE GetDatasetNamesInGroup
 END INTERFACE
 
-PUBLIC::DefineParametersIO,InitIOHDF5,InitMPIInfo,OpenDataFile,CloseDataFile
+PUBLIC::DefineParametersIO
+PUBLIC::InitIOHDF5
+PUBLIC::InitMPIInfo
+PUBLIC::OpenDataFile
+PUBLIC::CloseDataFile
 PUBLIC::AddToElemData
 PUBLIC::GetDatasetNamesInGroup
 
@@ -189,11 +193,15 @@ END SUBROUTINE InitMPIInfo
 SUBROUTINE OpenDataFile(FileString,create,single,readOnly,communicatorOpt,userblockSize)
 ! MODULES
 USE MOD_Globals
+! #if USE_LOADBALANCE
+! USE MOD_LoadBalance_Vars, ONLY: PerformLoadBalance
+! #endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)  :: FileString      !< filename to be opened
-LOGICAL,INTENT(IN)           :: create          !< create file if it doesn't exist. Overwrited file if already present!
+LOGICAL,INTENT(IN)           :: create          !< create file if it doesn't exist. Overwrite file if already present!
 LOGICAL,INTENT(IN)           :: single          !< single=T : only one processor opens file, single=F : open/create collectively
 LOGICAL,INTENT(IN)           :: readOnly        !< T : file is opened in read only mode, so file system timestamp remains unchanged
                                                 !< F: file is open read/write mode
@@ -205,6 +213,10 @@ INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
 INTEGER(HSIZE_T),PARAMETER     :: userblockSize_512=512 ! For correct type comparison
 !==================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
+
+! #if USE_LOADBALANCE
+! IF (PerformLoadBalance) CALL Abort(__STAMP__,'OpenDataFile called during PerformLoadBalance. This can cause memory leaks!')
+! #endif /*USE_LOADBALANCE*/
 
 userblockSize_loc = 0
 IF (PRESENT(userblockSize)) userblockSize_loc = userblockSize
@@ -351,6 +363,7 @@ IF(PRESENT(eval))THEN
   nOpts=nOpts+1
 ENDIF
 IF(nOpts.NE.1) CALL Abort(__STAMP__,'More then one optional argument passed to AddToElemData.')
+
 END SUBROUTINE AddToElemData
 
 

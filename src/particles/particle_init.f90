@@ -211,6 +211,8 @@ CALL prms%CreateLogicalOption(  'Particles-DSMC-CalcSurfaceVal'&
 CALL prms%CreateLogicalOption(  'Part-SampleElectronicExcitation'&
   , 'Set [T] to activate sampling of electronic energy excitation (currently only available for ElectronicModel = 3)', '.FALSE.')
 
+CALL prms%CreateLogicalOption(  'Particles-SamplePressTensHeatflux' ,'Flag to sample pressure tensor and heatflux.', '.FALSE.')
+
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
@@ -234,7 +236,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_ReadInTools
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Vars          ,ONLY: Symmetry
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -319,7 +321,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
-USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,BGGas
+USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_SolutionPressTens,BGGas
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -329,6 +331,7 @@ USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC,BulkElectronTempSEE,DoChemSu
 USE MOD_Particle_Boundary_Vars     ,ONLY: PartBound
 USE MOD_Particle_Tracking_Vars     ,ONLY: TrackingMethod
 USE MOD_Particle_Vars              ,ONLY: ParticlesInitIsDone,WriteMacroVolumeValues,WriteMacroSurfaceValues,nSpecies
+USE MOD_Particle_Vars              ,ONLY: SamplePressTensHeatflux
 USE MOD_Particle_Sampling_Vars     ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Emission_Init     ,ONLY: InitialParticleInserting
 USE MOD_Particle_SurfFlux_Init     ,ONLY: InitializeParticleSurfaceflux
@@ -341,15 +344,16 @@ USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWa
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs                                                                                                                      ! USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
+!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
-USE MOD_Particle_Vars              ,ONLY: Symmetry
+USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Init                   ,ONLY: InitBGK
-USE MOD_Particle_Vars              ,ONLY: Symmetry
+USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 #if USE_LOADBALANCE
@@ -398,6 +402,12 @@ IF(useDSMC .OR. WriteMacroVolumeValues) THEN
   DSMC%SampNum = 0
   ALLOCATE(DSMC_Solution(1:11,1:nElems,1:nSpecies))
   DSMC_Solution = 0.0
+  ! Additional sampling of pressure tensor and heatflux
+  SamplePressTensHeatflux = GETLOGICAL('Particles-SamplePressTensHeatflux')
+  IF (SamplePressTensHeatflux) THEN
+    ALLOCATE(DSMC_SolutionPressTens(1:6,1:nElems))
+    DSMC_SolutionPressTens = 0.0
+  END IF
 END IF
 
 ! Initialize the counters (nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides) and
@@ -440,11 +450,9 @@ IF (useDSMC) THEN
   CALL InitMCC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
-  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D Fokker-Planck flow is not implemented yet')
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
-  IF (Symmetry%Order.EQ.1) CALL abort(__STAMP__,'ERROR: 1D BGK is not implemented yet')
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
@@ -474,7 +482,7 @@ SUBROUTINE InitializeVariables()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_InitVolumes, DSMC_2D_InitVolumes, DSMC_2D_InitRadialWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitRadialWeighting
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
@@ -486,6 +494,7 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: TriaSurfaceFlux
 USE MOD_PICInit                ,ONLY: InitPIC
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfChem
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: InitEmissionComm
@@ -577,9 +586,6 @@ CALL IdentifyPartExchangeProcs()
 CALL InitPIC()
 
 ! === 2D/1D/Axisymmetric initialization
-! Calculate the volumes for 2D simulation (requires the GEO%zminglob/GEO%zmaxglob from InitFIBGM)
-IF(Symmetry%Order.EQ.2) CALL DSMC_2D_InitVolumes()
-IF(Symmetry%Order.EQ.1) CALL DSMC_1D_InitVolumes()
 IF(Symmetry%Axisymmetric) THEN
   IF(RadialWeighting%DoRadialWeighting) THEN
     ! Initialization of RadialWeighting in 2D axisymmetric simulations
@@ -793,6 +799,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_Particle_TimeStep       ,ONLY: VarTimeStep_CalcElemFacs
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1427,6 +1434,9 @@ USE MOD_PICDepo_Vars       ,ONLY: SendElemShapeID,ShapeMapping,CNShapeMapping
 #if USE_HDG
 USE MOD_HDG_Vars           ,ONLY: BRRegionBounds,RegionElectronRef,RegionElectronRefBackup,BRAverageElemToElem
 #endif /*USE_HDG*/
+USE MOD_Particle_Mesh_Tools ,ONLY: ParticleInsideQuad
+USE MOD_Particle_TriaTracking ,ONLY: SingleParticleTriaTracking
+USE MOD_Particle_InterSection ,ONLY: ParticleThroughSideCheck1D2D
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1535,6 +1545,11 @@ SDEALLOCATE(isNeutralizationElem)
 SDEALLOCATE(NeutralizationBalanceElem)
 SDEALLOCATE(ExcitationLevelMapping)
 SDEALLOCATE(ExcitationSampleData)
+
+SNULLIFY(SingleParticleTriaTracking)
+SNULLIFY(ParticleInsideQuad)
+SNULLIFY(ParticleThroughSideCheck1D2D)
+
 END SUBROUTINE FinalizeParticles
 
 

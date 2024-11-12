@@ -54,13 +54,12 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 #ifdef LSERK
 USE MOD_Timedisc_Vars           ,ONLY: iStage, RK_c, nRKStages
 #endif
-#if USE_MPI
-!USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
-!USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
-#else
-USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
-#endif /*USE_MPI*/
-!USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall
+! #if USE_MPI
+! USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
+! USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+! #else
+! USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
+! #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -293,6 +292,8 @@ USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputRay
 USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
+USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
+USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -310,6 +311,7 @@ REAL                  :: density, NbrOfPhotons, NbrOfReactions
 REAL                  :: RandNum,RandVal(3),Xi(3)
 REAL                  :: RandomPos(1:3),MPF
 REAL                  :: RayDirection(1:3),RayBaseVector1IC(1:3),RayBaseVector2IC(1:3)
+LOGICAL               :: positionIsInside
 !===================================================================================================================================
 
 IF(.NOT.UseRayTracing) RETURN
@@ -404,17 +406,28 @@ DO iVar = 1, 2
             Coll_pData%Ec = 0.
             ! Loop over all newly created particles
             DO iPair = 1, nPair
-              ! Get a random position in the subelement
-              CALL RANDOM_NUMBER(RandVal)
-              Xi(1) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:k-1)) + N_Inter_Ray(NRayLoc)%wGP(k) * RandVal(1)
-              Xi(2) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:l-1)) + N_Inter_Ray(NRayLoc)%wGP(l) * RandVal(2)
-              Xi(3) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:m-1)) + N_Inter_Ray(NRayLoc)%wGP(m) * RandVal(3)
-              IF(ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0))THEN
-                IPWRITE(UNIT_StdOut,*) "Xi =", Xi
-                CALL abort(__STAMP__,'xi out of range')
-              END IF ! ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0)
-              ! Get the physical coordinates that correspond to the reference coordinates
-              CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),RandomPos(1:3))
+              ! When using Triatracking, the reference position may not be inside the element.
+              ! Create random numbers until the position is inside the element
+              positionIsInside = .FALSE.
+              DO WHILE(.NOT.positionIsInside)
+                ! Get a random position in the subelement
+                CALL RANDOM_NUMBER(RandVal)
+                Xi(1) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:k-1)) + N_Inter_Ray(NRayLoc)%wGP(k) * RandVal(1)
+                Xi(2) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:l-1)) + N_Inter_Ray(NRayLoc)%wGP(l) * RandVal(2)
+                Xi(3) = -1.0 + SUM(N_Inter_Ray(NRayLoc)%wGP(0:m-1)) + N_Inter_Ray(NRayLoc)%wGP(m) * RandVal(3)
+                IF(ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0))THEN
+                  IPWRITE(UNIT_StdOut,*) "Xi =", Xi
+                  CALL abort(__STAMP__,'xi out of range')
+                END IF ! ANY(Xi.GT.1.0).OR.ANY(Xi.LT.-1.0)
+                ! Get the physical coordinates that correspond to the reference coordinates
+                CALL TensorProductInterpolation(Xi(1:3),3,NGeo,XiCL_NGeo,wBaryCL_NGeo,XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,iElem),RandomPos(1:3))
+                IF(TrackingMethod.EQ.TRIATRACKING) THEN
+                  CALL ParticleInsideQuad3D(RandomPos,iGlobalElem,positionIsInside)
+                ELSE
+                  positionIsInside = .TRUE.
+                END IF
+              END DO
+
               ! Create new particle from the background gas
               PartID = GetNextFreePosition()
               IF(PartID.GT.PDM%MaxParticleNumber)THEN

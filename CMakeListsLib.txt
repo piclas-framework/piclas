@@ -1,21 +1,8 @@
 # =========================================================================
-# Add the libraries
-# =========================================================================
-
-# Set directory to compile external libraries
-IF(LIBS_USE_MPI)
-  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
-ELSE()
-  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
-ENDIF()
-MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
-
-
-# =========================================================================
 # Check where the code originates
 # =========================================================================
 IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN)
+  EXECUTE_PROCESS(COMMAND git ls-remote --get-url OUTPUT_VARIABLE GIT_ORIGIN WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
 
   # Strip lead and trailing white space
   string(STRIP ${GIT_ORIGIN} GIT_ORIGIN)
@@ -113,21 +100,37 @@ ENDIF()
 
 
 # =========================================================================
+# Add the libraries
+# =========================================================================
+# Set directory to compile external libraries
+IF(LIBS_USE_MPI)
+  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID}-MPI)
+ELSE()
+  SET(LIBS_EXTERNAL_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/share/${CMAKE_Fortran_COMPILER_ID})
+ENDIF()
+MARK_AS_ADVANCED(FORCE LIBS_EXTERNAL_LIB_DIR)
+
+
+# =========================================================================
 # HDF5 library
 # =========================================================================
 # Try to find system HDF5 using CMake
 SET(LIBS_HDF5_CMAKE TRUE)
-FIND_PACKAGE(HDF5 NAMES hdf5 COMPONENTS C Fortran ${SEARCH_TYPE} QUIET PATH_SUFFIXES share/cmake)
-IF (NOT HDF5_FOUND)
-# Try to find the configure version
-  SET(LIBS_HDF5_CMAKE FALSE)
-  FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET)
+
+IF (NOT LIBS_BUILD_HDF5)
+  FIND_PACKAGE(HDF5 NAMES hdf5 COMPONENTS C Fortran ${SEARCH_TYPE} QUIET PATH_SUFFIXES share/cmake)
+
+  IF (NOT HDF5_FOUND)
+  # Try to find the configure version
+    SET(LIBS_HDF5_CMAKE FALSE)
+    FIND_PACKAGE(HDF5 COMPONENTS C Fortran QUIET)
+  ENDIF()
 ENDIF()
 # Hide all the HDF5 libs paths
 MARK_AS_ADVANCED(FORCE HDF5_DIR)
-# CMake version found
 IF (HDF5_FOUND)
-  IF(${CMAKE_VERSION} VERSION_LESS "3.10.0")
+# CMake version found
+  IF(LIBS_HDF5_CMAKE AND ${CMAKE_VERSION} VERSION_LESS "3.10.0")
     MESSAGE (WARNING "HDF5 built with CMake was found! This feature is only supported for CMake 3.10+ and HDF5 1.10.2+!")
   ENDIF()
   MESSAGE (STATUS "HDF5 C libs:${HDF5_FOUND} static:${HDF5_static_C_FOUND} and shared:${HDF5_shared_C_FOUND}")
@@ -268,7 +271,7 @@ ELSE()
       GIT_REPOSITORY ${HDF5_DOWNLOAD}
       GIT_TAG ${HDF5_TAG}
       GIT_PROGRESS TRUE
-      ${${GITSHALLOW}}
+      ${GITSHALLOW}
       PREFIX ${LIBS_HDF5_DIR}
       UPDATE_COMMAND ""
       CONFIGURE_COMMAND FC=${LIBS_HDF5FC} CC=${LIBS_HDF5CC} ${LIBS_HDF5_DIR}/src/HDF5/configure --prefix=${LIBS_HDF5_DIR} --with-pic --enable-fortran ${LIBS_HDF5PARALLEL} --libdir=${LIBS_HDF5_DIR}/lib --enable-build-mode=production --enable-silent-rules --disable-dependency-tracking
@@ -292,13 +295,25 @@ ELSE()
 
     LIST(APPEND SELFBUILTEXTERNALS HDF5)
   ENDIF()
+  # Always set for self-build libraries
+  SET(LIBS_HDF5_CMAKE FALSE)
 
   # Set HDF5 paths
   SET(HDF5_C_INCLUDE_DIR                ${LIBS_HDF5_DIR}/include)
   SET(HDF5_DIFF_EXECUTABLE              ${LIBS_HDF5_DIR}/bin/h5diff)
   SET(HDF5_Fortran_INCLUDE_DIR          ${LIBS_HDF5_DIR}/include)
+  SET(HDF5_hdf5_LIBRARY_hdf5            ${LIBS_HDF5_DIR}/lib/libhdf5.so)
   SET(HDF5_hdf5_LIBRARY_RELEASE         ${LIBS_HDF5_DIR}/lib/libhdf5.a)
+  SET(HDF5_hdf5_fortran_LIBRARY_hdf5    ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.so)
   SET(HDF5_hdf5_fortran_LIBRARY_RELEASE ${LIBS_HDF5_DIR}/lib/libhdf5_fortran.a)
+
+  MARK_AS_ADVANCED(FORCE HDF5_C_INCLUDE_DIR)
+  MARK_AS_ADVANCED(FORCE HDF5_DIFF_EXECUTABLE)
+  MARK_AS_ADVANCED(FORCE HDF5_Fortran_INCLUDE_DIR)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_hdf5)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_LIBRARY_RELEASE)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_fortran_LIBRARY_hdf5)
+  MARK_AS_ADVANCED(FORCE HDF5_hdf5_fortran_LIBRARY_RELEASE)
   # Unset leftover paths from old CMake runs
   UNSET(HDF5_LIBRARIES)
   UNSET(HDF5_INCLUDE_DIR_FORTRAN)
@@ -310,7 +325,7 @@ ELSE()
   MARK_AS_ADVANCED(FORCE HDF5_z_LIBRARY_RELEASE)
   # Add ZLIB to include paths for HDF5 data compression
   FIND_LIBRARY(HDF5_z_LIBRARY_RELEASE z)
-  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
+  LIST(APPEND HDF5_LIBRARIES ${HDF5_hdf5_LIBRARY_hdf5} ${HDF5_hdf5_fortran_LIBRARY_RELEASE} ${HDF5_hdf5_fortran_LIBRARY_hdf5} ${HDF5_hdf5_LIBRARY_RELEASE} ${HDF5_z_LIBRARY_RELEASE} -ldl)
 
   SET(HDF5_BUILD_STATUS "self-built")
 ENDIF()
@@ -342,7 +357,10 @@ ENDIF()
 # Math libary
 # =========================================================================
 # Try to find system LAPACK/OpenBLAS
-FIND_PACKAGE(LAPACK QUIET)
+IF (NOT LIBS_BUILD_MATH_LIB)
+  FIND_PACKAGE(LAPACK QUIET)
+ENDIF()
+
 IF (LAPACK_FOUND)
   MESSAGE (STATUS "[BLAS/Lapack] found in system libraries")
   SET(LIBS_BUILD_MATH_LIB OFF CACHE BOOL "Compile and build math library")
@@ -378,7 +396,7 @@ IF(NOT LIBS_BUILD_MATH_LIB)
 # Build LAPACK/OpenBLAS in FLEXI
 ELSE()
   # Offer LAPACK and OpenBLAS
-  SET (LIBS_BUILD_MATH_LIB_VENDOR LAPACK CACHE STRING "Choose the type of math lib vendor, options are: LAPACK, OpenBLAS.")
+  SET (LIBS_BUILD_MATH_LIB_VENDOR OpenBLAS CACHE STRING "Choose the type of math lib vendor, options are: LAPACK, OpenBLAS.")
   SET_PROPERTY(CACHE LIBS_BUILD_MATH_LIB_VENDOR PROPERTY STRINGS LAPACK OpenBLAS)
 
   # Build LAPACK
@@ -442,7 +460,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        ${GITSHALLOW}
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_INSTALL_LIBDIR=lib -DCMAKE_INSTALL_PREFIX=${LIBS_MATH_DIR} -DBLAS++=OFF -DLAPACK++=OFF -DBUILD_SHARED_LIBS=ON -DCBLAS=OFF -DLAPACKE=OFF -DBUILD_TESTING=OFF
@@ -459,7 +477,7 @@ ELSE()
         GIT_REPOSITORY ${MATH_LIB_DOWNLOAD}
         GIT_TAG ${MATH_LIB_TAG}
         GIT_PROGRESS TRUE
-        ${${GITSHALLOW}}
+        ${GITSHALLOW}
         PREFIX ${LIBS_MATH_DIR}
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND ""
@@ -533,7 +551,7 @@ IF(LIBS_BUILD_HOPR)
     GIT_REPOSITORY ${HOPR_DOWNLOAD}
     GIT_TAG ${HOPR_TAG}
     GIT_PROGRESS FALSE
-    ${${GITSHALLOW}}
+    ${GITSHALLOW}
     PREFIX ${LIBS_HOPR_DIR}
     # Avoids rebuilding during PICLas recompilation if HOPR has already been built in share folder
     UPDATE_DISCONNECTED true
@@ -633,63 +651,105 @@ ENDIF()
 #=========================================================================
 # PETSc
 #=========================================================================
-OPTION(PICLAS_PETSC "Use the PETSc library" OFF)
-IF(PICLAS_PETSC)
-  ADD_DEFINITIONS(-DUSE_PETSC=1)
-  IF(NOT DEFINED PETSC_DIR)
-    SET(PETSC_DIR $ENV{PETSC_DIR})
-  ENDIF()
-  IF(NOT DEFINED PETSC_ARCH)
-    SET(PETSC_ARCH $ENV{PETSC_ARCH})
-  ENDIF()
+OPTION(LIBS_USE_PETSC "Use the PETSc library" OFF)
 
-  IF(EXISTS "${PETSC_DIR}/include" AND EXISTS "${PETSC_DIR}/${PETSC_ARCH}/include")
-    SET(PETSC_INCLUDE_DIR "${PETSC_DIR}/include")
-    SET(PETSC_INC "${PETSC_DIR}/include" "${PETSC_DIR}/${PETSC_ARCH}/include")
+# Look quietly for PETSc
+FIND_PACKAGE(PETSc QUIET)
+# Set the default value whether to build PETSc or use the system library
+IF(PETSC_FOUND)
+  CMAKE_DEPENDENT_OPTION(LIBS_BUILD_PETSC "Compile and build the PETSc library" OFF LIBS_USE_PETSC OFF)
+ELSE()
+  CMAKE_DEPENDENT_OPTION(LIBS_BUILD_PETSC "Compile and build the PETSc library" ON LIBS_USE_PETSC OFF)
+ENDIF()
+
+IF(LIBS_USE_PETSC)
+  IF (LIBS_BUILD_PETSC)
+    SET(LIBS_BUILD_PETSC_VERSION "3.19.3" CACHE STRING "PETSc self-built version tag")
+    MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
-    MESSAGE(SEND_ERROR "PETSc includes not found")
+    UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
+    MARK_AS_ADVANCED(FORCE LIBS_BUILD_PETSC_VERSION)
   ENDIF()
 
-  IF(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
-    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.so")
-  ELSEIf(EXISTS "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
-    SET(PETSC_LIB "${PETSC_DIR}/${PETSC_ARCH}/lib/libpetsc.a")
-  ELSE()
-    MESSAGE(SEND_ERROR "PETSc library not found")
-  ENDIF()
+  IF (LIBS_BUILD_PETSC)
+    # Set PETSc build dir
+    SET(LIBS_PETSC_DIR      ${LIBS_EXTERNAL_LIB_DIR}/PETSc/build)
+    SET(PETSC_BUILD_DIR     ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c)
+    SET(PETSC_LIB_LIBRARIES ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/lib)
+    SET(PETSC_INCLUDE_DIRS  ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/include)
 
-  IF(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables)
-    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/conf/petscvariables
-      PETSC_VARIABLES NEWLINE_CONSUME)
-  ELSEIf(EXISTS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables)
-    FILE(STRINGS ${PETSC_DIR}/${PETSC_ARCH}/lib/petsc/conf/petscvariables
-      PETSC_VARIABLES NEWLINE_CONSUME)
-  ELSE()
-    MESSAGE(SEND_ERROR "PETSc variables not found")
-  ENDIF()
-
-  # Find "^#define PETSC_VERSION_MAJOR" and get only the numbers and remove trailing line breaks
-  SET(PETSC_VERSION_FILE "${PETSC_INCLUDE_DIR}/petscversion.h")
-  IF(EXISTS "${PETSC_VERSION_FILE}")
-    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MAJOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MAJOR)
-    EXECUTE_PROCESS(COMMAND cat "${PETSC_VERSION_FILE}" COMMAND grep "^#define PETSC_VERSION_MINOR" COMMAND grep -o "[[:digit:]]*" COMMAND tr -d '\n' OUTPUT_VARIABLE PICLAS_PETSC_VERSION_MINOR)
-    MESSAGE(STATUS "Found PETSC version [${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR}] in ${PETSC_VERSION_FILE}")
-    IF(${PICLAS_PETSC_VERSION_MAJOR}.${PICLAS_PETSC_VERSION_MINOR} VERSION_LESS 3.18)
-      ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
+    # Determine if PETSc should be built with debugging or optimization flags
+    IF(CMAKE_BUILD_TYPE MATCHES "Release")
+      MESSAGE (STATUS "Compiling [PETSc] with optimization flags!")
+      SET(PETSC_COMPILER_FLAGS --with-debugging=0 COPTFLAGS=-O3 -march=native -mtune=native CXXOPTFLAGS=-O3 -march=native -mtune=native FOPTFLAGS=-O3 -march=native -mtune=native)
     ELSE()
-      ADD_DEFINITIONS(-DUSE_PETSC_FIX317=0)
+      MESSAGE (STATUS "Compiling [PETSc] with debugging flags!")
+      SET(PETSC_COMPILER_FLAGS --with-debugging=1)
     ENDIF()
-  ELSE()
-    ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
-  ENDIF()
 
-  INCLUDE_DIRECTORIES(${PETSC_INC})
-  LIST(APPEND linkedlibs ${PETSC_LIB})
+    # Add PETSc project
+    EXTERNALPROJECT_ADD(PETSc
+        GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
+        GIT_TAG "v${LIBS_BUILD_PETSC_VERSION}"
+        GIT_PROGRESS TRUE
+        ${GITSHALLOW}
+        PREFIX ${LIBS_PETSC_DIR}
+        INSTALL_DIR ${LIBS_EXTERNAL_LIB_DIR}/PETSc
+        BUILD_IN_SOURCE TRUE
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND
+          PETSC_DIR=${LIBS_PETSC_DIR}/src/PETSc
+          ${LIBS_PETSC_DIR}/src/PETSc/configure
+          --prefix=${PETSC_BUILD_DIR}
+          ${PETSC_COMPILER_FLAGS}
+          --with-shared-libraries=1
+          --with-mpi-f90module-visibility=0           # "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
+          --with-bison=0
+          --download-hypre
+          --download-mumps
+          --download-scalapack
+        # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
+        BUILD_BYPRODUCTS ${PETSC_LIB_LIBRARIES}/libpetsc.so
+    )
+
+    # Actually add the PETSc lib paths to the linking paths
+    INCLUDE_DIRECTORIES(${PETSC_INCLUDE_DIRS})
+    INCLUDE_DIRECTORIES (${PETSC_LIB_LIBRARIES})
+    LIST(APPEND linkedlibs ${PETSC_LIB_LIBRARIES}/libpetsc.so)
+    LIST(APPEND SELFBUILTEXTERNALS PETSc)
+
+    # If HDF5 is built in PIClas, it must occur before the PETSc compilation
+    IF(LIBS_BUILD_HDF5)
+      IF (NOT EXISTS "${LIBS_HDF5_DIR}/lib/libhdf5.a")
+        ADD_DEPENDENCIES(PETSc HDF5)
+      ENDIF()
+    ENDIF()
+
+    ADD_DEFINITIONS(-DUSE_PETSC=1)
+    MESSAGE(STATUS "Compiling with self-built [PETSc] (v${LIBS_BUILD_PETSC_VERSION})")
+  ELSE()
+    IF(PETSC_FOUND)
+      # Check if PETSc version needs FIX317
+      IF (${PETSC_VERSION} VERSION_LESS 3.18)
+        ADD_DEFINITIONS(-DUSE_PETSC_FIX317=1)
+      ELSE()
+        ADD_DEFINITIONS(-DUSE_PETSC_FIX317=0)
+      ENDIF()
+
+      INCLUDE_DIRECTORIES(${PETSC_INCLUDE_DIRS})
+      LIST(APPEND linkedlibs ${PETSC_LINK_LIBRARIES})
+
+      ADD_DEFINITIONS(-DUSE_PETSC=1)
+      MESSAGE(STATUS "Compiling with system [PETSc] (v${PETSC_VERSION}) [${PETSC_LINK_LIBRARIES}]")
+    ELSE()
+      MESSAGE(FATAL_ERROR "PETSc not found! Consider building PETSc with LIBS_BUILD_PETSC = ON.")
+    ENDIF()
+  ENDIF()
 
   # Do not allow PETSc + INT8 as this is not implemented yet
   IF(PICLAS_INTKIND8)
-    MESSAGE(FATAL_ERROR "PETSc + INT8 is not implemented yet!.")
+    MESSAGE(FATAL_ERROR "PETSc + INT8 is not implemented yet!")
   ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_PETSC=0)
-ENDIF(PICLAS_PETSC)
+ENDIF(LIBS_USE_PETSC)

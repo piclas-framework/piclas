@@ -301,7 +301,7 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
   ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
   ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
-  IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
+  CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -503,7 +503,7 @@ END SUBROUTINE WritePhotonSurfSampleToHDF5
 SUBROUTINE ExchangeRadiationSurfData()
 !===================================================================================================================================
 ! exchange the surface data
-! only processes with samling sides in their halo region and the original process participate on the communication
+! only processes with sampling sides in their halo region and the original process participate on the communication
 ! structure is similar to particle communication
 ! each process sends his halo-information directly to the origin process by use of a list, containing the surfsideids for sending
 ! the receiving process adds the new data to his own sides

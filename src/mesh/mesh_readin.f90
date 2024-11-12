@@ -239,6 +239,10 @@ USE MOD_Particle_Mesh_Vars   ,ONLY: ElemInfo_Shared,SideInfo_Shared,NodeCoords_S
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance,offsetElemMPIOld
 #endif /*USE_LOADBALANCE*/
+#if USE_HDG
+! Axisymmetric HDG
+USE MOD_Symmetry_Vars        ,ONLY: Symmetry
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -386,7 +390,7 @@ END IF
 #endif
 
 #if defined(PARTICLES) && USE_LOADBALANCE
-IF (.NOT.PerformLoadBalance) THEN
+IF (.NOT.PerformLoadBalance .OR. UseH5IOLoadBalance) THEN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
   CALL OpenDataFile(FileString,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL ReadBCs()
@@ -495,6 +499,22 @@ DO iElem=FirstElemInd,LastElemInd
     ! ALLOCATE MORTAR
     ElemID=SideInfo(SIDE_NBELEMID,iSide) !IF nbElemID <0, this marks a mortar master side.
                                          ! The number (-1,-2,-3) is the Type of mortar
+
+#if USE_HDG
+    ! AXISYMMETRIC HDG
+    IF(Symmetry%Axisymmetric) THEN
+      ! In 2D check that there is only one layer of elements in z-direction
+      IF ((iLocSide.EQ.1).OR.(iLocSide.EQ.6)) THEN
+        BCindex = SideInfo(SIDE_BCID,iSide)
+        IF ((iElem.NE.ElemID).AND.(BCindex.LE.0)) THEN
+          CALL Abort(__STAMP__, &
+              "Mesh not oriented in z-direction or more than one layer of elements in z-direction! " // &
+              "Please set 'orientZ = T' or change number of element in z-direction in HOPR parameter file.")
+        END IF
+      END IF
+    END IF
+#endif /*USE_HDG*/
+
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
       aSide%MortarType=ABS(ElemID)
       SELECT CASE(aSide%MortarType)
@@ -1345,7 +1365,7 @@ USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
-USE MOD_Particle_Vars             ,ONLY: Symmetry
+USE MOD_Symmetry_Vars             ,ONLY: Symmetry
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
@@ -1368,7 +1388,7 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! symmetry sides and elem volumes/characteristic lengths
 IF(ABS(meshMode).GT.1)THEN
-  IF(Symmetry%Order.EQ.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
+  IF (Symmetry%Order.LE.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 END IF ! ABS(meshMode).GT.1

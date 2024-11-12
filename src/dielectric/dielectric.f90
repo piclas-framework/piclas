@@ -377,9 +377,10 @@ REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems) :: Dielectric_dummy_ele
 #if USE_MPI
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Master2
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2
-INTEGER                                                  :: I,J,iSide
+INTEGER                                                  :: I,J
 #endif /*USE_MPI*/
-INTEGER                                                  :: iElem
+INTEGER                                                  :: iElem,iSide
+REAL                                                     :: MinSlave,MinMaster
 !===================================================================================================================================
 ! General workflow:
 ! 1.  Initialize dummy arrays for Elem/Face
@@ -407,7 +408,7 @@ DO iElem=1,PP_nElems
     ! set only the first dimension to 1./SQRT(EpsR*MuR) (the rest are dummies)
     Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=SQRT(DielectricConstant_inv(0:PP_N,0:PP_N,0:PP_N,ElemToDielectric(iElem)))
   ELSE
-    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0
+    Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=-2.0
   END IF
 END DO
 
@@ -460,6 +461,18 @@ ALLOCATE(Dielectric_Slave( 0:PP_N,0:PP_N,1:nSides))
   Dielectric_Master=Dielectric_dummy_Master(1,0:PP_N,0:PP_N,1:nSides)
   Dielectric_Slave =Dielectric_dummy_Slave( 1,0:PP_N,0:PP_N,1:nSides)
 #endif /*USE_MPI*/
+
+  ! Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
+  ! master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
+  DO iSide = 1, nSides
+    MinSlave  = MINVAL(Dielectric_Slave(:,:,iSide))
+    MinMaster = MINVAL(Dielectric_Master(:,:,iSide))
+    IF((MinMaster.LT.0.0).AND.(MinSlave.LT.0.0))THEN
+      Dielectric_Master(:,:,iSide) = 1.0
+    ELSEIF(MinMaster.LT.0.0)THEN
+      Dielectric_Master(:,:,iSide) = Dielectric_Slave(:,:,iSide)
+    END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
+  END DO ! iSide = 1, nSides
 
 ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
 IF(MINVAL(Dielectric_Master).LT.0.0)THEN

@@ -85,6 +85,7 @@ USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullify
 #if USE_MPI
 USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
+USE MOD_Symmetry             ,ONLY: InitSymmetry
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
@@ -93,7 +94,6 @@ USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-USE MOD_DSMC_Symmetry        ,ONLY: Init_Symmetry
 #if USE_MPI
 USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
 #endif /* USE_MPI */
@@ -136,10 +136,9 @@ WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 #ifdef PARTICLES
 ! DSMC handling:
 useDSMC=GETLOGICAL('UseDSMC')
-
-CALL Init_Symmetry()
-
 #endif /*PARTICLES*/
+
+CALL InitSymmetry()
 
 ! Initialization
 IF(IsLoadBalance)THEN
@@ -258,6 +257,9 @@ USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
+#if defined(MEASURE_MPI_WAIT)
+USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_RayTracing_Init            ,ONLY: FinalizeRayTracing
@@ -289,9 +291,6 @@ USE MOD_PIC_Vars                   ,ONLY: PICInitIsDone
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI                        ,ONLY: OutputMPIW8Time
-#endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
 USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
@@ -468,6 +467,5 @@ IF(.NOT.IsLoadBalance) THEN
 END IF
 
 END SUBROUTINE FinalizeLoadBalance
-
 
 END MODULE MOD_Piclas_Init

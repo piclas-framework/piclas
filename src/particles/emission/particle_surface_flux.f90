@@ -48,6 +48,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
@@ -235,7 +236,11 @@ DO iSpec=1,nSpecies
           PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
           PEM%GlobalElemID(ParticleIndexNbr) = globElemId
-          PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
+          IF (Symmetry%Order.LE.2) THEN
+            PEM%LastGlobalElemID(ParticleIndexNbr) = -SideID
+          ELSE
+            PEM%LastGlobalElemID(ParticleIndexNbr) = globElemId !needed when ParticlePush is not executed, e.g. "delay"
+          END IF
           iPartTotal = iPartTotal + 1
           IF (UseVarTimeStep) THEN
             PartTimeStep(ParticleIndexNbr) = GetParticleTimeStep(PartState(1,ParticleIndexNbr),PartState(2,ParticleIndexNbr), &
@@ -1200,6 +1205,8 @@ END SUBROUTINE CalcConstMassflowWeight
 
 !===================================================================================================================================
 !> SurfaceFlux: Determine the particle velocity of each inserted particle when inserted at a surface
+!> Based on: Garcia, A. L., & Wagner, W. (2006). Generation of the Maxwellian inflow distribution. Journal of Computational Physics,
+!>           217(2), 693–708. https://doi.org/10.1016/j.jcp.2006.01.025
 !===================================================================================================================================
 SUBROUTINE SetSurfacefluxVelocities(Mode,iSpec,iSF,iSample,jSample,iSide,BCSideID,SideID,NbrOfParticle,PartIns,particle_xis)
 ! MODULES

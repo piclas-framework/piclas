@@ -8,11 +8,11 @@
 #      - if: '$CI_PIPELINE_CREATED_AT =~ /^\d\d\d\d-\d\d-\d[1,3,5,7,9]T.*/ || $CI_COMMIT_REF_NAME !~ /^gitlab.custom.*/'
 #        variables:
 #          PIPELINE_NAME: '🔵 MPICH: on ${CI_PIPELINE_CREATED_AT} 123 ${CI_COMMIT_REF_NAME} 123'
-#  
+#
 #      - if: '$CI_PIPELINE_CREATED_AT =~ /^\d\d\d\d-\d\d-\d[0,2,4,6,8]T.*/|| $CI_COMMIT_REF_NAME =~ /^gitlab.custom.*/'
 #        variables:
 #          PIPELINE_NAME: '🟠 OpenMPI: $(date +%d) ${CI_COMMIT_REF_NAME}'
-#  
+#
 #      - when: never
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -84,24 +84,24 @@ before_script:
   - echo "Perform arithmetic with 0-prefixed numbers by telling bash to use base-10 by specifying 10#"
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
-      module purge;
-      module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5;
+      module purge || true;
+      module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
-      module purge;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+      module purge || true;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2 || true;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
-      module purge;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2;
+      module purge || true;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2 || true;
     fi
   - if [ -n "${DO_MPICH_DEBUG}" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
-      module purge;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2;
+      module purge || true;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2 || true;
     fi
-  - module list
+  - module list || true
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -419,16 +419,16 @@ build_poisson_petsc:
   stage: build
   script:
     - mkdir -p build_poisson_petsc_release_RK3 ; cd build_poisson_petsc_release_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
 
 build_DSMC:
@@ -461,7 +461,7 @@ build_DSMC:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all
     - if [ -n "${DO_WEEKLY}" ]; then
         cd .. ;
-        mkdir -p build_radiation ; cd build_radiation ; 
+        mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
 
@@ -518,6 +518,22 @@ build_no_git:
   rules:
     - if: '$DO_WEEKLY'
 
+build_outside_repository:
+  tags: [withmodules-concurrent]
+  stage: build
+  cache:
+    <<: *reggie_cache
+  script:
+    - echo " Installing branch $CI_COMMIT_REF_NAME outside the piclas directory/repository"
+    - REPOPATH=$(echo `pwd`)
+    - cd .. ;
+    - mkdir -p build-piclas-outside ; cd build-piclas-outside ;
+    - cmake ${REPOPATH} -DLIBS_BUILD_HDF5=OFF
+    - $GENERATOR -j $NCORES all
+    - cd .. ; rm -r build-piclas-outside ;
+  rules:
+    - if: '$DO_WEEKLY'
+
 build_no_git_libs:
   tags: [withmodules-concurrent]
   stage: build
@@ -534,6 +550,21 @@ build_no_git_libs:
     - tail -n 20 output.txt
     - rm output.txt
     - ls bin/piclas
+  rules:
+    - if: '$DO_WEEKLY'
+
+build_petsc_in_piclas:
+  tags: [withmodules-concurrent]
+  needs: [reggie_download]
+  cache:
+    <<: *reggie_cache
+  stage: build
+  script:
+    - mkdir -p build_petsc_lib ; cd build_petsc_lib
+    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
+    - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
+    - $GENERATOR -j $NCORES all
+    - python ../reggie/reggie.py -e ./bin/piclas ../regressioncheck/NIG_poisson_PETSC
   rules:
     - if: '$DO_WEEKLY'
 
@@ -737,6 +768,12 @@ NIG_PIC_poisson_Boris-Leapfrog:
   script:
     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
 
+NIG_PIC_poisson_Boris-Leapfrog_PETSC:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog_PETSC/
+
 NIG_PIC_poisson_Leapfrog:
   <<: *defaults_nightly
   stage: reggie_nightly
@@ -835,7 +872,7 @@ WEK_Photoionization_release_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_debug_RK3:
   <<: *defaults_poisson_nightly
@@ -847,7 +884,7 @@ WEK_Photoionization_debug_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_petsc_release_RK3:
   <<: *defaults_poisson_petsc_nightly
@@ -859,7 +896,7 @@ WEK_Photoionization_petsc_release_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_petsc_debug_RK3:
   <<: *defaults_poisson_petsc_nightly
@@ -871,7 +908,7 @@ WEK_Photoionization_petsc_debug_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_release_Leapfrog:
   <<: *defaults_poisson_nightly
@@ -883,7 +920,7 @@ WEK_Photoionization_release_Leapfrog:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_debug_Leapfrog:
   <<: *defaults_poisson_nightly
@@ -895,7 +932,7 @@ WEK_Photoionization_debug_Leapfrog:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 # --- nightly
 
