@@ -85,7 +85,7 @@ USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
-USE MOD_TimeDisc_Vars          ,ONLY: dt
+USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
@@ -173,8 +173,8 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
-REAL                           :: tau
-INTEGER                        :: iElem
+REAL                           :: tau,dtMV
+INTEGER                        :: i,j,k,iElem
 #endif /*DVM*/
 REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
@@ -250,8 +250,13 @@ IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputT
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
 #endif
-#elif (PP_TimeDiscMethod==700) /*DVM*/
+#elif defined(discrete_velocity) /*DVM*/
 IF(MPIRoot) CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc) ! 15 for DVM MacroVal (maybe change that)
+IF (time.EQ.0.) THEN
+  dtMV = 0.
+ELSE
+  dtMV = dt
+ENDIF
 #else
 IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
 #endif /*USE_HDG*/
@@ -511,19 +516,34 @@ ASSOCIATE (&
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
 #elif !(USE_FV)
+#ifdef discrete_velocity
+  DO iElem=1,INT(PP_nElems)
+    DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
+      CALL MacroValuesFromDistribution(Utemp(1:14,i,j,k,iElem),U(:,i,j,k,iElem),dtMV,tau,1)
+      Utemp(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+    END DO; END DO; END DO
+  END DO
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DG_Solution', rank=5,&
+      nValGlobal=(/15_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
+      nVal=      (/15_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=Utemp)
+#else
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
+#endif /*DVM*/
 #endif /*PP_POIS*/
 
 #if USE_FV
 #ifdef discrete_velocity
   DO iElem=1,INT(PP_nElems)
-    CALL MacroValuesFromDistribution(Utemp(1:14,0,0,0,iElem),U_FV(:,0,0,0,iElem),dt,tau,1)
-    Utemp(15,0,0,0,iElem) = dt/tau
+    CALL MacroValuesFromDistribution(Utemp(1:14,0,0,0,iElem),U_FV(:,0,0,0,iElem),dtMV,tau,1)
+    Utemp(15,0,0,0,iElem) = dt_Min(DT_MIN)/tau
   END DO
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DVM_Solution', rank=5,&

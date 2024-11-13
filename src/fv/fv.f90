@@ -56,7 +56,6 @@ SUBROUTINE InitFV()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_FV_Vars
-USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Restart_Vars       ,ONLY: DoRestart,RestartInitIsDone
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 USE MOD_Mesh_Vars          ,ONLY: nSides
@@ -87,27 +86,18 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
 #if USE_LOADBALANCE
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
-  ! the local DG solution in physical and reference space
+  ! the local FV solution
   ALLOCATE( U_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
   U_FV=0.
-  ! the time derivative computed with the DG scheme
+  ! the time derivative computed with the FV scheme
   ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
   Ut_FV=0.
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE)*/
 
-
 ! U_FV is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
-
-! We store the interior data at the each element face
-!ALLOCATE(U_Minus(PP_nVar_FV,0:0,0:0,sideID_minus_lower:sideID_minus_upper))
-!ALLOCATE(U_Plus(PP_nVar_FV,0:0,0:0,sideID_plus_lower:sideID_plus_upper))
-!U_Minus=0.
-!U_Plus=0.
-
-
 
 #ifdef drift_diffusion
 ALLOCATE(U_master_FV(PP_nVar_FV+3,0:0,0:0,1:nSides))
@@ -120,54 +110,11 @@ ALLOCATE(U_slave_FV(PP_nVar_FV,0:0,0:0,1:nSides))
 U_master_FV=0.
 U_slave_FV=0.
 
-! ! Allocate arrays to hold the face flux to reduce memory churn
-! ALLOCATE(U_Master_loc(1:PP_nVar_FV        ,0:0,0:0))
-! ALLOCATE(U_Slave_loc (1:PP_nVar_FV        ,0:0,0:0))
-
 ! unique flux per side
-! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
-! additional fluxes for the CFS-PML auxiliary variables (no PML: PMLnVar=0)
 ALLOCATE(Flux_Master_FV(1:PP_nVar_FV,0:0,0:0,1:nSides))
 ALLOCATE(Flux_Slave_FV (1:PP_nVar_FV,0:0,0:0,1:nSides))
-! ALLOCATE(Flux_loc   (1:PP_nVar_FV,0:0,0:0))
 Flux_Master_FV=0.
 Flux_Slave_FV=0.
-
-#ifdef discrete_velocity
-ALLOCATE(DVM_ElemData1(1:PP_nElems))
-ALLOCATE(DVM_ElemData2(1:PP_nElems))
-ALLOCATE(DVM_ElemData3(1:PP_nElems))
-ALLOCATE(DVM_ElemData4(1:PP_nElems))
-ALLOCATE(DVM_ElemData5(1:PP_nElems))
-ALLOCATE(DVM_ElemData6(1:PP_nElems))
-ALLOCATE(DVM_ElemData7(1:PP_nElems))
-ALLOCATE(DVM_ElemData8(1:PP_nElems))
-ALLOCATE(DVM_ElemData9(1:PP_nElems))
-ALLOCATE(DVM_ElemData10(1:PP_nElems))
-ALLOCATE(DVM_ElemData11(1:PP_nElems))
-ALLOCATE(DVM_ElemData12(1:PP_nElems))
-ALLOCATE(DVM_ElemData13(1:PP_nElems))
-ALLOCATE(DVM_ElemData14(1:PP_nElems))
-ALLOCATE(DVM_ElemData15(1:PP_nElems))
-CALL AddToElemData(ElementOut,'DVM_Density',         RealArray=DVM_ElemData1(:) )
-CALL AddToElemData(ElementOut,'DVM_VelocityX',       RealArray=DVM_ElemData2(:) )
-CALL AddToElemData(ElementOut,'DVM_VelocityY',       RealArray=DVM_ElemData3(:) )
-CALL AddToElemData(ElementOut,'DVM_VelocityZ',       RealArray=DVM_ElemData4(:) )
-CALL AddToElemData(ElementOut,'DVM_Temperature',     RealArray=DVM_ElemData5(:) )
-CALL AddToElemData(ElementOut,'DVM_PressureXX',      RealArray=DVM_ElemData6(:) )
-CALL AddToElemData(ElementOut,'DVM_PressureYY',      RealArray=DVM_ElemData7(:) )
-CALL AddToElemData(ElementOut,'DVM_PressureZZ',      RealArray=DVM_ElemData8(:) )
-CALL AddToElemData(ElementOut,'DVM_PressureXY',      RealArray=DVM_ElemData9(:) )
-CALL AddToElemData(ElementOut,'DVM_PressureYZ',      RealArray=DVM_ElemData11(:))
-CALL AddToElemData(ElementOut,'DVM_PressureXZ',      RealArray=DVM_ElemData10(:)) !change order to avoid vector
-CALL AddToElemData(ElementOut,'DVM_HeatFluxX',       RealArray=DVM_ElemData12(:))
-CALL AddToElemData(ElementOut,'DVM_HeatFluxY',       RealArray=DVM_ElemData13(:))
-CALL AddToElemData(ElementOut,'DVM_HeatFluxZ',       RealArray=DVM_ElemData14(:))
-CALL AddToElemData(ElementOut,'DVM_RelaxationFactor',RealArray=DVM_ElemData15(:))
-#endif /*DVM*/
-#ifdef drift_diffusion
-CALL AddToElemData(ElementOut,'Electron_Density',RealArray=U_FV(1,0,0,0,:))
-#endif /*drift_diffusion*/
 
 CALL InitGradients(PP_nVar_FV)
 
@@ -440,17 +387,6 @@ CALL FinalizeGradients()
 ! SDEALLOCATE(U_Master_loc)
 ! SDEALLOCATE(U_Slave_loc)
 ! SDEALLOCATE(Flux_loc)
-#ifdef discrete_velocity
-SDEALLOCATE(DVM_ElemData1)
-SDEALLOCATE(DVM_ElemData2)
-SDEALLOCATE(DVM_ElemData3)
-SDEALLOCATE(DVM_ElemData4)
-SDEALLOCATE(DVM_ElemData5)
-SDEALLOCATE(DVM_ElemData6)
-SDEALLOCATE(DVM_ElemData7)
-SDEALLOCATE(DVM_ElemData8)
-SDEALLOCATE(DVM_ElemData9)
-#endif
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE && !(USE_HDG)

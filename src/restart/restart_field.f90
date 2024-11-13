@@ -86,7 +86,7 @@ USE MOD_Equation_Tools         ,ONLY: SynchronizeCPP
 USE MOD_HDG                    ,ONLY: SynchronizeBV
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
-USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
+USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_HDG_Vars               ,ONLY: lambdaLB
@@ -101,7 +101,6 @@ USE PETSc
 USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
 #if USE_LOADBALANCE && USE_FV
-USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE+FV*/
 #else /*USE_HDG*/
@@ -111,7 +110,6 @@ USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
 #endif /*USE_FV*/
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 #if USE_LOADBALANCE
-USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
@@ -119,7 +117,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 USE MOD_DistFunc               ,ONLY: GradDistribution
 USE MOD_Equation_Vars_FV       ,ONLY: DVMSpeciesData
 #endif
-USE MOD_Mesh_Vars              ,ONLY: OffsetElem
+USE MOD_Mesh_Vars              ,ONLY: OffsetElem,nElems
 
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -153,9 +151,9 @@ REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 #endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE || defined(discrete_velocity)
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE || defined(discrete_velocity)*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
