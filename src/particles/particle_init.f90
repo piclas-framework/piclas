@@ -101,13 +101,13 @@ CALL prms%CreateRealOption(     'InitialIonizationChargeAverage' , 'Average char
                                                                    '(corresponds to the ionization degree)')
 
 CALL prms%CreateIntOption(      'Part-MaxParticleNumber', 'Maximum allowed particles per core, 0=no limit')
-CALL prms%CreateRealOption(     'Part-MaxPartNumIncrease', 'How much shall the PDM%MaxParticleNumber be incresed if it is full'&
+CALL prms%CreateRealOption(     'Part-MaxPartNumIncrease', 'How much shall the PDM%MaxParticleNumber be increased if it is full'&
                                                                  , '0.1')
 CALL prms%CreateLogicalOption(  'Part-RearrangePartIDs', 'Rearrange PartIDs in the process of reducing maxPartNum to allow lower memory usage'&
                                                                  , '.TRUE.')
 #if USE_MPI
 CALL prms%CreateLogicalOption(  'Part-MPI-UNFP-afterPartSend', 'UpdateNextFreePosition after MPIParticleSend to reduce '//&
-                                                                'PDM%maxParticleNummber increase and decreace operations'&
+                                                                'PDM%maxParticleNumber increase and decrease operations'&
                                                                  , '.FALSE.')
 #endif
 CALL prms%CreateIntOption(      'Part-NumberOfRandomSeeds'    , 'Number of Seeds for Random Number Generator'//&

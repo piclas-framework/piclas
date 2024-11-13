@@ -49,7 +49,8 @@ CALL prms%CreateLogicalOption(  'CalcTotalEnergy'         , 'Calculate Total Ene
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Compute the ionization degree in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the average number of interpolation points that are used for the shape function in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     ,'Compute the plasma parameter N_D in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     , 'Compute the plasma parameter N_D in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcNumPlasmaParameter'  , 'Compute the numerical plasma parameter (simulation particles per Debye sphere/area/length) in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL condition for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement' , 'Compute the maximum displacement of the fastest particle relative to the cell lengths in X, Y and Z for each cell','.FALSE.')
@@ -359,7 +360,7 @@ END IF ! MaxPartDisplacement
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
 ! p:        Polynomial degree
 ! lambda_D: Debye length
-! L_cell:   Characteristic ceill length -> V_cell^(1/3)
+! L_cell:   Characteristic cell length -> V_cell^(1/3)
 CalcPointsPerDebyeLength       = GETLOGICAL('CalcPointsPerDebyeLength','.FALSE.')
 IF(CalcPointsPerDebyeLength)THEN
   ! value in 3D estimated with the characteristic length of the cell
@@ -442,9 +443,17 @@ IF(CalcPlasmaParameter)THEN
   CALL AddToElemData(ElementOut,'PlasmaParameterCell',RealArray=PlasmaParameterCell(1:PP_nElems))
 END IF
 
+! Numerical plasma parameter: simulation particles per Debye length
+CalcNumPlasmaParameter   = GETLOGICAL('CalcNumPlasmaParameter')
+IF(CalcNumPlasmaParameter)THEN
+  ALLOCATE( NumPlasmaParameterCell(1:PP_nElems) )
+  NumPlasmaParameterCell=0.0
+  CALL AddToElemData(ElementOut,'NumericalPlasmaParameterCell',RealArray=NumPlasmaParameterCell(1:PP_nElems))
+END IF
+
 ! Debye Length
 CalcDebyeLength       = GETLOGICAL('CalcDebyeLength')
-IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter.OR.CalcPICTimeStep) CalcDebyeLength=.TRUE.
+IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter.OR.CalcPICTimeStep.OR.CalcNumPlasmaParameter) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
   DebyeLengthCell=0.0
@@ -1860,6 +1869,7 @@ ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
 SDEALLOCATE(PICTimeStepCell)
 SDEALLOCATE(ElectronDensityCell)
+SDEALLOCATE(ElectronSimNumberCell)
 SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(ElectronMinEnergyCell)
 SDEALLOCATE(ElectronMaxEnergyCell)
@@ -1889,6 +1899,7 @@ SDEALLOCATE(MaxPartDisplacementCellX)
 SDEALLOCATE(MaxPartDisplacementCellY)
 SDEALLOCATE(MaxPartDisplacementCellZ)
 SDEALLOCATE(PlasmaParameterCell)
+SDEALLOCATE(NumPlasmaParameterCell)
 SDEALLOCATE(QuasiNeutralityCell)
 SDEALLOCATE(PICValidPlasmaCell)
 SDEALLOCATE(IonDensityCell)

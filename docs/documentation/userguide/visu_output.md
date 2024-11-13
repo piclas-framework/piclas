@@ -8,11 +8,11 @@ piclas2vtk [posti.ini] output.h5
 
 Multiple HDF5 files can be passed to the piclas2vtk tool at once. The (optional) runtime parameters to be set in `posti.ini` are given below:
 
-|    **Option**   | **Default** |                                     **Description**                                    |
-|    :--------:   | :---------: |                                       :---------:                                      |
-|     `NVisu`     |      1      |             Number of points at which solution is sampled for visualization            |
-| `VisuParticles` |     OFF     |      Converts the particle data (positions, velocity, species, internal energies)      |
-|  `NodeTypeVisu` |     VISU    | Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO |
+|   **Option**    | **Default** | **Description**                                                                        |
+| :-------------: | :---------: | :------------------------------------------------------------------------------------- |
+|     `NVisu`     |      1      | Number of points at which solution is sampled for visualization                        |
+| `VisuParticles` |     OFF     | Converts the particle data (positions, velocity, species, internal energies)           |
+| `NodeTypeVisu`  |    VISU     | Node type of the visualization basis: VISU,GAUSS,GAUSS-LOBATTO,CHEBYSHEV-GAUSS-LOBATTO |
 
 In the following, the parameters enabling the different output variables are described. It should be noted that these parameters are part of the `parameter.ini` required by **PICLas**.
 
@@ -39,11 +39,11 @@ The following table summarizes the available fields in connection with Poisson's
 solver to be active) that can be stored to the state file (`*_State_*.h5`) file at every `Analyze_dt` as well as at the start and
 end of the simulation
 
-|          **Option**          | **Default** |                                                 **Description**                                                 |   Poisson  |   Maxwell  |
-|          :--------:          | :---------: | :-------------------------------------------------------------------------------------------------------------: | :--------: | :--------: |
-|      `PIC-OutputSource`      |      F      |                                      charge $\rho$ and current density $j$                                      |     yes    |     yes    |
-| `CalcElectricTimeDerivative` |      F      |   time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$   |     yes    |     no     |
-|     `CalcPotentialEnergy`    |      F      |                                      potential field energy of the EM field                                     |     yes    |     yes    |
+|          **Option**          | **Default** | **Description**                                                                                             | Poisson | Maxwell |
+| :--------------------------: | :---------: | :---------------------------------------------------------------------------------------------------------- | :-----: | :-----: |
+|      `PIC-OutputSource`      |      F      | charge $\rho$ and current density $j$                                                                       |   yes   |   yes   |
+| `CalcElectricTimeDerivative` |      F      | time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$ |   yes   |   no    |
+|    `CalcPotentialEnergy`     |      F      | potential field energy of the EM field                                                                      |   yes   |   yes   |
 
 **Charge and current density**: When running a PIC simulation, the particle-grid deposited properties, such as charge and current densities (in each direction `x,
 y,`and `z`) can be output by enabling
@@ -77,9 +77,9 @@ data can be adjusted by setting `NVisu` to any integer value, which is the used 
 
 The following table summarizes the available fields in connection with Poisson's or Maxwell's equations
 
-|      **Option**     | **Default** |                                  **Description**                                  |   Poisson  |   Maxwell  |
-|   :-------------:   | :---------: | :-------------------------------------------------------------------------------: | :--------: | :--------: |
-| `CalcEMFieldOutput` |      F      |           external electric $\textbf{E}$ and magnetic $\textbf{B}$ field          |     yes    |     yes    |
+|     **Option**      | **Default** | **Description**                                                | Poisson | Maxwell |
+| :-----------------: | :---------: | :------------------------------------------------------------- | :-----: | :-----: |
+| `CalcEMFieldOutput` |      F      | external electric $\textbf{E}$ and magnetic $\textbf{B}$ field |   yes   |   yes   |
 
 
 **External electromagnetic field vector**
@@ -104,22 +104,24 @@ and the resulting data (vector fields for *E* and *B*) is stored in `PROJECT_PIC
 The determined properties are given by a single value within each cell and are NOT sampled over time as opposed to the output
 described in Section {ref}`sec:sampled-flow-field-and-surface-variables`.
 These parameters are only available for PIC simulations, are part of the regular state file (as a separate container within the
-HDF5 file) and automatically included in the conversion to the VTK format. They are written to `PROJECT_Solution_000.000*.h5` and
-after conversion are found in `PROJECT_ElemData_000.000*.vtu`.
+HDF5 file) and automatically included in the conversion to the VTK format. They are written to `PROJECT_State_000.000*.h5` and
+after conversion are found in `PROJECT_Solution_ElemData_000.000*.vtu`.
 
 The following table summarizes the available fields in connection with Poisson's or Maxwell's equations
 
-|         **Option**         | **Default** |                                  **Description**                                  |   Poisson  |   Maxwell  |
-|       :-------------:      | :---------: | :-------------------------------------------------------------------------------: | :--------: | :--------: |
-|     `CalcCoupledPower`     |      F      |        absorbed power by charged particles due to electro(-magnetic) fields       |     yes    |     yes    |
-|    `CalcPlasmaFreqeuncy`   |      F      |     (cold) plasma frequency depending on the electron particle number density     |     yes    |     yes    |
-|      `CalcPICTimeStep`     |      F      |         PIC time step resolution depending on the (cold) plasma frequency         |     yes    |     yes    |
-|      `CalcDebyeLength`     |      F      |   Debye length depending on the electron temperature and particle number density  |     yes    |     yes    |
-| `CalcPointsPerDebyeLength` |      F      |     PIC spatial resolution depending on the element size and the Debye length     |     yes    |     yes    |
-|    `CalcPICCFLCondition`   |      F      |       single parameter combining plasma frequency and Debye length criterion      |     yes    |     yes    |
-|  `CalcMaxPartDisplacement` |      F      |  largest displacement of a particle within one time step related to the cell size |     yes    |     yes    |
-| `CalcPICTimeStepCyclotron` |      F      |   PIC time step resolution depending on the cyclotron frequency (magnetic field)  |     yes    |     yes    |
-|  `CalcCyclotronFrequency`  |      F      |            cyclotron frequency of charged particles in magnetic fields            |     yes    |     yes    |
+|         **Option**         | **Default** | **Description**                                                                  | Poisson | Maxwell |
+| :------------------------: | :---------: | :------------------------------------------------------------------------------- | :-----: | :-----: |
+|     `CalcCoupledPower`     |      F      | absorbed power by charged particles due to electro(-magnetic) fields             |   yes   |   yes   |
+|   `CalcPlasmaFrequency`    |      F      | (cold) plasma frequency depending on the electron particle number density        |   yes   |   yes   |
+|     `CalcPICTimeStep`      |      F      | PIC time step resolution depending on the (cold) plasma frequency                |   yes   |   yes   |
+|     `CalcDebyeLength`      |      F      | Debye length depending on the electron temperature and particle number density   |   yes   |   yes   |
+| `CalcPointsPerDebyeLength` |      F      | PIC spatial resolution depending on the element size and the Debye length        |   yes   |   yes   |
+|   `CalcPICCFLCondition`    |      F      | single parameter combining plasma frequency and Debye length criterion           |   yes   |   yes   |
+| `CalcMaxPartDisplacement`  |      F      | largest displacement of a particle within one time step related to the cell size |   yes   |   yes   |
+| `CalcPICTimeStepCyclotron` |      F      | PIC time step resolution depending on the cyclotron frequency (magnetic field)   |   yes   |   yes   |
+|  `CalcCyclotronFrequency`  |      F      | cyclotron frequency of charged particles in magnetic fields                      |   yes   |   yes   |
+|   `CalcPlasmaParameter`    |      F      | Plasma parameter / Debye number: real number of particles within a Debye sphere  |   yes   |   yes   |
+|  `CalcNumPlasmaParameter`  |      F      | Numerical plasma paramater: simulation number of particles within a Debye sphere |   yes   |   yes   |
 
 
 **Power Coupled to Particles**
@@ -252,26 +254,26 @@ for the non-relativistic case
 
 $$\omega_c = \frac{eB}{m_{e}}$$
 
-|    Symbol   |                             Parameter                             |
-| ----------- |                            -----------                            |
-|  $\omega_c$ |               cyclotron frequency (non-relativistic)              |
-|     $e$     |         elementary charge (of an electron, absolute value)        |
-|     $B$     | magnitude of the magnetic flux density at the electron's position |
-|    $m_e$    |                         electron rest mass                        |
+|   Symbol   | Parameter                                                         |
+| :--------: | ----------------------------------------------------------------- |
+| $\omega_c$ | cyclotron frequency (non-relativistic)                            |
+|    $e$     | elementary charge (of an electron, absolute value)                |
+|    $B$     | magnitude of the magnetic flux density at the electron's position |
+|   $m_e$    | electron rest mass                                                |
 
 or if the electron velocity is considered to be relativistic (automatic switch), the following formula is used
 
 $$\omega_c = \frac{eB}{\gamma m_e} = \frac{eB}{m_e\sqrt{1-v_e^2/c^2}}$$
 
-|    Symbol   |                             Parameter                             |
-| ----------- |                            -----------                            |
-|  $\omega_c$ |               cyclotron frequency     (relativistic)              |
-|     $e$     |         elementary charge (of an electron, absolute value)        |
-|     $B$     | magnitude of the magnetic flux density at the electron's position |
-|   $\gamma$  |                           Lorentz factor                          |
-|    $m_e$    |                         electron rest mass                        |
-|    $v_e$    |                       magnitude of velocity                       |
-|     $c$     |                           speed of light                          |
+|   Symbol   | Parameter                                                         |
+| :--------: | :---------------------------------------------------------------- |
+| $\omega_c$ | cyclotron frequency     (relativistic)                            |
+|    $e$     | elementary charge (of an electron, absolute value)                |
+|    $B$     | magnitude of the magnetic flux density at the electron's position |
+|  $\gamma$  | Lorentz factor                                                    |
+|   $m_e$    | electron rest mass                                                |
+|   $v_e$    | magnitude of velocity                                             |
+|    $c$     | speed of light                                                    |
 
 and, hence, the required time step (Boris push)
 
@@ -296,6 +298,36 @@ for the time step restriction and
     GyroradiusMaxCell
 
 for the cyclotron frequency and radius (min/max values).
+
+**Plasma parameter / Debye number**
+The plasma parameter or Debye number can be calculated via
+
+$$N_{D}= \frac{4}{3} n_{e} \lambda_{D}^3, $$
+
+where $\lambda_{D}$ is the Debye length and $n_{e}$ is the electron number density.
+The Debye number gives the number of (real) electrons within a Debye sphere. The calculation is activated by
+
+    CalcPlasmaParameter = T
+
+and the output container for the data is labelled `PlasmaParameterCell`.
+
+**Numerical plasma parameter / simulation particles per Debye length**
+The numerical plasma parameter can be calculated via
+
+$$N_{D,sim}= \frac{4}{3} \pi \frac{N_{e,sim}}{V} \lambda_{D}^3, $$
+
+where $\lambda_{D}$ is the Debye length, $V$ the cell volume, and $N_{e,sim}$ the number of simulation electrons. Consequently, the parameter gives the number of simulation particles within a Debye sphere. For 2D and 1D, the corresponding area and edge length are used:
+
+$$N_{D,sim}= \frac{N_{e,sim}}{L_{x} L_{y}} \lambda_{D}^2 $$
+$$N_{D,sim}= \frac{N_{e,sim}}{L_{x}} \lambda_{D} $$
+
+where $L_{x}$ and $L_{y}$ are the characteristic lengths as defined for the calculation of the *Points per Debye Length*.
+
+The calculation is activated by
+
+    CalcNumPlasmaParameter = T
+
+and the output container for the data is labelled `NumericalPlasmaParameterCell`.
 
 ### Time-averaged Fields
 At each `Analyze_dt` and at the end of the simulation, additional time-averaged field properties can be written to `*_TimeAvg_*.h5`
@@ -330,8 +362,6 @@ and for Poisson's equation
     VarName{Avg,Fluc} = ElectricFieldY
     VarName{Avg,Fluc} = ElectricFieldZ
     VarName{Avg,Fluc} = ElectricFieldMagnitude
-
-
 
 In case of a PIC simulation, the particle-grid deposited properties (via the user-selected deposition method) are also available via
 `VarNameAvg` and `VarNameFluc`
@@ -427,11 +457,11 @@ The output of properties regarding Maxwell's or Poisson's field solver are writt
 If this analysis is not required in each time step, the parameter `Field-AnalyzeStep` (default is 1) can be set to an integer
 greater or equal 1.
 
-|          **Option**          | **Default** |                                                 **Description**                                                 |   Poisson  |   Maxwell  |
-|          :--------:          | :---------: | :-------------------------------------------------------------------------------------------------------------: | :--------: | :--------: |
-| `CalcElectricTimeDerivative` |      F      |   time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$   |     yes    |     no     |
-|     `CalcPotentialEnergy`    |      F      |                                      potential field energy of the EM field                                     |     yes    |     yes    |
-|   `CalcBoundaryFieldOutput`  |      F      |                                 electric potential at user-specified boundaries                                 |     yes    |     no     |
+|          **Option**          | **Default** |                                               **Description**                                               | Poisson | Maxwell |
+| :--------------------------: | :---------: | :---------------------------------------------------------------------------------------------------------: | :-----: | :-----: |
+| `CalcElectricTimeDerivative` |      F      | time derivative $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$ |   yes   |   no    |
+|    `CalcPotentialEnergy`     |      F      |                                   potential field energy of the EM field                                    |   yes   |   yes   |
+|  `CalcBoundaryFieldOutput`   |      F      |                               electric potential at user-specified boundaries                               |   yes   |   no    |
 
 
 **Displacement current:** The temporal change of the electric displacement field $\frac{\partial D}{\partial t}=\varepsilon_{r}\varepsilon_{0}\frac{\partial E}{\partial t}$
@@ -478,10 +508,10 @@ If this analysis is not required in each time step, the parameter `Surface-Analy
 greater or equal 1. Some values are sampled only during one time step and others are accumulated over the number of time steps
 defined by `Surface-AnalyzeStep`.
 
-|           Parameter          |                                   Parameter                                  |
-| ---------------------------- | ---------------------------------------------------------------------------- |
-|       `CalcElectronSEE`      |  Secondary electron emission current for each `Part-Boundary` with SEE model |
-| `CalcBoundaryParticleOutput` |    Particle flux for each user-defined `Part-Boundary` and `Part-Species`    |
+| Parameter                    | Parameter                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------- |
+| `CalcElectronSEE`            | Secondary electron emission current for each `Part-Boundary` with SEE model |
+| `CalcBoundaryParticleOutput` | Particle flux for each user-defined `Part-Boundary` and `Part-Species`      |
 
 **Secondary Electron Emission**
 When `CalcElectronSEE=T` is activated, the secondary electron emission current (on all surfaces where such a model is used) is

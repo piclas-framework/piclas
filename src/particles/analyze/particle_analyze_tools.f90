@@ -168,7 +168,7 @@ SUBROUTINE AllocateElectronIonDensityCell()
 ! MODULES
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell,ElectronSimNumberCell
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -184,6 +184,9 @@ IF(ALLOCATED(ElectronDensityCell)) RETURN
 ALLOCATE( ElectronDensityCell(1:PP_nElems) )
 ElectronDensityCell=0.0
 CALL AddToElemData(ElementOut,'ElectronDensityCell',RealArray=ElectronDensityCell(1:PP_nElems))
+! Required for the numerical plasma parameter (simulation particles per Debye length)
+ALLOCATE( ElectronSimNumberCell(1:PP_nElems) )
+ElectronSimNumberCell=0
 
 ! ions
 ALLOCATE( IonDensityCell(1:PP_nElems) )
@@ -265,13 +268,14 @@ END SUBROUTINE AllocateCalcElectronEnergy
 
 SUBROUTINE CalculatePartElemData()
 !===================================================================================================================================
-! use the plasma frequency per cell to estimate the pic time step
+!>
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaFrequency,CalcPICTimeStep,CalcElectronIonDensity,CalcPICTimeStepCyclotron
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronTemperature,CalcDebyeLength,CalcIonizationDegree,CalcPointsPerDebyeLength
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPlasmaParameter,CalcPICCFLCondition,CalcMaxPartDisplacement,CalcElectronEnergy
+USE MOD_Particle_Analyze_Vars  ,ONLY: CalcNumPlasmaParameter
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCyclotronFrequency
 #if USE_MPI
 USE MOD_Globals
@@ -317,6 +321,9 @@ IF(CalcDebyeLength) CALL CalculateDebyeLengthCell()
 
 ! Plasma parameter: 4/3 * pi * n_e * lambda_D^3
 IF(CalcPlasmaParameter) CALL CalculatePlasmaParameter()
+
+! Numerical plasma parameter: 4/3 * pi * Nsim_e / V * lambda_D^3
+IF(CalcNumPlasmaParameter) CALL CalculateNumericalPlasmaParameter()
 
 ! PIC time step (plasma frequency)
 IF(CalcPICTimeStep) CALL CalculatePICTimeStepCell()
@@ -376,7 +383,7 @@ SUBROUTINE CalculateElectronIonDensityCell()
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,ElectronSimNumberCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars         ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF
 USE MOD_Preproc
 USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
@@ -404,6 +411,7 @@ INTEGER :: RegionID
 !===================================================================================================================================
 ! nullify
 ElectronDensityCell=0.
+ElectronSimNumberCell=0
      IonDensityCell=0.
  NeutralDensityCell=0.
    ChargeNumberCell=0.
@@ -420,13 +428,15 @@ DO iPart=1,PDM%ParticleVecLength
   ASSOCIATE ( &
     ElemID  => PEM%LocalElemID(iPart)                              )  ! Element ID
     ASSOCIATE ( &
-      n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
-      n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
-      n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
-      Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
+      n_e    => ElectronDensityCell(ElemID),&   ! Electron density (cell average)
+      Nsim_e => ElectronSimNumberCell(ElemID),& ! Electron simulation particle number (cell average)
+      n_i    => IonDensityCell(ElemID)     ,&   ! Ion density (cell average)
+      n_n    => NeutralDensityCell(ElemID) ,&   ! Neutral density (cell average)
+      Z      => ChargeNumberCell(ElemID)   )    ! Charge number (cell average)
       charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
       IF(PARTISELECTRON(iPart))THEN ! electrons
         n_e = n_e + MPF
+        Nsim_e = Nsim_e + 1
       ELSEIF(ABS(charge).GT.0.0)THEN ! ions (positive or negative)
         n_i = n_i + MPF
         Z   = Z   + charge*MPF
@@ -2957,6 +2967,67 @@ DO iElem=1,PP_nElems
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePlasmaParameter
+
+
+SUBROUTINE CalculateNumericalPlasmaParameter()
+!===================================================================================================================================
+! Calculate the numerical plasma parameter for each cell, giving the number of simulation particles (electrons) per Debye length
+! 3D: N_D = 4.0/3.0 * pi * N_e_sim / V * lambda_D**3
+! 2D: N_D = N_e_sim / (dx*dy) * lambda_D**2
+! 1D: N_D = N_e_sim / (dx) * lambda_D
+!===================================================================================================================================
+! MODULES                                                                                                                          !
+!----------------------------------------------------------------------------------------------------------------------------------!
+USE MOD_Globals_Vars          ,ONLY: PI
+USE MOD_Preproc
+USE MOD_Particle_Analyze_Vars ,ONLY: DebyeLengthCell,ElectronSimNumberCell,NumPlasmaParameterCell
+USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared,ElemCharLengthX_Shared,ElemCharLengthY_Shared
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
+!----------------------------------------------------------------------------------------------------------------------------------!
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER              :: iElem
+REAL                 :: PIFac
+!===================================================================================================================================
+SELECT CASE(Symmetry%Order)
+CASE(1)
+  DO iElem=1,PP_nElems
+    IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
+      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / ElemCharLengthX_Shared(GetCNElemID(iElem+offSetElem)) &
+                                      * (DebyeLengthCell(iElem))
+    ELSE
+      NumPlasmaParameterCell(iElem) = 0.0
+    END IF
+  END DO ! iElem=1,PP_nElems
+CASE(2)
+  DO iElem=1,PP_nElems
+    IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
+      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / (ElemCharLengthX_Shared(GetCNElemID(iElem+offSetElem)) &
+                                      * ElemCharLengthY_Shared(GetCNElemID(iElem+offSetElem))) * (DebyeLengthCell(iElem)**2)
+    ELSE
+      NumPlasmaParameterCell(iElem) = 0.0
+    END IF
+  END DO ! iElem=1,PP_nElems
+CASE(3)
+  PIFac = (4.0/3.0) * PI
+  DO iElem=1,PP_nElems
+    IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
+      NumPlasmaParameterCell(iElem) = PIFac * REAL(ElectronSimNumberCell(iElem)) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem)) &
+                                      * (DebyeLengthCell(iElem)**3)
+    ELSE
+      NumPlasmaParameterCell(iElem) = 0.0
+    END IF
+  END DO ! iElem=1,PP_nElems
+END SELECT
+
+END SUBROUTINE CalculateNumericalPlasmaParameter
 
 
 !===================================================================================================================================

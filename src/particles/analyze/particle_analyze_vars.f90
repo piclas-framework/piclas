@@ -77,6 +77,7 @@ LOGICAL                       :: CalcElectronIonDensity              !< Compute 
 LOGICAL                       :: CalcElectronTemperature             !< Compute the electron temperature in each cell
 LOGICAL                       :: CalcElectronEnergy                  !< Compute the electron min/max/average energy in each cell
 LOGICAL                       :: CalcPlasmaParameter                 !< Compute the plasma parameter in each cell
+LOGICAL                       :: CalcNumPlasmaParameter              !< Compute the numerical plasma parameter in each cell (simulation particles per Debye length)
 !LOGICAL                       :: ElectronTemperatureIsMaxwell        ! Assumption of Maxwell-Boltzmann or undistributed electrons
 LOGICAL                       :: CalcPlasmaFrequency                 !< Compute the electron plasma frequency in each cell
 LOGICAL                       :: CalcCyclotronFrequency              !< Compute the electron cyclotron frequency in each cell
@@ -128,7 +129,9 @@ REAL,ALLOCATABLE              :: DebyeLengthCell(:)                  !< Debye le
 REAL,ALLOCATABLE              :: PICTimeStepCell(:)                  !< Approximated PIC Time Step due to plasma frequency (mean cell value)
 REAL,ALLOCATABLE              :: PICTimeStepCyclotronCell(:)         !< Approximated PIC Time Step due to cyclotron frequency (mean cell value)
 REAL,ALLOCATABLE              :: PlasmaParameterCell(:)              !< Plasma parameter (cell mean value)
+REAL,ALLOCATABLE              :: NumPlasmaParameterCell(:)           !< Simulation particles per Debye length (cell mean value)
 REAL,ALLOCATABLE              :: ElectronDensityCell(:)              !< Electron density (cell mean value)
+INTEGER,ALLOCATABLE           :: ElectronSimNumberCell(:)            !< Electron simulation particle number (cell mean value)
 REAL,ALLOCATABLE              :: IonDensityCell(:)                   !< Ion density (cell mean value)
 REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral density (cell mean value)
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
