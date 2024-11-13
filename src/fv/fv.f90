@@ -241,7 +241,7 @@ U_DD(:,:,:,:,:) = 0.
 DO ElemID = 1, PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
     U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID) = U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID) &
-                                                 + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+                                                 + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3) !need jacobi here for noncartesian
   END DO; END DO; END DO
   U_DD(1:PP_nVar_FV,0,0,0,ElemID) = U_FV(1:PP_nVar_FV,0,0,0,ElemID)
 END DO

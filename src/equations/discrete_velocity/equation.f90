@@ -231,6 +231,7 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in 
 ! LOCAL VARIABLES
 REAL                            :: MacroVal(14)
 REAL                            :: WallVelo1, WallTemp1, WallVelo2, WallTemp2
+REAL                            :: SecondDist(PP_nVar_FV)
 !==================================================================================================================================
 
 Resu   =0.
@@ -240,14 +241,13 @@ CASE(0)
   Resu=0.
 
 CASE(1,4) !Grad 13 uniform init (only heat flux for now); 4 = heat flux relaxation test case
-  MacroVal(:) = RefState(:,1)
-  CALL GradDistribution(MacroVal,Resu(:))
+  CALL GradDistribution(RefState(:,1),Resu(:))
 
 CASE(2) ! couette flow, L=1m between walls, RefState: 1 -> initial state, 2 -> y=-0.5 boundary, 3 -> y=0.5 boundary
-  MacroVal(:) = RefState(:,1)
-  CALL GradDistribution(MacroVal,Resu(:))
+  CALL GradDistribution(RefState(:,1),Resu(:))
   ! steady state
   IF (tIn.GT.0.) THEN
+    MacroVal(:) = RefState(:,1)
     WallVelo1 = RefState(2,2)
     WallTemp1 = RefState(5,2)
     WallVelo2 = RefState(2,3)
@@ -288,6 +288,11 @@ CASE(5) !Taylor-Green vortex
   MacroVal(4) = 0.
   MacroVal(5) = MacroVal(5)+(RefState(2,1)**2)/(16.*DVMSpeciesData%R_S)*(COS(2.*x(1))+COS(2.*x(2)))*(COS(2.*x(3))+2.)
   CALL MaxwellDistribution(MacroVal,Resu(:))
+
+CASE(6) !Sum of 2 distributions
+  CALL GradDistribution(RefState(:,1),Resu(:))
+  CALL GradDistribution(RefState(:,2),SecondDist(:))
+  Resu(:) = Resu(:) + SecondDist(:)
 
 CASE DEFAULT
   CALL abort(__STAMP__,&
