@@ -983,7 +983,7 @@ END IF
 
 CALL RANDOM_NUMBER(RandVal)
 PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-  * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal,8)
+  * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal)
 
 IF (Symmetry%Axisymmetric) THEN
   IF(.NOT.VarWeighting%CellLocalWeighting) THEN
@@ -992,7 +992,7 @@ IF (Symmetry%Axisymmetric) THEN
       DO iSub = 1, VarWeighting%nSubSides
         CALL RANDOM_NUMBER(RandVal)
         PartInsSideVarWeight(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
-                * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal,8)
+                * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal)
         PartInsSubSide = PartInsSubSide + PartInsSideVarWeight(iSub)
       END DO
     END IF

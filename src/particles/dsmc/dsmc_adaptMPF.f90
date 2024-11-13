@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+! Copyright (c) 2024 Simone Lauterbach
 !
 ! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -26,7 +26,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-  PUBLIC :: DefineParametersAdaptMPF, DSMC_InitAdaptiveWeights, DSMC_AdaptiveWeights, NodeMappingFilterMPF
+PUBLIC :: DefineParametersAdaptMPF, DSMC_InitAdaptiveWeights, DSMC_AdaptiveWeights, NodeMappingFilterMPF
 !===================================================================================================================================
 
 CONTAINS
@@ -57,6 +57,7 @@ CALL prms%CreateRealOption(   'Part-AdaptMPF-RefineFactorBGK', 'Ratio between th
 CALL prms%CreateRealOption(   'Part-AdaptMPF-RefineFactorFP', 'Ratio between the target FP and DSMC MPF', '1.0')
 
 END SUBROUTINE DefineParametersAdaptMPF
+
 
 SUBROUTINE DSMC_InitAdaptiveWeights()
 !===================================================================================================================================
@@ -103,7 +104,7 @@ nVar_TotalPartNum = 0; nVar_TotalDens = 0; nVar_Ratio_FP = 0; nVar_Ratio_BGK = 0
 
 ! No further adaption of the MPF during the LoadBalance step
 IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
-  CALL InitNodeMapping
+  CALL InitNodeMapping()
 
   ! No further adaption process, use of the MPF distribution from the previous adaption process
   AdaptMPF%SkipAdaption       = GETLOGICAL('Part-AdaptMPF-SkipAdaption')
@@ -250,18 +251,19 @@ IF(AdaptMPF%DoAdaptMPF.AND.(.NOT.PerformLoadBalance)) THEN
     CALL CloseDataFile()
 
   END IF ! SkipAdaption
+
 #if USE_MPI
-    CALL Allocate_Shared((/nComputeNodeElems/),OptimalMPF_Shared_Win,OptimalMPF_Shared)
-    CALL MPI_WIN_LOCK_ALL(0,OptimalMPF_Shared_Win,iError)
+  CALL Allocate_Shared((/nComputeNodeElems/),OptimalMPF_Shared_Win,OptimalMPF_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,OptimalMPF_Shared_Win,iError)
 #else
-    ALLOCATE(OptimalMPF_Shared(nComputeNodeElems))
+  ALLOCATE(OptimalMPF_Shared(nComputeNodeElems))
 #endif
 
   CALL DSMC_AdaptiveWeights()
 
   ! Check if the variable MPF is already initialized, no compatibility between adaptive and radial weighting
   IF (.NOT.VarWeighting%DoVariableWeighting) THEN
-    CALL DSMC_InitVarWeighting
+    CALL DSMC_InitVarWeighting()
   END IF
 END IF ! AdaptMPF
 
@@ -499,7 +501,7 @@ CALL BARRIER_AND_SYNC(OptimalMPF_Shared_Win,MPI_COMM_SHARED)
 #endif
 
 ! Mapping of the particle MPF to the nodes of an element
-CALL NodeMappingAdaptMPF
+CALL NodeMappingAdaptMPF()
 
 ! Average the MPF distribution by the neighbour values
 IF (AdaptMPF%UseMedianFilter) THEN
@@ -507,7 +509,7 @@ IF (AdaptMPF%UseMedianFilter) THEN
     SWRITE(UNIT_stdOut,*) 'ApplyMedianFilter is not possible with SkipAdaption, filtering process is skipped'
   ELSE
     DO iRefine=1, AdaptMPF%nRefine
-      CALL NodeMappingFilterMPF
+      CALL NodeMappingFilterMPF()
     END DO
   END IF
 END IF ! UseMedianFilter
@@ -515,9 +517,10 @@ END IF ! UseMedianFilter
 ! Enable the calculation based on the adaptive MPF for the later steps
 AdaptMPF%UseOptMPF = .TRUE.
 
-CALL FinalizeNodeMapping
+CALL FinalizeNodeMapping()
 
 END SUBROUTINE DSMC_AdaptiveWeights
+
 
 SUBROUTINE InitNodeMapping()
 !===================================================================================================================================
@@ -917,6 +920,7 @@ END DO
 LBWRITE(UNIT_stdOut,'(A)') 'NODE COMMUNICATION DONE'
 END SUBROUTINE NodeMappingAdaptMPF
 
+
 SUBROUTINE NodeMappingFilterMPF()
 !===================================================================================================================================
 ! Filter the adapted MPF by multiple mapping from the element to the node and back (corresponds to averaging over the nodes)
@@ -1031,6 +1035,7 @@ DO iNode = 1, nMapNodesTotal
 END DO
 
 END SUBROUTINE NodeMappingFilterMPF
+
 
 SUBROUTINE FinalizeNodeMapping()
 !----------------------------------------------------------------------------------------------------------------------------------!

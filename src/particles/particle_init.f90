@@ -346,7 +346,6 @@ USE MOD_Particle_Boundary_Init     ,ONLY: InitRotPeriodicMapping, InitAdaptiveWa
 USE MOD_DSMC_BGGas                 ,ONLY: BGGas_InitRegions
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs                                                                                                                      ! USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow

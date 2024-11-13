@@ -661,6 +661,7 @@ RETURN
 
 END FUNCTION CalcRadWeightMPF
 
+
 REAL FUNCTION CalcVarWeightMPF(Pos, iElem, iPart)
 !===================================================================================================================================
 !> Determination of the weighting factor for a 3D test case.
@@ -692,6 +693,9 @@ REAL                 :: alpha1, alpha2, alpha3
 INTEGER              :: NodeID(1:8), iNode, iScale
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 !===================================================================================================================================
+
+CalcVarWeightMPF = 1.
+
 IF (AdaptMPF%UseOptMPF.AND.PRESENT(iElem)) THEN
   ! Determine the adaptive MPF based on the interpolation of the MPF at the node coordinates onto the particle position
   CALL GetPositionInRefElem(Pos(1:3),TempPartPos(1:3),(iElem+offSetElem),ForceMode=.TRUE., isSuccessful = SucRefPos)
@@ -765,6 +769,7 @@ END IF
 RETURN
 
 END FUNCTION CalcVarWeightMPF
+
 
 REAL FUNCTION CalcAverageMPF()
 !===================================================================================================================================

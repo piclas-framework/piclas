@@ -936,7 +936,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 LOGICAL                       :: RelaxToDo
 INTEGER                       :: iPart1, iPart2                         ! Colliding particles 1 and 2
 REAL                          :: Distance
-REAL                          :: weight1, weight2, iRan
+REAL                          :: weight1, weight2
 REAL                          :: MacroParticleFactor, PairWeight
 !===================================================================================================================================
 IF (DSMC%ReservoirSimu) THEN

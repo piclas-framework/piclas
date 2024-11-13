@@ -32,7 +32,15 @@ CONTAINS
 
 SUBROUTINE MacroRestart_InsertParticles()
 !===================================================================================================================================
-!>
+!> Insertion of simulation particles based on the read-in number density, velocity and temperature from the given DSMCState
+!> Different treatment for 3D, 2D and 1D simulations
+!> Loop over all elements
+!>    Loop over all species
+!>    1) Determine volume of bounding box
+!>    2) Determine number of particles to be inserted
+!>      Loop over the number of particles
+!>        2.1) Generate random position within bounding box and accept only if inside element
+!>        2.2) Initialize particle assuming an equilibrium distribution
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -62,9 +70,10 @@ INTEGER                             :: iElem,iSpec,iPart,nPart,locnPart,iHeight,
 REAL                                :: iRan, RandomPos(3), PartDens, MaxPosTemp, MinPosTemp
 REAL                                :: TempVol, Volume, PosVar(3)
 LOGICAL                             :: InsideFlag
+REAL                                :: StartT,EndT ! Timer
 !===================================================================================================================================
-
-SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC RESTART...'
+GETTIME(StartT)
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') 'PERFORMING MACROSCOPIC RESTART...'
 
 locnPart = 1
 
@@ -241,7 +250,8 @@ DO iPart=PDM%ParticleVecLength+1,PDM%maxParticleNumber
 END DO
 #endif
 
-SWRITE(UNIT_stdOut,*) 'PERFORMING MACROSCOPIC FINISHED...'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE MacroRestart_InsertParticles
 
