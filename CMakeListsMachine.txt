@@ -33,6 +33,11 @@ IF (CMAKE_FQDN_HOST MATCHES "hawk\.hww\.hlrs\.de$")
   SET(CMAKE_C_COMPILER       mpicc)
   SET(CMAKE_CXX_COMPILER     mpicxx)
   SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issue
+# HLRS Vulcan
+ELSEIF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
+  SET(CMAKE_C_COMPILER       mpicc)
+  SET(CMAKE_CXX_COMPILER     mpicxx)
+  SET(CMAKE_Fortran_COMPILER mpif90)
 # SuperMUC
 # ELSEIF(CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$"
 # LUMI
@@ -104,7 +109,17 @@ IF (CMAKE_FQDN_HOST MATCHES "hawk\.hww\.hlrs\.de$")
   # SET(BLA_VENDOR "FLAME")
   # Set LUSTRE definition to account for filesystem and MPI implementation
   ADD_DEFINITIONS(-DLUSTRE)
-
+# HLRS Vulcan
+ELSEIF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
+  MESSAGE(STATUS "Compiling on Vulcan for AMD EPYC Genoa")
+  # Overwrite compiler target architecture
+  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+    SET(PICLAS_INSTRUCTION "-march=znver4 -mtune=znver4")
+  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
+  ENDIF()
+  # Set LUSTRE definition to account for filesystem and MPI implementation
+  ADD_DEFINITIONS(-DLUSTRE)
 # SuperMUC
 ELSEIF (CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$")
   MESSAGE(STATUS "Compiling on SuperMUC")
