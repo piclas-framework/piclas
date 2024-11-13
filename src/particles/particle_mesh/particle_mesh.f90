@@ -373,7 +373,7 @@ IF (Symmetry%Order.LE.2) THEN
 END IF
 
 ! Set logical for building node neighbourhood
-FindNeighbourElems = .TRUE. !.FALSE.
+FindNeighbourElems = .FALSE.
 
 IF (AdaptMPF%UseMedianFilter) THEN
   FindNeighbourElems = .TRUE.
