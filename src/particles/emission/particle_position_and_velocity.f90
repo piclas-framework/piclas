@@ -253,7 +253,7 @@ USE MOD_Particle_Localization  ,ONLY: SinglePointToElement
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
-USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticlePositionCosDistribution
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEERectangle, SetParticlePositionPhotonRectangle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
@@ -303,6 +303,7 @@ IF(PartMPIInitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
 END IF
 IF ( (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle_equidistant'                 ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'sin_deviation'                      ) .OR.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cos_distribution'                   ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle'                             ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'line_with_equidistant_distribution' )) THEN
   nChunks = 1
@@ -359,6 +360,8 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
+  CASE('cos_distribution')
+    CALL SetParticlePositionCosDistribution(FractNbr,iInit,particle_positions)
   CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_SEE_rectangle') ! rectangle case for surface distribution
@@ -473,7 +476,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition, BuildTransGaussNums2
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -564,6 +567,16 @@ CASE('maxwell')
     PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
        PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,iPart)*maxwellfac
+    END IF
+  END DO
+CASE('maxwell_distribution_1D')
+  CALL BuildTransGaussNums2(NbrOfParticle, iRanPart(1,:))
+  maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+       PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3)
+       PartState(4,PositionNbr) = PartState(4,PositionNbr) + iRanPart(1,iPart)*maxwellfac
     END IF
   END DO
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done

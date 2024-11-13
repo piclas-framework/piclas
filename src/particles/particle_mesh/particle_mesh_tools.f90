@@ -32,8 +32,8 @@ END INTERFACE
 
 ! Define an interface for the function pointer
 ABSTRACT INTERFACE
-  SUBROUTINE ParticleInsideQuadInterface(PartStateLoc,ElemID,InElementCheck,Det_Out)
-    INTEGER,INTENT(IN)            :: ElemID
+  SUBROUTINE ParticleInsideQuadInterface(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
+    INTEGER,INTENT(IN)            :: GlobalElemID
     REAL   ,INTENT(IN)            :: PartStateLoc(3)
     LOGICAL,INTENT(OUT)           :: InElementCheck
     REAL   ,INTENT(OUT),OPTIONAL  :: Det_Out(6,2)
@@ -74,8 +74,8 @@ END IF
 
 END SUBROUTINE InitParticleInsideQuad
 
-!PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det)
-SUBROUTINE ParticleInsideQuad3D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+!PPURE SUBROUTINE ParticleInsideQuad3D(PartStateLoc,GlobalElemID,InElementCheck,Det)
+SUBROUTINE ParticleInsideQuad3D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear element with triangulated faces, compatible with mortars
 !> Regular element: The determinant of a 3x3 matrix, where the three vectors point from the particle to the nodes of a triangle, is
@@ -94,7 +94,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -110,10 +110,10 @@ REAL                          :: A(1:3,1:4), crossP(3), Det(6,2)
 InElementCheck = .TRUE.
 InElementCheckMortar = .TRUE.
 !--- Loop over the 6 sides of the element
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
-CNElemID = GetCNElemID(ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 DO iLocSide = 1,nlocSides
-  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
   IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
@@ -164,11 +164,11 @@ DO iLocSide = 1,nlocSides
         nNbMortars = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.-1)
         DO ind = 1, nNbMortars
           InElementCheckMortarNb = .TRUE.
-          SideIDMortar = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide + ind
+          SideIDMortar = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide + ind
           NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideIDMortar)
           ! If small mortar element not defined, abort. Every available information on the compute-node is kept in shared memory, so
           ! no way to recover it during runtime
-          IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',ElemID)
+          IF (NbElemID.LT.1) CALL ABORT(__STAMP__,'Small mortar element not defined!',GlobalElemID)
 
           CALL ParticleInsideNbMortar(PartStateLoc,NbElemID,InElementCheckMortarNb)
           IF (InElementCheckMortarNb) THEN
@@ -221,7 +221,8 @@ RETURN
 
 END SUBROUTINE ParticleInsideQuad3D
 
-SUBROUTINE ParticleInsideQuad2D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+
+SUBROUTINE ParticleInsideQuad2D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a linear 2D element with 4  faces, compatible with mortars. The "Ray Casting Algorithm" is used.
 !===================================================================================================================================
@@ -235,7 +236,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -247,12 +248,12 @@ INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID
 INTEGER                       :: CNElemID
 REAL                          :: x_int, xNode1, xNode2, yNode1, yNode2
 !===================================================================================================================================
-CNElemID = GetCNElemID(ElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 InElementCheck = .FALSE.
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
 
 DO iLocSide=1,nlocSides
-  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
   ! Side is not one of the 6 local sides
   IF (localSideID.LE.0) CYCLE
@@ -273,7 +274,7 @@ DO iLocSide=1,nlocSides
 END DO
 END SUBROUTINE ParticleInsideQuad2D
 
-SUBROUTINE ParticleInsideQuad1D(PartStateLoc,ElemID,InElementCheck,Det_Out)
+SUBROUTINE ParticleInsideQuad1D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
 !===================================================================================================================================
 !> Checks if particle is inside of a 1D element.
 !===================================================================================================================================
@@ -287,7 +288,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -299,12 +300,12 @@ INTEGER                       :: ilocSide, TempSideID, nlocSides, localSideID, D
 INTEGER                       :: CNElemID
 REAL                          :: xNode
 !===================================================================================================================================
-CNElemID = GetCNElemID(ElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 InElementCheck = .FALSE.
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
 iSide = 0
 DO iLocSide=1,nlocSides
-  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
   ! Side is not one of the 6 local sides
   IF (localSideID.LE.0) CYCLE
@@ -317,7 +318,8 @@ END DO
 IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
 END SUBROUTINE ParticleInsideQuad1D
 
-PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,ElemID,InElementCheck)
+
+PPURE SUBROUTINE ParticleInsideNbMortar(PartStateLoc,GlobalElemID,InElementCheck)
 !===================================================================================================================================
 !> Routines checks if the particle is inside the neighbouring mortar element. Used for the regular ParticleInsideQuad3D routine
 !> after it was determined that the particle is not in the concave part but in the convex part of the element.
@@ -331,7 +333,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER,INTENT(IN)            :: ElemID
+INTEGER,INTENT(IN)            :: GlobalElemID
 REAL   ,INTENT(IN)            :: PartStateLoc(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -344,10 +346,10 @@ REAL                          :: A(1:3,1:4), cross(3)
 REAL                          :: Det(2)
 !===================================================================================================================================
 InElementCheck = .TRUE.
-nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
-CNElemID = GetCNElemID(ElemID)
+nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,GlobalElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID)
+CNElemID = GetCNElemID(GlobalElemID)
 DO iLocSide = 1,nlocSides
-  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
+  SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + iLocSide
   localSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
   IF (localSideID.LE.0) CYCLE
   DO NodeNum = 1,4
@@ -613,9 +615,9 @@ END FUNCTION GetGlobalElem2CNTotalElem_iPart
 #endif /*USE_MPI*/
 
 
-FUNCTION GetGlobalNonUniqueSideID(ElemID,localSideID)
+FUNCTION GetGlobalNonUniqueSideID(GlobalElemID,localSideID)
 !===================================================================================================================================
-!> Determines the non-unique global side ID of the local side in global element ElemID
+!> Determines the non-unique global side ID of the local side in global element ID
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -625,7 +627,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared, SideInfo_Shared
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN) :: ElemID                              !< global element ID
+INTEGER,INTENT(IN) :: GlobalElemID                        !< global element ID
 INTEGER,INTENT(IN) :: localSideID                         !< local side id of an element (1:6)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
@@ -634,8 +636,8 @@ INTEGER :: iSide,firstSide,lastSide
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 !===================================================================================================================================
-firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + 1
-lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND, ElemID)
+firstSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalElemID) + 1
+lastSide  = ElemInfo_Shared(ELEM_LASTSIDEIND, GlobalElemID)
 
 ! Small mortar sides are added after
 DO iSide = firstSide,lastSide
@@ -647,7 +649,7 @@ END DO
 
 ! We should never arrive here
 GetGlobalNonUniqueSideID=-1
-CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',ElemID)
+CALL ABORT(__STAMP__,'GlobalSideID not found for Elem',GlobalElemID)
 END FUNCTION GetGlobalNonUniqueSideID
 
 !==================================================================================================================================!
@@ -880,7 +882,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                                  :: ilocSide,SideID,CNSideID,flip
-INTEGER                                  :: iElem,firstElem,lastElem,ElemID
+INTEGER                                  :: iCNElem,CNElemID,firstElem,lastElem,iGlobalElem,GlobalElemID
 REAL,DIMENSION(1:3)                      :: v1,v2,v3
 LOGICAL,ALLOCATABLE                      :: SideIsDone(:)
 REAL                                     :: XCL_NGeo1(1:3,0:1,0:1,0:1)
@@ -963,10 +965,10 @@ firstElem = 1
 lastElem  = nElems
 #endif
 
-DO iElem=firstElem,lastElem
-  ElemID = GetGlobalElemID(iElem)
+DO iCNElem=firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iCNElem)
 
-  XCL_NGeoLoc = XCL_NGeo_Shared(1:3,0:NGeo,0:NGeo,0:NGeo,ElemID)
+  XCL_NGeoLoc = XCL_NGeo_Shared(1:3,0:NGeo,0:NGeo,0:NGeo,GlobalElemID)
   ! 1) check if elem is curved
   !   a) get the coordinates of the eight nodes of the hexahedral
   XCL_NGeo1(1:3,0,0,0) = XCL_NGeoLoc(1:3, 0  , 0  , 0  )
@@ -983,18 +985,18 @@ DO iElem=firstElem,lastElem
   !     For NGeo=1, this should always be true, because the mappings are identical
   CALL ChangeBasis3D(3,1,NGeo,Vdm_CLNGeo1_CLNGeo,XCL_NGeo1,XCL_NGeoNew)
   ! check the coordinates of all Chebychev-Lobatto geometry points between the bi-linear and used mapping
-  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,0:NGeo),ElemCurved(iElem))
+  CALL PointsEqual(NGeo3,XCL_NGeoNew,XCL_NGeoLoc(1:3,0:NGeo,0:NGeo,0:NGeo),ElemCurved(iCNElem))
 
   ! 2) check sides
   ! loop over all 6 sides of element
   ! a) check if the sides are straight
   ! b) use curved information to decide side type
   DO ilocSide=1,6
-    SideID   = GetGlobalNonUniqueSideID(ElemID,iLocSide)
+    SideID   = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
     CNSideID = GetCNSideID(SideID)
     flip = MERGE(0, MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
 
-    IF(.NOT.ElemCurved(iElem))THEN
+    IF(.NOT.ElemCurved(iCNElem))THEN
       BezierControlPoints_loc(1:3,0:NGeo,0:NGeo) = BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)
       ! linear element
       IF(BoundingBoxIsEmpty(CNSideID))THEN
@@ -1009,7 +1011,7 @@ DO iElem=firstElem,lastElem
                 +BezierControlPoints_loc(:,0,NGeo   )  &
                 +BezierControlPoints_loc(:,NGeo,NGeo))
         ! check if normal vector points outwards
-        v2=v1-ElemBaryNGeo(:,iElem)
+        v2=v1-ElemBaryNGeo(:,iCNElem)
         IF(flip.EQ.0)THEN
           IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
         ELSE
@@ -1079,7 +1081,7 @@ DO iElem=firstElem,lastElem
                   +BezierControlPoints_loc(:,0,NGeo)  &
                   +BezierControlPoints_loc(:,NGeo,NGeo))
           ! check if normal vector points outwards
-          v2=v1-ElemBaryNGeo(:,iElem)
+          v2=v1-ElemBaryNGeo(:,iCNElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
@@ -1102,7 +1104,7 @@ DO iElem=firstElem,lastElem
                   +BezierControlPoints_loc(:,0,NGeo)  &
                   +BezierControlPoints_loc(:,NGeo,NGeo))
           ! check if normal vector points outwards
-          v2=v1-ElemBaryNGeo(:,iElem)
+          v2=v1-ElemBaryNGeo(:,iCNElem)
           IF(flip.EQ.0)THEN
             IF(DOT_PRODUCT(v2,SideNormVec(:,CNSideID)).LT.0) SideNormVec(:,CNSideID)=-SideNormVec(:,CNSideID)
           ELSE
@@ -1142,7 +1144,7 @@ DO iElem=firstElem,lastElem
     END IF
     SideIsDone(SideID)=.TRUE.
   END DO ! ilocSide=1,6
-END DO ! iElem=1,nTotalElems
+END DO ! iCNElem = firstElem, lastElem (nComputeNodeTotalElems)
 
 DEALLOCATE(SideIsDone)
 
@@ -1169,9 +1171,9 @@ lastElem  = nElems
 #endif
 
 
-DO iElem = firstElem,lastElem
-  ElemID = GetCNElemID(iElem)
-  IF (ElemCurved(ElemID)) THEN
+DO iGlobalElem = firstElem,lastElem
+  CNElemID = GetCNElemID(iGlobalElem)
+  IF (ElemCurved(CNElemID)) THEN
     nCurvedElems = nCurvedElems+1
   ELSE
     nLinearElems = nLinearElems+1
@@ -1179,7 +1181,7 @@ DO iElem = firstElem,lastElem
 
   DO ilocSide = 1,6
     ! ignore small mortar sides attached to big mortar sides
-    SideID   = GetGlobalNonUniqueSideID(iElem,ilocSide)
+    SideID   = GetGlobalNonUniqueSideID(iGlobalElem,ilocSide)
     CNSideID = GetCNSideID(SideID)
     SELECT CASE(SideType(CNSideID))
       CASE (PLANAR_RECT)
@@ -1928,7 +1930,7 @@ IMPLICIT NONE
 INTEGER,PARAMETER              :: iNode=1
 INTEGER                        :: iVec,iBC,iPartBC
 INTEGER                        :: firstElem,lastElem,NbSideID,BCALPHA,flip
-INTEGER                        :: SideID,ElemID,NbElemID,localSideID,localSideNbID,nStart,NodeMap(4,6)
+INTEGER                        :: SideID,iGlobalElem,NbElemID,localSideID,localSideNbID,nStart,NodeMap(4,6)
 REAL,DIMENSION(3)              :: MasterCoords,SlaveCoords,Vec
 LOGICAL,ALLOCATABLE            :: PeriodicFound(:)
 #if USE_MPI
@@ -1959,11 +1961,11 @@ GEO%PeriodicVectors = 0.
 
 CALL GetCornerNodeMapCGNS(NGeo,NodeMapCGNS=NodeMap)
 
-DO ElemID = firstElem,lastElem
+DO iGlobalElem = firstElem,lastElem
   ! Every periodic vector already found
   IF (ALL(PeriodicFound(:))) EXIT
 
-SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID)
+SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElem)
     ! Get BC
     iBC = SideInfo_Shared(SIDE_BCID,SideID)
     IF(iBC.EQ.0) CYCLE
@@ -1991,7 +1993,7 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)+1,ElemInfo_Share
       nStart        = MAX(0,MOD(SideInfo_Shared(SIDE_FLIP,NbSideID),10)-1)
 
       ! Only take the first node into account, no benefit in accuracy if running over others as well
-      MasterCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)  +NodeMap(iNode                  ,localSideID))
+      MasterCoords  = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,iGlobalElem)+NodeMap(iNode                  ,localSideID))
       SlaveCoords   = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,NbElemID)+NodeMap(MOD(nStart+5-iNode,4)+1,localSideNbID))
       Vec           = SlaveCoords-MasterCoords
 
