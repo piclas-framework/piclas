@@ -103,7 +103,6 @@ PetscReal            :: petscnorm
 INTEGER              :: ElemID,iBCSide,PETScLocalID
 INTEGER              :: DOF_start, DOF_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
-REAL                 :: RHS_conductor(nGP_face(NMax))
 INTEGER              :: jLocSide
 REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 #endif
@@ -400,8 +399,14 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
 ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
 IF(reason.LT.0)THEN
-  SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
+  CALL WarningMemusage(Mode=1,Threshold=5.0)
+  !  View solver converged reason
+  PetscCallA(KSPConvergedReasonView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
+  !  View solver info
+  PetscCallA(KSPView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
+  CALL abort(__STAMP__,'ERROR: PETSc not converged!')
 END IF
+
 IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
 
 ! Fill element local lambda for post processing
