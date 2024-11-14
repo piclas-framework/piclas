@@ -27,24 +27,11 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 #if USE_HDG
-INTERFACE Elem_Mat
-  MODULE PROCEDURE Elem_Mat
-END INTERFACE
-
-!INTERFACE BuildPrecond
-!  MODULE PROCEDURE BuildPrecond
-!END INTERFACE
-
-!INTERFACE PostProcessGradient
-!  MODULE PROCEDURE PostProcessGradient
-!END INTERFACE
-
 PUBLIC :: Elem_Mat
 PUBLIC :: BuildPrecond
 PUBLIC :: PostProcessGradientHDG
 #if USE_PETSC
 PUBLIC :: PETScFillSystemMatrix
-PUBLIC :: PETScSetPrecond
 #endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -688,81 +675,6 @@ CASE(2)
   END DO !1,nSides-nMPIsides_YOUR
 END SELECT
 END SUBROUTINE BuildPrecond
-
-#if USE_PETSC
-SUBROUTINE PETScSetPrecond()
-!===================================================================================================================================
-! Set the Preconditioner in PETSc
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_HDG_Vars
-USE PETSc
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-PetscErrorCode      :: ierr
-PC                  :: pc
-Mat                 :: F
-CHARACTER(LEN=100)  :: ksp_type, pc_type, mat_type
-!===================================================================================================================================
-PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
-SELECT CASE(PrecondType)
-CASE(0)
-  PetscCallA(PCSetType(pc,PCNONE,ierr))
-CASE(1)
-  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
-#ifdef PETSC_HAVE_HYPRE
-CASE(2)
-  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
-CASE(3)
-  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
-#endif
-CASE(10)
-  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
-#ifdef PETSC_HAVE_MUMPS
-  ! PETSc will most likely use MUMPS anyway
-  PetscCallA(PCFactorSetMatSolverType(pc,MATSOLVERMUMPS,ierr))
-  PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
-  ! We need to get the internal matrix to set its options
-  PetscCallA(PCFactorGetMatrix(pc,F,ierr))
-  ! Tell MUMPS matrix is SPD
-  PetscCallA(MatMumpsSetIcntl(F,7,2,ierr))
-  ! Memory handling
-  PetscCallA(MatMumpsSetIcntl(F,14,200,ierr))    ! Allow 3x estimated memory
-  PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
-#endif
-CASE(11)
-  PetscCallA(PCSetType(pc,PCLU,ierr))
-CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in PETScSetPrecond: Unknown option!')
-END SELECT
-
-! Get solver and preconditioner types
-PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
-PetscCallA(PCGetType(pc, pc_type, ierr))
-
-! If using direct solver, print factorization type
-IF (TRIM(ksp_type) .EQ. 'preonly') THEN
-  ! Print factorization details when using Cholesky/LU
-  IF ((TRIM(pc_type) .EQ. 'cholesky') .OR. (TRIM(pc_type) .EQ. 'lu')) then
-    PetscCallA(PCFactorGetMatrix(pc, F, ierr))
-    PetscCallA(MatGetType(F, mat_type, ierr))
-    LBWRITE(UNIT_stdOut,'(A)') ' | Direct solver: '//TRIM(pc_type)//', using factorization type: '//TRIM(mat_type)
-  END IF
-ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' | Iterative solver: '//TRIM(ksp_type)
-END IF
-
-END SUBROUTINE PETScSetPrecond
-#endif /*USE_PETSC*/
 
 
 SUBROUTINE PostProcessGradientHDG()

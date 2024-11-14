@@ -55,7 +55,7 @@ CONTAINS
 
 #if USE_HDG
 !===================================================================================================================================
-!> Define parameters for HDG (Hubridized Discontinous Galerkin)
+!> Define parameters for HDG (Hybridized Discontinuous Galerkin)
 !===================================================================================================================================
 SUBROUTINE DefineParametersHDG()
 ! MODULES
@@ -140,7 +140,7 @@ USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 #endif /*USE_MPI*/
-USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
+USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix
 #endif /*USE_PETSC*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
@@ -682,18 +682,7 @@ PetscCallA(MatSetOption(PETScSystemMatrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)) ! 
 CALL PETScFillSystemMatrix()
 
 ! 3.2.2) Set up Solver
-PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
-PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
-IF(PrecondType.GE.10) THEN ! Exact Solver
-  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr)) ! Exact solver
-ELSE ! Iterative Conjugate Gradient solver
-  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
-  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
-  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-END IF
-
-CALL PETScSetPrecond()
+CALL PETScSetSolver()
 
 ! 3.2.3) Set up RHS and solution vectors
 PetscCallA(VecCreate(PETSC_COMM_WORLD,PETScSolution,ierr))
@@ -724,6 +713,94 @@ LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' INIT HDG'
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
+
+
+#if USE_PETSC
+SUBROUTINE PETScSetSolver()
+!===================================================================================================================================
+! Set the solver and/or preconditioner in PETSc
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_HDG_Vars
+USE PETSc
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode      :: ierr
+PC                  :: pc
+Mat                 :: F
+CHARACTER(LEN=100)  :: ksp_type, pc_type, mat_type
+!===================================================================================================================================
+PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
+PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
+
+IF(PrecondType.GE.10) THEN ! Exact Solver
+  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr)) ! Exact solver
+ELSE ! Iterative Conjugate Gradient solver
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+END IF
+
+PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+SELECT CASE(PrecondType)
+CASE(0)
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
+CASE(1)
+  PetscCallA(PCSetType(pc,PCJACOBI,ierr))
+#ifdef PETSC_HAVE_HYPRE
+CASE(2)
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+CASE(3)
+  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
+#endif
+CASE(10)
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
+#ifdef PETSC_HAVE_MUMPS
+  ! PETSc will most likely use MUMPS anyway
+  PetscCallA(PCFactorSetMatSolverType(pc,MATSOLVERMUMPS,ierr))
+  PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
+  ! We need to get the internal matrix to set its options
+  PetscCallA(PCFactorGetMatrix(pc,F,ierr))
+  ! Tell MUMPS matrix is SPD
+  PetscCallA(MatMumpsSetIcntl(F,7,2,ierr))
+  ! Memory handling
+  PetscCallA(MatMumpsSetIcntl(F,14,200,ierr))    ! Allow 3x estimated memory
+  PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
+#endif
+CASE(11)
+  PetscCallA(PCSetType(pc,PCLU,ierr))
+CASE DEFAULT
+  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option!')
+END SELECT
+
+! Get solver and preconditioner types
+PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
+PetscCallA(PCGetType(pc, pc_type, ierr))
+
+! If using direct solver, print factorization type
+IF (TRIM(ksp_type) .EQ. 'preonly') THEN
+  ! Print factorization details when using Cholesky/LU
+  IF ((TRIM(pc_type) .EQ. 'cholesky') .OR. (TRIM(pc_type) .EQ. 'lu')) then
+    PetscCallA(PCFactorGetMatrix(pc, F, ierr))
+    PetscCallA(MatGetType(F, mat_type, ierr))
+    LBWRITE(UNIT_stdOut,'(A)') ' | Direct solver: '//TRIM(pc_type)//', using factorization type: '//TRIM(mat_type)
+  END IF
+ELSE
+  LBWRITE(UNIT_stdOut,'(A)') ' | Iterative solver: '//TRIM(ksp_type)
+END IF
+
+END SUBROUTINE PETScSetSolver
+#endif /*USE_PETSC*/
 
 
 !===================================================================================================================================

@@ -93,7 +93,6 @@ PetscCallA(KSPSetType(ksp,KSPCG,ierr))
 tol = 1.e-7
 PetscCallA(KSPSetTolerances(ksp,tol,PETSC_DEFAULT_REAL,PETSC_DEFAULT_REAL,PETSC_DEFAULT_INTEGER,ierr))
 
-PetscCallA(KSPSetFromOptions(ksp, ierr))
 PetscCallA(KSPSetUp(ksp,ierr))
 
 ! Solve the linear system
@@ -126,7 +125,6 @@ PetscCallA(KSPCreate(PETSC_COMM_WORLD, ksp, ierr))
 ! Select the direct solve by setting KSPPREONLY
 PetscCallA(KSPSetOperators(ksp, A, A, ierr))
 PetscCallA(KSPSetType(ksp,KSPPREONLY,ierr))
-PetscCallA(KSPSetFromOptions(ksp, ierr))
 PetscCallA(KSPSetUp(ksp,ierr))
 
 ! Solve the linear system
