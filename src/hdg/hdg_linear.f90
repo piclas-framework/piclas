@@ -105,8 +105,6 @@ INTEGER              :: DOF_start, DOF_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 INTEGER              :: jLocSide
 REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
-#endif
-#if USE_PETSC
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
 !===================================================================================================================================
@@ -344,9 +342,9 @@ CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
 ! SOLVE
 
 #if USE_PETSC
+TimeStartPiclas=PICLASTIME()
 ! Fill right hand side
 PetscCallA(VecZeroEntries(PETScRHS,ierr))
-TimeStartPiclas=PICLASTIME()
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
 
@@ -407,7 +405,10 @@ IF(reason.LT.0)THEN
   CALL abort(__STAMP__,'ERROR: PETSc not converged!')
 END IF
 
-IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
+IF(MPIroot) THEN
+  PETScFieldTime = TimeEndPiclas-TimeStartPiclas
+  CALL DisplayConvergence(PETScFieldTime, iterations, petscnorm)
+END IF
 
 ! Fill element local lambda for post processing
 ! Get the local DOF subarray
