@@ -96,6 +96,9 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
+                                CALL prms%CreateRealOption(     'Part-Boundary[$]-DeformEnergyLoss '  &
+                                , 'Energy dissipation through deformation with a wall collision (only granular species) [$].' &
+                                , '0.', numberedmulti=.TRUE.)                               
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-PhotonSpecularReflection'  &
                                 , 'Enables a perfect specular reflection for photons (FALSE: diffuse with PhotonEnACC) [$].' &
                                 , '.FALSE.', numberedmulti=.TRUE.)
@@ -271,6 +274,8 @@ ALLOCATE(PartBound%RotACC(           1:nPartBound))
 PartBound%RotACC = -1.
 ALLOCATE(PartBound%ElecACC(          1:nPartBound))
 PartBound%ElecACC = -1.
+ALLOCATE(PartBound%DeformEnergyLoss( 1:nPartBound))
+PartBound%DeformEnergyLoss = -1.
 ! Photon reflection
 ALLOCATE(PartBound%PhotonSpecularReflection(1:nPartBound))
 PartBound%PhotonSpecularReflection = .FALSE.
@@ -391,20 +396,21 @@ DO iPartBound=1,nPartBound
     ELSE IF(PartBound%MomentumACC(iPartBound).EQ.1.0) THEN
       PartBound%OnlyDiffuse(iPartBound)  = .TRUE.
     END IF
-    PartBound%WallTemp(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
-    PartBound%TransACC(iPartBound)        = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
-    PartBound%VibACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
-    PartBound%RotACC(iPartBound)          = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
-    PartBound%ElecACC(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
-    PartBound%Resample(iPartBound)        = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
-    PartBound%WallVelo(1:3,iPartBound)    = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
-    PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
+    PartBound%WallTemp(iPartBound)                     = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp')
+    PartBound%TransACC(iPartBound)                     = GETREAL('Part-Boundary'//TRIM(hilf)//'-TransACC')
+    PartBound%VibACC(iPartBound)                       = GETREAL('Part-Boundary'//TRIM(hilf)//'-VibACC')
+    PartBound%RotACC(iPartBound)                       = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotACC')
+    PartBound%ElecACC(iPartBound)                      = GETREAL('Part-Boundary'//TRIM(hilf)//'-ElecACC')
+    PartBound%DeformEnergyLoss(iPartBound)             = GETREAL('Part-Boundary'//TRIM(hilf)//'-DeformEnergyLoss')
+    PartBound%Resample(iPartBound)                     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
+    PartBound%WallVelo(1:3,iPartBound)                 = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
+    PartBound%RotVelo(iPartBound)                      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
     PartBound%PhotonSpecularReflection(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-PhotonSpecularReflection')
-    PartBound%PhotonEnACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
-    PartBound%PhotonSEEYield(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-Yield')
+    PartBound%PhotonEnACC(iPartBound)                  = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
+    PartBound%PhotonSEEYield(iPartBound)               = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-Yield')
     IF(PartBound%PhotonSEEYield(iPartBound).GT.0.) THEN
-      PartBound%PhotonSEEWorkFunction(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-WorkFunction')
-      PartBound%PhotonSEEElectronSpecies(iPartBound)  = GETINT('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-ElectronSpecies')
+      PartBound%PhotonSEEWorkFunction(iPartBound)      = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-WorkFunction')
+      PartBound%PhotonSEEElectronSpecies(iPartBound)   = GETINT('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-ElectronSpecies')
       IF(usevMPF) THEN
         WRITE(UNIT=hilf2,FMT='(G0)') Species(PartBound%PhotonSEEElectronSpecies(iPartBound))%MacroParticleFactor
         PartBound%PhotonSEEMacroParticleFactor(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-MacroParticleFactor',&
@@ -2189,6 +2195,7 @@ SDEALLOCATE(PartBound%TransACC)
 SDEALLOCATE(PartBound%VibACC)
 SDEALLOCATE(PartBound%RotACC)
 SDEALLOCATE(PartBound%ElecACC)
+SDEALLOCATE(PartBound%DeformEnergyLoss)
 SDEALLOCATE(PartBound%Resample)
 SDEALLOCATE(PartBound%WallVelo)
 SDEALLOCATE(PartBound%RotVelo)

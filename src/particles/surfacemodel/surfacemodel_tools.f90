@@ -187,6 +187,9 @@ ELSE
   END IF
 END IF
 
+! Considering energy loss due to deformation in granular particles
+IF(Species(PartSpecies(PartID))%InterID.EQ.100) PartState(4:6,PartID) = PartState(4:6,PartID) * (1.0 - PartBound%DeformEnergyLoss(locBCID))
+
 ! Set particle position on face
 LastPartPos(1:3,PartID) = POI_vec(1:3)
 TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loc)*n_loc

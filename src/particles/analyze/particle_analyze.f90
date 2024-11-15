@@ -72,6 +72,7 @@ CALL prms%CreateLogicalOption(  'CalcVelos'               , 'Calculate the globa
                                                             '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcLaserInteraction'    , 'Compute laser-plasma interaction properties such as maximum particle energy per species.','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcRelaxProb'           , 'Calculate variable rotational and vibrational relaxation probability for PartAnalyse.csv\nParticles-DSMC-CalcQualityFactors has to be true.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcGranularDragHeat'    , 'Calculate of mean drag force and mean heatflux on all granular particles within the simulation','.FALSE.')
 CALL prms%CreateRealOption(     'LaserInteractionEkinMaxRadius','maximum radius (x- and y-dir) of particle to be considered for '//&
                                                                 'Ekin maximum calculation (default is HUGE) '//&
                                                                 'OR if LaserInteractionEkinMaxZPosMin condition is true')
@@ -708,6 +709,10 @@ CALL PrintOption('CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef','INFO',&
 !-- check if magnetic field on each DG DOF of every element is to be written to .h5
 CalcEMFieldOutput = GETLOGICAL('CalcEMFieldOutput')
 
+!-- check if drag force and mean heatflux on all granular particles should be computed
+CalcGranularDragHeat = GETLOGICAL('CalcGranularDragHeat')
+IF(CalcGranularDragHeat) DoPartAnalyze = .TRUE.
+
 ParticleAnalyzeInitIsDone=.TRUE.
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTCILE ANALYZE DONE!'
@@ -869,7 +874,7 @@ USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPoten
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
-USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,ForceAverage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1318,6 +1323,16 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPICTimeStep'
           OutputCounter = OutputCounter + 1
         END IF ! CalcPICTimeStep
+        IF(CalcGranularDragHeat)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceX'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceY'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceZ'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecHeat'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcGranularDragHeat
         ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1815,6 +1830,19 @@ IF (MPIRoot) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
     END IF ! PICValidPlasmaCellSum.GT.0
   END IF ! CalcPICTimeStep
+  IF(CalcGranularDragHeat) THEN
+    IF(ForceAverage(1).GT.0.0) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(2)/ForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(3)/ForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(4)/ForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(5)/ForceAverage(1)
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF
+  END IF ! CalcGranularDragHeat
   ! Finish the line with new line character
   WRITE(unit_index,'(A)') ''
 #if USE_MPI

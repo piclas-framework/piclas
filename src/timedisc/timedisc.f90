@@ -127,11 +127,6 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
 USE MOD_Part_Tools             ,ONLY: ReduceMaxParticleNumber
 #endif
 
-
-USE MOD_Particle_Vars          ,ONLY: ForceAverage, SkipGranularUpdate
-
-
-
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -514,13 +509,6 @@ DO !iter_t=0,MaxIter
   GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/
 END DO ! iter_t
-
-IF(SkipGranularUpdate) THEN
-  IPWRITE(UNIT_stdOut,*) 'MeanForce (x):',ForceAverage(2)/ForceAverage(1)
-  IPWRITE(UNIT_stdOut,*) 'MeanForce (y):',ForceAverage(3)/ForceAverage(1)
-  IPWRITE(UNIT_stdOut,*) 'MeanForce (z):',ForceAverage(4)/ForceAverage(1)
-  IPWRITE(UNIT_stdOut,*) 'MeanEnergy:',ForceAverage(5)/ForceAverage(1)
-END IF
 
 END SUBROUTINE TimeDisc
 

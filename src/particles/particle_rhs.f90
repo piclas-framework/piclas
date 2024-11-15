@@ -837,133 +837,129 @@ END SUBROUTINE CalcPartPosInRotRef
 
 
 SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
-  !===================================================================================================================================
-  ! Routine for the calculation of the new velocity and position of granular species using a Leapfrog integration
-  ! Two influences are currently implemented:
-  ! 1. Gravity
-  ! 2. Fluid-particle interaction
-  !===================================================================================================================================
-  ! MODULES
-  USE MOD_Particle_Vars ,ONLY: PartState, GravityDir, UseGravitation, SkipGranularUpdate
-  USE MOD_Globals_Vars  ,ONLY: GravityAccelerationEarth
+!===================================================================================================================================
+! Routine for the calculation of the new velocity and position of granular species using a Leapfrog integration
+! Two influences are currently implemented:
+! 1. Gravity
+! 2. Fluid-particle interaction
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars ,ONLY: PartState, GravityDir, UseGravitation, SkipGranularUpdate
+USE MOD_Globals_Vars  ,ONLY: GravityAccelerationEarth
 
-  ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart
-  REAL, INTENT(IN)              :: dtVar
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! OUTPUT VARIABLES
-  !-----------------------------------------------------------------------------------------------------------------------------------
-  ! LOCAL VARIABLES
-  REAL                     :: Pt(3)
-  !===================================================================================================================================
-  ! 1. Gravity:
-  IF(UseGravitation) THEN
-    Pt(:) = GravityDir(:) * GravityAccelerationEarth
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPart
+REAL, INTENT(IN)              :: dtVar
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                     :: Pt(3)
+!===================================================================================================================================
+! 1. Gravity:
+IF(UseGravitation) THEN
+  Pt(:) = GravityDir(:) * GravityAccelerationEarth
+END IF
+! 2.Fluid-particle interaction
+CALL CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
+
+IF(.NOT.SkipGranularUpdate) THEN
+  ! New velocity and position
+  ! 1. leapfrog step v(t+dt/2):
+  PartState(4:6,iPart) = PartState(4:6,iPart) + 0.5 * dtVar * Pt(1:3)
+  ! 2. leapfrog step r(t+dt):
+  PartState(1:3,iPart) = PartState(1:3,iPart) + dtVar * PartState(4:6,iPart)
+  ! 3. leapfrog step v(t+dt):
+  PartState(4:6,iPart) = PartState(4:6,iPart) + 0.5 * dtVar * Pt(1:3)
+END IF
+  
+END SUBROUTINE CalcPosAndVeloForGranularSpecies
+
+
+SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
+!===================================================================================================================================
+! Routine for the calculation of the Fluid-particle interaction for granular species and update
+! the bulk temperatur of the granular particle
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, PartMPF, SkipGranularUpdate,ForceAverage
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_Particle_Analyze_Vars   ,ONLY: CalcGranularDragHeat
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPart
+REAL, INTENT(IN)              :: dtVar
+REAL, INTENT(INOUT)           :: Pt(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                  :: ElemID, nPart, locPart, iLoop
+REAL                     :: Energy, c_r_abs
+REAL                     :: c_r(3), Force(3)
+!===================================================================================================================================
+Force = 0.0
+Energy = 0.0
+
+ElemID = PEM%LocalElemID(iPart)
+
+nPart = PEM%pNumber(ElemID)
+
+locPart = PEM%pStart(ElemID)
+
+DO iLoop = 1, nPart
+  IF(Species(PartSpecies(locPart))%InterID.NE.100) THEN
+    c_r = PartState(4:6,locPart) - PartState(4:6,iPart)
+    c_r_abs = VECNORM(c_r)
+    ASSOCIATE(&
+      R_p     =>  SpecDSMC(PartSpecies(iPart))%dref / 2.0 ,&
+      T_p     =>  PartStateIntEn( 1,iPart),&
+      W_g     =>  Species(PartSpecies(locPart))%MacroParticleFactor,&
+      m_g     =>  Species(PartSpecies(locPart))%MassIC ,&
+      V_c     =>  ElemVolume_Shared(GetCNElemID(ElemID+offSetElem)) ,&
+      tau_g   =>  SpecDSMC(PartSpecies(locPart))%ThermalACCGranularPart ,&
+      eps_g   =>  SpecDSMC(PartSpecies(locPart))%SpecularReflecProbGranularPart ,&
+      e_rot   =>  PartStateIntEn( 2,locPart) ,&
+      Lambda  =>  SpecDSMC(PartSpecies(locPart))%Xi_Rot &
+      )
+      Force = Force + c_r * W_g * (PI * R_p * R_p) / V_c &
+                    * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
+                    * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
+
+      Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / V_c &
+      * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
+    END ASSOCIATE
   END IF
-  ! 2.Fluid-particle interaction
-  CALL CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
-
-  IF(.NOT.SkipGranularUpdate) THEN
-    ! New velocity and position
-    ! 1. leapfrog step v(t+dt/2):
-    PartState(4:6,iPart) = PartState(4:6,iPart) + 0.5 * dtVar * Pt(1:3)
-    ! 2. leapfrog step r(t+dt):
-    PartState(1:3,iPart) = PartState(1:3,iPart) + dtVar * PartState(4:6,iPart)
-    ! 3. leapfrog step v(t+dt):
-    PartState(4:6,iPart) = PartState(4:6,iPart) + 0.5 * dtVar * Pt(1:3)
-  END IF 
-
-  !print*,'velo',PartState(4:6,iPart)
-  
-  END SUBROUTINE CalcPosAndVeloForGranularSpecies
-
-
-  SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
-    !===================================================================================================================================
-    ! Routine for the calculation of the Fluid-particle interaction for granular species and update 
-    ! the bulk temperatur of the granular particle
-    !===================================================================================================================================
-    ! MODULES
-    USE MOD_Globals
-    USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, PartMPF, SkipGranularUpdate,ForceAverage
-    USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
-    USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn
-    USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
-    USE MOD_Mesh_Vars               ,ONLY: offSetElem
-    USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-    USE MOD_part_tools              ,ONLY: GetParticleWeight
-  
-    ! IMPLICIT VARIABLE HANDLING
-    IMPLICIT NONE
-    !-----------------------------------------------------------------------------------------------------------------------------------
-    ! INPUT VARIABLES
-    INTEGER, INTENT(IN)           :: iPart
-    REAL, INTENT(IN)              :: dtVar
-    REAL, INTENT(INOUT)           :: Pt(3)
-    !-----------------------------------------------------------------------------------------------------------------------------------
-    ! OUTPUT VARIABLES
-    !-----------------------------------------------------------------------------------------------------------------------------------
-    ! LOCAL VARIABLES
-    INTEGER                  :: ElemID, nPart, locPart, iLoop
-    REAL                     :: Energy, c_r_abs
-    REAL                     :: c_r(3), Force(3)
-    !===================================================================================================================================
-    Force = 0.0
-    Energy = 0.0
-
-    ElemID = PEM%LocalElemID(iPart)
-
-    nPart = PEM%pNumber(ElemID)
-
-    locPart = PEM%pStart(ElemID)
+  locPart = PEM%pNext(locPart)
+END DO
     
-    DO iLoop = 1, nPart
-      IF(Species(PartSpecies(locPart))%InterID.NE.100) THEN
-        c_r = PartState(4:6,locPart) - PartState(4:6,iPart)
-        c_r_abs = VECNORM(c_r)
-        ASSOCIATE(&
-          R_p     =>  SpecDSMC(PartSpecies(iPart))%dref / 2.0 ,&
-          T_p     =>  PartStateIntEn( 1,iPart),&
-          W_g     =>  Species(PartSpecies(locPart))%MacroParticleFactor,&
-          m_g     =>  Species(PartSpecies(locPart))%MassIC ,&
-          V_c     =>  ElemVolume_Shared(GetCNElemID(ElemID+offSetElem)) ,&
-          tau_g   =>  SpecDSMC(PartSpecies(locPart))%ThermalACCGranularPart ,&
-          eps_g   =>  SpecDSMC(PartSpecies(locPart))%SpecularReflecProbGranularPart ,&
-          e_rot   =>  PartStateIntEn( 2,locPart) ,&
-          Lambda  =>  SpecDSMC(PartSpecies(locPart))%Xi_Rot &
-          )
-          Force = Force + c_r * W_g * (PI * R_p * R_p) / V_c &
-                        * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
-                        * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
+Pt(:) = Pt(:) + Force(:) / Species(PartSpecies(iPart))%MassIC
+IF(.NOT.SkipGranularUpdate) THEN
+  PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) + Energy * dtVar &
+                            / ( SpecDSMC(PartSpecies(iPart))%SpecificHeatSolid * Species(PartSpecies(iPart))%MassIC )
+END IF
 
-          Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / V_c &
-          * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
-        END ASSOCIATE
-      END IF
-      locPart = PEM%pNext(locPart)
-    END DO
-        
-    Pt(:) = Pt(:) + Force(:) / Species(PartSpecies(iPart))%MassIC
-    IF(.NOT.SkipGranularUpdate) THEN
-      PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) + Energy * dtVar &
-                               / ( SpecDSMC(PartSpecies(iPart))%SpecificHeatSolid * Species(PartSpecies(iPart))%MassIC )
-    ELSE
-    !  PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) + Energy * dtVar &
-    !  / ( SpecDSMC(PartSpecies(iPart))%SpecificHeatSolid * Species(PartSpecies(iPart))%MassIC )
-    !  print*,Force(1)!,Energy  !,PartStateIntEn( 1,iPart)
-      ForceAverage(1) = ForceAverage(1) + 1.0
-      ForceAverage(2) = ForceAverage(2) + Force(1)
-      ForceAverage(3) = ForceAverage(3) + Force(2)
-      ForceAverage(4) = ForceAverage(4) + Force(3)
-      ForceAverage(5) = ForceAverage(5) + Energy
-    !  print*,Energy  !,PartStateIntEn( 1,iPart)
-    END IF
+IF(CalcGranularDragHeat) THEN
+  ForceAverage(1) = ForceAverage(1) + 1.0
+  ForceAverage(2) = ForceAverage(2) + Force(1)
+  ForceAverage(3) = ForceAverage(3) + Force(2)
+  ForceAverage(4) = ForceAverage(4) + Force(3)
+  ForceAverage(5) = ForceAverage(5) + Energy
+END IF
 
-    
-  END SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp
+END SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp
 
 
 END MODULE MOD_part_RHS
