@@ -49,7 +49,7 @@ USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
-USE MOD_FPFlow_Vars         ,ONLY: FP_QualityFacSamp, FP_PrandtlNumber, FPDSMCSwitchDens
+USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation

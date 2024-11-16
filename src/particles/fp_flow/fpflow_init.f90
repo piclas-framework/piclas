@@ -55,20 +55,8 @@ CALL prms%CreateIntOption(    'Particles-FP-MinPartsPerCell', 'Define minimum nu
                                                               'cell refinement')
 CALL prms%CreateLogicalOption('Particles-CoupledFPDSMC',      'Perform a coupled DSMC-FP simulation with a given number density'//&
                                                               'as a switch parameter','.FALSE.')
-CALL prms%CreateStringOption( 'Particles-FP-DSMC-SwitchCriterium', 'Continuum-breakdown criterium used for the coupling: Density'//&
-                                                                   'GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
-CALL prms%CreateIntOption(    'Particles-FP-DSMC-SampleIter', 'Iteration number after which a DSMC-FP switch can be performed','1')
-CALL prms%CreateLogicalOption('Particles-FP-DSMC-SampAverage','Use average gradient for the decision between FP/DSMC','.FALSE.')
 CALL prms%CreateRealOption(   'Particles-FP-DSMC-SwitchDens', 'Number density [1/m3] above which the FP method is used, below'//&
                                                               'which DSMC is performed.','0.0')
-CALL prms%CreateRealOption(   'Particles-FP-DSMC-CharLength',      'Characteristic length of the simulation domain for the calculation '//&
-                                                                   'of the global Knudsen number','1.0')
-CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxGlobalKnudsen','Global Knudsen number above which DSMC is used instead of FP','0.1')
-CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxLocalKnudsen', 'Local Knudsen number above which DSMC is used instaed of FP','0.1')
-CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxThermNonEq',   'Maximum value for the thermal non-equilibrium, above which '//&
-                                                                   'DSMC is used instead of FP','0.05')
-CALL prms%CreateRealOption(   'Particles-FP-DSMC-MaxChapmanEnskog','Maximum value for the Chapman-Enskog parameter, above which '//&
-                                                                   'DSMC is used instead of FP','1.0')
 
 END SUBROUTINE DefineParametersFPFlow
 
@@ -139,6 +127,7 @@ IF(CoupledFPDSMC) THEN
   IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-FP simulations!')
   END IF
+  FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')
 END IF
 
 FPInitDone = .TRUE.

@@ -236,7 +236,7 @@ only at the stagnation point, the time step defined during the initialization is
 
 ### Variable Particle Weighting in 3D
 
-Linearly increasing particle weights in 3D can be defined similary to the radial weighting factor in the 2D case.
+Linearly increasing particle weights in 3D can be defined similarly to the radial weighting factor in the 2D case.
 
     Part-VariableWeighting = T
 
@@ -259,7 +259,7 @@ In the example below, the weights are increased from $10^8$ to $10^{10}$, over a
     Part-VarWeighting-ScalePoint1-Coordinate = 0.01
     Part-VarWeighting-ScalePoint1-Factor = 1E10
 
-Analogously to the radial weightng factor, the particles will be cloned or deleted when they move to a new cell with a different weigting factor.
+Analogously to the radial weighting factor, the particles will be cloned or deleted when they move to a new cell with a different weighting factor.
 
 The cloning and deletion probability is again calculated by:
 
@@ -299,7 +299,7 @@ If a restart should be performed from an already adapted simulation, without fur
 
 In this case, the weight distribution from the given restart files is read in and used.
 
-As for the variable weightig in 3D, particles are cloned or deleted with a given probability when moving to a new cell.
+As for the variable weighting in 3D, particles are cloned or deleted with a given probability when moving to a new cell.
 
 ### Split-And-Merge
 

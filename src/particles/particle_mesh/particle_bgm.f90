@@ -97,7 +97,6 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif

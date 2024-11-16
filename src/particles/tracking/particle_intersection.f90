@@ -1806,7 +1806,7 @@ IF(.NOT.hasInter) THEN
   RETURN
 END IF
 
-! inital guess
+! initial guess
 SELECT CASE(BezierNewtonGuess)
 CASE(1)
   ! assume:_minvalue at -1, maxvalue at 1

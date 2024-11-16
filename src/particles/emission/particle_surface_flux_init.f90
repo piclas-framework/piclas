@@ -721,7 +721,7 @@ USE MOD_Mesh_Vars              ,ONLY: nBCSides, offsetElem, BC, SideToElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
+USE MOD_Particle_Mesh_Tools    ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
 USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle

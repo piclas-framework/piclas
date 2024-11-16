@@ -221,7 +221,7 @@ GETTIME(StartT)
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 IF(InitialAutoRestart) THEN
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitalRestart.h5'
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
 #if USE_HDG
 #if PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
