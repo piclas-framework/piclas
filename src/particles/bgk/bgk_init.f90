@@ -77,20 +77,8 @@ CALL prms%CreateLogicalOption('Particles-BGK-UseQuantVibEn',        'Enable quan
                                                                     '.TRUE.')
 CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a coupled DSMC-BGK simulation with a given number '//&
                                                                     'density as a switch parameter','.FALSE.')
-CALL prms%CreateStringOption('Particles-BGK-DSMC-SwitchCriterium',  'Continuum-breakdown criterium used for the coupling: Density'//&
-                                                                     'GlobalKnudsen/LocalKnudsen/ThermNonEq/Combination', 'none')
-CALL prms%CreateIntOption(   'Particles-BGK-DSMC-SampleIter',       'Iteration number after which a DSMC-BGK switch can be performed','1')
-CALL prms%CreateLogicalOption('Particles-BGK-DSMC-SampAverage',     'Use average gradient for the decision between BGK/DSMC','.FALSE.')
 CALL prms%CreateRealOption(  'Particles-BGK-DSMC-SwitchDens',       'Number density [1/m3], above which the BGK method is used, '//&
                                                                     'below which DSMC is performed','0.0')
-CALL prms%CreateRealOption(  'Particles-BGK-DSMC-CharLength',       'Characteristic length of the simulation domain for the calculation '//&
-                                                                    'of the global Knudsen number','1.0')
-CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxGlobalKnudsen', 'Global Knudsen number above which DSMC is used instead of BGK','0.1')
-CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxLocalKnudsen',  'Local Knudsen number above which DSMC is used instaed of BGK','0.1')
-CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxThermNonEq',    'Maximum value for the thermal non-equilibrium, above which '//&
-                                                                    'DSMC is used instead of BGK','0.05')
-CALL prms%CreateRealOption(  'Particles-BGK-DSMC-MaxChapmanEnskog', 'Maximum value for the Chapman-Enskog parameter, above which '//&
-                                                                    'DSMC is used instead of BGK','1.0')
 
 END SUBROUTINE DefineParametersBGK
 

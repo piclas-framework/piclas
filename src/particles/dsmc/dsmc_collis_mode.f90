@@ -100,6 +100,15 @@ iSpec2 = PartSpecies(iPart2)
 
   cRelaNew(1:3) = PostCollVec(iPair)
 
+  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
+  PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1)
+  PartState(5,iPart1) = VeloMy + FracMassCent2 * cRelaNew(2)
+  PartState(6,iPart1) = VeloMz + FracMassCent2 * cRelaNew(3)
+ ! deltaV particle 2 (post collision particle 2 velocity in laboratory frame)
+  PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1)
+  PartState(5,iPart2) = VeloMy - FracMassCent1 * cRelaNew(2)
+  PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3)
+
 #ifdef CODE_ANALYZE
   Momentum_new(1:3) = Species(iSpec2)%MassIC* (/VeloMx - FracMassCent1*cRelaNew(1),&
                                                 VeloMy - FracMassCent1*cRelaNew(2),&
