@@ -280,13 +280,8 @@ particle solver. The particle boundary conditions are set by the following lines
 
     Part-nPeriodicVectors = 3 ! Number of periodic boundary (particle and field) vectors
 
-    Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/) ! Cartesian background mesh (bounding box around the complete simulation domain)
-    Part-FactorFIBGM = (/60     , 1   , 1/)   ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
-
 where, the number of boundaries `Part-nBounds` (6 in 3D cuboid) is followed by the names of
-the boundaries (given by the hopr.ini file) and the type `periodic`. Furthermore, the periodic vectors must be supplied and the size
-of the Cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells)
-in each direction given by `Part-FactorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+the boundaries (given by the hopr.ini file) and the type `periodic`. Furthermore, the periodic vectors must be supplied.
 
 ### Field solver
 
