@@ -872,7 +872,7 @@ WEK_Photoionization_release_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_debug_RK3:
   <<: *defaults_poisson_nightly
@@ -884,7 +884,7 @@ WEK_Photoionization_debug_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_petsc_release_RK3:
   <<: *defaults_poisson_petsc_nightly
@@ -896,7 +896,7 @@ WEK_Photoionization_petsc_release_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_petsc_debug_RK3:
   <<: *defaults_poisson_petsc_nightly
@@ -908,7 +908,7 @@ WEK_Photoionization_petsc_debug_RK3:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_release_Leapfrog:
   <<: *defaults_poisson_nightly
@@ -920,7 +920,7 @@ WEK_Photoionization_release_Leapfrog:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 WEK_Photoionization_debug_Leapfrog:
   <<: *defaults_poisson_nightly
@@ -932,7 +932,7 @@ WEK_Photoionization_debug_Leapfrog:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 # --- nightly
 

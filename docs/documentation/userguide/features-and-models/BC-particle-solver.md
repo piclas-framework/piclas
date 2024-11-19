@@ -80,8 +80,8 @@ In the default case of the `TempGradDir = 0`, the temperature will be interpolat
 start vector corresponds to the first wall temperature `WallTemp`, and the end vector to the second wall temperature `WallTemp2`.
 Position values (which are projected onto the temperature gradient vector) beyond the gradient vector utilize the first (Start)
 and second temperature (End) as the constant wall temperature, respectively. In the special case of `TempGradDir = 1/2/3`, the
-temperature gradient will only be applied along the chosen the direction. As oppposed to the default case, the positions of the
-surfaces are not projected onto the gradient vector before checking wether they are inside the box spanned by `TempGradStart` and
+temperature gradient will only be applied along the chosen the direction. As opposed to the default case, the positions of the
+surfaces are not projected onto the gradient vector before checking whether they are inside the box spanned by `TempGradStart` and
 `TempGradEnd`. The applied surface temperature is output in the `DSMCSurfState` as `Wall_Temperature` for verification.
 
 ### Radiative equilibrium
@@ -103,7 +103,7 @@ during the preceding sampling period is utilized to determine the side-local tem
 `State` file and thus available during a restart of the simulation. The surface output (in `DSMCSurfState`) will additionally
 include the temperature distribution in the `Wall_Temperature` variable (see Section {ref}`sec:sampled-flow-field-and-surface-variables`).
 To continue the simulation without further adapting the temperature, the first flag has to be disabled (`Part-AdaptWallTemp = F`).
-It should be noted that the the adaptation should be performed multiple times to achieve a converged temperature distribution.
+It should be noted that the adaptation should be performed multiple times to achieve a converged temperature distribution.
 
 (sec:particle-boundary-conditions-rotBC)=
 ## Rotational Periodicity
@@ -122,8 +122,8 @@ can be defined.
     Part-Boundary2-Condition        = rot_periodic
     Part-Boundary2-RotPeriodicAngle = -90.
 
-CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational 
-periodic boundary is tranformed according to this angle, which is defined by the right-hand rule and the rotation axis:
+CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational
+periodic boundary is transformed according to this angle, which is defined by the right-hand rule and the rotation axis:
 
     Part-RotPeriodicAxi = 1    ! (x = 1, y = 2, z = 3)
 
@@ -131,9 +131,9 @@ The usage of rotational periodic boundary conditions is limited to cases, where 
 Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
 
 ### Intermediate Plane Definition
-If several segments with different rotation angles are defined, exactly two corresponding BCs must be defined for each segment.
-Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional 
-two BCs must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both BCs must refer to each other in the 
+If several segments with different rotation angles are defined, exactly two corresponding boundary conditions must be defined for each segment.
+Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional
+two boundary conditions must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both boundary conditions must refer to each other in the
 definition in order to ensure the connection.
 
     Part-Boundary40-SourceName       = BC_INT_R1_BOT
@@ -144,7 +144,7 @@ definition in order to ensure the connection.
     Part-Boundary41-Condition        = rot_periodic_inter_plane
     Part-Boundary41-AssociatedPlane  = 40
 
-Note that using the intermediate plane definition with two corresponding BCs allows the user to mesh the segments independently, 
+Note that using the intermediate plane definition with two corresponding boundary conditions allows the user to mesh the segments independently,
 creating a non-conforming interface at the intermediate plane. However, use of these non-conformal grids is so far only possible in standalone DSMC simulations.
 
 ## Porous Wall / Pump
@@ -328,7 +328,7 @@ The emission yield and energy can be varied for this model by setting
     SurfModEmissionEnergy = 6.8  ! [eV]
 
 respectively.
-The emission yield represents the ratio of emitted electrons vs. impacting ions and the emission energy is given in electronvolts.
+The emission yield represents the ratio of emitted electrons vs. impacting ions and the emission energy is given in electronvolt.
 If the energy is not set, the emitted electron will have the same velocity as the impacting ion.
 
 Additionally, a uniform energy distribution function for the emitted electrons can be set via
@@ -371,7 +371,7 @@ activated via `Part-BoundaryX-SurfaceModel=11`. For more details, see the origin
 Catalytic reactions can be modeled in PICLas using a finite-rate reaction model with an implicit treatment of the reactive surface. For a better resolution of the parameters, the catalytic boundaries are discretized into a certain number of subsides. A definition of the boundary temperature in the parameter input file is required in all cases. Different types of surfaces can be defined by the lattice constant of the unit cell `Part-BoundaryX-LatticeVec` and the number of particles in the unit cell `Part-BoundaryX-NbrOfMol-UnitCell`. These parameters are used in the calculation of the number of active sites.
 
 By default, the simulation is started with a clean surface, but an initial species-specific coverage can be specified by `Part-BoundaryX-SpeciesX-Coverage`, which represents the relative number of active sites that are occupied by adsorbate particles. Maximum values for the coverage values can be specified by:
- 
+
     Part-Boundary1-Species1-MaxCoverage
     Part-Boundary1-MaxTotalCoverage
 
@@ -389,7 +389,7 @@ A catalytic reaction and the boundary on which it takes place is then defined by
     Surface-Reaction1-Products           = (/2,1,0/)
     Surface-Reaction1-NumOfBoundaries    = 2
     Surface-Reaction1-Boundaries         = (/1,3/)
-    
+
 All reactants and products are defined by their respective species index. In the case of multiple reacting, the order does not influence the input. The following options are available for the catalytic reaction type:
 
 | Model | Description                                                 |
@@ -418,7 +418,7 @@ Here, $S_0$ is the binding coefficient for a clean surface, $\alpha$ is the diss
     Surface-Reaction1-StickingCoefficient  = 0.2
     Surface-Reaction1-DissOrder            = 1
     Surface-Reaction1-EqConstant           = 0.6
-   
+
 A special case of adsorption is the dissociative adsorption (`Surface-ReactionX-DissociativeAdsorption = true`), where only half of the molecule binds to the surface, while the other half remains in the gas phase. The adsorbate half `Surface-ReactionX-AdsorptionProduct` and the gas phase product `Surface-ReactionX-GasPhaseProduct` are specified by their respective species indices. The adsorption probability is calculated analogously to the general case.
 
 Lateral interactions between multiple adsorbate species, which can disfavor further adsorption can be taken into account by the command `Surface-ReactionX-Inhibition` and the species index of the inhibiting species.
@@ -439,14 +439,14 @@ activation energy [K]. These parameters can be defined in PICLas as follows:
 
 The Eley-Rideal and the Langmuir-Hinshelwood reaction use Arrhenius-type reaction rates along with the coverage of all surface-bound reactants $\theta_{AB}$, to reproduce of the catalytic reaction.
 
-$$k(T) = A T^b \theta_{AB} e^{-E_\mathrm{a}/T}$$ 
+$$k(T) = A T^b \theta_{AB} e^{-E_\mathrm{a}/T}$$
 
-The Arrhenius prefactor ([m$^3$/s] for the Eley-Rideal reaction and [m$^2$/s]  for the Langmuir-Hinshelwood case) and the activation energy are read in analogously to the desorption case. For the reactions, an energy accommodation coefficient `Surface-ReactionX-EnergyAccommodation` with values between 0 and 1 can be specified, which defines the amount of the reaction energy that is transferred to the surface. 
+The Arrhenius prefactor ([m$^3$/s] for the Eley-Rideal reaction and [m$^2$/s]  for the Langmuir-Hinshelwood case) and the activation energy are read in analogously to the desorption case. For the reactions, an energy accommodation coefficient `Surface-ReactionX-EnergyAccommodation` with values between 0 and 1 can be specified, which defines the amount of the reaction energy that is transferred to the surface.
 
 In the general Langmuir-Hinshelwood case with the reaction type `LH`, the product species stays adsorbed on the surface, until a desorption takes place in a later step. For reactions in combination with very high desorption rates, the reaction type `LHD` is more fitting. The product species are inserted directly into the gas phase without an intermediate desorption step.
 
 Example inputs for both catalytic reactions can be found in the regression tests: `regressioncheck/NIG_Reservoir/CAT_RATES_ER` and `regressioncheck/NIG_Reservoir/CAT_RATES_LH`.
-   
+
 ### Diffusion
 
 With `Surface-Diffusion = true` an instantaneous diffusion over all catalytic boundaries is enabled. This is equivalent to an averaging of the coverage values for all surface subsides.

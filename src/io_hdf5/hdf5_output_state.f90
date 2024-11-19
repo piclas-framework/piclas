@@ -40,7 +40,7 @@ PUBLIC :: WriteElemDataToSeparateContainer
 CONTAINS
 
 
-SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
+SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime,InitialAutoRestartIn)
 !===================================================================================================================================
 ! Subroutine to write the solution U to HDF5 format
 ! Is used for postprocessing and for restart
@@ -137,6 +137,7 @@ IMPLICIT NONE
 CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
 REAL,INTENT(IN),OPTIONAL       :: PreviousTime
+LOGICAL,OPTIONAL               :: InitialAutoRestartIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -182,7 +183,7 @@ INTEGER(KIND=IK)               :: PP_nVarTmp
 #if USE_FV
 INTEGER(KIND=IK)               :: PP_nVarTmp_FV
 #endif
-LOGICAL                        :: usePreviousTime_loc
+LOGICAL                        :: usePreviousTime_loc, InitialAutoRestart
 #if USE_HDG
 INTEGER                        :: iSide
 INTEGER                        :: iGlobSide
@@ -214,6 +215,12 @@ ELSE
   IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
 END IF
 
+IF(PRESENT(InitialAutoRestartIn)) THEN
+  InitialAutoRestart = InitialAutoRestartIn
+ELSE
+  InitialAutoRestart = .FALSE.
+END IF
+
 #ifdef PARTICLES
 ! Output lost particles if 1. lost during simulation     : NbrOfNewLostParticlesTotal > 0
 !                          2. went missing during restart: TotalNbrOfMissingParticlesSum > 0
@@ -237,30 +244,50 @@ IF(.NOT.DoWriteStateToHDF5) RETURN
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
 GETTIME(StartT)
 
-
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
-RestartFile=Filename
+IF(InitialAutoRestart) THEN
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitalRestart.h5'
 #if USE_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc)
+  CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #elif PP_nVar==3
-IF(MPIRoot) CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc)
+  CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc)
+  CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-IF(MPIRoot) CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc) ! 15 for DVM MacroVal (maybe change that)
-IF (time.EQ.0.) THEN
-  dtMV = 0.
-ELSE
-  dtMV = dt
-ENDIF
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName) ! 15 for DVM MacroVal (maybe change that)
+  IF (time.EQ.0.) THEN
+    dtMV = 0.
+  ELSE
+    dtMV = dt
+  ENDIF
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc)
+  CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif /*USE_HDG*/
+ELSE
+#if USE_HDG
+#if PP_nVar==1
+  CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
+#elif PP_nVar==3
+  CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
+#else
+  CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
+#endif
+#elif defined(discrete_velocity) /*DVM*/
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName) ! 15 for DVM MacroVal (maybe change that)
+  IF (time.EQ.0.) THEN
+    dtMV = 0.
+  ELSE
+    dtMV = dt
+  ENDIF
+#else
+  CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
+#endif /*USE_HDG*/
+END IF
 
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
+RestartFile=Filename
 ! generate nextfile info in previous output file
 usePreviousTime_loc=.FALSE.
 
@@ -769,6 +796,8 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
 
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
+
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
@@ -850,7 +879,7 @@ END SUBROUTINE ModifyElemData
 #if defined(PARTICLES)
 SUBROUTINE WriteIMDStateToHDF5()
 !===================================================================================================================================
-! Write the particles data aquired from an IMD *.chkpt file to disk and abort the program
+! Write the particles data acquired from an IMD *.chkpt file to disk and abort the program
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
