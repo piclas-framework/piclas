@@ -59,7 +59,7 @@ SUBROUTINE InitPolyAtomicMolecs(iSpec)
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PolyatomMolDSMC
-USE MOD_DSMC_ElectronicModel  ,ONLY: ReadRotationalSpeciesLevel
+USE MOD_DSMC_Init             ,ONLY: ReadRotationalSpeciesLevel
 USE MOD_ReadInTools
 USE MOD_PARTICLE_Vars         ,ONLY: Species, SpeciesDatabase
 USE MOD_io_hdf5
@@ -320,7 +320,11 @@ IF(.NOT.PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN
 END IF
 ! read in rotational levels for asymmetric tops for RotRelaxModel 1
 ! read in for all species happens only for RotRelaxModel 2
-IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3.AND.DSMC%RotRelaxModel.EQ.1) CALL ReadRotationalSpeciesLevel(iSpec)
+IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3.AND.DSMC%RotRelaxModel.EQ.1)THEN
+  CALL ABORT(__STAMP__,'At least one species consists of asymmetric top molecules, where quantized energy cannot be calculated analytically! Quantized rotational relaxation with a database of energy levels and degeneracies not tested yet!')
+  CALL ReadRotationalSpeciesLevel(iSpec)
+END IF
+
 ALLOCATE(PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(PolyatomMolDSMC(iPolyatMole)%VibDOF))
 ! Maximum number of quantum number per DOF cut at 80 to reduce computational effort
 PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(1:PolyatomMolDSMC(iPolyatMole)%VibDOF) = 80

@@ -836,15 +836,6 @@ DO iProd = 1, NumProd
     ELSE
       CALL RotRelaxDiaRoutineFuncPTR(iPair, ReactInx(iProd), FakXi)
     END IF
-    ! //TODO Testcase - Paul?
-    ! IF(SpecDSMC(ProductReac(iProd))%Xi_Rot.EQ.3) THEN
-    !   FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
-    !   CALL DSMC_RotRelaxPoly(iPair, ReactInx(iProd), FakXi)
-    ! ELSE
-    !   CALL RANDOM_NUMBER(iRan)
-    !   PartStateIntEn(2,ReactInx(iProd)) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-    !   FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
-    ! END IF
 
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(iProd))
     ! Sanity check

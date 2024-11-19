@@ -1391,7 +1391,7 @@ END FUNCTION CalcERotQuant_particle
 
 REAL FUNCTION CalcERotDataset_particle(iSpec,TRot,iPart)
 !===================================================================================================================================
-! Subroutine to cal the rotational levels from SpeciesDatabase.h5
+! Subroutine to calculate the rotational levels from SpeciesDatabase.h5
 ! Calculate rotational quantized energies for inital particle insertion with given rotational levels from SpeciesDatabase.h5 at 
 ! given rotational temperature
 ! NOT TESTED YET!

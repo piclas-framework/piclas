@@ -635,27 +635,8 @@ VibACC    = PartBound%VibACC(locBCID)
 RotACC    = PartBound%RotACC(locBCID)
 ElecACC   = PartBound%ElecACC(locBCID)
 
-! //TODO Testcase - Paul?
 IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
   !---- Rotational energy accommodation
-
-  ! IF (SpecDSMC(SpecID)%Xi_Rot.EQ.2) THEN
-  !   CALL RANDOM_NUMBER(RanNum)
-  !   ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
-  ! ELSE IF (SpecDSMC(SpecID)%Xi_Rot.EQ.3) THEN
-  !   CALL RANDOM_NUMBER(RanNum)
-  !   ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
-  !   NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
-  !   CALL RANDOM_NUMBER(RanNum)
-  !   DO WHILE (RanNum.GE.NormProb)
-  !     CALL RANDOM_NUMBER(RanNum)
-  !     ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
-  !     NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
-  !     CALL RANDOM_NUMBER(RanNum)
-  !   END DO
-  !   ErotWall = ErotWall*BoltzmannConst*WallTemp
-  ! END IF
-  
   ! model identical to the one used for initial rotational energy sampling
   ErotWall = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
   ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
