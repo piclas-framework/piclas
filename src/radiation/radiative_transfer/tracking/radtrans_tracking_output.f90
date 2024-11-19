@@ -88,6 +88,7 @@ LOGICAL                             :: WriteErrorToElemData
 REAL                                :: StartT,EndT
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE RADIATION VOLSTATE TO HDF5 FILE...'
+GETTIME(StartT)
 
 WriteErrorToElemData = .FALSE.
 
