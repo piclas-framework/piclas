@@ -871,6 +871,9 @@ USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars           ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -890,6 +893,9 @@ INTEGER            :: iElem,iProc,locElem, globElem, offSetDof, i,j,k,r, Nloc
 INTEGER(KIND=8)    :: CounterStart,CounterEnd
 REAL(KIND=8)       :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_LOADBALANCE
+REAL               :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
@@ -903,6 +909,10 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
     ShapeMapping(iProc)%SendBuffer = 0.
   END DO
 #endif
+
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
   DO iPart=1,PDM%ParticleVecLength
     ! Check if particle is inside the domain
@@ -918,6 +928,11 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
     ! Fill PartSourceProc and deposit charge in local part of PartSource(CNElem(1:nElems + offset))
     CALL calcSfSource(4,Charge,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
   END DO
+
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DEPO_SF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 #if USE_MPI
   ! Communication
   ! 1 of 2: Inner-Node Communication

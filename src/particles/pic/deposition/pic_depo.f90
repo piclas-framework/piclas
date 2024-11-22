@@ -952,6 +952,7 @@ USE MOD_PICDepo_Vars
 USE MOD_PICDepo_Method        ,ONLY: DepositionMethod
 USE MOD_PIC_Analyze           ,ONLY: VerifyDepositedCharge
 USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_Mesh_Vars             ,ONLY: nElems
 #if USE_MPI
 USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
 #endif  /*USE_MPI*/
@@ -959,20 +960,18 @@ USE MOD_MPI_Shared            ,ONLY: BARRIER_AND_SYNC
 USE MOD_HDG_Vars              ,ONLY: HDGSkip, HDGSkipInit, HDGSkip_t0
 USE MOD_TimeDisc_Vars         ,ONLY: time
 #endif  /*USE_HDG*/
-USE MOD_Mesh_Vars             ,ONLY: nElems
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT variable declaration
-INTEGER,INTENT(IN),OPTIONAL      :: stage_opt ! TODO: definition of this variable
+INTEGER,INTENT(IN),OPTIONAL   :: stage_opt ! TODO: definition of this variable
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT variable declaration
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Local variable declaration
-INTEGER         :: stage,iElem
-!-----------------------------------------------------------------------------------------------------------------------------------
-!============================================================================================================================
+INTEGER                       :: stage,iElem
+!===================================================================================================================================
 ! Return, if no deposition is required
 IF(.NOT.DoDeposition) RETURN
 IF (PRESENT(stage_opt)) THEN
