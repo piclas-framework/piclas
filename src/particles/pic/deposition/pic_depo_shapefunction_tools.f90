@@ -312,6 +312,7 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_sf_dir
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -343,16 +344,49 @@ ChargeSFDone(:) = .FALSE.
 nUsedElems = 0
 !-- determine which background mesh cells (and interpolation points within) need to be considered
 kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-kmax = MIN(kmax,GEO%FIBGMimax)
 kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-kmin = MAX(kmin,GEO%FIBGMimin)
 lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-lmax = MIN(lmax,GEO%FIBGMjmax)
 lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-lmin = MAX(lmin,GEO%FIBGMjmin)
 mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+! Adjustments for lower dimensional shape functions
+SELECT CASE(dim_sf)
+CASE(2)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+  CASE(2)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  CASE(3)
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  END SELECT
+CASE(1)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(2)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(3)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  END SELECT
+END SELECT
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = MAX(mmin,GEO%FIBGMkmin)
 DO kk = kmin,kmax
   DO ll = lmin, lmax
@@ -415,6 +449,7 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_sf_dir
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -441,16 +476,49 @@ ChargeSFDone(:) = .FALSE.
 
 !-- determine which background mesh cells (and interpolation points within) need to be considered
 kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-kmax = MIN(kmax,GEO%FIBGMimax)
 kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-kmin = MAX(kmin,GEO%FIBGMimin)
 lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-lmax = MIN(lmax,GEO%FIBGMjmax)
 lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-lmin = MAX(lmin,GEO%FIBGMjmin)
 mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+! Adjustments for lower dimensional shape functions
+SELECT CASE(dim_sf)
+CASE(2)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+  CASE(2)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  CASE(3)
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  END SELECT
+CASE(1)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(2)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(3)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  END SELECT
+END SELECT
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = MAX(mmin,GEO%FIBGMkmin)
 DO kk = kmin,kmax
   DO ll = lmin, lmax
@@ -513,6 +581,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems
 USE MOD_LoadBalance_Vars   ,ONLY: nDeposPerElem
 #endif  /*USE_LOADBALANCE*/
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_sf_dir
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -558,16 +627,49 @@ nUsedElems = 0
 totalCharge = 0.0
 !-- determine which background mesh cells (and interpolation points within) need to be considered
 kmax = CEILING((Position(1)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1))
-kmax = MIN(kmax,GEO%FIBGMimax)
 kmin = FLOOR((Position(1)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-kmin = MAX(kmin,GEO%FIBGMimin)
 lmax = CEILING((Position(2)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2))
-lmax = MIN(lmax,GEO%FIBGMjmax)
 lmin = FLOOR((Position(2)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-lmin = MAX(lmin,GEO%FIBGMjmin)
 mmax = CEILING((Position(3)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3))
-mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = FLOOR((Position(3)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
+! Adjustments for lower dimensional shape functions
+SELECT CASE(dim_sf)
+CASE(2)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+  CASE(2)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  CASE(3)
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  END SELECT
+CASE(1)
+  SELECT CASE(dim_sf_dir)
+  CASE(1)
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(2)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    mmax = GEO%FIBGMkmax
+    mmin = GEO%FIBGMkmin
+  CASE(3)
+    kmax = GEO%FIBGMimax
+    kmin = GEO%FIBGMimin
+    lmax = GEO%FIBGMjmax
+    lmin = GEO%FIBGMjmin
+  END SELECT
+END SELECT
+kmax = MIN(kmax,GEO%FIBGMimax)
+kmin = MAX(kmin,GEO%FIBGMimin)
+lmax = MIN(lmax,GEO%FIBGMjmax)
+lmin = MAX(lmin,GEO%FIBGMjmin)
+mmax = MIN(mmax,GEO%FIBGMkmax)
 mmin = MAX(mmin,GEO%FIBGMkmin)
 DO kk = kmin,kmax
   DO ll = lmin, lmax

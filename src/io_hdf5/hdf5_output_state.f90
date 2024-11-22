@@ -39,7 +39,7 @@ PUBLIC :: WriteElemDataToSeparateContainer
 CONTAINS
 
 
-SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime)
+SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime,InitialAutoRestartIn)
 !===================================================================================================================================
 ! Subroutine to write the solution U to HDF5 format
 ! Is used for postprocessing and for restart
@@ -126,6 +126,7 @@ IMPLICIT NONE
 CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName
 REAL,INTENT(IN)                :: OutputTime
 REAL,INTENT(IN),OPTIONAL       :: PreviousTime
+LOGICAL,OPTIONAL               :: InitialAutoRestartIn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,7 +135,7 @@ CHARACTER(LEN=255)             :: FileName
 INTEGER                        :: nVarOut, NOut
 INTEGER                        :: iElem, Nloc
 REAL                           :: StartT,EndT,OutputTime_loc,PreviousTime_loc
-LOGICAL                        :: usePreviousTime_loc
+LOGICAL                        :: usePreviousTime_loc,InitialAutoRestart
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #if defined(PARTICLES) || USE_HDG
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
@@ -170,6 +171,12 @@ ELSE
   IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
 END IF
 
+IF(PRESENT(InitialAutoRestartIn)) THEN
+  InitialAutoRestart = InitialAutoRestartIn
+ELSE
+  InitialAutoRestart = .FALSE.
+END IF
+
 #ifdef PARTICLES
 ! Output lost particles if 1. lost during simulation     : NbrOfNewLostParticlesTotal > 0
 !                          2. went missing during restart: TotalNbrOfMissingParticlesSum > 0
@@ -193,11 +200,7 @@ IF(.NOT.DoWriteStateToHDF5) RETURN
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
 GETTIME(StartT)
 
-
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'.h5'
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
-RestartFile=Filename
 #if USE_HDG
 #if PP_nVar==1
 ! poisson
@@ -218,7 +221,14 @@ nVarOut = PP_nVar
 NOut = NMax
 #endif /*USE_HDG*/
 
-IF(MPIRoot) CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut)
+IF(InitialAutoRestart) THEN
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitalRestart.h5'
+  CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut,FileNameIn=FileName)
+ELSE
+  CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut,FileNameOut=FileName)
+END IF
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
+RestartFile=Filename
 ! generate nextfile info in previous output file
 usePreviousTime_loc=.FALSE.
 
@@ -645,6 +655,8 @@ IF(DoDielectricSurfaceCharge) CALL WriteNodeSourceExtToHDF5(OutputTime_loc)
 ! ---------------------------------------------------------
 CALL WriteEmissionVariablesToHDF5(FileName)
 #endif /*PARTICLES*/
+
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)

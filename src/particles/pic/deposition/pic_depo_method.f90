@@ -417,7 +417,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc, ElemID
 INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -709,7 +709,8 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 ! Interpolate node source values to volume polynomial
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  ElemID = iElem+offsetElem
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(ElemID)))
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO kk = 0, Nloc
     DO ll = 0, Nloc

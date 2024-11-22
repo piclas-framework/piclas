@@ -160,7 +160,7 @@ NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
 MODULESDIR=/opt/modules/modulefiles
-TEMPLATEPATH=$(echo `pwd`/moduletemplates/utilities/paraview/paraview_temp)
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/paraview/paraview_temp)
 if [[ ! -f ${TEMPLATEPATH} ]]; then
   echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
   exit
@@ -180,7 +180,10 @@ fi
 # take the first gcc compiler installed with first compatible openmpi and hdf5
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
-  CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  CMAKEVERSION=$(ls ${MODULESDIR}/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  if [[ -z $CMAKEVERSION ]]; then
+    CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
+  fi
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   OPENMPIVERSION=$(ls ${MODULESDIR}/MPI/openmpi/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
@@ -197,7 +200,7 @@ check_module "gcc  " "${GCCVERSION}"
 check_module "mpi  " "${OPENMPIVERSION}"
 check_module "hdf5 " "${HDF5VERSION}"
 
-PARAVIEWMODULEFILEDIR=${MODULESDIR}/utilities/paraview/${PARAVIEWVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
+PARAVIEWMODULEFILEDIR=${MODULESDIR}/paraview/paraview/${PARAVIEWVERSION}/gcc/${GCCVERSION}/openmpi/${OPENMPIVERSION}/hdf5
 MODULEFILE=${PARAVIEWMODULEFILEDIR}/${HDF5VERSION}
 
 # if no paraview module for this compiler found, install paraview and create module

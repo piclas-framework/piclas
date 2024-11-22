@@ -381,7 +381,11 @@ DO !iter_t=0,MaxIter
       CALL FillParticleData() ! Fill the SFC-ordered particle arrays for LB or I/O
 #endif /*defined(PARTICLES)*/
       ! Write state to file
+#if USE_LOADBALANCE
+      CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze,ForceInitialLoadBalance)
+#else
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
+#endif
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
