@@ -64,40 +64,31 @@ END TYPE tVarVibRelaxProb
 
 TYPE(tVarVibRelaxProb) VarVibRelaxProb
 
-TYPE tRadialWeighting
-  REAL                        :: PartScaleFactor
+LOGICAL                       :: DoRadialWeighting          ! Enables radial weighting in DSMC
+LOGICAL                       :: DoLinearWeighting          ! Enables linear weighting in DSMC
+LOGICAL                       :: DoCellLocalWeighting       ! Enables cell-local weighting in DSMC
+
+TYPE tParticleWeighting
+  REAL                        :: ScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the axisymmetric simulations
   LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
                                                             ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
   INTEGER                     :: CloneMode                  ! 1 = Clone Delay
                                                             ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
-  LOGICAL                     :: CellLocalWeighting
+  LOGICAL                     :: UseCellAverage
   INTEGER                     :: nSubSides
+  INTEGER, ALLOCATABLE        :: PartInsSide(:)
   INTEGER                     :: CloneVecLength
   INTEGER                     :: CloneVecLengthDelta
-END TYPE tRadialWeighting
+  LOGICAL                     :: EnableOutput               ! Output of the cell-local weighting factor
+END TYPE tParticleWeighting
 
-TYPE(tRadialWeighting)        :: RadialWeighting
+TYPE(tParticleWeighting)        :: ParticleWeighting
 
-TYPE tVarWeighting
-  REAL                        :: AverageScaleFactor         ! Average scaling factor along the simulation domain
-  INTEGER                     :: NextClone
-  INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoVariableWeighting        ! Logical to enable variable weighting in 3D
-  LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
-                                                            ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
-  INTEGER                     :: CloneMode                  ! 1 = Clone Delay
-                                                            ! 2 = Clone Random Delay
-  INTEGER, ALLOCATABLE        :: ClonePartNum(:)
-  INTEGER                     :: CloneInputDelay
-  LOGICAL                     :: CellLocalWeighting
-  INTEGER                     :: nSubSides
-  INTEGER                     :: CloneVecLength
-  INTEGER                     :: CloneVecLengthDelta
+TYPE tLinearWeighting
   INTEGER                     :: nScalePoints               ! Number of sub-cell divisions for the scaling of the weighting factor
                                                             ! Default = 2 (borders of the simulation domain along one axis)
   INTEGER                     :: ScaleAxis                  ! Direction of the increase in the variable weight
@@ -108,13 +99,12 @@ TYPE tVarWeighting
   REAL                        :: EndPointScaling(1:3)       ! End point for the scaling domain not defined by the coordinate axes
   REAL, ALLOCATABLE           :: ScalePoint(:)              ! Points along the defined scaling vector on which the MPF is changed(%)
   REAL, ALLOCATABLE           :: VarMPF(:)                  ! Desired MPF at the respective scaling points
-END TYPE tVarWeighting
+END TYPE tLinearWeighting
 
-TYPE(tVarWeighting)            :: VarWeighting
+TYPE(tLinearWeighting)        :: LinearWeighting
 
 ! Automatic adaption of the particle weight
-TYPE tAdaptMPF
-  LOGICAL                     :: DoAdaptMPF                  ! Enables an automatic adaption of the MPF in each cell
+TYPE tCellLocalWeight
   LOGICAL                     :: SkipAdaption                ! Use of the MPF distribution from the previous adaption
   LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
   LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
@@ -128,9 +118,9 @@ TYPE tAdaptMPF
   INTEGER                     :: SymAxis_MinPartNum          ! Target minimum number of simulation particles close to the symmetry axis
   INTEGER                     :: Cat_MinPartNum              ! Target minimum number of simulation particles close to catalytic surfaces
   INTEGER                     :: nRefine                     ! Number of times the MPF filter routine is called
-END TYPE tAdaptMPF
+END TYPE tCellLocalWeight
 
-TYPE(tAdaptMPF)               :: AdaptMPF
+TYPE(tCellLocalWeight)        :: CellLocalWeight
 
 REAL,ALLOCPOINT :: AdaptMPFInfo_Shared(:,:)
 REAL,ALLOCPOINT :: OptimalMPF_Shared(:)
@@ -260,7 +250,6 @@ TYPE tDSMC
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
-  LOGICAL                       :: CalcCellMPF              ! Calculate the desired MPF in each cell for the radial/variable weighting
   REAL, ALLOCATABLE             :: CellMPFSamp(:)           ! Sampling of the sub-cell MPF
   LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
   REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors

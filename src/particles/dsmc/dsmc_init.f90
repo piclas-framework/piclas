@@ -381,7 +381,7 @@ ELSE
 END IF
 
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
-IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+IF(UseVarTimeStep.OR.usevMPF) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
     CALL abort(__STAMP__,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
@@ -402,8 +402,7 @@ IF(DSMC%CalcQualityFactors) THEN
   VarNum = 4
   ! VarNum + 1: Number of cloned particles per cell
   ! VarNum + 2: Number of identical particles (no relative velocity)
-  IF(RadialWeighting%PerformCloning) VarNum = VarNum + 2
-  IF (VarWeighting%PerformCloning)   VarNum = VarNum + 2
+  IF(ParticleWeighting%PerformCloning) VarNum = VarNum + 2
   ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
   DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
 END IF
@@ -1170,7 +1169,7 @@ ELSE !CollisMode.GT.0
       END IF
     END DO
   ELSE
-    ! IF(usevMPF.AND..NOT.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) &
+    ! IF(usevMPF.AND..NOT.DoRadialWeighting.OR.DoLinearWeighting) &
     !   CALL abort(__STAMP__,'ERROR in DSMC: Variable weighting factors are only available with a background gas!')
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1720,10 +1719,10 @@ SDEALLOCATE(BGGas%DistributionNumDens)
 SDEALLOCATE(BGGas%Region)
 SDEALLOCATE(BGGas%RegionElemType)
 
-SDEALLOCATE(RadialWeighting%ClonePartNum)
-SDEALLOCATE(VarWeighting%ClonePartNum)
-SDEALLOCATE(VarWeighting%ScalePoint)
-SDEALLOCATE(VarWeighting%VarMPF)
+SDEALLOCATE(ParticleWeighting%ClonePartNum)
+SDEALLOCATE(ParticleWeighting%PartInsSide)
+SDEALLOCATE(LinearWeighting%ScalePoint)
+SDEALLOCATE(LinearWeighting%VarMPF)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(AmbiPolarSFMapping)
 END SUBROUTINE FinalizeDSMC

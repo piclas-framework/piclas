@@ -51,7 +51,7 @@ USE MOD_BGK_Vars            ,ONLY: BGK_MaxRotRelaxFactor, BGK_PrandtlNumber, BGK
 USE MOD_BGK_Vars            ,ONLY: BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_BGK_CollOperator    ,ONLY: BGK_CollisionOperator
 USE MOD_DSMC                ,ONLY: DSMC_main
-USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_Mesh_Vars           ,ONLY: nElems, offsetElem
 USE MOD_Part_Tools          ,ONLY: GetParticleWeight
 USE MOD_TimeDisc_Vars       ,ONLY: TEnd, Time
@@ -103,7 +103,7 @@ DO iElem = 1, nElems
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+  IF(usevMPF) THEN
     dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)

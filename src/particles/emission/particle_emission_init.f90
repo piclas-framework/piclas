@@ -821,7 +821,7 @@ SUBROUTINE DetermineInitialParticleNumber()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
-USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, VarWeighting, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DoRadialWeighting, DoLinearWeighting, ParticleWeighting, DSMC
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,SpecReset
 USE MOD_ReadInTools
@@ -889,14 +889,14 @@ DO iSpec=1,nSpecies
         CASE DEFAULT
           CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
         END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
-        IF(VarWeighting%DoVariableWeighting) THEN
+        IF(DoLinearWeighting) THEN
           Species(iSpec)%Init(iInit)%ParticleNumber=INT(Species(iSpec)%MacroParticleFactor*Species(iSpec)%Init(iInit)%ParticleNumber&
-                                                      /(VarWeighting%AverageScaleFactor),8)
+                                                      /(ParticleWeighting%ScaleFactor),8)
         END IF
         IF(Symmetry%Order.LE.2) THEN
           ! The radial scaling of the weighting factor has to be considered
-          IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
-                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
+          IF(DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
+                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (ParticleWeighting%ScaleFactor),8)
         END IF
       CASE('background')
         ! do nothing

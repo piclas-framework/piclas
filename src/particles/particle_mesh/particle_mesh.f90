@@ -183,7 +183,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #if USE_MPI
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_DSMC_Vars              ,ONLY: AdaptMPF
+USE MOD_DSMC_Vars              ,ONLY: CellLocalWeight
 USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
@@ -375,7 +375,7 @@ END IF
 ! Set logical for building node neighbourhood
 FindNeighbourElems = .FALSE.
 
-IF (AdaptMPF%UseMedianFilter) THEN
+IF (CellLocalWeight%UseMedianFilter) THEN
   FindNeighbourElems = .TRUE.
 END IF
 

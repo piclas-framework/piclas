@@ -45,7 +45,7 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting, DSMC
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, DSMC
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF,CalcVarWeightMPF,InitializeParticleMaxwell, IncreaseMaxParticleNumber
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
@@ -83,7 +83,7 @@ DO iElem = 1, nElems
   ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
     IF (Symmetry%Axisymmetric) THEN
-      IF (RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+      IF (DoRadialWeighting.OR.DoLinearWeighting) THEN
         DO iSpec = 1, nSpecies
           IF (DSMC%DoAmbipolarDiff) THEN
             IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
@@ -94,9 +94,9 @@ DO iElem = 1, nElems
             MinPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *(iHeight-1.)
             MaxPosTemp = Bounds(1,2) + (Bounds(2,2) - Bounds(1,2))/ yPartitions *iHeight
             TempVol =  (MaxPosTemp-MinPosTemp)*(Bounds(2,1)-Bounds(1,1)) * Pi * (MaxPosTemp+MinPosTemp)
-            IF (RadialWeighting%DoRadialWeighting) THEN
+            IF (DoRadialWeighting) THEN
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
-            ELSE IF (VarWeighting%DoVariableWeighting) THEN
+            ELSE IF (DoLinearWeighting) THEN
               PosVar = (/0.0,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcVarWeightMPF(PosVar,iElem)
             END IF
@@ -121,7 +121,7 @@ DO iElem = 1, nElems
             END DO ! nPart
           END DO ! yPartitions
         END DO ! nSpecies
-      ELSE ! No RadialWeighting
+      ELSE ! No Weighting
         DO iSpec = 1, nSpecies
           IF (DSMC%DoAmbipolarDiff) THEN
             IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
@@ -147,7 +147,7 @@ DO iElem = 1, nElems
             locnPart = locnPart + 1
           END DO ! nPart
         END DO ! nSpecies
-      END IF ! RadialWeighting: YES/NO
+      END IF ! Weighting: YES/NO
     ELSE IF(Symmetry%Order.EQ.2) THEN
       Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
@@ -212,12 +212,12 @@ DO iElem = 1, nElems
         PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / Species(iSpec)%MacroParticleFactor
         CALL RANDOM_NUMBER(iRan)
         ! Initialize the clones for the variable weighting in 3D
-        IF (VarWeighting%DoVariableWeighting) THEN
+        IF (DoLinearWeighting) THEN
           CNElemID = GetCNElemID(GlobalElemID)
           PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
         ELSE
           PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / Species(iSpec)%MacroParticleFactor
-        END IF ! VarWeighting
+        END IF ! LinearWeighting
         IF(UseVarTimeStep) THEN
           PartDens = PartDens / GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), ElemMidPoint_Shared(2,CNElemID), iElem)
         END IF

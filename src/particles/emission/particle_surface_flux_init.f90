@@ -401,7 +401,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, UseVarTimeStep, VarTime
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
@@ -575,7 +575,7 @@ DO iSpec=1,nSpecies
     ! === Set the surface flux type
     IF(DoPoissonRounding) SF%Type = 3
     IF(DoTimeDepInflow)   SF%Type = 4
-    IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) SF%Type = 2
+    IF(DoRadialWeighting.OR.DoLinearWeighting) SF%Type = 2
     ! === ADAPTIVE BC ==============================================================================================================
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
@@ -722,7 +722,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies
 USE MOD_Particle_Mesh_Tools    ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
@@ -772,7 +772,7 @@ DO BCSideID=1,nBCSides
   TmpSideNumber(currentBC) = TmpSideNumber(currentBC) + 1  ! Number of Sides
 END DO ! BCSideID
 
-IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+IF(ParticleWeighting%PerformCloning) THEN
   ALLOCATE(BCdata_auxSFTemp(1:nPartBound))
 END IF
 
@@ -785,19 +785,12 @@ DO iBC=1,countDataBC
     ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSwapGeo(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
     ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSideGeo(1:TmpSideNumber(iBC)))
   END IF
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(ParticleWeighting%PerformCloning) THEN
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
     BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor = 1.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
     BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 0.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
-    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea = 0.
-  ELSE IF(VarWeighting%DoVariableWeighting) THEN
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
-    BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor = 1.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:VarWeighting%nSubSides))
-    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 0.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:VarWeighting%nSubSides))
+    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
     BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea = 0.
   END IF
   DO iSpec=1,nSpecies
@@ -807,10 +800,8 @@ DO iBC=1,countDataBC
         IF (UseCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
-        IF(RadialWeighting%DoRadialWeighting) THEN
-          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
-        ELSE IF(VarWeighting%DoVariableWeighting) THEN
-          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:VarWeighting%nSubSides))
+        IF(ParticleWeighting%PerformCloning) THEN
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
         END IF
       END IF
     END DO
@@ -835,41 +826,41 @@ DO iBC=1,countDataBC
           SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,CNElemID, ymin, ymax)
           SurfMeshSubSideData(1,2,BCSideID)%area = 0.0
           ! Determination of the mean radial weighting factor for calculation of the number of particles to be inserted
-          IF (RadialWeighting%DoRadialWeighting) THEN
+          IF (DoRadialWeighting) THEN
             IF((ymax - ymin).GT.0.0) THEN
               ! Surfaces that are NOT parallel to the YZ-plane
-              IF(RadialWeighting%CellLocalWeighting) THEN
+              IF(ParticleWeighting%UseCellAverage) THEN
                 ! Cell local weighting
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + ElemMidPoint_Shared(2,CNElemID) &
-                                                                        / GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
+                                                                        / GEO%ymaxglob*(ParticleWeighting%ScaleFactor-1.))
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
-                DO iSub = 1, RadialWeighting%nSubSides
-                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / RadialWeighting%nSubSides
-                  yMaxTemp = ymin + iSub * (ymax - ymin) / RadialWeighting%nSubSides
+                DO iSub = 1, ParticleWeighting%nSubSides
+                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / ParticleWeighting%nSubSides
+                  yMaxTemp = ymin + iSub * (ymax - ymin) / ParticleWeighting%nSubSides
                   BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = 1.          &
-                    + (yMaxTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.) &
-                    -  yMinTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.))/(yMaxTemp - yMinTemp)
+                    + (yMaxTemp**2/(GEO%ymaxglob*2.)*(ParticleWeighting%ScaleFactor-1.) &
+                    -  yMinTemp**2/(GEO%ymaxglob*2.)*(ParticleWeighting%ScaleFactor-1.))/(yMaxTemp - yMinTemp)
                 END DO
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
               BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &
-                                                                        + ymax/(GEO%ymaxglob)*(RadialWeighting%PartScaleFactor-1.)
+                                                                        + ymax/(GEO%ymaxglob)*(ParticleWeighting%ScaleFactor-1.)
             END IF
           END IF
           ! Determination of the mean variable weighting factor for calculation of the number of particles to be inserted
-          IF (VarWeighting%DoVariableWeighting) THEN
+          IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
             IF((ymax - ymin).GT.0.0) THEN
               ! Surfaces that are NOT parallel to the YZ-plane
-              IF(VarWeighting%CellLocalWeighting) THEN
+              IF(ParticleWeighting%UseCellAverage) THEN
                 ! Cell local weighting
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),ElemID)
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
-                DO iSub = 1, VarWeighting%nSubSides
-                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / VarWeighting%nSubSides
-                  yMaxTemp = ymin + iSub * (ymax - ymin) / VarWeighting%nSubSides
+                DO iSub = 1, ParticleWeighting%nSubSides
+                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / ParticleWeighting%nSubSides
+                  yMaxTemp = ymin + iSub * (ymax - ymin) / ParticleWeighting%nSubSides
                   yAvTemp = (yMaxTemp + yMinTemp)/2.
                   BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = CalcVarWeightMPF((/0.0,yAvTemp,0.0/),ElemID)
                 END DO
@@ -884,7 +875,7 @@ DO iBC=1,countDataBC
         END IF
       ELSE IF(Symmetry%Order.EQ.1) THEN
         SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
-      ELSE IF (VarWeighting%DoVariableWeighting) THEN
+      ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
         GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
         CNElemID     = GetCNElemID(GlobalElemID)
         iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
@@ -1018,7 +1009,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tBCdata_auxSFRadWeight, BCdata_auxSF
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1072,21 +1063,22 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
   ELSE
     nVFR = tmp_SubSideAreas(iSample,jSample) * vSF ! VFR projected to inwards normal of sub-side
   END IF
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Particle weighting: calculate the volume flow rate per sub-side
+  IF(DoRadialWeighting) THEN
     nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
-    DO iSub = 1, RadialWeighting%nSubSides
+    DO iSub = 1, ParticleWeighting%nSubSides
       IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
         Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
                                                             * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
       END IF
     END DO
-  ELSE IF(VarWeighting%DoVariableWeighting) THEN
+  ELSE IF(DoLinearWeighting.OR.DoCellLocalWeighting) THEN
     IF (BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide).GT.1) THEN
       nVFR = nVFR * Species(iSpec)%MacroParticleFactor / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
     ELSE
       nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
     END IF
-    DO iSub = 1, VarWeighting%nSubSides
+    DO iSub = 1, ParticleWeighting%nSubSides
       IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
         Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) * vSF &
         *Species(iSpec)%MacroParticleFactor/ BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)

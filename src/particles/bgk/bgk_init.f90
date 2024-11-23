@@ -94,7 +94,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, VarWeighting, CollInf
+USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -154,9 +154,6 @@ IF(CoupledBGKDSMC) THEN
   END IF
 #endif /*USE_MPI*/
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
-ELSE
-  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
-  IF(VarWeighting%DoVariableWeighting) VarWeighting%PerformCloning = .TRUE.
 END IF
 
 ! Octree-based cell refinement, up to a certain number of particles

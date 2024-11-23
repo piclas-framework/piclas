@@ -261,7 +261,7 @@ SUBROUTINE SetParticleMPF(FractNbr,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: PartMPF, Species, PartState, PEM
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars     ,ONLY: DoRadialWeighting, DoLinearWeighting
 USE MOD_part_tools    ,ONLY: CalcRadWeightMPF, GetNextFreePosition, CalcVarWeightMPF
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
@@ -279,9 +279,9 @@ INTEGER                   :: iPart,PositionNbr, iElem
 !===================================================================================================================================
 DO iPart=1,NbrOfParticle
   PositionNbr = GetNextFreePosition(iPart)
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(DoRadialWeighting) THEN
     PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
-  ELSE IF (VarWeighting%DoVariableWeighting) THEN
+  ELSE IF (DoLinearWeighting) THEN
     iElem = PEM%LocalElemID(PositionNbr)
     PartMPF(PositionNbr) = CalcVarWeightMPF(PartState(:,PositionNbr),iElem,PositionNbr)
   ELSE
@@ -1080,7 +1080,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1094,7 +1094,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius, RadWeightMPF, iRan, VarWeightMPF
+REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius, VarWeightMPF, iRan
 INTEGER                 :: i, chunkSize2
 !===================================================================================================================================
   ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
@@ -1141,19 +1141,16 @@ INTEGER                 :: i, chunkSize2
       CALL CalcPartSymmetryPos(Particle_pos)
       IF(Symmetry%Axisymmetric.AND.Particle_pos(2).LT.0) Particle_pos(2) = -Particle_pos(2)
       ! Reject some particles do to variable MPF considerations
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        IF(Symmetry%Order.EQ.2) THEN
-          RadWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
-        ELSE IF(Symmetry%Order.EQ.1) THEN
-          RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+      IF(DoRadialWeighting.OR.DoLinearWeighting) THEN
+        IF(DoRadialWeighting) THEN
+          IF(Symmetry%Order.EQ.2) THEN
+            VarWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
+          ELSE IF(Symmetry%Order.EQ.1) THEN
+            VarWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+          END IF
+        ELSE IF(DoLinearWeighting) THEN
+          VarWeightMPF = CalcVarWeightMPF(Particle_pos(:))
         END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
-          i=i+1
-          CYCLE
-        END IF
-      ELSE IF(VarWeighting%DoVariableWeighting) THEN
-        VarWeightMPF = CalcVarWeightMPF(Particle_pos(:))
         CALL RANDOM_NUMBER(iRan)
         IF(Species(FractNbr)%MacroParticleFactor/VarWeightMPF.LT.iRan) THEN
           i=i+1
@@ -1180,7 +1177,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1193,7 +1190,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: Particle_pos(3), iRan, radius, RadWeightMPF, VarWeightMPF
+REAL                    :: Particle_pos(3), iRan, radius, VarWeightMPF
 INTEGER                 :: i, chunkSize2
 !===================================================================================================================================
   i=1
@@ -1207,19 +1204,16 @@ INTEGER                 :: i, chunkSize2
       CALL CalcPartSymmetryPos(Particle_pos)
       IF(Symmetry%Axisymmetric.AND.Particle_pos(2).LT.0) Particle_pos(2) = -Particle_pos(2)
       ! Reject some particles do to variable MPF considerations
-      IF(RadialWeighting%DoRadialWeighting) THEN
-        IF(Symmetry%Order.EQ.2) THEN
-          RadWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
-        ELSE IF(Symmetry%Order.EQ.1) THEN
-          RadWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+      IF(DoRadialWeighting.OR.DoLinearWeighting) THEN
+        IF(DoRadialWeighting) THEN
+          IF(Symmetry%Order.EQ.2) THEN
+            VarWeightMPF = CalcRadWeightMPF(Particle_pos(2), FractNbr)
+          ELSE IF(Symmetry%Order.EQ.1) THEN
+            VarWeightMPF = CalcRadWeightMPF(Particle_pos(1), FractNbr)
+          END IF
+        ELSE IF(DoLinearWeighting) THEN
+          VarWeightMPF = CalcVarWeightMPF(Particle_pos(:))
         END IF
-        CALL RANDOM_NUMBER(iRan)
-        IF(Species(FractNbr)%MacroParticleFactor/RadWeightMPF.LT.iRan) THEN
-          i=i+1
-          CYCLE
-        END IF
-      ELSE IF(VarWeighting%DoVariableWeighting) THEN
-        VarWeightMPF = CalcVarWeightMPF(Particle_pos(:))
         CALL RANDOM_NUMBER(iRan)
         IF(Species(FractNbr)%MacroParticleFactor/VarWeightMPF.LT.iRan) THEN
           i=i+1

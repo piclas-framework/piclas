@@ -1,5 +1,5 @@
 (sec:Radiation)=
-# Radiation 
+# Radiation
 
 ## Radiation Coupling
 
@@ -111,7 +111,7 @@ To determine the wavelength of each photon bundle, two different methods are imp
 
 The acceptance-rejection method is more computationally intensive than the bisection method. However, it should be more accurate, because it consideres individual wavelengths rather than integral values. Thus, the acceptance-rejection method can never select a wavelength that has no emission, while the bisection method has a very low probability of doing so.
 
-For surface properties for photons on a reflecting wall, different options are possible. They can either be specularly reflected 
+For surface properties for photons on a reflecting wall, different options are possible. They can either be specularly reflected
 
     Part-Boundary3-Condition=reflective
     Part-Boundary3-PhotonSpecularReflection = T
@@ -139,7 +139,7 @@ Its diameter can be set with
 
     Radiation-ObservationDiameter          = 0.1
 
-and the viewing angle with 
+and the viewing angle with
 
     Radiation-ObservationAngularAperture   = 0.404533
 
@@ -159,15 +159,15 @@ The trapezoid can be defined by a topwidth and a basewidth, both read-in in angs
 
     Radiation-ObservationSlitFunction      = (/1.7,3.42/)
 
-The simulations can also be run on a two-dimensional rotationally symmetric mesh. To do this, the following options must be set. Different tracking routines are used than with an axisymmetric particle solver, therefore, the RadialWeighting-PartScaleFactor can have different values
+The simulations can also be run on a two-dimensional rotationally symmetric mesh. To do this, the following options must be set. Different tracking routines are used than with an axisymmetric particle solver, therefore, the Part-Weight-ScaleFactor can have different values
 
     Particles-Symmetry2D                         = T
     Particles-Symmetry2DAxisymmetric             = T
-    Particles-RadialWeighting                    = T
-    Particles-RadialWeighting-PartScaleFactor    = 10000
-    Particles-RadialWeighting-CloneMode          = 2
-    Particles-RadialWeighting-CloneDelay         = 6
-    Particles-RadialWeighting-CellLocalWeighting = F
+    Part-Weight-Type               = radial
+    Part-Weight-ScaleFactor    = 10000
+    Part-Weight-CloneMode          = 2
+    Part-Weight-CloneDelay         = 6
+    Part-Weight-CellLocalWeighting = F
 
 
 ## Raytracing
@@ -182,7 +182,7 @@ It only requires only one single section in the parameter.ini file. The user mus
     RayTracing-PartBound = 5
 
 from which the number of rays
-    
+
     RayTracing-NumRays = 200000000
 
 shall be emitted in the direction
@@ -197,12 +197,12 @@ defines the pulse duration $\tau$ that defines the temporal shape of the light i
 
     RayTracing-NbrOfPulses
 
-defines the number of pulses that are performed and 
+defines the number of pulses that are performed and
 
     RayTracing-WaistRadius
 
 the waist radius $w_{b}$ that defines the spatial intensity via $I\propto\exp(-(r/w_b)^2)$ in [m].
-The wavelength in [m] is given by 
+The wavelength in [m] is given by
 
     RayTracing-WaveLength = 50e-9
 
@@ -210,7 +210,7 @@ and the repetition rate of the pulses in [Hz] by
 
     RayTracing-RepetitionRate = 2e3
 
-The time-averaged (over one pulse) power density of the pulse in [W/m2] is used in 
+The time-averaged (over one pulse) power density of the pulse in [W/m2] is used in
 
     RayTracing-PowerDensity = 1e3
 
@@ -219,7 +219,7 @@ which is converted to an average pulse energy considering the irradiated area, h
 To account for the reflectivity of specific surfaces, the absorption rate $A_{\nu}=1-R$ ($R$ is the reflectivity) for photons must be supplied for each particle boundary. This is done by setting the parameter
 
     Part-Boundary1-PhotonEnACC = 1.0
-    
+
 to a value between zero and unity. Additionally, it is possibly to switch between perfect angular reflection and diffuse reflection for each boundary.
 
     Part-Boundary$-PhotonSpecularReflection = T

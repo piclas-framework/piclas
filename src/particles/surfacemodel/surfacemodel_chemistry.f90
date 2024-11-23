@@ -619,7 +619,7 @@ USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem, SurfChemReac , ChemWallProp, ChemSampWall
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
-USE MOD_DSMC_Vars                 ,ONLY: DSMC, RadialWeighting, VarWeighting, SamplingActive
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -669,7 +669,7 @@ iReac_ER = 0
 speciesID = PartSpecies(PartID)
 ! MacroParticleFactor
 partWeight = GetParticleWeight(PartID)
-IF(.NOT.(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting)) THEN
+IF(.NOT.(usevMPF)) THEN
   partWeight = partWeight * Species(speciesID)%MacroParticleFactor
 END IF
 

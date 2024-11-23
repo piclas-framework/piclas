@@ -49,7 +49,7 @@ USE MOD_RadiationTrans_Vars ,ONLY: RadTransPhotPerCell, RadiationPhotonWaveLengt
 USE MOD_RadiationTrans_Vars ,ONLY: RadObservationPointMethod
 USE MOD_Photon_Tracking     ,ONLY: PhotonTriaTracking, Photon2DSymTracking
 USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches
-USE MOD_DSMC_Vars           ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars           ,ONLY: ParticleWeighting
 USE MOD_Mesh_Tools          ,ONLY: GetGlobalElemID
 USE MOD_Output              ,ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars
@@ -94,9 +94,9 @@ REAL                :: RandRot(3,3) !, PartPos(1:3)
         IF (RadTrans%GlobalRadiationPower .EQ. 0.0) THEN !!!!TODO: check!!!
           RadTransPhotPerCell(iElem) = 0
         ELSE
-          IF (RadialWeighting%DoRadialWeighting) THEN
+          IF (DoRadialWeighting) THEN
             RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) &
-              /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.)) &
+              /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(ParticleWeighting%ScaleFactor-1.)) &
               / RadTrans%ScaledGlobalRadiationPower*RadTrans%GlobalPhotonNum + 0.5)
           ELSE
             RadTransPhotPerCell(iElem) = INT(Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) &

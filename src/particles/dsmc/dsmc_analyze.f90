@@ -101,7 +101,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, VarWeighting, CollInf
+USE MOD_DSMC_Vars     ,ONLY: CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -120,7 +120,7 @@ CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 ! Calculation of mixture reference diameter
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+IF(usevMPF) THEN
   MacroParticleFactor = 1.
 ELSE
   MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
@@ -521,8 +521,8 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, DSMC_SolutionPressTens
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
-USE MOD_DSMC_Vars              ,ONLY: VarWeighting, AdaptMPF
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, CellLocalWeight, ParticleWeighting
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
@@ -608,7 +608,7 @@ DO iElem = 1, nElems ! element/cell main loop
           Macro_TempMean = (Macro_Temp(1) + Macro_Temp(2) + Macro_Temp(3)) / 3.
           ! compute number density
           IF (SimVolume.GT.0) THEN
-            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+            IF(usevMPF) THEN
               ! PartNum contains the weighted particle number
               Macro_Density = Macro_PartNum / SimVolume
             ELSE
@@ -619,7 +619,7 @@ DO iElem = 1, nElems ! element/cell main loop
           END IF
           IF (DoVirtualCellMerge) THEN
             IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+              IF(usevMPF) THEN
                 ! PartNum contains the weighted particle number
                 Macro_Density = Macro_PartNum / VirtMergedCells(iElem)%MergedVolume
               ELSE
@@ -703,7 +703,7 @@ DO iElem = 1, nElems ! element/cell main loop
       END IF
     END IF
     ! Radial weighting, vMPF, variable timestep: Getting the actual number of simulation particles without weighting factors
-    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) THEN
+    IF (usevMPF.OR.UseVarTimeStep) THEN
       Total_PartNum = 0.0
       DO iSpec = 1, nSpecies
         IF(DSMC%SampNum.GT.0) DSMC_MacroVal(nVarLoc*(iSpec-1)+11,iElem) = DSMC_Solution(11,iElem, iSpec) / REAL(DSMC%SampNum)
@@ -748,15 +748,10 @@ IF (DSMC%CalcQualityFactors) THEN
       DSMC_MacroVal(nVarCount+1,iElem) = VirtMergedCells(iElem)%MasterCell
       nVarCount = nVarCount + 1
     END IF
-    IF(RadialWeighting%PerformCloning) THEN
+    IF(ParticleWeighting%PerformCloning) THEN
       IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
         DSMC_MacroVal(nVarCount+1:nVarCount+2,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
       END IF
-      nVarCount = nVarCount + 2
-    ELSE IF(VarWeighting%PerformCloning) THEN
-      IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
-          DSMC_MacroVal(nVarCount+1:nVarCount+2,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
-        END IF
       nVarCount = nVarCount + 2
     END IF
     IF(FPInitDone) THEN
@@ -878,20 +873,20 @@ IF (DoVirtualCellMerge) THEN
 END IF
 
 ! Visualization of the radial/variable MPF in each sub-cell
-IF (DSMC%CalcCellMPF) THEN
+IF (ParticleWeighting%EnableOutput) THEN
   ALLOCATE(DSMC%CellMPFSamp(nElems))
   DSMC%CellMPFSamp(1:nElems) = 0.0
 
   ! Enable the calculation of the reference variable weighting factor
-  IF (AdaptMPF%DoAdaptMPF) THEN
-    AdaptMPF%UseOptMPF = .FALSE.
+  IF (DoCellLocalWeighting) THEN
+    CellLocalWeight%UseOptMPF = .FALSE.
   END IF
 
   DO iElem=1,nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
-    IF (VarWeighting%DoVariableWeighting) THEN
+    IF (DoLinearWeighting) THEN
       DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID))
-    ELSE IF (RadialWeighting%DoRadialWeighting) THEN
+    ELSE IF (DoRadialWeighting) THEN
       DSMC%CellMPFSamp(iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), 1)
     ELSE
       DSMC%CellMPFSamp(iElem) = Species(1)%MacroParticleFactor
@@ -902,14 +897,14 @@ IF (DSMC%CalcCellMPF) THEN
   DEALLOCATE(DSMC%CellMPFSamp)
 
   ! Enable the calculation of the reference variable weighting factor
-  IF (AdaptMPF%DoAdaptMPF) THEN
-    AdaptMPF%UseOptMPF = .TRUE.
+  IF (DoCellLocalWeighting) THEN
+    CellLocalWeight%UseOptMPF = .TRUE.
   END IF
 
 END IF
 
 ! Visualization for the optimal MPF in the adaptive routine for each sub-cell
-IF (AdaptMPF%DoAdaptMPF) THEN
+IF (DoCellLocalWeighting) THEN
   DO iElem=1,nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
     DSMC_MacroVal(nVarCount+1,iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
@@ -974,8 +969,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 !> Subroutine to write the sampled macroscopic solution to the HDF5 format
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, VarWeighting, CollisMode, CollInf
-USE MOD_DSMC_Vars     ,ONLY: VarWeighting, AdaptMPF
+USE MOD_DSMC_Vars     ,ONLY: DSMC, ParticleWeighting, CollisMode, CollInf, DoCellLocalWeighting
 USE MOD_MCC_Vars      ,ONLY: SpecXSec
 USE MOD_PreProc
 USE MOD_Globals
@@ -1031,7 +1025,7 @@ IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
   IF(UseVarTimeStep) nVar_quality = nVar_quality + 1
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
-  IF(RadialWeighting%PerformCloning.OR.VarWeighting%PerformCloning) nVar_quality = nVar_quality + 2
+  IF(ParticleWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) THEN
     nVar_quality = nVar_quality + 8
   END IF
@@ -1049,13 +1043,13 @@ ELSE
 END IF
 
 
-IF(DSMC%CalcCellMPF) THEN
+IF(ParticleWeighting%EnableOutput) THEN
   nVarMPF = 1
 ELSE
   nVarMPF = 0
 END IF
 
-IF(AdaptMPF%DoAdaptMPF) THEN
+IF(DoCellLocalWeighting) THEN
   nVarAdaptMPF = 1
 ELSE
   nVarAdaptMPF = 0
@@ -1133,12 +1127,7 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+1) ='MergeMasterCell'
     nVarCount = nVarCount + 1
   END IF
-  IF(RadialWeighting%PerformCloning) THEN
-    StrVarNames(nVarCount+1) = '2D_ClonesInCell'
-    StrVarNames(nVarCount+2) = '2D_IdenticalParticles'
-    nVarCount=nVarCount+2
-  END IF
-  IF(VarWeighting%PerformCloning) THEN
+  IF(ParticleWeighting%PerformCloning) THEN
     StrVarNames(nVarCount+1) = 'ClonesInCell'
     StrVarNames(nVarCount+2) = 'IdenticalParticles'
     nVarCount=nVarCount+2
@@ -1174,8 +1163,8 @@ IF (SamplePressTensHeatflux) THEN
   nVarCount=nVarCount+6
 END IF
 
-! Sampling of electronic excitation: Construct the variables name based on first and second species as well as the level threshold
-IF(DSMC%CalcCellMPF) THEN
+!
+IF(ParticleWeighting%EnableOutput) THEN
   StrVarNames(nVarCount+1) = 'SubCellMPF'
   nVarCount=nVarCount+1
   nVarMPF = 1
@@ -1183,7 +1172,7 @@ ELSE
   nVarMPF = 0
 END IF
 
-IF(AdaptMPF%DoAdaptMPF) THEN
+IF(DoCellLocalWeighting) THEN
   StrVarNames(nVarCount+1) = 'OptimalAdaptMPF'
   nVarCount=nVarCount+1
   nVarAdaptMPF = 1

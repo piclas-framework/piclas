@@ -37,7 +37,7 @@ SUBROUTINE BGK_octree_adapt(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC
 USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells
 USE MOD_Particle_Vars           ,ONLY: DoVirtualCellMerge
 #if PP_TimeDiscMethod==300
@@ -150,7 +150,7 @@ ELSE
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+  IF(usevMPF) THEN
     ! totalWeight contains the weighted particle number
     Dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
@@ -438,7 +438,7 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC
 USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells, DoVirtualCellMerge
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens,BGKMovingAverage,ElemNodeAveraging
@@ -546,7 +546,7 @@ ELSE
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+  IF(usevMPF) THEN
     ! totalWeight contains the weighted particle number
     Dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE

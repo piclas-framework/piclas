@@ -57,7 +57,7 @@ USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos, PEM
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
-USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, DoRadialWeighting, DoLinearWeighting
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
 USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModelParticleEmission
 USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEventProbability
@@ -201,9 +201,9 @@ CASE (SEE_MODELS_ID)
     IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
       ! Get MPF
       IF (usevMPF) THEN
-        IF (RadialWeighting%DoRadialWeighting) THEN
+        IF (DoRadialWeighting) THEN
           MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
-        ELSE IF (VarWeighting%DoVariableWeighting) THEN
+        ELSE IF (DoLinearWeighting) THEN
           iElem = PEM%LocalElemID(PartID)
           MPF = CalcVarWeightMPF(PartPosImpact(:),iElem)
         ELSE

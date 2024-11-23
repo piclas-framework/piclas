@@ -38,7 +38,7 @@ SUBROUTINE ParticleEmissionCellLocal(iSpec,iInit,NbrOfParticle)
 USE MOD_Globals
 USE MOD_part_emission_tools     ,ONLY: IntegerDivide
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, ParticleWeighting
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
@@ -140,11 +140,16 @@ IF (DoExactPartNumInsert) THEN
     CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(start:end),CellChunkSize(:))
   END ASSOCIATE
 ELSE
-  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-  IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
-  IF(VarWeighting%DoVariableWeighting)  PartDens = Species(iSpec)%MacroParticleFactor*PartDens / (VarWeighting%AverageScaleFactor)
+  ! Numerical number density is needed
+  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
+  ! Radial weighting: scaling it with the average factor from symmetry axis to outer boundary
+  IF(DoRadialWeighting) PartDens = PartDens * 2. / (ParticleWeighting%ScaleFactor)
+  ! Linear weighting: ScaleFactor is actually a regular MPF in this case
+  IF(DoLinearWeighting)  PartDens = Species(iSpec)%MacroParticleFactor*PartDens / (ParticleWeighting%ScaleFactor)
+  ! Sanity check: Resulting number of particles is an integer of KIND = 4
   CHECKSAFEINT(PartDens * LocalVolume, 4)
   chunkSize_tmp = INT(PartDens * LocalVolume)
+  ! Split & Merge: constant number of particles defined by the split threshold
   IF(UseSplitAndMerge) THEN
     IF(vMPFSplitThreshold(iSpec).GT.0) chunkSize_tmp = nElems * vMPFSplitThreshold(iSpec)
   END IF
@@ -170,10 +175,10 @@ DO iElem = 1, nElems
       nPart = CellChunkSize(iGlobalElem)
     ELSE
       ! Number of particles to be inserted through %PartDensity: number depends on cell volume, weighting factor or split threshold
-      ! Apply radial weighting
-      IF(RadialWeighting%DoRadialWeighting) THEN
+      ! Apply particle weighting: radial or linear
+      IF(DoRadialWeighting) THEN
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
-      ELSE IF(VarWeighting%DoVariableWeighting) THEN
+      ELSE IF(DoLinearWeighting) THEN
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iElem)
       ELSE
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
@@ -199,7 +204,7 @@ DO iElem = 1, nElems
       InsideFlag=.FALSE.
       DO WHILE(.NOT.InsideFlag)
         CALL RANDOM_NUMBER(RandomPos)
-        IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+        IF(Symmetry%Axisymmetric.AND.(.NOT.DoRadialWeighting.AND..NOT.DoLinearWeighting)) THEN
           ! Treatment of axisymmetry without weighting
           RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
           RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
@@ -218,11 +223,11 @@ DO iElem = 1, nElems
       PEM%GlobalElemID(PartID) = iGlobalElem
       ichunkSize = ichunkSize + 1
       IF (UseVarTimeStep) PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID), PartState(2,PartID),iElem)
-      ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
+      ! Check if vMPF (and radial/linear weighting is used) to determine the MPF of the new particle
       IF(usevMPF) THEN
-        IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(DoRadialWeighting) THEN
           PartMPF(PartID) = CalcRadWeightMPF(PartState(2,PartID),iSpec,PartID)
-        ELSE IF(VarWeighting%DoVariableWeighting) THEN
+        ELSE IF(DoLinearWeighting) THEN
           PartMPF(PartID) = CalcVarWeightMPF(PartState(:,PartID),iElem,PartID)
         ELSE
           PartMPF(PartID) = Species(iSpec)%MacroParticleFactor
