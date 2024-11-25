@@ -296,7 +296,7 @@ SUBROUTINE DSMC_SetInClones()
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: ClonedParticles, PartStateIntEn, useDSMC, CollisMode, DSMC, ParticleWeighting
-USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: AmbipolElecVelo, DoRadialWeighting
 USE MOD_DSMC_Vars               ,ONLY: VibQuantsPar, SpecDSMC, PolyatomMolDSMC, SamplingActive, ElectronicDistriPart
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartSpecies, PartState, LastPartPos, PartMPF, WriteMacroVolumeValues, Species
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
@@ -350,8 +350,12 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
   PDM%IsNewPart(PositionNbr) = .TRUE.
   PDM%dtFracPush(PositionNbr) = .FALSE.
   PartState(1:5,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:5)
+  IF (DoRadialWeighting) THEN
   ! Creating a relative velocity in the z-direction
-  PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
+    PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
+  ELSE
+    PartState(6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(6)
+  END IF
   IF (useDSMC.AND.(CollisMode.GT.1)) THEN
     PartStateIntEn(1:2,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartStateIntEn(1:2)
     IF(DSMC%ElectronicModel.GT.0) THEN
