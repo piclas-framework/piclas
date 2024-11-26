@@ -351,8 +351,8 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
   PDM%dtFracPush(PositionNbr) = .FALSE.
   PartState(1:5,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(1:5)
   IF (DoRadialWeighting) THEN
-  ! Creating a relative velocity in the z-direction
-    PartState(6,PositionNbr) = - ClonedParticles(iPart,DelayCounter)%PartState(6)
+    ! Creating a relative velocity in the z-direction
+    PartState(6,PositionNbr) = -ClonedParticles(iPart,DelayCounter)%PartState(6)
   ELSE
     PartState(6,PositionNbr) = ClonedParticles(iPart,DelayCounter)%PartState(6)
   END IF
@@ -371,7 +371,12 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
       IF(ALLOCATED(AmbipolElecVelo(PositionNbr)%ElecVelo)) DEALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo)
       ALLOCATE(AmbipolElecVelo(PositionNbr)%ElecVelo(1:3))
       AmbipolElecVelo(PositionNbr)%ElecVelo(1:2) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(1:2)
-      AmbipolElecVelo(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+      IF(DoRadialWeighting) THEN
+        ! Creating a relative velocity in the z-direction
+        AmbipolElecVelo(PositionNbr)%ElecVelo(3) = -ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+      ELSE
+        AmbipolElecVelo(PositionNbr)%ElecVelo(3) = ClonedParticles(iPart,DelayCounter)%AmbiPolVelo(3)
+      END IF
     END IF
     IF(SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%PolyatomicMol) THEN
       iPolyatMole = SpecDSMC(ClonedParticles(iPart,DelayCounter)%Species)%SpecToPolyArray
