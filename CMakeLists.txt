@@ -199,9 +199,9 @@ ENDIF()
 # =========================================================================
 # make sure that the default is a RELEASE
 IF (NOT CMAKE_BUILD_TYPE)
-  SET (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: Debug, Release, Profile, Sanitize (only GNU), Nitro (only GNU)." FORCE)
+  SET (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: Debug, Release, Profile (profiling with gprof -pg), NoGProfile (profiling without -pg) Sanitize (only GNU), Nitro (only GNU)." FORCE)
    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile Sanitize Nitro)
+     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile NoGProfile Sanitize Nitro)
    ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
      SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile)
    ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
