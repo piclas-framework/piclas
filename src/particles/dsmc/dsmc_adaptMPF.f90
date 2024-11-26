@@ -112,11 +112,8 @@ IF(.NOT.PerformLoadBalance) THEN
   ! No further adaption process, use of the MPF distribution from the previous adaption process
   CellLocalWeight%SkipAdaption       = GETLOGICAL('Part-Weight-CellLocal-SkipAdaption')
 
-  IF (.NOT.(CellLocalWeight%SkipAdaption)) THEN
-    IF(.NOT.DoMacroscopicRestart) THEN
-      CALL abort(__STAMP__, &
-        'ERROR: Adaption process only possible with -DoMacroscopicRestart=T!')
-    END IF
+  IF (.NOT.CellLocalWeight%SkipAdaption) THEN
+    IF(.NOT.DoMacroscopicRestart) CALL abort(__STAMP__, 'ERROR: Cell-local weighting adaption process only possible with -DoMacroscopicRestart=T!')
 
     ! Read-in of the parameter boundaries
     CellLocalWeight%MinPartNum         = GETREAL('Part-Weight-CellLocal-MinParticleNumber')
@@ -138,8 +135,7 @@ IF(.NOT.PerformLoadBalance) THEN
 
     IF(nVar_HDF5.LE.0) THEN
       SWRITE(*,*) 'ERROR: Something is wrong with our MacroscopicRestart file:', TRIM(MacroRestartFileName)
-      CALL abort(__STAMP__,&
-      'ERROR: Number of variables in the ElemData array appears to be zero!')
+      CALL abort(__STAMP__, 'ERROR: Number of variables in the ElemData array appears to be zero!')
     END IF
 
     ! Get the variable names from the DSMC state and find the position of required quality factors
@@ -319,7 +315,7 @@ REAL, ALLOCATABLE                 :: MPFData_HDF5(:)
   ReadInElems = nGlobalElems
 #endif
 
-IF (.NOT.(CellLocalWeight%SkipAdaption)) THEN
+IF (.NOT.CellLocalWeight%SkipAdaption) THEN
   ! Further refinement of elements close to a catalytic surface
   IF (DoCatalyticRestart) THEN
     ALLOCATE(RefineCatElem(1:nComputeNodeElems))
@@ -489,8 +485,7 @@ ELSE ! Skip Adaption
     SWRITE(UNIT_stdOut,*)'Cell-local weight: Read-in of particle weight distribution from state file.'
 
   ELSE IF(.NOT.DoMacroscopicRestart) THEN
-    CALL abort(__STAMP__, &
-      'ERROR: Cell-local weight requires a given particle weight distribution or -DoMacroscopicRestart=T!')
+    CALL abort(__STAMP__, 'ERROR: Cell-local weight requires a given particle weight distribution or -DoMacroscopicRestart=T!')
   END IF
   CALL CloseDataFile()
 END IF
@@ -1043,8 +1038,12 @@ SUBROUTINE FinalizeNodeMapping()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_PreProc
 USE MOD_Particle_Mesh_Vars
+USE MOD_DSMC_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED
+#endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1053,6 +1052,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(OptimalMPF_Shared_Win)
+CALL UNLOCK_AND_FREE(AdaptMPFInfo_Shared_Win)
+#endif /*USE_MPI*/
+
+ADEALLOCATE(OptimalMPF_Shared)
+ADEALLOCATE(AdaptMPFInfo_Shared)
+
 #if USE_MPI
 SDEALLOCATE(RecvRequestCN)
 SDEALLOCATE(SendRequestCN)
