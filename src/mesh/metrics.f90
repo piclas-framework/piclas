@@ -143,7 +143,9 @@ USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_HDG
 USE MOD_Symmetry_Vars      ,ONLY: Symmetry
+#endif /*USE_HDG*/
 USE MOD_Globals_Vars       ,ONLY: PI
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -558,7 +560,9 @@ END SUBROUTINE CalcSurfMetrics
 SUBROUTINE SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face,NormVec,TangVec1,TangVec2,SurfElem)
 ! MODULES
 USE MOD_Globals       ,ONLY: CROSS,abort
+#if USE_HDG
 USE MOD_Symmetry_Vars ,ONLY: Symmetry
+#endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

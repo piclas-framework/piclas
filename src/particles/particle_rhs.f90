@@ -888,7 +888,7 @@ SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, PartMPF, SkipGranularUpdate,ForceAverage
+USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, SkipGranularUpdate,ForceAverage
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
