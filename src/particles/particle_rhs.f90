@@ -881,8 +881,10 @@ END SUBROUTINE CalcPosAndVeloForGranularSpecies
 
 SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
 !===================================================================================================================================
-! Routine for the calculation of the Fluid-particle interaction for granular species and update
-! the bulk temperatur of the granular particle
+! Routine for the Calculation of Fluid-Particle Interaction and Bulk Temperature Update of the Granular Particle
+! This routine calculates the fluid-particle momentum and energy transfer by iterating over all DSMC particles within the same cell
+! as the granular particle. The individual momentum and energy contributions of each DSMC particle are computed 
+! and used to update the force on the granular particle and its bulk temperature.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
