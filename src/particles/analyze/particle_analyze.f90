@@ -874,7 +874,7 @@ USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPoten
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
-USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,ForceAverage
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,ForceAverage, SumForceAverage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1471,6 +1471,25 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 ! MPI Communication for values which are not YET communicated
 ! All routines ABOVE contain the required MPI-Communication
 !===================================================================================================================================
+#if USE_MPI
+  IF(CalcGranularDragHeat) THEN
+    IF(MPIRoot)THEN
+      SumForceAverage = 0.0
+      CALL MPI_REDUCE(ForceAverage(1),SumForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(2),SumForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(3),SumForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(4),SumForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(5),SumForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+    ELSE
+      CALL MPI_REDUCE(ForceAverage(1),ForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(2),ForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(3),ForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(4),ForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(5),ForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+    END IF
+  END IF
+#endif /*USE_MPI*/
+
   IF(CalcCoupledPower) THEN
     PCouplIntAverage = 0.0 ! Default
 #if USE_MPI
@@ -1831,11 +1850,11 @@ IF (MPIRoot) THEN
     END IF ! PICValidPlasmaCellSum.GT.0
   END IF ! CalcPICTimeStep
   IF(CalcGranularDragHeat) THEN
-    IF(ForceAverage(1).GT.0.0) THEN
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(2)/ForceAverage(1)
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(3)/ForceAverage(1)
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(4)/ForceAverage(1)
-      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', ForceAverage(5)/ForceAverage(1)
+    IF(SumForceAverage(1).GT.0.0) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(2)/SumForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(3)/SumForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(4)/SumForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(5)/SumForceAverage(1)
     ELSE
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0

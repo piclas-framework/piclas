@@ -317,6 +317,7 @@ REAL                  :: GravityDir(3)      ! Direction ofgravity force
 LOGICAL               :: SkipGranularUpdate ! Flag to skip granular species position, velocity and temperatur update
                                             ! uesed only for benchmark TC
 REAL                  :: ForceAverage(5)
+REAL                  :: SumForceAverage(5)
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars
