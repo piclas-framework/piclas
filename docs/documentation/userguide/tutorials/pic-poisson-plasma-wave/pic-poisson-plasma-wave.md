@@ -1,3 +1,4 @@
+(sec:tutorial-pic-poisson-plasma-wave)=
 # Plasma Wave (PIC, Poisson's Equation)
 
 The setup considers a 1D plasma oscillation, which is a common and simple electrostatic PIC benchmark {cite}`Birdsall1991`,
@@ -7,10 +8,22 @@ chosen for this this tutorial. In this setup, electrons oscillate around the alm
 electric field.
 
 Before beginning with the tutorial, copy the `pic-poisson-plasma-wave` directory from the tutorial folder in the top level
-directory to a separate location
+directory of the piclas repository to a separate location
 
+    cd ~
+    mkdir -p workspace && cd workspace
     cp -r $PICLAS_PATH/tutorials/pic-poisson-plasma-wave .
     cd pic-poisson-plasma-wave
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd ~
+    mkdir -p workspace && cd workspace
+    cp -r /home/$(whoami)/piclas/tutorials/pic-poisson-plasma-wave .
+    cd pic-poisson-plasma-wave
+
+Change the command to comply with your path if the piclas repository is somewhere else.
 
 ## Mesh Generation with HOPR (pre-processing)
 
@@ -88,22 +101,83 @@ Mesh with $60\times1\times1$ elements and a size of [$2\pi\times0.2\times0.2$] m
 
 ## PIC Simulation with PICLas
 
-Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation` and make sure to set
-the correct compile flags
+Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
+described under Section {ref}`userguide/installation:Compiling the code`.
+Always build the code in a separate directory located in the piclas top level directory.
+For this PIC tutorial, e.g., create a directory *build_poisson_RK3* in the piclas repository by running
+
+    cd $PICLAS_PATH
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd /home/$(whoami)/piclas
+
+and the create the build directory, in which the compilation process will take place
+
+    mkdir build_poisson_RK3
+
+and the directory structure, which can be viewed via
+
+    ls -l
+
+should look like this
+
+     build_poisson_RK3
+     cmake
+     CMakeListsLib.txt
+     CMakeListsMachine.txt
+     CMakeLists.txt
+     CONTRIBUTORS.md
+     docs
+     LICENCE.md
+     README.md
+     REFERENCE.md
+     REGGIE.md
+     regressioncheck
+     share
+     SpeciesDatabase.h5
+     src
+     tools
+     tutorials
+     unitTests
+
+Always compile the code within the *build* directory, hence, navigate to the *build_poisson_RK3* directory before running cmake
+
+    cd build_poisson_RK3
+
+For this specific tutorial, make sure to set the correct compile flags
 
     PICLAS_EQNSYSNAME     = poisson
     PICLAS_TIMEDISCMETHOD = RK3
 
-or simply run the following command from inside the *build* directory
+using the ccmake (gui for cmake) or simply run the following command from inside the *build* directory
 
     cmake ../ -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3
 
-to configure the build process and run `make` afterwards to build the executable. For this setup, we have chosen the Poisson solver
-and selected the three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
-and discretization options is given in Section {ref}`sec:solver-settings`. To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be run. To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or create a link to the files via.
+to configure the build process and run
 
-    ln -s $PICLAS_PATH/build/bin/piclas
-    ln -s $PICLAS_PATH/build/bin/piclas2vtk
+    make -j
+
+afterwards to compile the executable. For this setup, the Poisson solver was chosen in combination with the
+three-stage, third-order low-storage Runge-Kutta time discretization method. An overview over the available solver
+and discretization options is given in Section {ref}`sec:solver-settings`.
+
+To run the simulation and analyse the results, the *piclas* and *piclas2vtk* executables have to be executed.
+To avoid having to use the absolute file path, you can either set aliases for both, copy them to your local tutorial directory or
+create a link to the files via
+
+    ln -s $PICLAS_PATH/build_poisson_RK3/bin/piclas
+    ln -s $PICLAS_PATH/build_poisson_RK3/bin/piclas2vtk
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, the two commands
+
+    ln -s /home/$(whoami)/piclas/build_poisson_RK3/bin/piclas
+    ln -s /home/$(whoami)/piclas/build_poisson_RK3/bin/piclas2vtk
+
+can be executed instead of using `$PICLAS_PATH`.
+Please check where piclas is located before running the commands.
 
 The simulation setup is defined in *parameter.ini*. For a specific electron number density, the plasma frequency of the system is
 given by
@@ -144,7 +218,7 @@ name: tab:pic_poisson_plasma_wave_phys
 
 ### General numerical setup
 
-The general numerical parameters are selected by the following
+The general numerical parameters (defined in the parameter.ini) are selected by the following
 
     ! =============================================================================== !
     ! DISCRETIZATION
@@ -206,13 +280,8 @@ particle solver. The particle boundary conditions are set by the following lines
 
     Part-nPeriodicVectors = 3 ! Number of periodic boundary (particle and field) vectors
 
-    Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/) ! Cartesian background mesh (bounding box around the complete simulation domain)
-    Part-FactorFIBGM = (/60     , 1   , 1/)   ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
-
 where, the number of boundaries `Part-nBounds` (6 in 3D cuboid) is followed by the names of
-the boundaries (given by the hopr.ini file) and the type `periodic`. Furthermore, the periodic vectors must be supplied and the size
-of the Cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells)
-in each direction given by `Part-FactorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+the boundaries (given by the hopr.ini file) and the type `periodic`. Furthermore, the periodic vectors must be supplied.
 
 ### Field solver
 
@@ -262,14 +331,12 @@ The different available deposition types are described in more detail in Section
 
 ### Particle solver
 
-For the treatment of particles, the maximum number of particles `Part-maxParticleNumber` that each processor can hold has to be supplied and
-the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
-through chemical reactions).
+The number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time
+through chemical reactions) determines the number of subsequently required parameters for each species.
 
     ! =============================================================================== !
     ! PARTICLE Emission
     ! =============================================================================== !
-    Part-maxParticleNumber    = 4000 ! Maximum number of particles (per processor/thread)
     Part-nSpecies             = 2    ! Number of particle species
 
 The inserting (sometimes labelled emission or initialization) of particles at the beginning or during the course of the simulation
@@ -413,7 +480,7 @@ The parameters for **piclas2vtk** are stored in the **parameter.ini** file under
 
 where `NVisu` is the polynomial visualization degree on which the field solution is interpolated.
 Depending on the used polynomial degree `N` and subsequently the degree of visualization `NVisu`, which should always be higher than
-`N`, the resulting electric potential $\Phi$ and its derivative the electric field strength **E** might show signs of oscillations.
+`N`, the resulting electric potential $\Phi$ and its derivative, the electric field strength **E** might show signs of oscillations.
 This is because the PIC simulation is always subject to noise that is influenced by the discretization (number of elements and
 polynomial degree as well as number of particles) and is visible in the solution as this is a snapshot of the current simulation.
 
@@ -425,8 +492,7 @@ Run the command
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electric potential field can be viewed, e.g., by opening `plasma_wave_Solution_000.000000040.vtu` and plotting the field
-`Phi` along the x-axis, which should look like the following
+The electric potential field and electric field strength  can be viewed, for e.g. in **ParaView**, by opening `plasma_wave_Solution_000.000000040.vtu` and plotting the field `Phi` and `E` along the x-axis.This can be done by selecting **Filter &rarr; Data Analysis &rarr; Plot Over Line**  . The graphs should look like the following
 
 
 ```{figure} results/tut-pic-pw-results.jpg
@@ -437,7 +503,6 @@ width: 700px
 
 Resulting electric potential and field.
 ```
-
 
 
 

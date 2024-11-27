@@ -187,7 +187,7 @@ if [ ! -d "${MODULESHOME}" ]; then
     #       S.C.: /op/modules/modulefiles
     #
 
-    PATHLIST=/opt/modules/modulefiles/compilers:/opt/modules/modulefiles/utilities:/opt/modules/modulefiles/MPI:/opt/modules/modulefiles/libraries
+    PATHLIST=/opt/modules/modulefiles/compilers:/opt/modules/modulefiles/petsc:/opt/modules/modulefiles/cmake:/opt/modules/modulefiles/hopr:/opt/modules/modulefiles/paraview:/opt/modules/modulefiles/utilities:/opt/modules/modulefiles/MPI:/opt/modules/modulefiles/libraries
     #PATHLIST=/opt/modules/modulefiles/compilersX
 
     # Check if TCL version is greater/equal 8.5
@@ -251,11 +251,11 @@ if [ ! -d "${MODULESHOME}" ]; then
     # -----------------          other shells         -----------------
     echo ""
     echo "${GREEN}==============================================================================================================${NC}"
-    echo "${GREEN}Initialization has been created in /etc/profile and /etc/profile but not for other shells.${NC}"
+    echo "${GREEN}Initialization has been created in /etc/profile and /etc/bash.bashrc but not for other shells.${NC}"
     echo "${GREEN}If you are using a different shell, e.g., zsh, then copy the following to your .zshrc.local or .zshrc to initialize the modules correctly${NC}"
     echo ""
-    echo "if [ -f /opt/modules/'${MODULEVERSION}'/init/zsh ]; then"
-    echo "  . /opt/modules/'${MODULEVERSION}'/init/zsh"
+    echo "if [ -f /opt/modules/${MODULEVERSION}/init/zsh ]; then"
+    echo "  . /opt/modules/${MODULEVERSION}/init/zsh"
     echo "fi"
     echo ""
     echo "${GREEN}For other shells, note that 'zsh' must be exchanged for the specific shell type${NC}"
@@ -313,6 +313,9 @@ if [ ! -d "${MODULESHOME}" ]; then
     mkdir -p ${INSTALLDIRMODULESFILES}
     mkdir -p ${INSTALLDIRMODULESFILES}/compilers
     mkdir -p ${INSTALLDIRMODULESFILES}/utilities
+    mkdir -p ${INSTALLDIRMODULESFILES}/petsc
+    mkdir -p ${INSTALLDIRMODULESFILES}/hopr
+    mkdir -p ${INSTALLDIRMODULESFILES}/paraview
     mkdir -p ${INSTALLDIRMODULESFILES}/MPI
     mkdir -p ${INSTALLDIRMODULESFILES}/libraries
 
@@ -348,12 +351,18 @@ else
     # add:
     echo "/opt/modules/modulefiles/compilers" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/utilities" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/petsc" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/hopr" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/paraview" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/MPI" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/libraries" >> ${MODULESPATH}
 
     mkdir -p ${INSTALLDIRMODULESFILES}
     mkdir -p ${INSTALLDIRMODULESFILES}/compilers
     mkdir -p ${INSTALLDIRMODULESFILES}/utilities
+    mkdir -p ${INSTALLDIRMODULESFILES}/petsc
+    mkdir -p ${INSTALLDIRMODULESFILES}/hopr
+    mkdir -p ${INSTALLDIRMODULESFILES}/paraview
     mkdir -p ${INSTALLDIRMODULESFILES}/MPI
     mkdir -p ${INSTALLDIRMODULESFILES}/libraries
   fi

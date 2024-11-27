@@ -53,6 +53,10 @@ INTERFACE
   END SUBROUTINE copy_userblock
 END INTERFACE
 
+INTERFACE MarkWriteSuccessful
+  MODULE PROCEDURE MarkWriteSuccessful
+END INTERFACE
+
 INTERFACE WriteAttributeToHDF5
   MODULE PROCEDURE WriteAttributeToHDF5
 END INTERFACE
@@ -60,6 +64,7 @@ END INTERFACE
 PUBLIC :: FlushHDF5,WriteHDF5Header,GatheredWriteArray
 PUBLIC :: WriteArrayToHDF5,WriteAttributeToHDF5,GenerateFileSkeleton
 PUBLIC :: WriteTimeAverage,GenerateNextFileInfo, copy_userblock
+PUBLIC :: MarkWriteSuccessful
 #if USE_MPI && defined(PARTICLES)
 PUBLIC :: DistributedWriteArray
 #endif /*USE_MPI && defined(PARTICLES)*/
@@ -76,8 +81,8 @@ SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,Var
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Globals_Vars ,ONLY: ProjectName
 USE MOD_Mesh_Vars    ,ONLY: offsetElem,nGlobalElems,nElems
+! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -109,9 +114,8 @@ END IF
 ! Write timeaverages ---------------------------------------------------------------------------------------------------------------
 IF(nVar_Avg.GT.0)THEN
   ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_TimeAvg',OutputTime))//'.h5'
+  CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FileNameOut=FileName)
   IF(MPIRoot)THEN
-    CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime)
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -139,9 +143,8 @@ END IF
 
 ! Write fluctuations ---------------------------------------------------------------------------------------------------------------
 IF(nVar_Fluc.GT.0)THEN
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Fluc',OutputTime))//'.h5'
+  CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FileNameOut=FileName)
   IF(MPIRoot)THEN
-    CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime)
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
     CALL CloseDataFile()
@@ -167,12 +170,14 @@ IF(nVar_Fluc.GT.0)THEN
   END ASSOCIATE
 END IF
 
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
+
 GETTIME(endT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -206,6 +211,7 @@ CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
+CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -219,18 +225,25 @@ CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  
 LOGICAL                                      :: WriteUserblock
 INTEGER                                      :: Nloc
 !===================================================================================================================================
+! Create filename
+IF(PRESENT(FileNameIn))THEN
+  FileName=FileNameIn
+ELSE
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
+END IF ! PRESENT(FileNameIn)
+IF(.NOT.MPIRoot) THEN
+  IF(PRESENT(FileNameOut)) FileNameOut = FileName
+  RETURN
+END IF
+
 ! Check if NIn is to be used
 IF(PRESENT(NIn))THEN
   Nloc = NIn
 ELSE
   Nloc = PP_N
 END IF ! PRESENT(NIn)
+
 ! Create file
-IF(PRESENT(FileNameIn))THEN
-  FileName=FileNameIn
-ELSE
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
-END IF ! PRESENT(FileNameIn)
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
 
 ! Write file header
@@ -279,6 +292,8 @@ ELSE
   WriteUserblock = .TRUE.
 END IF ! PRESENT(WriteUserblockIn)
 IF(WriteUserblock) CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
+
+IF(PRESENT(FileNameOut)) FileNameOut = FileName
 
 END SUBROUTINE GenerateFileSkeleton
 
@@ -713,8 +728,8 @@ IF(AttribExists)THEN
   ELSE
     Overwrite_loc = .FALSE.
   END IF
-  IF(.NOT.Overwrite_loc) CALL abort(__STAMP__,'Attribute '//TRIM(AttribName)//' alreay exists in HDF5 File')
-  ! Delete the old attribute only if it is re-writen below(otherwise the original info is lost)
+  IF(.NOT.Overwrite_loc) CALL abort(__STAMP__,'Attribute '//TRIM(AttribName)//' already exists in HDF5 File')
+  ! Delete the old attribute only if it is re-written below(otherwise the original info is lost)
   CALL H5ADELETE_F(Loc_ID, TRIM(AttribName), iError)
 END IF ! AttribExists
 
@@ -743,6 +758,28 @@ IF(Loc_ID.NE.Loc_ID_in)THEN
 END IF
 LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE WriteAttributeToHDF5
+
+
+!==================================================================================================================================
+!> Add time attribute, after all relevant data has been written to a file,
+!> to indicate the writing process has been finished successfully
+!==================================================================================================================================
+SUBROUTINE MarkWriteSuccessful(FileName)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+CHARACTER(LEN=*),INTENT(IN)    :: FileName           !< Name of the file
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: Time(8)
+!==================================================================================================================================
+CALL OpenDataFile(TRIM(FileName),create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+CALL DATE_AND_TIME(VALUES=time)
+CALL WriteAttributeToHDF5(File_ID,'TIME',8,IntegerArray=time)
+CALL CloseDataFile()
+END SUBROUTINE MarkWriteSuccessful
 
 
 SUBROUTINE GatheredWriteArray(FileName,create,DataSetName,rank,nValGlobal,nVal,offset,collective,RealArray,IntegerArray,StrArray)

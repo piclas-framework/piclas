@@ -93,7 +93,10 @@ and the **minimum requirements**
 
 A full list of all previously tested combinations is found in Chapter {ref}`userguide/appendix:Appendix`. Alternative combinations might work as well, however, have not been tested.
 
-If you are setting-up a fresh system for the simulation with PICLas, we recommend using a Module environment, which can be setup with the provided shell scripts in `piclas/tools/Setup_ModuleEnv`. A description is available here: `piclas/tools/Setup_ModuleEnv/README.md`. This allows you to install and switch between different compiler, MPI and HDF5 versions.
+If you are setting-up a fresh system for the simulation with PICLas, it is recommended using a Module environment, which can be set
+up with the provided shell scripts in `piclas/tools/Setup_ModuleEnv`.
+A description is available here: `piclas/tools/Setup_ModuleEnv/README.md`.
+This allows installing and switching between different compiler, MPI, and HDF5 versions.
 
 ### Installing GCC
 

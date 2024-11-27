@@ -47,7 +47,7 @@ fi
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
-TEMPLATEPATH=$(echo `pwd`/moduletemplates/utilities/cmake/cmake_temp)
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/cmake/cmake_temp)
 if [[ ! -f ${TEMPLATEPATH} ]]; then
   echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
   exit
@@ -59,10 +59,13 @@ fi
 
 # DOWNLOAD and INSTALL CMAKE (example cmake-3.4.3)
 # For current releases, see: https://github.com/Kitware/CMake/releases/
-CMAKEVERSION='3.28.2'
+#CMAKEVERSION='3.24.2'
+#CMAKEVERSION='3.28.2'
+#CMAKEVERSION='3.30.3'
+CMAKEVERSION='3.31.1'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
-MODULEFILE=${INSTALLDIR}/modules/modulefiles/utilities/cmake/${CMAKEVERSION}
+MODULEFILE=${INSTALLDIR}/modules/modulefiles/cmake/cmake/${CMAKEVERSION}
 BUILDDIR=${SOURCESDIR}/cmake-${CMAKEVERSION}/build
 TARFILE=${SOURCESDIR}/cmake-${CMAKEVERSION}.tar.gz
 
@@ -147,8 +150,8 @@ if [ ! -e "${MODULEFILE}" ]; then
   fi
 
   if [ -e "${CMAKEDIR}/bin/cmake" ] && [ -e "${CMAKEDIR}/bin/ccmake" ]; then
-    if [ ! -e "${INSTALLDIR}/modules/modulefiles/utilities/cmake" ]; then
-      mkdir -p ${INSTALLDIR}/modules/modulefiles/utilities/cmake
+    if [ ! -e "${INSTALLDIR}/modules/modulefiles/cmake/cmake" ]; then
+      mkdir -p ${INSTALLDIR}/modules/modulefiles/cmake/cmake
     fi
     cp ${TEMPLATEPATH} ${MODULEFILE}
     sed -i 's/cmakeversion/'${CMAKEVERSION}'/g' ${MODULEFILE}

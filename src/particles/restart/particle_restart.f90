@@ -68,6 +68,7 @@ USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
+USE MOD_Particle_BGM           ,ONLY: CheckAndMayDeleteFIBGM
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues, DoCatalyticRestart
 ! HDG
@@ -626,14 +627,12 @@ IF(.NOT.DoMacroscopicRestart) THEN
       CounterElec = 0
       CounterAmbi = 0
 
+      ! Increase the array size by TotalNbrOfMissingParticlesSum if needed
+      IF(PDM%ParticleVecLength+TotalNbrOfMissingParticlesSum.GT.PDM%maxParticleNumber) &
+        CALL IncreaseMaxParticleNumber(TotalNbrOfMissingParticlesSum)
+
       DO iPart = 1, TotalNbrOfMissingParticlesSum
         ! Sanity check
-        IF(CurrentPartNum.GT.PDM%maxParticleNumber)THEn
-          IPWRITE(UNIT_StdOut,'(I0,A,I0)') " CurrentPartNum        = ",  CurrentPartNum
-          IPWRITE(UNIT_StdOut,'(I0,A,I0)') " PDM%maxParticleNumber = ",  PDM%maxParticleNumber
-          CALL abort(__STAMP__,'Missing particle ID > PDM%maxParticleNumber. Increase Part-MaxParticleNumber!')
-        END IF !CurrentPartNum.GT.PDM%maxParticleNumber
-
         ! Do not search particles twice: Skip my own particles, because these have already been searched for before they are
         ! sent to all other procs
         ASSOCIATE( myFirst => OffsetTotalNbrOfMissingParticles(myRank) + 1 ,&
@@ -745,7 +744,6 @@ IF(.NOT.DoMacroscopicRestart) THEN
         END IF
       END DO
 #endif
-      ! IF(PDM%ParticleVecLength.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(PDM%ParticleVecLength*CEILING(1+0.5*PDM%MaxPartNumIncrease)-PDM%maxParticleNumber)
 
       ! Combine number of found particles to make sure none are lost completely or found twice
       IF(MPIroot)THEN
@@ -846,6 +844,8 @@ IF (DoVirtualCellMerge) CALL MergeCells()
 
 ! Deallocate the read-in macroscopic values (might have been utilized in RestartAdaptiveBCSampling)
 SDEALLOCATE(MacroRestartValues)
+
+CALL CheckAndMayDeleteFIBGM() ! Check if FIBGM can be deleted (it is necessary for restart)
 
 END SUBROUTINE ParticleRestart
 

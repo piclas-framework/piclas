@@ -563,7 +563,7 @@ FileName=TRIM(ProjectName)//'_DMD.h5'
 ALLOCATE(StrVarNames(1:N_variables))
 StrVarNames(N_variables)='DUMMY_DO_NOT_VISUALIZE'
 !StrVarNames(1)='dummy'
-IF(MPIRoot) CALL GenerateFileSkeleton('DMD',N_variables,StrVarNames,TRIM(MeshFile),Time_State,FileNameIn=TRIM(FileName),&
+CALL GenerateFileSkeleton('DMD',N_variables,StrVarNames,TRIM(MeshFile),Time_State,FileNameIn=TRIM(FileName),&
     WriteUserblockIn = .FALSE.)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
