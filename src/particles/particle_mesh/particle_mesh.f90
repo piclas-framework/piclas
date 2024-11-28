@@ -880,7 +880,9 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/
   IF(FindNeighbourElems)THEN
+    ADEALLOCATE(NodeToElemMapping)
     ADEALLOCATE(NodeToElemMapping_Shared)
+    ADEALLOCATE(NodeToElemInfo)
     ADEALLOCATE(NodeToElemInfo_Shared)
     ADEALLOCATE(ElemToElemMapping_Shared)
     ADEALLOCATE(ElemToElemInfo_Shared)

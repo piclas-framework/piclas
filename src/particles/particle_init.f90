@@ -487,7 +487,7 @@ USE MOD_ReadInTools
 USE MOD_Particle_Vars
 USE MOD_DSMC_Symmetry          ,ONLY: InitLinearWeighting
 USE MOD_DSMC_Vars              ,ONLY: DoLinearWeighting, DoCellLocalWeighting, CellLocalWeight
-USE MOD_DSMC_AdaptMPF          ,ONLY: DSMC_InitAdaptiveWeights
+USE MOD_DSMC_AdaptMPF          ,ONLY: InitCellLocalWeighting
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
@@ -582,9 +582,6 @@ IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 CALL InitializeVariablesVirtualCellMerge()
 
-! Initialization of the automatically adapted particle weights (used in InitParticleMesh)
-CellLocalWeight%UseMedianFilter = GETLOGICAL('Part-Weight-CellLocal-ApplyMedianFilter')
-
 ! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
 #if USE_MPI
@@ -600,7 +597,7 @@ IF(Symmetry%Axisymmetric) THEN
 END IF
 
 IF(DoLinearWeighting) CALL InitLinearWeighting()
-IF(DoCellLocalWeighting) CALL DSMC_InitAdaptiveWeights()
+IF(DoCellLocalWeighting) CALL InitCellLocalWeighting()
 
 #if USE_MPI
 CALL InitEmissionComm()

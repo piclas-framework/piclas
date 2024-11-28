@@ -26,7 +26,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersAdaptMPF, DSMC_InitAdaptiveWeights, DSMC_AdaptiveWeights, NodeMappingFilterMPF
+PUBLIC :: DefineParametersAdaptMPF, InitCellLocalWeighting, DSMC_AdaptiveWeights
 !===================================================================================================================================
 
 CONTAINS
@@ -59,7 +59,7 @@ CALL prms%CreateRealOption(   'Part-Weight-CellLocal-RefineFactorFP', 'Ratio bet
 END SUBROUTINE DefineParametersAdaptMPF
 
 
-SUBROUTINE DSMC_InitAdaptiveWeights()
+SUBROUTINE InitCellLocalWeighting()
 !===================================================================================================================================
 !> Initialization of the cell-local particle weighting
 !> 1) Read-in of variables
@@ -124,6 +124,7 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
   CellLocalWeight%FPFactor           = GETREAL('Part-Weight-CellLocal-RefineFactorFP')
   CellLocalWeight%SymAxis_MinPartNum = GETINT('Part-Weight-CellLocal-SymAxis-MinPartNum')
   CellLocalWeight%Cat_MinPartNum     = GETINT('Part-Weight-CellLocal-Cat-MinPartNum')
+  CellLocalWeight%UseMedianFilter    = GETLOGICAL('Part-Weight-CellLocal-ApplyMedianFilter')
   ! Parameters for the filtering subroutine
   IF (CellLocalWeight%UseMedianFilter) THEN
     CellLocalWeight%nRefine          = GETINT('Part-Weight-CellLocal-RefinementNumber')
@@ -238,7 +239,7 @@ CALL DSMC_AdaptiveWeights()
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
 
-END SUBROUTINE DSMC_InitAdaptiveWeights
+END SUBROUTINE InitCellLocalWeighting
 
 
 SUBROUTINE DSMC_AdaptiveWeights()

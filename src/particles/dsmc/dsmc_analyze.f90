@@ -1220,9 +1220,6 @@ ASSOCIATE (&
   END IF
 END ASSOCIATE
 
-! Additional attribute written directly to the ElemData container
-CALL WriteAttributeToHDF5(File_ID,'Part-Weight-Type',1,StrScalar=(/TRIM(ParticleWeighting%Type)/),DatasetName='ElemData')
-
 CALL CloseDataFile()
 
 DEALLOCATE(StrVarNames)
