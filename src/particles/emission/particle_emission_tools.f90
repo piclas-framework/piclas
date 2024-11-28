@@ -261,7 +261,7 @@ SUBROUTINE SetParticleMPF(FractNbr,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: PartMPF, Species, PartState, PEM
-USE MOD_DSMC_Vars     ,ONLY: DoRadialWeighting, DoLinearWeighting
+USE MOD_DSMC_Vars     ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_part_tools    ,ONLY: CalcRadWeightMPF, GetNextFreePosition, CalcVarWeightMPF
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
@@ -281,7 +281,7 @@ DO iPart=1,NbrOfParticle
   PositionNbr = GetNextFreePosition(iPart)
   IF(DoRadialWeighting) THEN
     PartMPF(PositionNbr) = CalcRadWeightMPF(PartState(2,PositionNbr),FractNbr,PositionNbr)
-  ELSE IF (DoLinearWeighting) THEN
+  ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
     iElem = PEM%LocalElemID(PositionNbr)
     PartMPF(PositionNbr) = CalcVarWeightMPF(PartState(:,PositionNbr),iElem,PositionNbr)
   ELSE
@@ -1080,7 +1080,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1140,7 +1140,7 @@ INTEGER                 :: i, chunkSize2
       ! Get symmetry position of the calulcated position
       CALL CalcPartSymmetryPos(Particle_pos)
       IF(Symmetry%Axisymmetric.AND.Particle_pos(2).LT.0) Particle_pos(2) = -Particle_pos(2)
-      ! Reject some particles do to variable MPF considerations
+      ! Reject some particles due to variable MPF considerations
       IF(DoRadialWeighting.OR.DoLinearWeighting) THEN
         IF(DoRadialWeighting) THEN
           IF(Symmetry%Order.EQ.2) THEN

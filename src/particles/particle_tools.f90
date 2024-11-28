@@ -689,22 +689,28 @@ REAL                 :: PosIn, RelPos, TempPartPos(3)
 REAL                 :: PartDistDepo(8), DistSum, norm, MPFSum
 LOGICAL              :: SucRefPos
 REAL                 :: alpha1, alpha2, alpha3
-INTEGER              :: NodeID(1:8), iNode, iScale
+INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 !===================================================================================================================================
 
 CalcVarWeightMPF = 1.
 
-IF (CellLocalWeight%UseOptMPF.AND.PRESENT(iElem)) THEN
+IF(PRESENT(iElem)) THEN
+  GlobalElemID = iElem+offSetElem
+ELSEIF(.NOT.DoLinearWeighting) THEN
+  CALL abort(__STAMP__,'ERROR in CalcVarWeightMPF: Cell-local weighting requires an element ID')
+END IF
+
+IF (DoCellLocalWeighting) THEN
   ! Determine the adaptive MPF based on the interpolation of the MPF at the node coordinates onto the particle position
-  CALL GetPositionInRefElem(Pos(1:3),TempPartPos(1:3),(iElem+offSetElem),ForceMode=.TRUE., isSuccessful = SucRefPos)
+  CALL GetPositionInRefElem(Pos(1:3),TempPartPos(1:3),GlobalElemID,ForceMode=.TRUE., isSuccessful = SucRefPos)
 
   IF (SucRefPos) THEN
     alpha1=0.5*(TempPartPos(1)+1.0)
     alpha2=0.5*(TempPartPos(2)+1.0)
     alpha3=0.5*(TempPartPos(3)+1.0)
 
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offSetElem)))
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
     CalcVarWeightMPF = &
     NodeValue(1,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + NodeValue(1,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
     NodeValue(1,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + NodeValue(1,NodeID(4)) * (1-alpha1) * (alpha2)   * (1-alpha3) + &
@@ -713,7 +719,7 @@ IF (CellLocalWeight%UseOptMPF.AND.PRESENT(iElem)) THEN
 
   ELSE
     MPFSum = 0.
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offSetElem)))
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
     DO iNode = 1, 8
       norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
       IF(norm.GT.0.)THEN

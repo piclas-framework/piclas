@@ -69,6 +69,7 @@ LOGICAL                       :: DoLinearWeighting          ! Enables linear wei
 LOGICAL                       :: DoCellLocalWeighting       ! Enables cell-local weighting in DSMC
 
 TYPE tParticleWeighting
+  CHARACTER(LEN=256)          :: Type
   REAL                        :: ScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
@@ -86,7 +87,7 @@ TYPE tParticleWeighting
   LOGICAL                     :: EnableOutput               ! Output of the cell-local weighting factor
 END TYPE tParticleWeighting
 
-TYPE(tParticleWeighting)        :: ParticleWeighting
+TYPE(tParticleWeighting)      :: ParticleWeighting
 
 TYPE tLinearWeighting
   INTEGER                     :: nScalePoints               ! Number of sub-cell divisions for the scaling of the weighting factor
@@ -106,7 +107,6 @@ TYPE(tLinearWeighting)        :: LinearWeighting
 ! Automatic adaption of the particle weight
 TYPE tCellLocalWeight
   LOGICAL                     :: SkipAdaption                ! Use of the MPF distribution from the previous adaption
-  LOGICAL                     :: UseOptMPF                   ! Changes between the CalcVarMPF, CalcAdaptMPF routine
   LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
   LOGICAL                     :: IncludeMaxPartNum           ! Enables the refinement based on the max. particle number
   REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
@@ -250,7 +250,6 @@ TYPE tDSMC
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
   INTEGER                       :: CollSepCount             ! counter of actual collision pairs
   REAL                          :: CollSepDist              ! Summation of mean collision separation distance
-  REAL, ALLOCATABLE             :: CellMPFSamp(:)           ! Sampling of the sub-cell MPF
   LOGICAL                       :: CalcQualityFactors       ! Enables/disables the calculation and output of flow-field variables
   REAL, ALLOCATABLE             :: QualityFacSamp(:,:)      ! Sampling of quality factors
                                                             !     1: Maximal collision prob

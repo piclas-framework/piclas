@@ -821,7 +821,7 @@ SUBROUTINE DetermineInitialParticleNumber()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
-USE MOD_DSMC_Vars           ,ONLY: DoRadialWeighting, DoLinearWeighting, ParticleWeighting, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting, DSMC
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,SpecReset
 USE MOD_ReadInTools
@@ -889,7 +889,7 @@ DO iSpec=1,nSpecies
         CASE DEFAULT
           CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
         END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
-        IF(DoLinearWeighting) THEN
+        IF(DoLinearWeighting.OR.DoCellLocalWeighting) THEN
           Species(iSpec)%Init(iInit)%ParticleNumber=INT(Species(iSpec)%MacroParticleFactor*Species(iSpec)%Init(iInit)%ParticleNumber&
                                                       /(ParticleWeighting%ScaleFactor),8)
         END IF

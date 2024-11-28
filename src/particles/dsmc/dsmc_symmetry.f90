@@ -204,7 +204,7 @@ IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
     CALL Abort(&
         __STAMP__,&
       'ERROR in 2D axisymmetric simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
-        ' the radial weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
+        ' the radial/linear weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
   END IF
 END IF
 PartMPF(iPart) = NewMPF
@@ -423,8 +423,8 @@ SUBROUTINE InitLinearWeighting()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_DSMC_Vars               ,ONLY: LinearWeighting, ParticleWeighting, DoCellLocalWeighting, CellLocalWeight
-USE MOD_part_tools              ,ONLY: CalcAverageMPF, CalcScalePoint
+USE MOD_DSMC_Vars               ,ONLY: LinearWeighting, ParticleWeighting
+USE MOD_part_tools              ,ONLY: CalcAverageMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -479,9 +479,6 @@ END IF
 
 ! Calculation of the average particle MPF in the simulation domain (utilized for the particle initialization)
 ParticleWeighting%ScaleFactor = CalcAverageMPF()
-
-! Switch to the linear weighting within CalcVarWeightMPF
-CellLocalWeight%UseOptMPF = .FALSE.
 
 END SUBROUTINE InitLinearWeighting
 

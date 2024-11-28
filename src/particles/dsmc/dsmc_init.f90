@@ -1169,8 +1169,8 @@ ELSE !CollisMode.GT.0
       END IF
     END DO
   ELSE
-    ! IF(usevMPF.AND..NOT.DoRadialWeighting.OR.DoLinearWeighting) &
-    !   CALL abort(__STAMP__,'ERROR in DSMC: Variable weighting factors are only available with a background gas!')
+    IF(usevMPF.AND..NOT.(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting)) &
+      CALL abort(__STAMP__,'ERROR in DSMC: Variable weighting factors are only available with a background gas!')
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate vib collision numbers and characteristic velocity, according to Abe

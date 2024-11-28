@@ -56,20 +56,18 @@ CALL addStrListEntry('Part-Weight-Type' , 'radial'     , PRM_PARTWEIGHT_RADIAL)
 CALL addStrListEntry('Part-Weight-Type' , 'linear'     , PRM_PARTWEIGHT_LINEAR)
 CALL addStrListEntry('Part-Weight-Type' , 'cell_local' , PRM_PARTWEIGHT_CELLLOCAL)
 
-CALL prms%CreateLogicalOption('Part-Weight-EnableOutput', 'Activates a visualization of the predefined weighting factor in each sub-cell', '.FALSE.')
-
 END SUBROUTINE DefineParametersParticleWeighting
 
 
 SUBROUTINE InitParticleWeighting()
 !===================================================================================================================================
-!>
+!> Initialize the particle weighting, especially the particle cloning
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETINTFROMSTR
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
-USE MOD_DSMC_Vars             ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting, DSMC
+USE MOD_DSMC_Vars             ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
 USE MOD_DSMC_Symmetry         ,ONLY: InitParticleCloning
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -89,21 +87,26 @@ DoCellLocalWeighting = .FALSE.
 ParticleWeighting%PerformCloning = .FALSE.
 
 ParticleWeightType = GETINTFROMSTR('Part-Weight-Type')
-ParticleWeighting%EnableOutput = GETLOGICAL('Part-Weight-EnableOutput')
 
 SELECT CASE(ParticleWeightType)
-Case(PRM_PARTWEIGHT_CONSTANT)   ! constant
-Case(PRM_PARTWEIGHT_RADIAL)     ! radial
+Case(PRM_PARTWEIGHT_CONSTANT)
+  ParticleWeighting%Type = 'constant'
+Case(PRM_PARTWEIGHT_RADIAL)
+  ParticleWeighting%Type = 'radial'
   DoRadialWeighting = .TRUE.
   ParticleWeighting%PerformCloning = .TRUE.
+  ParticleWeighting%EnableOutput = .TRUE.
   IF(.NOT.Symmetry%Axisymmetric) CALL CollectiveStop(__STAMP__,' Part-Weight-Type = radial requires an axisymmetric simulation!')
-Case(PRM_PARTWEIGHT_LINEAR)     ! linear
+Case(PRM_PARTWEIGHT_LINEAR)
+  ParticleWeighting%Type = 'linear'
   DoLinearWeighting = .TRUE.
   ParticleWeighting%PerformCloning = .TRUE.
-Case(PRM_PARTWEIGHT_CELLLOCAL)  ! cell_local
-  ! Initialization of the cell-locally adapted particle weights, currently requires DoLinearWeighting = T, which is set later during DSMC_InitAdaptiveWeights
+  ParticleWeighting%EnableOutput = .TRUE.
+Case(PRM_PARTWEIGHT_CELLLOCAL)
+  ParticleWeighting%Type = 'cell_local'
   DoCellLocalWeighting = .TRUE.
   ParticleWeighting%PerformCloning = .TRUE.
+  ParticleWeighting%EnableOutput = .TRUE.
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown Part-Weight-Type!' ,IntInfo=ParticleWeightType)
 END SELECT

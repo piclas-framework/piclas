@@ -43,7 +43,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
 USE MOD_Part_Tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, GetNextFreePosition
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, DoRadialWeighting, DoLinearWeighting
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -396,7 +396,7 @@ DO iSF = 1, SurfChem%CatBoundNum
 #endif /*USE_LOADBALANCE*/
         IF (DoRadialWeighting) THEN
           SurfElemMPF = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec, ElemID)
-        ELSE IF (DoLinearWeighting) THEN
+        ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
           SurfElemMPF = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), ElemID)
         ELSE
           SurfElemMPF = Species(iSpec)%MacroParticleFactor

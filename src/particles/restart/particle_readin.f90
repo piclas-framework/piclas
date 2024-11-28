@@ -667,7 +667,7 @@ USE MOD_io_hdf5
 USE MOD_TimeDisc_Vars     ,ONLY: ManualTimeStep
 USE MOD_Mesh_Vars         ,ONLY: offsetElem, nElems
 USE MOD_DSMC_Vars         ,ONLY: useDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars         ,ONLY: ParticleWeighting, DoLinearWeighting, ClonedParticles
+USE MOD_DSMC_Vars         ,ONLY: ParticleWeighting, DoLinearWeighting, DoCellLocalWeighting, ClonedParticles
 USE MOD_Particle_Vars     ,ONLY: nSpecies, usevMPF, Species
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
@@ -733,9 +733,9 @@ ParameterExists = .FALSE.
 CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
 IF(ParameterExists) THEN
   CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
-  IF (DoLinearWeighting) THEN ! FIXME: Clones are always resetted in this case, is this okay?
+  IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
     ResetClones = .TRUE.
-    LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
+    LBWRITE(*,*) 'Using linear or cell-local weighting. Resetting the CloneData array.'
   ELSE IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
     ResetClones = .TRUE.
     LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'

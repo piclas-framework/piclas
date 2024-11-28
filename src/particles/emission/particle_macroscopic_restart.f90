@@ -73,7 +73,7 @@ LOGICAL                             :: InsideFlag
 REAL                                :: StartT,EndT ! Timer
 !===================================================================================================================================
 GETTIME(StartT)
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') 'PERFORMING MACROSCOPIC RESTART...'
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' PERFORMING MACROSCOPIC RESTART...'
 
 locnPart = 1
 
@@ -83,7 +83,7 @@ DO iElem = 1, nElems
   ASSOCIATE( Bounds => BoundsOfElem_Shared(1:2,1:3,GlobalElemID) ) ! 1-2: Min, Max value; 1-3: x,y,z
 ! #################### 2D ##########################################################################################################
     IF (Symmetry%Axisymmetric) THEN
-      IF (DoRadialWeighting.OR.DoLinearWeighting) THEN
+      IF (DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) THEN
         DO iSpec = 1, nSpecies
           IF (DSMC%DoAmbipolarDiff) THEN
             IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
@@ -96,7 +96,7 @@ DO iElem = 1, nElems
             TempVol =  (MaxPosTemp-MinPosTemp)*(Bounds(2,1)-Bounds(1,1)) * Pi * (MaxPosTemp+MinPosTemp)
             IF (DoRadialWeighting) THEN
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
-            ELSE IF (DoLinearWeighting) THEN
+            ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
               PosVar = (/0.0,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcVarWeightMPF(PosVar,iElem)
             END IF
@@ -212,7 +212,7 @@ DO iElem = 1, nElems
         PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / Species(iSpec)%MacroParticleFactor
         CALL RANDOM_NUMBER(iRan)
         ! Initialize the clones for the variable weighting in 3D
-        IF (DoLinearWeighting) THEN
+        IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
           CNElemID = GetCNElemID(GlobalElemID)
           PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
         ELSE

@@ -575,7 +575,7 @@ DO iSpec=1,nSpecies
     ! === Set the surface flux type
     IF(DoPoissonRounding) SF%Type = 3
     IF(DoTimeDepInflow)   SF%Type = 4
-    IF(DoRadialWeighting.OR.DoLinearWeighting) SF%Type = 2
+    IF(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) SF%Type = 2
     ! === ADAPTIVE BC ==============================================================================================================
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
@@ -854,7 +854,7 @@ DO iBC=1,countDataBC
             IF((ymax - ymin).GT.0.0) THEN
               ! Surfaces that are NOT parallel to the YZ-plane
               IF(ParticleWeighting%UseCellAverage) THEN
-                ! Cell local weighting
+                ! Cell average weighting
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),ElemID)
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
@@ -1009,6 +1009,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tBCdata_auxSFRadWeight, BCdata_auxSF
 USE MOD_Particle_Vars           ,ONLY: Species
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1078,12 +1079,15 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
     END IF
-    DO iSub = 1, ParticleWeighting%nSubSides
-      IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
-        Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) * vSF &
-        *Species(iSpec)%MacroParticleFactor/ BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
-      END IF
-    END DO
+    ! Only for 2D axisymmetric
+    IF(Symmetry%Axisymmetric) THEN
+      DO iSub = 1, ParticleWeighting%nSubSides
+        IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) * vSF &
+          *Species(iSpec)%MacroParticleFactor/ BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+        END IF
+      END DO
+    END IF
   END IF
   IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
     ! Check whether cell is completely outside of the circular inflow region and set the volume flow rate to zero

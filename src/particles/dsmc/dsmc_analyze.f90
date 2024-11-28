@@ -511,7 +511,7 @@ CALL LBPauseTime(LB_DSMC,tLBStart)
 END SUBROUTINE DSMC_data_sampling
 
 
-SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVar_HeatPress,nVarMPF,nVarAdaptMPF,DSMC_MacroVal)
+SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVar_HeatPress,nVarMPF,DSMC_MacroVal)
 !===================================================================================================================================
 !> Calculation of the macroscopic output from sampled particles properties including the mixture values (Total_).
 !===================================================================================================================================
@@ -541,8 +541,8 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc,nVar_HeatPress,nVarMPF,nVarAdaptMPF
-REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF+nVarAdaptMPF,nElems)
+INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc,nVar_HeatPress,nVarMPF
+REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -872,45 +872,17 @@ IF (DoVirtualCellMerge) THEN
   END DO
 END IF
 
-! Visualization of the radial/variable MPF in each sub-cell
+! Visualization of the radial/linear/cell-local MPF in each cell
 IF (ParticleWeighting%EnableOutput) THEN
-  ALLOCATE(DSMC%CellMPFSamp(nElems))
-  DSMC%CellMPFSamp(1:nElems) = 0.0
-
-  ! Enable the calculation of the reference variable weighting factor
-  IF (DoCellLocalWeighting) THEN
-    CellLocalWeight%UseOptMPF = .FALSE.
-  END IF
-
   DO iElem=1,nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
-    IF (DoLinearWeighting) THEN
-      DSMC%CellMPFSamp(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID))
+    IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
     ELSE IF (DoRadialWeighting) THEN
-      DSMC%CellMPFSamp(iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), 1)
-    ELSE
-      DSMC%CellMPFSamp(iElem) = Species(1)%MacroParticleFactor
+      DSMC_MacroVal(nVarCount+1,iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID),1)
     END IF
-    DSMC_MacroVal(nVarCount+1,iElem) = DSMC%CellMPFSamp(iElem)
   END DO
   nVarCount = nVarCount + 1
-  DEALLOCATE(DSMC%CellMPFSamp)
-
-  ! Enable the calculation of the reference variable weighting factor
-  IF (DoCellLocalWeighting) THEN
-    CellLocalWeight%UseOptMPF = .TRUE.
-  END IF
-
-END IF
-
-! Visualization for the optimal MPF in the adaptive routine for each sub-cell
-IF (DoCellLocalWeighting) THEN
-  DO iElem=1,nElems
-    CNElemID = GetCNElemID(iElem + offsetElem)
-    DSMC_MacroVal(nVarCount+1,iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
-  END DO
-  nVarCount = nVarCount + 1
-
 END IF
 
 END SUBROUTINE DSMC_output_calc
@@ -996,7 +968,7 @@ CHARACTER(LEN=255)             :: SpecID, LevelID, SpecID2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
 INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, iCase, iLevel
-INTEGER                        :: nVarMPF, nVarAdaptMPF
+INTEGER                        :: nVarMPF
 INTEGER                        :: jSpec,nVar_HeatPress
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
@@ -1049,13 +1021,7 @@ ELSE
   nVarMPF = 0
 END IF
 
-IF(DoCellLocalWeighting) THEN
-  nVarAdaptMPF = 1
-ELSE
-  nVarAdaptMPF = 0
-END IF
-
-ALLOCATE(StrVarNames(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF+nVarAdaptMPF))
+ALLOCATE(StrVarNames(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF))
 nVarCount=0
 IF(nSpecies.GT.1) THEN
   DO iSpec=1,nSpecies
@@ -1163,21 +1129,10 @@ IF (SamplePressTensHeatflux) THEN
   nVarCount=nVarCount+6
 END IF
 
-!
+! Output of the weighting factor in case of a particle weighting
 IF(ParticleWeighting%EnableOutput) THEN
-  StrVarNames(nVarCount+1) = 'SubCellMPF'
+  StrVarNames(nVarCount+1) = 'WeightingFactorCell'
   nVarCount=nVarCount+1
-  nVarMPF = 1
-ELSE
-  nVarMPF = 0
-END IF
-
-IF(DoCellLocalWeighting) THEN
-  StrVarNames(nVarCount+1) = 'OptimalAdaptMPF'
-  nVarCount=nVarCount+1
-  nVarAdaptMPF = 1
-ELSE
-  nVarAdaptMPF = 0
 END IF
 
 ! Sampling of electronic excitation: Construct the variables name based on first and second species as well as the level threshold
@@ -1215,7 +1170,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
   ! Standard variable names
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality+nVar_HeatPress+nVarMPF+nVarAdaptMPF,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality+nVar_HeatPress+nVarMPF,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
   CALL CloseDataFile()
@@ -1228,11 +1183,11 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 ! Open data file for parallel output
 CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
-ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF+nVarAdaptMPF,nElems), STAT=ALLOCSTAT)
+ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__,' Cannot allocate output array: DSMC_MacroVal!')
 END IF
-CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,nVar_HeatPress,nVarMPF,nVarAdaptMPF,DSMC_MacroVal)
+CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,nVar_HeatPress,nVarMPF,DSMC_MacroVal)
 
 ! Calculation of electronic excitation rates
 IF(SampleElecExcitation) THEN
@@ -1245,7 +1200,7 @@ END IF
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-  nVarX        => INT(nVar+nVar_quality+nVar_HeatPress+nVarMPF+nVarAdaptMPF,IK)       ,&
+  nVarX        => INT(nVar+nVar_quality+nVar_HeatPress+nVarMPF,IK)       ,&
   nVarExci     => INT(ExcitationLevelCounter,IK)  ,&
   PP_nElems    => INT(PP_nElems,IK)               ,&
   offsetElem   => INT(offsetElem,IK)              ,&
@@ -1264,6 +1219,9 @@ ASSOCIATE (&
                           collective =.false.,  RealArray=MacroElecExcitation(:,:))
   END IF
 END ASSOCIATE
+
+! Additional attribute written directly to the ElemData container
+CALL WriteAttributeToHDF5(File_ID,'Part-Weight-Type',1,StrScalar=(/TRIM(ParticleWeighting%Type)/),DatasetName='ElemData')
 
 CALL CloseDataFile()
 

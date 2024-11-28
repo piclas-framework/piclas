@@ -41,7 +41,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, DoRadialWeighting, DoLinearWeighting
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
@@ -120,7 +120,7 @@ IF (usevMPF) THEN
     ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
     IF (DoRadialWeighting) THEN
       PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
-    ELSE IF (DoLinearWeighting) THEN
+    ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
       iElem = PEM%LocalElemID(newParticleID)
       PartMPF(newParticleID) = CalcVarWeightMPF(PartState(:,newParticleID),iElem,newParticleID)
     ELSE

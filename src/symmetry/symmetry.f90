@@ -60,7 +60,6 @@ USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleInsideQuad
 USE MOD_Particle_TriaTracking ,ONLY: InitSingleParticleTriaTracking
 USE MOD_Particle_InterSection ,ONLY: InitParticleThroughSideCheck1D2D
-USE MOD_DSMC_Vars             ,ONLY: DoRadialWeighting, ParticleWeighting, DoLinearWeighting, DSMC
 #endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
