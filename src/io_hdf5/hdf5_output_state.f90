@@ -54,7 +54,7 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
@@ -582,7 +582,7 @@ IF(DoBoundaryParticleOutputHDF5) THEN
 END IF
 IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
-IF(RadialWeighting%PerformCloning.OR.VarWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
+IF(ParticleWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 IF (PartBound%OutputWallTemp) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)

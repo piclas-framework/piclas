@@ -51,7 +51,7 @@ USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, usevMPF
 USE MOD_FP_CollOperator     ,ONLY: FP_CollisionOperator
 USE MOD_FPFlow_Vars         ,ONLY: FPDSMCSwitchDens, FP_QualityFacSamp, FP_PrandtlNumber
 USE MOD_FPFlow_Vars         ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
-USE MOD_DSMC_Vars           ,ONLY: DSMC, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars           ,ONLY: DSMC
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
 USE MOD_DSMC                ,ONLY: DSMC_main
@@ -85,7 +85,7 @@ DO iElem = 1, nElems
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+  IF(usevMPF) THEN
     dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
     dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)

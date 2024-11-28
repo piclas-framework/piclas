@@ -40,7 +40,7 @@ SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt)
 ! MODULES
 USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
-USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartStateIntEn,RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartStateIntEn
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -69,7 +69,7 @@ SubQ = TrackInfo%q
 
 SpecID = PartSpecies(PartID)
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+IF(usevMPF) THEN
   MPF = GetParticleWeight(PartID)
 ELSE
   MPF = GetParticleWeight(PartID)*Species(SpecID)%MacroParticleFactor

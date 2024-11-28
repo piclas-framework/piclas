@@ -163,8 +163,8 @@ To enable axisymmetric simulations, the following flag is required
 To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$
 towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 
-    Particles-RadialWeighting=T
-    Particles-RadialWeighting-PartScaleFactor=100
+    Part-Weight-Type = radial
+    Part-Weight-ScaleFactor=100
 
 A radial weighting factor of 100 means that the weighting factor at $y_{\mathrm{max}}$ will be $100w$. Although greatly reducing
 the number of particles, this introduces the need to delete and create (in the following "clone") particles, which travel upwards
@@ -185,8 +185,8 @@ For the cloning procedure, two methods are implemented, where the information of
 given number of iterations (`CloneDelay=10`) and inserted at the old position. The difference is whether the list is inserted
 chronologically (`CloneMode=1`) or randomly (`CloneMode=2`) after the first number of delay iterations.
 
-    Particles-RadialWeighting-CloneMode=2
-    Particles-RadialWeighting-CloneDelay=10
+    Part-Weight-CloneMode=2
+    Part-Weight-CloneDelay=10
 
 This serves the purpose to avoid the so-called particle avalanche phenomenon {cite}`Galitzine2015`, where clones travel on the
 exactly same path as the original in the direction of a decreasing weight. They have a zero relative velocity (due to the same
@@ -203,11 +203,11 @@ visible in the free-stream in the cells downstream, when using mortar elements, 
 the rotational axis. It can be avoided by splitting the surface flux emission side into multiple subsides with the following flag
 (default value is 20)
 
-    Particles-RadialWeighting-SurfFluxSubSides = 20
+    Part-Weight-SurfFluxSubSides = 20
 
 An alternative to the particle position-based weighting is the cell-local radial weighting, which can be enabled by
 
-    Particles-RadialWeighting-CellLocalWeighting = T
+    Part-Weight-UseCellAverage = T
 
 However, this method is not preferable if the cell dimensions in $y$-direction are large, resulting in numerical artifacts due to
 the clustered cloning processes at cell boundaries.
@@ -234,32 +234,50 @@ only at the stagnation point, the time step defined during the initialization is
 (sec:variable-particle-weighting)=
 ## Variable Particle Weighting
 
-### Variable Particle Weighting in 3D
+The particle weighting scheme for DSMC, BGK, and FP simulations can be defined by
 
-Linearly increasing particle weights in 3D can be defined similarly to the radial weighting factor in the 2D case.
+    Part-Weight-Type = constant
 
-    Part-VariableWeighting = T
+The available options are described in the table below.
 
-As a first step, the scaling direction needs to be defined, either as one of the coordinate axes or by start and end coordinates from which a scaling vector is generated.
+| Type       | Description                                                                                                                             |
+| ---------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
+| constant   | Default case, constant weighting as set by `Part-Species$-MacroParticleFactor`                                                          |
+| radial     | Radial weighting in y-direcition for the axisymmetric simulation based on the particle position, see Section {ref}`sec:2D-axisymmetric` |
+| linear     | Linear weighting along an axis or user-defined vector, see Section {ref}`sec:linear-particle-weighting`                                 |
+| cell_local | Cell-local weighting distribution, based on previous simulation results, see Section {ref}`sec:celllocal-particle-weighting`            |
 
-    Part-VarWeighting-CoordinateAxis = 2 ! y-axis
+An additional type of variable particle weighting scheme *split & merge*, currently only available for PIC simulations, is described in Section {ref}`sec:split-merge`.
 
-    Part-VarWeighting-StartPointForScaling = (/0,0,0/)
-    Part-VarWeighting-EndPointForScaling = (/1,1,1/)
+(sec:linear-particle-weighting)=
+### Linear Weighting in 3D
 
-In each case, scaling points with a given particle weight can be defined along the axis or the vector. The weight between two scaling points is then linearly interpolated based on the relative particle position. If the weight is to be increased along one of the coordinate axes, the absolute position [m] has to be given for the scaling points.
+Linearly increasing particle weights in 3D can be defined similarly to the radial weighting in the 2D axisymmetric case.
+
+    Part-Weight-Type = linear
+
+As a first step, the scaling direction needs to be defined, either as one of the coordinate axes
+
+    Part-Weight-Linear-CoordinateAxis = 2 ! y-axis
+
+or by start and end coordinates from which a scaling vector is generated
+
+    Part-Weight-Linear-StartPointForScaling = (/0,0,0/)
+    Part-Weight-Linear-EndPointForScaling = (/1,1,1/)
+
+In each case, scaling points with a given particle weight can be defined along the axis or the vector. The weight between two scaling points is then linearly interpolated based on the relative particle position (a value between 0 and 1). If the weight is to be increased along one of the coordinate axes, the absolute position [m] has to be given for the scaling points.
 
 In the example below, the weights are increased from $10^8$ to $10^{10}$, over a length of 1 cm along the axes.
 
-    Part-VarWeighting-nScalePointsMPF = 2
+    Part-Weight-Linear-nScalePoints = 2
 
-    Part-VarWeighting-ScalePoint1-Coordinate = 0.0
-    Part-VarWeighting-ScalePoint1-Factor = 1E8
+    Part-Weight-Linear-ScalePoint1-Coordinate = 0.0
+    Part-Weight-Linear-ScalePoint1-Factor = 1E8
 
-    Part-VarWeighting-ScalePoint1-Coordinate = 0.01
-    Part-VarWeighting-ScalePoint1-Factor = 1E10
+    Part-Weight-Linear-ScalePoint2-Coordinate = 0.01
+    Part-Weight-Linear-ScalePoint2-Factor = 1E10
 
-Analogously to the radial weighting factor, the particles will be cloned or deleted when they move to a new cell with a different weighting factor.
+Analogously to the radial weighting, the particles will be cloned or deleted when they move to a new cell with a different weighting factor.
 
 The cloning and deletion probability is again calculated by:
 
@@ -267,13 +285,21 @@ $$ P_{\mathrm{clone}} = \frac{w_{\mathrm{old}}}{w_{\mathrm{new}}} - \mathrm{INT}
 
 $$ P_{\mathrm{delete}} = 1 - P_{\mathrm{clone}}\qquad \text{for}\quad w_{\mathrm{old}}<w_{\mathrm{new}}.$$
 
-Parameters such as a cell-local weighting or the clone delay are defined in the parameter file with the same command as for the radial weighting, however the prefix 'RadialWeighting' needs to be substituted by 'VarWeighting'.
+The same parameters as for radial weighting can be utilized for the linear weighting:
 
-### Adaptive Particle Weights
+    Part-Weight-CloneMode=2
+    Part-Weight-CloneDelay=10
+    Part-Weight-SurfFluxSubSides = 20
+    Part-Weight-UseCellAverage = T
 
-An automatic determination of the optimal particle weights in each cell can be performed during a macroscopic restart, starting from a simulation with a defined variable weighting. The process is enabled by
+A detailed description of these parameters can be found in Section {ref}`sec:2D-axisymmetric`.
 
-    Part-Adaptive-Weighting = T
+(sec:celllocal-particle-weighting)=
+### Cell-local Weighting
+
+An automatic determination of the optimal particle weights in each cell can be performed during a macroscopic restart, starting from a simulation with a defined linear weighting. The process is enabled by
+
+    Part-Weight-Type = cell_local
 
 The adaption is based on multiple criteria. If a quality factor {ref}`sec:DSMC-quality` is not resolved in a cell, the weighting factor is lowered. For a 3D case, the following equation is used to set the bound of the weight.
 
@@ -281,26 +307,27 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3}$$
 
 If all quality factors are resolved, the weight is adapted in such a way, that the simulation particle numbers stays in a predefined range.
 
-    Part-AdaptMPF-MinParticleNumber = 10
-    Part-AdaptMPF-MaxParticleNumber = 100
+    Part-Weight-CellLocal-MinParticleNumber = 10
+    Part-Weight-CellLocal-MaxParticleNumber = 100
 
 A further refinement, with a higher minimum particle number can be additionally given close to the symmetry axis or close to catalytic boundaries. In addition, the upper limit of the weights can be disabled for simulations in which the weight should only be lowered.
 
-    Part-AdaptMPF-IncludeMaxPartNum = F
+    Part-Weight-CellLocal-IncludeMaxPartNum = F
 
 To avoid large jumps in the optimal weight between neighboring cells, a median filtering routine can be applied, together with the number of times that the algorithm should be called.
 
-    Part-AdaptMPF-ApplyMedianFilter = T
-    Part-AdaptMPF-RefinementNumber = 2
+    Part-Weight-CellLocal-ApplyMedianFilter = T
+    Part-Weight-CellLocal-RefinementNumber = 2
 
 If a restart should be performed from an already adapted simulation, without further optimization of the weights, the following flag can be set in the input file.
 
-    Part-AdaptMPF-SkipAdaption = T
+    Part-Weight-CellLocal-SkipAdaption = T
 
 In this case, the weight distribution from the given restart files is read in and used.
 
-As for the variable weighting in 3D, particles are cloned or deleted with a given probability when moving to a new cell.
+As for the linear weighting in 3D, particles are cloned or deleted with a given probability when moving to a new cell.
 
+(sec:split-merge)=
 ### Split-And-Merge
 
 Variable particle weighting based on a split and merge algorithm is currently supported for PIC (with and without background gas) or a background gas (an additional trace species feature is described in Section {ref}`sec:background-gas`). The general functionality can be enabled with the following flag:

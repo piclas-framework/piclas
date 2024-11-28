@@ -275,7 +275,7 @@ USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartDataSize,locnPart,offsetnPart,PartIntSize,PartDataVarNames
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, CalcVarWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC, DSMC, AdaptMPF
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC, DSMC, DoCellLocalWeighting
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared
 #if USE_LOADBALANCE
@@ -330,7 +330,7 @@ ASSOCIATE (&
       PartDataSize          => INT(PartDataSize,IK)          )
 
 
-  IF (AdaptMPF%DoAdaptMPF) THEN
+  IF (DoCellLocalWeighting) THEN
     ALLOCATE(AdaptMPF_Output(PP_nElems))
     DO iElem = 1, PP_nElems
       CNElemID = GetCNElemID(iElem + offsetElem)
@@ -381,9 +381,9 @@ ASSOCIATE (&
                               communicator = MPI_COMM_PICLAS    , RealArray = VarTimeStep%ElemFac)
   END IF
   ! Output of the element-wise adapted MPF as a separate container in state file
-  IF(AdaptMPF%DoAdaptMPF) THEN
+  IF(DoCellLocalWeighting) THEN
     CALL DistributedWriteArray(FileName                                      , &
-                              DataSetName  = 'AdaptMPF'  , rank = 2      , &
+                              DataSetName  = 'ElemLocalWeight'  , rank = 2      , &
                               nValGlobal   = (/nGlobalElems  , 1_IK/)        , &
                               nVal         = (/PP_nElems     , 1_IK/)        , &
                               offset       = (/offsetElem    , 0_IK/)        , &
@@ -406,8 +406,8 @@ ASSOCIATE (&
                           collective  = .FALSE.        , RealArray=VarTimeStep%ElemFac)
   END IF
   ! Output of the element-wise time step as a separate container in state file
-  IF(AdaptMPF%DoAdaptMPF) THEN
-    CALL WriteArrayToHDF5(DataSetName = 'AdaptMPF' , rank=2 , &
+  IF(DoCellLocalWeighting) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'ElemLocalWeight' , rank=2 , &
                           nValGlobal  = (/nGlobalElems , 1_IK/) , &
                           nVal        = (/PP_nElems    , 1_IK/) , &
                           offset      = (/offsetElem   , 0_IK/) , &
@@ -1344,7 +1344,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, VarWeighting, ClonedParticles
+USE MOD_DSMC_Vars     ,ONLY: ParticleWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF, Species, PartDataSize
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1391,35 +1391,18 @@ END IF
 
 locnPart =   0
 
-IF (VarWeighting%DoVariableWeighting) THEN
-  SELECT CASE(VarWeighting%CloneMode)
-  CASE(1)
-    tempDelay = VarWeighting%CloneInputDelay - 1
-  CASE(2)
-    tempDelay = VarWeighting%CloneInputDelay
-  CASE DEFAULT
-    CALL abort(__STAMP__,&
-                'VarWeighting: CloneMode is not supported!')
-  END SELECT
+SELECT CASE(ParticleWeighting%CloneMode)
+CASE(1)
+  tempDelay = ParticleWeighting%CloneInputDelay - 1
+CASE(2)
+  tempDelay = ParticleWeighting%CloneInputDelay
+CASE DEFAULT
+  CALL abort(__STAMP__, 'ParticleWeighting: CloneMode is not supported!')
+END SELECT
 
-  DO pcount = 0,tempDelay
-    locnPart = locnPart + VarWeighting%ClonePartNum(pcount)
-  END DO
-ELSE ! RadialWeighting
-  SELECT CASE(RadialWeighting%CloneMode)
-  CASE(1)
-    tempDelay = RadialWeighting%CloneInputDelay - 1
-  CASE(2)
-    tempDelay = RadialWeighting%CloneInputDelay
-  CASE DEFAULT
-    CALL abort(__STAMP__,&
-                'RadialWeighting: CloneMode is not supported!')
-  END SELECT
-
-  DO pcount = 0,tempDelay
-    locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
-  END DO
-END IF
+DO pcount = 0,tempDelay
+  locnPart = locnPart + ParticleWeighting%ClonePartNum(pcount)
+END DO
 
 ! Communicate the total number and offset
 CALL GetOffsetAndGlobalNumberOfParts('WriteClonesToHDF5',offsetnPart,globnPart,locnPart,.FALSE.)
@@ -1443,11 +1426,7 @@ IF (useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
 END IF
 iPart=offsetnPart
 DO iDelay=0,tempDelay
-  IF (VarWeighting%DoVariableWeighting) THEN
-    ClonePartNumber = VarWeighting%ClonePartNum(iDelay)
-  ELSE
-    ClonePartNumber = RadialWeighting%ClonePartNum(iDelay)
-  END IF
+  ClonePartNumber = ParticleWeighting%ClonePartNum(iDelay)
   DO pcount = 1, ClonePartNumber
     iElem_glob = ClonedParticles(pcount,iDelay)%Element
     iPart = iPart + 1
@@ -1582,7 +1561,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames,DatasetName='CloneData')
   CALL WriteAttributeToHDF5(File_ID,'ManualTimeStep',1,RealScalar=ManualTimeStep,DatasetName='CloneData')
   CALL WriteAttributeToHDF5(File_ID,'WeightingFactor',1,RealScalar=Species(1)%MacroParticleFactor,DatasetName='CloneData')
-  CALL WriteAttributeToHDF5(File_ID,'RadialWeightingFactor',1,RealScalar=RadialWeighting%PartScaleFactor,DatasetName='CloneData')
+  CALL WriteAttributeToHDF5(File_ID,'ScalingFactor',1,RealScalar=ParticleWeighting%ScaleFactor,DatasetName='CloneData')
   CALL CloseDataFile()
 END IF
 

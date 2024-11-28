@@ -108,7 +108,7 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, VarWeighting, Collismode,BGGas
+USE MOD_DSMC_Vars             ,ONLY: DSMC, Collismode,BGGas
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
@@ -646,8 +646,8 @@ IF(CalcRelaxProb.AND.(Collismode.LE.1)) CALL abort(__STAMP__,&
 IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReacRates)) CALL CalcNumberDensityBGGasDistri()
 
 IF(CalcReacRates) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep) CALL abort(__STAMP__,&
-      'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
+  IF(usevMPF.OR.UseVarTimeStep) CALL abort(__STAMP__,&
+      'ERROR: CalcReacRates is not supported with variable weighting or variable time step yet!')
 END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
@@ -655,7 +655,7 @@ IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFl
 !-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos')
 IF (CalcVelos) THEN
-  IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF(UseVarTimeStep.OR.usevMPF) THEN
     CALL abort(__STAMP__,'ERROR: CalcVelos is not supported with radial weighting or variable time step yet!')
   END IF
   DoPartAnalyze=.TRUE.

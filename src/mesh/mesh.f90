@@ -118,7 +118,7 @@ USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 #endif
 #if USE_HDG && USE_LOADBALANCE
@@ -462,7 +462,7 @@ IF (ABS(meshMode).GT.1) THEN
 
   IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
-    IF(RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting.OR.AdaptMPF%DoAdaptMPF) THEN
+    IF(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) THEN
       usevMPF = .TRUE.
     ELSE
       usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')

@@ -1,5 +1,5 @@
 !==================================================================================================================================
-! Copyright (c) 2010 - 2018 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+! Copyright (c) 2024 boltzplatz - numerical plasma dynamics GmbH, Simone Lauterbach, Marcel Pfeiffer
 !
 ! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 ! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
@@ -12,55 +12,63 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_Symmetry
+MODULE MOD_ParticleWeighting
 !===================================================================================================================================
-!> Routines for 2D (planar/axisymmetric) simulations
+!>
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersSymmetry, InitSymmetry
+PUBLIC :: DefineParametersParticleWeighting, InitParticleWeighting
 !===================================================================================================================================
+
+INTEGER,PARAMETER      :: PRM_PARTWEIGHT_CONSTANT   = 0
+INTEGER,PARAMETER      :: PRM_PARTWEIGHT_RADIAL     = 1
+INTEGER,PARAMETER      :: PRM_PARTWEIGHT_LINEAR     = 2
+INTEGER,PARAMETER      :: PRM_PARTWEIGHT_CELLLOCAL  = 3
 
 CONTAINS
 
 !==================================================================================================================================
-!> Define parameters for particles
+!> Define parameters for particles weighting
 !==================================================================================================================================
-SUBROUTINE DefineParametersSymmetry()
+SUBROUTINE DefineParametersParticleWeighting()
 ! MODULES
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_Globals
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 
-CALL prms%SetSection("Particle Symmetry")
-CALL prms%CreateIntOption(    'Particles-Symmetry-Order',  &
-                              'Order of the Simulation 1, 2 or 3 D', '3')
-CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
-                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%SetSection("Particle Weighting")
+CALL prms%CreateIntFromStringOption('Part-Weight-Type', "Particle weighting type: \n"             //&
+                                      'constant ('//TRIM(int2strf(PRM_PARTWEIGHT_CONSTANT))//')\n'  //&
+                                      'radial ('//TRIM(int2strf(PRM_PARTWEIGHT_RADIAL))//')\n'      //&
+                                      'linear ('//TRIM(int2strf(PRM_PARTWEIGHT_LINEAR))//')\n'      //&
+                                      'cell_local ('//TRIM(int2strf(PRM_PARTWEIGHT_CELLLOCAL))//')' &
+                                      ,'constant')
+CALL addStrListEntry('Part-Weight-Type' , 'constant'   , PRM_PARTWEIGHT_CONSTANT)
+CALL addStrListEntry('Part-Weight-Type' , 'radial'     , PRM_PARTWEIGHT_RADIAL)
+CALL addStrListEntry('Part-Weight-Type' , 'linear'     , PRM_PARTWEIGHT_LINEAR)
+CALL addStrListEntry('Part-Weight-Type' , 'cell_local' , PRM_PARTWEIGHT_CELLLOCAL)
 
-END SUBROUTINE DefineParametersSymmetry
+END SUBROUTINE DefineParametersParticleWeighting
 
 
-SUBROUTINE InitSymmetry()
+SUBROUTINE InitParticleWeighting()
 !===================================================================================================================================
-!> Initialize the dimension of the simulation (3D, Axisymmetric, 2D, 1D)
+!> Initialize the particle weighting, especially the particle cloning
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETINT
+USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETINTFROMSTR
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
-#if defined(PARTICLES)
-USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleInsideQuad
-USE MOD_Particle_TriaTracking ,ONLY: InitSingleParticleTriaTracking
-USE MOD_Particle_InterSection ,ONLY: InitParticleThroughSideCheck1D2D
-#endif /*defined(PARTICLES)*/
+USE MOD_DSMC_Vars             ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
+USE MOD_DSMC_Symmetry         ,ONLY: InitParticleCloning
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -70,24 +78,41 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-
+INTEGER                       :: ParticleWeightType
 !===================================================================================================================================
-Symmetry%Order = GETINT('Particles-Symmetry-Order')
 
-IF((Symmetry%Order.LE.0).OR.(Symmetry%Order.GE.4)) CALL ABORT(__STAMP__&
-  ,'Particles-Symmetry-Order (space dimension) has to be in the range of 1 to 3')
+DoRadialWeighting = .FALSE.
+DoLinearWeighting = .FALSE.
+DoCellLocalWeighting = .FALSE.
+ParticleWeighting%PerformCloning = .FALSE.
 
-#if defined(PARTICLES)
-! Initialize the function pointers for triatracking
-CALL InitParticleInsideQuad()
-CALL InitSingleParticleTriaTracking()
-IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
-#endif /*defined(PARTICLES)*/
+ParticleWeightType = GETINTFROMSTR('Part-Weight-Type')
 
-Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.NE.2)) CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
+SELECT CASE(ParticleWeightType)
+Case(PRM_PARTWEIGHT_CONSTANT)
+  ParticleWeighting%Type = 'constant'
+Case(PRM_PARTWEIGHT_RADIAL)
+  ParticleWeighting%Type = 'radial'
+  DoRadialWeighting = .TRUE.
+  ParticleWeighting%PerformCloning = .TRUE.
+  ParticleWeighting%EnableOutput = .TRUE.
+  IF(.NOT.Symmetry%Axisymmetric) CALL CollectiveStop(__STAMP__,' Part-Weight-Type = radial requires an axisymmetric simulation!')
+Case(PRM_PARTWEIGHT_LINEAR)
+  ParticleWeighting%Type = 'linear'
+  DoLinearWeighting = .TRUE.
+  ParticleWeighting%PerformCloning = .TRUE.
+  ParticleWeighting%EnableOutput = .TRUE.
+Case(PRM_PARTWEIGHT_CELLLOCAL)
+  ParticleWeighting%Type = 'cell_local'
+  DoCellLocalWeighting = .TRUE.
+  ParticleWeighting%PerformCloning = .TRUE.
+  ParticleWeighting%EnableOutput = .TRUE.
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,'Unknown Part-Weight-Type!' ,IntInfo=ParticleWeightType)
+END SELECT
 
-END SUBROUTINE InitSymmetry
+IF(ParticleWeighting%PerformCloning) CALL InitParticleCloning()
 
-END MODULE MOD_Symmetry
+END SUBROUTINE InitParticleWeighting
+
+END MODULE MOD_ParticleWeighting

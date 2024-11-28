@@ -69,8 +69,9 @@ CONTAINS
 !==================================================================================================================================
 SUBROUTINE DefineParametersParticles()
 ! MODULES
-USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
-USE MOD_part_RHS    ,ONLY: DefineParametersParticleRHS
+USE MOD_ReadInTools       ,ONLY: prms,addStrListEntry
+USE MOD_part_RHS          ,ONLY: DefineParametersParticleRHS
+USE MOD_ParticleWeighting ,ONLY: DefineParametersParticleWeighting
 IMPLICIT NONE
 !==================================================================================================================================
 CALL DefineParametersParticleRHS()
@@ -223,8 +224,8 @@ CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotat
 CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational reference frame regions','0')
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-Adaptive-Weighting', 'Enables an automatic adaption of '//&
-                                'the particle weight within a cell, based on previous simualation result', '.FALSE.')
+
+CALL DefineParametersParticleWeighting()
 
 END SUBROUTINE DefineParametersParticles
 
@@ -246,6 +247,7 @@ USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
+USE MOD_ParticleWeighting      ,ONLY: InitParticleWeighting
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
 USE MOD_Restart_Vars           ,ONLY: DoRestart
@@ -261,6 +263,9 @@ LOGICAL,INTENT(IN) :: IsLoadBalance
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
+
+!--- Radial, linear or cell-local particle weighting
+CALL InitParticleWeighting()
 
 !--- Variable time step
 VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
@@ -480,8 +485,8 @@ SUBROUTINE InitializeVariables()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitRadialWeighting, DSMC_InitVarWeighting
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting, VarWeighting, AdaptMPF
+USE MOD_DSMC_Symmetry          ,ONLY: InitLinearWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoLinearWeighting, DoCellLocalWeighting, CellLocalWeight
 USE MOD_DSMC_AdaptMPF          ,ONLY: DSMC_InitAdaptiveWeights
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
@@ -577,8 +582,8 @@ IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 CALL InitializeVariablesVirtualCellMerge()
 
-! Initialization of the automatically adapted particle weights
-AdaptMPF%UseMedianFilter = GETLOGICAL('Part-AdaptMPF-ApplyMedianFilter')
+! Initialization of the automatically adapted particle weights (used in InitParticleMesh)
+CellLocalWeight%UseMedianFilter = GETLOGICAL('Part-Weight-CellLocal-ApplyMedianFilter')
 
 ! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
@@ -590,27 +595,12 @@ CALL InitPIC()
 
 ! === 2D/1D/Axisymmetric initialization
 IF(Symmetry%Axisymmetric) THEN
-  IF(RadialWeighting%DoRadialWeighting) THEN
-    ! Initialization of RadialWeighting in 2D axisymmetric simulations
-    RadialWeighting%PerformCloning = .TRUE.
-    CALL DSMC_2D_InitRadialWeighting()
-  END IF
   IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
   IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
 
-IF(VarWeighting%DoVariableWeighting) THEN
-  ! Initialization of VarWeighting
-  VarWeighting%PerformCloning = .TRUE.
-  CALL DSMC_InitVarWeighting()
-END IF
-
-! Initialization of the automatically adapted particle weights
-AdaptMPF%DoAdaptMPF = GETLOGICAL('Part-Adaptive-Weighting')
-
-IF (AdaptMPF%DoAdaptMPF) THEN
-  CALL DSMC_InitAdaptiveWeights()
-END IF
+IF(DoLinearWeighting) CALL InitLinearWeighting()
+IF(DoCellLocalWeighting) CALL DSMC_InitAdaptiveWeights()
 
 #if USE_MPI
 CALL InitEmissionComm()

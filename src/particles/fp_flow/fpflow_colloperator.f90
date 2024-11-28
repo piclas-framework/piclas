@@ -47,8 +47,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuan
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, UseVarTimeStep, PartTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting, VarWeighting
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, CollInf
 USE Ziggurat
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -222,7 +221,7 @@ IF (FPCollModel.EQ.2) THEN
   nu= MAX(nu,-Theta/(W(3)-Theta))
 END IF
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.VarWeighting%DoVariableWeighting) THEN
+IF(usevMPF) THEN
   ! totalWeight contains the weighted particle number
   dens = totalWeight / NodeVolume
 ELSE
