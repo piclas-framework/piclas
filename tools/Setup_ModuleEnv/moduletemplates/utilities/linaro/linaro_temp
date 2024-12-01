@@ -1,0 +1,22 @@
+#%Module1.0#####################################################################
+##
+## modules linaro/linaroversion
+##
+## modulefiles/utilities/linaro/linaroversion
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr " linaro/linaroversion - sets the Environment for linaro-linaroversion"
+}
+
+module-whatis   "Sets the environment for using linaro/linaroversion"
+
+conflict linaro
+
+# for Tcl script use only
+set     topdir          /opt/linaro/forge/linaroversion
+set     version         linaroversion
+set     sys             linux64
+
+prepend-path    PATH            $topdir/bin
