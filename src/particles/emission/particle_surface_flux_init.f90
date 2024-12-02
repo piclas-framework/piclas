@@ -788,10 +788,12 @@ DO iBC=1,countDataBC
   IF(ParticleWeighting%PerformCloning) THEN
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
     BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor = 1.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
-    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 0.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
-    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea = 0.
+    IF(Symmetry%Axisymmetric) THEN
+      ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+      BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 0.
+      ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+      BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea = 0.
+    END IF
   END IF
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -800,7 +802,7 @@ DO iBC=1,countDataBC
         IF (UseCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
-        IF(ParticleWeighting%PerformCloning) THEN
+        IF(Symmetry%Axisymmetric.AND.ParticleWeighting%PerformCloning) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
         END IF
       END IF

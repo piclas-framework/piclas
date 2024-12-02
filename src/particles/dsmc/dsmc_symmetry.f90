@@ -80,6 +80,7 @@ SUBROUTINE InitParticleCloning()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, ParticleWeighting, ClonedParticles
 #if USE_LOADBALANCE
@@ -119,9 +120,11 @@ ParticleWeighting%UseCellAverage = GETLOGICAL('Part-Weight-CellAverage')
 ! Number of subsides to split the surface flux sides into, otherwise a wrong distribution of particles across large cells will be
 ! inserted, visible in the number density as an increase in the number density closer the axis (e.g. resulting in a heat flux peak)
 ! (especially when using mortar meshes)
-ParticleWeighting%nSubSides=GETINT('Part-Weight-SurfFluxSubSides')
-ALLOCATE(ParticleWeighting%PartInsSide(ParticleWeighting%nSubSides))
-ParticleWeighting%PartInsSide = 0
+IF(Symmetry%Axisymmetric) THEN
+  ParticleWeighting%nSubSides=GETINT('Part-Weight-SurfFluxSubSides')
+  ALLOCATE(ParticleWeighting%PartInsSide(ParticleWeighting%nSubSides))
+  ParticleWeighting%PartInsSide = 0
+END IF
 
 ParticleWeighting%NextClone = 0
 ParticleWeighting%CloneVecLengthDelta = 100
@@ -201,9 +204,8 @@ IF((CloneProb.GT.iRan).AND.(NewMPF.LT.OldMPF)) THEN
   DoCloning = .TRUE.
   IF(INT(OldMPF/NewMPF).GT.1) THEN
     IPWRITE(*,*) 'New weighting factor:', NewMPF, 'Old weighting factor:', OldMPF
-    CALL Abort(&
-        __STAMP__,&
-      'ERROR in 2D axisymmetric simulation: More than one clone per particle is not allowed! Reduce the time step or'//&
+    CALL Abort(__STAMP__,&
+      'ERROR in particle weighting: More than one clone per particle is not allowed! Reduce the time step or'//&
         ' the radial/linear weighting factor! Cloning probability is:',RealInfoOpt=CloneProb)
   END IF
 END IF

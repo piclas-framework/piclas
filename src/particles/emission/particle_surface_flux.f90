@@ -929,6 +929,7 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, 
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1039,16 +1040,18 @@ ELSE
   CALL RANDOM_NUMBER(RandVal1)
   PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
   ! Particle weighting: subdivide the side into smaller subsides to improve distribution
-  IF(ParticleWeighting%PerformCloning.AND..NOT.ParticleWeighting%UseCellAverage) THEN
-    ! Skip sides parallel to rotational axis
-    IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
-      PartInsSubSide = 0
-      DO iSub = 1, ParticleWeighting%nSubSides
-        CALL RANDOM_NUMBER(RandVal1)
-        ParticleWeighting%PartInsSide(iSub) = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor &
-                * dtVar * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) * vSF + RandVal1)
-        PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
-      END DO
+  IF(Symmetry%Axisymmetric) THEN
+    IF(ParticleWeighting%PerformCloning.AND..NOT.ParticleWeighting%UseCellAverage) THEN
+      ! Skip sides parallel to rotational axis
+      IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+        PartInsSubSide = 0
+        DO iSub = 1, ParticleWeighting%nSubSides
+          CALL RANDOM_NUMBER(RandVal1)
+          ParticleWeighting%PartInsSide(iSub) = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor &
+                  * dtVar * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) * vSF + RandVal1)
+          PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
+        END DO
+      END IF
     END IF
   END IF
 END IF
