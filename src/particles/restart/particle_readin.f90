@@ -700,49 +700,51 @@ IF(.NOT.ClonesExist) THEN
   ResetClones = .TRUE.
 END IF
 
-! Determining the old time step
-CALL DatasetExists(File_ID,'ManualTimeStep',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
-IF(ParameterExists) THEN
-  CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName='CloneData')
-  IF(OldParameter.NE.ManualTimeStep) THEN
+IF(ClonesExist) THEN
+  ! Determining the old time step
+  CALL DatasetExists(File_ID,'ManualTimeStep',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  IF(ParameterExists) THEN
+    CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName='CloneData')
+    IF(OldParameter.NE.ManualTimeStep) THEN
+      ResetClones = .TRUE.
+      LBWRITE(*,*) 'Changed timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
+    END IF
+  ELSE
     ResetClones = .TRUE.
-    LBWRITE(*,*) 'Changed timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
+    LBWRITE(*,*) 'Unknown timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
   END IF
-ELSE
-  ResetClones = .TRUE.
-  LBWRITE(*,*) 'Unknown timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
-END IF
-ParameterExists = .FALSE.
+  ParameterExists = .FALSE.
 
-! Determining the old weighting factor
-CALL DatasetExists(File_ID,'WeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
-IF(ParameterExists) THEN
-  CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
-  ! Only checking the weighting factor of the first species
-  IF(OldParameter.NE.Species(1)%MacroParticleFactor) THEN
+  ! Determining the old weighting factor
+  CALL DatasetExists(File_ID,'WeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  IF(ParameterExists) THEN
+    CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+    ! Only checking the weighting factor of the first species
+    IF(OldParameter.NE.Species(1)%MacroParticleFactor) THEN
+      ResetClones = .TRUE.
+      LBWRITE(*,*) 'Changed weighting factor of read-in CloneData. Resetting the array.'
+    END IF
+  ELSE
     ResetClones = .TRUE.
-    LBWRITE(*,*) 'Changed weighting factor of read-in CloneData. Resetting the array.'
+    LBWRITE(*,*) 'Unknown weighting factor of read-in CloneData. Resetting the array.'
   END IF
-ELSE
-  ResetClones = .TRUE.
-  LBWRITE(*,*) 'Unknown weighting factor of read-in CloneData. Resetting the array.'
-END IF
-ParameterExists = .FALSE.
+  ParameterExists = .FALSE.
 
-! Determining the old radial weighting factor
-CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
-IF(ParameterExists) THEN
-  CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
-  IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+  ! Determining the old radial weighting factor
+  CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  IF(ParameterExists) THEN
+    CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+    IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+      ResetClones = .TRUE.
+      LBWRITE(*,*) 'Using linear or cell-local weighting. Resetting the CloneData array.'
+    ELSE IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
+      ResetClones = .TRUE.
+      LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
+    END IF
+  ELSE
     ResetClones = .TRUE.
-    LBWRITE(*,*) 'Using linear or cell-local weighting. Resetting the CloneData array.'
-  ELSE IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
-    ResetClones = .TRUE.
-    LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
+    LBWRITE(*,*) 'Unknown radial weighting factor of read-in CloneData. Resetting the array.'
   END IF
-ELSE
-  ResetClones = .TRUE.
-  LBWRITE(*,*) 'Unknown radial weighting factor of read-in CloneData. Resetting the array.'
 END IF
 
 ! Reset the clones if the time step/weighting factor has changed and leave the routine (also if no CloneData was found)
