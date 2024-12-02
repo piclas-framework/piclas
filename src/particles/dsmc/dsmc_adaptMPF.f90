@@ -82,9 +82,7 @@ USE MOD_HDF5_Input              ,ONLY: OpenDataFile, CloseDataFile, ReadArray, R
 USE MOD_HDF5_Input              ,ONLY: GetDataSize, nDims, HSize, File_ID
 USE MOD_Restart_Vars            ,ONLY: DoMacroscopicRestart, MacroRestartFileName
 USE MOD_StringTools             ,ONLY: STRICMP
-#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -100,8 +98,6 @@ INTEGER                             :: iElem, ReadInElems, iCNElem, firstElem, l
 REAL, ALLOCATABLE                   :: ElemData_HDF5(:,:)
 CHARACTER(LEN=255),ALLOCATABLE      :: VarNames_tmp(:)
 !===================================================================================================================================
-IF(PerformLoadBalance) RETURN
-
 LBWRITE(UNIT_stdOut,'(A)') ' INIT CELL-LOCAL PARTICLE WEIGHTING...'
 
 nVar_TotalPartNum = 0; nVar_TotalDens = 0; nVar_Ratio_FP = 0; nVar_Ratio_BGK = 0; nVar_DSMC = 0; nVar_BGK = 0; nVar_AdaptMPF = 0
@@ -110,7 +106,7 @@ nVar_TotalPartNum = 0; nVar_TotalDens = 0; nVar_Ratio_FP = 0; nVar_Ratio_BGK = 0
 CALL InitNodeMapping()
 
 ! No further adaption process, use of the MPF distribution from the previous adaption process
-CellLocalWeight%SkipAdaption       = GETLOGICAL('Part-Weight-CellLocal-SkipAdaption')
+IF(.NOT.PerformLoadBalance) CellLocalWeight%SkipAdaption       = GETLOGICAL('Part-Weight-CellLocal-SkipAdaption')
 
 IF (.NOT.CellLocalWeight%SkipAdaption) THEN
   IF(.NOT.DoMacroscopicRestart) CALL abort(__STAMP__, 'ERROR: Cell-local weighting adaption process only possible with -DoMacroscopicRestart=T!')
@@ -255,6 +251,7 @@ USE MOD_io_hdf5
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_DSMC_Symmetry
+USE MOD_DSMC_Vars
 USE MOD_Restart_Vars            ,ONLY: DoCatalyticRestart, RestartFile, DoMacroscopicRestart
 USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems, offSetElem, SideToElem, nBCSides, BC
@@ -264,8 +261,8 @@ USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, ElemMidPoint_Shared, nComputeNodeElems, GEO
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_DSMC_Vars
 USE MOD_part_tools              ,ONLY: CalcVarWeightMPF
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -442,8 +439,13 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
       OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)
     END IF
   END DO ! iGlobalElem
-ELSE ! Skip Adaption
 
+  ! Disabling the adaption for load-balance steps
+  CellLocalWeight%SkipAdaption = .TRUE.
+ELSE ! Skip Adaption
+  IF(PerformLoadBalance.AND..NOT.UseH5IOLoadBalance) THEN
+    CALL abort(__STAMP__, 'ERROR: Cell-local weighting requires UseH5IOLoadBalance!')
+  END IF
   ! Read-in of the MPF per element from a previous adaption process
   ALLOCATE(MPFData_HDF5(1:nGlobalElems))
   MPFData_HDF5 = 0.
@@ -458,7 +460,7 @@ ELSE ! Skip Adaption
       OptimalMPF_Shared(iCNElem) = MPFData_HDF5(iGlobalElem)
     END DO
 
-    SWRITE(UNIT_stdOut,*)'Cell-local weight: Read-in of particle weight distribution from state file.'
+    LBWRITE(UNIT_stdOut,*)' | Cell-local weighting: Read-in of particle weight distribution from state file.'
 
   ELSE IF(.NOT.DoMacroscopicRestart) THEN
     CALL abort(__STAMP__, 'ERROR: Cell-local weight requires a given particle weight distribution or -DoMacroscopicRestart=T!')
@@ -476,7 +478,7 @@ CALL NodeMappingAdaptMPF()
 ! Average the MPF distribution by the neighbour values
 IF (CellLocalWeight%UseMedianFilter) THEN
   IF (CellLocalWeight%SkipAdaption) THEN
-    SWRITE(UNIT_stdOut,*) 'ApplyMedianFilter is not possible with SkipAdaption, filtering process is skipped'
+    LBWRITE(UNIT_stdOut,*) ' | ApplyMedianFilter is not possible with SkipAdaption, filtering process is skipped.'
   ELSE
     DO iRefine=1, CellLocalWeight%nRefine
       CALL NodeMappingFilterMPF()
@@ -1016,6 +1018,7 @@ USE MOD_DSMC_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars   ,ONLY: MPI_COMM_SHARED
+USE MOD_DSMC_Vars         ,ONLY: CellLocalWeight
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
@@ -1028,7 +1031,7 @@ IMPLICIT NONE
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 CALL UNLOCK_AND_FREE(OptimalMPF_Shared_Win)
-CALL UNLOCK_AND_FREE(AdaptMPFInfo_Shared_Win)
+IF(.NOT.CellLocalWeight%SkipAdaption) CALL UNLOCK_AND_FREE(AdaptMPFInfo_Shared_Win)
 #endif /*USE_MPI*/
 
 ADEALLOCATE(OptimalMPF_Shared)
