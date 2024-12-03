@@ -80,8 +80,8 @@ In the default case of the `TempGradDir = 0`, the temperature will be interpolat
 start vector corresponds to the first wall temperature `WallTemp`, and the end vector to the second wall temperature `WallTemp2`.
 Position values (which are projected onto the temperature gradient vector) beyond the gradient vector utilize the first (Start)
 and second temperature (End) as the constant wall temperature, respectively. In the special case of `TempGradDir = 1/2/3`, the
-temperature gradient will only be applied along the chosen the direction. As oppposed to the default case, the positions of the
-surfaces are not projected onto the gradient vector before checking wether they are inside the box spanned by `TempGradStart` and
+temperature gradient will only be applied along the chosen the direction. As opposed to the default case, the positions of the
+surfaces are not projected onto the gradient vector before checking whether they are inside the box spanned by `TempGradStart` and
 `TempGradEnd`. The applied surface temperature is output in the `DSMCSurfState` as `Wall_Temperature` for verification.
 
 ### Radiative equilibrium
@@ -103,7 +103,7 @@ during the preceding sampling period is utilized to determine the side-local tem
 `State` file and thus available during a restart of the simulation. The surface output (in `DSMCSurfState`) will additionally
 include the temperature distribution in the `Wall_Temperature` variable (see Section {ref}`sec:sampled-flow-field-and-surface-variables`).
 To continue the simulation without further adapting the temperature, the first flag has to be disabled (`Part-AdaptWallTemp = F`).
-It should be noted that the the adaptation should be performed multiple times to achieve a converged temperature distribution.
+It should be noted that the adaptation should be performed multiple times to achieve a converged temperature distribution.
 
 (sec:particle-boundary-conditions-rotBC)=
 ## Rotational Periodicity
@@ -123,7 +123,7 @@ can be defined.
     Part-Boundary2-RotPeriodicAngle = -90.
 
 CAUTION! The correct sign for the rotating angle must be determined. The position of particles that cross one rotational
-periodic boundary is tranformed according to this angle, which is defined by the right-hand rule and the rotation axis:
+periodic boundary is transformed according to this angle, which is defined by the right-hand rule and the rotation axis:
 
     Part-RotPeriodicAxi = 1    ! (x = 1, y = 2, z = 3)
 
@@ -131,9 +131,9 @@ The usage of rotational periodic boundary conditions is limited to cases, where 
 Cartesian coordinate axis (x, y, z) with its origin at (0, 0, 0).
 
 ### Intermediate Plane Definition
-If several segments with different rotation angles are defined, exactly two corresponding BCs must be defined for each segment.
+If several segments with different rotation angles are defined, exactly two corresponding boundary conditions must be defined for each segment.
 Since the plane between these segments with different rotational symmetry angles represents a non-conforming connection, additional
-two BCs must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both BCs must refer to each other in the
+two boundary conditions must be defined as `rot_periodic_inter_plane` at this intermediate plane. Both boundary conditions must refer to each other in the
 definition in order to ensure the connection.
 
     Part-Boundary40-SourceName       = BC_INT_R1_BOT
@@ -144,7 +144,7 @@ definition in order to ensure the connection.
     Part-Boundary41-Condition        = rot_periodic_inter_plane
     Part-Boundary41-AssociatedPlane  = 40
 
-Note that using the intermediate plane definition with two corresponding BCs allows the user to mesh the segments independently,
+Note that using the intermediate plane definition with two corresponding boundary conditions allows the user to mesh the segments independently,
 creating a non-conforming interface at the intermediate plane. However, use of these non-conformal grids is so far only possible in standalone DSMC simulations.
 
 ## Porous Wall / Pump
@@ -284,8 +284,11 @@ As additional output, the cell-local sticking coefficient will be added to the s
 
 ### Fixed probability surface chemistry
 
-This simple fixed-probability surface chemistry model allows the user to define arbitrary surface reactions, by defining the impacting species, the products and a fixed event probability. The reaction is then assigned to the boundaries by specifying their number and index as defined previously. This model corresponds to `Part-BoundaryX-SurfaceModel = 2`, which is set automatically when a reaction of this type is defined.
+This simple fixed-probability surface chemistry model allows the user to define arbitrary surface reactions, by defining the
+impacting species, the products and a fixed event probability. The reaction is then assigned to the boundaries by specifying their number and index as defined previously.
+This model corresponds to `Part-BoundaryX-SurfaceModel = 2`, which is set automatically when a reaction of this type is defined.
 
+    Surface-NumOfReactions               = 1
     Surface-Reaction1-Type               = P
     Surface-Reaction1-Reactants          = (/1,0/)
     Surface-Reaction1-Products           = (/2,1,0/)
@@ -344,7 +347,7 @@ The emission yield and energy can be varied for this model by setting
     SurfModEmissionEnergy = 6.8  ! [eV]
 
 respectively.
-The emission yield represents the ratio of emitted electrons vs. impacting ions and the emission energy is given in electronvolts.
+The emission yield represents the ratio of emitted electrons vs. impacting ions and the emission energy is given in electronvolt.
 If the energy is not set, the emitted electron will have the same velocity as the impacting ion.
 
 Additionally, a uniform energy distribution function for the emitted electrons can be set via

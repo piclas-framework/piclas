@@ -183,8 +183,7 @@ DO i = 1, iMax
   ELSE
     ! Generate skeleton for the file with all relevant data on a single processor (MPIRoot)
     ! Write field to separate file for debugging purposes
-    FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_NodeSourceExtGlobal',OutputTime))//'.h5'
-    IF(MPIRoot) CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax)
+    CALL GenerateFileSkeleton('NodeSourceExtGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax,FileNameOut=FileName)
 #if USE_MPI
     CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -584,18 +583,17 @@ IF(iter.EQ.0) RETURN
 ! set local variables for output and previous times
 IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',OutputTime))//'.h5'
 
 #if USE_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',4,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateBoundary',4,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #elif PP_nVar==3
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',3,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateBoundary',3,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif /*USE_HDG*/
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
@@ -764,7 +762,6 @@ SUBROUTINE WriteLostParticlesToHDF5(MeshFileName,OutputTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
-USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
@@ -789,18 +786,17 @@ CHARACTER(LEN=255)             :: FileName
 INTEGER                        :: ALLOCSTAT
 !===================================================================================================================================
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateLost',OutputTime))//'.h5'
 
 #if USE_HDG
 #if PP_nVar==1
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',4,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateLost',4,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #elif PP_nVar==3
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',3,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateLost',3,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',7,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateLost',7,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif
 #else
-IF(MPIRoot) CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFileName,OutputTime)
+CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif /*USE_HDG*/
 
 ! Reopen file and write DG solution

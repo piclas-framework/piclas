@@ -39,6 +39,9 @@ USE MOD_Globals
 USE MOD_ReadInTools            ,ONLY: GETINT,GETREALARRAY
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+#if USE_MPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic
+#endif  /*USE_MPI*/
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasPeriodicBCs
 #if USE_MPI
 USE MOD_Particle_Vars          ,ONLY: PDM
@@ -57,6 +60,11 @@ INTEGER                :: iBC
 !===================================================================================================================================
 
 GEO%nPeriodicVectors       = GETINT('Part-nPeriodicVectors','0')
+
+#if USE_MPI
+! Periodic Sides
+MeshHasPeriodic    = MERGE(.TRUE.,.FALSE.,GEO%nPeriodicVectors.GT.0)
+#endif  /*USE_MPI*/
 
 ! sanity check with DG. Both must be either periodic or non-periodic.
 
@@ -113,7 +121,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !LOGICAL                :: directions(1:3)
-INTEGER                :: iPV
+INTEGER                :: iPV, iDim
 REAL                   :: eps(1:3)
 !===================================================================================================================================
 
@@ -168,39 +176,50 @@ END DO
 
 ! check if periodic vector is multiple of FIBGM-deltas
 ! some tolerance
-eps(1)=1.E-9*(GEO%FIBGMDeltas(1))
-eps(2)=1.E-9*(GEO%FIBGMDeltas(2))
-eps(3)=1.E-9*(GEO%FIBGMDeltas(3))
-IF(ABS(SUM(GEO%PeriodicVectors(1,:))-NINT(SUM(GEO%PeriodicVectors(1,:))/GEO%FIBGMDeltas(1))*GEO%FIBGMDeltas(1))       &
-  .GT.eps(1)) THEN
-  ERRWRITE(*,*)'SUM(PeriodicVectors(1,:))   =',SUM(GEO%PeriodicVectors(1,:))
-  ERRWRITE(*,*)'GEO%FIBGMDeltas(1)          =',GEO%FIBGMDeltas(1)
-  ERRWRITE(*,*)'1.E-9*(FIBGMDeltas(1))      =',eps(1)
-  ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(1))*D(1))=',ABS(SUM(GEO%PeriodicVectors(1,:))-                                     &
-                                              NINT(SUM(GEO%PeriodicVectors(1,:))/GEO%FIBGMDeltas(1))*GEO%FIBGMDeltas(1))
-  CALL abort(__STAMP__,'Periodic Vector in x-direction is not a multiple of FIBGMDeltas!',999,                        &
-    ABS(SUM(GEO%PeriodicVectors(1,:))-NINT(SUM(GEO%PeriodicVectors(1,:))/GEO%FIBGMDeltas(1))*GEO%FIBGMDeltas(1)))
 
-ELSE IF (ABS(SUM(GEO%PeriodicVectors(2,:))-NINT(SUM(GEO%PeriodicVectors(2,:))/GEO%FIBGMDeltas(2))*GEO%FIBGMDeltas(2)) &
-         .GT.eps(2)) THEN
-  ERRWRITE(*,*)'SUM(PeriodicVectors(2,:))   =',SUM(GEO%PeriodicVectors(2,:))
-  ERRWRITE(*,*)'GEO%FIBGMDeltas(2)          =',GEO%FIBGMDeltas(2)
-  ERRWRITE(*,*)'1.E-9*(FIBGMDeltas(2))      =',eps(2)
-  ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(2))*D(2))=',ABS(SUM(GEO%PeriodicVectors(2,:))-                                     &
-                                              NINT(SUM(GEO%PeriodicVectors(2,:))/GEO%FIBGMDeltas(2))*GEO%FIBGMDeltas(2))
-  CALL abort(__STAMP__,'Periodic Vector in y-direction is not a multiple of FIBGMDeltas!',999,                        &
-ABS(SUM(GEO%PeriodicVectors(2,:))-NINT(SUM(GEO%PeriodicVectors(2,:))/GEO%FIBGMDeltas(2))*GEO%FIBGMDeltas(2)))
+IF(GEO%InitFIBGM) THEN
+  IF(GEO%AutomaticFIBGM) THEN
+    ! Adjust Automatic FIBGM to be a integer divide of periodic vectors
+    DO iDim=1,3
+      IF(SUM(GEO%PeriodicVectors(iDim,:)).GT.0) &
+        GEO%FIBGMDeltas(iDim) = SUM(GEO%PeriodicVectors(iDim,:))/CEILING(SUM(GEO%PeriodicVectors(iDim,:))/GEO%FIBGMDeltas(iDim))
+    END DO
+  END IF
 
-ELSE IF (ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/GEO%FIBGMDeltas(3))*GEO%FIBGMDeltas(3)) &
-         .GT.eps(3)) THEN
-  ERRWRITE(*,*)'SUM(PeriodicVectors(3,:))   =',SUM(GEO%PeriodicVectors(3,:))
-  ERRWRITE(*,*)'GEO%FIBGMDeltas(3)          =',GEO%FIBGMDeltas(3)
-  ERRWRITE(*,*)'1.E-9*(FIBGMDeltas(3))      =',eps(3)
-  ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(3))*D(3))=',ABS(SUM(GEO%PeriodicVectors(3,:))-                                     &
-                                              NINT(SUM(GEO%PeriodicVectors(3,:))/GEO%FIBGMDeltas(3))*GEO%FIBGMDeltas(3))
-  CALL abort(__STAMP__,'Periodic Vector in z-direction is not a multiple of FIBGMDeltas!',999,                        &
-    ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/GEO%FIBGMDeltas(3))*GEO%FIBGMDeltas(3)))
+  eps(1)=1.E-9*(GEO%FIBGMDeltas(1))
+  eps(2)=1.E-9*(GEO%FIBGMDeltas(2))
+  eps(3)=1.E-9*(GEO%FIBGMDeltas(3))
+  IF(ABS(SUM(GEO%PeriodicVectors(1,:))-NINT(SUM(GEO%PeriodicVectors(1,:))/GEO%FIBGMDeltas(1))*GEO%FIBGMDeltas(1))       &
+    .GT.eps(1)) THEN
+    ERRWRITE(*,*)'SUM(PeriodicVectors(1,:))   =',SUM(GEO%PeriodicVectors(1,:))
+    ERRWRITE(*,*)'GEO%FIBGMDeltas(1)          =',GEO%FIBGMDeltas(1)
+    ERRWRITE(*,*)'1.E-9*(FIBGMDeltas(1))      =',eps(1)
+    ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(1))*D(1))=',ABS(SUM(GEO%PeriodicVectors(1,:))-                                     &
+                                                NINT(SUM(GEO%PeriodicVectors(1,:))/GEO%FIBGMDeltas(1))*GEO%FIBGMDeltas(1))
+    CALL abort(__STAMP__,'Periodic Vector in x-direction is not a multiple of FIBGMDeltas!',999,                        &
+      ABS(SUM(GEO%PeriodicVectors(1,:))-NINT(SUM(GEO%PeriodicVectors(1,:))/GEO%FIBGMDeltas(1))*GEO%FIBGMDeltas(1)))
 
+  ELSE IF (ABS(SUM(GEO%PeriodicVectors(2,:))-NINT(SUM(GEO%PeriodicVectors(2,:))/GEO%FIBGMDeltas(2))*GEO%FIBGMDeltas(2)) &
+          .GT.eps(2)) THEN
+    ERRWRITE(*,*)'SUM(PeriodicVectors(2,:))   =',SUM(GEO%PeriodicVectors(2,:))
+    ERRWRITE(*,*)'GEO%FIBGMDeltas(2)          =',GEO%FIBGMDeltas(2)
+    ERRWRITE(*,*)'1.E-9*(FIBGMDeltas(2))      =',eps(2)
+    ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(2))*D(2))=',ABS(SUM(GEO%PeriodicVectors(2,:))-                                     &
+                                                NINT(SUM(GEO%PeriodicVectors(2,:))/GEO%FIBGMDeltas(2))*GEO%FIBGMDeltas(2))
+    CALL abort(__STAMP__,'Periodic Vector in y-direction is not a multiple of FIBGMDeltas!',999,                        &
+  ABS(SUM(GEO%PeriodicVectors(2,:))-NINT(SUM(GEO%PeriodicVectors(2,:))/GEO%FIBGMDeltas(2))*GEO%FIBGMDeltas(2)))
+
+  ELSE IF (ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/GEO%FIBGMDeltas(3))*GEO%FIBGMDeltas(3)) &
+          .GT.eps(3)) THEN
+    ERRWRITE(*,*)'SUM(PeriodicVectors(3,:))   =',SUM(GEO%PeriodicVectors(3,:))
+    ERRWRITE(*,*)'GEO%FIBGMDeltas(3)          =',GEO%FIBGMDeltas(3)
+    ERRWRITE(*,*)'1.E-9*(FIBGMDeltas(3))      =',eps(3)
+    ERRWRITE(*,*)'ABS(SUM-NINT(SUM/D(3))*D(3))=',ABS(SUM(GEO%PeriodicVectors(3,:))-                                     &
+                                                NINT(SUM(GEO%PeriodicVectors(3,:))/GEO%FIBGMDeltas(3))*GEO%FIBGMDeltas(3))
+    CALL abort(__STAMP__,'Periodic Vector in z-direction is not a multiple of FIBGMDeltas!',999,                        &
+      ABS(SUM(GEO%PeriodicVectors(3,:))-NINT(SUM(GEO%PeriodicVectors(3,:))/GEO%FIBGMDeltas(3))*GEO%FIBGMDeltas(3)))
+
+  END IF
 END IF
 
 END SUBROUTINE CheckPeriodicVectors

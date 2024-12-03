@@ -59,7 +59,6 @@ USE MOD_PreProc
 USE MOD_Dielectric_Vars ,ONLY: DielectricGlobal
 USE MOD_Dielectric_Vars ,ONLY: DielectricVol,isDielectricElem,ElemToDielectric
 USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars    ,ONLY: ProjectName
 USE MOD_io_HDF5
 USE MOD_ChangeBasis     ,ONLY: ChangeBasis3D
 USE MOD_DG_vars                ,ONLY: N_DG_Mapping
@@ -114,8 +113,7 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_DielectricGlobal',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax)
+CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax,FileNameOut=FileName)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -193,8 +191,7 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE BRAverageElem TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_BRAverageElem',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('BRAverageElem',N_variables,StrVarNames,TRIM(MeshFile),OutputTime)
+CALL GenerateFileSkeleton('BRAverageElem',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
@@ -500,9 +497,8 @@ SUBROUTINE WritePMLzetaGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PML_Vars           ,ONLY: PMLzetaGlobal,PMLzeta0,isPMLElem,ElemToPML,PML
+USE MOD_PML_Vars           ,ONLY: PMLzetaGlobal,PMLzeta0,PML
 USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_io_HDF5
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
@@ -554,8 +550,7 @@ SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PMLZetaGlobal',OutputTime))//'.h5'
-IF(MPIRoot) CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax)
+CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax,FileNameOut=FileName)
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
