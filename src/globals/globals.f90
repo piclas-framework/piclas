@@ -1605,11 +1605,13 @@ MPIW8CountMM = MPIW8CountMM + 1_8
 ! --------------------------------------------------
 ! Only MPI root or compute-node root outputs the warning
 ! --------------------------------------------------
+#if USE_MPI
 IF(Mode.EQ.0) THEN
   IF(.NOT.MPIRoot) RETURN
 ELSE IF(Mode.EQ.1) THEN
   IF(.NOT.myComputeNodeRank.EQ.0) RETURN
 END IF
+#endif /*USE_MPI*/
 
 ! Sanity checks
 IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'ERROR in WarningMemusage: Could not retrieve total available memory')
