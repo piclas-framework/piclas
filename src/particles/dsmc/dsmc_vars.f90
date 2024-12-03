@@ -241,10 +241,10 @@ TYPE tDSMC
                                                             !     2: Max Prob
                                                             !     3: Sample size
   REAL                          :: MeanFreePath
-  real                          :: CollProbMaxProcMax       ! Maximum CollProbMax of every cell in Process
+  REAL                          :: CollProbMaxProcMax       ! Maximum CollProbMax of every cell in Process
   REAL                          :: MaxMCSoverMFP            ! Maximum MCSoverMFP after each time step
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
-  INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collison. Used for ResolvedCellPercentage
+  INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collision. Used for ResolvedCellPercentage
   INTEGER                       :: ResolvedCellCounter      ! Counts resolved Cells. Used for ResolvedCellPercentage
   INTEGER                       :: ResolvedTimestepCounter  ! Counts Cells with MeanCollProb below 1
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs

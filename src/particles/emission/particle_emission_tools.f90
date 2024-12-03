@@ -1080,7 +1080,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
-USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING

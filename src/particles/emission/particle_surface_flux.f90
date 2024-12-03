@@ -37,7 +37,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, IncreaseMaxParticleNumber
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC
-USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetParticleWeight, GetNextFreePosition

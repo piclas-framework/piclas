@@ -1414,29 +1414,29 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
       MaxCollProb = DSMC%CollProbMaxProcMax
       ! ResolvedCellPercentage:
 #if USE_MPI
-        IF(MPIRoot)THEN
-          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-        ELSE
-          CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          CALL MPI_REDUCE(DSMC%ParticleCalcCollCounter,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-        END IF
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticleCalcCollCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        CALL MPI_REDUCE(DSMC%ParticleCalcCollCounter,DSMC%ParticleCalcCollCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      END IF
 #endif /*USE_MPI*/
-        IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
-        IF (DSMC%ReservoirSimu) THEN
-          ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
-          ! Otherwise its the ResolvedTimestep
-          MeanCollProb = DSMC%CollProbMean
-        ELSE
+      IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+      IF (DSMC%ReservoirSimu) THEN
+        ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+        ! Otherwise its the ResolvedTimestep
+        MeanCollProb = DSMC%CollProbMean
+      ELSE
 #if USE_MPI
-          IF(MPIRoot)THEN
-            CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          ELSE
-            CALL MPI_REDUCE(DSMC%ResolvedTimestepCounter,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          END IF
-#endif /*USE_MPI*/
-          IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedTimestep = REAL(DSMC%ResolvedTimestepCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+        IF(MPIRoot)THEN
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedTimestepCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        ELSE
+          CALL MPI_REDUCE(DSMC%ResolvedTimestepCounter,DSMC%ResolvedTimestepCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
         END IF
+#endif /*USE_MPI*/
+        IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedTimestep = REAL(DSMC%ResolvedTimestepCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+      END IF
       ! MeanFreePath:
       IF (MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &

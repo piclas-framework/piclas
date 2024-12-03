@@ -74,7 +74,7 @@ REAL              :: tLBStart
 DSMCSumOfFormedParticles = 0
 
 DSMC%MaxMCSoverMFP = 0.0
-DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collison Calculations
+DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collision Calculations
 DSMC%ResolvedCellCounter = 0 ! Counts resolved cells
 DSMC%ResolvedTimestepCounter = 0 ! Counts cells with MeanCollProb below 1
 DSMC%CollProbMaxProcMax = 0.0 ! Maximum CollProbMax of every Cell in Process

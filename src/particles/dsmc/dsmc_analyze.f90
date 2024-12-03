@@ -522,7 +522,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, DSMC_SolutionPressTens
 USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
-USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, CellLocalWeight, ParticleWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
@@ -862,6 +862,7 @@ IF (SamplePressTensHeatflux) THEN
       END IF
     END ASSOCIATE
   END DO
+  nVarCount = nVarCount + 6
 END IF
 
 IF (DoVirtualCellMerge) THEN
@@ -941,7 +942,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 !> Subroutine to write the sampled macroscopic solution to the HDF5 format
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, ParticleWeighting, CollisMode, CollInf, DoCellLocalWeighting
+USE MOD_DSMC_Vars     ,ONLY: DSMC, ParticleWeighting, CollisMode, CollInf
 USE MOD_MCC_Vars      ,ONLY: SpecXSec
 USE MOD_PreProc
 USE MOD_Globals
@@ -1187,6 +1188,7 @@ ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF,nElems), STAT=
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__,' Cannot allocate output array: DSMC_MacroVal!')
 END IF
+! Calculation of the macroscopic output values
 CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,nVar_HeatPress,nVarMPF,DSMC_MacroVal)
 
 ! Calculation of electronic excitation rates

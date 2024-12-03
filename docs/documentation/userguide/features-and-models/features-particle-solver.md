@@ -277,7 +277,7 @@ In the example below, the weights are increased from $10^8$ to $10^{10}$, over a
     Part-Weight-Linear-ScalePoint2-Coordinate = 0.01
     Part-Weight-Linear-ScalePoint2-Factor = 1E10
 
-Analogously to the radial weighting, the particles will be cloned or deleted when they move to a new cell with a different weighting factor.
+Analogously to the radial weighting, the particles will be cloned or deleted when they move to a new cell with a different weighting factor. It should be noted that while a change of the scaling parameters between simulation runs is possible, it is recommended to perform a macroscopic restart (see Section {ref}`sec:macroscopic-restart`) to avoid large jumps in the weighting factor distribution during the first iteration.
 
 The cloning and deletion probability is again calculated by:
 
@@ -297,7 +297,7 @@ A detailed description of these parameters can be found in Section {ref}`sec:2D-
 (sec:celllocal-particle-weighting)=
 ### Cell-local Weighting
 
-An automatic determination of the optimal particle weights in each cell can be performed during a macroscopic restart, starting from a simulation with a defined linear weighting. The process is enabled by
+An automatic determination of the optimal particle weights in each cell can be performed during a macroscopic restart (see Section {ref}`sec:macroscopic-restart`), starting from a simulation with constant, radial or linear weighting. The process is enabled by
 
     Part-Weight-Type = cell_local
 
@@ -323,9 +323,7 @@ If a restart should be performed from an already adapted simulation, without fur
 
     Part-Weight-CellLocal-SkipAdaption = T
 
-In this case, the weight distribution from the given restart files is read in and used.
-
-As for the linear weighting in 3D, particles are cloned or deleted with a given probability when moving to a new cell.
+In this case, the weight distribution from the given restart files is read in and used. As for the linear weighting in 3D, particles are cloned or deleted with a given probability when moving to a new cell.
 
 (sec:split-merge)=
 ### Split-And-Merge
