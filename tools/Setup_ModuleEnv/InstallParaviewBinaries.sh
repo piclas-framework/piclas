@@ -62,9 +62,16 @@ fi
 
 # ===== Adjust these three parameters when changing the version =====
 
+# server
 PARAVIEWVERSION='5.11.2-osmesa-binaries'
 DOWNLOADPATH="https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v5.11&type=binary&os=Linux&downloadFile=ParaView-5.11.2-osmesa-MPI-Linux-Python3.9-x86_64.tar.gz"
 PARAVIEWDIRNAME="ParaView-5.11.2-osmesa-MPI-Linux-Python3.9-x86_64"
+
+# client
+PARAVIEWVERSION='5.11.2-MPI-Linux-binaries'
+DOWNLOADPATH="https://www.paraview.org/paraview-downloads/download.php?submit=Download&version=v5.11&type=binary&os=Linux&downloadFile=ParaView-5.11.2-MPI-Linux-Python3.9-x86_64.tar.gz"
+PARAVIEWDIRNAME="ParaView-5.11.2-MPI-Linux-Python3.9-x86_64"
+
 
 # ===================================================================
 [ -z ${PARAVIEWVERSION} ] && echo "${RED}ERROR: Variable PARAVIEWVERSION cannot be empty${NC}" && exit 1
