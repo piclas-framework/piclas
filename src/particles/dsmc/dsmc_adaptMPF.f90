@@ -280,7 +280,7 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
 
     IF (AdaptMPFInfo_Shared(5,iCNElem).EQ.1.) THEN
       ! Adaption based on the BGK quality factor
-      IF (AdaptMPFInfo_Shared(4,iCNElem).GT.0.8) THEN
+      IF (AdaptMPFInfo_Shared(4,iCNElem).GT.CellLocalWeight%QualityFactor) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)*(CellLocalWeight%QualityFactor/AdaptMPFInfo_Shared(4,iCNElem))
       ! Adaption based on the particle number per simulation cell
       ELSE ! BGKQualityFactors
@@ -317,8 +317,8 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
       END IF ! BGKQualityFactors
 
     ELSE IF (AdaptMPFInfo_Shared(5,iCNElem).EQ.2.) THEN
-      ! Adaption based on the BGK quality factor
-      IF (AdaptMPFInfo_Shared(4,iCNElem).GT.0.8) THEN
+      ! Adaption based on the FP quality factor
+      IF (AdaptMPFInfo_Shared(4,iCNElem).GT.CellLocalWeight%QualityFactor) THEN
         OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)*(CellLocalWeight%QualityFactor/AdaptMPFInfo_Shared(4,iCNElem))
       ! Adaption based on the particle number per simulation cell
       ELSE ! FPQualityFactors
@@ -357,7 +357,7 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
     ELSE
 
       ! Adaption based on the DSMC quality factor
-      IF (AdaptMPFInfo_Shared(3,iCNElem).GT.0.8) THEN
+      IF (AdaptMPFInfo_Shared(3,iCNElem).GT.CellLocalWeight%QualityFactor) THEN
         IF (Symmetry%Order.EQ.2) THEN
           OptimalMPF_Shared(iCNElem) = AdaptMPFInfo_Shared(6,iCNElem)*(CellLocalWeight%QualityFactor/AdaptMPFInfo_Shared(3,iCNElem))**2
         ELSE

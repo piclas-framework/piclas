@@ -92,8 +92,10 @@ CALL prms%CreateRealOption(   'Part-Weight-CellLocal-MaxParticleNumber', 'Target
 CALL prms%CreateLogicalOption('Part-Weight-CellLocal-ApplyMedianFilter', 'Applies a median filter to the cell-local distribution  '//&
                               'of the adapted weighting factor', '.FALSE.')
 CALL prms%CreateIntOption(    'Part-Weight-CellLocal-RefinementNumber', 'Number of times the median filter is applied', '1')
-CALL prms%CreateRealOption(   'Part-Weight-CellLocal-RefinementFactor', 'Scaling factor for the reduction of the weighting factor, in cases where the' //&
-                              'quality factors are not resolved', '0.8')
+CALL prms%CreateRealOption(   'Part-Weight-CellLocal-QualityFactor', 'Threshold for the adaption of the weighting based on a quality factor:\n'//&
+                              'DSMC: Mean collision separation distance over mean free path (DSMC_MCS_over_MFP)\n'//&
+                              'BGK/FP: Maximal relaxation factor (BGK_MaxRelaxationFactor/FP_MaxRelaxationFactor)\n'//&
+                              'If these are below the threshold, the weighting factor will be adapted to resolve it', '0.8')
 CALL prms%CreateIntOption(    'Part-Weight-CellLocal-SymAxis-MinPartNum', 'Target minimum particle number close to the symmetry axis', '10')
 CALL prms%CreateIntOption(    'Part-Weight-CellLocal-Cat-MinPartNum', 'Target minimum particle number close to catalytic boundaries', '10')
 CALL prms%CreateLogicalOption('Part-Weight-CellLocal-IncludeMaxPartNum', 'Flag to determine if the maximal particle number should be '//&
@@ -349,7 +351,7 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
   CellLocalWeight%MinPartNum         = GETREAL('Part-Weight-CellLocal-MinParticleNumber')
   CellLocalWeight%MaxPartNum         = GETREAL('Part-Weight-CellLocal-MaxParticleNumber')
   CellLocalWeight%IncludeMaxPartNum  = GETLOGICAL('Part-Weight-CellLocal-IncludeMaxPartNum')
-  CellLocalWeight%QualityFactor      = GETREAL('Part-Weight-CellLocal-RefinementFactor')
+  CellLocalWeight%QualityFactor      = GETREAL('Part-Weight-CellLocal-QualityFactor')
   CellLocalWeight%BGKFactor          = GETREAL('Part-Weight-CellLocal-RefineFactorBGK')
   CellLocalWeight%FPFactor           = GETREAL('Part-Weight-CellLocal-RefineFactorFP')
   CellLocalWeight%SymAxis_MinPartNum = GETINT('Part-Weight-CellLocal-SymAxis-MinPartNum')
