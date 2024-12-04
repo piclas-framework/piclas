@@ -164,7 +164,7 @@ To fully exploit rotational symmetry, a radial weighting can be enabled, which w
 towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 
     Part-Weight-Type = radial
-    Part-Weight-ScaleFactor=100
+    Part-Weight-Radial-ScaleFactor = 100
 
 A radial weighting factor of 100 means that the weighting factor at $y_{\mathrm{max}}$ will be $100w$. Although greatly reducing
 the number of particles, this introduces the need to delete and create (in the following "clone") particles, which travel upwards

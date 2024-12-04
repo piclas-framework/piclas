@@ -396,7 +396,7 @@ REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes
 
 ! ====================================================================
-REAL,ALLOCATABLE                         :: NodeValue(:,:)
+REAL,ALLOCATABLE                         :: PartWeightAtNode(:,:)                 ! Cell-local weighting: node value of the weight
 INTEGER,ALLOCATABLE                      :: NodeSendRankToGlobalRank(:)
 INTEGER,ALLOCATABLE                      :: NodeRecvRankToGlobalRank(:)
 INTEGER,ALLOCATABLE                      :: NodetoGlobalNode(:)

@@ -94,7 +94,7 @@ Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundarie
     Particles-Symmetry-Order                    = 2
     Particles-Symmetry2DAxisymmetric            = T
     Part-Weight-Type                            = T
-    Part-Weight-ScaleFactor                 = 60
+    Part-Weight-Radial-ScaleFactor              = 60
     Part-Weight-CloneMode                       = 2
     Part-Weight-CloneDelay                      = 5
 

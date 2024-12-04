@@ -329,6 +329,8 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_SolutionPressTens,BGGas
+USE MOD_DSMC_Vars                  ,ONLY: DoCellLocalWeighting
+USE MOD_CellLocalWeighting         ,ONLY: PerformCellLocalWeighting
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -395,6 +397,9 @@ IF(.NOT.ALLOCATED(nPartsPerElem))THEN
 END IF
 
 CALL InitializeVariables()
+
+! Determine the cell-local weighting factors
+IF(DoCellLocalWeighting) CALL PerformCellLocalWeighting()
 
 ! Initialize particle surface flux to be performed per iteration
 CALL InitializeParticleSurfaceflux()
@@ -485,9 +490,6 @@ SUBROUTINE InitializeVariables()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry          ,ONLY: InitLinearWeighting
-USE MOD_DSMC_Vars              ,ONLY: DoLinearWeighting, DoCellLocalWeighting
-USE MOD_DSMC_AdaptMPF          ,ONLY: InitCellLocalWeighting
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
@@ -595,9 +597,6 @@ IF(Symmetry%Axisymmetric) THEN
   IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
   IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
-
-IF(DoLinearWeighting) CALL InitLinearWeighting()
-IF(DoCellLocalWeighting) CALL InitCellLocalWeighting()
 
 #if USE_MPI
 CALL InitEmissionComm()

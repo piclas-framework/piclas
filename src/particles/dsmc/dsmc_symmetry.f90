@@ -26,141 +26,18 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleSymmetry
-PUBLIC :: InitParticleCloning, AdjustParticleWeight, DSMC_SetInClones, DSMC_TreatIdenticalParticles, InitLinearWeighting
+PUBLIC :: AdjustParticleWeight, SetInClones, DSMC_TreatIdenticalParticles
 !===================================================================================================================================
 
 CONTAINS
 
-!==================================================================================================================================
-!> Define parameters for particles
-!==================================================================================================================================
-SUBROUTINE DefineParametersParticleSymmetry()
-! MODULES
-USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
-IMPLICIT NONE
-
-CALL prms%SetSection("Particle Weighting")
-CALL prms%CreateRealOption(   'Part-Weight-ScaleFactor', 'Weighting scale factor, defining '//&
-                              'the linear increase of the weighting factor (e.g. factor 2 means that the weighting factor will '//&
-                              'be twice as large at the outer radial boundary or at the end point.')
-CALL prms%CreateLogicalOption('Part-Weight-CellAverage', 'Enables a cell-average weighting, '//&
-                              'where every particle has the same weighting factor within a cell', '.FALSE.')
-CALL prms%CreateIntOption(    'Part-Weight-CloneMode',  &
-                              'Radial weighting: Select between methods for the delayed insertion of cloned particles:/n'//&
-                              '1: Chronological, 2: Random', '2')
-CALL prms%CreateIntOption(    'Part-Weight-CloneDelay', &
-                              'Radial weighting:  Delay (number of iterations) before the stored cloned particles are inserted '//&
-                              'at the position they were cloned', '2')
-CALL prms%CreateIntOption(    'Part-Weight-SurfFluxSubSides', &
-                              'RadialWeighting only: Split the surface flux side into the given number of subsides, reduces the '//&
-                              'error in the particle distribution across the cell (visible in the number density)', '20')
-
-! Linear weighting parameters
-CALL prms%CreateIntOption(    'Part-Weight-Linear-nScalePoints', 'Number of coordinates with distinct weighting factors', '2')
-CALL prms%CreateIntOption(    'Part-Weight-Linear-CoordinateAxis', '1: x-Axis, 2: y-Axis, 3: z-Axis', '0')
-CALL prms%CreateRealArrayOption('Part-Weight-Linear-StartPointForScaling', &
-                              'Start coordinate for the scaling along a given vector' , '0.0 , 0.0 , 0.0')
-CALL prms%CreateRealArrayOption('Part-Weight-Linear-EndPointForScaling', &
-                              'End coordinate for the scaling along a given vector' , '0.0 , 0.0 , 0.0')
-CALL prms%CreateRealOption(   'Part-Weight-Linear-ScalePoint[$]-Coordinate', &
-                              '(Relative ) Coordinate of the respective scale point on the axis', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(   'Part-Weight-Linear-ScalePoint[$]-Factor', &
-                              'Weighting factor of the respective scale point', numberedmulti=.TRUE.)
-
-END SUBROUTINE DefineParametersParticleSymmetry
-
-
-SUBROUTINE InitParticleCloning()
-!===================================================================================================================================
-!> Read-in and initialize the variables required for the cloning procedures. Two modes with a delayed clone insertion are available:
-!> 1: Insert the clones after the delay in the same chronological order as they were created
-!> 2: Choose a random list of particles to insert after the delay buffer is full with clones
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
-USE MOD_Restart_Vars            ,ONLY: DoRestart
-USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, ParticleWeighting, ClonedParticles
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
-#endif /*USE_LOADBALANCE*/
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-
-! Clone read-in during load balance is currently only supported via the HDF5 output
-#if USE_LOADBALANCE
-IF(DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  CALL abort(__STAMP__,'ERROR: Radial weighting only supports a load balance using an HDF5 output (UseH5IOLoadBalance = T)!')
-END IF
-#endif /*USE_LOADBALANCE*/
-
-! Linearly increasing weighting factor in the radial direction up to the domain boundary, only required for radial weighting
-IF(DoRadialWeighting) THEN
-  ParticleWeighting%ScaleFactor = GETREAL('Part-Weight-ScaleFactor')
-  IF(ParticleWeighting%ScaleFactor.LT.1.) THEN
-    CALL Abort(__STAMP__,'ERROR in 2D Particle Weighting: ScaleFactor has to be greater than 1!',RealInfoOpt=ParticleWeighting%ScaleFactor)
-  END IF
-END IF
-
-! Cloning parameters
-ParticleWeighting%CloneMode = GETINT('Part-Weight-CloneMode')
-ParticleWeighting%CloneInputDelay = GETINT('Part-Weight-CloneDelay')
-! Cell local radial weighting (all particles have the same weighting factor within a cell)
-ParticleWeighting%UseCellAverage = GETLOGICAL('Part-Weight-CellAverage')
-
-! Number of subsides to split the surface flux sides into, otherwise a wrong distribution of particles across large cells will be
-! inserted, visible in the number density as an increase in the number density closer the axis (e.g. resulting in a heat flux peak)
-! (especially when using mortar meshes)
-IF(Symmetry%Axisymmetric) THEN
-  ParticleWeighting%nSubSides=GETINT('Part-Weight-SurfFluxSubSides')
-  ALLOCATE(ParticleWeighting%PartInsSide(ParticleWeighting%nSubSides))
-  ParticleWeighting%PartInsSide = 0
-END IF
-
-ParticleWeighting%NextClone = 0
-ParticleWeighting%CloneVecLengthDelta = 100
-ParticleWeighting%CloneVecLength = ParticleWeighting%CloneVecLengthDelta
-
-SELECT CASE(ParticleWeighting%CloneMode)
-  CASE(1)
-    IF(ParticleWeighting%CloneInputDelay.LT.1) THEN
-      CALL Abort(__STAMP__,'ERROR in Particle Weighting: Clone delay should be greater than 0')
-    END IF
-    ALLOCATE(ParticleWeighting%ClonePartNum(0:(ParticleWeighting%CloneInputDelay-1)))
-    ALLOCATE(ClonedParticles(1:ParticleWeighting%CloneVecLength,0:(ParticleWeighting%CloneInputDelay-1)))
-    ParticleWeighting%ClonePartNum = 0
-    IF(.NOT.DoRestart) ParticleWeighting%CloneDelayDiff = 1
-  CASE(2)
-    IF(ParticleWeighting%CloneInputDelay.LT.2) THEN
-      CALL Abort(__STAMP__,'ERROR in Particle Weighting: Clone delay should be greater than 1')
-    END IF
-    ALLOCATE(ParticleWeighting%ClonePartNum(0:ParticleWeighting%CloneInputDelay))
-    ALLOCATE(ClonedParticles(1:ParticleWeighting%CloneVecLength,0:ParticleWeighting%CloneInputDelay))
-    ParticleWeighting%ClonePartNum = 0
-    IF(.NOT.DoRestart) ParticleWeighting%CloneDelayDiff = 0
-  CASE DEFAULT
-    CALL Abort(__STAMP__,'ERROR in Particle Weighting: The selected cloning mode is not available! Choose between 1 and 2.'//&
-        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
-END SELECT
-
-END SUBROUTINE InitParticleCloning
-
-
 SUBROUTINE AdjustParticleWeight(iPart,iElem)
 !===================================================================================================================================
-!> Routine for the treatment of particles with enabled radial/linear weighting (weighting factor is increasing linearly with increasing y)
+!> Routine for the treatment of particles with enabled radial/linear weighting (weighting factor is increasing linearly with
+!> increasing y/along user-defined vector)
 !> 1.) Determine the new particle weight and decide whether to clone or to delete the particle
-!> 2a.) Particle cloning, if the local weighting factor is smaller than the previous (particle travelling downwards)
-!> 2b.) Particle deletion, if the local weighting factor is greater than the previous (particle travelling upwards)
+!> 2a.) Particle cloning, if the local weighting factor is smaller than the previous
+!> 2b.) Particle deletion, if the local weighting factor is greater than the previous
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -287,7 +164,7 @@ END IF
 END SUBROUTINE AdjustParticleWeight
 
 
-SUBROUTINE DSMC_SetInClones()
+SUBROUTINE SetInClones()
 !===================================================================================================================================
 !> Insertion of cloned particles during the previous time steps. Clones insertion is delayed by at least one time step to avoid the
 !> avalanche phenomenon (identical particles travelling on the same path, not colliding due to zero relative velocity).
@@ -412,77 +289,7 @@ ParticleWeighting%ClonePartNum(DelayCounter) = 0
 ! 3.1) Reduce ClonedParticles if necessary
 CALL ReduceClonedParticlesType()
 
-END SUBROUTINE DSMC_SetInClones
-
-
-SUBROUTINE InitLinearWeighting()
-!===================================================================================================================================
-!> Read-in and initialize the variables required for the 3D cloning procedures. Two modes with a delayed clone insertion are
-!> available:
-!> 1: Insert the clones after the delay in the same chronological order as they were created
-!> 2: Choose a random list of particles to insert after the delay buffer is full with clones
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
-USE MOD_DSMC_Vars               ,ONLY: LinearWeighting, ParticleWeighting
-USE MOD_part_tools              ,ONLY: CalcAverageMPF
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-CHARACTER(32)                   :: hilf
-INTEGER                         :: iScale, nScalePoints
-!===================================================================================================================================
-! Linear scaling points for the variable weighting
-LinearWeighting%nScalePoints = GETINT('Part-Weight-Linear-nScalePoints')
-
-nScalePoints = LinearWeighting%nScalePoints
-ALLOCATE(LinearWeighting%ScalePoint(nScalePoints))
-ALLOCATE(LinearWeighting%VarMPF(nScalePoints))
-
-! Variable weights with scaling along one of the coordinate axes
-LinearWeighting%ScaleAxis    = GETINT('Part-Weight-Linear-CoordinateAxis')
-
-! Variable weights with scaling not along a coordinate axis
-IF (LinearWeighting%ScaleAxis.EQ.0) THEN
-  LinearWeighting%StartPointScaling = GETREALARRAY('Part-Weight-Linear-StartPointForScaling',3)
-  LinearWeighting%EndPointScaling   = GETREALARRAY('Part-Weight-Linear-EndPointForScaling',3)
-  ! Determine the vector along which the scaling is performed
-  LinearWeighting%ScalingVector = LinearWeighting%EndPointScaling - LinearWeighting%StartPointScaling
-END IF
-
-! Read-In of the scaling points along the chosen direction and the corresponding weighting factor
-DO iScale = 1, nScalePoints
-  WRITE(UNIT=hilf,FMT='(I0)') iScale
-  LinearWeighting%ScalePoint(iScale) = GETREAL('Part-Weight-Linear-ScalePoint'//TRIM(hilf)//'-Coordinate')
-  LinearWeighting%VarMPF(iScale)     = GETREAL('Part-Weight-Linear-ScalePoint'//TRIM(hilf)//'-Factor')
-END DO
-
-! Sanity check: Accept only relative values for scaling a user-defined vector
-IF(LinearWeighting%ScaleAxis.EQ.0) THEN
-  IF(ANY(LinearWeighting%ScalePoint.GT.1.0).OR.ANY(LinearWeighting%ScalePoint.LT.0.0)) CALL abort(__STAMP__,&
-    'ERROR in InitLinearWeighting: The coordinate of the scale point has to be a relative value along the vector between 0 and 1!')
-END IF
-
-! Sanity check: Check whether the coordinate axis has been properly defined or disabled
-IF (LinearWeighting%ScaleAxis.LT.0.OR.LinearWeighting%ScaleAxis.GT.3) THEN
-  CALL abort(__STAMP__, 'ERROR in InitLinearWeighting: The coordinate axis must be a value between 0 (disabled), 1 (=x), 2 (=y), and 3 (=z)!')
-END IF
-
-! Sanity check: Check whether the coordinate axis has been properly defined or disabled
-IF (LinearWeighting%nScalePoints.LT.2) THEN
-  CALL abort(__STAMP__, 'ERROR in InitLinearWeighting: The number of scaling points must at least be two!')
-END IF
-
-! Calculation of the average particle MPF in the simulation domain (utilized for the particle initialization)
-ParticleWeighting%ScaleFactor = CalcAverageMPF()
-
-END SUBROUTINE InitLinearWeighting
+END SUBROUTINE SetInClones
 
 
 SUBROUTINE DSMC_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_Node)

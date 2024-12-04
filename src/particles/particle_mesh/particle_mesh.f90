@@ -914,6 +914,8 @@ ADEALLOCATE(ConcaveElemSide_Shared)
 ADEALLOCATE(ElemSideNodeID_Shared)
 ADEALLOCATE(ElemMidPoint_Shared)
 SDEALLOCATE(SymmetrySide)
+! Cell-local weighting
+SDEALLOCATE(PartWeightAtNode)
 
 ! Load Balance
 !#if !USE_LOADBALANCE

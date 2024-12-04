@@ -79,8 +79,6 @@ USE MOD_BGK_Init                   ,ONLY: DefineParametersBGK
 USE MOD_FPFlow_Init                ,ONLY: DefineParametersFPFlow
 USE MOD_SurfaceModel_Porous        ,ONLY: DefineParametersPorousBC
 USE MOD_Particle_TimeStep          ,ONLY: DefineParametersVariableTimeStep
-USE MOD_DSMC_Symmetry              ,ONLY: DefineParametersParticleSymmetry
-USE MOD_DSMC_AdaptMPF              ,ONLY: DefineParametersAdaptMPF
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 USE MOD_SurfaceModel_Chemistry     ,ONLY: DefineParametersSurfaceChemistry
 USE MOD_RayTracing_Init            ,ONLY: DefineParametersRayTracing
@@ -141,8 +139,6 @@ CALL DefineParametersParticleSurfaceFlux()
 CALL DefineParametersParticleBoundary()
 CALL DefineParametersParticleBoundarySampling()
 CALL DefineParametersParticleSamplingAdaptive()
-CALL DefineParametersParticleSymmetry()
-CALL DefineParametersAdaptMPF()
 CALL DefineParametersVariableTimeStep()
 CALL DefineParametersPorousBC()
 CALL DefineParametersParticleMesh()

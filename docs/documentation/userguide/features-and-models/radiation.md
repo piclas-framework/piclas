@@ -159,12 +159,12 @@ The trapezoid can be defined by a topwidth and a basewidth, both read-in in angs
 
     Radiation-ObservationSlitFunction      = (/1.7,3.42/)
 
-The simulations can also be run on a two-dimensional rotationally symmetric mesh. To do this, the following options must be set. Different tracking routines are used than with an axisymmetric particle solver, therefore, the Part-Weight-ScaleFactor can have different values
+The simulations can also be run on a two-dimensional rotationally symmetric mesh. To do this, the following options must be set. Different tracking routines are used than with an axisymmetric particle solver, therefore, the Part-Weight-Radial-ScaleFactor can have different values
 
     Particles-Symmetry2D                         = T
     Particles-Symmetry2DAxisymmetric             = T
     Part-Weight-Type               = radial
-    Part-Weight-ScaleFactor    = 10000
+    Part-Weight-Radial-ScaleFactor = 10000
     Part-Weight-CloneMode          = 2
     Part-Weight-CloneDelay         = 6
     Part-Weight-CellLocalWeighting = F

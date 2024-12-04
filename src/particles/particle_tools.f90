@@ -712,10 +712,10 @@ IF (DoCellLocalWeighting) THEN
 
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
     CalcVarWeightMPF = &
-    NodeValue(1,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + NodeValue(1,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
-    NodeValue(1,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + NodeValue(1,NodeID(4)) * (1-alpha1) * (alpha2)   * (1-alpha3) + &
-    NodeValue(1,NodeID(5)) * (1-alpha1) * (1-alpha2) * (alpha3)   + NodeValue(1,NodeID(6)) * (alpha1)   * (1-alpha2) * (alpha3)   + &
-    NodeValue(1,NodeID(7)) * (alpha1)   * (alpha2)   * (alpha3)   + NodeValue(1,NodeID(8)) * (1-alpha1) * (alpha2)   * (alpha3)
+    PartWeightAtNode(1,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + PartWeightAtNode(1,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
+    PartWeightAtNode(1,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + PartWeightAtNode(1,NodeID(4)) * (1-alpha1) * (alpha2)   * (1-alpha3) + &
+    PartWeightAtNode(1,NodeID(5)) * (1-alpha1) * (1-alpha2) * (alpha3)   + PartWeightAtNode(1,NodeID(6)) * (alpha1)   * (1-alpha2) * (alpha3)   + &
+    PartWeightAtNode(1,NodeID(7)) * (alpha1)   * (alpha2)   * (alpha3)   + PartWeightAtNode(1,NodeID(8)) * (1-alpha1) * (alpha2)   * (alpha3)
 
   ELSE
     MPFSum = 0.
@@ -732,7 +732,7 @@ IF (DoCellLocalWeighting) THEN
     END DO
     DistSum = SUM(PartDistDepo(1:8))
     DO iNode = 1, 8
-      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*NodeValue(1,NodeID(iNode))
+      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*PartWeightAtNode(1,NodeID(iNode))
     END DO
     CalcVarWeightMPF = MPFSum
   END IF

@@ -6,7 +6,7 @@
     * Particles-Symmetry2DAxisymmetric=T
   * Radial Weighting
     * Part-Weight-Type = radial
-    * Part-Weight-ScaleFactor=1
+    * Part-Weight-Radial-ScaleFactor=1
       * Weighting factor of 5E2 is increased to 1E2 towards the maximal y-dimension
     * Part-Weight-CloneMode=2
     * Part-Weight-CloneDelay=2

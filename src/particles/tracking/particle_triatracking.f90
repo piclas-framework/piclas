@@ -75,7 +75,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotSubCycling,nSubCyclingSteps
 USE MOD_Particle_Vars               ,ONLY: RotRefSubTimeStep, NewPosSubCycling, GlobalElemIDSubCycling, LastPartPosSubCycling
 USE MOD_Particle_Vars               ,ONLY: InRotRefFrameSubCycling, PartVeloRotRefSubCycling, LastVeloRotRefSubCycling
-USE MOD_DSMC_Symmetry               ,ONLY: AdjustParticleWeight, DSMC_SetInClones
+USE MOD_DSMC_Symmetry               ,ONLY: AdjustParticleWeight, SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
 USE MOD_DSMC_Vars                   ,ONLY: ParticleWeighting
 !----- Used for RotRef Subcycling
@@ -108,7 +108,7 @@ doPartInExists=.FALSE.
 IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
 #endif /*IMPA*/
 
-IF(ParticleWeighting%PerformCloning) CALL DSMC_SetInClones()
+IF(ParticleWeighting%PerformCloning) CALL SetInClones()
 
 InterPlanePartNumber = 0
 ! 1) Loop over all particles that are still inside
