@@ -514,6 +514,7 @@ END SUBROUTINE DSMC_data_sampling
 SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVar_HeatPress,nVarMPF,DSMC_MacroVal)
 !===================================================================================================================================
 !> Calculation of the macroscopic output from sampled particles properties including the mixture values (Total_).
+!> Utilize nVarCount to write into the DSMC_MacroVal array, advance counter after write
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -554,7 +555,7 @@ REAL                    :: MolecPartNum, HeavyPartNum
 ! nullify
 DSMC_MacroVal = 0.0
 
-nVarCount=0
+nVarCount = 0
 DO iElem = 1, nElems ! element/cell main loop
   IF (DoVirtualCellMerge) THEN
     IF (VirtMergedCells(iElem)%isMerged) CYCLE
@@ -712,6 +713,10 @@ DO iElem = 1, nElems ! element/cell main loop
     END IF
   END ASSOCIATE
 END DO
+
+! Set the counter according to the already written number of variables
+nVarCount = nVar
+
 ! write dsmc quality values
 IF (DSMC%CalcQualityFactors) THEN
   IF(WriteMacroVolumeValues) THEN
@@ -727,11 +732,12 @@ IF (DSMC%CalcQualityFactors) THEN
     IF (DoVirtualCellMerge) THEN
       IF (VirtMergedCells(iElem)%isMerged) CYCLE
     END IF
+    ! Resetting the nVarCount in the nElems loop
     nVarCount = nVar
     IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
       DSMC_MacroVal(nVarCount+1:nVarCount+3,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
     END IF
-    nVarCount = nVar + 3
+    nVarCount = nVarCount + 3
     IF(UseVarTimeStep) THEN
       IF(VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution) THEN
         IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
@@ -884,6 +890,11 @@ IF (ParticleWeighting%EnableOutput) THEN
     END IF
   END DO
   nVarCount = nVarCount + 1
+END IF
+
+! Sanity check
+IF(nVar+nVar_quality+nVar_HeatPress+nVarMPF.NE.nVarCount) THEN
+  CALL abort(__STAMP__,' ERROR in DSMC_output_calc: Number of output variables is not consistent!')
 END IF
 
 END SUBROUTINE DSMC_output_calc
