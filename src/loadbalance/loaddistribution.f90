@@ -1270,8 +1270,8 @@ REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-REAL                                     :: ElemTimeFieldOut
 #ifdef PARTICLES
+REAL                                     :: ElemTimeFieldOut
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
 INTEGER,PARAMETER                        :: nOutputVar=23
 #else
@@ -1432,6 +1432,7 @@ ELSE
   time_loc = -1.
 END IF
 
+#ifdef PARTICLES
 ! Add time spent in the PETSc solver, only locally for the output for now
 #if USE_HDG && USE_PETSC
 ElemTimeFieldOut = ElemTimeField + PETScFieldTime
@@ -1439,7 +1440,6 @@ ElemTimeFieldOut = ElemTimeField + PETScFieldTime
 ElemTimeFieldOut = ElemTimeField
 #endif
 
-#ifdef PARTICLES
 ! Calculate elem time proportions for field and particle routines
 SumElemTime=ElemTimeFieldOut+ElemTimePart
 IF(SumElemTime.LE.0.)THEN
