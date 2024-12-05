@@ -78,9 +78,9 @@ CALL prms%CreateRealOption(   'Part-Weight-Radial-ScaleFactor', 'Radial weightin
 CALL prms%CreateIntOption(    'Part-Weight-Linear-nScalePoints', 'Number of coordinates with distinct weighting factors', '2')
 CALL prms%CreateIntOption(    'Part-Weight-Linear-CoordinateAxis', '1: x-Axis, 2: y-Axis, 3: z-Axis', '0')
 CALL prms%CreateRealArrayOption('Part-Weight-Linear-StartPointForScaling', &
-                              'Start coordinate for the scaling along a given vector' , '0.0 , 0.0 , 0.0')
+                              'Start coordinate for the scaling along a given vector', no=3)
 CALL prms%CreateRealArrayOption('Part-Weight-Linear-EndPointForScaling', &
-                              'End coordinate for the scaling along a given vector' , '0.0 , 0.0 , 0.0')
+                              'End coordinate for the scaling along a given vector', no=3)
 CALL prms%CreateRealOption(   'Part-Weight-Linear-ScalePoint[$]-Coordinate', &
                               '(Relative ) Coordinate of the respective scale point on the axis', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Weight-Linear-ScalePoint[$]-Factor', &
@@ -117,7 +117,9 @@ USE MOD_Globals
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,GETINTFROMSTR
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_DSMC_Vars             ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -262,7 +264,9 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars               ,ONLY: LinearWeighting, ParticleWeighting
 USE MOD_part_tools              ,ONLY: CalcAverageMPF
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

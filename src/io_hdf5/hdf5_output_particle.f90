@@ -294,7 +294,7 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 LOGICAL                        :: reSwitch
 REAL, ALLOCATABLE              :: AdaptMPF_Output(:)
-INTEGER(KIND=IK)               :: iElem, CNElemID
+INTEGER                        :: iElem, CNElemID
 !===================================================================================================================================
 
 IF (MPIRoot) THEN
@@ -321,6 +321,13 @@ END IF
 !-----------------------------------------------------
 ! 1. Basic particle properties
 !-----------------------------------------------------
+IF (DoCellLocalWeighting) THEN
+  ALLOCATE(AdaptMPF_Output(PP_nElems))
+  DO iElem = 1, PP_nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    AdaptMPF_Output(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
+  END DO
+END IF
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nGlobalElems          => INT(nGlobalElems,IK)          ,&
@@ -328,16 +335,6 @@ ASSOCIATE (&
       PP_nElems             => INT(PP_nElems,IK)             ,&
       offsetElem            => INT(offsetElem,IK)            ,&
       PartDataSize          => INT(PartDataSize,IK)          )
-
-
-  IF (DoCellLocalWeighting) THEN
-    ALLOCATE(AdaptMPF_Output(PP_nElems))
-    DO iElem = 1, PP_nElems
-      CNElemID = GetCNElemID(iElem + offsetElem)
-      AdaptMPF_Output(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
-    END DO
-  END IF
-
   CALL GatheredWriteArray(FileName                    , create = .FALSE.            , &
                           DataSetName     = 'PartInt' , rank   = 2                  , &
                           nValGlobal      = (/nVar    , nGlobalElems/)              , &

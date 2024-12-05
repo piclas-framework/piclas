@@ -49,7 +49,7 @@ USE MOD_RadiationTrans_Vars ,ONLY: RadTransPhotPerCell, RadiationPhotonWaveLengt
 USE MOD_RadiationTrans_Vars ,ONLY: RadObservationPointMethod
 USE MOD_Photon_Tracking     ,ONLY: PhotonTriaTracking, Photon2DSymTracking
 USE MOD_Radiation_Vars      ,ONLY: RadiationSwitches
-USE MOD_DSMC_Vars           ,ONLY: ParticleWeighting
+USE MOD_DSMC_Vars           ,ONLY: DoRadialWeighting,ParticleWeighting
 USE MOD_Mesh_Tools          ,ONLY: GetGlobalElemID
 USE MOD_Output              ,ONLY: PrintStatusLineRadiation
 USE MOD_MPI_Shared_Vars

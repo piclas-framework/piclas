@@ -77,7 +77,7 @@ USE MOD_Radiation_Vars             ,ONLY: RadiationParameter, Radiation_Emission
 USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_SpecPercent
 USE MOD_RadiationTrans_Vars        ,ONLY: RadObservation_Emission
 USE MOD_Radiation                  ,ONLY: radiation_main
-USE MOD_DSMC_Vars                  ,ONLY: DoRadialWeighting
+USE MOD_DSMC_Vars                  ,ONLY: DoRadialWeighting, ParticleWeighting
 USE MOD_Output                     ,ONLY: PrintStatusLineRadiation
 USE MOD_Mesh_Tools                 ,ONLY: GetGlobalElemID
 USE MOD_Particle_Vars              ,ONLY: nSpecies

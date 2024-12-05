@@ -468,9 +468,9 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Particle_Vars
 USE MOD_Particle_Mesh_Vars
-USE MOD_Mesh_Vars              ,ONLY: nElems
 #if USE_MPI
 USE MOD_MPI_Shared
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
@@ -484,8 +484,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                   :: iElem, iNode, ElemID
+INTEGER                   :: iNode
 #if USE_MPI
+INTEGER                   :: iElem, ElemID
 INTEGER                   :: UniqueNodeID
 INTEGER                   :: jElem, NonUniqueNodeID
 INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
@@ -495,9 +496,18 @@ LOGICAL                   :: bordersMyrank
 INTEGER                   :: SendRequestNonSym(0:nProcessors_Global-1)      , RecvRequestNonSym(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSym(0:nProcessors_Global-1) , nRecvUniqueNodesNonSym(0:nProcessors_Global-1)
 INTEGER                   :: GlobalRankToNodeSendRank(0:nProcessors_Global-1)
-#endif
 LOGICAL,ALLOCATABLE       :: FlagShapeElemAdapt(:)
+#endif
 !===================================================================================================================================
+IF (.NOT.ALLOCATED(PartWeightAtNode)) THEN
+  ALLOCATE(PartWeightAtNode(1:2,1:nUniqueGlobalNodes))
+ELSE
+  SDEALLOCATE(PartWeightAtNode)
+  ALLOCATE(PartWeightAtNode(1:2,1:nUniqueGlobalNodes))
+END IF
+PartWeightAtNode=0.0
+
+#if USE_MPI
 ! Initialization
 ALLOCATE(FlagShapeElemAdapt(nComputeNodeTotalElems))
 FlagShapeElemAdapt = .FALSE.
@@ -507,18 +517,7 @@ DO iElem = 1,nComputeNodeTotalElems
   IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).NE.4) FlagShapeElemAdapt(iElem) = .TRUE.
 END DO
 
-#if USE_MPI
-  ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
-#endif
-
-IF (.NOT.ALLOCATED(PartWeightAtNode)) THEN
-  ALLOCATE(PartWeightAtNode(1:2,1:nUniqueGlobalNodes))
-ELSE
-  SDEALLOCATE(PartWeightAtNode)
-  ALLOCATE(PartWeightAtNode(1:2,1:nUniqueGlobalNodes))
-END IF
-PartWeightAtNode=0.0
-#if USE_MPI
+ALLOCATE(RecvRequestCN(0:nLeaderGroupProcs-1), SendRequestCN(0:nLeaderGroupProcs-1))
 ALLOCATE(DoNodeMapping(0:nProcessors_Global-1),SendNode(1:nUniqueGlobalNodes))
 DoNodeMapping = .FALSE.
 SendNode = .FALSE.
@@ -727,6 +726,8 @@ DO iProc = 1, nNodeRecvExchangeProcs
   CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
+
+SDEALLOCATE(FlagShapeElemAdapt)
 #else
 nMapNodes      = nUniqueGlobalNodes
 nMapNodesTotal = nMapNodes
@@ -735,8 +736,6 @@ DO iNode=1, nUniqueGlobalNodes
   NodetoGlobalNode(iNode) = iNode
 END DO
 #endif /*USE_MPI*/
-
-SDEALLOCATE(FlagShapeElemAdapt)
 
 END SUBROUTINE InitNodeMapping
 

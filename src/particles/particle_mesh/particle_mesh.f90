@@ -174,6 +174,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GE
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_DSMC_Vars              ,ONLY: DoCellLocalWeighting
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -183,7 +184,6 @@ USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
 #if USE_MPI
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_DSMC_Vars              ,ONLY: DoCellLocalWeighting
 USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars

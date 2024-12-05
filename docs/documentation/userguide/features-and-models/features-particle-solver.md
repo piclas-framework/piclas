@@ -305,12 +305,28 @@ The adaption is based on multiple criteria. If a quality factor {ref}`sec:DSMC-q
 
 $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3}$$
 
-If all quality factors are resolved, the weight is adapted in such a way, that the simulation particle numbers stays in a predefined range.
+The threshold for the adaption is set by
+
+    Part-Weight-CellLocal-QualityFactor = 0.8
+
+which in case of DSMC corresponds to the mean collision separation distance over mean free path (DSMC_MCS_over_MFP) and for BGK/FP to the maximal relaxation factor (BGK_MaxRelaxationFactor/FP_MaxRelaxationFactor). If the read-in cell values from the DSMCState are above this threshold the weighting factor will be adapted to resolve it. For DSMC, the scaling factor is put to the power of 3 for 3D and 2 for 2D to increase the number of particles and thus the resolution of the mean collision separation distance accordingly.
+
+If all quality factors are resolved, the weight is adapted in such a way, that the simulation particle numbers stay in a predefined range.
 
     Part-Weight-CellLocal-MinParticleNumber = 10
     Part-Weight-CellLocal-MaxParticleNumber = 100
 
-A further refinement, with a higher minimum particle number can be additionally given close to the symmetry axis or close to catalytic boundaries. In addition, the upper limit of the weights can be disabled for simulations in which the weight should only be lowered.
+A further refinement, with a higher minimum particle number can be additionally given close to the symmetry axis in axisymmetric simulations (determined by using 5% of the maximum y-coordinate of the domain) or close to catalytic boundaries.
+
+    Part-Weight-CellLocal-SymAxis-MinPartNum = 200
+    Part-Weight-CellLocal-Cat-MinPartNum = 200
+
+For coupled BGK/FP-DSMC simulations, additional parameters are available to scale the weight in the BGK/FP regions respectively, where the other criteria shown above are resolved. The following parameters are directly multiplied by read-in weighting factor:
+
+    Part-Weight-CellLocal-RefineFactorBGK = 10
+    Part-Weight-CellLocal-RefineFactorFP  = 10
+
+These values would correspond to an increase of the weighting factor of 10 and thus a reduction of the particle number in the BGK/FP regions. In addition, the upper limit of the weights can be disabled for simulations in which the weight should only be lowered.
 
     Part-Weight-CellLocal-IncludeMaxPartNum = F
 
