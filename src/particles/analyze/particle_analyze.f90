@@ -72,7 +72,7 @@ CALL prms%CreateLogicalOption(  'CalcVelos'               , 'Calculate the globa
                                                             '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcLaserInteraction'    , 'Compute laser-plasma interaction properties such as maximum particle energy per species.','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcRelaxProb'           , 'Calculate variable rotational and vibrational relaxation probability for PartAnalyse.csv\nParticles-DSMC-CalcQualityFactors has to be true.','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcGranularDragHeat'    , 'Calculate of mean drag force and mean heatflux on all granular particles within the simulation','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcGranularDragHeat'    , 'Calculate mean drag force and mean heatflux on all granular particles within the simulation','.FALSE.')
 CALL prms%CreateRealOption(     'LaserInteractionEkinMaxRadius','maximum radius (x- and y-dir) of particle to be considered for '//&
                                                                 'Ekin maximum calculation (default is HUGE) '//&
                                                                 'OR if LaserInteractionEkinMaxZPosMin condition is true')

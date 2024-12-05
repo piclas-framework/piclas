@@ -645,6 +645,7 @@ DO iElem = 1, nElems ! element/cell main loop
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
               IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+                ! Molecular species (neutrals/ions)
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                   IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
                     Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
@@ -666,9 +667,11 @@ DO iElem = 1, nElems ! element/cell main loop
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
                 END IF
               ELSE IF(Species(iSpec)%InterID.EQ.100) THEN
+                ! Granular species: Solid temperature is stored in EVib/TVib
                 Macro_TempVib = PartEvib / PartNum
               END IF
               IF (DSMC%ElectronicModel.GT.0) THEN
+                ! All species except electrons, fully-ionized and granular species
                 IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
                   Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum

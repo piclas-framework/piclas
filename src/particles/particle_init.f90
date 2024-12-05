@@ -216,17 +216,17 @@ CALL prms%CreateLogicalOption(  'Particles-SamplePressTensHeatflux' ,'Flag to sa
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
-CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcyling steps)','10')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcycling steps)','10')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
                                 'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
 CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational reference frame regions','0')
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'UseGravitation' ,'Flag for taking gravity into account for granular species.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'UseGravitation' ,'Flag for taking Earths gravity into account for granular species.', '.FALSE.')
 CALL prms%CreateRealArrayOption('DirectionOfGravity','Vector points in the direction of gravity force', no=3)
-CALL prms%CreateLogicalOption(  'SkipGranularUpdate' ,'Flag to skip granular species position, velocity and temperatur update'//&
-                                'uesed only for benchmark TC.', '.FALSE.')
+CALL prms%CreateLogicalOption(  'SkipGranularUpdate' ,'Flag to skip granular species position, velocity and temperature update,'//&
+                                'used only for benchmark test case.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticles
 
