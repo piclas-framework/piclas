@@ -390,16 +390,18 @@ IF(BGGas%UseRegions) THEN
 END IF
 
 nPart = PEM%pNumber(iElem)
+IF(ANY(Species(:)%InterID.EQ.100)) THEN
 ! Get real nPart without granular species
-iPart = PEM%pStart(iElem)
-nPartTemp = nPart
-DO iLoop = 1, nPart
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    nPartTemp = nPartTemp - 1
-  END IF
-  iPart = PEM%pNext(iPart)
-END DO
-nPart = nPartTemp
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 
 nPair = INT(nPart/2.)
 

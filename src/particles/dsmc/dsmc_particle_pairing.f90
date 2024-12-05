@@ -74,16 +74,18 @@ INTEGER                       :: nPartTemp
 
 nPart = PEM%pNumber(iElem)
 
+IF(ANY(Species(:)%InterID.EQ.100)) THEN
 ! Get real nPart without granular species
-iPart = PEM%pStart(iElem)
-nPartTemp = nPart
-DO iLoop = 1, nPart
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    nPartTemp = nPartTemp - 1
-  END IF
-  iPart = PEM%pNext(iPart)
-END DO
-nPart = nPartTemp
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 
 IF (DoVirtualCellMerge) THEN
   ! 1.) Create particle index list for pairing in the case of virtually merged cells. So, all particles from the merged cells are
@@ -115,12 +117,10 @@ IF (DoVirtualCellMerge) THEN
       iPart = PEM%pStart(locElem)
       DO iLoop = 1, nPartLoc
         ! Skip granular species
-        IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-          ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-            iPart = PEM%pNext(iPart)
-          END DO
-        END IF
+        ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         iLoopLoc = iLoopLoc + 1
         iPartIndx(iLoopLoc) = iPart
         iPart = PEM%pNext(iPart)
@@ -140,12 +140,10 @@ ELSE
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
     ! Skip granular species
-    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-      ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF
+    ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     iPartIndx(iLoop) = iPart
     ! Choose next particle in the element
     iPart = PEM%pNext(iPart)
@@ -196,16 +194,18 @@ INTEGER                       :: nPartTemp
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+IF(ANY(Species(:)%InterID.EQ.100)) THEN
 ! Get real nPart without granular species
-iPart = PEM%pStart(iElem)
-nPartTemp = nPart
-DO iLoop = 1, nPart
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    nPartTemp = nPartTemp - 1
-  END IF
-  iPart = PEM%pNext(iPart)
-END DO
-nPart = nPartTemp
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 
 DoMergedCell = .FALSE.
 IF (DoVirtualCellMerge) THEN

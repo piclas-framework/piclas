@@ -245,7 +245,7 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
-USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep, GravityDir, UseGravitation, SkipGranularUpdate, ForceAverage
+USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL, GETREALARRAY
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
@@ -310,15 +310,6 @@ END IF ! UseRayTracing
 ! Radiation solver/transport always requires PerformRayTracing = T
 PerformRayTracing = .TRUE.
 #endif
-
-! Consideration of gravity for granular species
-UseGravitation = GETLOGICAL('UseGravitation')
-IF(UseGravitation) THEN
-  GravityDir(1:3) = GETREALARRAY('DirectionOfGravity',3)
-  GravityDir(:) = UNITVECTOR(GravityDir)
-END IF
-SkipGranularUpdate = GETLOGICAL('SkipGranularUpdate')
-ForceAverage = 0.0
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS DONE'
 
@@ -571,7 +562,16 @@ CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
-
+IF(ANY(Species(:)%InterID.EQ.100)) THEN
+! Consideration of gravity for granular species
+  UseGravitation = GETLOGICAL('UseGravitation')
+  IF(UseGravitation) THEN
+    GravityDir(1:3) = GETREALARRAY('DirectionOfGravity',3)
+    GravityDir(:) = UNITVECTOR(GravityDir)
+  END IF
+  SkipGranularUpdate = GETLOGICAL('SkipGranularUpdate')
+  ForceAverage = 0.0
+END IF
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
 DoDeposition    = .FALSE.
