@@ -411,9 +411,10 @@ ASSOCIATE (&
                           collective  = .FALSE.        , RealArray= AdaptMPF_Output)
   END IF
   CALL CloseDataFile()
-  DEALLOCATE(AdaptMPF_Output)
 #endif /*USE_MPI*/
 END ASSOCIATE
+
+SDEALLOCATE(AdaptMPF_Output)
 
 !-----------------------------------------------------
 ! 2. Polyatomic
