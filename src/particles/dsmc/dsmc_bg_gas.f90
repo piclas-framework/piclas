@@ -361,7 +361,7 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species
+USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species,UseGranularSpec
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
@@ -390,7 +390,7 @@ IF(BGGas%UseRegions) THEN
 END IF
 
 nPart = PEM%pNumber(iElem)
-IF(ANY(Species(:)%InterID.EQ.100)) THEN
+IF(UseGranularSpec) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart

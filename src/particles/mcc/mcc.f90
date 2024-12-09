@@ -53,7 +53,7 @@ USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, C
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC, VibQuantsPar
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, UseGranularSpec
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
@@ -105,18 +105,18 @@ Volume = ElemVolume_Shared(CNElemID)
 
 ! Create particle index list for pairing
 nPart = PEM%pNumber(iElem)
-
+IF(UseGranularSpec) THEN
 ! Get real nPart without granular species
-iPart = PEM%pStart(iElem)
-nPartTemp = nPart
-DO iLoop = 1, nPart
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    nPartTemp = nPartTemp - 1
-  END IF
-  iPart = PEM%pNext(iPart)
-END DO
-nPart = nPartTemp
-
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 
 ALLOCATE(iPartIndx_Node(nPart))
 iPart = PEM%pStart(iElem)

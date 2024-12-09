@@ -52,7 +52,7 @@ SUBROUTINE DSMC_pairing_standard(iElem)
 !> collision procedure is performed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PEM, VirtMergedCells, DoVirtualCellMerge, Species, PartSpecies
+USE MOD_Particle_Vars         ,ONLY: PEM, VirtMergedCells, DoVirtualCellMerge, Species, PartSpecies, UseGranularSpec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
@@ -74,7 +74,7 @@ INTEGER                       :: nPartTemp
 
 nPart = PEM%pNumber(iElem)
 
-IF(ANY(Species(:)%InterID.EQ.100)) THEN
+IF(UseGranularSpec) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart
@@ -169,6 +169,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos, VirtMergedCells, DoVirtualCellMerge, Species
+USE MOD_Particle_Vars           ,ONLY: UseGranularSpec
 USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -194,7 +195,7 @@ INTEGER                       :: nPartTemp
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
-IF(ANY(Species(:)%InterID.EQ.100)) THEN
+IF(UseGranularSpec) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart
@@ -844,6 +845,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos,VirtMergedCells, DoVirtualCellMerge, Species
+USE MOD_Particle_Vars           ,ONLY: UseGranularSpec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -868,16 +870,18 @@ CNElemID = GetCNElemID(iElem+offSetElem)
 Volume = ElemVolume_Shared(CNElemID)
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+IF(UseGranularSpec) THEN
 ! Get real nPart without granular species
-iPart = PEM%pStart(iElem)
-nPartTemp = nPart
-DO iLoop = 1, nPart
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    nPartTemp = nPartTemp - 1
-  END IF
-  iPart = PEM%pNext(iPart)
-END DO
-nPart = nPartTemp
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 DoMergedCell = .FALSE.
 IF (DoVirtualCellMerge) THEN
   IF(VirtMergedCells(iElem)%isMerged) RETURN
@@ -1177,7 +1181,7 @@ SUBROUTINE DSMC_pairing_dotree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, Species
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, Species, UseGranularSpec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -1203,16 +1207,18 @@ SpecPartNum = 0.
 
 NULLIFY(TreeNode)
 nPart = PEM%pNumber(iElem)
+IF(UseGranularSpec) THEN
 ! Get real nPart without granular species
-iPart = PEM%pStart(iElem)
-nPartTemp = nPart
-DO iLoop = 1, nPart
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    nPartTemp = nPartTemp - 1
-  END IF
-  iPart = PEM%pNext(iPart)
-END DO
-nPart = nPartTemp
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 
 ALLOCATE(TreeNode)
 ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell necessary for stat pairing

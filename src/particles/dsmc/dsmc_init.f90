@@ -288,7 +288,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF, UseGranularSpec
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase, SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -515,7 +515,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
   SpecDSMC(:)%ThermalACCGranularPart         = 0.0
   SpecDSMC(:)%SpecularReflecProbGranularPart = 0.0
   SpecDSMC(:)%SpecificHeatSolid              = 0.0
-  IF(ANY(Species(:)%InterID.EQ.100)) THEN
+  IF(UseGranularSpec) THEN
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       IF (Species(iSpec)%InterID.EQ.100) THEN
