@@ -60,6 +60,7 @@ fi
 # DOWNLOAD and INSTALL CMAKE (example cmake-3.4.3)
 # For current releases, see: https://github.com/Kitware/CMake/releases/
 #CMAKEVERSION='3.24.2'
+#CMAKEVERSION='3.26.4'
 #CMAKEVERSION='3.28.2'
 #CMAKEVERSION='3.30.3'
 CMAKEVERSION='3.31.1'
@@ -164,10 +165,10 @@ if [ ! -e "${MODULEFILE}" ]; then
   else
     echo "${RED}ERROR in cmake installation, no modulefile created${NC}"
     if [ ! -e ${CMAKEDIR}/bin/cmake ]; then
-      echo "${RED}ERROR: cmake not installed${NC}"
+      echo "${RED}ERROR: cmake not installed under ${CMAKEDIR}/bin/cmake${NC}"
     fi
     if [ ! -e ${CMAKEDIR}/bin/ccmake ]; then
-      echo "${RED}ERROR: cmake-curses-gui not installed${NC}"
+      echo "${RED}ERROR: cmake-curses-gui not installed under ${CMAKEDIR}/bin/ccmake because BUILD_QtDialog might be set to OFF automatically for some reason. Try and install all Qt dependencies and run this script again with '-r' to re-configure the installation.${NC}"
     fi
   fi
 else
