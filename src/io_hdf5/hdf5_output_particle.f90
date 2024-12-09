@@ -1342,7 +1342,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars     ,ONLY: ParticleWeighting, ClonedParticles
+USE MOD_DSMC_Vars     ,ONLY: DoRadialWeighting, ParticleWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF, Species, PartDataSize
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1559,7 +1559,8 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames,DatasetName='CloneData')
   CALL WriteAttributeToHDF5(File_ID,'ManualTimeStep',1,RealScalar=ManualTimeStep,DatasetName='CloneData')
   CALL WriteAttributeToHDF5(File_ID,'WeightingFactor',1,RealScalar=Species(1)%MacroParticleFactor,DatasetName='CloneData')
-  CALL WriteAttributeToHDF5(File_ID,'ScalingFactor',1,RealScalar=ParticleWeighting%ScaleFactor,DatasetName='CloneData')
+  ! Output of the factor to re-use the clones, the other methods require a reset
+  IF(DoRadialWeighting) CALL WriteAttributeToHDF5(File_ID,'RadialWeightingFactor',1,RealScalar=ParticleWeighting%ScaleFactor,DatasetName='CloneData')
   CALL CloseDataFile()
 END IF
 

@@ -658,7 +658,10 @@ END SUBROUTINE ParticleReadin
 
 SUBROUTINE ClonesReadin()
 !===================================================================================================================================
-! Axisymmetric 2D simulation with particle weighting: Read-in of clone particles saved during output of particle data
+! Simulation with particle weighting: Read-in of clone particles saved during output of particle data for time-delayed insertion
+! Radial weighting: Clones can be re-used after a restart (if the time step, weighting factor and radial weighting factor have NOT
+!                   been changed) and during a load-balance step
+! Linear/cell-local weighting: Clones are always reset during a restart, but read-in during a load balance step
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -667,7 +670,7 @@ USE MOD_io_hdf5
 USE MOD_TimeDisc_Vars     ,ONLY: ManualTimeStep
 USE MOD_Mesh_Vars         ,ONLY: offsetElem, nElems
 USE MOD_DSMC_Vars         ,ONLY: useDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars         ,ONLY: ParticleWeighting, DoLinearWeighting, DoCellLocalWeighting, ClonedParticles
+USE MOD_DSMC_Vars         ,ONLY: ParticleWeighting, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ClonedParticles
 USE MOD_Particle_Vars     ,ONLY: nSpecies, usevMPF, Species
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
@@ -700,7 +703,13 @@ IF(.NOT.ClonesExist) THEN
   ResetClones = .TRUE.
 END IF
 
+! Checks when reading clones during a regular restart, they can be skipped during a load-balance since parameters such as time step
+! and weighting factor could not have been changed, re-using clones for radial/linear/cell-local weighting
+#if USE_LOADBALANCE
+IF(ClonesExist.AND..NOT.PerformLoadBalance) THEN
+#else
 IF(ClonesExist) THEN
+#endif /*USE_LOADBALANCE*/
   ! Determining the old time step
   CALL DatasetExists(File_ID,'ManualTimeStep',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
   IF(ParameterExists) THEN
@@ -731,19 +740,21 @@ IF(ClonesExist) THEN
   ParameterExists = .FALSE.
 
   ! Determining the old radial weighting factor
-  CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
-  IF(ParameterExists) THEN
-    CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
-    IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+  IF(DoRadialWeighting) THEN
+    CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+    IF(ParameterExists) THEN
+      CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+      IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
+        ResetClones = .TRUE.
+        LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
+      END IF
+    ELSE
       ResetClones = .TRUE.
-      LBWRITE(*,*) 'Using linear or cell-local weighting. Resetting the CloneData array.'
-    ELSE IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
-      ResetClones = .TRUE.
-      LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
+      LBWRITE(*,*) 'Unknown radial weighting factor of read-in CloneData. Resetting the array.'
     END IF
-  ELSE
+  ELSEIF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
     ResetClones = .TRUE.
-    LBWRITE(*,*) 'Unknown radial weighting factor of read-in CloneData. Resetting the array.'
+    LBWRITE(*,*) 'Using linear or cell-local weighting. Resetting the CloneData array.'
   END IF
 END IF
 
@@ -896,6 +907,13 @@ IF(ClonePartNum.GT.0) THEN
 ELSE
   LBWRITE(*,*) 'Read-in of cloned particles complete. No clones detected.'
 END IF
+
+! Deallocate temporary arrays
+SDEALLOCATE(CloneData)
+SDEALLOCATE(pcount)
+SDEALLOCATE(VibQuantData)
+SDEALLOCATE(ElecDistriData)
+SDEALLOCATE(AD_Data)
 
 END SUBROUTINE ClonesReadin
 

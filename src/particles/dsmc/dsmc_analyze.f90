@@ -1010,12 +1010,8 @@ IF (DSMC%CalcQualityFactors) THEN
   IF(UseVarTimeStep) nVar_quality = nVar_quality + 1
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
   IF(ParticleWeighting%PerformCloning) nVar_quality = nVar_quality + 2
-  IF(BGKInitDone) THEN
-    nVar_quality = nVar_quality + 8
-  END IF
-  IF(FPInitDone) THEN
-    nVar_quality = nVar_quality + 5
-  END IF
+  IF(BGKInitDone) nVar_quality = nVar_quality + 8
+  IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
   nVar_quality=0
 END IF
