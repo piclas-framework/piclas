@@ -1113,7 +1113,7 @@ documentation:
   stage: documentation
   script:
     - cd docs/documentation
-    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt
+    - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
     - python3 -m sphinx -T -E -b html -d _build/doctrees -D language=en . _build/html
     - ls -l _build/html
     - python3 -m sphinx -b latex -D language=en -d _build/doctrees . _build/latex
