@@ -171,6 +171,7 @@ INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
 REAL              :: StartT,EndT
+CHARACTER(100)    :: hilf
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -211,7 +212,17 @@ END IF
 ! Read in CG parameters (also used for PETSc)
 #if USE_PETSC
 PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
-LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor
+#ifdef PETSC_HAVE_HYPRE
+hilf = '(built with Hypre and'
+#else
+hilf = '(built without Hypre and'
+#endif
+#ifdef PETSC_HAVE_MUMPS
+hilf = TRIM(hilf)//' with Mumps)'
+#else
+hilf = TRIM(hilf)//' without Mumps)'
+#endif
+LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor,' '//TRIM(hilf)
 #else
 LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: CG '
 #endif /*USE_PETSC*/
