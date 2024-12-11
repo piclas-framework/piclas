@@ -780,6 +780,14 @@ PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr)
 
 PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
 SELECT CASE(PrecondType)
+CASE(0)
+  ! ====== Iterative solver: Conjugate Gradient
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: None
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
 CASE(1)
   ! ====== Iterative solver: Conjugate Gradient
   PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
@@ -788,7 +796,16 @@ CASE(1)
   PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+#ifdef PETSC_HAVE_HYPRE
 CASE(2)
+  PetscCallA(KSPSetType(PETScSolver,KSPCG, ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  ! relative, absolute, divergence, and maximum iteration tolerances used by the default KSP convergence tests
+  PetscCallA(KSPSetTolerances(PETScSolver,1e-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+#endif
+CASE(20)
   ! ====== Iterative solver: GMRES
   PetscCallA(KSPSetType(PETScSolver,KSPGMRES, ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
@@ -827,7 +844,7 @@ CASE(10)
   PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
 #endif
 CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver is currently only available with MUMPS')
+  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE.')
 END SELECT
 
 ! Get solver and preconditioner types
