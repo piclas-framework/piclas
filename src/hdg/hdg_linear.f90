@@ -59,7 +59,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
-USE MOD_Mesh_Vars          ,ONLY: SideToElem
+USE MOD_Mesh_Vars          ,ONLY: SideToElem,nGlobalMortarSides
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -424,53 +424,57 @@ DO SideID=1,nSides
   Nloc = N_SurfMesh(SideID)%NSide
   DOF_start = 1 + DOF_stop
   DOF_stop = DOF_start + nGP_face(Nloc) - 1
-  IF(SmallMortarInfo(SideID).EQ.0) THEN
+  IF(nGlobalMortarSides.LE.0)THEN ! No Mortars in mesh
     HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
-  ELSE
-  ! lambda_small = M * lambda_big
-    iMortar = SmallMortarType(2,SideID)
+  ELSE ! Mortars are present
+    IF(SmallMortarInfo(SideID).EQ.0) THEN
+      HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+    ELSE
+    ! lambda_small = M * lambda_big
+      iMortar = SmallMortarType(2,SideID)
 
-    ASSOCIATE(&
-      M_0_1 => N_Mortar(NSide)%M_0_1 ,&
-      M_0_2 => N_Mortar(NSide)%M_0_2 )
+      ASSOCIATE(&
+        M_0_1 => N_Mortar(NSide)%M_0_1 ,&
+        M_0_2 => N_Mortar(NSide)%M_0_2 )
 
-      ! TODO PETSc P-Adaption: Build Mortar matrices somewhere else...
-      Smatloc(:,:) = 0.
-      DO ip=0,NSide; DO iq=0,NSide
-        iGP = (NSide + 1) * iq + ip + 1
-        DO jp=0,NSide; DO jq=0,NSide
-          jGP = (NSide + 1) * jq + jp + 1
-          SELECT CASE(SmallMortarType(1,SideID))
-          CASE(1) ! 1 -> 4
-            SELECT CASE(iMortar)
-            CASE(1)
-              Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_1(jq,iq)
-            CASE(2)
-              Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_1(jq,iq)
-            CASE(3)
-              Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_2(jq,iq)
-            CASE(4)
-              Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_2(jq,iq)
+        ! TODO PETSc P-Adaption: Build Mortar matrices somewhere else...
+        Smatloc(:,:) = 0.
+        DO ip=0,NSide; DO iq=0,NSide
+          iGP = (NSide + 1) * iq + ip + 1
+          DO jp=0,NSide; DO jq=0,NSide
+            jGP = (NSide + 1) * jq + jp + 1
+            SELECT CASE(SmallMortarType(1,SideID))
+            CASE(1) ! 1 -> 4
+              SELECT CASE(iMortar)
+              CASE(1)
+                Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_1(jq,iq)
+              CASE(2)
+                Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_1(jq,iq)
+              CASE(3)
+                Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_2(jq,iq)
+              CASE(4)
+                Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_2(jq,iq)
+              END SELECT
+            CASE(2) ! 1 -> 2 in q
+              IF (iMortar.EQ.1) THEN
+                Smatloc(iGP,jGP) = M_0_1(jq,iq) * MERGE(1, 0, ip.EQ.jp)
+              ELSE
+                Smatloc(iGP,jGP) = M_0_2(jq,iq) * MERGE(1, 0, ip.EQ.jp)
+              END IF
+            CASE(3) ! 1 -> 2 in p
+              IF (iMortar.EQ.1) THEN
+                Smatloc(iGP,jGP) = M_0_1(jp,ip) * MERGE(1, 0, iq.EQ.jq)
+              ELSE
+                Smatloc(iGP,jGP) = M_0_2(jp,ip) * MERGE(1, 0, iq.EQ.jq)
+              END IF
             END SELECT
-          CASE(2) ! 1 -> 2 in q
-            IF (iMortar.EQ.1) THEN
-              Smatloc(iGP,jGP) = M_0_1(jq,iq) * MERGE(1, 0, ip.EQ.jp)
-            ELSE
-              Smatloc(iGP,jGP) = M_0_2(jq,iq) * MERGE(1, 0, ip.EQ.jp)
-            END IF
-          CASE(3) ! 1 -> 2 in p
-            IF (iMortar.EQ.1) THEN
-              Smatloc(iGP,jGP) = M_0_1(jp,ip) * MERGE(1, 0, iq.EQ.jq)
-            ELSE
-              Smatloc(iGP,jGP) = M_0_2(jp,ip) * MERGE(1, 0, iq.EQ.jq)
-            END IF
-          END SELECT
+          END DO; END DO
         END DO; END DO
-      END DO; END DO
-    END ASSOCIATE
+      END ASSOCIATE
 
-    HDG_Surf_N(SideID)%lambda(1,:) = MATMUL(Smatloc(1:nGP_face(Nloc),1:nGP_face(Nloc)),lambda_pointer(DOF_start:DOF_stop))
-  END IF
+      HDG_Surf_N(SideID)%lambda(1,:) = MATMUL(Smatloc(1:nGP_face(Nloc),1:nGP_face(Nloc)),lambda_pointer(DOF_start:DOF_stop))
+    END IF
+  END IF ! nGlobalMortarSides.GT.0
 END DO
 
 ! Fill Conductor lambda
