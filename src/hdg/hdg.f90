@@ -598,10 +598,9 @@ CALL BuildPrecond()
 
 ! 3.1) Create PETSc mappings to build the global system
 ! 3.1.1) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
-! MORTARS: Small mortar sides are added as PETScDOFs to the global system!
 nLocalPETScDOFs = 0
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0) CYCLE ! Skip Dirichlet sides (but keep small mortar sides)
+  IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + small mortar sides
   nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSide)
 END DO
 
@@ -624,15 +623,32 @@ END DO
 #endif
 ALLOCATE(OffsetGlobalPETScDOF(nSides))
 DO SideID=1,nSides-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0) CYCLE
+  IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + Small mortar sides
   OffsetGlobalPETScDOF(SideID) = OffsetCounter
   OffsetCounter = OffsetCounter + nGP_face(N_SurfMesh(SideID)%NSide)
 END DO
+
+! 3.1.3.1 Mortars: Small mortar sides have the same DOFs as the big side
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide  = MortarType(2,MortarSideID)
+  DO iMortar = 1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,locSide)
+    OffsetGlobalPETScDOF(SideID) = OffsetGlobalPETScDOF(MortarSideID)
+  END DO !iMortar
+END DO !MortarSideID
+
 #if USE_MPI
 CALL StartReceiveMPIDataInt(1,OffsetGlobalPETScDOF,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
+
+! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(MortarSideID)%NSide) * nMortars
+END DO !MortarSideID
 
 ! 3.1.4) Sum up YOUR sides for nLocalPETScDOFs
 ! The full nLocalPETScDOFs is used to compute the Scatter context
@@ -702,6 +718,7 @@ PetscCallA(VecSetType(PETScSolution,VECSTANDARD,ierr))
 PetscCallA(VecSetUp(PETScSolution,ierr))
 PetscCallA(VecDuplicate(PETScSolution,PETScRHS,ierr))
 
+! TODO PETSc P-Adaption: nLocalPETScDOFs is all DOFs including Small Mortar Sides!
 ! 3.2.4) Set up Scatter stuff
 PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)

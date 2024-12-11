@@ -72,6 +72,7 @@ USE MOD_MPI                ,ONLY: Mask_MPIsides
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
+USE MOD_Mortar_Vars        ,ONLY: N_Mortar
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -110,6 +111,8 @@ REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 #if USE_PETSC
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
+INTEGER              :: iMortar
+INTEGER              :: iGP, jGP, ip, iq, jp, jq
 !===================================================================================================================================
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
@@ -415,8 +418,52 @@ DO SideID=1,nSides
   Nloc = N_SurfMesh(SideID)%NSide
   DOF_start = 1 + DOF_stop
   DOF_stop = DOF_start + nGP_face(Nloc) - 1
-  ! MORTARS: All Mortar stuff (BigToSmall, ...) is done when solving the system!
   HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+
+  IF(SmallMortarType(1,SideID).GT.0) THEN ! Small Mortar Side -> BigToSmall
+    ! lambda_small = M * lambda_big
+
+    ASSOCIATE(&
+      M_0_1 => N_Mortar(NSide)%M_0_1 ,&
+      M_0_2 => N_Mortar(NSide)%M_0_2 )
+
+      ! TODO PETSc P-Adaption: Build Mortar matrices somewhere else...
+      Smatloc(:,:) = 0.
+      DO ip=0,NSide; DO iq=0,NSide
+        iGP = (NSide + 1) * iq + ip + 1
+        DO jp=0,NSide; DO jq=0,NSide
+          jGP = (NSide + 1) * jq + jp + 1
+          SELECT CASE(SmallMortarType(1,SideID))
+          CASE(1) ! 1 -> 4
+            SELECT CASE(iMortar)
+            CASE(1)
+              Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_1(jq,iq)
+            CASE(2)
+              Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_1(jq,iq)
+            CASE(3)
+              Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_2(jq,iq)
+            CASE(4)
+              Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_2(jq,iq)
+            END SELECT
+          CASE(2) ! 1 -> 2 in q
+            IF (iMortar.EQ.1) THEN
+              Smatloc(iGP,jGP) = M_0_1(jq,iq) * MERGE(1, 0, ip.EQ.jp)
+            ELSE
+              Smatloc(iGP,jGP) = M_0_2(jq,iq) * MERGE(1, 0, ip.EQ.jp)
+            END IF
+          CASE(3) ! 1 -> 2 in p
+            IF (iMortar.EQ.1) THEN
+              Smatloc(iGP,jGP) = M_0_1(jp,ip) * MERGE(1, 0, iq.EQ.jq)
+            ELSE
+              Smatloc(iGP,jGP) = M_0_2(jp,ip) * MERGE(1, 0, iq.EQ.jq)
+            END IF
+          END SELECT
+        END DO; END DO
+      END DO; END DO
+    END ASSOCIATE
+
+    HDG_Surf_N(SideID)%lambda(1,:) = MATMUL(Smatloc,lambda_pointer(DOF_start:DOF_stop))
+  END IF
 END DO
 
 ! Fill Conductor lambda
