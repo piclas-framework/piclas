@@ -397,7 +397,7 @@ INTEGER              :: iGP, jGP, ip, iq, jp, jq
 ! TODO PETSC P-Adaption: How to do small slave mortar sides??? (MortarType(1,SideID)=-10, We can use SmallMortarType)
 ! Easy way: Loop over all SideIDs, check if SmallMortarType is
 DO iSideID=1,nSides
-  IF(SmallMortarType(1,iSideID).EQ.-1) CYCLE ! Not a small mortar side
+  IF(SmallMortarInfo(iSideID).EQ.0) CYCLE ! Not a small mortar side
   iMortar=SmallMortarType(2,iSideID)
 
   NSide = N_SurfMesh(iSideID)%NSide
@@ -459,7 +459,7 @@ DO iSideID=1,nSides
 
     ! Multiply M and M' to Smat
     HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide) = MATMUL(TRANSPOSE(Smatloc(1:nGP,1:nGP)), HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide))
-    HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide) = MATMUL(HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide), Smatloc(1:nGP,1:nGP))
+    HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide) = MATMUL(HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), Smatloc(1:nGP,1:nGP))
   END DO
 END DO
 

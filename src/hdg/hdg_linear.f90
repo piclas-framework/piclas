@@ -424,10 +424,11 @@ DO SideID=1,nSides
   Nloc = N_SurfMesh(SideID)%NSide
   DOF_start = 1 + DOF_stop
   DOF_stop = DOF_start + nGP_face(Nloc) - 1
-  HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
-
-  IF(SmallMortarType(1,SideID).GT.0) THEN ! Small Mortar Side -> BigToSmall
-    ! lambda_small = M * lambda_big
+  IF(SmallMortarInfo(SideID).EQ.0) THEN
+    HDG_Surf_N(SideID)%lambda(1,:) = lambda_pointer(DOF_start:DOF_stop)
+  ELSE
+  ! lambda_small = M * lambda_big
+    iMortar = SmallMortarType(2,SideID)
 
     ASSOCIATE(&
       M_0_1 => N_Mortar(NSide)%M_0_1 ,&
@@ -468,7 +469,7 @@ DO SideID=1,nSides
       END DO; END DO
     END ASSOCIATE
 
-    HDG_Surf_N(SideID)%lambda(1,:) = MATMUL(Smatloc,lambda_pointer(DOF_start:DOF_stop))
+    HDG_Surf_N(SideID)%lambda(1,:) = MATMUL(Smatloc(1:nGP_face(Nloc),1:nGP_face(Nloc)),lambda_pointer(DOF_start:DOF_stop))
   END IF
 END DO
 
