@@ -405,6 +405,7 @@ IF(nGlobalMortarSides.GT.0)THEN
     nGP = nGP_face(NSide)
     iLocSide = SideToElem(S2E_NB_LOC_SIDE_ID,iSideID)
     iElem = SideToElem(S2E_NB_ELEM_ID,iSideID)
+    IF(iElem.LE.0) CYCLE ! Small Mortar side does not belong to an element
     DO jLocSide=1,6
 
       ASSOCIATE(&
