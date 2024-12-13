@@ -42,6 +42,7 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
+  - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - ulimit -s unlimited
   - python3 -V || true
   - python2 -V || true
@@ -219,6 +220,32 @@ stages:
 
 .defaults_poisson_nightly: &defaults_poisson_nightly
   <<: *defaults_poisson
+  rules:
+    - if: '$DO_NIGHTLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for drift_diffusion tests
+.defaults_drift_diffusion: &defaults_drift_diffusion
+  extends: .default_param
+  needs: [build_drift_diffusion]
+  artifacts:
+    paths:
+      - build_drift_diffusion
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DD"
+      paths:
+        - build_drift_diffusion
+      policy: pull
+
+.defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_drift_diffusion_nightly: &defaults_drift_diffusion_nightly
+  <<: *defaults_drift_diffusion
   rules:
     - if: '$DO_NIGHTLY'
 
@@ -465,6 +492,21 @@ build_DSMC:
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
 
+build_drift_diffusion:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_drift_diffusion]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DD"
+      paths: [build_drift_diffusion]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_drift_diffusion ; cd build_drift_diffusion
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
+
 build_hopr:
   extends: .default_build_param
   artifacts:
@@ -607,6 +649,11 @@ poisson_petsc_debug:
   script:
     - cd build_poisson_petsc_debug_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
 
+drift_diffusion:
+  <<: *defaults_drift_diffusion_checkin
+  stage: reggie_checkin
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
