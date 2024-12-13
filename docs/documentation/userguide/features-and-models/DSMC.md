@@ -453,7 +453,9 @@ velocity from the macroscopic restart file.
 
 ## Handling Granular Flows in PICLas
 
-PICLas implements a one-way coupling for gas-solid particle interactions. This approach assumes that only the influence of the gas flow on the solid particle is considered. The following assumptions apply to this model:
+PICLas implements a one-way coupling for gas-solid particle interactions and based on 'DEVELOPMENT OF A TWO-WAY COUPLED MODEL
+FOR TWO PHASE RAREFIED FLOWS' by J. Burt, I. Boyd, in: 42nd AIAA Aerospace Sciences Meeting and Exhibit, 2004, p. 1351. 
+This approach assumes that only the influence of the gas flow on the solid particle is considered. The following assumptions apply to this model:
 
 - Solid particles are assumed to be perfectly spherical.
 - No temperature gradient exists within the solid particles, meaning their temperature is spatially uniform.
@@ -485,6 +487,10 @@ To reduce the number of simulated particles, define a weighting factor similar t
     Part-Species1-MacroParticleFactor
 
 This value can differ from the macro particle factor of gas species and does not depend on the usage of a variable weighting factor for gas species.
+The energy transferred from the gas flow to the solid particle also depends on the thermal accommodation coefficient of the solid particle surface and is provided by the user as follows:
+
+    Part-Species1-GranularPartTau = 1.0
+
 To correctly calculate the temperature development of granular species, specify their specific heat capacity in J/(kg·K):
 
     Part-Species1-GranularPartCsp = 765

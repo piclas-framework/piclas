@@ -411,7 +411,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: piclas-binaries-v3.3.1
+        name: piclas-binaries-v3.4.0
         path: artifacts
 
     - name: Upload release asset
