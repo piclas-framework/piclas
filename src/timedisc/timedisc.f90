@@ -126,7 +126,6 @@ USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
 USE MOD_Part_Tools             ,ONLY: ReduceMaxParticleNumber
 #endif
-
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

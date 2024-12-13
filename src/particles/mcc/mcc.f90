@@ -53,7 +53,7 @@ USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, C
 USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMCSumOfFormedParticles, PolyatomMolDSMC, VibQuantsPar
 USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PEM, PDM, PartSpecies, nSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, UseGranularSpec
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, UseGranularSpecies
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
@@ -105,7 +105,7 @@ Volume = ElemVolume_Shared(CNElemID)
 
 ! Create particle index list for pairing
 nPart = PEM%pNumber(iElem)
-IF(UseGranularSpec) THEN
+IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart
@@ -121,13 +121,10 @@ END IF
 ALLOCATE(iPartIndx_Node(nPart))
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
-  ! Skip granular species
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-      iPart = PEM%pNext(iPart)
-    END DO
-  END IF
+  ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+  DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+    iPart = PEM%pNext(iPart)
+  END DO
   iPartIndx_Node(iLoop) = iPart
   iPart = PEM%pNext(iPart)
 END DO
@@ -607,7 +604,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
   ! Calculate number of resolved Cells for this processor
   DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
-  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN

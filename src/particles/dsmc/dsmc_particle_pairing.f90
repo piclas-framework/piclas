@@ -52,7 +52,7 @@ SUBROUTINE DSMC_pairing_standard(iElem)
 !> collision procedure is performed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PEM, VirtMergedCells, DoVirtualCellMerge, Species, PartSpecies, UseGranularSpec
+USE MOD_Particle_Vars         ,ONLY: PEM, VirtMergedCells, DoVirtualCellMerge, Species, PartSpecies, UseGranularSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
@@ -74,7 +74,7 @@ INTEGER                       :: nPartTemp
 
 nPart = PEM%pNumber(iElem)
 
-IF(UseGranularSpec) THEN
+IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart
@@ -99,13 +99,10 @@ IF (DoVirtualCellMerge) THEN
   iPart = PEM%pStart(iElem)
   iLoopLoc = 0
   DO iLoop = 1, nPart
-    ! Skip granular species
-    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-      ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     iLoopLoc = iLoopLoc + 1
     iPartIndx(iLoopLoc) = iPart
     iPart = PEM%pNext(iPart)
@@ -116,8 +113,7 @@ IF (DoVirtualCellMerge) THEN
       nPartLoc = PEM%pNumber(locElem)
       iPart = PEM%pStart(locElem)
       DO iLoop = 1, nPartLoc
-        ! Skip granular species
-        ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
         DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
           iPart = PEM%pNext(iPart)
         END DO
@@ -139,8 +135,7 @@ ELSE
   !     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
-    ! Skip granular species
-    ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
     DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
       iPart = PEM%pNext(iPart)
     END DO
@@ -169,7 +164,7 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos, VirtMergedCells, DoVirtualCellMerge, Species
-USE MOD_Particle_Vars           ,ONLY: UseGranularSpec
+USE MOD_Particle_Vars           ,ONLY: UseGranularSpecies
 USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -195,7 +190,7 @@ INTEGER                       :: nPartTemp
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
-IF(UseGranularSpec) THEN
+IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart
@@ -222,13 +217,10 @@ IF (DoVirtualCellMerge) THEN
     iPart = PEM%pStart(iElem)
     iLoopLoc = 0
     DO iLoop = 1, nPart
-      ! Skip granular species
-      IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-        ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-          iPart = PEM%pNext(iPart)
-        END DO
-      END IF
+      ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+        iPart = PEM%pNext(iPart)
+      END DO
       iLoopLoc = iLoopLoc + 1
       TreeNode%iPartIndx_Node(iLoopLoc) = iPart
       iPart = PEM%pNext(iPart)
@@ -238,13 +230,10 @@ IF (DoVirtualCellMerge) THEN
       nPartLoc = PEM%pNumber(locElem)
       iPart = PEM%pStart(locElem)
       DO iLoop = 1, nPartLoc
-        ! Skip granular species
-        IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-          ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-            iPart = PEM%pNext(iPart)
-          END DO
-        END IF
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         iLoopLoc = iLoopLoc + 1
         TreeNode%iPartIndx_Node(iLoopLoc) = iPart
         iPart = PEM%pNext(iPart)
@@ -270,13 +259,10 @@ ELSE
   !     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
-    ! Skip granular species
-    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-      ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     TreeNode%iPartIndx_Node(iLoop) = iPart
     iPart = PEM%pNext(iPart)
     ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
@@ -298,25 +284,19 @@ ELSE
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       IF (TrackingMethod.EQ.REFMAPPING) THEN
         DO iLoop = 1, nPart
-          ! Skip granular species
-          IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-            ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-            DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-              iPart = PEM%pNext(iPart)
-            END DO
-          END IF
+          ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+            iPart = PEM%pNext(iPart)
+          END DO
           TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
           iPart = PEM%pNext(iPart)
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
-          ! Skip granular species
-          IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-            ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-            DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-              iPart = PEM%pNext(iPart)
-            END DO
-          END IF
+          ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+            iPart = PEM%pNext(iPart)
+          END DO
           ! Attention: LastPartPos is the reference position here
           TreeNode%MappedPartStates(1:3,iLoop) = LastPartPos(1:3,iPart)
           iPart = PEM%pNext(iPart)
@@ -704,7 +684,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
   ! Calculate number of resolved Cells for this processor
   DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
-  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
@@ -845,7 +825,7 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos,VirtMergedCells, DoVirtualCellMerge, Species
-USE MOD_Particle_Vars           ,ONLY: UseGranularSpec
+USE MOD_Particle_Vars           ,ONLY: UseGranularSpecies
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -870,7 +850,7 @@ CNElemID = GetCNElemID(iElem+offSetElem)
 Volume = ElemVolume_Shared(CNElemID)
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
-IF(UseGranularSpec) THEN
+IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart
@@ -896,13 +876,10 @@ IF (DoVirtualCellMerge) THEN
     iPart = PEM%pStart(iElem)
     iLoopLoc = 0
     DO iLoop = 1, nPart
-      ! Skip granular species
-      IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-        ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-          iPart = PEM%pNext(iPart)
-        END DO
-      END IF
+      ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+        iPart = PEM%pNext(iPart)
+      END DO
       iLoopLoc = iLoopLoc + 1
       TreeNode%iPartIndx_Node(iLoopLoc) = iPart
       iPart = PEM%pNext(iPart)
@@ -912,13 +889,10 @@ IF (DoVirtualCellMerge) THEN
       nPartLoc = PEM%pNumber(locElem)
       iPart = PEM%pStart(locElem)
       DO iLoop = 1, nPartLoc
-        ! Skip granular species
-        IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-          ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-            iPart = PEM%pNext(iPart)
-          END DO
-        END IF
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         iLoopLoc = iLoopLoc + 1
         TreeNode%iPartIndx_Node(iLoopLoc) = iPart
         iPart = PEM%pNext(iPart)
@@ -940,13 +914,10 @@ ELSE
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
 
   DO iLoop = 1, nPart
-    ! Skip granular species
-    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-      ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-        iPart = PEM%pNext(iPart)
-      END DO
-    END IF
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     TreeNode%iPartIndx_Node(iLoop) = iPart
     ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
     SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
@@ -964,13 +935,10 @@ ELSE
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       DO iLoop = 1, nPart
-        ! Skip granular species
-        IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-          ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-            iPart = PEM%pNext(iPart)
-          END DO
-        END IF
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         ! Attention: LastPartPos is the reference position here, set in timedisc_TimeStep_DSMC.f90 / timedisc_TimeStep_BGK.f90
         TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
         iPart = PEM%pNext(iPart)
@@ -1181,7 +1149,7 @@ SUBROUTINE DSMC_pairing_dotree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, Species, UseGranularSpec
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, Species, UseGranularSpecies
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -1207,7 +1175,7 @@ SpecPartNum = 0.
 
 NULLIFY(TreeNode)
 nPart = PEM%pNumber(iElem)
-IF(UseGranularSpec) THEN
+IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
   iPart = PEM%pStart(iElem)
   nPartTemp = nPart
@@ -1227,13 +1195,10 @@ TreeNode%iPartIndx_Node(1:nPart) = 0
 iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
 
 DO iLoop = 1, nPart
-  ! Skip granular species
-  IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-    ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-      iPart = PEM%pNext(iPart)
-    END DO
-  END IF
+  ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+  DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+    iPart = PEM%pNext(iPart)
+  END DO
   TreeNode%iPartIndx_Node(iLoop) = iPart
   ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
   SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
@@ -1251,13 +1216,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
     DO iLoop = 1, nPart
-      ! Skip granular species
-      IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-        ! DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
-        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
-          iPart = PEM%pNext(iPart)
-        END DO
-      END IF
+      ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+        iPart = PEM%pNext(iPart)
+      END DO
       CALL GeoCoordToMap1D(PartState(1,iPart), TreeNode%MappedPartStates(1,iLoop), iElem)
       iPart = PEM%pNext(iPart)
     END DO

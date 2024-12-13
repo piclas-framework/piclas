@@ -562,9 +562,9 @@ CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
-UseGranularSpec = .FALSE.
+UseGranularSpecies = .FALSE.
 IF(ANY(Species(:)%InterID.EQ.100)) THEN
-  UseGranularSpec = .TRUE.
+  UseGranularSpecies = .TRUE.
 ! Consideration of gravity for granular species
   UseGravitation = GETLOGICAL('UseGravitation')
   IF(UseGravitation) THEN
@@ -1785,7 +1785,7 @@ IF(UseRotRefFrame) THEN
   CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented for the selected simulation method (only for DSMC/BGK)!')
 #endif
   ! Abort if granular species are defined
-  IF(UseGranularSpec) THEN
+  IF(UseGranularSpecies) THEN
     CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented with granular species!')
   END IF
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))

@@ -265,15 +265,13 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
+! Granular species
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartCsp' &
                                             ,'solid particle specific heat [J/(kg*K)].'&
                                             ,'0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartTau' &
                                             ,'thermal accommodation coefficient during granular particle interaction.'&
                                             ,'1.0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartEps' &
-                                            ,'fraction of specularly reflected gas atoms during granular particle interaction.'&
-                                            ,'0.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -288,7 +286,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF, UseGranularSpec
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF, UseGranularSpecies
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase, SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -514,7 +512,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
   ! Granular species
   SpecDSMC(:)%ThermalACCGranularPart         = 0.0
   SpecDSMC(:)%SpecificHeatSolid              = 0.0
-  IF(UseGranularSpec) THEN
+  IF(UseGranularSpecies) THEN
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       IF (Species(iSpec)%InterID.EQ.100) THEN

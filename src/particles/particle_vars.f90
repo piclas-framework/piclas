@@ -312,11 +312,11 @@ LOGICAL               :: InRotRefFrameSubCycling      ! Check for RotRefFrame be
 LOGICAL               :: SamplePressTensHeatflux
 
 ! Consideration of gravity for granular species
-LOGICAL               :: UseGranularSpec    ! Flag for the usage of granular species
+LOGICAL               :: UseGranularSpecies ! Flag for the usage of granular species
 LOGICAL               :: UseGravitation     ! Flag for taking gravity into account for granular species
-REAL                  :: GravityDir(3)      ! Direction ofgravity force
-LOGICAL               :: SkipGranularUpdate ! Flag to skip granular species position, velocity and temperatur update
-                                            ! uesed only for benchmark TC
+REAL                  :: GravityDir(3)      ! Direction of gravity force
+LOGICAL               :: SkipGranularUpdate ! Flag to skip granular species position, velocity and temperature update
+                                            ! used only for benchmark TC
 REAL                  :: ForceAverage(5)
 REAL                  :: SumForceAverage(5)
 
