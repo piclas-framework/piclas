@@ -44,13 +44,14 @@ To define a species, its name as well as an `InteractionID` have to be defined
 During the file-based parameter read-in, name is only utilized to retrieve the electronic energy levels from an additional database.
 The interaction ID determines the type of a species as follows
 
-|   ID | Type                               |
-| ---: | ---------------------------------- |
-|    1 | Atom                               |
-|    2 | Molecule (diatomic and polyatomic) |
-|    4 | Electron                           |
-|   10 | Atomic Ion                         |
-|   20 | Molecular Ion                      |
+|   ID | Type                                                            |
+| ---: | --------------------------------------------------------------- |
+|    1 | Atom                                                            |
+|    2 | Molecule (diatomic and polyatomic)                              |
+|    4 | Electron                                                        |
+|   10 | Atomic Ion                                                      |
+|   20 | Molecular Ion                                                   |
+|  100 | Solid particle (see Section {ref}`sec:granular-flows`) |
 
 Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable
 Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega = [0,0.5]$, reference
@@ -315,8 +316,8 @@ A reaction is then defined by
 
 where the reaction model can be defined as follows
 
-|   Model   |                                   Description                                  |
-|   ----:   | -------------------------------------------------                              |
+|     Model | Description                                                                    |
+| --------: | ------------------------------------------------------------------------------ |
 |       TCE | Total Collision Energy: Arrhenius-based chemistry                              |
 |        QK | Quantum Kinetic: Threshold-based chemistry                                     |
 |      XSec | Cross-section based chemistry                                                  |
@@ -425,6 +426,74 @@ temperature, three values have to be supplied for non-linear polyatomic molecule
 supplied to consider the electronic partition function. For this purpose, the user should provide an electronic state database as
 presented in Section {ref}`sec:DSMC-electronic-relaxation`.
 
+(sec:granular-flows)=
+## Granular Flows
+
+A one-way coupling for gas-solid particle interactions is implemented in PICLas and based on 'DEVELOPMENT OF A TWO-WAY COUPLED MODEL
+FOR TWO PHASE RAREFIED FLOWS' by J. Burt, I. Boyd, in: 42nd AIAA Aerospace Sciences Meeting and Exhibit, 2004, p. 1351.
+This approach assumes that only the influence of the gas flow on the solid particle is considered. The following assumptions apply to this model:
+
+- Solid particles are assumed to be perfectly spherical.
+- No temperature gradient exists within the solid particles, meaning their temperature is spatially uniform.
+- The volume of solid particles is much larger than that of gas molecules. The local particle Knudsen number, defined as the ratio of the gas mean free path to the particle diameter, is on the order of one or greater. This ensures the free molecular flow regime is valid, and collisions between incoming and reflected gas molecules are neglected.
+- No mass exchange (e.g., adsorption or absorption) occurs between the gas and solid phases.
+
+### Defining Granular Flows
+
+To define a granular flow, additional parameters must be configured alongside those for a DSMC gas flow simulation. Granular species are defined similarly to gas species but the following key differences must be taken into account:
+
+Set the `InteractionID` of the granular species to 100 in order to indicate the particles as solid:
+
+    Part-Species1-InteractionID = 100
+
+Define the size in [m], mass in [kg] of the solid particle (perfectly spherical) and the weighting factor, similar to gas species using:
+
+    Part-Species1-dref
+    Part-Species1-MassIC
+    Part-Species1-MacroParticleFactor
+
+The weighting factor can differ from the weighting factor of gas species and does not depend on the usage of a variable weighting factor for gas species.
+The energy transferred from the gas flow to the solid particle also depends on the thermal accommodation coefficient of the solid particle surface and is provided by the user as follows:
+
+    Part-Species1-GranularPartTau = 1.0
+    
+To correctly calculate the temperature development of granular species, specify their specific heat capacity in J/(kg K):
+
+    Part-Species1-GranularPartCsp = 765
+
+To initialize the granular particles in the simulation, they can be defined analogous to the regular species by defining a velocity magnitude and vector, insertion type, number of particles, and temperature (see Section {ref}`sec:particle-initialization-and-emission` for the available parameters). However, granular species do not have a temperature distribution, since they are modeled as solid particles with a constant temperature. Therefore, the velocity distribution will be automatically set to constant, regardless of user-input to `velocityDistribution`.
+
+### Gravitational Effects
+
+Since the dynamics of solid particles can be significantly influenced by Earth's gravity, you can enable gravitational effects using:
+
+    UseGravitation = T
+
+Additionally, define the gravity direction:
+
+    DirectionOfGravity = (/ -1.0, 0.0, 0.0 /)
+
+
+### Granular-Wall Interactions
+
+Granular particles interact with walls differently than classical DSMC particles. Granular particles are always reflected specularly but may lose energy due to deformation upon impact. The energy loss is controlled by the parameter:
+
+    Part-Boundary1-DeformEnergyLoss=0.5
+
+This parameter is defined per boundary and must be between 0 and 1. A value of 1 means complete energy loss, causing the particle to come to rest upon wall impact, while a value of 0 represents an elastic collision with no energy loss. Note that the assumption of perfectly spherical particles with a constant diameter remains valid, even when energy is lost due to deformation.
+
+### Verification of One-Way Coupling
+
+To verify the one-way coupling, the drag force and heat flux on a single solid particle in a flow were analyzed. Two new flags were introduced for this purpose. To disable particle velocity and temperature updates, use
+
+    SkipGranularUpdate = T
+
+To output the average force and heat acting on the particle, use:
+
+    CalcGranularDragHeat = T
+
+The results are written to the `PartAnalyze.csv` file.
+
 ## Additional Features
 ### Deletion of Chemistry Products
 
@@ -450,83 +519,6 @@ available with the macroscopic restart. In that case, the electrons are not inse
 velocity from the macroscopic restart file.
 
 (sec:DSMC-quality)=
-
-## Handling Granular Flows in PICLas
-
-PICLas implements a one-way coupling for gas-solid particle interactions and based on 'DEVELOPMENT OF A TWO-WAY COUPLED MODEL
-FOR TWO PHASE RAREFIED FLOWS' by J. Burt, I. Boyd, in: 42nd AIAA Aerospace Sciences Meeting and Exhibit, 2004, p. 1351. 
-This approach assumes that only the influence of the gas flow on the solid particle is considered. The following assumptions apply to this model:
-
-- Solid particles are assumed to be perfectly spherical.
-- No temperature gradient exists within the solid particles, meaning their temperature is spatially uniform.
-- The volume of solid particles is much larger than that of gas molecules. The local particle Knudsen number, defined as the ratio of the gas mean free path to the particle diameter, is on the order of one or greater. This ensures the free molecular flow regime is valid, and collisions between incoming and reflected gas molecules are neglected.
-- No mass exchange (e.g., adsorption or absorption) occurs between the gas and solid phases.
-
-### Defining Granular Flows
-
-To define granular flow, additional parameters must be configured alongside those for DSMC gas flow simulation. Granular species are defined similarly to gas species but the following key differences must be taken into account:
-
-Set the `InteractionID` of the granular species to 100 in order to indicate the particles as solid:
-
-    Part-Species1-InteractionID = 100
-
-Granular species do not have a temperature distribution, as they are modeled as solid particles with constant temperature. Configure the velocity distribution as:
-
-    Part-Species1-velocityDistribution = constant
-
-Define the solid particle size (perfectly spherical) in m using:
-
-    Part-Species1-dref = 2.0E-6
-
-Specify the solid particle mass in kg similar to gas species using:
-
-    Part-Species1-MassIC
-
-To reduce the number of simulated particles, define a weighting factor similar to gas species:
-
-    Part-Species1-MacroParticleFactor
-
-This value can differ from the macro particle factor of gas species and does not depend on the usage of a variable weighting factor for gas species.
-The energy transferred from the gas flow to the solid particle also depends on the thermal accommodation coefficient of the solid particle surface and is provided by the user as follows:
-
-    Part-Species1-GranularPartTau = 1.0
-
-To correctly calculate the temperature development of granular species, specify their specific heat capacity in J/(kg·K):
-
-    Part-Species1-GranularPartCsp = 765
-
-
-### Gravitational Effects
-
-Since the dynamics of solid particles can be significantly influenced by Earth's gravity, you can enable gravitational effects using:
-
-    UseGravitation = T
-
-Additionally, define the gravity direction:
-
-    DirectionOfGravity = (/ -1.0, 0.0, 0.0 /)
-
-
-### Granular-Wall Interactions
-
-Granular particles interact with walls differently than classical DSMC particles. Granular particles are always reflected specularly but may lose energy due to deformation upon impact. The energy loss is controlled by the parameter:
-
-    Part-Boundary1-DeformEnergyLoss=0.5
-
-This parameter is defined in the `parameter.ini` file and must be chosen between 0 and 1. A value of 1 means complete energy loss, causing the particle to come to rest upon wall impact, while a value of 0 represents an elastic collision with no energy loss. Note that the assumption of perfectly spherical particles with a constant diameter remains valid, even when energy is lost due to deformation.
-
-### Verification of One-Way Coupling
-
-To verify the one-way coupling, the drag force and heat flux on a single solid particle in a flow were analyzed. Two new flags were introduced for this purpose. To disable particle velocity and temperature updates, use
-
-    SkipGranularUpdate = T
-
-To output the average force and heat acting on the particle, use:
-
-    CalcGranularDragHeat = T
-
-The results are written to the `PartAnalyze.csv` file.
-
 ## Ensuring Physical Simulation Results
 
 To determine whether the DSMC related parameters are chosen correctly, so-called quality factors can be written out as part of the
@@ -554,7 +546,3 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
 where $d_{\mathrm{ref}}$ is the reference diameter and $n$ the number density. Here, the largest number density within the
 simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be
 utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
-
-
-
-

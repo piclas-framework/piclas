@@ -46,7 +46,7 @@ USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
 USE MOD_DSMC_Analyze          ,ONLY: SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
-USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Species, PartSpecies
+USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Species, PartSpecies, UseGranularSpec
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
 USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
@@ -95,7 +95,7 @@ IF (CollisMode.NE.0) THEN
     END IF
     nPart = PEM%pNumber(iElem)
     ! Are there granular species
-    IF(ANY(Species(:)%InterID.EQ.100)) THEN
+    IF(UseGranularSpec) THEN
       ! Get real nPart without granular species
       iPart = PEM%pStart(iElem)
       nPartTemp = nPart

@@ -218,6 +218,7 @@ USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
 USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if defined(IMPA) || defined(ROS)
 USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
 #endif
@@ -633,6 +634,7 @@ DO iPartBound=1,nPartBound
   BCdata_auxSF(iPartBound)%LocalArea=0.
 END DO
 
+!-- Surface model: Sticking coefficient
 IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   ! Open the species database
   CALL OpenDataFile(TRIM(SpeciesDatabase),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -650,6 +652,18 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   ! Read-in array
   CALL ReadArray(TRIM(dsetname),2,INT(HSize,IK),0_IK,1,RealArray=StickingCoefficientData)
   CALL CloseDataFile()
+END IF
+
+!-- Sanity check: Mesh requires specific boundary conditions for 1D/2D/axisymmetric simulations
+IF(Symmetry%Order.LT.3) THEN
+  IF(.NOT.ANY(PartBound%TargetBoundCond.EQ.PartBound%SymmetryDim)) THEN
+    CALL abort(__STAMP__,' ERROR in Particle Boundary Condition: 1D/2D simulations require the definition of symmetric_dim condition(s)!')
+  END IF
+  IF (Symmetry%Axisymmetric) THEN
+    IF(.NOT.ANY(PartBound%TargetBoundCond.EQ.PartBound%SymmetryAxis)) THEN
+      CALL abort(__STAMP__,' ERROR in Particle Boundary Condition: Axisymmetric simulations require the definition of symmetric_axis condition!')
+    END IF
+  END IF
 END IF
 
 END SUBROUTINE InitializeVariablesPartBoundary

@@ -208,7 +208,7 @@ DO iSpec = 1, nSpecies
 #endif /*USE_MPI*/
   Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor')
   !IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
-  IF((.NOT.ALMOSTZERO(MPFOld)).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN   
+  IF((.NOT.ALMOSTZERO(MPFOld)).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
     IF(Species(iSpec)%InterID.NE.100) THEN
       IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
         'Different MPFs only allowed when using Part-vMPF=T')

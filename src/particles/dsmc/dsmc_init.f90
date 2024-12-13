@@ -53,10 +53,10 @@ CALL prms%SetSection("DSMC")
 
 CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      &
                                         , 'Define mode of collision handling in DSMC.\n'//&
-                                            '0: No Collisions (=free molecular flow with DSMC-Sampling-Routines).\n'//&
-                                            '1: Elastic Collision \n'//&
-                                            '2: Relaxation + Elastic Collision \n'//&
-                                            '3: Mode 2 + Chemical Reactions.', '1')
+                                            '0: No collisions (=free molecular flow with DSMC-Sampling-Routines).\n'//&
+                                            '1: Elastic collisions \n'//&
+                                            '2: Relaxation + elastic collisions \n'//&
+                                            '3: Mode 2 + chemical reactions.', '1')
 CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'     &
                                         , 'Mode of Selection Procedure\n'//&
                                           '1: Laux\n'//&
@@ -266,13 +266,13 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartCsp' &
-                                            ,'the solid particle speciﬁc heat [J/(kg*K)].'&
+                                            ,'solid particle specific heat [J/(kg*K)].'&
                                             ,'0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartTau' &
-                                            ,'thermal accommodation coeﬃcient during granular particle interaction.'&
+                                            ,'thermal accommodation coefficient during granular particle interaction.'&
                                             ,'1.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartEps' &
-                                            ,'fraction of specularly reﬂected gas atoms during granular particle interaction.'&
+                                            ,'fraction of specularly reflected gas atoms during granular particle interaction.'&
                                             ,'0.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
@@ -288,7 +288,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF, UseGranularSpec
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase, SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -337,7 +337,7 @@ DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic')
 !-----------------------------------------------------------------------------------
 ! Initialization of collision mode and internal energy modelling (rotational, vibrational and electronic relaxation)
 !-----------------------------------------------------------------------------------
-CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
+CollisMode = GETINT('Particles-DSMC-CollisMode')
 SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') ! 1: Laux, 2: Gimelsheim
 IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
@@ -346,10 +346,10 @@ ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
 END IF
-! If granular species exist, the internal degree of freedom needs to be used (restart and communication) 
+! If granular species exist, the internal degree of freedom needs to be used (restart and communication)
 ! as long as the vibration energy is used as the bulk temperature value for granular species
 IF((CollisMode.LT.2).AND.ANY(Species(:)%InterID.EQ.100)) THEN
-  CollisMode = 2  
+  CollisMode = 2
 END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
@@ -510,11 +510,12 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
     END IF
   END DO !iSpec
-  
+
+  ! Granular species
   SpecDSMC(:)%ThermalACCGranularPart         = 0.0
   SpecDSMC(:)%SpecularReflecProbGranularPart = 0.0
   SpecDSMC(:)%SpecificHeatSolid              = 0.0
-  IF(ANY(Species(:)%InterID.EQ.100)) THEN
+  IF(UseGranularSpec) THEN
     DO iSpec = 1, nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       IF (Species(iSpec)%InterID.EQ.100) THEN
@@ -527,10 +528,7 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         SpecDSMC(iSpec)%SpecularReflecProbGranularPart = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartEps' )
       END IF
     END DO
-  ELSE
-
   END IF
-
 
   DO iSpec=1, nSpecies
     ! Save the electron species into a global variable
