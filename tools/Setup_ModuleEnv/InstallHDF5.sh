@@ -69,8 +69,9 @@ do
     USECOMPILERVERSION=13.2.0
 
     # OpenMPI
-    #MPINAMES='openmpi'
+    MPINAMES='openmpi'
     #USEMPIVERSION=4.1.5
+    #USEMPIVERSION=4.1.6
 
     # MPICH
     MPINAMES='mpich'

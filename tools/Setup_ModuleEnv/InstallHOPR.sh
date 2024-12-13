@@ -100,13 +100,6 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    #CMAKEVERSION=3.15.3-d
-    #CMAKEVERSION=3.17.0-d
-    #CMAKEVERSION=3.20.3
-    #CMAKEVERSION=3.21.3
-    #CMAKEVERSION=3.24.2
-    #CMAKEVERSION=3.26.4
-    CMAKEVERSION=3.30.3
 
     #GCCVERSION=9.2.0
     #GCCVERSION=9.3.0
@@ -122,6 +115,7 @@ do
     #OPENMPIVERSION=3.1.6
     #OPENMPIVERSION=4.1.1
     #OPENMPIVERSION=4.1.5
+    #OPENMPIVERSION=4.1.6
 
     MPICHVERSION=4.1.2
 
@@ -191,14 +185,10 @@ fi
 # take the first gcc compiler installed with first compatible openmpi/mpich and hdf5
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
-  CMAKEVERSION=$(ls ${MODULESDIR}/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  if [[ -z $CMAKEVERSION ]]; then
-    CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  fi
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
+  echo -e "Modules found automatically.\n\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   fi
@@ -206,7 +196,6 @@ else
   echo "Modules defined by user. Check if the combination is possible!"
 fi
 
-check_module "cmake" "${CMAKEVERSION}"
 check_module "gcc" "${GCCVERSION}"
 check_module "${WHICHMPI}" "${MPIVERSION}"
 check_module "hdf5" "${HDF5VERSION}"
@@ -228,7 +217,6 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
   echo -e "$GREEN""$MODULEFILE$NC"
   echo " "
   module purge
-  load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
   load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
   load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}"
@@ -357,7 +345,6 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
     fi
     cp ${TEMPLATEPATH} ${MODULEFILE}
     sed -i 's/hoprversion/'${HOPRVERSION}'/gI' ${MODULEFILE}
-    sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
     sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${MODULEFILE}
     sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${MODULEFILE}

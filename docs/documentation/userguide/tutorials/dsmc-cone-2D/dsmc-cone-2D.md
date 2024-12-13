@@ -180,7 +180,7 @@ In axially symmetrical cases, the simulation effort can be greatly reduced. For 
     Particles-Symmetry-Order         = 2
     Particles-Symmetry2DAxisymmetric = T
 
-First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the boundaries parallel to the $xy$-plane with the condition `symmetric`.
+First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the boundaries parallel to the $xy$-plane with the condition `symmetric_dim`.
 
     Part-Boundary4-SourceName  = SYMAXIS
     Part-Boundary4-Condition   = symmetric_axis
@@ -189,15 +189,15 @@ For the `.cgns` mesh, the following commands need to be enabled:
 
     Part-nBounds               = 5
     Part-Boundary5-SourceName  = ROTSYM
-    Part-Boundary5-Condition   = symmetric
+    Part-Boundary5-Condition   = symmetric_dim
 
 For the `.msh` mesh instead, the following commands need to be enabled:
 
     Part-nBounds               = 6
     Part-Boundary5-SourceName  = lowerZ_BC
-    Part-Boundary5-Condition   = symmetric
+    Part-Boundary5-Condition   = symmetric_dim
     Part-Boundary6-SourceName  = upperZ_BC
-    Part-Boundary6-Condition   = symmetric
+    Part-Boundary6-Condition   = symmetric_dim
 
 To fully exploit rotational symmetry, a radial weighting can be enabled via `Particles-RadialWeighting = T`, which will linearly increase the weighting factor towards $y_{\text{max}}$, depending on the current $y$-position of the particle. Thereby the `Particles-RadialWeighting-PartScaleFactor` multiplied by the `MacroParticleFactor` is the weighting factor at $y_{\text{max}}$. Since this position based weighting requires an adaptive weighting factor, particle deletion and cloning is necessary. `Particles-RadialWeighting-CloneDelay` defines the number of iterations in which the information of the particles to be cloned are stored and `Particles-RadialWeighting-CloneMode = 2` ensures that the particles from this list are inserted randomly after the delay.
 
@@ -260,7 +260,7 @@ When using several cores, piclas divides the computing load by distributing the 
 
 If the conditions change, it could make sense to redistribute the computing load. An example is the build-up of a bow shock during the simulation time: While all cells have the same particle density during initialization, an imbalance will develop after a short time. The cores with cells in the area of the bow shock have significantly more computational effort, since the particle density is significantly higher. As mentioned at the beginning, **piclas** redistributes the computing load each time it is started.
 
-The parameter `Particles-MPIWeight` indicates whether the distribution should be oriented more towards a uniform distribution of the cells (values less than 1) or a uniform distribution of the particles (values greater than 1). There are options in piclas to automate this process by defining load balancing steps during a single program call. For this, load balancing must have been activated when compiling piclas (which is the default). To activate load balancing based on the number of particles, `DoLoadBalance = T` and `PartWeightLoadBalance = T` must be set. **piclas** then decides after each `Analyze_dt` whether a redistribution is required. This is done using the definable `Load DeviationThreshold`. Should the maximum relative deviation of the calculation load be greater than this value, a load balancing step is carried out. If `DoInitialAutoRestart = T` and `InitialAutoRestart-PartWeightLoadBalance = T` are set, a restart is carried out after the first `Analyze_dt` regardless of the calculated imbalance. To restrict the number of restarts, `LoadBalanceMaxSteps` limits the number of all load balancing steps to the given number.
+The parameter `Particles-MPIWeight` indicates whether the distribution should be oriented more towards a uniform distribution of the cells (values less than 1) or a uniform distribution of the particles (values greater than 1). There are options in piclas to automate this process by defining load balancing steps during a single program call. For this, load balancing must have been activated when compiling piclas (which is the default). To activate load balancing based on the number of particles, `DoLoadBalance = T` and `PartWeightLoadBalance = T` must be set. **piclas** then decides after each `Analyze_dt` whether a redistribution is required. This is done using the definable `Load DeviationThreshold`. Should the maximum relative deviation of the calculation load be greater than this value, a load balancing step is carried out. If `DoInitialAutoRestart = T` and `InitialAutoRestart-PartWeightLoadBalance = T` are set, a restart is carried out after the first `Analyze_dt` regardless of the calculated imbalance. To restrict the number of restarts, `LoadBalanceMaxSteps` limits the number of all load balancing steps to the given number. Currently, the radial weighting only supports a load balance using and HDF5 output. Therefore, the flag `UseH5IOLoadBalance` must be set.
 
     ! Load Balancing
     Particles-MPIWeight                      = 1000
@@ -269,6 +269,7 @@ The parameter `Particles-MPIWeight` indicates whether the distribution should be
     DoInitialAutoRestart                     = T
     InitialAutoRestart-PartWeightLoadBalance = T
     LoadBalanceMaxSteps                      = 2
+    UseH5IOLoadBalance                       = T
 
 Information about the imbalance are shown in the *std.out* and the *ElemTimeStatistics.csv* file.
 The default load balancing scheme will exchange the required data internally, but there is also the possibility to perform the
