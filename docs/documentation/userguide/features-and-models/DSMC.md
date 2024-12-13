@@ -429,9 +429,7 @@ presented in Section {ref}`sec:DSMC-electronic-relaxation`.
 (sec:granular-flows)=
 ## Granular Flows
 
-A one-way coupling for gas-solid particle interactions is implemented in PICLas and based on 'DEVELOPMENT OF A TWO-WAY COUPLED MODEL
-FOR TWO PHASE RAREFIED FLOWS' by J. Burt, I. Boyd, in: 42nd AIAA Aerospace Sciences Meeting and Exhibit, 2004, p. 1351.
-This approach assumes that only the influence of the gas flow on the solid particle is considered. The following assumptions apply to this model:
+A one-way coupling for gas-solid particle interactions is implemented in PICLas and based on {cite}`Burt2003`. This approach assumes that only the influence of the gas flow on the solid particle is considered. The following assumptions apply to this model:
 
 - Solid particles are assumed to be perfectly spherical.
 - No temperature gradient exists within the solid particles, meaning their temperature is spatially uniform.
