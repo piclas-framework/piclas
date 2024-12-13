@@ -931,7 +931,6 @@ DO iLoop = 1, nPart
       W_g     =>  Species(SpecID)%MacroParticleFactor,&
       m_g     =>  Species(SpecID)%MassIC ,&
       tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
-      eps_g   =>  SpecDSMC(SpecID)%SpecularReflecProbGranularPart ,&
       e_rot   =>  PartStateIntEn( 2,locPart) ,&
       Lambda  =>  SpecDSMC(SpecID)%Xi_Rot &
       )

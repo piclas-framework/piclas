@@ -513,7 +513,6 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
 
   ! Granular species
   SpecDSMC(:)%ThermalACCGranularPart         = 0.0
-  SpecDSMC(:)%SpecularReflecProbGranularPart = 0.0
   SpecDSMC(:)%SpecificHeatSolid              = 0.0
   IF(UseGranularSpec) THEN
     DO iSpec = 1, nSpecies
@@ -525,7 +524,6 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         END IF
       ELSE
         SpecDSMC(iSpec)%ThermalACCGranularPart         = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartTau' )
-        SpecDSMC(iSpec)%SpecularReflecProbGranularPart = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartEps' )
       END IF
     END DO
   END IF

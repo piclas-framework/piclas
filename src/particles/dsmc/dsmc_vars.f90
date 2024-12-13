@@ -160,7 +160,6 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
 
   ! Granular particle interaction
   REAL                              :: ThermalACCGranularPart        ! thermal accommodation coefficient during granular particle interaction
-  REAL                              :: SpecularReflecProbGranularPart! fraction of specularly reflected gas atoms during granular particle interaction
   REAL                              :: SpecificHeatSolid             ! solid particle specific heat [J/(kg*K)]
 END TYPE tSpeciesDSMC
 
