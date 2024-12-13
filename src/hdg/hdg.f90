@@ -801,9 +801,16 @@ CASE(2)
   PetscCallA(KSPSetType(PETScSolver,KSPCG, ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  ! relative, absolute, divergence, and maximum iteration tolerances used by the default KSP convergence tests
   PetscCallA(KSPSetTolerances(PETScSolver,1e-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Incomplete factorization preconditioner
   PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+CASE(3)
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Parallel preconditioning with sparse approximate inverses
+  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
 #endif
 CASE(20)
   ! ====== Iterative solver: GMRES
@@ -844,7 +851,7 @@ CASE(10)
   PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
 #endif
 CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE.')
+  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE. PrecondType=', IntInfoOpt=PrecondType)
 END SELECT
 
 ! Get solver and preconditioner types
