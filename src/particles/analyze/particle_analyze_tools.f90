@@ -500,6 +500,9 @@ USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid
 USE MOD_PIC_Analyze           ,ONLY: CalculateBRElectronsPerCell
 #endif /*USE_HDG*/
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+#if drift_diffusion
+USE MOD_FV_Vars               ,ONLY: U_FV
+#endif /*drift_diffusion*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -566,7 +569,11 @@ END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
+#if drift_diffusion
+  ElectronDensityCell(iElem)=U_FV(1,0,0,0,iElem)
+#else
   ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+#endif /*drift_diffusion*/
        IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
    NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 END DO ! iElem=1,PP_nElems

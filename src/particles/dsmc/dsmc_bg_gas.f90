@@ -46,17 +46,15 @@ CALL prms%CreateLogicalOption(  'Particles-BGGas-UseDistribution', &
                                       'Utilization of a cell-local background gas distribution as read-in from a previous '//&
                                       'DSMC/BGK result using Particles-MacroscopicRestart', '.FALSE.')
 ! Backgroun gas regions
-CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                    ,'Number of background gas regions', '0')
-CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'              ,'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'          ,'Outer radius'                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'         ,'Inner radius (e.g. for a ring)' , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       , 'Base point'         , numberedmulti=.TRUE., no=3)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     , 'First base vector'  , numberedmulti=.TRUE., no=3)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     , 'Second base vector' , numberedmulti=.TRUE., no=3)
-CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC'  ,'Third measure of cylinder', numberedmulti=.TRUE.)
-CALL prms%CreateStringOption(   'BGGas-DriftDiff-Database'&
-                                          , 'Select database from which the coefficients where calculated '//&
-                                          'Database','none')
+CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                   , 'Number of background gas regions'                                              , '0')
+CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'             , 'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder'            , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'         , 'Outer radius'                                                                  , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'        , 'Inner radius (e.g. for a ring)'                                                , '0.'                  , numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'      , 'Base point'                                                                    , numberedmulti=.TRUE.  , no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'    , 'First base vector'                                                             , numberedmulti=.TRUE.  , no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'    , 'Second base vector'                                                            , numberedmulti=.TRUE.  , no=3)
+CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC' , 'Third measure of cylinder'                                                     , numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'BGGas-DriftDiff-Database'                   , 'Define database containing the drift-diffusion transport coefficients')
 END SUBROUTINE DefineParametersBGG
 
 
@@ -93,7 +91,6 @@ INTEGER           :: iSpec, bgSpec, iElem
 REAL              :: SpeciesDensTmp(1:nSpecies)
 
 #ifdef drift_diffusion
-CHARACTER(32)                                         :: hilf
 INTEGER                                               :: err
 CHARACTER(LEN=255)                                    :: datasetname
 CHARACTER(LEN=255)                                    :: DatabaseSpeciesName
@@ -111,9 +108,6 @@ INTEGER                                               :: iDataset
 LOGICAL                                               :: DataSetFound
 REAL                                                  :: SumNumberDensity
 REAL                                                  :: eps_rel=5e-5
-REAL                                                  :: TestPoint
-REAL                                                  :: CalcValue
-REAL                                                  :: CheckValue
 #endif
 !===================================================================================================================================
 
@@ -196,8 +190,9 @@ END DO ! bgSpec = 1, BGGas%NumberOfSpecies
 
 ! 6.) Read-in/convert drift diffusion coefficients
 #ifdef drift_diffusion
+IF(STRICMP(TRIM(SpeciesDatabase),'none')) CALL CollectiveStop(__STAMP__,&
+  'Particles-Species-Database must be set when using BGGas-DriftDiff-Database.')
 BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database'))
-IF(STRICMP(TRIM(BGGas%DatabaseName),'None')) CALL Abort(__STAMP__,'BGGas-DriftDiff-Database not set!')
 ! Loop through the array and create combination of species for database access
 DatabaseSpeciesName = ''
 DO iSpec = 1, nSpecies
@@ -289,7 +284,7 @@ ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility))THEN
                            'Please check species database!')
     END IF
   END IF
-ELSE 
+ELSE
   CALL Abort(__STAMP__,'Combination of datasets not possible to calculate D and mu!'//&
   'Please check species database!')
 END IF
@@ -649,7 +644,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
   ! Calculate number of resolved Cells for this processor
   DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
-  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
