@@ -181,7 +181,7 @@ IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   ! relaxfreqSpec = collisionfreqSpec / collision number Z with RelaxProb = 1/Z
   rotrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%RotRelaxProb
   vibrelaxfreqSpec(:) = collisionfreqSpec(:) * DSMC%VibRelaxProb
-  
+
   IF(DSMC%CalcQualityFactors) THEN
     BGK_MaxRotRelaxFactor          = MAX(BGK_MaxRotRelaxFactor,MAXVAL(rotrelaxfreqSpec(:))*dtCell)
   END IF
@@ -560,7 +560,7 @@ IF (BGKCollModel.EQ.1) THEN
     AverageValues(7) = BGKMovingAverageFac*u0ij(1,3) + (1.-BGKMovingAverageFac)*AverageValues(7)
     AverageValues(8) = BGKMovingAverageFac*u0ij(2,3) + (1.-BGKMovingAverageFac)*AverageValues(8)
   END IF
-  dens = AverageValues(1)  
+  dens = AverageValues(1)
   u2 = AverageValues(2)
   u0ij(1,1)=AverageValues(3); u0ij(2,2)=AverageValues(4); u0ij(3,3)=AverageValues(5);
   u0ij(1,2)=AverageValues(6); u0ij(1,3)=AverageValues(7); u0ij(2,3)=AverageValues(8);
@@ -690,7 +690,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
     ! particle-based ellipsoidal statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", submitted to Phys.
     ! Fluids, August 2023
     PrandtlCorrection = PrandtlCorrection + DOFFraction(iSpec)*MassIC_Mixture/Species(iSpec)%MassIC/TotalDOFWeight
-    C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec) 
+    C_P = C_P + ((5. + (Xi_VibSpec(iSpec)+Xi_RotSpec(iSpec)))/2.) * BoltzmannConst / Species(iSpec)%MassIC * MassFraction(iSpec)
   END DO
 
   SELECT CASE(BGKMixtureModel)
@@ -743,7 +743,7 @@ IF (nSpecies.GT.1) THEN ! gas mixture
       dynamicvis = dynamicvis + REAL(totalWeightSpec(iSpec)) * dynamicvisSpec(iSpec) / Phi(iSpec)
       thermalcond = thermalcond + REAL(totalWeightSpec(iSpec)) * thermalcondspec(iSpec) / Phi(iSpec)
     END DO
-  
+
   CASE(2) ! Collision integrals (VHS)
     DO iSpec = 1, nSpecies
       IF ((nSpec(iSpec).LT.2).OR.ALMOSTZERO(u2Spec(iSpec))) THEN
@@ -928,15 +928,15 @@ outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
             ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
             IF(CHECKEXP(exparg)) THEN
               IF(exparg.gt.0.) THEN ! positive overflow: exp -> inf
-                Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
+                Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(EXP(exparg)-1.)
               ELSE ! negative overflow: exp -> 0
-                Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
+                Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(-1.)
               END IF ! exparg.gt.0.
             ELSE
-              Xi_vib_DOF(iSpec,iDOF) = 0.0
+              Xi_vib_DOF(iPolyatMole,iDOF) = 0.0
             END IF ! CHECKEXP(exparg)
           END DO
-          Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iSpec,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iPolyatMole,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
         ELSE ! diatomic
           exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
           ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
@@ -984,15 +984,15 @@ outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
               ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
               IF(CHECKEXP(exparg)) THEN
                 IF(exparg.gt.0.) THEN ! positive overflow: exp -> inf
-                  Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
+                  Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(EXP(exparg)-1.)
                 ELSE ! negative overflow: exp -> 0
-                  Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
+                  Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(-1.)
                 END IF ! exparg.gt.0.
               ELSE
-                Xi_vib_DOF(iSpec,iDOF) = 0.0
+                Xi_vib_DOF(iPolyatMole,iDOF) = 0.0
               END IF ! CHECKEXP(exparg)
             END DO
-            Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iSpec,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+            Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iPolyatMole,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
           ELSE ! diatomic
             exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
             ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
@@ -1299,7 +1299,7 @@ IF (nRelax.GT.0) THEN
     ! Generate random normals for the sampling of new velocities of all relaxing particles
     CALL BGK_BuildTransGaussNums(nRelax, iRanPart)
   END SELECT
-  
+
   ! Loop over all particles undergoing a relaxation towards the target distribution function
   DO iLoop = 1, nRelax
     iPart = iPartIndx_NodeRelax(iLoop)
@@ -1721,8 +1721,11 @@ DO iSpec = 1, nSpecies
       DiffCoef(iSpec,jSpec) = 3.*E_12/(2.*(Species(iSpec)%MassIC+Species(jSpec)%MassIC)*dens)
       DiffCoef(jSpec,iSpec) = DiffCoef(iSpec,jSpec)
     END IF
-    Xj_Dij(iSpec,jSpec) = Xi(jSpec)/DiffCoef(iSpec,jSpec)
-    Xj_Dij(jSpec,iSpec) = Xj_Dij(iSpec,jSpec)
+    IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20).OR. &
+        (Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
+      Xj_Dij(iSpec,jSpec) = Xi(jSpec)/DiffCoef(iSpec,jSpec)
+      Xj_Dij(jSpec,iSpec) = Xj_Dij(iSpec,jSpec)
+    END IF
   END DO
   IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! Calculation of thermal conductivity of rotation and vibration for each molecular species
