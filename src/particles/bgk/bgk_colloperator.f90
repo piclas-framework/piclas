@@ -132,7 +132,7 @@ IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   dens = totalWeight / NodeVolume
 ELSE
   ! MPF is the same for all species
-  dens = totalWeight * Species(1)%MacroParticleFactor / NodeVolume
+  dens = totalWeight * Species(PartSpecies(iPartIndx_Node(1)))%MacroParticleFactor / NodeVolume
 END IF
 
 IF (BGKMovingAverage) THEN
