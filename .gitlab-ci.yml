@@ -653,7 +653,7 @@ drift_diffusion:
   <<: *defaults_drift_diffusion_checkin
   stage: reggie_checkin
   script:
-    - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV -e ./bin/piclas
+    - cd build_drift_diffusion ; python ../reggie/reggie.py ../regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
