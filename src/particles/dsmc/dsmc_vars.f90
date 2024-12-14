@@ -140,23 +140,27 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
-  REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
-  REAL                              :: EZeroPoint           ! Zero point energy for molecules
-  REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
-  INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
-  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
-  INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
-                                                            ! ionization)
+  REAL, ALLOCATABLE                 :: PartitionFunction(:)          ! Partition function for each species in given temperature range
+  REAL                              :: EZeroPoint                    ! Zero point energy for molecules
+  REAL                              :: HeatOfFormation               ! Heat of formation of the respective species [Kelvin]
+  INTEGER                           :: PreviousState                 ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized                  ! Flag if the species is fully ionized (e.g. C^6+)
+  INTEGER                           :: NextIonizationSpecies         ! SpeciesID of the next higher ionization level (required for field
+                                                                     ! ionization)
   ! Collision cross-sections for MCC
-  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
-                                                            ! treated with read-in collision cross-section
-  LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
-                                                            ! using read-in cross-sectional data
-  LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
-                                                            ! using read-in cross-sectional data (currently only with BGG)
-  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
-  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronic landau-teller relaxation
-  REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
+  LOGICAL                           :: UseCollXSec                   ! Flag if the collisions of the species with a background gas should be
+                                                                     ! treated with read-in collision cross-section
+  LOGICAL                           :: UseVibXSec                    ! Flag if the vibrational relaxation probability should be treated,
+                                                                     ! using read-in cross-sectional data
+  LOGICAL                           :: UseElecXSec                   ! Flag if the electronic relaxation probability should be treated,
+                                                                     ! using read-in cross-sectional data (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)          ! Prefactors for calculating the collision frequency in each time step
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:)        ! Correction factor for electronic landau-teller relaxation
+  REAL                              :: MaxMeanXiElec(2)              ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
+
+  ! Granular particle interaction
+  REAL                              :: ThermalACCGranularPart        ! thermal accommodation coefficient during granular particle interaction
+  REAL                              :: SpecificHeatSolid             ! solid particle specific heat [J/(kg*K)]
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)

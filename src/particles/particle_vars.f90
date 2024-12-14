@@ -139,6 +139,7 @@ TYPE tSpecies                                                                ! P
                                                                              !     4   : Electron
                                                                              !     10  : Atomic ion
                                                                              !     20  : Molecular ion
+                                                                             !    100  : Granular species
   REAL                                   :: MacroParticleFactor              ! Number of Microparticle per Macroparticle
   REAL                                   :: TimeStepFactor                   ! Species-specific time step factor
   INTEGER                                :: NumberOfInits                    ! Number of different initial particle placements
@@ -309,6 +310,15 @@ LOGICAL               :: InRotRefFrameSubCycling      ! Check for RotRefFrame be
 
 ! Sampling of pressure tensor and heatflux
 LOGICAL               :: SamplePressTensHeatflux
+
+! Consideration of gravity for granular species
+LOGICAL               :: UseGranularSpecies ! Flag for the usage of granular species
+LOGICAL               :: UseGravitation     ! Flag for taking gravity into account for granular species
+REAL                  :: GravityDir(3)      ! Direction of gravity force
+LOGICAL               :: SkipGranularUpdate ! Flag to skip granular species position, velocity and temperature update
+                                            ! used only for benchmark TC
+REAL                  :: ForceAverage(5)
+REAL                  :: SumForceAverage(5)
 
 !===================================================================================================================================
 END MODULE MOD_Particle_Vars

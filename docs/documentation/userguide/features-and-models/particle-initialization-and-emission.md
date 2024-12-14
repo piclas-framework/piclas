@@ -70,6 +70,7 @@ Different `SpaceIC` are available and an overview is given in the table below.
 | Distribution         | Description                                                                      | Reference                                    |
 | -------------------- | -------------------------------------------------------------------------------- | -------------------------------------------- |
 | cell_local           | Particles are inserted in every cell at a constant number density                | Section {ref}`sec:particle-cell-local`       |
+| point                | Particles are inserted at a specified point                                      | Section {ref}`sec:particle-point-init`       |
 | disc                 | Particles are inserted on a circular disc                                        | Section {ref}`sec:particle-disk-init`        |
 | cuboid               | Particles are inserted in the given cuboid volume at a constant number density   | Section {ref}`sec:particle-cuboid-init`      |
 | cylinder             | Particles are inserted in the given cylinder volume at a constant number density | Section {ref}`sec:particle-cylinder-init`    |
@@ -104,7 +105,6 @@ considered, the electronic temperature [K] has to be defined
 The parameters given so far are sufficient to define an initialization region for a molecular species using the `cell_local` option.
 Additional options required for other insertion regions are described in the following.
 
-
 (sec:particle-cell-local)=
 ### Cell local
 
@@ -119,6 +119,13 @@ can also be utilized for 2D and axisymmetric simulations.
 When using a variable particle weighting as described in Section {ref}`sec:variable-particle-weighting`, the variable `Part-Species1-vMPFSplitThreshold`
 will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
 given number density and cell volume.
+
+(sec:particle-point-init)=
+### Point
+
+Particles can be inserted at a point specified by
+
+    Part-Species1-Init1-BasePointIC=(/1.0,1.0,1.0/)
 
 (sec:particle-disk-init)=
 ### Circular Disc

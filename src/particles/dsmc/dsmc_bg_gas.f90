@@ -500,7 +500,7 @@ USE MOD_Globals
 USE MOD_DSMC_Analyze          ,ONLY: CalcGammaVib, CalcMeanFreePath
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, BGGas, CollisMode, ChemReac, PartStateIntEn, DSMC, SelectionProc
-USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species
+USE MOD_Particle_Vars         ,ONLY: PEM,PartSpecies,nSpecies,PartState,Species,usevMPF,Species,UseGranularSpecies
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
 USE MOD_DSMC_Collis           ,ONLY: DSMC_perform_collision
@@ -520,6 +520,7 @@ INTEGER, INTENT(IN)           :: iElem
 INTEGER                       :: nPair, iPair, iPart, iLoop, nPart, CNElemID
 INTEGER                       :: cSpec1, cSpec2, iCase, iSpec, bggSpec
 REAL                          :: iRan, MPF
+INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 ! Skip elements outside of any background gas regions
@@ -528,6 +529,19 @@ IF(BGGas%UseRegions) THEN
 END IF
 
 nPart = PEM%pNumber(iElem)
+IF(UseGranularSpecies) THEN
+! Get real nPart without granular species
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
+
 nPair = INT(nPart/2.)
 
 ! Routine to increase the sample size for trace background gas species by splitting the simulation particle
@@ -547,6 +561,10 @@ IF (CollisMode.EQ.3) ChemReac%MeanEVib_PerIter(1:nSpecies) = 0.0
 iPair = 1
 iPart = PEM%pStart(iElem)
 DO iLoop = 1, nPart
+  ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+  DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+    iPart = PEM%pNext(iPart)
+  END DO
   iSpec = PartSpecies(iPart)
   ! Counting the number of particles per species
   MPF = GetParticleWeight(iPart)
