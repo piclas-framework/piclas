@@ -53,10 +53,10 @@ CALL prms%SetSection("DSMC")
 
 CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      &
                                         , 'Define mode of collision handling in DSMC.\n'//&
-                                            '0: No Collisions (=free molecular flow with DSMC-Sampling-Routines).\n'//&
-                                            '1: Elastic Collision \n'//&
-                                            '2: Relaxation + Elastic Collision \n'//&
-                                            '3: Mode 2 + Chemical Reactions.', '1')
+                                            '0: No collisions (=free molecular flow with DSMC-Sampling-Routines).\n'//&
+                                            '1: Elastic collisions \n'//&
+                                            '2: Relaxation + elastic collisions \n'//&
+                                            '3: Mode 2 + chemical reactions.', '1')
 CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'     &
                                         , 'Mode of Selection Procedure\n'//&
                                           '1: Laux\n'//&
@@ -265,6 +265,13 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempVib[$]'  &
 CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                            ,'Characteristic rotational temperature [K]. Linear molecules require only a single '//&
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
+! Granular species
+CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartCsp' &
+                                            ,'Solid particle specific heat [J/(kg*K)].'&
+                                            ,'0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartTau' &
+                                            ,'Thermal accommodation coefficient of gas species during granular particle interaction.'&
+                                            ,'1.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
 
@@ -279,7 +286,7 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Vars
 USE MOD_Mesh_Vars              ,ONLY: nElems, NGEo
 USE MOD_Globals_Vars           ,ONLY: Pi, BoltzmannConst, ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF
+USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, PDM, UseVarTimeStep, usevMPF, UseGranularSpecies
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoFieldIonization, SpeciesDatabase, SampleElecExcitation
 USE MOD_DSMC_ParticlePairing   ,ONLY: DSMC_init_octree
@@ -328,7 +335,7 @@ DSMC%ReservoirRateStatistic  = GETLOGICAL('Particles-DSMCReservoirStatistic')
 !-----------------------------------------------------------------------------------
 ! Initialization of collision mode and internal energy modelling (rotational, vibrational and electronic relaxation)
 !-----------------------------------------------------------------------------------
-CollisMode = GETINT('Particles-DSMC-CollisMode','1') !0: no collis, 1:elastic col, 2:elast+rela, 3:chem
+CollisMode = GETINT('Particles-DSMC-CollisMode')
 SelectionProc = GETINT('Particles-DSMC-SelectionProcedure','1') ! 1: Laux, 2: Gimelsheim
 IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
@@ -336,6 +343,11 @@ IF(CollisMode.GE.2) THEN
 ELSE
   DSMC%RotRelaxProb = 0.
   DSMC%VibRelaxProb = 0.
+END IF
+! If granular species exist, the internal degree of freedom needs to be used (restart and communication)
+! as long as the vibration energy is used as the bulk temperature value for granular species
+IF((CollisMode.LT.2).AND.ANY(Species(:)%InterID.EQ.100)) THEN
+  CollisMode = 2
 END IF
 DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
@@ -480,6 +492,8 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
 
   ! Sanity check of VHS/VSS parameters
   DO iSpec = 1, nSpecies
+    ! Skip sanity check for granular species
+    IF(Species(iSpec)%InterID.EQ.100) CYCLE
     WRITE(UNIT=hilf,FMT='(I0)') iSpec
     ! check for faulty parameters
     IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
@@ -496,11 +510,28 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
     END IF ! alphaVSS parameter check
   END DO
 
+  ! Granular species
+  SpecDSMC(:)%ThermalACCGranularPart         = 0.0
+  SpecDSMC(:)%SpecificHeatSolid              = 0.0
+  IF(UseGranularSpecies) THEN
+    DO iSpec = 1, nSpecies
+      WRITE(UNIT=hilf,FMT='(I0)') iSpec
+      IF (Species(iSpec)%InterID.EQ.100) THEN
+        SpecDSMC(iSpec)%SpecificHeatSolid              = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartCsp' )
+        IF(ALMOSTZERO(SpecDSMC(iSpec)%SpecificHeatSolid)) THEN
+          CALL Abort(__STAMP__,'ERROR in species data: check speciﬁc heat [J/(kg*K)] of granular species. It must not be 0')
+        END IF
+      ELSE
+        SpecDSMC(iSpec)%ThermalACCGranularPart         = GETREAL('Part-Species'//TRIM(hilf)//'-GranularPartTau' )
+      END IF
+    END DO
+  END IF
+
   DO iSpec=1, nSpecies
     ! Save the electron species into a global variable
     IF(Species(iSpec)%InterID.EQ.4) DSMC%ElectronSpecies = iSpec
     ! reading electronic state information from HDF5 file
-    IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4)) THEN
+    IF(((DSMC%ElectronicModelDatabase.NE.'none').OR.(SpeciesDatabase.NE.'none')).AND.(Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
       CALL SetElectronicModel(iSpec)
     END IF
   END DO
@@ -702,7 +733,7 @@ ELSE !CollisMode.GT.0
         IF(.NOT.Species(iSpec)%DoOverwriteParameters) THEN
           dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
-          IF(Species(iSpec)%InterID.NE.4) THEN
+          IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
             dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
             CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=AttrExists)
             IF (AttrExists) THEN
@@ -837,7 +868,7 @@ ELSE !CollisMode.GT.0
 
     DO iSpec = 1, nSpecies
       IF(Species(iSpec)%DoOverwriteParameters) THEN
-        IF(Species(iSpec)%InterID.NE.4) THEN
+        IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
           LBWRITE (UNIT_stdOut,'(68(". "))')
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           SpecDSMC(iSpec)%PolyatomicMol=GETLOGICAL('Part-Species'//TRIM(hilf)//'-PolyatomicMol','.FALSE.')
@@ -1063,7 +1094,7 @@ ELSE !CollisMode.GT.0
     DO iSpec=1,nSpecies
       WRITE(UNIT=hilf,FMT='(I0)') iSpec
       ! Read-in of species for field ionization (only required if it cannot be determined automatically)
-      IF(Species(iSpec)%InterID.NE.4) THEN
+      IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
         SpecDSMC(iSpec)%NextIonizationSpecies = GETINT('Part-Species'//TRIM(hilf)//'-NextIonizationSpecies')
       ELSE
         SpecDSMC(iSpec)%NextIonizationSpecies = 0
@@ -1422,7 +1453,7 @@ INTEGER       :: iSpec
 AutoDetect=.FALSE.
 DO iSpec = 1, nSpecies
   ! loop all species, except electrons (also loop over fully ionized species!)
-  IF(Species(iSpec)%InterID.NE.4) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
     IF(SpecDSMC(iSpec)%PreviousState.NE.0)THEN
       SpecDSMC(SpecDSMC(iSpec)%PreviousState)%NextIonizationSpecies = iSpec
       AutoDetect=.TRUE.

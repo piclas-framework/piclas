@@ -39,7 +39,7 @@ SUBROUTINE BGK_octree_adapt(iElem)
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC
 USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells
-USE MOD_Particle_Vars           ,ONLY: DoVirtualCellMerge
+USE MOD_Particle_Vars           ,ONLY: DoVirtualCellMerge, PartSpecies
 #if PP_TimeDiscMethod==300
 USE MOD_Particle_Vars           ,ONLY: PartState
 #else
@@ -154,7 +154,7 @@ ELSE
     ! totalWeight contains the weighted particle number
     Dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
-    Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
+    Dens = totalWeight * Species(PartSpecies(PEM%pStart(iElem)))%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
 ! The octree refinement is performed if either the particle number or number density is above a user-given limit
@@ -439,7 +439,7 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC
-USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells, DoVirtualCellMerge
+USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells, DoVirtualCellMerge, PartSpecies
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens,BGKMovingAverage,ElemNodeAveraging
 USE MOD_FP_CollOperator         ,ONLY: FP_CollisionOperator
@@ -550,7 +550,7 @@ ELSE
     ! totalWeight contains the weighted particle number
     Dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
-    Dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
+    Dens = totalWeight * Species(PartSpecies(PEM%pStart(iElem)))%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
   ! The quadtree refinement is performed if either the particle number or number density is above a user-given limit

@@ -225,6 +225,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
+  REAL    , ALLOCATABLE                  :: DeformEnergyLoss(:)
   ! Temperature gradient across reflective BC
   REAL    , ALLOCATABLE                  :: WallTemp2(:), WallTempDelta(:)
   REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)

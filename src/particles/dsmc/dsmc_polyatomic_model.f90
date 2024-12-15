@@ -337,12 +337,22 @@ IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
   ELSE
     CALL DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
   END IF
+! For granular species E vib is used as value for bulk temperatur
+ELSE IF (Species(iSpec)%InterID.EQ.100) THEN
+  SELECT CASE (init_or_sf)
+  CASE(1) !iInit
+    PartStateIntEn( 1,iPart) = Species(iSpec)%Init(iInit)%MWTemperatureIC
+  CASE(2) !SurfaceFlux
+    PartStateIntEn( 1,iPart) = Species(iSpec)%Surfaceflux(iInit)%MWTemperatureIC
+  CASE DEFAULT
+    CALL abort(__STAMP__,'ERROR: Neither iInit nor Surfaceflux defined as reference in DSMC_SetInternalEnr!')
+  END SELECT
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Set electronic energy
 !-----------------------------------------------------------------------------------------------------------------------------------
 IF (DSMC%ElectronicModel.GT.0) THEN
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     CALL InitElectronShell(iSpec,iPart,iInit,init_or_sf)
   ELSE
     PartStateIntEn( 3,iPart) = 0.

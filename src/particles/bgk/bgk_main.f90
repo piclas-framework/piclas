@@ -43,7 +43,7 @@ SUBROUTINE BGK_DSMC_main(stage_opt)
 ! MODULES
 USE MOD_Globals
 USE MOD_BGK_Adaptation      ,ONLY: BGK_octree_adapt, BGK_quadtree_adapt
-USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, usevMPF
+USE MOD_Particle_Vars       ,ONLY: PEM, Species, WriteMacroVolumeValues, usevMPF, PartSpecies
 USE MOD_BGK_Vars            ,ONLY: DoBGKCellAdaptation,BGKDSMCSwitchDens
 USE MOD_BGK_Vars            ,ONLY: BGKMovingAverage,ElemNodeAveraging
 USE MOD_BGK_Vars            ,ONLY: BGK_MeanRelaxFactor,BGK_MeanRelaxFactorCounter,BGK_MaxRelaxFactor,BGK_QualityFacSamp
@@ -106,7 +106,7 @@ DO iElem = 1, nElems
   IF(usevMPF) THEN
     dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
-    dens = totalWeight * Species(1)%MacroParticleFactor / ElemVolume_Shared(CNElemID)
+    dens = totalWeight * Species(PartSpecies(PEM%pStart(iElem)))%MacroParticleFactor / ElemVolume_Shared(CNElemID)
   END IF
 
   IF (dens.LT.BGKDSMCSwitchDens) THEN

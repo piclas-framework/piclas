@@ -464,6 +464,10 @@ DO iSpec=1,nSpecies
       nDataBC=nDataBC+1
     END IF
     SF%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
+    ! Velocity distribution of granular species must be constant
+    IF(Species(iSpec)%InterID.EQ.100) THEN
+      SF%velocityDistribution  = 'constant'
+    END IF
     IF (TRIM(SF%velocityDistribution).NE.'constant' .AND. TRIM(SF%velocityDistribution).NE.'maxwell' .AND. &
         TRIM(SF%velocityDistribution).NE.'maxwell_lpn') THEN
       CALL abort(__STAMP__,'Only constant or maxwell-like velocity distributions implemented for surface flux!')
@@ -579,6 +583,9 @@ DO iSpec=1,nSpecies
     ! === ADAPTIVE BC ==============================================================================================================
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
+      IF(Species(iSpec)%InterID.EQ.100) THEN
+        CALL abort(__STAMP__,'ERROR in Surface Flux: Adaptive BC can not be defined for granular species!')
+      END IF
       UseAdaptiveBC  = .TRUE.
       SF%Type = 1
       IF(TrackingMethod.EQ.REFMAPPING) THEN
