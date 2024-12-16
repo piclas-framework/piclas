@@ -13,11 +13,23 @@ PICLas and its tools can be installed on a Linux machine without the need of com
 Currently, PICLas executables are only available as *[AppImage](https://appimage.org/)* for Linux.
 The only requirements are that [GNU C Library (glibc)](https://www.gnu.org/software/libc/) and [OpenMPI](https://www.open-mpi.org/)
 are pre-installed on the target system and available when running the AppImage executables.
+The minimum version requirements are listed in the following table and it is not guaranteed that more recent versions of the
+libraries listed in the table work automatically
+
+| PICLas Version | MPI                                                           | glibc   |
+| :------------: | :------------:                                                | :-----: |
+| 3.3.0 - 3.4.0  | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18    |
+| <3.3.0         | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.17    |
+
 Static libraries for [OpenMPI](https://www.open-mpi.org/) are not distributed within the AppImage package because of the system-dependent optimizations
-(e.g. specific InfiniBand settings) and the AppImage of piclas is built with [version 4.1.0](https://www.open-mpi.org/software/ompi/v4.1/).
-Additional external libraries and versions that are used for compiling are [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/),
-[HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) and
-[PETSc 3.18.4](https://petsc.org/release/changes/318/).
+(e.g. specific InfiniBand settings).
+Additional external libraries and versions that are used for compiling are the following but do not have to be installed separately
+on the system where the AppImage is going to be executed
+
+| PICLas Version | GNU GCC                                                                  | HDF5                                                                                   | PETSc                                                  |
+| :------------: | :------------:                                                           | :-----:                                                                                | :-----:                                                |
+| <=3.4.0        | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.18.4](https://petsc.org/release/changes/318/) |
+
 Other operating systems, such as Windows or MacOS might be supported in the future.
 
 Download the pre-compiled (on Centos7) executables from the [PICLas release tag assets](https://github.com/piclas-framework/piclas/releases).
@@ -76,13 +88,14 @@ from the command line. For convenience, you can add this line to your `.bashrc`.
 ## Required Libraries
 The following list contains the **recommended library combinations** for the Intel and GNU compiler in combination with HDF5, OpenMPI, CMake etc.
 
-| PICLas Version | CMake  | Compiler  |      MPI      |  HDF5  | PETSc  |
-| :------------: | :----: | :-------: | :-----------: | :----: | :----: |
-|     3.3.0      | 3.26.4 | gcc13.2.0 | openmpi-4.1.5 | 1.14.0 | 3.19.3 |
-|     2.8.0      | 3.24.2 | gcc12.2.0 | openmpi-4.1.4 | 1.12.2 |   -    |
-| 2.3.0 - 2.7.0  | 3.21.3 | gcc11.2.0 | openmpi-4.1.1 | 1.12.1 |   -    |
-|     2.0.0      |  3.17  | intel19.1 |   impi2019    |  1.10  |   -    |
-| 2.0.0 - 2.2.2  |  3.17  | intel19.1 |   impi2019    |  1.10  |   -    |
+| PICLas Version | CMake  | Compiler  |      MPI                   |  HDF5  | PETSc  |
+| :------------: | :----: | :-------: | :------------------------: | :----: | :----: |
+|     3.4.0      | 3.31.1 | gcc13.2.0 | openmpi-4.1.5, mpich-4.1.2 | 1.14.0 | 3.19.3 |
+|     3.3.0      | 3.26.4 | gcc13.2.0 | openmpi-4.1.5              | 1.14.0 | 3.19.3 |
+|     2.8.0      | 3.24.2 | gcc12.2.0 | openmpi-4.1.4              | 1.12.2 |   -    |
+| 2.3.0 - 2.7.0  | 3.21.3 | gcc11.2.0 | openmpi-4.1.1              | 1.12.1 |   -    |
+|     2.0.0      |  3.17  | intel19.1 |   impi2019                 |  1.10  |   -    |
+| 2.0.0 - 2.2.2  |  3.17  | intel19.1 |   impi2019                 |  1.10  |   -    |
 
 and the **minimum requirements**
 
