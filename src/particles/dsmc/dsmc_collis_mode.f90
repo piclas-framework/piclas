@@ -1082,9 +1082,9 @@ nPair = INT(nPartNode/2)
 IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
   NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume
 ELSE IF (UseVarTimeStep) THEN
-  NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(1)%MacroParticleFactor
+  NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(PartSpecies(iPart1))%MacroParticleFactor
 ELSE
-  NumDens = nPartNode / Volume * Species(1)%MacroParticleFactor
+  NumDens = nPartNode / Volume * Species(PartSpecies(iPart1))%MacroParticleFactor
 END IF
 ! 1.) Calculate the reaction probabilities/test whether any QK reactions are possible
 ReactionProbSum = 0.

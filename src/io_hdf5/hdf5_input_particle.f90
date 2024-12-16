@@ -217,7 +217,7 @@ DO iSpec=1,nSpecies
        IF(MPIRoot)THEN
 
          IF(.NOT.FILEEXISTS(RestartFile)) &
-             CALL abort(__STAMP__,'Error in ReadEmissionVariablesFromHDF5() becuase RestartFile does not exist: '//TRIM(RestartFile))
+             CALL abort(__STAMP__,'Error in ReadEmissionVariablesFromHDF5() because RestartFile does not exist: '//TRIM(RestartFile))
 
          CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
          WRITE(InitName,'(A,I0,A,I0)') 'Spec',iSpec,'Init',iInit

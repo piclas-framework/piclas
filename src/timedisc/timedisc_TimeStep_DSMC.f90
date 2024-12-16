@@ -55,7 +55,7 @@ USE MOD_SurfaceModel_Porous      ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars        ,ONLY: nPorousBC, DoChemSurface
 USE MOD_vMPF                     ,ONLY: SplitAndMerge
 USE MOD_Symmetry_Vars            ,ONLY: Symmetry
-USE MOD_part_RHS                 ,ONLY: CalcPartPosInRotRef
+USE MOD_part_RHS                 ,ONLY: CalcPartPosInRotRef, CalcPosAndVeloForGranularSpecies
 USE MOD_part_pos_and_velo        ,ONLY: SetParticleVelocity
 USE MOD_Part_Tools               ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools               ,ONLY: CalcPartSymmetryPos
@@ -148,7 +148,11 @@ DO iPart=1,PDM%ParticleVecLength
       LastPartVeloRotRef(1:3,iPart)=PartVeloRotRef(1:3,iPart)
       CALL CalcPartPosInRotRef(iPart, dtVar)
     ELSE
-      PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+      IF(Species(PartSpecies(iPart))%InterID.EQ.100)THEN
+        CALL CalcPosAndVeloForGranularSpecies(iPart,dtVar)
+      ELSE
+        PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
+      END IF
     END IF
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
     IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN

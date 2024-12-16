@@ -85,7 +85,11 @@ INTERFACE GetDatasetNamesInGroup
   MODULE PROCEDURE GetDatasetNamesInGroup
 END INTERFACE
 
-PUBLIC::DefineParametersIO,InitIOHDF5,InitMPIInfo,OpenDataFile,CloseDataFile
+PUBLIC::DefineParametersIO
+PUBLIC::InitIOHDF5
+PUBLIC::InitMPIInfo
+PUBLIC::OpenDataFile
+PUBLIC::CloseDataFile
 PUBLIC::AddToElemData
 PUBLIC::GetDatasetNamesInGroup
 
@@ -197,7 +201,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)  :: FileString      !< filename to be opened
-LOGICAL,INTENT(IN)           :: create          !< create file if it doesn't exist. Overwrited file if already present!
+LOGICAL,INTENT(IN)           :: create          !< create file if it doesn't exist. Overwrite file if already present!
 LOGICAL,INTENT(IN)           :: single          !< single=T : only one processor opens file, single=F : open/create collectively
 LOGICAL,INTENT(IN)           :: readOnly        !< T : file is opened in read only mode, so file system timestamp remains unchanged
                                                 !< F: file is open read/write mode
@@ -359,6 +363,7 @@ IF(PRESENT(eval))THEN
   nOpts=nOpts+1
 ENDIF
 IF(nOpts.NE.1) CALL Abort(__STAMP__,'More then one optional argument passed to AddToElemData.')
+
 END SUBROUTINE AddToElemData
 
 
