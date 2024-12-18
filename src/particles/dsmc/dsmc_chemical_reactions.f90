@@ -56,7 +56,6 @@ SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, UseVarTimeStep, usevMPF
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTelec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -151,7 +150,7 @@ IF(ProductReac(4).NE.0) THEN
   SumWeightProd = SumWeightProd + Weight(4)
 END IF
 
-IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+IF (UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(EductReac(1))%MassIC *Weight(1)  * Species(EductReac(2))%MassIC * Weight(2)) &
     / (Species(EductReac(1))%MassIC * Weight(1)+ Species(EductReac(2))%MassIC * Weight(2))
   ReducedMassUnweighted = ReducedMass * 2./(Weight(1)+Weight(2))
@@ -348,7 +347,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut
 USE MOD_Globals_Vars
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles, ElectronicDistriPart
-USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting, BGGas, ElecRelaxPart
+USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, BGGas, ElecRelaxPart
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
 USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
@@ -490,7 +489,7 @@ END IF
 IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon'))THEN
   MassRed = 0.
 ELSE
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF (UseVarTimeStep.OR.usevMPF) THEN
     MassRed = Species(EductReac(1))%MassIC*Weight(1) * Species(EductReac(2))%MassIC*Weight(2) &
                 / (Species(EductReac(1))%MassIC*Weight(1) + Species(EductReac(2))%MassIC*Weight(2))
   ELSE
@@ -520,7 +519,7 @@ IF(EductReac(3).EQ.0) THEN
     IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(3)) = 0.
     PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
-    IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
+    IF(usevMPF) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
     IF(UseVarTimeStep) PartTimeStep(ReactInx(3)) = PartTimeStep(ReactInx(1))
     IF (DSMC%DoAmbipolarDiff) THEN
       newAmbiParts = newAmbiParts + 1
@@ -559,7 +558,7 @@ IF(ProductReac(4).NE.0) THEN
   IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(4)) = 0.
   PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
   PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
-  IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
+  IF(usevMPF) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
   IF(UseVarTimeStep) PartTimeStep(ReactInx(4)) = PartTimeStep(ReactInx(1))
   IF (DSMC%DoAmbipolarDiff) THEN
     newAmbiParts = newAmbiParts + 1
@@ -602,7 +601,7 @@ IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpeci
 ! This might fall below zero
 Coll_pData(iPair)%Ec = 0.5 * MassRed * Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 
-IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+IF(usevMPF) THEN
   ! Weighting factor already included in the weights
   ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
 ELSE
@@ -669,7 +668,7 @@ END IF ! Coll_pData(iPair)%Ec.LT.0
 IF(EductReac(3).NE.0) THEN
   ! If a third collision partner exists (recombination/exchange reactions with defined third educt, A + B+ C), calculation of
   ! the centre of mass of a pseudo-molecule consisting of the first two educts -> (AB) + C
-  IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+  IF (usevMPF) THEN
     FracMassCent1 = Species(EductReac(1))%MassIC *Weight(1) &
         /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
     FracMassCent2 = Species(EductReac(2))%MassIC *Weight(2) &
@@ -869,7 +868,7 @@ IF(ProductReac(3).NE.0) THEN
       FracMassCent1 = 1.
       FracMassCent2 = 0.
     ELSE
-      IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+      IF (usevMPF) THEN
         FracMassCent1 = Species(EductReac(1))%MassIC *Weight(1) &
             /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
         FracMassCent2 = Species(EductReac(2))%MassIC *Weight(2) &
@@ -898,7 +897,7 @@ IF(ProductReac(3).NE.0) THEN
     ! Calculate the energy value (only the relative part) to be distributed onto the products 2 and 4
     ERel_React2_React4 = 0.5 * (Species(ProductReac(2))%MassIC* Weight(2) + Species(ProductReac(4))%MassIC * Weight(4)) * DOTPRODUCT(FracMassCent1*cRelaNew(1:3))
     ! Distribute the energy onto the components of the pseudo molecule (2-4)
-    IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+    IF (usevMPF) THEN
       FracMassCent1 = Species(ProductReac(2))%MassIC * Weight(2) &
           /(Species(ProductReac(2))%MassIC* Weight(2) + Species(ProductReac(4))%MassIC * Weight(4))
       FracMassCent2 = Species(ProductReac(4))%MassIC * Weight(4) &
@@ -967,7 +966,7 @@ IF(ProductReac(3).NE.0) THEN
   END IF
   ! === 3/4 Products ============================================================================= !
   ! Treatment of the components of the pseudo-molecule (1-3)
-  IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+  IF (usevMPF) THEN
     FracMassCent1 = Species(ProductReac(1))%MassIC *Weight(1) &
         /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(3))%MassIC * Weight(3))
     FracMassCent2 = Species(ProductReac(3))%MassIC *Weight(3) &
@@ -1019,7 +1018,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
       FracMassCent1 = 1.
       FracMassCent2 = 0.
     ELSE
-      IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+      IF (usevMPF) THEN
         FracMassCent1 = Species(EductReac(1))%MassIC *Weight(1) &
             /(Species(EductReac(1))%MassIC* Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
         FracMassCent2 = Species(EductReac(2))%MassIC *Weight(2) &
@@ -1040,7 +1039,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     CALL abort(__STAMP__,'DSMC Chemisry: Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
   END IF
 
-  IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+  IF (usevMPF) THEN
     FracMassCent1 = Species(ProductReac(1))%MassIC *Weight(1) &
         /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
     FracMassCent2 = Species(ProductReac(2))%MassIC *Weight(2) &
@@ -1567,7 +1566,7 @@ SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, iLineOpt
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf
-USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: ChemReac, PartStateIntEn
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
@@ -1656,7 +1655,7 @@ IF(EductReac(3).EQ.0) THEN
     IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(3)) = 0.
     PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
     PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
-    IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
+    IF(usevMPF) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
     IF(UseVarTimeStep) PartTimeStep(ReactInx(3)) = PartTimeStep(ReactInx(1))
     Weight(3) = Weight(1)
     NumProd = 3
@@ -1686,7 +1685,7 @@ IF(ProductReac(4).NE.0) THEN
   IF(DSMC%ElectronicModel.GT.0) PartStateIntEn(3,ReactInx(4)) = 0.
   PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
   PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
-  IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
+  IF(usevMPF) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
   IF(UseVarTimeStep) PartTimeStep(ReactInx(4)) = PartTimeStep(ReactInx(1))
   Weight(4) = Weight(1)
   NumProd = 4
@@ -1725,7 +1724,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
   Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(3,ReactInx(1))*Weight(1)
 END IF
 
-IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+IF(usevMPF) THEN
   ! Weighting factor already included in the weights
   ChemEnergySum = ChemEnergySum + EForm*SumWeightProd/NumProd
 ELSE
@@ -1821,7 +1820,7 @@ IF(IonizationReaction) THEN
     END IF
   END DO
 ELSE
-  IF (RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+  IF (usevMPF) THEN
     FracMassCent1 = Species(ProductReac(1))%MassIC *Weight(1) &
         /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
     FracMassCent2 = Species(ProductReac(2))%MassIC *Weight(2) &

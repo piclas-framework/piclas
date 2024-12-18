@@ -50,7 +50,7 @@ END SUBROUTINE DefineParametersSymmetry
 
 SUBROUTINE InitSymmetry()
 !===================================================================================================================================
-!> Initialize if a 2D/1D Simulation is performed and which type
+!> Initialize the dimension of the simulation (3D, Axisymmetric, 2D, 1D)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -60,7 +60,6 @@ USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 USE MOD_Particle_Mesh_Tools   ,ONLY: InitParticleInsideQuad
 USE MOD_Particle_TriaTracking ,ONLY: InitSingleParticleTriaTracking
 USE MOD_Particle_InterSection ,ONLY: InitParticleThroughSideCheck1D2D
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -86,19 +85,8 @@ IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
 #endif /*defined(PARTICLES)*/
 
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.3)) CALL ABORT(__STAMP__&
-  ,'ERROR: Axisymmetric simulations only for 1D or 2D')
-IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.EQ.1))CALL ABORT(__STAMP__&
+IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.NE.2)) CALL ABORT(__STAMP__&
   ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
-
-#if defined(PARTICLES)
-IF(Symmetry%Axisymmetric) THEN
-  RadialWeighting%DoRadialWeighting = GETLOGICAL('Particles-RadialWeighting')
-ELSE
-  RadialWeighting%DoRadialWeighting = .FALSE.
-  RadialWeighting%PerformCloning = .FALSE.
-END IF
-#endif /*defined(PARTICLES)*/
 
 END SUBROUTINE InitSymmetry
 

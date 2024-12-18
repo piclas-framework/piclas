@@ -42,8 +42,8 @@ SUBROUTINE ParticleSurfChemFlux()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_Globals_Vars            ,ONLY: PI, BoltzmannConst
-USE MOD_Part_Tools              ,ONLY: CalcRadWeightMPF, GetNextFreePosition
-USE MOD_DSMC_Vars               ,ONLY: CollisMode, RadialWeighting
+USE MOD_Part_Tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, GetNextFreePosition
+USE MOD_DSMC_Vars               ,ONLY: CollisMode, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -394,8 +394,10 @@ DO iSF = 1, SurfChem%CatBoundNum
 #if USE_LOADBALANCE
         CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-        IF (RadialWeighting%DoRadialWeighting) THEN
+        IF (DoRadialWeighting) THEN
           SurfElemMPF = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec, ElemID)
+        ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+          SurfElemMPF = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), ElemID)
         ELSE
           SurfElemMPF = Species(iSpec)%MacroParticleFactor
         END IF
@@ -662,7 +664,7 @@ ELSE
     ! y_min = y_max, faces parallel to x-direction, constant distribution
     Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
   ELSE
-  ! No VarWeighting, regular linear distribution of particle positions
+  ! No LinearWeighting, regular linear distribution of particle positions
     Particle_pos(1:2) = minPos(1:2) + RVec(1:2) &
         * ( SQRT(RandVal1*((minPos(2) + RVec(2))**2-minPos(2)**2)+minPos(2)**2) - minPos(2) ) / (RVec(2))
   END IF
