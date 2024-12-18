@@ -123,7 +123,13 @@ IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
   MacroParticleFactor = 1.
 ELSE
-  MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
+  DO iSpec = 1, nSpecies
+    IF(Species(iSpec)%InterID.NE.100) THEN
+      MacroParticleFactor = Species(iSpec)%MacroParticleFactor
+      EXIT
+    END IF
+  END DO
+  !MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
 END IF
 
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
@@ -461,9 +467,11 @@ DO iPart=1,PDM%ParticleVecLength
           DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) &
             + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
+        ELSE IF(Species(iSpec)%InterID.EQ.100) THEN
+          DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) + PartStateIntEn(1,iPart)*partWeight
         END IF
         IF (DSMC%ElectronicModel.GT.0) THEN
-          IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
         END IF
@@ -647,7 +655,7 @@ DO iElem = 1, nElems ! element/cell main loop
             END IF
           END IF
           ! Compute total values for a gas mixture (nSpecies > 1)
-          IF(nSpecies.GT.1) THEN
+          IF((nSpecies.GT.1).AND.(Species(iSpec)%InterID.NE.100)) THEN
             Total_PartNum   = Total_PartNum + Macro_PartNum
             Total_Velo      = Total_Velo + Macro_Velo*Macro_PartNum
             Total_Temp      = Total_Temp + Macro_Temp*Macro_PartNum
@@ -658,6 +666,7 @@ DO iElem = 1, nElems ! element/cell main loop
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
               IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+                ! Molecular species (neutrals/ions)
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                   IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
                     Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
@@ -678,9 +687,13 @@ DO iElem = 1, nElems ! element/cell main loop
                   Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
                 END IF
+              ELSE IF(Species(iSpec)%InterID.EQ.100) THEN
+                ! Granular species: Solid temperature is stored in EVib/TVib
+                Macro_TempVib = PartEvib / PartNum
               END IF
               IF (DSMC%ElectronicModel.GT.0) THEN
-                IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+                ! All species except electrons, fully-ionized and granular species
+                IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
                   Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
                 END IF
@@ -1027,7 +1040,11 @@ IF(nSpecies.GT.1) THEN
     StrVarNames(nVarCount+DSMC_TEMPY      )='Spec'//TRIM(SpecID)//'_TempTransY'
     StrVarNames(nVarCount+DSMC_TEMPZ      )='Spec'//TRIM(SpecID)//'_TempTransZ'
     StrVarNames(nVarCount+DSMC_NUMDENS    )='Spec'//TRIM(SpecID)//'_NumberDensity'
-    StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_TempVib'
+    IF(Species(iSpec)%InterID.EQ.100)THEN
+      StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_Solid_Part_Temp'
+    ELSE
+      StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_TempVib'
+    END IF
     StrVarNames(nVarCount+DSMC_TROT       )='Spec'//TRIM(SpecID)//'_TempRot'
     StrVarNames(nVarCount+DSMC_TELEC      )='Spec'//TRIM(SpecID)//'_TempElec'
     StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Spec'//TRIM(SpecID)//'_SimPartNum'

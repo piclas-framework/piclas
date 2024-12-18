@@ -197,13 +197,17 @@ CALL prms%CreateLogicalOption(  'Particles-SamplePressTensHeatflux' ,'Flag to sa
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
-CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcyling steps)','10')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcycling steps)','10')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
                                 'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
 CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational reference frame regions','0')
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'UseGravitation' ,'Flag for taking Earths gravity into account for granular species.', '.FALSE.')
+CALL prms%CreateRealArrayOption('DirectionOfGravity','Vector points in the direction of gravity force', no=3)
+CALL prms%CreateLogicalOption(  'SkipGranularUpdate' ,'Flag to skip granular species position, velocity and temperature update,'//&
+                                'used only for benchmark test case.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticles
 
@@ -225,7 +229,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_ReadInTools            ,ONLY: GETLOGICAL
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL, GETREALARRAY
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
@@ -555,6 +559,21 @@ CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
+
+UseGranularSpecies = .FALSE.
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+IF(ANY(Species(:)%InterID.EQ.100)) THEN
+  UseGranularSpecies = .TRUE.
+! Consideration of gravity for granular species
+  UseGravitation = GETLOGICAL('UseGravitation')
+  IF(UseGravitation) THEN
+    GravityDir(1:3) = GETREALARRAY('DirectionOfGravity',3)
+    GravityDir(:) = UNITVECTOR(GravityDir)
+  END IF
+  SkipGranularUpdate = GETLOGICAL('SkipGranularUpdate')
+  ForceAverage = 0.0
+END IF
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
@@ -1518,6 +1537,8 @@ IF(UseRotRefFrame) THEN
   ! Allocate required values
   ALLOCATE(InRotRefFrame(1:PDM%maxParticleNumber))
   InRotRefFrame(1:PDM%maxParticleNumber)  = .FALSE.
+  ! Abort if granular species are defined
+  IF(UseGranularSpecies) CALL CollectiveStop(__STAMP__,'ERROR Rotational Reference Frame not implemented with granular species!')
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   PartVeloRotRef = 0.0
   ALLOCATE(LastPartVeloRotRef(1:3,1:PDM%maxParticleNumber))

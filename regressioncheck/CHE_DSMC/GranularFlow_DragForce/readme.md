@@ -1,0 +1,3 @@
+# Granular particle test of force transfer
+* Investigation of the force transfer from gas to a single granular particle with a fix position by calculating the drag force of the particle. This serves as a verification test case from the article "An open source code for two-phase rarefied flows: rarefiedMultiphaseFoam" by Z. Cao et al., published in Computer Physics Communications 276 (2022), Article No. 108339.
+* In this specific test case, the gas and the granular particle are in temperature equilibrium; however, the bulk velocity of the particle is zero, while the gas has a bulk velocity of 10 m/s, resulting in a drag force acting on the particle.

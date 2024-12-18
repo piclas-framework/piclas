@@ -779,7 +779,7 @@ LOGICAL             :: isPushParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0)THEN
+IF(ABS(Species(PartSpecies(iPart))%ChargeIC).GT.0.0) THEN
   isPushParticle = .TRUE.
 ELSE
   isPushParticle = .FALSE.
@@ -1522,7 +1522,7 @@ IF(CollisMode.GT.1) THEN
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
   IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
       PartStateIntEn(3,iPart) = CalcEElec_particle(iSpec,Telec,iPart)
     ELSE
       PartStateIntEn(3,iPart) = 0.0
