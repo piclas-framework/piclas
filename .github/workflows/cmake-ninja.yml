@@ -397,8 +397,8 @@ jobs:
         cp build_FP/piclas-*x86_64.AppImage piclasFP
         cp build_poisson_leapfrog/piclas-*x86_64.AppImage piclasLeapfrogHDG
         md5sum piclasDSMC > md5sum.txt
-        md5sum piclasBGK > md5sum.txt
-        md5sum piclasFP > md5sum.txt
+        md5sum piclasBGK >> md5sum.txt
+        md5sum piclasFP >> md5sum.txt
         md5sum piclasLeapfrogHDG >> md5sum.txt
         md5sum piclas2vtk >> md5sum.txt
         md5sum superB >> md5sum.txt
@@ -411,7 +411,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: piclas-binaries-v3.3.1
+        name: piclas-binaries-v3.4.0
         path: artifacts
 
     - name: Upload release asset

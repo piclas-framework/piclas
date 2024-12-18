@@ -36,6 +36,7 @@ LOGICAL                       :: CalcEint(2)                         !< Compute 
 LOGICAL                       :: CalcTemp(2)                         !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
 LOGICAL                       :: DisplayCoupledPower                 !< Display coupled power in UNIT_stdOut
+LOGICAL                       :: CalcGranularDragHeat                !< Computation of mean drag force and mean heatflux on all granular particles within the simulation
 REAL                          :: EDiff                               !< Difference in kinetic energy before and after the particle
                                                                      !< push (only charged particles)
 REAL                          :: PCoupl                              !< Power that is coupled into plasma in [W]
