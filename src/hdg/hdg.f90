@@ -809,8 +809,10 @@ CASE(3)
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
   PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-  ! ===  Preconditioner: Parallel preconditioning with sparse approximate inverses
-  PetscCallA(PCHYPRESetType(pc,PCSPAI,ierr))
+  ! ===  Preconditioner: matrix element based preconditioner, ParaSails is a parallel implementation of a sparse approximate
+  !      inverse preconditioner
+  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
+  PetscCallA(PCHYPRESetType(pc, "parasails", ierr))
 #endif
 CASE(20)
   ! ====== Iterative solver: GMRES
