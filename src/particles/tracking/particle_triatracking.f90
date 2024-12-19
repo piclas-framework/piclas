@@ -68,10 +68,14 @@ SUBROUTINE ParticleTriaTracking()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx, UseRotRefSubCycling
-USE MOD_DSMC_Vars                   ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry               ,ONLY: DSMC_2D_RadialWeighting, DSMC_2D_SetInClones
+USE MOD_Particle_Vars               ,ONLY: UseRotRefSubCycling
+USE MOD_Particle_Vars               ,ONLY: PEM,PDM,InterPlanePartNumber, InterPlanePartIndx
+USE MOD_DSMC_Symmetry               ,ONLY: AdjustParticleWeight, SetInClones
 USE MOD_part_tools                  ,ONLY: ParticleOnProc
+USE MOD_DSMC_Vars                   ,ONLY: ParticleWeighting
+!----- Used for RotRef Subcycling
+USE MOD_part_RHS                    ,ONLY: CalcPartPosInRotRef
+!-----
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -83,7 +87,8 @@ IMPLICIT NONE
 INTEGER                          :: i, InterPartID
 !===================================================================================================================================
 
-IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
+IF(ParticleWeighting%PerformCloning) CALL SetInClones()
+
 InterPlanePartNumber = 0
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
@@ -101,9 +106,9 @@ DO i = 1,PDM%ParticleVecLength
     END IF
   END IF
   ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
-  IF(RadialWeighting%PerformCloning) THEN
+  IF(ParticleWeighting%PerformCloning) THEN
     IF(PDM%ParticleInside(i).AND.(ParticleOnProc(i))) THEN
-      CALL DSMC_2D_RadialWeighting(i,PEM%GlobalElemID(i))
+      CALL AdjustParticleWeight(i,PEM%GlobalElemID(i))
     END IF
   END IF
 END DO ! i = 1,PDM%ParticleVecLength
@@ -118,9 +123,9 @@ IF(InterPlanePartNumber.GT.0) THEN
       CALL SingleParticleTriaTracking(i=InterPartID,IsInterPlanePart=.TRUE.)
     END IF
     ! Particle treatment for an axisymmetric simulation (cloning/deleting particles)
-    IF(RadialWeighting%PerformCloning) THEN
+    IF(ParticleWeighting%PerformCloning) THEN
       IF(PDM%ParticleInside(InterPartID).AND.(ParticleOnProc(InterPartID))) THEN
-        CALL DSMC_2D_RadialWeighting(InterPartID,PEM%GlobalElemID(InterPartID))
+        CALL AdjustParticleWeight(InterPartID,PEM%GlobalElemID(InterPartID))
       END IF
     END IF
   END DO ! i = 1,InterPlanePartNumber

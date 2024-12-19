@@ -37,7 +37,6 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Globals_Vars  ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars ,ONLY: PartState,PartSpecies,Species,usevMPF,PartLorentzType
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
 USE MOD_part_tools    ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -51,7 +50,7 @@ INTEGER,INTENT(IN)                 :: iPart
 REAL                               :: partV2, gamma1, WeightingFactor
 !===================================================================================================================================
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   WeightingFactor = GetParticleWeight(iPart)
 ELSE
   WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor

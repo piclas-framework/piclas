@@ -140,7 +140,7 @@ IF (.NOT. ASSOCIATED(firstIntersect)) THEN
   lastIntersect%prev => firstIntersect
 END IF
 
-! IF(RadialWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
+! IF(ParticleWeighting%PerformCloning) CALL DSMC_2D_SetInClones()
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=.FALSE.

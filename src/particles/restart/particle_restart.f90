@@ -928,7 +928,14 @@ END IF
 CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
-CALL CloseDataFile()
+#if USE_MPI
+! Only the surface leaders open the file
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+  CALL CloseDataFile()
+END IF
+#else
+  CALL CloseDataFile()
+#endif
 
 END SUBROUTINE RestartAdaptiveWallTemp
 

@@ -92,7 +92,6 @@ INTEGER                        :: iDir,jDir,kDir
 REAL,DIMENSION(6)              :: xCoordsProc,xCoordsOrigin
 REAL                           :: origin(3),radius
 INTEGER                        :: iElem,ElemID,firstElem,lastElem,NbElemID,localElem,HaloElem
-INTEGER                        :: exSideID,exElemID
 INTEGER                        :: iSide,SideID,firstSide,lastSide,iLocSide!,PVID
 INTEGER                        :: iMortar,nMortarElems,NbSideID
 INTEGER                        :: iProc,HaloProc
