@@ -199,13 +199,13 @@ For the `.msh` mesh instead, the following commands need to be enabled:
     Part-Boundary6-SourceName  = upperZ_BC
     Part-Boundary6-Condition   = symmetric_dim
 
-To fully exploit rotational symmetry, a radial weighting can be enabled via `Particles-RadialWeighting = T`, which will linearly increase the weighting factor towards $y_{\text{max}}$, depending on the current $y$-position of the particle. Thereby the `Particles-RadialWeighting-PartScaleFactor` multiplied by the `MacroParticleFactor` is the weighting factor at $y_{\text{max}}$. Since this position based weighting requires an adaptive weighting factor, particle deletion and cloning is necessary. `Particles-RadialWeighting-CloneDelay` defines the number of iterations in which the information of the particles to be cloned are stored and `Particles-RadialWeighting-CloneMode = 2` ensures that the particles from this list are inserted randomly after the delay.
+To fully exploit rotational symmetry, a radial weighting can be enabled via `Part-Weight-Type = radial`, which will linearly increase the weighting factor towards $y_{\text{max}}$, depending on the current $y$-position of the particle. Thereby the `Part-Weight-Radial-ScaleFactor` multiplied by the `MacroParticleFactor` is the weighting factor at $y_{\text{max}}$. Since this position based weighting requires an adaptive weighting factor, particle deletion and cloning is necessary. `Part-Weight-CloneDelay` defines the number of iterations in which the information of the particles to be cloned are stored and `Part-Weight-CloneMode = 2` ensures that the particles from this list are inserted randomly after the delay.
 
     ! Radial Weighting
-    Particles-RadialWeighting                 = T
-    Particles-RadialWeighting-PartScaleFactor = 60
-    Particles-RadialWeighting-CloneMode       = 2
-    Particles-RadialWeighting-CloneDelay      = 5
+    Part-Weight-Type                = radial
+    Part-Weight-Radial-ScaleFactor  = 60
+    Part-Weight-CloneMode           = 2
+    Part-Weight-CloneDelay          = 5
 
 For further information see {ref}`sec:2D-axisymmetric`.
 
@@ -283,7 +283,7 @@ re-balancing step via HDF5, which will create a state file and restart from this
 
 After running a simulation, especially if done for the first time it is strongly recommended to ensure the quality of the results. For this purpose, the `Particles-DSMC-CalcQualityFactors = T` should be set, to enable the calculation of quality factors such as the maximum collision probability and the mean collision separation distance over the mean free path. All needed datasets can be found in the `*_DSMCState_*.h5` or the converted `*_visuDSMC_*.vtu`.
 
-First of all, it should be ensured that a sufficient number of simulation particles were available for the averaging, which forms the basis of the shown data. The value `*_SimPartNum` indicates the average number of simulated particles in the respective cell. For a sufficient sampling size, it should be guaranteed that at least 10 particles are in each cell, however, this number is very case-specific. The value `DSMC_MCSoverMFP` is an other indicator for the quality of the particle discretization of the simulation area. A value above 1 indicates that the mean collision separation distance is greater than the mean free path, which is a signal for too few simulation particles. For 3D simulations it is sufficient to adjust the `Part-Species[$]-MacroParticleFactor` accordingly in **parameter.ini**. In 2D axisymmetric simulations, the associated scaling factors such as `Particles-RadialWeighting-PartScaleFactor` can also be optimized (see Section {ref}`sec:2D-axisymmetric`).
+First of all, it should be ensured that a sufficient number of simulation particles were available for the averaging, which forms the basis of the shown data. The value `*_SimPartNum` indicates the average number of simulated particles in the respective cell. For a sufficient sampling size, it should be guaranteed that at least 10 particles are in each cell, however, this number is very case-specific. The value `DSMC_MCSoverMFP` is an other indicator for the quality of the particle discretization of the simulation area. A value above 1 indicates that the mean collision separation distance is greater than the mean free path, which is a signal for too few simulation particles. For 3D simulations it is sufficient to adjust the `Part-Species[$]-MacroParticleFactor` accordingly in **parameter.ini**. In 2D axisymmetric simulations, the associated scaling factors such as `Part-Weight-Radial-ScaleFactor` can also be optimized (see Section {ref}`sec:2D-axisymmetric`).
 
 Similarly, the values `DSMC_MeanCollProb` and` DSMC_MaxCollProb` should be below 1 in order to avoid nonphysical values. While the former indicates the averaged collision probability per timestep, the latter stores the maximum collision probability. If this limit is not met, more collisions should have ocurred within a time step than possible. A refinement of the time step `ManualTimeStep` in **parameter.ini** is therefore necessary. If a variable timestep is also used in the simulation, there are further options (see Section {ref}`sec:variable-time-step`).
 

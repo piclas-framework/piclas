@@ -55,8 +55,8 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
 USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PS_N
+USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5, PartBound
@@ -222,7 +222,7 @@ NOut = NMax
 #endif /*USE_HDG*/
 
 IF(InitialAutoRestart) THEN
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitalRestart.h5'
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
   CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut,FileNameIn=FileName)
 ELSE
   CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut,FileNameOut=FileName)
@@ -502,7 +502,7 @@ END IF
 ! ---------------------------------------------------------
 IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
-IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
+IF(ParticleWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 IF (PartBound%OutputWallTemp) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)

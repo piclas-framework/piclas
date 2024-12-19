@@ -151,8 +151,8 @@ USE MOD_Mesh_Vars          ,ONLY: wBaryCL_NGeo,XiCL_NGeo
 USE MOD_Basis              ,ONLY: BarycentricWeights,ChebyGaussLobNodesAndWeights
 #if USE_HDG
 USE MOD_Symmetry_Vars      ,ONLY: Symmetry
-#endif /*USE_HDG*/
 USE MOD_Globals_Vars       ,ONLY: PI
+#endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -501,14 +501,15 @@ SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume
 USE MOD_Globals
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
 USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, UseVarTimeStep, usevMPF
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
-USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
+USE MOD_DSMC_Symmetry           ,ONLY: DSMC_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
 USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList
 USE MOD_DSMC_ElectronicModel    ,ONLY: CalcProbCorrFactorElec, LT_ElectronicEnergyExchangeChem
@@ -564,7 +565,7 @@ CollInf%Coll_CaseNum = 0
 ALLOCATE(Coll_pData(nPair))
 Coll_pData%Ec=0
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) CollInf%SumPairMPF = 0.
+IF(usevMPF.OR.UseVarTimeStep) CollInf%SumPairMPF = 0.
 
 ! 2.) Calculate cell/subcell local variables and count the number of particles per species
 DO iPart = 1, TotalPartNum
@@ -623,7 +624,7 @@ DO iPair = 1, nPair
 
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  IF(usevMPF.OR.UseVarTimeStep) THEN
     CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
@@ -651,8 +652,8 @@ IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartInd
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL SumVibRelaxProb(iPair)
-    ! 2D axisymmetric with radial weighting: split up pairs of identical particles
-    IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_NodeTotal)
+    ! Particle weighting using clones: split up pairs of identical particles
+    IF(ParticleWeighting%PerformCloning) CALL DSMC_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_NodeTotal)
     ! Calculate the collision probability and test it against a random number
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
@@ -969,7 +970,7 @@ RECURSIVE SUBROUTINE AddQuadTreeNode(TreeNode, iElem, NodeVol)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
+USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, CollInf
 USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
@@ -1107,7 +1108,7 @@ DO iLoop = 1, 4
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+    IF (UseVarTimeStep.OR.usevMPF) THEN
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), NodeVolumeTemp(iLoop))
     ELSE
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVolumeTemp(iLoop))
@@ -1312,11 +1313,7 @@ DO iLoop = 1, 2
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> DoTree
-    ! IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
-    !   DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
-    ! ELSE
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVol%SubNode(iLoop)%Volume)
-    ! END IF
+    DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVol%SubNode(iLoop)%Volume)
     IF((DSMC%MeanFreePath.LT.(NodeVol%SubNode(iLoop)%Length)).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)

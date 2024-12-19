@@ -267,10 +267,10 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
 ! Granular species
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartCsp' &
-                                            ,'solid particle specific heat [J/(kg*K)].'&
+                                            ,'Solid particle specific heat [J/(kg*K)].'&
                                             ,'0.0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartTau' &
-                                            ,'thermal accommodation coefficient during granular particle interaction.'&
+                                            ,'Thermal accommodation coefficient of gas species during granular particle interaction.'&
                                             ,'1.0', numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersDSMC
@@ -393,7 +393,7 @@ ELSE
 END IF
 
 DSMC%DoTEVRRelaxation        = GETLOGICAL('Particles-DSMC-TEVR-Relaxation')
-IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+IF(UseVarTimeStep.OR.usevMPF) THEN
   IF(DSMC%DoTEVRRelaxation) THEN
     CALL abort(__STAMP__,'ERROR: Radial weighting or variable time step is not implemented with T-E-V-R relaxation!')
   END IF
@@ -414,7 +414,7 @@ IF(DSMC%CalcQualityFactors) THEN
   VarNum = 4
   ! VarNum + 1: Number of cloned particles per cell
   ! VarNum + 2: Number of identical particles (no relative velocity)
-  IF(RadialWeighting%PerformCloning) VarNum = VarNum + 2
+  IF(ParticleWeighting%PerformCloning) VarNum = VarNum + 2
   ALLOCATE(DSMC%QualityFacSamp(nElems,VarNum))
   DSMC%QualityFacSamp(1:nElems,1:VarNum) = 0.0
 END IF
@@ -462,16 +462,6 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
           SpecDSMC(iSpec)%alphaVSS = 1.0
         END IF
         CALL PrintOption('alphaVSS','DB',RealOpt=SpecDSMC(iSpec)%alphaVSS)
-        ! check for faulty parameters
-        WRITE(UNIT=hilf,FMT='(I0)') iSpec
-        IF(((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) &
-            .AND. (Species(iSpec)%InterID.NE.100)) THEN
-          CALL Abort(__STAMP__,'ERROR in species data: check collision parameters \n'//&
-          'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
-        END IF ! (Tref * dref * alphaVSS) .EQ. 0
-        IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
-          CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
-        END IF ! alphaVSS parameter check
       END IF ! averagedCollisionParameters
       ! Flag to identify fully ionized species
       CALL AttributeExists(file_id_specdb,'FullyIonized',TRIM(dsetname), AttrExists=AttrExists)
@@ -496,18 +486,29 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       SpecDSMC(iSpec)%dref     = GETREAL('Part-Species'//TRIM(hilf)//'-dref'     )
       SpecDSMC(iSpec)%omega    = GETREAL('Part-Species'//TRIM(hilf)//'-omega'    )
       SpecDSMC(iSpec)%alphaVSS = GETREAL('Part-Species'//TRIM(hilf)//'-alphaVSS' )
-      ! check for faulty parameters
-      IF(((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) &
-      .AND. (Species(iSpec)%InterID.NE.100)) THEN
-        CALL Abort(__STAMP__,'ERROR in species data: check collision parameters in ini \n'//&
-          'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0')
-      END IF ! (Tref * dref * alphaVSS) .EQ. 0
-      IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
-        CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS must not be lower 0 or greater 2')
-      END IF ! alphaVSS parameter check
       SpecDSMC(iSpec)%FullyIonized  = GETLOGICAL('Part-Species'//TRIM(hilf)//'-FullyIonized')
     END IF
   END DO !iSpec
+
+  ! Sanity check of VHS/VSS parameters
+  DO iSpec = 1, nSpecies
+    ! Skip sanity check for granular species
+    IF(Species(iSpec)%InterID.EQ.100) CYCLE
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    ! check for faulty parameters
+    IF((Species(iSpec)%InterID * SpecDSMC(iSpec)%Tref * SpecDSMC(iSpec)%dref * SpecDSMC(iSpec)%alphaVSS) .EQ. 0) THEN
+      CALL Abort(__STAMP__,'ERROR in species data: check collision parameters \n'//&
+        'Part-Species'//TRIM(hilf)//'-(InterID * Tref * dref * alphaVSS) .EQ. 0 - but must not be 0!')
+    END IF ! (Tref * dref * alphaVSS) .EQ. 0
+    ! omega is defined between 0 (= hard sphere) and 0.5 (= Maxwell molecule), CAUTION: omega_PICLas = omega_Bird1994 - 0.5
+    IF ((SpecDSMC(iSpec)%omega.LT.0.0) .OR. (SpecDSMC(iSpec)%omega.GT.0.5)) THEN
+      CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-omega, which must be between 0 and 0.5 (CAUTION: omega_PICLas = omega_Bird1994 - 0.5)!')
+    END IF
+    ! alphaVSS is defined between 0 and 2
+    IF ((SpecDSMC(iSpec)%alphaVSS.LT.0.0) .OR. (SpecDSMC(iSpec)%alphaVSS.GT.2.0)) THEN
+      CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Species'//TRIM(hilf)//'-alphaVSS, which must not be lower 0 or greater 2!')
+    END IF ! alphaVSS parameter check
+  END DO
 
   ! Granular species
   SpecDSMC(:)%ThermalACCGranularPart         = 0.0
@@ -617,14 +618,16 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
       CollInf%alphaVSS  (jSpec,iSpec) = CollInf%alphaVSS  (iSpec,jSpec)
     END IF ! filled lower triangular matrix
     IF(CollInf%dref(iSpec,jSpec) * CollInf%Tref(iSpec,jSpec) * CollInf%alphaVSS(iSpec,jSpec) .EQ. 0) THEN
-      CALL Abort(&
-      __STAMP__&
-      ,'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-Tref * dref * alphaVSS) .EQ. 0 - but must not be 0)')
+      CALL Abort(__STAMP__,&
+        'ERROR: Check collision parameters! (Part-Collision'//TRIM(hilf)//'-Tref * dref * alphaVSS) .EQ. 0 - but must not be 0)')
     END IF ! check if collision parameters are set
+    ! omega is defined between 0 (= hard sphere) and 0.5 (= Maxwell molecule), CAUTION: omega_PICLas = omega_Bird1994 - 0.5
+    IF ((CollInf%omega(iSpec,jSpec).LT.0.0) .OR. (CollInf%omega(iSpec,jSpec).GT.0.5)) THEN
+      CALL Abort(__STAMP__,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-omega, which must be between 0 and 0.5 (CAUTION: omega_PICLas = omega_Bird1994 - 0.5)!')
+    END IF
     IF ((CollInf%alphaVSS(iSpec,jSpec).LT.1) .OR. (CollInf%alphaVSS(iSpec,jSpec).GT.2)) THEN
-      CALL Abort(&
-      __STAMP__&
-      ,'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
+      CALL Abort(__STAMP__,&
+        'ERROR: Check set parameter Part-Collision'//TRIM(hilf)//'-alphaVSS must not be lower 1 or greater 2')
     END IF ! alphaVSS parameter check
   END DO ! iColl=nColl
 
@@ -1200,7 +1203,7 @@ ELSE !CollisMode.GT.0
       END IF
     END DO
   ELSE
-    IF(usevMPF.AND..NOT.RadialWeighting%DoRadialWeighting) &
+    IF(usevMPF.AND..NOT.(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting)) &
       CALL abort(__STAMP__,'ERROR in DSMC: Variable weighting factors are only available with a background gas!')
   END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1750,7 +1753,10 @@ SDEALLOCATE(BGGas%DistributionNumDens)
 SDEALLOCATE(BGGas%Region)
 SDEALLOCATE(BGGas%RegionElemType)
 
-SDEALLOCATE(RadialWeighting%ClonePartNum)
+SDEALLOCATE(ParticleWeighting%ClonePartNum)
+SDEALLOCATE(ParticleWeighting%PartInsSide)
+SDEALLOCATE(LinearWeighting%ScalePoint)
+SDEALLOCATE(LinearWeighting%VarMPF)
 SDEALLOCATE(ClonedParticles)
 SDEALLOCATE(AmbiPolarSFMapping)
 END SUBROUTINE FinalizeDSMC

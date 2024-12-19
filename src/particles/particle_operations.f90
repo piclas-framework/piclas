@@ -41,13 +41,12 @@ SUBROUTINE CreateParticle(SpecID,Pos,GlobElemID,LastGlobalElemID,Velocity,RotEne
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpecies,PartPosRef, Species, usevMPF, PartMPF
-USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, RadialWeighting
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, PartVeloRotRef, RotRefFrameOmega, UseRotRefFrame, InRotRefFrame
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Part_Tools              ,ONLY: InRotRefFrameCheck, GetNextFreePosition
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -67,7 +66,7 @@ REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created partic
 REAL, INTENT(IN),OPTIONAL     :: NewTimestep      !< Timestep of the newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER :: newParticleID
+INTEGER :: newParticleID, iElem
 !===================================================================================================================================
 
 newParticleID = GetNextFreePosition()
@@ -121,8 +120,11 @@ IF (usevMPF) THEN
     PartMPF(newParticleID) = PartMPF(OldPartID)
   ELSE
     ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
-    IF (RadialWeighting%DoRadialWeighting) THEN
+    IF (DoRadialWeighting) THEN
       PartMPF(newParticleID) = CalcRadWeightMPF(PartState(2,newParticleID),SpecID,newParticleID)
+    ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+      iElem = PEM%LocalElemID(newParticleID)
+      PartMPF(newParticleID) = CalcVarWeightMPF(PartState(:,newParticleID),iElem,newParticleID)
     ELSE
       PartMPF(newParticleID) = Species(SpecID)%MacroParticleFactor
     END IF
@@ -164,7 +166,7 @@ USE MOD_Particle_Vars             ,ONLY: Pt_temp
 #endif
 USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart
 USE MOD_part_tools                ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar, RadialWeighting
+USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
 USE MOD_Globals                   ,ONLY: abort
@@ -234,7 +236,7 @@ Pt_temp(1:6,PartID)   = 0.
 !   - the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
   ! Determine the particle weight
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF) THEN
     MPF = GetParticleWeight(PartID)
   ELSE
     MPF = GetParticleWeight(PartID) * Species(iSpec)%MacroParticleFactor
@@ -362,7 +364,6 @@ SUBROUTINE UpdateBPO(PartID,SideID,MPF,iSpec,iPartBound)
 ! MODULES
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,Species,usevMPF
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: BPO
-USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_part_tools                ,ONLY: GetParticleWeight
@@ -382,7 +383,7 @@ INTEGER :: iPartBoundloc !< particle boundary index
 IF(PRESENT(MPF))THEN
   MPFloc = MPF
 ELSE
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF) THEN
     MPFloc = GetParticleWeight(PartID)
   ELSE
     MPFloc = GetParticleWeight(PartID) * Species(PartSpecies(PartID))%MacroParticleFactor

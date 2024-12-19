@@ -69,8 +69,9 @@ CONTAINS
 !==================================================================================================================================
 SUBROUTINE DefineParametersParticles()
 ! MODULES
-USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
-USE MOD_part_RHS    ,ONLY: DefineParametersParticleRHS
+USE MOD_ReadInTools       ,ONLY: prms,addStrListEntry
+USE MOD_part_RHS          ,ONLY: DefineParametersParticleRHS
+USE MOD_ParticleWeighting ,ONLY: DefineParametersParticleWeighting
 IMPLICIT NONE
 !==================================================================================================================================
 CALL DefineParametersParticleRHS()
@@ -209,6 +210,8 @@ CALL prms%CreateRealArrayOption('DirectionOfGravity','Vector points in the direc
 CALL prms%CreateLogicalOption(  'SkipGranularUpdate' ,'Flag to skip granular species position, velocity and temperature update,'//&
                                 'used only for benchmark test case.', '.FALSE.')
 
+CALL DefineParametersParticleWeighting()
+
 END SUBROUTINE DefineParametersParticles
 
 
@@ -231,6 +234,7 @@ USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL, GETREALARRAY
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
+USE MOD_ParticleWeighting      ,ONLY: InitParticleWeighting
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
 USE MOD_Restart_Vars           ,ONLY: DoRestart
@@ -246,6 +250,9 @@ LOGICAL,INTENT(IN) :: IsLoadBalance
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
+
+!--- Radial, linear or cell-local particle weighting
+CALL InitParticleWeighting()
 
 !--- Variable time step
 VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
@@ -311,6 +318,8 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_SolutionPressTens,BGGas
+USE MOD_DSMC_Vars                  ,ONLY: DoCellLocalWeighting
+USE MOD_CellLocalWeighting         ,ONLY: PerformCellLocalWeighting
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -335,16 +344,12 @@ USE MOD_Particle_BGM               ,ONLY: CheckAndMayDeleteFIBGM
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
-USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Init                   ,ONLY: InitBGK
-USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 #if USE_LOADBALANCE
@@ -383,6 +388,9 @@ IF(.NOT.ALLOCATED(nPartsPerElem))THEN
 END IF
 
 CALL InitializeVariables()
+
+! Determine the cell-local weighting factors
+IF(DoCellLocalWeighting) CALL PerformCellLocalWeighting()
 
 ! Initialize particle surface flux to be performed per iteration
 CALL InitializeParticleSurfaceflux()
@@ -477,8 +485,6 @@ SUBROUTINE InitializeVariables()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitRadialWeighting
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
@@ -592,6 +598,7 @@ DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 CALL InitializeVariablesVirtualCellMerge()
+
 ! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
 #if USE_MPI
@@ -602,11 +609,6 @@ CALL InitPIC()
 
 ! === 2D/1D/Axisymmetric initialization
 IF(Symmetry%Axisymmetric) THEN
-  IF(RadialWeighting%DoRadialWeighting) THEN
-    ! Initialization of RadialWeighting in 2D axisymmetric simulations
-    RadialWeighting%PerformCloning = .TRUE.
-    CALL DSMC_2D_InitRadialWeighting()
-  END IF
   IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
   IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF

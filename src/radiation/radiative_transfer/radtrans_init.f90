@@ -77,7 +77,7 @@ USE MOD_Radiation_Vars             ,ONLY: RadiationParameter, Radiation_Emission
 USE MOD_Radiation_Vars             ,ONLY: Radiation_Absorption_SpecPercent
 USE MOD_RadiationTrans_Vars        ,ONLY: RadObservation_Emission
 USE MOD_Radiation                  ,ONLY: radiation_main
-USE MOD_DSMC_Vars                  ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars                  ,ONLY: DoRadialWeighting, ParticleWeighting
 USE MOD_Output                     ,ONLY: PrintStatusLineRadiation
 USE MOD_Mesh_Tools                 ,ONLY: GetGlobalElemID
 USE MOD_Particle_Vars              ,ONLY: nSpecies
@@ -448,15 +448,15 @@ RadTrans%GlobalRadiationPower = 0.0
 RadTrans%ScaledGlobalRadiationPower = 0.0
 DO iElem = firstElem, lastElem
   RadTrans%GlobalRadiationPower = RadTrans%GlobalRadiationPower + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem)
-  IF (RadialWeighting%DoRadialWeighting) THEN
+  IF (DoRadialWeighting) THEN
     RadTrans%ScaledGlobalRadiationPower = RadTrans%ScaledGlobalRadiationPower  &
       + Radiation_Emission_Spec_Total(iElem)*ElemVolume_Shared(iElem)*RadTransObsVolumeFrac(iElem) &
-      /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
+      /(1. + ElemMidPoint_Shared(2,iElem)/GEO%ymaxglob*(ParticleWeighting%ScaleFactor-1.))
   END IF
 END DO
 #if USE_MPI
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%GlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
-IF (RadialWeighting%DoRadialWeighting) THEN
+IF (DoRadialWeighting) THEN
   CALL MPI_ALLREDUCE(MPI_IN_PLACE,RadTrans%ScaledGlobalRadiationPower,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
 END IF
 #endif /*USE_MPI*/
