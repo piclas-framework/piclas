@@ -877,7 +877,7 @@ SUBROUTINE MPIParticleRecv(DoMPIUpdateNextFreePos)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar
-USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo
+USE MOD_DSMC_Vars              ,ONLY: ElectronicDistriPart, AmbipolElecVelo, ParticleWeighting
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIExchange,PartCommSize,PartRecvBuf,PartSendBuf
 USE MOD_Particle_MPI_Vars      ,ONLY: nExchangeProcessors
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
@@ -908,8 +908,7 @@ USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_Par
 USE MOD_Particle_Vars          ,ONLY: PartDeltaX,PartLambdaAccept
 USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
 #endif /*IMPA*/
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_RadialWeighting
+USE MOD_DSMC_Symmetry          ,ONLY: AdjustParticleWeight
 USE MOD_part_tools             ,ONLY: ParticleOnProc, InRotRefFrameCheck
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes
 #if defined(MEASURE_MPI_WAIT)
@@ -1315,11 +1314,11 @@ DO PartID=PDM%ParticleVecLength+1,PDM%maxParticleNumber
 END DO
 #endif
 
-IF(RadialWeighting%PerformCloning) THEN
+IF(ParticleWeighting%PerformCloning) THEN
   ! Checking whether received particles have to be cloned or deleted
   DO iPart = 1,nrecv
     PartID = GetNextFreePosition(iPart-PartMPIExchange%nMPIParticles)
-    IF(ParticleOnProc(PartID)) CALL DSMC_2D_RadialWeighting(PartID,PEM%GlobalElemID(PartID))
+    IF(ParticleOnProc(PartID)) CALL AdjustParticleWeight(PartID,PEM%GlobalElemID(PartID))
   END DO
 END IF
 PartMPIExchange%nMPIParticles = 0

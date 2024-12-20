@@ -37,11 +37,13 @@ SUBROUTINE BGK_octree_adapt(iElem)
 !===================================================================================================================================
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
-USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, LastPartPos, VirtMergedCells
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC
+USE MOD_Particle_Vars           ,ONLY: PEM, PartPosRef,Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells
 USE MOD_Particle_Vars           ,ONLY: DoVirtualCellMerge, PartSpecies
 #if PP_TimeDiscMethod==300
 USE MOD_Particle_Vars           ,ONLY: PartState
+#else
+USE MOD_Particle_Vars           ,ONLY: LastPartPos
 #endif /*PP_TimeDiscMethod==300*/
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
@@ -114,13 +116,13 @@ IF (DoVirtualCellMerge) THEN
       END DO
     END DO
     DoMergedCell = .TRUE.
-  END IF  
+  END IF
 ELSE IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
 
 IF (DoMergedCell) THEN
-#if (PP_TimeDiscMethod==300)  
+#if (PP_TimeDiscMethod==300)
   CALL FP_CollisionOperator(TreeNode%iPartIndx_Node, nPartMerged, VirtMergedCells(iELem)%MergedVolume)
 #else
   IF (BGKMovingAverage) THEN
@@ -148,7 +150,7 @@ ELSE
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF) THEN
     ! totalWeight contains the weighted particle number
     Dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE
@@ -436,7 +438,7 @@ SUBROUTINE BGK_quadtree_adapt(iElem)
 ! MODULES
 USE MOD_TimeDisc_Vars           ,ONLY: TEnd, Time
 USE MOD_DSMC_ParticlePairing    ,ONLY: GeoCoordToMap2D
-USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: tTreeNode, ElemNodeVol, DSMC
 USE MOD_Particle_Vars           ,ONLY: PEM, Species,WriteMacroVolumeValues, usevMPF, VirtMergedCells, DoVirtualCellMerge, PartSpecies
 USE MOD_BGK_CollOperator        ,ONLY: BGK_CollisionOperator
 USE MOD_BGK_Vars                ,ONLY: BGKMinPartPerCell,BGKSplittingDens,BGKMovingAverage,ElemNodeAveraging
@@ -511,7 +513,7 @@ IF (DoVirtualCellMerge) THEN
       END DO
     END DO
     DoMergedCell = .TRUE.
-  END IF  
+  END IF
 ELSE IF ((nPart.EQ.0).OR.(nPart.EQ.1)) THEN
   RETURN
 END IF
@@ -544,7 +546,7 @@ ELSE
     iPart = PEM%pNext(iPart)
   END DO
 
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF) THEN
     ! totalWeight contains the weighted particle number
     Dens = totalWeight / ElemVolume_Shared(CNElemID)
   ELSE

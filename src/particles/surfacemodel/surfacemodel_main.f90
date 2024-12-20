@@ -54,10 +54,10 @@ USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
+USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos, PEM
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
-USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, RadialWeighting
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
 USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModelParticleEmission
 USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEventProbability
@@ -66,7 +66,7 @@ USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
-USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, VeloFromDistribution, GetParticleWeight
+USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, VeloFromDistribution, GetParticleWeight
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -94,6 +94,7 @@ REAL               :: ChargeRefl                      !< Charge of reflected par
 REAL               :: MPF                             !< macro-particle factor
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
 INTEGER            :: iProd
+INTEGER            :: iElem
 !===================================================================================================================================
 !===================================================================================================================================
 ! 0.) Initial surface pre-treatment
@@ -200,8 +201,11 @@ CASE (SEE_MODELS_ID)
     IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN
       ! Get MPF
       IF (usevMPF) THEN
-        IF (RadialWeighting%DoRadialWeighting) THEN
+        IF (DoRadialWeighting) THEN
           MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
+        ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+          iElem = PEM%LocalElemID(PartID)
+          MPF = CalcVarWeightMPF(PartPosImpact(:),iElem)
         ELSE
           MPF = Species(ProductSpec(2))%MacroParticleFactor
         END IF

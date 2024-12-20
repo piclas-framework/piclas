@@ -93,10 +93,10 @@ Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundarie
     Part-Boundary5-Condition                    = symmetric
     Particles-Symmetry-Order                    = 2
     Particles-Symmetry2DAxisymmetric            = T
-    Particles-RadialWeighting                   = T
-    Particles-RadialWeighting-PartScaleFactor   = 60
-    Particles-RadialWeighting-CloneMode         = 2
-    Particles-RadialWeighting-CloneDelay        = 5
+    Part-Weight-Type                            = T
+    Part-Weight-Radial-ScaleFactor              = 60
+    Part-Weight-CloneMode                       = 2
+    Part-Weight-CloneDelay                      = 5
 
 Instead, a new symmetrical boundary is added:
 

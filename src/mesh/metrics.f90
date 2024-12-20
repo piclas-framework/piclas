@@ -145,8 +145,8 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_HDG
 USE MOD_Symmetry_Vars      ,ONLY: Symmetry
-#endif /*USE_HDG*/
 USE MOD_Globals_Vars       ,ONLY: PI
+#endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

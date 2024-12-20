@@ -41,8 +41,8 @@ TYPE tSurfaceFlux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   INTEGER                                :: Type                             ! Type set based on the read-in parameters
                                                                              ! 0: Standard surface flux
-                                                                             ! 1: Adaptive surface flux (includes RadialWeighting)
-                                                                             ! 2: Radial weighting in axisymmetric simulations
+                                                                             ! 1: Adaptive surface flux (includes particle weighting)
+                                                                             ! 2: Particle weighting in axisymmetric/3D simulations
                                                                              ! 3: DoPoissonRounding .AND. .NOT.DoTimeDepInflow
                                                                              ! 4: DoTimeDepInflow
                                                                              ! 5: Thermionic emission with Schottky effect (requires HDG)

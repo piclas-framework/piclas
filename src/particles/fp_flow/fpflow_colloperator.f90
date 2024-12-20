@@ -47,8 +47,7 @@ USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuan
 USE MOD_FPFlow_Vars             ,ONLY: FP_MaxRelaxFactor, FP_MaxRotRelaxFactor, FP_MeanRelaxFactor, FP_MeanRelaxFactorCounter
 USE MOD_Particle_Vars           ,ONLY: Species, PartState, UseVarTimeStep, PartTimeStep, usevMPF
 USE MOD_TimeDisc_Vars           ,ONLY: dt
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, RadialWeighting
-USE MOD_DSMC_Vars               ,ONLY: CollInf, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, DSMC, PartStateIntEn, PolyatomMolDSMC, VibQuantsPar, CollInf
 USE Ziggurat
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -222,7 +221,7 @@ IF (FPCollModel.EQ.2) THEN
   nu= MAX(nu,-Theta/(W(3)-Theta))
 END IF
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   ! totalWeight contains the weighted particle number
   dens = totalWeight / NodeVolume
 ELSE
@@ -421,7 +420,7 @@ IF (FPCollModel.EQ.1) THEN
 
   FPSolVec(1:6,1)=-2.0*Lambda*u2ij(1:6)
   FPSolVec(7,1)=(3.0/relaxtime - 2.0*Prandtl/relaxtime)*u2i(1) &
-            + Lambda*(-3.0*u4i(1)+u2*u2i(1)+2.0*(u0ij(1)*u2i(1)+u0ij(2)*u2i(2)+u0ij(3)*u2i(3))) 
+            + Lambda*(-3.0*u4i(1)+u2*u2i(1)+2.0*(u0ij(1)*u2i(1)+u0ij(2)*u2i(2)+u0ij(3)*u2i(3)))
   FPSolVec(8,1)=(3.0/relaxtime - 2.0*Prandtl/relaxtime)*u2i(2) &
             + Lambda*(-3.0*u4i(2)+u2*u2i(2)+2.0*(u0ij(2)*u2i(1)+u0ij(4)*u2i(2)+u0ij(5)*u2i(3)))
   FPSolVec(9,1)=(3.0/relaxtime - 2.0*Prandtl/relaxtime)*u2i(3) &
@@ -902,7 +901,7 @@ DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
   END IF
   ! new calculation of number of rotational relaxing molecules
   RotFrac = nPart*(1.-RotExp)
-  
+
   IF(DoVibRelax) THEN
     ! if difference too small: beta is not taken into account
     IF (ABS(TVib-TEqui).LT.1E-3) THEN

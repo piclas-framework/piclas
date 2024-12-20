@@ -41,7 +41,8 @@ SUBROUTINE DSMC_prob_calc(iElem, iPair, NodeVolume)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, RadialWeighting, CollisMode
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, CollInf, DSMC, BGGas, ChemReac, CollisMode
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_MCC_Vars                ,ONLY: UseMCC, SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep, PartState
 USE MOD_TimeDisc_Vars           ,ONLY: dt
@@ -86,7 +87,7 @@ Weight2 = GetParticleWeight(iPart_p2)
 
 ! Determing the particle weight (2D/VTS: Additional scaling of the weighting according to the position within the cell)
 IF (usevMPF) THEN
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  IF(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) THEN
     ! Correction factor: Collision pairs above the mean MPF within the cell will get a higher collision probability
     ! Not the actual weighting factor, since the weighting factor is included in SpecNum
     MacroParticleFactor = 0.5*(Weight1 + Weight2) * CollInf%Coll_CaseNum(PairType) / CollInf%SumPairMPF(PairType)
@@ -108,6 +109,7 @@ ELSE
   MacroParticleFactor = Species(iSpec_p1)%MacroParticleFactor
   CollCaseNum = REAL(CollInf%Coll_CaseNum(PairType))
 END IF
+
 IF (UseVarTimeStep) THEN
   dtCell = dt * (PartTimeStep(iPart_p1) + PartTimeStep(iPart_p2))*0.5
 ELSE

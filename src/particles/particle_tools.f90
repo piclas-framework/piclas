@@ -73,6 +73,7 @@ PUBLIC :: InitializeParticleMaxwell
 PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
 PUBLIC :: CalcPartSymmetryPos
+PUBLIC :: CalcVarWeightMPF, CalcAverageMPF, CalcScalePoint
 PUBLIC :: StoreLostPhotonProperties
 PUBLIC :: RotateVectorAroundAxis
 PUBLIC :: IncreaseMaxParticleNumber, GetNextFreePosition, ReduceMaxParticleNumber
@@ -587,14 +588,13 @@ PPURE REAL FUNCTION GetParticleWeight(iPart)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Particle_Vars           ,ONLY: usevMPF, UseVarTimeStep, PartTimeStep, PartMPF
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)             :: iPart
 !===================================================================================================================================
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   IF (UseVarTimeStep) THEN
     GetParticleWeight = PartMPF(iPart) * PartTimeStep(iPart)
   ELSE
@@ -616,7 +616,7 @@ PPURE REAL FUNCTION CalcRadWeightMPF(yPos, iSpec, iPart)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
 USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
@@ -636,7 +636,7 @@ INTEGER, OPTIONAL,INTENT(IN)    :: iPart
 REAL                 :: yPosIn
 !===================================================================================================================================
 
-IF(RadialWeighting%CellLocalWeighting.AND.PRESENT(iPart)) THEN
+IF(ParticleWeighting%UseCellAverage.AND.PRESENT(iPart)) THEN
   IF(Symmetry%Order.EQ.2) THEN
     yPosIn = ElemMidPoint_Shared(2,PEM%CNElemID(iPart))
   ELSE
@@ -647,12 +647,12 @@ ELSE
 END IF
 
 IF(Symmetry%Order.EQ.2) THEN
-  CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+  CalcRadWeightMPF = (1. + yPosIn/GEO%ymaxglob*(ParticleWeighting%ScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
 ELSE
   ! IF(Symmetry%Axisymmetric) THEN
-    CalcRadWeightMPF = (1. + yPosIn/GEO%xmaxglob*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+    CalcRadWeightMPF = (1. + yPosIn/GEO%xmaxglob*(ParticleWeighting%ScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
   ! ELSE IF(Symmetry%SphericalSymmetric) THEN
-  !   CalcRadWeightMPF = (1. + (yPosIn/GEO%xmaxglob)**2*(RadialWeighting%PartScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
+  !   CalcRadWeightMPF = (1. + (yPosIn/GEO%xmaxglob)**2*(ParticleWeighting%ScaleFactor-1.))*Species(iSpec)%MacroParticleFactor
   ! END IF
 END IF
 
@@ -660,6 +660,200 @@ RETURN
 
 END FUNCTION CalcRadWeightMPF
 
+
+REAL FUNCTION CalcVarWeightMPF(Pos, iElem, iPart)
+!===================================================================================================================================
+!> Determination of the weighting factor for a 3D test case.
+!> Linear increase in the scaling region along the specified vector
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars
+USE MOD_Particle_Vars           ,ONLY: PEM
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, OPTIONAL                  :: Pos(3)
+INTEGER, OPTIONAL,INTENT(IN)    :: iPart, iElem
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                 :: PosIn, RelPos, TempPartPos(3)
+REAL                 :: PartDistDepo(8), DistSum, norm, MPFSum
+LOGICAL              :: SucRefPos
+REAL                 :: alpha1, alpha2, alpha3
+INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale
+REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
+!===================================================================================================================================
+
+CalcVarWeightMPF = 1.
+
+IF(PRESENT(iElem)) THEN
+  GlobalElemID = iElem+offSetElem
+ELSEIF(.NOT.DoLinearWeighting) THEN
+  CALL abort(__STAMP__,'ERROR in CalcVarWeightMPF: Cell-local weighting requires an element ID')
+END IF
+
+IF (DoCellLocalWeighting) THEN
+  ! Determine the adaptive MPF based on the interpolation of the MPF at the node coordinates onto the particle position
+  CALL GetPositionInRefElem(Pos(1:3),TempPartPos(1:3),GlobalElemID,ForceMode=.TRUE., isSuccessful = SucRefPos)
+
+  IF (SucRefPos) THEN
+    alpha1=0.5*(TempPartPos(1)+1.0)
+    alpha2=0.5*(TempPartPos(2)+1.0)
+    alpha3=0.5*(TempPartPos(3)+1.0)
+
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    CalcVarWeightMPF = &
+    PartWeightAtNode(1,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + PartWeightAtNode(1,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
+    PartWeightAtNode(1,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + PartWeightAtNode(1,NodeID(4)) * (1-alpha1) * (alpha2)   * (1-alpha3) + &
+    PartWeightAtNode(1,NodeID(5)) * (1-alpha1) * (1-alpha2) * (alpha3)   + PartWeightAtNode(1,NodeID(6)) * (alpha1)   * (1-alpha2) * (alpha3)   + &
+    PartWeightAtNode(1,NodeID(7)) * (alpha1)   * (alpha2)   * (alpha3)   + PartWeightAtNode(1,NodeID(8)) * (1-alpha1) * (alpha2)   * (alpha3)
+
+  ELSE
+    MPFSum = 0.
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    DO iNode = 1, 8
+      norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
+      IF(norm.GT.0.)THEN
+        PartDistDepo(iNode) = 1./norm
+      ELSE
+        PartDistDepo(:) = 0.
+        PartDistDepo(iNode) = 1.0
+        EXIT
+      END IF ! norm.GT.0.
+    END DO
+    DistSum = SUM(PartDistDepo(1:8))
+    DO iNode = 1, 8
+      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*PartWeightAtNode(1,NodeID(iNode))
+    END DO
+    CalcVarWeightMPF = MPFSum
+  END IF
+ELSE ! regular routine with linear weights
+  ! Linear scaling along a defined vector, the relative position along the vector is defined first
+  IF (LinearWeighting%ScaleAxis.EQ.0) THEN
+    PosIn = CalcScalePoint(Pos, iPart)
+  ! Linear scaling along the coordinate axis
+  ELSE IF (ParticleWeighting%UseCellAverage.AND.PRESENT(iPart)) THEN
+    PosIn = ElemMidPoint_Shared(LinearWeighting%ScaleAxis,PEM%CNElemID(iPart))
+  ELSE
+    PosIn = Pos(LinearWeighting%ScaleAxis)
+  END IF
+
+  ! Loop over the number of scaling points
+  DO iScale=1, (LinearWeighting%nScalePoints-1)
+    ! Test if the particle particle position is between the two scaling points
+    IF ((PosIn.GE.LinearWeighting%ScalePoint(iScale)).AND.(PosIn.LE.LinearWeighting%ScalePoint(iScale+1))) THEN
+      PosMax = LinearWeighting%ScalePoint(iScale+1)
+      MaxWeight = LinearWeighting%VarMPF(iScale+1)
+      PosMin = LinearWeighting%ScalePoint(iScale)
+      MinWeight = LinearWeighting%VarMPF(iScale)
+
+      ! Determine the weighting factor by the relative position in the cell
+      RelPos = (PosIn-PosMin)/(PosMax-PosMin)
+      CalcVarWeightMPF = (1. - RelPos)*MinWeight + RelPos*MaxWeight
+      EXIT
+
+    ! Input position is outside of the scaling domain
+    ELSE IF (PosIn.GE.LinearWeighting%ScalePoint(LinearWeighting%nScalePoints)) THEN
+      CalcVarWeightMPF = LinearWeighting%VarMPF(LinearWeighting%nScalePoints)
+      EXIT
+    ELSE
+      CalcVarWeightMPF = LinearWeighting%VarMPF(1)
+    END IF
+  END DO
+END IF
+
+RETURN
+
+END FUNCTION CalcVarWeightMPF
+
+
+REAL FUNCTION CalcAverageMPF()
+!===================================================================================================================================
+!> Determination of the average weighting factor in the simulation domain for the initial particle insertion
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: LinearWeighting
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iScale
+REAL                            :: SubWeight
+REAL, ALLOCATABLE               :: MPF(:), Coord(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+!===================================================================================================================================
+CalcAverageMPF = 0.
+ALLOCATE(MPF(LinearWeighting%nScalePoints))
+MPF = LinearWeighting%VarMPF
+ALLOCATE(Coord(LinearWeighting%nScalePoints))
+Coord = LinearWeighting%ScalePoint
+
+! Determinazion of the average MPF for each sub-cell, scaled by the size of the cell
+DO iScale=1, (LinearWeighting%nScalePoints-1)
+  SubWeight = (MPF(iScale+1)+MPF(iScale))/2. * ((Coord(iScale+1)-Coord(iScale))/(MAXVAL(Coord(:))-MINVAL(Coord(:))))
+  CalcAverageMPF = CalcAverageMPF + SubWeight
+END DO
+
+DEALLOCATE(MPF)
+DEALLOCATE(Coord)
+
+RETURN
+
+END FUNCTION CalcAverageMPF
+
+REAL FUNCTION CalcScalePoint(Pos, iPart)
+!===================================================================================================================================
+!> Determine the relative position of the point along the scaling vector
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, LinearWeighting
+USE MOD_Particle_Vars           ,ONLY: PEM
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, OPTIONAL                  :: Pos(3)
+INTEGER, OPTIONAL,INTENT(IN)    :: iPart
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL                 :: PosIn(3), ScalingVector(3), ScalePoint(3)
+!===================================================================================================================================
+ScalingVector = LinearWeighting%ScalingVector
+
+IF(ParticleWeighting%UseCellAverage.AND.PRESENT(iPart)) THEN
+  PosIn = ElemMidPoint_Shared(:,PEM%CNElemID(iPart))
+ELSE
+  PosIn = Pos
+END IF
+
+! Relative position to the start point for the variable weighting
+ScalePoint = LinearWeighting%StartPointScaling - PosIn
+
+! Find the point on the scaling vector with the closest distance to the point
+CalcScalePoint = -dot_product(ScalePoint,ScalingVector)/dot_product(ScalingVector,ScalingVector)
+
+RETURN
+
+END FUNCTION CalcScalePoint
 
 PPURE FUNCTION isChargedParticle(iPart)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1369,7 +1563,8 @@ SUBROUTINE InitializeParticleMaxwell(iPart,iSpec,iElem,Mode,iInit)
 USE MOD_Globals
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, UseVarTimeStep, PartTimeStep, PartMPF, Species
-USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, RadialWeighting, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: DSMC, PartStateIntEn, CollisMode, SpecDSMC, AmbipolElecVelo
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Restart_Vars            ,ONLY: MacroRestartValues
 USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Particle_Emission_Vars  ,ONLY: EmissionDistributionDim
@@ -1410,7 +1605,8 @@ CASE(2) ! Emission distribution (equidistant data from .h5 file)
   hilf=' is not implemented in InitializeParticleMaxwell() in combination with EmissionDistribution yet!'
   IF(DSMC%DoAmbipolarDiff) CALL abort(__STAMP__,'DSMC%DoAmbipolarDiff=T'//TRIM(hilf))
   IF(UseVarTimeStep) CALL abort(__STAMP__,'UseVarTimeStep=T'//TRIM(hilf))
-  IF(RadialWeighting%DoRadialWeighting) CALL abort(__STAMP__,'RadialWeighting%DoRadialWeighting=T'//TRIM(hilf))
+  IF(DoRadialWeighting) CALL abort(__STAMP__,'DoRadialWeighting=T'//TRIM(hilf))
+  IF(DoLinearWeighting) CALL abort(__STAMP__,'DoLinearWeighting=T'//TRIM(hilf))
   ! Check dimensionality of data
   SELECT CASE(EmissionDistributionDim)
   CASE(1)
@@ -1467,8 +1663,10 @@ PDM%isNewPart(iPart) = .TRUE.
 IF (UseVarTimeStep) THEN
   PartTimeStep(iPart) = GetParticleTimeStep(PartState(1,iPart),PartState(2,iPart),iElem)
 END IF
-IF (RadialWeighting%DoRadialWeighting) THEN
+IF (DoRadialWeighting) THEN
   PartMPF(iPart) = CalcRadWeightMPF(PartState(2,iPart),iSpec,iPart)
+ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+  PartMPF(iPart) = CalcVarWeightMPF(PartState(:,iPart),iElem,iPart)
 END IF
 
 END SUBROUTINE InitializeParticleMaxwell
