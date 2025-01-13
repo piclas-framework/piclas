@@ -230,8 +230,7 @@ jobs:
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
-        #cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=OFF -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
     - name: Build Piclas Poisson Leapfrog
       shell: bash
@@ -250,7 +249,7 @@ jobs:
         cd build_single
 
         # Declare an array of strings
-        declare -a PROGS=("piclas2vtk" "superB")
+        declare -a PROGS=("piclas2vtk")
 
         # Iterate the string array
         for PROG in ${PROGS[@]}; do
@@ -363,7 +362,7 @@ jobs:
         cd build_poisson_leapfrog
 
         # Declare an array of strings
-        declare -a PROGS=("piclas")
+        declare -a PROGS=("piclas" "superB")
 
         # Iterate the string array
         for PROG in ${PROGS[@]}; do
@@ -391,7 +390,7 @@ jobs:
         mkdir artifacts
         mkdir release-assets
         cp build_single/piclas2vtk*x86_64.AppImage piclas2vtk
-        cp build_single/superB*x86_64.AppImage superB
+        cp build_poisson_leapfrog/superB*x86_64.AppImage superB
         cp build_DSMC/piclas-*x86_64.AppImage piclasDSMC
         cp build_BGK/piclas-*x86_64.AppImage piclasBGK
         cp build_FP/piclas-*x86_64.AppImage piclasFP
@@ -424,4 +423,3 @@ jobs:
         asset_path: ./release-assets/piclas-linux64.zip
         asset_name: piclas-linux64.zip
         asset_content_type: application/zip
-
