@@ -96,14 +96,14 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-
     GCCVERSION=13.2.0
 
     # OPENMPI
     OPENMPIVERSION=4.1.5
     #OPENMPIVERSION=4.1.6
+
     # MPICH
-    #MPICHVERSION=4.1.2
+    MPICHVERSION=4.1.2
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
@@ -137,7 +137,10 @@ done
 #PETSCVERSION=3.18.4
 #PETSCVERSION=3.19.3
 #PETSCVERSION=3.19.6
-PETSCVERSION=3.20.4
+#PETSCVERSION=3.20.4
+#PETSCVERSION=3.20.6
+PETSCVERSION=3.21.6
+#PETSCVERSION=3.22.2 # currently does not work
 
 # Activate DEBUGGING MODE with ON/OFF
 DEBUG=OFF
@@ -289,33 +292,36 @@ if [ ! -e "${MODULEFILE}" ]; then
     exit
   fi
   ./configure PETSC_ARCH=arch-linux \
-	      --prefix=${PETSCINSTALLDIR} \
-	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=${WITHDEBUG} \
-	      COPTFLAGS='-O3 -march=native -mtune=native' \
-	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-	      FOPTFLAGS='-O3 -march=native -mtune=native' \
-	      --download-hypre \
-	      --download-mumps \
-	      --download-scalapack \
-        ${BLAS_SUPPORT}
+      --prefix=${PETSCINSTALLDIR} \
+      --with-mpi-dir=${MPIINSTALLDIR} \
+      --with-debugging=${WITHDEBUG} \
+      COPTFLAGS='-O3 -march=native -mtune=native' \
+      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+      FOPTFLAGS='-O3 -march=native -mtune=native' \
+      --with-shared-libraries=1 \
+      --with-mpi-f90module-visibility=0 \
+      --with-bison=0 \
+      --download-hypre \
+      --download-mumps \
+      --download-scalapack \
+      ${BLAS_SUPPORT}
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo -e "$RED""Failed command: [./configure PETSC_ARCH=arch-linux \
-       --prefix=${PETSCINSTALLDIR} \
-       --with-mpi-dir=${MPIINSTALLDIR} \
-       --with-debugging=${WITHDEBUG} \
-       COPTFLAGS='-O3 -march=native -mtune=native' \
-       CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-       FOPTFLAGS='-O3 -march=native -mtune=native' \
-       --with-shared-libraries=1 \
-       --with-mpi-f90module-visibility=0 \
-       --with-bison=0 \
-       --download-hypre \
-       --download-mumps \
-       --download-scalapack \
-        ${BLAS_SUPPORT}]$NC"
+      --prefix=${PETSCINSTALLDIR} \
+      --with-mpi-dir=${MPIINSTALLDIR} \
+      --with-debugging=${WITHDEBUG} \
+      COPTFLAGS='-O3 -march=native -mtune=native' \
+      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+      FOPTFLAGS='-O3 -march=native -mtune=native' \
+      --with-shared-libraries=1 \
+      --with-mpi-f90module-visibility=0 \
+      --with-bison=0 \
+      --download-hypre \
+      --download-mumps \
+      --download-scalapack \
+      ${BLAS_SUPPORT}]$NC"
     exit
   else
     # Compile source files with NBROFCORES threads
