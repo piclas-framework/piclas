@@ -13,21 +13,12 @@
   * [ ] Update the information in the user guide regarding the versions of the glibc (currently the OS version is used) and OpenMPI dependencies in the [AppImage dependeny table](https://piclas.readthedocs.io/en/latest/userguide/installation.html#appimage-executable-download) that are required for the AppImage. Check the following examples and linked commits on how this is done:
     *  Release 1.0.0 - 3.3.0: glibc 2.17 + OpenMPI X.X.X
     *  Release 3.3.0 - X.X.X: glibc 2.18 [9b09c795](https://piclas.boltzplatz.eu/piclas/piclas/-/commit/9b09c7957800915cbdf5ecc4a0d8ba43993060da) + OpenMPI X.X.X
-  * [ ] Push the feature branch `feature.branch.name`, which is usually the `master.dev` branch, with the changed `cmake-ninja.yml` file that features an updated version of the MPI/HDF5/PETSc libraries for building the AppImage to the testing repository via
-      ```
-      cd ~
-      git clone -b feature.branch.name --single-branch git@piclas.boltzplatz.eu:piclas/piclas.git piclas-testing
-      cd piclas-testing
-      git remote add piclas-testing git@github.com:scopplestone/piclas-testing.git
-      git config --list
-      git push --force piclas-testing feature.branch.name
-      ```
-    and go to the [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions) page and check if the build is running. Fix any errors that might occur during the build process and repeat the process.
+  * [ ] Push the feature branch `feature.branch.name`, which is usually the `master.dev` branch, with the changed `cmake-ninja.yml` file that features an updated version of the MPI/HDF5/PETSc libraries for building the AppImage to the testing repository via gitlab Pipelines. Select "New Pipeline" and set "Run for branch name or tag" to the required `feature.branch.name` and supply `DO_CREATE_APPIMAGE` as "Input variable key" and set it to `T` for "Input variable value". Then go to the [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions) page and check if the build is running. Fix any errors that might occur during the build process and repeat the process.
   * [ ] When the workflow action pipeline has successfully created the AppImages, test their functionality by running a series of tests with the executables (check-in reggies).
     * Download AppImage zip file "piclas-binaries-vX.X.X" from the newest workflow run under [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions) (under "Artifacts").
-    * Run all executables with CHE reggies to test their functionality by executing the script in the extracted directory.
     * Check correct (updated) version output and commit hash.
     * Check AppImage integrity by running `md5sum -c md5sum.txt`.
+    * Select "New Pipeline" and set "Run for branch name or tag" to the required `feature.branch.name` and supply `DO_TEST_APPIMAGE` as "Input variable key" and set it to the latest artifact (get the name from  [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions), e.g., `piclas-binaries-v3.5.0` for "Input variable value".
 * [ ] Draft the GitHub Release notes for creating the actual release that will be displayed under [Releases](https://github.com/piclas-framework/piclas/releases).
 
 ## Regression Testing
