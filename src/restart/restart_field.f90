@@ -93,7 +93,7 @@ USE MOD_HDG                    ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars               ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
+USE MOD_HDG_Vars_PETSc         ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
 #else /*USE_HDG*/
 ! Non-HDG stuff

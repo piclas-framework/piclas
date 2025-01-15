@@ -125,6 +125,7 @@ USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
+USE MOD_HDG_Vars_PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
@@ -1335,10 +1336,8 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-TYPE(MPI_Comm) :: comm
 !===================================================================================================================================
-comm = BiasVoltage%COMM%UNICATOR
-IF(comm.NE.MPI_COMM_NULL)THEN
+IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   ! Broadcast from root to other processors on the sub-communicator
   CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
 END IF
@@ -1527,13 +1526,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iUniqueFPCBC
-TYPE(MPI_Comm) :: comm
 !===================================================================================================================================
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  comm = FPC%COMM(iUniqueFPCBC)%UNICATOR
-  IF(COMM.NE.MPI_COMM_NULL)THEN
+  IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
     ! Broadcast from root to other processors on the sub-communicator
-    CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
+    CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, FPC%COMM(iUniqueFPCBC)%UNICATOR, IERROR)
   END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 END SUBROUTINE SynchronizeChargeOnFPC
@@ -1554,14 +1551,12 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iUniqueEPCBC
-TYPE(MPI_Comm) :: comm
 !===================================================================================================================================
 DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
-  comm = EPC%COMM(iUniqueEPCBC)%UNICATOR
-  IF(comm.NE.MPI_COMM_NULL)THEN
+  IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
     ! Broadcast from root to other processors on the sub-communicator
-    CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, comm, IERROR)
-  END IF ! comm.NE.MPI_COMM_NULL
+    CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
+  END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
 END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 END SUBROUTINE SynchronizeVoltageOnEPC
 #endif /*USE_MPI*/
@@ -1621,7 +1616,6 @@ INTEGER           :: iDir,iElem
 #endif /*(USE_HDG && (PP_nVar==1))*/
 REAL              :: maxphi
 #if USE_MPI
-TYPE(MPI_Comm) :: comm
 #endif /*USE_MPI*/
 !===================================================================================================================================
 #ifdef EXTRAE
@@ -1670,12 +1664,11 @@ END IF
 
     ! Communicate the accumulated charged on each BC to all processors on the communicator
     DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
-      comm = EPC%COMM(iUniqueEPCBC)%UNICATOR
-      IF(comm.NE.MPI_COMM_NULL)THEN
+      IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
         IF(MPIRoot)THEN
-          CALL MPI_REDUCE(MPI_IN_PLACE, EPC%ChargeProc(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+          CALL MPI_REDUCE(MPI_IN_PLACE, EPC%ChargeProc(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
         ELSE
-          CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+          CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
         END IF ! MPIRoot
         EPC%Charge(iUniqueEPCBC) = EPC%Charge(iUniqueEPCBC) + EPC%ChargeProc(iUniqueEPCBC)
       END IF ! comm.NE.MPI_COMM_NULL
@@ -1793,6 +1786,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
+USE MOD_HDG_Vars_PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -3312,6 +3306,7 @@ USE MOD_Globals
 USE MOD_HDG_Vars
 #if USE_PETSC
 USE petsc
+USE MOD_HDG_Vars_PETSc
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
