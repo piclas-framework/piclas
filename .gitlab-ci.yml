@@ -1124,7 +1124,7 @@ github_test_appimage:
     - rm -rf piclas-testing || true ;
     - git clone -b master --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing
-    - source /var/lib/gitlab-runner/.zshrc
+    - source /var/lib/gitlab-runner/.bashrc
     - gh run download -n ${DO_TEST_APPIMAGE}
     - module li
     - ./tools/testAppImages.sh . regressioncheck
