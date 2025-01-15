@@ -160,7 +160,7 @@ LOGICAL               :: BRNullCollisionDefault        !< Flag (backup of read-i
 #if USE_MPI
 TYPE tMPIGROUP
   INTEGER                     :: ID                     !< MPI communicator ID
-  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for floating boundary condition
+  TYPE(MPI_comm)              :: UNICATOR=MPI_COMM_NULL !< MPI communicator for floating boundary condition
   INTEGER                     :: nProcs                 !< number of MPI processes part of the FPC group
   INTEGER                     :: nProcsWithSides        !< number of MPI processes part of the FPC group and actual FPC sides
   INTEGER                     :: MyRank                 !< MyRank within communicator

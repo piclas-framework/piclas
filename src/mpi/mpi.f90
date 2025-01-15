@@ -94,14 +94,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 #if USE_MPI
-INTEGER,INTENT(IN),OPTIONAL      :: mpi_comm_IN !< MPI communicator
+TYPE(mpi_comm),INTENT(IN),OPTIONAL      :: mpi_comm_IN !< MPI communicator
 #endif /*USE_MPI*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER :: MPI_COMM_LOC
+TYPE(mpi_comm) :: MPI_COMM_LOC
 LOGICAL :: initDone
 !==================================================================================================================================
 IF (PRESENT(mpi_comm_IN)) THEN
@@ -273,8 +273,8 @@ INTEGER,INTENT(IN)  :: LowerBound                                             !<
 INTEGER,INTENT(IN)  :: UpperBound                                             !< upper side index for last dimension of FaceData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
-REAL,INTENT(OUT)    :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
+TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
+REAL,INTENT(OUT)              :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -308,8 +308,8 @@ INTEGER, INTENT(IN)          :: SendID
 INTEGER, INTENT(IN)          :: firstDim,LowerBound,UpperBound
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
-REAL, INTENT(IN)             :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
+TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)
+REAL, INTENT(IN)              :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -343,7 +343,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)          :: SendID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request), INTENT(INOUT) :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if defined(MEASURE_MPI_WAIT)
@@ -357,7 +357,7 @@ REAL(KIND=8)                  :: Rate
 
 ! Check receive operations first
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
+  IF(nMPISides_rec(iNbProc,SendID).GT.0) CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
 END DO !iProc=1,nNBProcs
 
 #if defined(MEASURE_MPI_WAIT)
@@ -370,7 +370,7 @@ END DO !iProc=1,nNBProcs
 
 ! Check send operations
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
+  IF(nMPISides_send(iNbProc,SendID).GT.0) CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
 END DO !iProc=1,nNBProcs
 
 #if defined(MEASURE_MPI_WAIT)
@@ -402,8 +402,8 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
   INTEGER,INTENT(IN)  :: UpperBound                                             !< upper side index for last dimension of FaceData
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! OUTPUT VARIABLES
-  INTEGER,INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
-  INTEGER,INTENT(OUT) :: FaceData(firstDim,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
+  TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
+  INTEGER,INTENT(OUT)            :: FaceData(firstDim,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
   !===================================================================================================================================
@@ -437,8 +437,8 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
   INTEGER, INTENT(IN)          :: firstDim,LowerBound,UpperBound
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! OUTPUT VARIABLES
-  INTEGER, INTENT(OUT)         :: MPIRequest(nNbProcs)
-  INTEGER, INTENT(IN)          :: FaceData(firstDim,LowerBound:UpperBound)
+  TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)
+  INTEGER, INTENT(IN)           :: FaceData(firstDim,LowerBound:UpperBound)
   !-----------------------------------------------------------------------------------------------------------------------------------
   ! LOCAL VARIABLES
   !===================================================================================================================================

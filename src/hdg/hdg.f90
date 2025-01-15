@@ -786,7 +786,7 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
 
   ! create new emission communicator for floating boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iUniqueFPCBC))THEN
@@ -1065,7 +1065,7 @@ DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 
   ! Create new emission communicator for Electric potential boundary condition communication.
   ! Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iUniqueEPCBC))THEN
@@ -1239,7 +1239,7 @@ color = MERGE(BVBoundaries, MPI_UNDEFINED, BConProc)
 BiasVoltage%COMM%ID = BVBoundaries
 
 ! Create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, BiasVoltage%COMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, BiasVoltage%COMM%UNICATOR, iError)
 
 ! Find my rank on the shared communicator, comm size and process name
 IF(BConProc)THEN
@@ -1326,6 +1326,7 @@ END SUBROUTINE ReadBVDataFromH5
 !===================================================================================================================================
 SUBROUTINE SynchronizeBV()
 ! MODULES
+USE mpi_f08
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 USE MOD_HDG_Vars ,ONLY: BiasVoltage,BVDataLength
 ! insert modules here
@@ -1334,8 +1335,10 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+TYPE(MPI_Comm) :: comm
 !===================================================================================================================================
-IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+comm = BiasVoltage%COMM%UNICATOR
+IF(comm.NE.MPI_COMM_NULL)THEN
   ! Broadcast from root to other processors on the sub-communicator
   CALL MPI_BCAST(BiasVoltage%BVData, BVDataLength, MPI_DOUBLE_PRECISION, 0, BiasVoltage%COMM%UNICATOR, IERROR)
 END IF
@@ -1514,6 +1517,7 @@ END SUBROUTINE ReadEPCDataFromH5
 !===================================================================================================================================
 SUBROUTINE SynchronizeChargeOnFPC()
 ! MODULES
+USE mpi_f08
 USE MOD_HDG_Vars ,ONLY: FPC
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 ! insert modules here
@@ -1523,14 +1527,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iUniqueFPCBC
+TYPE(MPI_Comm) :: comm
 !===================================================================================================================================
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
-    IF(COMM.NE.MPI_COMM_NULL)THEN
-      ! Broadcast from root to other processors on the sub-communicator
-      CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
-    END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
-  END ASSOCIATE
+  comm = FPC%COMM(iUniqueFPCBC)%UNICATOR
+  IF(COMM.NE.MPI_COMM_NULL)THEN
+    ! Broadcast from root to other processors on the sub-communicator
+    CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
+  END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 END SUBROUTINE SynchronizeChargeOnFPC
 
@@ -1540,6 +1544,7 @@ END SUBROUTINE SynchronizeChargeOnFPC
 !===================================================================================================================================
 SUBROUTINE SynchronizeVoltageOnEPC()
 ! MODULES
+USE mpi_f08
 USE MOD_HDG_Vars ,ONLY: EPC
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 ! insert modules here
@@ -1549,14 +1554,14 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iUniqueEPCBC
+TYPE(MPI_Comm) :: comm
 !===================================================================================================================================
 DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
-  ASSOCIATE( COMM => EPC%COMM(iUniqueEPCBC)%UNICATOR )
-    IF(COMM.NE.MPI_COMM_NULL)THEN
-      ! Broadcast from root to other processors on the sub-communicator
-      CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, COMM, IERROR)
-    END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
-  END ASSOCIATE
+  comm = EPC%COMM(iUniqueEPCBC)%UNICATOR
+  IF(comm.NE.MPI_COMM_NULL)THEN
+    ! Broadcast from root to other processors on the sub-communicator
+    CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, comm, IERROR)
+  END IF ! comm.NE.MPI_COMM_NULL
 END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 END SUBROUTINE SynchronizeVoltageOnEPC
 #endif /*USE_MPI*/
@@ -1571,6 +1576,9 @@ SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
 SUBROUTINE HDG(t,U_out,iter)
 #endif /*defined(PARTICLES)*/
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
@@ -1612,6 +1620,9 @@ INTEGER :: iUniqueEPCBC
 INTEGER           :: iDir,iElem
 #endif /*(USE_HDG && (PP_nVar==1))*/
 REAL              :: maxphi
+#if USE_MPI
+TYPE(MPI_Comm) :: comm
+#endif /*USE_MPI*/
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
@@ -1659,16 +1670,15 @@ END IF
 
     ! Communicate the accumulated charged on each BC to all processors on the communicator
     DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
-      ASSOCIATE( COMM => EPC%COMM(iUniqueEPCBC)%UNICATOR)
-        IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-          IF(MPIRoot)THEN
-            CALL MPI_REDUCE(MPI_IN_PLACE, EPC%ChargeProc(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
-          ELSE
-            CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
-          END IF ! MPIRoot
-          EPC%Charge(iUniqueEPCBC) = EPC%Charge(iUniqueEPCBC) + EPC%ChargeProc(iUniqueEPCBC)
-        END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
-      END ASSOCIATE
+      comm = EPC%COMM(iUniqueEPCBC)%UNICATOR
+      IF(comm.NE.MPI_COMM_NULL)THEN
+        IF(MPIRoot)THEN
+          CALL MPI_REDUCE(MPI_IN_PLACE, EPC%ChargeProc(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+        ELSE
+          CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+        END IF ! MPIRoot
+        EPC%Charge(iUniqueEPCBC) = EPC%Charge(iUniqueEPCBC) + EPC%ChargeProc(iUniqueEPCBC)
+      END IF ! comm.NE.MPI_COMM_NULL
     END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 #endif /*USE_MPI*/
     IF(MPIRoot) EPC%Charge(:) = EPC%Charge(:) + EPC%ChargeProc(:)
@@ -2610,7 +2620,7 @@ REAL(KIND=8)      :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 #if USE_MPI
-! not use MPI_YOUR sides for vector_dot_product!!!
+! without MPI_YOUR sides for vector_dot_product!!!
   VecSize=(nSides-nMPIsides_YOUR)*nGP_face
 #else
   VecSize=nSides*nGP_face
@@ -2690,7 +2700,7 @@ IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
 END IF
 TimeStartCG=PICLASTIME()
 #if USE_MPI
-! not use MPI_YOUR sides for vector_dot_product!!!
+! without MPI_YOUR sides for vector_dot_product!!!
 VecSize=(nSides-nMPIsides_YOUR)*nGP_face
 #else
 VecSize=nSides*nGP_face

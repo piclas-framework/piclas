@@ -16,6 +16,9 @@
 !==================================================================================================================================
 MODULE MOD_IO_HDF5
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 USE HDF5
 USE MOD_Globals,ONLY: iError
 IMPLICIT NONE
@@ -37,7 +40,9 @@ INTEGER(HID_T)           :: File_ID             !< file which is currently opene
 INTEGER(HID_T)           :: Plist_File_ID       !< property list of file which is currently opened
 INTEGER(HSIZE_T),POINTER :: HSize(:)            !< HDF5 array size (temporary variable)
 INTEGER                  :: nDims               !<
-INTEGER                  :: MPIInfo             !< hardware / storage specific / file system MPI parameters to pass to HDF5
+#if USE_MPI
+TYPE(MPI_Info)           :: MPIInfo             !< hardware / storage specific / file system MPI parameters to pass to HDF5
+#endif /*USE_MPI*/
                                                 !< for optimized performance on specific systems
 
 !> Type containing pointers to data to be written to HDF5 in an element-wise scalar fashion.
@@ -205,7 +210,7 @@ LOGICAL,INTENT(IN)           :: create          !< create file if it doesn't exi
 LOGICAL,INTENT(IN)           :: single          !< single=T : only one processor opens file, single=F : open/create collectively
 LOGICAL,INTENT(IN)           :: readOnly        !< T : file is opened in read only mode, so file system timestamp remains unchanged
                                                 !< F: file is open read/write mode
-INTEGER,INTENT(IN),OPTIONAL  :: communicatorOpt !< only MPI and single=F: communicator to be used for collective access
+TYPE(mpi_comm),INTENT(IN),OPTIONAL  :: communicatorOpt !< only MPI and single=F: communicator to be used for collective access
 INTEGER,INTENT(IN),OPTIONAL  :: userblockSize   !< size of the file to be prepended to HDF5 file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -237,7 +242,7 @@ END IF
 IF(.NOT.single)THEN
   IF(.NOT.PRESENT(communicatorOpt))CALL abort(__STAMP__,&
     'ERROR: communicatorOpt must be supplied in OpenDataFile when single=.FALSE.')
-  CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt, MPIInfo, iError)
+  CALL H5PSET_FAPL_MPIO_F(Plist_File_ID, communicatorOpt%mpi_val, MPIInfo%mpi_val, iError)
 END IF
   IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: H5PSET_FAPL_MPIO_F failed in OpenDataFile')
 #endif /*USE_MPI*/

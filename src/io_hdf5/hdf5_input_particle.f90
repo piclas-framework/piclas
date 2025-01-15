@@ -181,7 +181,7 @@ END SUBROUTINE ReadNodeSourceExtFromHDF5
 SUBROUTINE ReadEmissionVariablesFromHDF5()
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 !USE MOD_io_HDF5
 USE MOD_Globals

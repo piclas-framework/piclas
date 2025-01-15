@@ -121,7 +121,8 @@ INTEGER,ALLOCATABLE                :: VibQuantDataTmp(:,:)
 REAL,ALLOCATABLE                   :: ElecDistriDataTmp(:,:)
 REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
 ! Custom data type
-INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER                            :: MPI_LENGTH(1)
+TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 CHARACTER(LEN=32)                  :: hilf

@@ -82,9 +82,6 @@ USE MOD_Particle_TimeStep          ,ONLY: DefineParametersVariableTimeStep
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 USE MOD_SurfaceModel_Chemistry     ,ONLY: DefineParametersSurfaceChemistry
 USE MOD_RayTracing_Init            ,ONLY: DefineParametersRayTracing
-#if USE_MPI
-USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
-#endif
 #endif
 #if (PP_TimeDiscMethod==600)
 USE MOD_RadiationTrans_Init        ,ONLY: DefineParametersRadiationTrans
@@ -163,9 +160,6 @@ CALL DefineParametersRadiationTrans()
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()
 CALL DefineParametersSurfaceChemistry()
-#if USE_MPI && defined(PARTICLES)
-CALL DefineParametersReadIMDdata()
-#endif /* USE_MPI */
 #endif
 
 SWRITE(UNIT_stdOut,'(132("="))')

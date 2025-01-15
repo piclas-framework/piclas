@@ -17,6 +17,9 @@ MODULE MOD_DSMC_Vars
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -592,8 +595,8 @@ END TYPE
 TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
 
 #if USE_MPI
-INTEGER                                   :: AdaptMPFInfo_Shared_Win
-INTEGER                                   :: OptimalMPF_Shared_Win
+TYPE(MPI_Win)                             :: AdaptMPFInfo_Shared_Win
+TYPE(MPI_Win)                             :: OptimalMPF_Shared_Win
 #endif
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

@@ -303,15 +303,18 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo -e "$RED""Failed command: [./configure PETSC_ARCH=arch-linux \
-	      --prefix=${PETSCINSTALLDIR} \
-	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=${WITHDEBUG} \
-	      COPTFLAGS='-O3 -march=native -mtune=native' \
-	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-	      FOPTFLAGS='-O3 -march=native -mtune=native' \
-	      --download-hypre \
-	      --download-mumps \
-	      --download-scalapack \
+       --prefix=${PETSCINSTALLDIR} \
+       --with-mpi-dir=${MPIINSTALLDIR} \
+       --with-debugging=${WITHDEBUG} \
+       COPTFLAGS='-O3 -march=native -mtune=native' \
+       CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+       FOPTFLAGS='-O3 -march=native -mtune=native' \
+       --with-shared-libraries=1 \
+       --with-mpi-f90module-visibility=0 \
+       --with-bison=0 \
+       --download-hypre \
+       --download-mumps \
+       --download-scalapack \
         ${BLAS_SUPPORT}]$NC"
     exit
   else
