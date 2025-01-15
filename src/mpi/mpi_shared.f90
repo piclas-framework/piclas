@@ -25,6 +25,37 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+! Overload the MPI interface as MPICH fails to provide it
+! > https://github.com/pmodels/mpich/issues/2659
+! > https://www.mpi-forum.org/docs/mpi-3.1/mpi31-report/node263.htm
+#if LIBS_MPICH_FIX_SHM_INTERFACE
+INTERFACE MPI_WIN_ALLOCATE_SHARED
+  SUBROUTINE PMPI_WIN_ALLOCATE_SHARED(SIZE, DISP_UNIT, INFO, COMM, BASEPTR, WIN, IERROR)
+      USE, INTRINSIC ::  ISO_C_BINDING, ONLY : C_PTR
+      USE mpi_f08, ONLY: MPI_Comm,MPI_Info,MPI_Win,MPI_COMM_NULL,MPI_ADDRESS_KIND
+      IMPLICIT NONE
+      INTEGER        ::  DISP_UNIT, IERROR
+      TYPE(MPI_Info) ::  INFO
+      TYPE(MPI_comm) ::  COMM
+      TYPE(MPI_Win)  ::  WIN
+      INTEGER(KIND=MPI_ADDRESS_KIND) ::  SIZE
+      TYPE(C_PTR)    ::  BASEPTR
+  END SUBROUTINE
+END INTERFACE
+
+INTERFACE MPI_WIN_SHARED_QUERY
+  SUBROUTINE PMPI_WIN_SHARED_QUERY(WIN, RANK, SIZE, DISP_UNIT, BASEPTR, IERROR)
+      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_PTR
+      USE mpi_f08, ONLY: MPI_Comm,MPI_Info,MPI_Win,MPI_COMM_NULL,MPI_ADDRESS_KIND
+      IMPLICIT NONE
+      INTEGER        :: RANK, DISP_UNIT, IERROR
+      TYPE(MPI_Win)  :: WIN
+      INTEGER(KIND=MPI_ADDRESS_KIND) :: SIZE
+      TYPE(C_PTR)    :: BASEPTR
+  END SUBROUTINE
+END INTERFACE
+#endif /*LIBS_MPICH_FIX_SHM_INTERFACE*/
+
 INTERFACE DefineParametersMPIShared
   MODULE PROCEDURE DefineParametersMPIShared
 END INTERFACE
