@@ -581,7 +581,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)             :: nProcs
 INTEGER,INTENT(IN)             :: nGlobalElems
-REAL,INTENT(IN)                :: ElemGlobalTime(:)
+REAL,INTENT(INOUT)             :: ElemGlobalTime(:)
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 INTEGER,INTENT(IN)             :: PartsInElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
