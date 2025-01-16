@@ -210,7 +210,11 @@ LOGICAL,INTENT(IN)           :: create          !< create file if it doesn't exi
 LOGICAL,INTENT(IN)           :: single          !< single=T : only one processor opens file, single=F : open/create collectively
 LOGICAL,INTENT(IN)           :: readOnly        !< T : file is opened in read only mode, so file system timestamp remains unchanged
                                                 !< F: file is open read/write mode
+#if USE_MPI
 TYPE(mpi_comm),INTENT(IN),OPTIONAL  :: communicatorOpt !< only MPI and single=F: communicator to be used for collective access
+#else
+INTEGER,INTENT(IN),OPTIONAL  :: communicatorOpt !< Dummy for MPI=OFF
+#endif /*USE_MPI*/
 INTEGER,INTENT(IN),OPTIONAL  :: userblockSize   !< size of the file to be prepended to HDF5 file
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

@@ -84,7 +84,9 @@ INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartRecv(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartRecv(:)
 INTEGER,POINTER                     :: ElemInfoRank_Shared(:) => NULL()
+#if USE_MPI
 TYPE(MPI_Win)                       :: ElemInfoRank_Shared_Win
+#endif /*USE_MPI*/
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! side load balancing

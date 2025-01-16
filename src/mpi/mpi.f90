@@ -17,6 +17,9 @@ MODULE MOD_MPI
 ! Add comments please!
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -626,8 +629,8 @@ ELSE
   CALL MPI_REDUCE(MPIW8Time    , 0 , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
   CALL MPI_REDUCE(MPIW8Count   , 0 , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
 
-  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , 0 , 0 , 0 , MPI_COMM_PICLAS , iError)
-  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , 0 , 0 , 0 , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0              , 0         , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , 0              , 0         , MPI_INTEGER8         , 0 , MPI_COMM_PICLAS , iError)
 END IF
 
 ! --------------------------------------------------
