@@ -1362,9 +1362,12 @@ CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 CALL MPI_WIN_SYNC(SharedWindow,iError)
+IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WIN_SYNC',iError)
 ! IF (Barrier) CALL MPI_BARRIER (Communicator,iError)
-CALL MPI_BARRIER (Communicator,iError)
+CALL MPI_BARRIER(Communicator,iError)
+IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_BARRIER',iError)
 CALL MPI_WIN_SYNC(SharedWindow,iError)
+IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WIN_SYNC',iError)
 
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
@@ -1372,9 +1375,6 @@ MPIW8TimeBaS  = MPIW8TimeBaS + REAL(CounterEnd-CounterStart,8)/Rate
 MPIW8CountBaS = MPIW8CountBaS + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-! IF(iError.NE.0)THEN
-!   CALL abort(__STAMP__,'ERROR in MPI_WIN_SYNC() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)
-! END IF ! iError.NE.0
 END SUBROUTINE BARRIER_AND_SYNC
 
 
