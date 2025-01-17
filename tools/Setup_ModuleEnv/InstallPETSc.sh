@@ -96,14 +96,16 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    GCCVERSION=13.2.0
+    #GCCVERSION=13.2.0
+    GCCVERSION=14.2.0
 
     # OPENMPI
-    OPENMPIVERSION=4.1.5
+    #OPENMPIVERSION=4.1.5
     #OPENMPIVERSION=4.1.6
+    OPENMPIVERSION=5.0.6
 
     # MPICH
-    MPICHVERSION=4.1.2
+    #MPICHVERSION=4.1.2
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then

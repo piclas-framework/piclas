@@ -107,7 +107,8 @@ do
     #GCCVERSION=10.2.0
     #GCCVERSION=11.2.0
     #GCCVERSION=13.1.0
-    GCCVERSION=13.2.0
+    #GCCVERSION=13.2.0
+    GCCVERSION=14.2.0
 
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
@@ -116,8 +117,9 @@ do
     #OPENMPIVERSION=4.1.1
     #OPENMPIVERSION=4.1.5
     #OPENMPIVERSION=4.1.6
+    OPENMPIVERSION=5.0.6
 
-    MPICHVERSION=4.1.2
+    #MPICHVERSION=4.1.2
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
