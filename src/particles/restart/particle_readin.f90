@@ -107,7 +107,7 @@ INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
 #if USE_LOADBALANCE
 ! LoadBalance
 INTEGER(KIND=IK)                   :: PartRank
-INTEGER                            :: offsetPartSend,offsetPartRecv
+INTEGER                            :: offsetPartSend,offsetPartRecv,CNElemID
 INTEGER,PARAMETER                  :: N_variables=1
 REAL,ALLOCATABLE                   :: NodeSourceExtEquiLBTmp(:,:,:,:,:)
 INTEGER                            :: NodeID(1:8)
@@ -218,7 +218,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
     DO iElem=1,PP_nElems
       ! Copy values to equidistant distribution
-      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
       NodeSourceExt(NodeID(1)) = NodeSourceExtEquiLBTmp(1,0,0,0,iElem)
       NodeSourceExt(NodeID(2)) = NodeSourceExtEquiLBTmp(1,1,0,0,iElem)
       NodeSourceExt(NodeID(3)) = NodeSourceExtEquiLBTmp(1,1,1,0,iElem)

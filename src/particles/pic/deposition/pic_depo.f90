@@ -1960,7 +1960,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
 INTEGER,PARAMETER :: N_variables=1
-INTEGER           :: iElem
+INTEGER           :: iElem,CNElemID
 INTEGER           :: NodeID(1:8)
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
@@ -2049,7 +2049,8 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
     DO iElem=1,PP_nElems
       ! Copy values to equidistant distribution
-      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
       NodeSourceExtEquiLB(1,0,0,0,iElem) = NodeSourceExt(NodeID(1))
       NodeSourceExtEquiLB(1,1,0,0,iElem) = NodeSourceExt(NodeID(2))
       NodeSourceExtEquiLB(1,1,1,0,iElem) = NodeSourceExt(NodeID(3))
