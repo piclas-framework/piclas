@@ -763,7 +763,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: iElem, NodeID(1:8), iNode, globalNode
+INTEGER                    :: iElem, NodeID(1:8), iNode, globalNode,CNElemID
 #if USE_MPI
 INTEGER                    :: iProc
 #endif /*USE_MPI*/
@@ -777,9 +777,10 @@ END DO
 
 ! Loop over all elements and map their weighting factor from the element to the nodes
 DO iElem =1, nElems
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  CNElemID=GetCNElemID(iElem+offsetElem)
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   DO iNode = 1, 8
-    PartWeightAtNode(1,NodeID(iNode)) = PartWeightAtNode(1,NodeID(iNode)) + OptimalMPF_Shared(GetCNElemID(iElem+offsetElem))
+    PartWeightAtNode(1,NodeID(iNode)) = PartWeightAtNode(1,NodeID(iNode)) + OptimalMPF_Shared(CNElemID)
     PartWeightAtNode(2,NodeID(iNode)) = PartWeightAtNode(2,NodeID(iNode)) + 1.
   END DO
 END DO
