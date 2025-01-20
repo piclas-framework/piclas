@@ -23,19 +23,10 @@ To quickly test regression checks locally, either to reproduce an error that has
 developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool can be executed without the need to install a
 [Gitlab Runner](https://docs.gitlab.com/runner/).
 
-1. Download or update the [reggie2.0 repository](https://github.com/piclas-framework/reggie2.0) locally.
-   For convenience, an *alias* can be created, e.g.,
+1. Install reggie from GitHub as described [here](https://github.com/piclas-framework/reggie2.0?tab=readme-ov-file#installation) and
+   run the tool with `--help` to get an overview of the available options
 
-       alias reg='python3 /path/to/reggie2.0/reggie.py'
-
-   where the expression */path/to/reggie2.0/reggie.py* has to be correctly set for the current system, which must point to the local
-   [reggie.py](https://github.com/piclas-framework/reggie2.0/blob/master/reggie.py) file.
-   Add the alias definitions to the *~/.bashrc* file to have the functions available in the future.
-   An overview of the files and functions can be found [here](https://github.com/piclas-framework/reggie2.0?tab=readme-ov-file#overview).
-
-   Run the tool with `--help` to get an overview of the available options
-
-       reg --help
+       reggie --help
 
 1. Build the required executable, e.g., *piclas*, either automatically using the [reggie2.0](https://github.com/piclas-framework/reggie2.0)
    tool or configure cmake and compile the executable by hand.
@@ -95,7 +86,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
    Switch to the *home* directory and run the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool there via
 
        cd ~
-       reg /path/to/piclas/regressioncheck/NIG_DSMC
+       reggie /path/to/piclas/regressioncheck/NIG_DSMC
 
    to start compiling and executing the resulting code.
    All output is placed under a new directory *output_dir* within the current directory.
@@ -113,7 +104,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
    [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool there
 
        cd ~/piclas/build
-       reg -e ./bin/piclas ../regressioncheck/NIG_DSMC/Ambipolar_Diffusion
+       reggie -e ./bin/piclas ../regressioncheck/NIG_DSMC/Ambipolar_Diffusion
 
    to run a specific test case, e.g., *Ambipolar_Diffusion*.
 
