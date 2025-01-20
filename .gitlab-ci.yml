@@ -732,6 +732,12 @@ NIG_piclas2vtk:
 #                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+NIG_BGK:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; reggie ../regressioncheck/NIG_BGK
+
 NIG_dielectric:
   <<: *defaults_nightly
   stage: reggie_nightly
