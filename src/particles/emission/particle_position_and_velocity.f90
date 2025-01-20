@@ -500,6 +500,7 @@ INTEGER                         :: iPart, PositionNbr
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
 REAL                            :: Vec3D(3),MPF
+REAL,ALLOCATABLE                :: iRanPart(:,:)
 #if USE_HDG
 INTEGER                         :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
