@@ -468,9 +468,11 @@ build_DSMC:
     - cd ..
     - mkdir -p build_DSMC_debug ; cd build_DSMC_debug
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_DSMC_N1 ; cd build_DSMC_N1
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all
+    - if [ -n "${DO_WEEKLY}" ]; then
+        cd .. ;
+        mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
+      fi
     - if [ -n "${DO_WEEKLY}" ]; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
@@ -643,8 +645,6 @@ CHE_DSMC:
   stage: reggie_feature_checkin
   script:
     - cd build_DSMC_release ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
-    - cd ..
-    - cd build_DSMC_N1 ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
 
 CHE_BGK:
   <<: *defaults_checkin
@@ -732,6 +732,12 @@ NIG_piclas2vtk:
 #                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+NIG_BGK:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; reggie ../regressioncheck/NIG_BGK
+
 NIG_dielectric:
   <<: *defaults_nightly
   stage: reggie_nightly
@@ -1024,6 +1030,13 @@ WEK_DSMC:
   stage: reggie_weekly
   script:
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC -e bin/piclas
+
+WEK_DSMC_N1:
+  <<: *defaults_DSMC_weekly
+  needs: [build_DSMC]
+  stage: reggie_weekly
+  script:
+    - cd build_DSMC_N1 ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
 
 WEK_DSMC_Radiation:
   <<: *defaults_DSMC_weekly_pull_push
