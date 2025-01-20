@@ -98,7 +98,7 @@ TYPE(tBoundaryFieldOutput)   :: BFO
 #if USE_MPI
 TYPE tMPIGROUP
   INTEGER                     :: ID                     !< MPI communicator ID
-  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for electric displacement current
+  TYPE(mpi_comm)              :: UNICATOR=MPI_COMM_NULL !< MPI communicator for electric displacement current
   INTEGER                     :: nProcs                 !< number of MPI processes for particles
   INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE

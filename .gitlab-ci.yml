@@ -87,21 +87,21 @@ before_script:
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5 || true;
+      module load  cmake/3.31.1  gcc/14.2.0  openmpi/5.0.6/gcc/14.2.0      hdf5/1.14.0/gcc/14.2.0/openmpi/5.0.6      hopr/master/gcc/14.2.0/openmpi/5.0.6/hdf5/1.14.0      petsc/3.21.6/gcc/14.2.0/openmpi/5.0.6 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2 || true;
+      module load  cmake/3.31.1  gcc/14.2.0  mpich/4.1.2/gcc/14.2.0        hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2        hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.21.6/gcc/14.2.0/mpich/4.1.2 || true;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2 || true;
+      module load  cmake/3.31.1  gcc/14.2.0  mpich/4.1.2/gcc/14.2.0        hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2        hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.21.6/gcc/14.2.0/mpich/4.1.2 || true;
     fi
   - if [ -n "${DO_MPICH_DEBUG}" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2 || true;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2 || true;
     fi
   - module list || true
 

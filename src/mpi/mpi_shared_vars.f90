@@ -17,7 +17,7 @@
 MODULE MOD_MPI_Shared_Vars
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 
 ! IMPLICIT VARIABLE HANDLING
@@ -42,9 +42,9 @@ INTEGER            :: nLeaderGroupProcs                     !> Number of nodes
 INTEGER            :: NbrOfPhysicalNodes                    !> Number of physical nodes (as opposed to virtual nodes) on which the simulation is executed
 #endif /*! (CORE_SPLIT==0)*/
 INTEGER            :: nProcessors_Global                    !> Number of total procs
-INTEGER            :: MPI_COMM_SHARED                       !> Communicator on current compute-node
-INTEGER            :: MPI_COMM_LEADERS_SHARED               !> Communicator compute-node roots (my_rank_shared=0)
-INTEGER,ALLOCATABLE:: MPI_COMM_LEADERS_REQUEST(:)           !> Request handle for non-blocking communication
+TYPE(MPI_comm)     :: MPI_COMM_SHARED                       !> Communicator on current compute-node
+TYPE(MPI_comm)     :: MPI_COMM_LEADERS_SHARED               !> Communicator compute-node roots (my_rank_shared=0)
+TYPE(MPI_Request),ALLOCATABLE:: MPI_COMM_LEADERS_REQUEST(:)           !> Request handle for non-blocking communication
 
 ! Mesh
 !> Counters
@@ -53,10 +53,10 @@ INTEGER            :: nComputeNodeTotalSides                !> Number of sides o
 INTEGER            :: nComputeNodeTotalNodes                !> Number of nodes on current compute-node (including halo region)
 
 ! Offsets for MPI_ALLGATHERV
-INTEGER,ALLOCATABLE:: displsElem(:),recvcountElem(:)
-INTEGER,ALLOCATABLE:: displsSide(:),recvcountSide(:)
-INTEGER,ALLOCATABLE:: displsNode(:),recvcountNode(:)
-INTEGER            :: MPI_STRUCT_ELEM,MPI_STRUCT_SIDE,MPI_STRUCT_NODE
+INTEGER,ALLOCATABLE,ASYNCHRONOUS:: displsElem(:),recvcountElem(:)
+INTEGER,ALLOCATABLE,ASYNCHRONOUS:: displsSide(:),recvcountSide(:)
+INTEGER,ALLOCATABLE,ASYNCHRONOUS:: displsNode(:),recvcountNode(:)
+TYPE(MPI_Datatype) :: MPI_STRUCT_ELEM,MPI_STRUCT_SIDE,MPI_STRUCT_NODE
 #endif /*USE_MPI*/
 
 ! Surface sampling
@@ -64,7 +64,7 @@ INTEGER            :: mySurfRank           =-888            !> rank on MPI_COMM_
 #if USE_MPI
 INTEGER,ALLOCATABLE:: MPIRankSharedLeader(:)                !> Array of size nLeaderGroupProcs holding the leader rank of each proc
 INTEGER,ALLOCATABLE:: MPIRankSurfLeader(:)                  !> Array of size nLeaderGroupProcs holding the surf rank of each proc
-INTEGER            :: MPI_COMM_LEADERS_SURF=MPI_COMM_NULL   !> Communicator compute-node roots on surface communicator (my_rank_shared=0)
+TYPE(MPI_comm)     :: MPI_COMM_LEADERS_SURF=MPI_COMM_NULL   !> Communicator compute-node roots on surface communicator (my_rank_shared=0)
 INTEGER            :: nSurfLeaders                          !> compute-node leaders on MPI_COMM_LEADERS_SURF
 
 INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf sides per leader proc
@@ -72,7 +72,7 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:):: nSurfSidesLeader       !> number of surf si
                                                             !> 2 - sides from other leader to local leader
 
 
-INTEGER            :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
+TYPE(MPI_Info)     :: MPI_INFO_SHARED_LOOSE                 !> MPI_INFO object allowing for re-ordering of same origin atomic RMA operations
 
 !> Other variables in particle_mesh_vars.f90
 #endif /*USE_MPI*/

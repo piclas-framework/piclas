@@ -111,7 +111,8 @@ REAL,ALLOCATABLE               :: MPISideBoundsOfNbElemCenter(:,:)
 ! shape function
 INTEGER                        :: GlobalElemID,GlobalElemRank,GlobalLeaderRank
 ! Non-symmetric particle exchange
-INTEGER,ALLOCATABLE            :: SendRequest(:),RecvRequest(:),SendShapeElemID(:),RecvProcsElems(:)
+TYPE(MPI_Request),ALLOCATABLE  :: SendRequest(:),RecvRequest(:)
+INTEGER,ALLOCATABLE            :: SendShapeElemID(:),RecvProcsElems(:)
 LOGICAL,ALLOCATABLE            :: GlobalProcToRecvProc(:), RecvProcs(:)
 LOGICAL,ALLOCATABLE            :: CommFlag(:)
 INTEGER                        :: nNonSymmetricExchangeProcs,nNonSymmetricExchangeProcsGlob
@@ -1127,9 +1128,9 @@ IF(CheckExchangeProcs)THEN
   DO iProc = 0,nProcessors_Global-1
     IF (iProc.EQ.myRank) CYCLE
 
-    CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 
@@ -1256,7 +1257,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     END DO
 
     DO iProc = 1,nComputeNodeProcessors-1
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END DO
 
@@ -1276,7 +1277,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 
     DO iProc = 1,nComputeNodeProcessors-1
       IF (ShapeMapping(iProc)%nRecvShapeElems.EQ.0) CYCLE
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END DO
 
@@ -1341,9 +1342,9 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       DO iProc = 0,nLeaderGroupProcs-1
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
-        CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+        CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
         IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-        CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+        CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
         IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
       END DO
 
@@ -1414,12 +1415,12 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
         IF (CNShapeMapping(iProc)%nRecvShapeElems(1).NE.0) THEN
-          CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+          CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
           IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
         END IF
 
         IF (CNShapeMapping(iProc)%nSendShapeElems(1).NE.0) THEN
-          CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+          CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
           IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
         END IF
 
@@ -1447,12 +1448,12 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       DO iProc = 0,nLeaderGroupProcs-1
         IF (iProc.EQ.myLeaderGroupRank) CYCLE
         IF (CNShapeMapping(iProc)%nRecvShapeElems(1).NE.0) THEN
-          CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+          CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
           IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
         END IF
 
         IF (CNShapeMapping(iProc)%nSendShapeElems(1).NE.0) THEN
-          CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+          CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
           IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
         END IF
       END DO
@@ -1486,7 +1487,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                   , SendRequest(1)                           &
                   , IERROR)
 
-    CALL MPI_WAIT(SendRequest(1),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequest(1),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 
     IF (nSendShapeElems.GE.1) THEN
@@ -1499,7 +1500,7 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
                     , SendRequest(1)                         &
                     , IERROR)
 
-      CALL MPI_WAIT(SendRequest(1),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequest(1),MPI_STATUS_IGNORE,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
 
@@ -1573,9 +1574,9 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   END DO
 
   DO iProc = 1,nShapeExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     ALLOCATE(ShapeMapping(iProc)%SendShapeElemID(1:ShapeMapping(iProc)%nSendShapeElems), &
         ShapeMapping(iProc)%SendBuffer(4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems))
@@ -1603,9 +1604,9 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
   END DO
 
   DO iProc = 1,nShapeExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nSendShapeElems
       SendElemShapeID(GetCNElemID(ShapeMapping(iProc)%SendShapeElemID(iElem))) = iElem

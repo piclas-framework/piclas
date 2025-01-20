@@ -16,6 +16,9 @@ MODULE MOD_PICDepo_Vars
 ! Contains the variables for the particle deposition
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -111,7 +114,7 @@ REAL,ALLOCATABLE                :: VolInt_W(:)
 REAL,ALLOCATABLE                :: CellVolWeight_Volumes(:,:,:,:)
 REAL,ALLOCPOINT                 :: NodeVolume(:)
 #if USE_MPI
-INTEGER                         :: NodeVolume_Shared_Win
+TYPE(MPI_Win)                   :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 #endif
 
@@ -136,11 +139,11 @@ INTEGER,ALLOCPOINT :: Periodic_Nodes(:)
 INTEGER,ALLOCPOINT :: Periodic_offsetNode(:)
 
 #if USE_MPI
-INTEGER            :: Periodic_nNodes_Shared_Win
+TYPE(MPI_Win)      :: Periodic_nNodes_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)
-INTEGER            :: Periodic_Nodes_Shared_Win
+TYPE(MPI_Win)      :: Periodic_Nodes_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)
-INTEGER            :: Periodic_offsetNode_Shared_Win
+TYPE(MPI_Win)      :: Periodic_offsetNode_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
 
 REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
@@ -148,7 +151,7 @@ REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local n
 !                                                      ! contribution accumulates over time, but remains local to each processor
 !                                                      ! as it is communicated via the container NodeSourceExt.
 
-INTEGER                         :: SFElemr2_Shared_Win
+TYPE(MPI_Win)                   :: SFElemr2_Shared_Win
 
 ! Send direction of nodes (can be different from number of receive nodes for each processor)
 TYPE tNodeMappingSend
@@ -195,14 +198,15 @@ TYPE tCNShapeMapping
 END TYPE
 TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
 
-INTEGER                         :: ShapeElemProcSend_Shared_Win
+TYPE(MPI_Win)                   :: ShapeElemProcSend_Shared_Win
 LOGICAL,ALLOCPOINT              :: ShapeElemProcSend_Shared(:,:)
 LOGICAL,ALLOCATABLE             :: FlagShapeElem(:)
 INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
 INTEGER                         :: nShapeExchangeProcs
 
 !INTEGER             :: SendRequest
-INTEGER,ALLOCATABLE :: RecvRequest(:), SendRequest(:), CNRankToSendRank(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecvRequest(:), SendRequest(:)
+INTEGER,ALLOCATABLE ::CNRankToSendRank(:)
 #endif
 
 !===================================================================================================================================

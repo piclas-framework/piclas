@@ -499,12 +499,12 @@ INTEGER,INTENT(INOUT)           :: NbrOfParticle
 INTEGER                         :: iPart, PositionNbr
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
-REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
+REAL                            :: Vec3D(3),MPF
+REAL,ALLOCATABLE                :: iRanPart(:,:)
 #if USE_HDG
 INTEGER                         :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
-
 IF(NbrOfParticle.LT.1) RETURN
 IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber! '//&
                                                                 'Increase Part-maxParticleNumber or use more processors.')
@@ -566,6 +566,7 @@ CASE('taylorgreenvortex')
     END IF
   END DO
 CASE('maxwell')
+  ALLOCATE(iRanPart(3, NbrOfParticle))
   CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO iPart = 1,NbrOfParticle
@@ -575,6 +576,7 @@ CASE('maxwell')
     END IF
   END DO
 CASE('maxwell_distribution_1D')
+  ALLOCATE(iRanPart(3, NbrOfParticle))
   CALL BuildTransGaussNums2(NbrOfParticle, iRanPart(1,:))
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO iPart = 1,NbrOfParticle

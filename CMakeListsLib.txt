@@ -441,7 +441,7 @@ ELSE()
     ENDIF()
     MESSAGE(STATUS "Downloading from ${MATHLIB_DOWNLOAD}")
     SET (MATH_LIB_DOWNLOAD ${MATHLIB_DOWNLOAD} CACHE STRING "OpenBLAS Download-link" FORCE)
-    SET (MATH_LIB_TAG "v0.3.17")
+    SET (MATH_LIB_TAG "v0.3.29")
     MARK_AS_ADVANCED(FORCE MATH_LIB_DOWNLOAD)
     MARK_AS_ADVANCED(FORCE MATH_LIB_TAG)
   # Unknown math lib vendor
@@ -664,7 +664,7 @@ ENDIF()
 
 IF(LIBS_USE_PETSC)
   IF (LIBS_BUILD_PETSC)
-    SET(LIBS_BUILD_PETSC_VERSION "3.19.3" CACHE STRING "PETSc self-built version tag")
+    SET(LIBS_BUILD_PETSC_VERSION "3.21.6" CACHE STRING "PETSc self-built version tag")
     MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
     UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
@@ -687,6 +687,9 @@ IF(LIBS_USE_PETSC)
       SET(PETSC_COMPILER_FLAGS --with-debugging=1)
     ENDIF()
 
+    # Settings
+    # --with-mpi-f90module-visibility=0       "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
+
     # Add PETSc project
     EXTERNALPROJECT_ADD(PETSc
         GIT_REPOSITORY "https://gitlab.com/petsc/petsc.git"
@@ -703,7 +706,7 @@ IF(LIBS_USE_PETSC)
           --prefix=${PETSC_BUILD_DIR}
           ${PETSC_COMPILER_FLAGS}
           --with-shared-libraries=1
-          --with-mpi-f90module-visibility=0           # "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
+          --with-mpi-f90module-visibility=0
           --with-bison=0
           --download-hypre
           --download-mumps
