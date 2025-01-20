@@ -75,7 +75,7 @@ fi
 # Complete version for AppImage container
 CHECKWORKFLOW=$(grep -in "name: piclas-binaries-v" ${WORKFLOW})
 if [[ -z ${CHECKWORKFLOW} ]]; then
-  echo "${RED}Could not 'name: piclas-binaries-v' in ${WORKFLOW}${NC}"
+  echo "${RED}Could not find 'name: piclas-binaries-v' in ${WORKFLOW} using grep${NC}"
   exit 1
 else
   sed -i "s/.*name: piclas-binaries-v.*/        name: piclas-binaries-v${1}/" ${WORKFLOW}
