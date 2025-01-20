@@ -263,7 +263,7 @@ USE MOD_ReadInTools        ,ONLY: GETREAL
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemBaryNGeo
 #if USE_MPI
 USE MOD_Globals            ,ONLY: MPI_COMM_PICLAS,IERROR
-USE MPI
+USE mpi_f08
 !USE MOD_Particle_Mesh_Vars ,ONLY: NodeCoords_Shared
 USE MOD_RayTracing_Vars    ,ONLY: N_DG_Ray_Shared,N_DG_Ray_Shared_Win
 USE MOD_MPI_Shared

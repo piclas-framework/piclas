@@ -114,7 +114,7 @@ REAL,INTENT(IN)     :: OutputTime
 INTEGER,PARAMETER              :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName,DataSetName
-INTEGER                        :: iElem,i,iMax
+INTEGER                        :: iElem,i,iMax,CNElemID
 REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1),sNodeVol(1:8)
 INTEGER                        :: NodeID(1:8)
 REAL,ALLOCATABLE               :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
@@ -152,7 +152,8 @@ IF(.NOT.ALLOCATED(NodeSourceExt)) THEN
 END IF
 DO iElem=1,PP_nElems
   ! Copy values to equidistant distribution
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  CNElemID = GetCNElemID(iElem+offsetElem)
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   IF(DoDeposition) sNodeVol(1:8) = 1./NodeVolume(NodeID(1:8)) ! only required when actual deposition is performed
   NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(NodeID(1))*sNodeVol(1)
   NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(NodeID(2))*sNodeVol(2)
@@ -1693,7 +1694,7 @@ END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 SUBROUTINE WriteEmissionVariablesToHDF5(FileName)
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 !USE MOD_io_HDF5
 USE MOD_Globals

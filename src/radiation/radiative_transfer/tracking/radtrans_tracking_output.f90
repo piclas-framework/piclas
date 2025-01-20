@@ -526,7 +526,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID, SideID
 INTEGER                         :: iPos,iProc,p,q
-INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
+TYPE(MPI_Request)               :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -616,12 +616,12 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
-      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
 
     IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
   END DO ! iProc

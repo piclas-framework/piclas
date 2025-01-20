@@ -17,6 +17,9 @@ MODULE MOD_Photon_TrackingVars
 ! Contains the radiation transport variables
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -38,7 +41,7 @@ TYPE (tPhotonProps)  :: PhotonProps         !>
 
 REAL,ALLOCPOINT      :: PhotonSampWallHDF5(:,:,:,:)
 #if USE_MPI
-INTEGER              :: PhotonSampWallHDF5_Shared_Win
+TYPE(MPI_Win)        :: PhotonSampWallHDF5_Shared_Win
 REAL,POINTER         :: PhotonSampWallHDF5_Shared(:,:,:,:)
 #endif
 
@@ -51,7 +54,7 @@ INTEGER              :: PhotonModeBPO       !> 0: Output nothing to PartStateBou
 LOGICAL              :: UsePhotonTriaTracking !> True/False: Use TriaTracking methods for photon tracking or Bilinear methods (default is True)
 
 #if USE_MPI
-INTEGER              :: PhotonSampWall_Shared_Win
+TYPE(MPI_Win)        :: PhotonSampWall_Shared_Win
 REAL,POINTER         :: PhotonSampWall_Shared(:,:,:,:)
 LOGICAL              :: PhotonSampWall_Shared_Win_allocated
 REAL,ALLOCATABLE     :: PhotonSampWallProc(:,:,:,:)
@@ -62,9 +65,9 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)   :: PhotonSurfSideArea                  !> Are
 
 #if USE_MPI
 REAL,POINTER,DIMENSION(:,:,:,:)    :: PhotonSurfSideSamplingMidPoints_Shared     !> Physical coordinate of the center of supersampled surface side
-INTEGER                            :: PhotonSurfSideSamplingMidPoints_Shared_Win
+TYPE(MPI_Win)                      :: PhotonSurfSideSamplingMidPoints_Shared_Win
 REAL,POINTER,DIMENSION(:,:,:)      :: PhotonSurfSideArea_Shared                  !> Area of supersampled surface side
-INTEGER                            :: PhotonSurfSideArea_Shared_Win
+TYPE(MPI_Win)                      :: PhotonSurfSideArea_Shared_Win
 #endif /*USE_MPI*/
 
 

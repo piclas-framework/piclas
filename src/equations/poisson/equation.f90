@@ -383,7 +383,7 @@ color = MERGE(CPPBoundaries, MPI_UNDEFINED, BConProc)
 CPPCOMM%ID = CPPBoundaries
 
 ! create new emission communicator for coupled power potential communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, CPPCOMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, CPPCOMM%UNICATOR, iError)
 
 ! Find my rank on the shared communicator, comm size and proc name
 IF(BConProc)THEN
@@ -1117,4 +1117,3 @@ SDEALLOCATE(LinPhi)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation
-

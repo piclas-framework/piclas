@@ -69,7 +69,7 @@ REAL                               :: U_local(1,0:N_Restart,0:N_Restart,0:N_Rest
 LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1),NodeVol(1:8)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
-INTEGER                            :: iElem!,CNElemID
+INTEGER                            :: iElem,CNElemID
 INTEGER                            :: NodeID(1:8)!,firstNode,lastNode,firstGlobalElemID(1:8),iNode
 REAL,ALLOCATABLE                   :: Vdm_N_EQ(:,:) !< Vandermonde mapping from NodeType to equidistant (visu) node set
 !===================================================================================================================================
@@ -116,7 +116,8 @@ IF(DG_SourceExtExists)THEN
 
     ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
     ! Map non-unique to unique node ID
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+    CNElemID = GetCNElemID(iElem+offsetElem)
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
     !DO iNode = 1, 8
     !  firstGlobalElemID(iNode) = GetGlobalElemID(NodeToElemInfo(NodeToElemMapping(1,NodeID(iNode)) + 1))
     !END DO ! I = 1, 8
@@ -185,7 +186,7 @@ END SUBROUTINE ReadNodeSourceExtFromHDF5
 SUBROUTINE ReadEmissionVariablesFromHDF5()
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 !USE MOD_io_HDF5
 USE MOD_Globals

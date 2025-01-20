@@ -394,7 +394,6 @@ LOGICAL, INTENT(IN), OPTIONAL :: UseOldVecLength
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart,iPos,iProc,jPos, nPartLength, SpecID
-INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles, nSendParticles
 INTEGER                       :: ALLOCSTAT
 ! Polyatomic Molecules
@@ -587,13 +586,13 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterStart(1))
 #endif /*defined(MEASURE_MPI_WAIT)*/
-  CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(PartMPIExchange%SendRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
   CALL SYSTEM_CLOCK(count=CounterStart(2))
 #endif /*defined(MEASURE_MPI_WAIT)*/
-  CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),recv_status_list(:,iProc),IERROR)
+  CALL MPI_WAIT(PartMPIExchange%RecvRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
@@ -763,7 +762,6 @@ LOGICAL, OPTIONAL             :: DoMPIUpdateNextFreePos
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iProc, iPos, nRecv, PartID,jPos, iPart, ElemID, SpecID
-INTEGER                       :: recv_status_list(1:MPI_STATUS_SIZE,0:nExchangeProcessors-1)
 INTEGER                       :: MessageSize, nRecvParticles
 ! Polyatomic Molecules
 INTEGER                       :: iPolyatMole, pos_poly, MsgLengthPoly, MsgLengthElec, pos_elec, pos_ambi, MsgLengthAmbi
@@ -781,7 +779,7 @@ DO iProc=0,nExchangeProcessors-1
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterStart(1))
 #endif /*defined(MEASURE_MPI_WAIT)*/
-  CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(PartMPIExchange%SendRequest(2,iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(1), count_rate=Rate(1))
@@ -831,7 +829,7 @@ DO iProc=0,nExchangeProcessors-1
   CALL SYSTEM_CLOCK(count=CounterStart(2))
 #endif /*defined(MEASURE_MPI_WAIT)*/
   ! finish communication with iproc
-  CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),recv_status_list(:,iProc),IERROR)
+  CALL MPI_WAIT(PartMPIExchange%RecvRequest(2,iProc),MPI_STATUS_IGNORE,IERROR)
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterEnd(2), count_rate=Rate(2))
   MPIW8TimePart(4) = MPIW8TimePart(4) + REAL(CounterEnd(2)-CounterStart(2),8)/Rate(2)

@@ -66,12 +66,14 @@ do
 
     # GCC
     #USECOMPILERVERSION=13.1.0
-    USECOMPILERVERSION=13.2.0
+    #USECOMPILERVERSION=13.2.0
+    USECOMPILERVERSION=14.2.0
 
     # OpenMPI
     MPINAMES='openmpi'
     #USEMPIVERSION=4.1.5
     #USEMPIVERSION=4.1.6
+    USEMPIVERSION=5.0.6
 
     # MPICH
     MPINAMES='mpich'
@@ -116,7 +118,8 @@ fi
 #HDF5VERSION=1.12.1
 #HDF5VERSION=1.12.2
 HDF5VERSION=1.14.0
-#HDF5VERSION=1.14.3    # Error during mesh read-in in piclas/src/io_hdf5/hdf5_input.f90
+#HDF5VERSION=1.14.3 # Error during mesh read-in in piclas/src/io_hdf5/hdf5_input.f90
+#HDF5VERSION=1.14.5 # Download link dows not work
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0

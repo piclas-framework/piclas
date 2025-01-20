@@ -17,6 +17,9 @@ MODULE MOD_SurfaceModel_Vars
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 
 USE MOD_DSMC_Vars                   ,ONLY: tCollCaseInfo
 
@@ -126,9 +129,9 @@ REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)       ! Adso
 
 #if USE_MPI
 REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)! Sampling direct impact mechanism
-INTEGER                                  :: ChemSampWall_Shared_Win
+TYPE(MPI_Win)                            :: ChemSampWall_Shared_Win
 REAL,POINTER                             :: ChemWallProp_Shared(:,:,:,:,:)! Adsorption count / heat flux
-INTEGER                                  :: ChemWallProp_Shared_Win
+TYPE(MPI_Win)                            :: ChemWallProp_Shared_Win
 #endif
 
 ! === SEE BC ====================================================================================================================

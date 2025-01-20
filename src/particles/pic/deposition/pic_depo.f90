@@ -133,7 +133,7 @@ INTEGER                   :: GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: DoNodeMapping(:), SendNode(:), IsDepoNode(:)
 LOGICAL                   :: bordersMyrank
 ! Non-symmetric particle exchange
-INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
+TYPE(MPI_Request)         :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSymDepo(0:nProcessors_Global-1) , nRecvUniqueNodesNonSymDepo(0:nProcessors_Global-1)
 ! TYPE NodeDepoMapping
 !   INTEGER               :: NodeID
@@ -456,9 +456,9 @@ CASE('cell_volweight_mean')
   ! Finish communication
   DO iProc = 0,nProcessors_Global-1
     IF (iProc.EQ.myRank) CYCLE
-    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 
@@ -558,13 +558,13 @@ CASE('cell_volweight_mean')
 
   ! Finish send
   DO iProc = 1, nNodeSendExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 
   ! Finish receive
   DO iProc = 1, nNodeRecvExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 #else
@@ -1132,7 +1132,7 @@ IMPLICIT NONE
 #if USE_MPI
 INTEGER                        :: iProc
 !INTEGER                        :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
-INTEGER                        :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
+TYPE(MPI_Request)              :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
 !INTEGER                        :: MessageSize
 #endif /*USE_MPI*/
 INTEGER                        :: globalNode, iNode
@@ -1174,11 +1174,11 @@ END DO
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc = 1, nNodeSendExchangeProcs
-  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 DO iProc = 1, nNodeRecvExchangeProcs
-  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -1272,7 +1272,7 @@ INTEGER, ALLOCATABLE      :: SendPeriodicNodes(:), iSendNode(:), RecvPeriodicNod
 INTEGER                   :: GlobalElemRank, iProc
 INTEGER                   :: iRank
 ! Non-symmetric particle exchange
-INTEGER                   :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
+TYPE(MPI_Request)         :: SendRequestNonSymDepo(0:nProcessors_Global-1)      , RecvRequestNonSymDepo(0:nProcessors_Global-1)
 
 TYPE tPeriodicSendRecv
   INTEGER, ALLOCATABLE    :: Send(:,:)
@@ -1488,9 +1488,9 @@ END DO
 ! Finish communication
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
-  CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
@@ -1522,11 +1522,11 @@ END DO
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
   IF (RecvPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
   IF (SendPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
@@ -1627,9 +1627,9 @@ END DO
 ! Finish communication
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
-  CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
@@ -1662,11 +1662,11 @@ END DO
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
   IF (RecvPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
   IF (SendPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
@@ -1713,11 +1713,11 @@ END DO
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
   IF (SendPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
   IF (RecvPeriodicNodes(iProc).NE.0) THEN
-    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
@@ -1838,9 +1838,9 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
  ! Finish communication
   DO iProc = 0,nProcessors_Global-1
     IF (iProc.EQ.myRank) CYCLE
-    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+    CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 
@@ -1873,11 +1873,11 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
   DO iProc = 0,nProcessors_Global-1
     IF (iProc.EQ.myRank) CYCLE
     IF (RecvPeriodicNodes(iProc).NE.0) THEN
-      CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
     IF (SendPeriodicNodes(iProc).NE.0) THEN
-      CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
   END DO
@@ -1926,11 +1926,11 @@ IF (GEO%nPeriodicVectors.GT.1) THEN
   DO iProc = 0,nProcessors_Global-1
     IF (iProc.EQ.myRank) CYCLE
     IF (SendPeriodicNodes(iProc).NE.0) THEN
-      CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
     IF (RecvPeriodicNodes(iProc).NE.0) THEN
-      CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequestNonSymDepo(iProc),MPI_STATUS_IGNORE,IERROR)
       IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     END IF
   END DO
@@ -2132,7 +2132,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 #if USE_LOADBALANCE
 INTEGER,PARAMETER :: N_variables=1
-INTEGER           :: iElem
+INTEGER           :: iElem,CNElemID
 INTEGER           :: NodeID(1:8)
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
@@ -2223,7 +2223,8 @@ IF ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
     DO iElem=1,PP_nElems
       ! Copy values to equidistant distribution
-      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
       NodeSourceExtEquiLB(1,0,0,0,iElem) = NodeSourceExt(NodeID(1))
       NodeSourceExtEquiLB(1,1,0,0,iElem) = NodeSourceExt(NodeID(2))
       NodeSourceExtEquiLB(1,1,1,0,iElem) = NodeSourceExt(NodeID(3))

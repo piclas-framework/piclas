@@ -493,7 +493,7 @@ INTEGER                   :: SendNodeCount, GlobalElemRank, iProc
 INTEGER                   :: TestElemID, GlobalElemRankOrig, iRank
 LOGICAL,ALLOCATABLE       :: NodeMapping(:,:), DoNodeMapping(:), SendNode(:), IsMappedNode(:)
 LOGICAL                   :: bordersMyrank
-INTEGER                   :: SendRequestNonSym(0:nProcessors_Global-1)      , RecvRequestNonSym(0:nProcessors_Global-1)
+TYPE(MPI_Request)         :: SendRequestNonSym(0:nProcessors_Global-1)      , RecvRequestNonSym(0:nProcessors_Global-1)
 INTEGER                   :: nSendUniqueNodesNonSym(0:nProcessors_Global-1) , nRecvUniqueNodesNonSym(0:nProcessors_Global-1)
 INTEGER                   :: GlobalRankToNodeSendRank(0:nProcessors_Global-1)
 LOGICAL,ALLOCATABLE       :: FlagShapeElemAdapt(:)
@@ -654,9 +654,9 @@ END DO
 ! Finish communication
 DO iProc = 0,nProcessors_Global-1
   IF (iProc.EQ.myRank) CYCLE
-  CALL MPI_WAIT(RecvRequestNonSym(iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(RecvRequestNonSym(iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(SendRequestNonSym(iProc),MPIStatus,IERROR)
+  CALL MPI_WAIT(SendRequestNonSym(iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
@@ -717,13 +717,13 @@ END DO
 
 ! Finish send
 DO iProc = 1, nNodeSendExchangeProcs
-  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
 ! Finish receive
 DO iProc = 1, nNodeRecvExchangeProcs
-  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
@@ -763,7 +763,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: iElem, NodeID(1:8), iNode, globalNode
+INTEGER                    :: iElem, NodeID(1:8), iNode, globalNode,CNElemID
 #if USE_MPI
 INTEGER                    :: iProc
 #endif /*USE_MPI*/
@@ -777,9 +777,10 @@ END DO
 
 ! Loop over all elements and map their weighting factor from the element to the nodes
 DO iElem =1, nElems
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  CNElemID=GetCNElemID(iElem+offsetElem)
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   DO iNode = 1, 8
-    PartWeightAtNode(1,NodeID(iNode)) = PartWeightAtNode(1,NodeID(iNode)) + OptimalMPF_Shared(GetCNElemID(iElem+offsetElem))
+    PartWeightAtNode(1,NodeID(iNode)) = PartWeightAtNode(1,NodeID(iNode)) + OptimalMPF_Shared(CNElemID)
     PartWeightAtNode(2,NodeID(iNode)) = PartWeightAtNode(2,NodeID(iNode)) + 1.
   END DO
 END DO
@@ -817,11 +818,11 @@ END DO
 
   ! Finish communication/
   DO iProc = 1, nNodeSendExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
   DO iProc = 1, nNodeRecvExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 

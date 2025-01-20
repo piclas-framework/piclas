@@ -36,9 +36,9 @@ LOGICAL                                   :: AbortExchangeProcs             ! Te
 
 TYPE tPartMPIGROUP
 #if USE_MPI
-  INTEGER                                 :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
+  TYPE(mpi_comm)                          :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
+  TYPE(MPI_Request)                       :: Request                        ! MPI request for asynchronous communication
 #endif /*USE_MPI*/
-  INTEGER                                 :: Request                        ! MPI request for asynchronous communication
   INTEGER                                 :: nProcs                         ! number of MPI processes for particles
   INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
   LOGICAL                                 :: MPIRoot                        ! Root, MPIRank=0
@@ -102,8 +102,8 @@ TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE                     :: nPartsSend(:,:)                ! Only MPI neighbors
   INTEGER,ALLOCATABLE                     :: nPartsRecv(:,:)                ! Only MPI neighbors
   INTEGER                                 :: nMPIParticles                  ! Number of all received particles
-  INTEGER,ALLOCATABLE                     :: SendRequest(:,:)               ! Send request message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE                     :: RecvRequest(:,:)               ! Receive request message handle,  1 - Number, 2-Message
+  TYPE(MPI_Request),ALLOCATABLE           :: SendRequest(:,:)               ! Send request message handle 1 - Number, 2-Message
+  TYPE(MPI_Request),ALLOCATABLE           :: RecvRequest(:,:)               ! Receive request message handle,  1 - Number, 2-Message
   TYPE(tMPIMessage),ALLOCATABLE           :: send_message(:)                ! Message, required for particle emission
 END TYPE
 

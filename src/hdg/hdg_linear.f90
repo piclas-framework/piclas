@@ -60,6 +60,7 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #if USE_PETSC
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem
+USE MOD_HDG_Vars_PETSc
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars

@@ -113,7 +113,6 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-DeformEnergyLoss ', 'Energy dissipation through deformation with a wall collision (only granular species) [$].' , '0.', numberedmulti=.TRUE.)
-
 ! Photo-ionization SEE
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-PhotonSpecularReflection'  &
                                 , 'Enables a perfect specular reflection for photons (FALSE: diffuse with PhotonEnACC) [$].' &
@@ -1154,7 +1153,7 @@ CALL MPI_ALLREDUCE(ReflectiveOrOpenBCFound, BCOnNode, 1, MPI_LOGICAL, MPI_LOR, M
 ! Make sure to include the root
 color = MERGE(1337, MPI_UNDEFINED, MPIRoot.OR.BCOnNode)
 ! Create new surface communicator. Pass MPI_INFO_NULL as rank to follow the original ordering
-CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, SurfCOMM%UNICATOR, iError)
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, SurfCOMM%UNICATOR, iError)
 ! Find my rank on the shared communicator, comm size and proc name
 IF(SurfCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
   CALL MPI_COMM_RANK(SurfCOMM%UNICATOR, SurfCOMM%MyRank, iError)

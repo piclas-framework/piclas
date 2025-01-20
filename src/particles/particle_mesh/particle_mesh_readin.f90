@@ -145,8 +145,9 @@ INTEGER                        :: nSideIDs,offsetSideID
 #if USE_MPI
 INTEGER                        :: iProc
 INTEGER                        :: offsetNodeID!,nNodeIDs
-INTEGER                        :: MPI_LENGTH(1),MPI_TYPE(1)
+INTEGER                        :: MPI_LENGTH(1)
 INTEGER(KIND=MPI_ADDRESS_KIND) :: MPI_DISPLACEMENT(1)
+TYPE(MPI_Datatype)             :: MPI_TYPE(1)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 

@@ -17,12 +17,15 @@ MODULE MOD_RadiationTrans_Vars
 ! Contains the radiative transfer variables
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! GLOBAL VARIABLES 
+! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL                                  :: useParticleRadiationSolver
 INTEGER                                  :: RadObservationPointMethod
@@ -43,8 +46,8 @@ END TYPE
 
 TYPE(tRadObservationPoint)               :: RadObservationPoint
 REAL,ALLOCATABLE                         :: RadObservation_Emission(:)
-REAL,ALLOCATABLE                         :: RadObservation_Emission_Conv(:)  
-INTEGER,ALLOCATABLE                      :: RadObservation_EmissionPart(:)  
+REAL,ALLOCATABLE                         :: RadObservation_Emission_Conv(:)
+INTEGER,ALLOCATABLE                      :: RadObservation_EmissionPart(:)
 
 TYPE tRadTrans
   INTEGER                                :: NumPhotonsPerCell
@@ -70,19 +73,19 @@ INTEGER, ALLOCATABLE            :: RadTransPhotPerCellLoc(:)
 REAL, ALLOCPOINT                :: RadTransObsVolumeFrac(:)
 REAL, ALLOCPOINT                :: RadObservationPOI(:,:)
 #if USE_MPI
-INTEGER                         :: RadTransPhotPerCell_Shared_Win
+TYPE(MPI_Win)                   :: RadTransPhotPerCell_Shared_Win
 INTEGER,ALLOCPOINT              :: RadTransPhotPerCell_Shared(:)
-INTEGER                         :: RadTransObsVolumeFrac_Shared_Win
+TYPE(MPI_Win)                   :: RadTransObsVolumeFrac_Shared_Win
 REAL,ALLOCPOINT                 :: RadTransObsVolumeFrac_Shared(:)
-INTEGER                         :: Radiation_Emission_Spec_Total_Shared_Win
+TYPE(MPI_Win)                   :: Radiation_Emission_Spec_Total_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Total_Shared(:)
-INTEGER                         :: Radiation_Emission_Spec_Max_Shared_Win
+TYPE(MPI_Win)                   :: Radiation_Emission_Spec_Max_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Max_Shared(:)
-INTEGER                         :: RadiationElemAbsEnergy_Shared_Win
+TYPE(MPI_Win)                   :: RadiationElemAbsEnergy_Shared_Win
 REAL,POINTER                    :: RadiationElemAbsEnergy_Shared(:,:)
-INTEGER                         :: RadiationElemAbsEnergySpec_Shared_Win
+TYPE(MPI_Win)                   :: RadiationElemAbsEnergySpec_Shared_Win
 REAL,POINTER                    :: RadiationElemAbsEnergySpec_Shared(:,:)
-INTEGER                         :: RadObservationPOI_Shared_Win
+TYPE(MPI_Win)                   :: RadObservationPOI_Shared_Win
 REAL,ALLOCPOINT                 :: RadObservationPOI_Shared(:,:)
 #endif
 !===================================================================================================================================
