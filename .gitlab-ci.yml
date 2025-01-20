@@ -120,6 +120,7 @@ stages:
   - reggie_weekly
   - documentation
   - deploy
+  - appimage
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Templates ("hidden jobs")
@@ -1098,3 +1099,45 @@ github:
     - cd piclas_github ;
     - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
     - git push --force --follow-tags piclas-framework master ;
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "appimage": Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+github_create_appimage:
+  stage: appimage
+  tags:
+    - withmodules-concurrent
+  rules:
+    - if: '$DO_CREATE_APPIMAGE'
+  script:
+    - if [ -z "${DO_CREATE_APPIMAGE}" ]; then exit; fi
+    - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
+    - rm -rf piclas-testing || true ;
+    - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@piclas.boltzplatz.eu:piclas/piclas.git piclas-testing
+    - cd piclas-testing
+    - git remote add piclas-testing git@github.com-reggie2.0:scopplestone/piclas-testing.git
+    - git push --force piclas-testing ${CI_COMMIT_REF_NAME}
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "appimage": Download the AppImages from the piclas-testing repository and test them
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+github_test_appimage:
+  stage: appimage
+  tags:
+    - withmodules-concurrent
+  rules:
+    - if: '$DO_TEST_APPIMAGE'
+  script:
+    - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
+    - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
+    - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+    - module purge || true;
+    - module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5 || true;
+    - rm -rf piclas-testing || true ;
+    - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
+    - cd piclas-testing
+    - source /var/lib/gitlab-runner/.bashrc
+    - gh run download -n ${DO_TEST_APPIMAGE}
+    - ls -l
+    - module li
+    - ./tools/testAppImages.sh . regressioncheck
