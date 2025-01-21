@@ -581,7 +581,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)             :: nProcs
 INTEGER,INTENT(IN)             :: nGlobalElems
-REAL,INTENT(IN)                :: ElemGlobalTime(:)
+REAL,INTENT(INOUT)             :: ElemGlobalTime(:)
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 INTEGER,INTENT(IN)             :: PartsInElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1255,7 +1255,7 @@ USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeMM,MPIW8CountMM
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #if USE_HDG && USE_PETSC
-USE MOD_HDG_Vars          ,ONLY: PETScFieldTime
+USE MOD_HDG_Vars_PETSc    ,ONLY: PETScFieldTime
 #endif /*USE_HDG && USE_PETSC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

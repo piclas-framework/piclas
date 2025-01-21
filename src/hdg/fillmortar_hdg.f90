@@ -65,7 +65,7 @@ USE MOD_Mortar_Vars     ,ONLY: N_Mortar
 USE MOD_HDG_Vars        ,ONLY: MaskedSide,SmallMortarInfo,nGP_Face
 USE MOD_Mesh_Vars       ,ONLY: nSides,MortarType,MortarInfo
 #if USE_PETSC
-USE MOD_HDG_Vars        ,ONLY: SmallMortarType
+USE MOD_HDG_Vars_PETSc  ,ONLY: SmallMortarType
 #if USE_MPI
 USE MOD_MPI             ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 USE MOD_MPI_Vars

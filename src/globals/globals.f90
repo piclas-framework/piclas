@@ -18,7 +18,7 @@ MODULE MOD_Globals
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -39,11 +39,10 @@ LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global numb
 LOGICAL            :: MPIRoot,MPILocalRoot
 #if USE_MPI
 !#include "mpif.h"
-INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
-INTEGER            :: MPI_COMM_NODE    ! local node subgroup
-INTEGER            :: MPI_COMM_LEADERS ! all node masters
-INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
-INTEGER            :: MPI_COMM_PICLAS  ! all nodes
+TYPE(MPI_Comm)     :: MPI_COMM_NODE=MPI_COMM_NULL    ! local node subgroup
+TYPE(MPI_Comm)     :: MPI_COMM_LEADERS=MPI_COMM_NULL ! all node masters
+TYPE(MPI_Comm)     :: MPI_COMM_WORKERS=MPI_COMM_NULL ! all non-master nodes
+TYPE(MPI_Comm)     :: MPI_COMM_PICLAS  ! all nodes
 #else
 INTEGER,PARAMETER  :: MPI_COMM_PICLAS=-1 ! DUMMY when compiling single (MPI=OFF)
 INTEGER,PARAMETER  :: MPI_COMM_LEADERS=-1 ! DUMMY when compiling single (MPI=OFF)
@@ -68,31 +67,6 @@ INTEGER(KIND=IK)   :: nGlobalNbrOfParticles(6) !< 1-3: min,max,total number of s
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
-
-! Overload the MPI interface because MPICH fails to provide it
-! > https://github.com/pmodels/mpich/issues/2659
-! > https://www.mpi-forum.org/docs/mpi-3.1/mpi31-report/node263.htm
-#if LIBS_MPICH_FIX_SHM_INTERFACE
-INTERFACE MPI_WIN_ALLOCATE_SHARED
-  SUBROUTINE PMPI_WIN_ALLOCATE_SHARED(SIZE, DISP_UNIT, INFO, COMM, BASEPTR, WIN, IERROR)
-      USE, INTRINSIC ::  ISO_C_BINDING, ONLY : C_PTR
-      IMPORT         ::  MPI_ADDRESS_KIND
-      INTEGER        ::  DISP_UNIT, INFO, COMM, WIN, IERROR
-      INTEGER(KIND=MPI_ADDRESS_KIND) ::  SIZE
-      TYPE(C_PTR)    ::  BASEPTR
-  END SUBROUTINE
-END INTERFACE
-
-INTERFACE MPI_WIN_SHARED_QUERY
-  SUBROUTINE PMPI_WIN_SHARED_QUERY(WIN, RANK, SIZE, DISP_UNIT, BASEPTR, IERROR)
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_PTR
-      IMPORT         :: MPI_ADDRESS_KIND
-      INTEGER        :: WIN, RANK, DISP_UNIT, IERROR
-      INTEGER(KIND=MPI_ADDRESS_KIND) :: SIZE
-      TYPE(C_PTR)    :: BASEPTR
-  END SUBROUTINE
-END INTERFACE
-#endif /*LIBS_MPICH_FIX_SHM_INTERFACE*/
 
 INTERFACE Abort
   MODULE PROCEDURE AbortProg
@@ -822,7 +796,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 #if USE_MPI
-INTEGER, INTENT(IN),OPTIONAL    :: Comm
+TYPE(mpi_comm),INTENT(IN),OPTIONAL :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES

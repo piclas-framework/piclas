@@ -67,6 +67,7 @@ if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   MPIVERSION=4.1.6
   MPIVERSION=4.1.5
+  MPIVERSION=5.0.6
 elif [ "${WHICHMPI}" == "openmpi-debug" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
   MPIVERSION=4.1.6

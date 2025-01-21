@@ -17,6 +17,9 @@ MODULE MOD_DG_Vars
 ! Contains global variables used by the DG modules.
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -94,7 +97,7 @@ TYPE(N_U_Surf),ALLOCATABLE :: U_Surf_N(:) !< Solution variable for each equation
 LOGICAL             :: DGInitIsDone=.FALSE.
 
 #if USE_MPI
-INTEGER         :: N_DG_Mapping_Shared_Win
+TYPE(MPI_Win)       :: N_DG_Mapping_Shared_Win
 #endif
 
 !===================================================================================================================================

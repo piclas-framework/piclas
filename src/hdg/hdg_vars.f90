@@ -11,20 +11,15 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-#if USE_PETSC
-#include "petsc/finclude/petsc.h"
-#endif
 !===================================================================================================================================
 !> Contains global variables used by the HDG modules.
 !===================================================================================================================================
 MODULE MOD_HDG_Vars
 ! MODULES
 #if USE_MPI
+USE mpi_f08
 USE MOD_Globals
 #endif /*USE_MPI*/
-#if USE_PETSC
-USE PETSc
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -36,20 +31,6 @@ SAVE
 INTEGER,ALLOCATABLE :: nGP_vol(:)  !< =(PP_N+1)**3
 INTEGER,ALLOCATABLE :: nGP_face(:) !< =(PP_N+1)**2
 
-#if USE_PETSC
-Mat                 :: PETScSystemMatrix        !< Global PETSc System matrix A (A * lambda = rhs)
-Vec                 :: PETScRHS                 !< Right hand side of the PETSc System rhs (Dirichlet BCs, Source terms)
-Vec                 :: PETScSolution            !< Solution vector of the PETSc System (lambda, potential on the sides)
-KSP                 :: PETScSolver              !< Krylov subspace method and preconditioner used in PETSc
-Vec                 :: PETScSolutionLocal       !< Local portion of the solution vector (including YOUR sides!)
-VecScatter          :: PETScScatter             !< Scatter object used to extract the local solution from the global vector
-INTEGER             :: nPETScSides              !< nSides - nDirichletSides
-INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
-INTEGER             :: nLocalPETScDOFs          !< Number of local PETSc DOFs (size of PETSc Vectors & Matrices)
-INTEGER             :: nGlobalPETScDOFs         !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
-INTEGER,ALLOCATABLE :: OffsetGlobalPETScDOF(:)  !< offset of each SideID to the global position in the PETSc system
-REAL                :: PETScFieldTime
-#endif
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
 LOGICAL             :: UseNSideMin =.FALSE.   !< Flag to use NSideMin instead of NSideMax for the sides
@@ -122,11 +103,6 @@ INTEGER,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are s
 !mortar variables
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
                                               !< -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
-#if USE_PETSC
-INTEGER,ALLOCATABLE :: SmallMortarType(:,:)   !< Type of Mortar side ([1] Type, [2] Side, nSides)
-                                              !< [1] Type: mortar type this small side belongs to (1-3)
-                                              !< [2] Side: Small side number (1-4)
-#endif
 LOGICAL             :: HDGDisplayConvergence  !< Display divergence criteria: Iterations, Runtime and Residual
 REAL                :: RunTime                !< CG Solver runtime
 REAL                :: RunTimePerIteration    !< CG Solver runtime per iteration
@@ -174,7 +150,7 @@ LOGICAL               :: BRNullCollisionDefault        !< Flag (backup of read-i
 #if USE_MPI
 TYPE tMPIGROUP
   INTEGER                     :: ID                     !< MPI communicator ID
-  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for floating boundary condition
+  TYPE(MPI_comm)              :: UNICATOR=MPI_COMM_NULL !< MPI communicator for floating boundary condition
   INTEGER                     :: nProcs                 !< number of MPI processes part of the FPC group
   INTEGER                     :: nProcsWithSides        !< number of MPI processes part of the FPC group and actual FPC sides
   INTEGER                     :: MyRank                 !< MyRank within communicator

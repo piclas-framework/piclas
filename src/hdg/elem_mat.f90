@@ -354,6 +354,7 @@ SUBROUTINE PETScFillSystemMatrix()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
+USE MOD_HDG_Vars_PETSc
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 
 USE PETSc

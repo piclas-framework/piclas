@@ -432,7 +432,7 @@ REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 INTEGER            :: iProc
-INTEGER            :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
+TYPE(MPI_Request)  :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
 !INTEGER            :: MessageSize
 #endif
 REAL               :: norm
@@ -595,11 +595,11 @@ END DO
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc = 1, nNodeSendExchangeProcs
-  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 DO iProc = 1, nNodeRecvExchangeProcs
-  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -642,11 +642,11 @@ IF(doCalculateCurrentDensity)THEN
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
   DO iProc = 1, nNodeSendExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
   DO iProc = 1, nNodeRecvExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 #if defined(MEASURE_MPI_WAIT)

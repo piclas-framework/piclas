@@ -879,7 +879,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)                   :: FileName,DataSetName
 LOGICAL,INTENT(IN)                            :: collective
-INTEGER,INTENT(IN)                            :: offSetDim,communicator
+INTEGER,INTENT(IN)                            :: offSetDim
+TYPE(mpi_comm),INTENT(IN)                     :: communicator
 INTEGER,INTENT(IN)                            :: rank
 INTEGER(KIND=IK),INTENT(IN)                   :: nValGlobal(rank)               ! max size of array in offset dimension
 INTEGER(KIND=IK),INTENT(IN)                   :: nVal(rank)                     ! size of complete (local) array to write
@@ -892,8 +893,9 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: Color, OutPutCOMM,nOutPutProcs,MyOutputRank
+INTEGER                        :: Color,nOutPutProcs,MyOutputRank
 LOGICAL                        :: DataOnProc, DoNotSplit
+TYPE(mpi_comm)                 :: OutPutCOMM
 !===================================================================================================================================
 
 DataOnProc=.FALSE.
@@ -938,7 +940,7 @@ IF(.NOT.DoNotSplit)THEN
   END IF
   ! MPI Barrier is required, that the other procs don't open the datafile while this procs are still writing
   CALL MPI_BARRIER(COMMUNICATOR,IERROR)
-  OutputCOMM=MPI_UNDEFINED
+  OutputCOMM=MPI_COMM_NULL
 ELSE
 ! 3: else write with all procs of the given communicator
   ! communicator_opt has to be the given communicator or else procs that are not in the given communicator might block the write out

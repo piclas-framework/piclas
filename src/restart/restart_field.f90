@@ -102,7 +102,8 @@ USE MOD_HDG                ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars           ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars           ,ONLY: PETScSolution,nPETScUniqueSides,OffsetGlobalPETScDOF,MaskedSide
+USE MOD_HDG_Vars           ,ONLY: MaskedSide
+USE MOD_HDG_Vars_PETSc     ,ONLY: PETScSolution,nPETScUniqueSides,OffsetGlobalPETScDOF
 #endif
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
@@ -162,7 +163,8 @@ INTEGER                            :: i,j,k
 #if defined(PARTICLES) || !(USE_HDG)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
-INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER                            :: MPI_LENGTH(1)
+TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/

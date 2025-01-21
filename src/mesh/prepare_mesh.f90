@@ -1120,7 +1120,7 @@ TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide
 INTEGER             :: iElem,LocSideID
 INTEGER             :: iMortar,nMortars
-INTEGER             :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request)   :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 INTEGER,ALLOCATABLE :: Flip_MINE(:),Flip_YOUR(:)
 !===================================================================================================================================
 IF(nProcessors.EQ.1) RETURN
@@ -1162,10 +1162,10 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
-  IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep

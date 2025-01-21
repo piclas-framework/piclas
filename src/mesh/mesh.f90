@@ -967,7 +967,7 @@ IMPLICIT NONE
 INTEGER                      :: iSide,ElemID,nbElemID,nMortars, locSide,SideID, iMortar,flip!, iElem
 #if USE_MPI
 INTEGER                      :: iNbProc,Nloc
-INTEGER, DIMENSION(nNbProcs) :: RecRequest_U,SendRequest_U,RecRequest_U2,SendRequest_U2
+TYPE(MPI_Request), DIMENSION(nNbProcs) :: RecRequest_U,SendRequest_U,RecRequest_U2,SendRequest_U2
 #endif /*USE_MPI*/
 !==================================================================================================================================
 ! Side containers
@@ -1199,7 +1199,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
 #if USE_MPI
-USE MPI
+USE mpi_f08
 USE MOD_MPI_Shared
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 #ifdef PARTICLES
@@ -1336,7 +1336,7 @@ USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
 USE MOD_Globals   ,ONLY: myrank,MPI_COMM_PICLAS,iError
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!

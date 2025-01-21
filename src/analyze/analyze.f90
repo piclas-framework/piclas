@@ -1355,7 +1355,7 @@ DO iEDCBC = 1, EDC%NBoundaries
   EDC%COMM(iEDCBC)%ID=iEDCBC
 
   ! create new emission communicator for electric displacement current communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, MPI_INFO_NULL, EDC%COMM(iEDCBC)%UNICATOR, iError)
+  CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, EDC%COMM(iEDCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
   IF(BConProc(iEDCBC))THEN
