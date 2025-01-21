@@ -98,7 +98,7 @@ SELECT CASE(GradLimiterType)
 CASE(0)
   SWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
 CASE(1) !minmax
-  SWRITE(UNIT_stdOut,*)'Using MinMax Limiter'
+  SWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
 CASE(4) !venkatakrishnan
   SWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
 CASE(9) ! no limiter (central)

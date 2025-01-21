@@ -49,8 +49,10 @@ END INTERFACE
 
 
 PUBLIC::InitMPIvars,StartReceiveMPIData,StartSendMPIData,StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData,FinalizeMPI
+#if USE_FV
 PUBLIC::StartReceiveMPIDataFV,StartSendMPIDataFV
-#endif
+#endif /*USE_FV*/
+#endif /*USE_MPI*/
 PUBLIC::DefineParametersMPI
 #if defined(MEASURE_MPI_WAIT)
 PUBLIC::OutputMPIW8Time
@@ -481,6 +483,7 @@ SUBROUTINE StartReceiveMPIDataInt(firstDim,FaceData,LowerBound,UpperBound,MPIReq
   END DO !iProc=1,nNBProcs
   END SUBROUTINE StartSendMPIDataInt
 
+#if USE_FV
 !===================================================================================================================================
 !> Subroutine does the receive operations for the single value face data that has to be exchanged between processors.
 !===================================================================================================================================
@@ -555,6 +558,7 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataFV
+#endif /*USE_FV*/
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.
