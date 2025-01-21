@@ -599,6 +599,7 @@ USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar, AHO
 USE MOD_DSMC_ElectronicModel  ,ONLY: RelaxElectronicShellWall
+USE MOD_part_tools            ,ONLY: RotInitPolyRoutineFuncPTR
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
 #elif (PP_TimeDiscMethod==300)
@@ -637,22 +638,8 @@ ElecACC   = PartBound%ElecACC(locBCID)
 
 IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
   !---- Rotational energy accommodation
-  IF (SpecDSMC(SpecID)%Xi_Rot.EQ.2) THEN
-    CALL RANDOM_NUMBER(RanNum)
-    ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
-  ELSE IF (SpecDSMC(SpecID)%Xi_Rot.EQ.3) THEN
-    CALL RANDOM_NUMBER(RanNum)
-    ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
-    NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
-    CALL RANDOM_NUMBER(RanNum)
-    DO WHILE (RanNum.GE.NormProb)
-      CALL RANDOM_NUMBER(RanNum)
-      ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
-      NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
-      CALL RANDOM_NUMBER(RanNum)
-    END DO
-    ErotWall = ErotWall*BoltzmannConst*WallTemp
-  END IF
+  ! model identical to the one used for initial rotational energy sampling
+  ErotWall = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
   ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
 
   PartStateIntEn(2,PartID) = ErotNew

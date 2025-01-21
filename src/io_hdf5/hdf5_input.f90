@@ -567,10 +567,10 @@ END SUBROUTINE ReadArray
 
 
 !==================================================================================================================================
-!> Subroutine to read attributes from HDF5 file dataset or group.
+!> Subroutine to read attributes from HDF5 file dataset or group (group matches hierachy of SpeciesDatabase).
 !==================================================================================================================================
 SUBROUTINE ReadAttribute(File_ID_in,AttribName,nVal,DatasetName,RealScalar,IntScalar,&
-                                 StrScalar,LogicalScalar,RealArray,IntArray,StrArray,ChangeToGroup)
+                                 StrScalar,LogicalScalar,RealArray,IntArray,StrArray,ReadFromSpeciesDatabase)
 ! MODULES
 USE MOD_Globals
 USE hdf5
@@ -578,18 +578,19 @@ USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in         !< HDF5 file id of opened file
-INTEGER           ,INTENT(IN)                  :: nVal              !< number of attributes in case an array is expected
-CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
-CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name in case attribute is located in a dataset
-LOGICAL           ,INTENT(IN) ,OPTIONAL        :: ChangeToGroup     !< set to read attribute from Group and instead from Dataset
-REAL              ,INTENT(OUT),OPTIONAL,TARGET :: RealArray(nVal)   !< Array of real array attributes
-INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntArray(nVal)    !< Array for integer array for attributes
-REAL              ,INTENT(OUT),OPTIONAL,TARGET :: RealScalar        !< Scalar real attribute
-INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntScalar         !< Scalar integer attribute
-CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrScalar         !< Scalar string attribute
-CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrArray(nVal)    !< Array for character array attributes
-LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar     !< Scalar logical attribute
+INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in              !< HDF5 file id of opened file
+INTEGER           ,INTENT(IN)                  :: nVal                    !< number of attributes in case an array is expected
+CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName              !< name of attribute to be read
+CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName             !< dataset name in case attribute is located in a dataset
+LOGICAL           ,INTENT(IN) ,OPTIONAL        :: ReadFromSpeciesDatabase !< set true to read attribute from Group and instead from
+                                                                          !< Dataset (group matches hierachy of SpeciesDatabase)
+REAL              ,INTENT(OUT),OPTIONAL,TARGET :: RealArray(nVal)         !< Array of real array attributes
+INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntArray(nVal)          !< Array for integer array for attributes
+REAL              ,INTENT(OUT),OPTIONAL,TARGET :: RealScalar              !< Scalar real attribute
+INTEGER           ,INTENT(OUT),OPTIONAL,TARGET :: IntScalar               !< Scalar integer attribute
+CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrScalar               !< Scalar string attribute
+CHARACTER(LEN=255),INTENT(OUT),OPTIONAL,TARGET :: StrArray(nVal)          !< Array for character array attributes
+LOGICAL           ,INTENT(OUT),OPTIONAL        :: LogicalScalar           !< Scalar logical attribute
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Attr_ID,Type_ID,Loc_ID,memtype
@@ -605,8 +606,8 @@ LOGICAL                        :: group_loc
 
 LOGWRITE(*,*)' READ ATTRIBUTE "',TRIM(AttribName),'" FROM HDF5 FILE...'
 Dimsf(1)=nVal
-IF(PRESENT(ChangeToGroup))THEN
-  group_loc = ChangeToGroup
+IF(PRESENT(ReadFromSpeciesDatabase))THEN
+  group_loc = ReadFromSpeciesDatabase
 ELSE
   group_loc = .FALSE.
 END IF
@@ -695,27 +696,28 @@ LOGWRITE(*,*)'...DONE!'
 END SUBROUTINE ReadAttribute
 
 !==================================================================================================================================
-!> Subroutine to check if attributes exist in sub layer datasets or groups.
+!> Subroutine to check if attributes exist in sub layer datasets or groups(group matches hierachy of SpeciesDatabase).
 !==================================================================================================================================
-SUBROUTINE AttributeExists(File_ID_in,AttribName,DatasetName,AttrExists,ChangeToGroup)
+SUBROUTINE AttributeExists(File_ID_in,AttribName,DatasetName,AttrExists,ReadFromSpeciesDatabase)
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in        !< HDF5 file id of opened file
-CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName        !< name of attribute to be read
-CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName       !< dataset name
-LOGICAL           ,INTENT(IN) ,OPTIONAL        :: ChangeToGroup     !< check if attribute exists in Group instead of dataset
+INTEGER(HID_T)    ,INTENT(IN)                  :: File_ID_in              !< HDF5 file id of opened file
+CHARACTER(LEN=*)  ,INTENT(IN)                  :: AttribName              !< name of attribute to be read
+CHARACTER(LEN=*)  ,INTENT(IN) ,OPTIONAL        :: DatasetName             !< dataset name
+LOGICAL           ,INTENT(IN) ,OPTIONAL        :: ReadFromSpeciesDatabase !< set true to check if attribute exists in Group instead
+                                                                          !< of dataset (group matches hierachy of SpeciesDatabase)
 LOGICAL           ,INTENT(OUT)                 :: AttrExists
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                 :: Loc_ID
 LOGICAL                        :: group_loc
 !==================================================================================================================================
-IF(PRESENT(ChangeToGroup))THEN
-  group_loc = ChangeToGroup
+IF(PRESENT(ReadFromSpeciesDatabase))THEN
+  group_loc = ReadFromSpeciesDatabase
 ELSE
   group_loc = .FALSE.
 END IF

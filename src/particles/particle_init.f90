@@ -1709,16 +1709,16 @@ IF(SpeciesDatabase.NE.'none') THEN
     CALL DatasetExists(file_id_specdb,TRIM(dsetname),GroupFound)
     ! Read-in if dataset is there, otherwise set the overwrite parameter
     IF(GroupFound) THEN
-      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists,ChangeToGroup=.True.)
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
       IF (AttrExists) THEN
-        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC,ChangeToGroup=.True.)
+        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC,ReadFromSpeciesDatabase=.True.)
       ELSE
         Species(iSpec)%ChargeIC = 0.0
       END IF
       CALL PrintOption('ChargeIC','DB',RealOpt=Species(iSpec)%ChargeIC)
-      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC,ChangeToGroup=.True.)
+      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC,ReadFromSpeciesDatabase=.True.)
       CALL PrintOption('MassIC','DB',RealOpt=Species(iSpec)%MassIC)
-      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID,ChangeToGroup=.True.)
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID,ReadFromSpeciesDatabase=.True.)
       CALL PrintOption('InteractionID','DB',IntOpt=Species(iSpec)%InterID)
     ELSE
       Species(iSpec)%DoOverwriteParameters = .TRUE.

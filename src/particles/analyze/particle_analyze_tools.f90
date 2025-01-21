@@ -2182,6 +2182,7 @@ END FUNCTION CalcTVibPoly
 SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
 !===================================================================================================================================
 !> Calculation of the partition function for a species at the given temperature
+!> (only for high temperatures compared to the chara. temperatures)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -2251,6 +2252,7 @@ END SUBROUTINE CalcPartitionFunction
 REAL FUNCTION CalcTRotQuant(MeanERot, iSpec)
 !===================================================================================================================================
 !> Calculation of the rotational temperature (zero-point search) for polyatomic molecules
+!> For quantized rotational relaxation
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals       ,ONLY: Abort

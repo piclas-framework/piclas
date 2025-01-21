@@ -9,16 +9,655 @@ from datetime import date
 from requests_html import HTMLSession
 from bs4 import BeautifulSoup
 from general_functions import *
+from collections import defaultdict
+from config import *
 
-###################################################################################################
-#   functions for electronic levels Data handeling
-###################################################################################################
-def get_data_from_NIST(CURRENT_SPECIES, SPECIES, ION_LEVEL, URL_BASE, HDF_UNIFIED_DATA):
+# General workflow:
+# Different species are handled by different classes - Atom, DiatomicMolecule, PolyatomicMolecule
+# This is done to define the right attributes and methods for different types of species since different types of attributes are needed, e.g. characteristic temperatures for molecules
+# If all attributes and inner energy levels are set for a species, the instance of the class is written to the database
+#
+# To extend the functionality and to handle new attributes, simply add them to the attributes dictionary in the class file and initialize them with None,
+# so they will be created and need to be set if a new species is created
+#
+# If the value can be determined automatically, the value can be set in the __init__ function of the class, e.g. ChargeIC and InteractionID
+# The key of the dictionary will be the name of the attribute in the database!!!
+# For already existing species with existing attributes the __init__ functions will just loop over all attributes so the addition must only be made for the case of creating and adding a new species
+# In addition the type of the new attribute must be added to the attribute_types dictionary in the config.py file
+# Generally the attributes dictionary should be used to store all attributes which are written to the database
+# Other variables of the class like the name of the species or the electronic levels are be stored separately to simplify the handling of a different number of attributes in loops
+# The new references are also stored in a separate dictionary so they can be added to the existing references
+
+######################################################################################################################################################################################################
+# The classes are defined in the following code snippet
+######################################################################################################################################################################################################
+class Atom:
+    def __init__(self, species, read_species=True, ChargeIC=0.0, InteractionID=1.0):
+        # read_species: if True, read species from database, if False, create new species and write values later
+        # create dictionary to store attributes with keys corresponding to the right name in the database
+        self.attributes = {}
+        # storing the species name and electronic levels separately (not into the attributes dict) since it should not be written to the database
+        self.name = species
+        self.new_references = {}
+        # read species from database into class variables
+        if read_species:
+            attrs = hdf_unified_data["Species"][species].attrs
+            # Store attributes in class variables
+            for attr_name, attr_value in attrs.items():
+                self.attributes[attr_name] = attr_value
+        # create new class to store new data
+        else:
+            self.attributes['* Created'] = None
+            self.attributes['* Reference'] = None
+            self.attributes['MassIC'] = None
+            self.attributes['HeatOfFormation_K'] = None
+            self.attributes['Tref'] = None
+            self.attributes['dref'] = None
+            self.attributes['omega'] = None
+            if 'ion' in self.name.lower():
+                Ion_Number = int(re.search(r'\d+$', self.name).group())
+                self.attributes['ChargeIC'] = -Ion_Number * electron_charge
+                self.attributes['InteractionID'] = 10.0
+            else:
+                self.attributes['ChargeIC'] = ChargeIC
+                self.attributes['InteractionID'] = InteractionID
+            self.ElectronicLevels = np.array([])
+
+    def add_or_update_all_possible_datasets(self):
+        """
+        Add or Check the electronic levels of the species (since this class is only for atoms)
+
+        If the electronic levels are already stored in the database, the user is prompted to choose which dataset to keep.
+        Otherwise a new dataset is created.
+        """
+        # read in data to compare existing data or set new data
+        try: # try to get electronic data from the nist database
+            # Get the ionization number as the last digits and 1 to comply with the NIST standard
+            ion_level = int(re.sub('.*?([0-9]*)$',r'\1',self.name) or 0) + 1
+
+            # get data from Nist database
+            elec_levels_nist, current_species_NIST = get_data_from_NIST(self.name, ion_level)
+            if type(elec_levels_nist) == int:
+                return
+
+            # convert data from website to fit specifications (e.g. filter unnecessary information )
+            elec_levels_nist = convert_electronic_data(elec_levels_nist)
+            # data from URL into numpy array
+            elec_levels_nist_array = elec_levels_nist.to_numpy()
+            # set reference
+            data_origin = 'Levels and Degeneracy - Kramida, A., Ralchenko, Yu., Reader, J., and NIST ASD Team (2020). NIST Atomic Spectra Database (ver. 5.8), [Online]. Available: https://physics.nist.gov/asd. National Institute of Standards and Technology, Gaithersburg, MD. DOI: https://doi.org/10.18434/T4W30F. Retrieved on ' + date.today().strftime("%B %d, %Y") + '.'
+
+        except Exception as e:
+            print(red('Error'), "reading data from the NIST database for ", green(self.name), ":", e)
+            user_input_csv = input(bold('\nPlease enter the csv file name containing the electronic levels: ') )
+            custom_dataset = pd.read_csv(f'{user_input_csv}.csv',skipinitialspace=True,delimiter=",",usecols=['J','Levelcm-1','Term'], na_values=['---'], dtype=str)
+            elec_levels_nist_array = custom_dataset.astype(float)
+            print(f'Using custom data from {user_input_csv}!')
+            # set reference
+            data_origin = 'user input from' + date.today().strftime("%B %d, %Y") + '.'
+
+        # add new reference
+        self.new_references['ElectronicLevels and degeneracy'] = data_origin
+        # Check if the electronic levels were read in from the database or new species is created
+        if self.ElectronicLevels.size == 0:
+            print("Creating electronic levels for species ", green(self.name), "\n")
+            self.ElectronicLevels = elec_levels_nist_array
+        # electronic levels are stored in the class and will be compared with other data to select which to keep
+        else:
+            elec_levels_database = self.ElectronicLevels
+            # sanity check to see if read-in data from species database has wrong format (might be empty)
+            if elec_levels_database.ndim == 1 or elec_levels_database.shape[1] != 2:
+                print(red('Error'), ": Read-in from ", cyan(os.path.abspath(relative_path))," failed or dataset has unexpected dimensions (needs to be (X,2)! Please check the dataset of species ", green(self.name), " - species will be skipped\n")
+                return
+            # Compare the arrays to check if they are already the same
+            if np.array_equal(elec_levels_nist_array, elec_levels_database):
+                print("\nDatasets of species "+ green(self.name) + " are equal, so dataset from " + yellow('unified species database') + " will be kept.\n")
+                return
+
+            # get user input to determine which dataset should be saved
+            print("It seems like the species " + green(self.name) + " is already stored in the SpeciesDatabase at " + cyan(os.path.abspath(os.path.abspath(relative_path)))+' with the following data:\n')
+            print_diffs(elec_levels_nist_array, elec_levels_database, 'Electronic')
+
+            # Prompt user to choose which dataset to keep
+            user_input = get_valid_input(create_prompt('to keep data and attributes from '+yellow('unified species database'),
+                                                       'to save only electronic level data from '+blue(URL_base)),
+                                                       lambda x: x == '1' or x == '2' or x == '3')
+            if user_input == '1':
+                print("Keeping electronic level dataset and attributes for species ",green(self.name), "\n")
+                return
+            elif user_input == '2':
+                self.ElectronicLevels = elec_levels_nist_array
+                print("Saving electronic level dataset from " + blue(data_origin) + " for species ",green(self.name), " but keeping attributes\n")
+            elif user_input == '3':
+                print(bold(red("Exiting program")))
+                exit(1)
+
+    def __str__(self):
+        return f"Atom(name={self.name}, attributes={self.attributes})"
+
+# Functions only needed for molecule classes
+class MoleculeHelper:
+    """Helper class for molecules for shared methods"""
+    def add_or_update_dataset(instance, level_type, create_new=False):
+        """
+        Check the selected levels of the species in the unified species database and the NIST database and prompt the user to choose which dataset to keep
+        Currently only supports custom csv data for molecules
+
+        Parameters:
+        instance: Instance of the class
+        level_type: Type of levels to add or update (Rotational, Vibrational, Electronic)
+        create_new: If True, create a new dataset, if False, compare the existing dataset with the new dataset
+        """
+        if not create_new:
+            if level_type.lower() == 'rotational':
+                level_type == 'Rotational'
+                levels_database = instance.RotationalLevels
+            elif level_type.lower() == 'vibrational':
+                level_type == 'Vibrational'
+                levels_database = instance.VibrationalLevels
+            else:
+                level_type = 'Electronic'
+                levels_database = instance.ElectronicLevels
+        else:
+            # set up dummy
+            levels_database = np.array([])
+        # try to read in data from csv file needed to compare and/or store
+        try:
+            # Attempt to convert data to pandas dataframe from custom csv file
+            if level_type == 'Rotational':
+                custom_dataset = pd.read_csv(f'custom_rotational_levels_{instance.name}.csv',skipinitialspace=True,delimiter=",",usecols=['J','RotLevelJ'], na_values=['---'], dtype=str)
+                custom_dataset = custom_dataset.astype(float)
+                print(f'Using custom data from custom_rotational_levels_{instance.name}.csv')
+            elif level_type == 'Vibrational':
+                user_input_csv = input(bold('\nPlease enter the name of the csv file containing the vibrational levels: ') )
+                custom_dataset = pd.read_csv(f'{user_input_csv}.csv',skipinitialspace=True,delimiter=",",usecols=['VibLevelJ'], na_values=['---'], dtype=str)
+                custom_dataset = custom_dataset.astype(float)
+                print(f'Using custom data from custom_vibrational_levels_{instance.name}.csv')
+            else:
+                try:
+                    # Attempt to convert data to pandas dataframe from custom csv file
+                    custom_dataset = pd.read_csv(f'custom_electronic_levels_{instance.name}.csv',skipinitialspace=True,delimiter=",",usecols=['J','Levelcm-1','Term'], na_values=['---'], dtype=str)
+                    print(f'Using custom data from custom_electronic_levels_{instance.name}.csv')
+                    custom_dataset = convert_electronic_data(custom_dataset)
+                except:
+                    print(red('Caution')+": Please make sure you provide a atom species. Automatic read in from online database of electronic levels for molecules not possible yet! Current species: "+green(instance.name)+" It is possible to provide a custom csv file containing the electronic levels. To use this option please use the template in this directory, insert the necessary information and add the species to the end like this: 'custom_electronic_levels_H2.csv'")
+
+        except Exception as e:
+            print(red('Error')+e+"\nCurrent species: "+green(instance.name))
+            return
+
+        instance.new_references[f'{level_type}Levels and degeneracy'] = 'user input from' + date.today().strftime("%B %d, %Y") + '.'
+        # Check if the levels are already stored in the database/were read in to the class
+        if levels_database.size == 0:
+            print(f"Creating {level_type} levels for species ", green(instance.name), "\n")
+            if level_type == 'Rotational':
+                instance.RotationalLevels  = custom_dataset
+            elif level_type == 'Vibrational':
+                instance.VibrationalLevels = custom_dataset
+            else:
+                instance.ElectronicLevels  = custom_dataset
+        # electronic levels are stored in the class and will be compared with other data to select which to keep
+        else:
+            # check if read-in data from species database has wrong format (might be empty)
+            if levels_database.ndim == 1 or levels_database.shape[1] != 2:
+                print(red('Error'), ": Read-in from ", cyan(os.path.abspath(relative_path))," failed or dataset has unexpected dimensions (needs to be (X,2)! Please check the dataset of species ", green(instance.name), " - species will be skipped\n")
+                return
+            # Compare the arrays to check if they are already the same
+            if np.array_equal(custom_dataset, levels_database):
+                print("\nDatasets of species "+ green(instance.name) + " are equal, so dataset from " + yellow('unified species database') + " will be kept.\n")
+                return
+
+            # get user input to determine which dataset should be saved
+            print("It seems like the species " + green(instance.name) + " is already stored in the SpeciesDatabase at " + cyan(os.path.abspath(os.path.abspath(relative_path)))+' with the following data:\n')
+            print_diffs(custom_dataset, levels_database, level_type)
+
+            # Prompt user to choose which dataset to keep
+            user_input = get_valid_input(create_prompt('to keep data and attributes from '+yellow('unified species database'),
+                                                       f'to save only {level_type} level data from '+blue(f'custom_{level_type}_levels_{instance.name}.csv')),
+                                                       lambda x: x == '1' or x == '2' or x == '3')
+            if user_input == '1':
+                print(f"Keeping {level_type} level dataset and attributes for species ",green(instance.name), "\n")
+                return
+            elif user_input == '2':
+                if level_type == 'Rotational':
+                    instance.RotationalLevels  = custom_dataset
+                elif level_type == 'Vibrational':
+                    instance.VibrationalLevels = custom_dataset
+                else:
+                    instance.ElectronicLevels  = custom_dataset
+                print(f"Saving {level_type} level dataset from " + blue(user_input_csv) + " for species ",green(instance.name), "\n")
+            elif user_input == '3':
+                print(bold(red("Exiting program")))
+                exit(1)
+
+    def get_num_of_atoms(species):
+        """Returns number of atoms in a polyatomic molecule"""
+        # Regular expression to match elements and their counts
+        pattern = re.compile(r'([A-Z][a-z]*)(\d*)')
+        matches = pattern.findall(species)
+
+        # Dictionary to store the count of each element
+        element_counts = defaultdict(int)
+
+        for element, count in matches:
+            if count == '':
+                count = 1
+            else:
+                count = int(count)
+            element_counts[element] += count
+
+        # Sum the counts to get the total number of atoms
+        total_atoms = sum(element_counts.values())
+        return total_atoms
+
+class DiatomicMolecule:
+    def __init__(self, species, read_species=True, ChargeIC=0.0, InteractionID=2.0):
+        # read_species: if True, read species from database, if False, create new species and write values later
+        # create dictionary to store attributes with keys corresponding to the right name in the database
+        self.attributes = {}
+        # storing the species name and electronic levels separately (not into the attributes dict) since it should not be written to the database
+        self.name = species
+        self.new_references = {}
+        # read species from database into class variables
+        if read_species:
+            attrs = hdf_unified_data["Species"][species].attrs
+            # Store attributes in class variables
+            for attr_name, attr_value in attrs.items():
+                self.attributes[attr_name] = attr_value
+        # create new class to store new data
+        else:
+            self.attributes['* Created'] = None
+            self.attributes['* Reference'] = None
+            self.attributes['MassIC'] = None
+            self.attributes['HeatOfFormation_K'] = None
+            self.attributes['Ediss_eV'] = None
+            self.attributes['SymmetryFactor'] = None
+            self.attributes['CharaTempRot'] = None
+            self.attributes['CharaTempVib'] = None
+            self.attributes['MomentOfInertia'] = None
+            self.attributes['Tref'] = None
+            self.attributes['dref'] = None
+            self.attributes['omega'] = None
+            # AHO model attributes
+            self.attributes['omegaE'] = None
+            self.attributes['xiE'] = None
+            if 'ion' in self.name.lower():
+                Ion_Number = int(re.search(r'\d+$', self.attributes['name']).group())
+                self.attributes['ChargeIC'] = -Ion_Number * electron_charge
+                self.attributes['InteractionID'] = 20.0
+            else:
+                self.attributes['ChargeIC'] = ChargeIC
+                self.attributes['InteractionID'] = InteractionID
+            self.ElectronicLevels = np.array([])
+            self.RotationalLevels = np.array([])
+            self.VibrationalLevels = np.array([])
+
+    def add_or_update_all_possible_datasets(self, level_type=None):
+        if level_type is not None:
+            print(f"Reading {level_type} data")
+            MoleculeHelper.add_or_update_dataset(self, level_type)
+        else:
+            for level_type in ['ElectronicLevels', 'RotationalLevels', 'VibrationalLevels']:
+                if level_type in list(vars(self).keys()):
+                    print(f"Reading {level_type} data")
+                    MoleculeHelper.add_or_update_dataset(self, level_type)
+
+    def __str__(self):
+        return f"DiatomicMolecule(name={self.name}, attributes={self.attributes})"
+
+class PolyatomicMolecule:
+    def __init__(self, species, read_species=True, ChargeIC=0.0, InteractionID=2.0):
+
+        # read_species: if True, read species from database, if False, create new species and write values later
+        # create dictionary to store attributes with keys corresponding to the right name in the database
+        self.attributes = {}
+        # storing the species name and electronic levels separately (not into the attributes dict) since it should not be written to the database
+        self.name = species
+        self.new_references = {}
+        # read species from database into class variables
+        if read_species:
+            attrs = hdf_unified_data["Species"][species].attrs
+            # Store attributes in class variables
+            for attr_name, attr_value in attrs.items():
+                self.attributes[attr_name] = attr_value
+        # create new class to store new data
+        else:
+            self.attributes['* Created'] = None
+            self.attributes['* Reference'] = None
+            self.attributes['MassIC'] = None
+            self.attributes['HeatOfFormation_K'] = None
+            self.attributes['Ediss_eV'] = None
+            self.attributes['SymmetryFactor'] = None
+            self.attributes['CharaTempRot'] = None
+            self.attributes['CharaTempVib'] = None
+            self.attributes['Tref'] = None
+            self.attributes['dref'] = None
+            self.attributes['omega'] = None
+            self.attributes['PolyatomicMol'] = 1
+            # gets updated in function
+            self.attributes['NumOfAtoms'] = MoleculeHelper.get_num_of_atoms(self.name)
+            if 'ion' in self.name.lower():
+                Ion_Number = int(re.search(r'\d+$', self.attributes['name']).group())
+                self.attributes['ChargeIC'] = -Ion_Number * electron_charge
+                self.attributes['InteractionID'] = 20.0
+            else:
+                self.attributes['ChargeIC'] = ChargeIC
+                self.attributes['InteractionID'] = InteractionID
+            # Get LinearMolec to set right number of charac temps
+            while True:
+                self.attributes['LinearMolec'] = int(input("Please enter '1' if species is a linear molecule and '0' if not: "))
+                if self.attributes['LinearMolec'] in [0, 1]:
+                    break
+                else:
+                    print("Please enter 1 for linear or 0 for non-linear.")
+            # set correct number of characteristic temperatures
+            if self.attributes['LinearMolec'] == 1:
+                for i in range(1, 3*self.attributes['NumOfAtoms']-5):
+                    self.attributes[f'CharaTempVib{i}'] = None
+                self.attributes['CharaTempRot'] = None
+                self.attributes['MomentOfInertia'] = None
+            else:
+                for i in range(1, 3*self.attributes['NumOfAtoms']-6):
+                    self.attributes[f'CharaTempVib{i}'] = None
+                for i in range(1, 3):
+                    self.attributes[f'CharaTempRot{i}'] = None
+                self.attributes['MomentOfInertia'] = np.array([])
+            # set inner energy levels
+            self.ElectronicLevels = np.array([])
+            self.RotationalLevels = np.array([])
+            self.VibrationalLevels = np.array([])
+
+    def add_or_update_all_possible_datasets(self, level_type=None):
+        if level_type is not None:
+            print(f"Reading {level_type} data")
+            MoleculeHelper.add_or_update_dataset(self, level_type)
+        else:
+            for level_type in ['ElectronicLevels', 'RotationalLevels', 'VibrationalLevels']:
+                if level_type in list(vars(self).keys()):
+                    print(f"Reading {level_type} data")
+                    MoleculeHelper.add_or_update_dataset(self, level_type)
+
+    def __str__(self):
+        return f"PolyatomicMolecule(name={self.name}, attributes={self.attributes})"
+
+######################################################################################################################################################################################################
+# Functions to handle the classes, e.g. create a new class depending on the species, edit attributes or write an instance to the database
+######################################################################################################################################################################################################
+
+def create_empty_instance(species):
+    """
+    Function to create an empty instance of the class based on the interaction ID of the species
+
+    The class will have the right attributes corresponding to the interaction ID of the species.
+    """
+    interaction_id = get_interaction_id(species)
+    if interaction_id == 1 or interaction_id == 10:
+        cls = Atom
+    elif interaction_id == 2 or interaction_id == 20:
+        # get number of atoms in the molecule
+        num_of_atoms = MoleculeHelper.get_num_of_atoms(species)
+        if num_of_atoms == 2:
+            cls = DiatomicMolecule
+        else:
+            cls = PolyatomicMolecule
+    else:
+        raise ValueError("Unknown interaction ID for the given species.")
+
+    # Create an empty instance of the class and add some default attributes
+    instance = cls(species, read_species=False)
+    instance.attributes['* Created'] = date.today().strftime("%B %d, %Y")
+    instance.attributes['* Reference'] = 'This species was created manually.'
+    return instance
+
+def determine_class_with_given_data(attrs):
+    """Determines the class of the species based on the attributes of the species"""
+    if 'CharaTempRot' in attrs and 'CharaTempVib' in attrs:
+        if 'PolyatomicMol' in attrs:
+            return PolyatomicMolecule
+        else:
+            return DiatomicMolecule
+    else:
+        return Atom
+
+def create_instance_from_data(species):
+    """Creates an instance of the correct class based on the attributes of the species when reading in species data from the database"""
+    attrs = hdf_unified_data["Species"][species].attrs
+    cls = determine_class_with_given_data(attrs)
+    if cls is None:
+        raise ValueError("Unknown class type for the given data.")
+
+    # Create an instance of the determined class
+    instance = cls(species)
+    return instance
+
+def read_datasets_from_existing_species(instance):
+    """Read inner energy data from the existing species database and store it in the class variables"""
+    if isinstance(instance, Atom):
+        level_types = ['Electronic']
+        class_variables = ['ElectronicLevels']
+    else:
+        level_types = ['Electronic', 'Rotational', 'Vibrational']
+        class_variables = ['ElectronicLevels', 'RotationalLevels', 'VibrationalLevels']
+
+    for level_type, class_variable in zip(level_types, class_variables):
+        try:
+            setattr(instance, class_variable, np.array(hdf_unified_data["Species"][instance.name][f'{level_type}Level']))
+            print(f"Reading {level_type} data from the database for species ", green(instance.name))
+        except Exception as e:
+            print(red('Error'), f"reading {level_type} data from the database for ", green(instance.name), ":", e)
+            user_input = get_valid_input(create_prompt('to add new data from csv file',
+                                                       'to skip data for this species'),
+                                                       lambda x: x == '1' or x == '2')
+            if user_input == '1':
+                MoleculeHelper.add_or_update_dataset(instance, level_type, create_new=True)
+            elif user_input == '2':
+                print(f"Skipping {class_variable} for species ", green(instance.name), "\n")
+
+def check_attributes_from_actc(instance, atct_dict):
+    """Function to check the attributes of the species with data from the ATcT database
+
+    This only happens for 4 attributes: HeatOfFormation_K, MassIC, ChargeIC, and InteractionID.
+    Parameters:
+    instance: Instance of the species class
+    atct_dict: Dictionary containing the data from the ATcT database, e.g.
+               atct_data_for_instance={
+                'HeatOfFormation_K' : example_value,
+                'MassIC'            : example_value,
+                'ChargeIC'          : example_value,
+                'InteractionID'     : example_value,
+                }
+                with this dictionary the attributes to check are defined! So if more data is retrieved from ATcT, the dictionary has to be updated, but the function just loops over the dictionary!
+    """
+    print(f"\nChecking attributes: {list(atct_dict.keys())} from {ATcT_URL} for species ", green(instance.name))
+    # create list to see if user input is necessary
+    diffs_list = []
+    for attr_name, attr_value in atct_dict.items():
+        try:
+            # heat of formation is not set for ions in the database, use ions as sanity check together with electronic data
+            if attr_name == 'HeatOfFormation_K' and 'HeatOfFormation_K' not in instance.attributes.keys():
+                Ion_Number =  int(re.search(r'\d+$', instance.name).group())
+                ground_state = re.sub(r'Ion\d+','',instance.name)
+                HeatOfFormation_Sum = hdf_unified_data['Species'][ground_state].attrs['HeatOfFormation_K']+hdf_unified_data['Species'][ground_state]['ElectronicLevel'][:][-1,1]
+                for i in range(1, Ion_Number):
+                    prev_state = ground_state + 'Ion' + str(i)
+                    HeatOfFormation_Sum = HeatOfFormation_Sum + hdf_unified_data['Species'][prev_state]['ElectronicLevel'][:][-1,1]
+                if not np.isclose(atct_dict['HeatOfFormation_K'], HeatOfFormation_Sum, rtol=1e-03, atol=0.0):          # HeatOfFormation_K being value from ATcT and HeatOfFormation_Sum cal value with relative tolerance of 1e-05
+                    print(red('Caution:')+' Please check the heat of formation of the current species: '+green(instance.name)+', since it did not matcht with the value from '+blue(ATcT_URL)+'!\nIt is calculated in the PICLas source code like this: HeatOfFormation(CurrentSpecies) = HeatOfFormation(previous state) + Ionization Energy(last entry in electronic level dataset of previous state)')
+                    print(yellow("Calculated HeatOfFormation: ")+str(HeatOfFormation_Sum)+"\n"+blue("HeatOfFormation form ATcT: ")+str(atct_dict['HeatOfFormation_K']))
+            else:   # compare the attributes specified by the directory
+                if np.isclose(instance.attributes[attr_name], attr_value, rtol=1e-03, atol=1e-08):
+                    print('%s for ' % (attr_name) +green(instance.name)+' is equal so will be kept')
+                else:
+                    print(underlinE(attr_name)+' of species '+green(instance.name)+'\n'+yellow('unified species database')+f': {instance.attributes[attr_name]}'+"\n"+blue(ATcT_URL) +f': {attr_value}\n')
+                    diffs_list.append(attr_name)
+        except KeyError:
+            if attr_name in ['HeatOfFormation_K','MassIC']:
+                print("It seems like %s is not set for %s so it will be set as %s with data from "% (attr_name,instance.name,attr_value)+blue(ATcT_URL))
+            elif attr_name in ['ChargeIC','InteractionID']:
+                print("It seems like %s is not set for %s so it will be set as %s"% (attr_name,instance.name,attr_value))
+
+    if diffs_list == []:    # all attributes are equal
+        pass
+    else:
+        user_input = get_valid_input(create_prompt('to keep attributes from '+yellow('unified species database'),
+                                                   'to save attributes from '+blue(ATcT_URL),
+                                                   'to exit program here'),
+                                                   lambda x: x == '1' or x == '2' or x == '3')
+        if user_input == '1':
+            print("Keeping attributes for species ",green(instance.name), "\n")
+        elif user_input == '2':
+            for attr_name, attr_value in atct_dict.items():
+                instance.attributes[attr_name] = attr_value
+            instance.new_references[attr_name] = str([atct_dict.keys()] + 'from ATcT Version: ' + version + ',' + date.today().strftime("%B %d, %Y"))
+        elif user_input == '3':
+            own_exit()
+
+def edit_attributes(instance):
+    """
+    Function to edit attributes of existing species in class
+
+    Parameters:
+    instance: Instance of the species class
+    """
+    # list existing attributes
+    print("Existing attributes for species ", green(instance.name))
+    for attr_name, attr_value in instance.attributes.items():
+        if isinstance(attr_value, np.ndarray):
+            print(f"{attr_name}:")
+            for i in range(attr_value.shape[0]):
+                print(f"\t{attr_value[i,0]} : {attr_value[i,1]}")
+        else:
+            print(f"{attr_name}: {attr_value}")
+    user_input_attrs = input(bold('\nPlease enter attribute list as comma separated string. It is also possible to add new attributes.') + ', e.g. Tref, HeatOfFormation, ... or None to skip this species\n')
+    attrs_list = user_input_attrs.split(',')
+    if user_input_attrs == 'None':
+        return
+    # check if attribute exists, if yes user input to overwrite or not
+    for attr_name in attrs_list:
+        attr_name = attr_name.replace(" ", "")
+        if attr_name in list(instance.attributes.keys()):
+            print("\n\nThe attribute " + attr_name + " already exists. Do you want to overwrite the value?")
+            user_input = get_valid_input(create_prompt('yes',
+                                                       'no'),
+                                                       lambda x: x == '1' or x == '2' or x =='3')
+            if user_input == "1":
+                # Replace the existing value
+                instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
+            elif user_input == "3":
+                own_exit()
+        else:
+            if attr_name in attribute_types.keys():
+                # type of attribute is already defined
+                instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
+            else:
+                print(f"Attribute {attr_name} is not defined in the attribute_types dictionary! Please add it in the config.py first")
+                own_exit()
+
+def write_instance_to_database(instance):
+    """
+    This function writes the attributes and inner energy levels/degeneracies of an instance to the database
+
+    Parameters:
+    instance: Instance of the species class
+    """
+    # write attributes to the database
+    deleted = False
+    if instance.name in list(hdf_unified_data["Species"].keys()):
+        # if species exists in database, save the inner energy levels and degeneracies to temporary variables
+        try:
+            if not isinstance(instance, Atom):
+                temp_rot = np.array(hdf_unified_data["Species"][instance.name]['RotationalLevel'])
+                temp_vib = np.array(hdf_unified_data["Species"][instance.name]['VibrationalLevel'])
+        except Exception as e:
+            # catch for missing datasets
+            temp_rot = None
+            temp_vib = None
+            pass
+        temp_elec = np.array(hdf_unified_data["Species"][instance.name]['ElectronicLevel'])
+        # delete species from database
+        del hdf_unified_data["Species"][instance.name]
+        deleted = True
+    else: # default values for temporary variables to ensure correct functionality in zip loop
+        temp_rot, temp_vib = None, None
+    hdf_unified_data["Species"].create_group(instance.name)
+    for attr_name, attr_value in instance.attributes.items():
+        # check if attribute of class is not set yet and give user the option to set it
+        if attr_value is None:
+            print(f"Attribute {attr_name} is not set for species {instance.name}!")
+            user_input = get_valid_input(create_prompt('to set attribute',
+                                                       'to skip attribute'),
+                                                       lambda x: x == '1' or x == '2' or x == '3')
+            if user_input == '1':
+                instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
+            elif user_input == '2':
+                continue
+        hdf_unified_data["Species"][instance.name].attrs[attr_name] = attr_value
+
+    # write inner energy levels
+    if not deleted:
+        # species was not in database before, is added
+        hdf_unified_data["Species"][instance.name].create_dataset('ElectronicLevel', data=instance.ElectronicLevels)
+    else:
+        if 'ElectronicLevel' in list(vars(instance).keys()):
+            # check if electronic level was set in class, if yes use this data
+            hdf_unified_data["Species"][instance.name].create_dataset('ElectronicLevel', data=instance.ElectronicLevels)
+        else:
+            # if not, restore data with temporary variable
+            hdf_unified_data["Species"][instance.name].create_dataset('ElectronicLevel', data=temp_elec)
+    # equivalent for rotational and vibrational levels
+    if not isinstance(instance, Atom):
+        for level_type, temp_level in zip(['Rotational', 'Vibrational'], [temp_rot, temp_vib]):
+            if not deleted: # new species
+                hdf_unified_data["Species"][instance.name].create_dataset(f'{level_type}Level', data=instance.RotationalLevels if level_type == 'Rotational' else instance.VibrationalLevels)
+            else:
+                level_type_matching = level_type + 'Levels'
+                if level_type_matching in list(vars(instance).keys()): # new data for existing species
+                    hdf_unified_data["Species"][instance.name].create_dataset(f'{level_type}Level', data=instance.RotationalLevels if level_type == 'Rotational' else instance.VibrationalLevels)
+                else: # restore
+                    if temp_level is not None:
+                        hdf_unified_data["Species"][instance.name].create_dataset(f'{level_type}Level', data=temp_level)
+                    else: # dataset did not exist before
+                        pass
+
+    # update references
+    num_of_new_references = len(instance.new_references)
+    for attr_name, attr_value in instance.new_references.items():
+        if attr_name == '* Reference':
+            if np.isscalar(attr_value):
+                if isinstance(attr_value, str):
+                    strings = attr_value.split(':')
+                else:
+                    strings = attr_value.astype(str).split(':')
+                new_refs = np.empty((len(strings)//2+num_of_new_references,2), dtype=datatype_h5)
+                for j in range(len(strings)//2):
+                    new_refs[j,0] = strings[2*j]
+                    new_refs[j,1] = strings[2*j+1]
+            elif isinstance(attr_value, np.ndarray):
+                attr_value = attr_value.astype(str)
+                new_refs = np.empty((attr_value.shape[0]+num_of_new_references,2), dtype=datatype_h5)
+                for j in range(attr_value.shape[0]):
+                    new_refs[j,0] = attr_value[j,0]
+                    new_refs[j,1] = attr_value[j,1]
+
+            for j, attr_name, attr_value in enumerate(instance.new_references.items()):
+                new_refs[len(strings)//2+j,0] = attr_name
+                new_refs[len(strings)//2+j,1] = attr_value
+
+            del hdf_unified_data["Species"][instance.name].attrs['* Reference']
+            hdf_unified_data["Species"][instance.name].attrs.create('* Reference', new_refs)
+
+
+######################################################################################################################################################################################################
+#   functions for getting electronic levels data from NIST database
+######################################################################################################################################################################################################
+def get_data_from_NIST(CURRENT_SPECIES, ION_LEVEL):
+    """Function to get the electronic data from the NIST database"""
     # Build the species in the NIST database query format: Xe+I
-    current_species_NIST = SPECIES + '+' + int_to_Roman(ION_LEVEL)
+    species = CURRENT_SPECIES.split('Ion')[0]
+    current_species_NIST = species + '+' + int_to_Roman(ION_LEVEL)
     print(bold('Converted '+CURRENT_SPECIES+' to '+current_species_NIST+' for download from NIST database.'))
     # Build the request URL
-    URL_request = URL_BASE + '?de=0&spectrum=' + current_species_NIST + '&units=0&format=2&output=0&page_size=15&multiplet_ordered=1&term_out=on&level_out=on&j_out=on&temp=&submit=Retrieve+Data'
+    URL_request = URL_base + '?de=0&spectrum=' + current_species_NIST + '&units=0&format=2&output=0&page_size=15&multiplet_ordered=1&term_out=on&level_out=on&j_out=on&temp=&submit=Retrieve+Data'
     response = requests.get(URL_request)
     # Check the website
     if response.status_code == 200:
@@ -42,12 +681,14 @@ def get_data_from_NIST(CURRENT_SPECIES, SPECIES, ION_LEVEL, URL_BASE, HDF_UNIFIE
         return data, current_species_NIST
     except Exception as e:
         # check if species is not found because it is fully ionized in database
-        if "FullyIonized" in HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs:
+        if "FullyIonized" in hdf_unified_data["Species"][CURRENT_SPECIES].attrs:
             return int(-1), current_species_NIST
         # Print an error message if there's an exception
         print(red('Error'), "converting data from \n", blue(URL_request), " for ", green(CURRENT_SPECIES), "might not be available on requested URL. Tried to access data with ", green(current_species_NIST), "Please check this combination on the URL. \nError:", e ,"\n")
         # get user input to determine which dataset should be saved
-        user_input_create = get_valid_input("Do you want to create "+green(CURRENT_SPECIES)+" without the electronic level?\n" + bold('Please enter\n ') + purple('1') + " for yes or \n " + purple('2') + " for no\n-->", lambda x: x == '1' or x == '2')
+        user_input_create = get_valid_input(create_prompt('to create '+green(CURRENT_SPECIES)+' without the electronic level',
+                                                       'to exit program here'),
+                                                       lambda x: x == '1' or x == '2')
         if user_input_create == '1':
             column_names = ['J', 'Levelcm-1', 'Term']
             data = pd.DataFrame(columns=column_names)
@@ -58,6 +699,7 @@ def get_data_from_NIST(CURRENT_SPECIES, SPECIES, ION_LEVEL, URL_BASE, HDF_UNIFIE
 
 # converting electronic data in useful format
 def convert_electronic_data(DATA):
+    """Converts the electronic data from the NIST database to a useful format"""
     # get index of J column
     J     = DATA.columns.get_loc("J")
     # find the first limit in term column to drop every entry after ionization
@@ -133,42 +775,28 @@ def convert_electronic_data(DATA):
     DATA.columns=['Degeneracy', 'Level(K)']
     return DATA
 
-# create electronic dataset and save attributes
-def create_dataset_elec(HDF_UNIFIED_DATA, CURRENT_SPECIES, DATA_ARRAY):
-    '''Create new dataset while saving old attributes and adding a new reference\n Inputs: database where dataset is saved and species name'''
-    # Store existing attributes
-    attrs = HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs
-    del HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES]['ElectronicLevel']
-    dataset = HDF_UNIFIED_DATA['Species'][CURRENT_SPECIES].create_dataset('ElectronicLevel', data=DATA_ARRAY)
-    # Restore attributes
-    for attr_name, attr_value in attrs.items():
-        dataset.attrs[attr_name] = attr_value
-    # Get current references -> will be an array?!
-    current_references = [attrs['* Reference']]
-    levels_reference = 'Levels and Degeneracy - Kramida, A., Ralchenko, Yu., Reader, J., and NIST ASD Team (2020). NIST Atomic Spectra Database (ver. 5.8), [Online]. Available: https://physics.nist.gov/asd. National Institute of Standards and Technology, Gaithersburg, MD. DOI: https://doi.org/10.18434/T4W30F. Retrieved on ' + date.today().strftime("%B %d, %Y") + '.'
-    # Append the new reference
-    current_references.append(levels_reference)
-    # Update the attribute with the references
-    del dataset.attrs['* Reference']
-    dataset.attrs.create('* Reference', current_references)
-
 # function to print differences in datasets
-def print_diffs(DATA_ARRAY, UNIFIED_DATA_ARRAY, CURRENT_SPECIES_NIST):
-    '''Print the differneces in the two data sets onto terminal\n Inputs: new data array from url and data array from species database'''
+def print_diffs(new_data, ref_data, level_type='Electronic'):
+    '''Print the differneces in the two data sets onto terminal\n Inputs: new data array from url/custom data and data array from species database'''
     try:
-        diff_indices_degeneracy = np.where(~np.isclose(DATA_ARRAY[:,0], UNIFIED_DATA_ARRAY[:,0], rtol=1e-05, atol=0))
-        diff_indices_levels = np.where(~np.isclose(DATA_ARRAY[:,1], UNIFIED_DATA_ARRAY[:,1], rtol=1e-05, atol=0))
+        diff_indices_degeneracy = np.where(~np.isclose(new_data[:,0], ref_data[:,0], rtol=1e-05, atol=0))
+        diff_indices_levels = np.where(~np.isclose(new_data[:,1], ref_data[:,1], rtol=1e-05, atol=0))
+        # special case for vibrational levels since no degeneracy is given
+        if level_type == 'Vibrational':
+            degeneracy = np.ones(len(new_data[:,0]))
+            new_data = np.column_stack((degeneracy,new_data))
+            ref_data = np.column_stack((degeneracy,ref_data))
         # Create DataFrame for levels
         diff_df_levels = pd.DataFrame({
             'Index Level': diff_indices_levels[0],
-            'URL Array Level': [DATA_ARRAY[idx, 1] for idx in diff_indices_levels[0]],
-            'Unified Data Array Level': [UNIFIED_DATA_ARRAY[idx, 1] for idx in diff_indices_levels[0]],
+            'URL Array Level': [new_data[idx, 1] for idx in diff_indices_levels[0]],
+            'Unified Data Array Level': [ref_data[idx, 1] for idx in diff_indices_levels[0]],
         })
         # Create DataFrame for degeneracy
         diff_df_degeneracy = pd.DataFrame({
             'Index Degeneracy': diff_indices_degeneracy[0],
-            'URL Array Degeneracy': [DATA_ARRAY[idx, 0] for idx in diff_indices_degeneracy[0]],
-            'Unified Data Array Degeneracy': [UNIFIED_DATA_ARRAY[idx, 0] for idx in diff_indices_degeneracy[0]],
+            'URL Array Degeneracy': [new_data[idx, 0] for idx in diff_indices_degeneracy[0]],
+            'Unified Data Array Degeneracy': [ref_data[idx, 0] for idx in diff_indices_degeneracy[0]],
         })
         # Set display option to show all rows
         with pd.option_context('display.max_rows', None):
@@ -180,185 +808,32 @@ def print_diffs(DATA_ARRAY, UNIFIED_DATA_ARRAY, CURRENT_SPECIES_NIST):
     except Exception as e:
         if 'operands could not be broadcast together' in str(e):
             # print Error message with colors if expected errors occurs
-            print(bold('\033[91mError:\033[0m'),"operands could not be broadcast together with shapes \033[33m%s\033[0m from \033[33munified species database\033[0m and \033[34m%s\033[0m with data from \033[34mURL\033[0m accessed as \033[32m%s\033[0m" % (UNIFIED_DATA_ARRAY.shape,DATA_ARRAY.shape,CURRENT_SPECIES_NIST)+"\n")
+            print(bold('\033[91mError:\033[0m'),"operands could not be broadcast together with shapes \033[33m%s\033[0m and \033[34m%s\033[0m!" % (ref_data.shape,new_data.shape)+"\n")
         else:
             # print error message if not expected error occurs
             print(e)
     return
 
-def check_datasets(current_species, HDF_UNIFIED_DATA, RELATIVE_PATH):
-    # Base URL of the query
-    URL_base = 'https://physics.nist.gov/cgi-bin/ASD/energy1.pl'
-    # Get the ionization number as the last digits and 1 to comply with the NIST standard
-    ion_level = int(re.sub('.*?([0-9]*)$',r'\1',current_species) or 0) + 1
-    # Get the species (everything before Ion)
-    species = current_species.split('Ion')[0]
-    # break for molecules
-    if bool(re.search(r'[A-Za-z]*\d', species)) or sum(1 for c in species.replace('Ion','') if c.isupper()) != 1:
-        try:
-            # Attempt to convert data to pandas dataframe from custom csv file
-            data = pd.read_csv(f'custom_electronic_levels_{current_species}.csv',skipinitialspace=True,delimiter=",",usecols=['J','Levelcm-1','Term'], na_values=['---'], dtype=str)
-            print(f'Using custom data from custom_electronic_levels_{current_species}.csv')
-        except:
-            print(red('Caution')+": Please make sure you provide a atom species. Automatic read in from online database of electronic levels for molecules not possible yet! Current species: "+green(current_species)+" It is possible to provide a custom csv file containing the electronic levels. To use this option please use the template in this directory, insert the necessary information and add the species to the end like this: 'custom_electronic_levels_H2.csv'")
-            return
-    else:
-        # get data from Nist database
-        data, current_species_NIST = get_data_from_NIST(current_species, species, ion_level, URL_base, HDF_UNIFIED_DATA)
-        if type(data) == int:
-            return
+######################################################################################################################################################################################################
+#   functions for getting data from the ATcT
+######################################################################################################################################################################################################
+def create_species_dict():
+    """
+    Function to create a dictionary with species data from the ATcT database
 
-    # convert data from website to fit specifications (e.g. filter unnecessary information )
-    data = convert_electronic_data(data)
-
-    # check if species is already in Species database
-    if current_species in HDF_UNIFIED_DATA['Species'].keys():
-        # data from URL into numpy array
-        data_array = data.to_numpy()
-        # data from species database into numpy array
-        unified_data_array = np.array(HDF_UNIFIED_DATA["Species"][current_species]['ElectronicLevel'])
-
-        # check if read-in data from species database has wrong format (might be empty)
-        if unified_data_array.ndim == 1 or unified_data_array.shape[1] != 2:
-            print(red('Error'), ": Read-in from ", cyan(os.path.abspath(RELATIVE_PATH))," failed or dataset has unexpected dimensions (needs to be (X,2)! Please check the dataset of species ", green(current_species), " - species will be skipped\n")
-            # print("What should be done in this case? Dimension do not match")
-            # old_attrs = HDF_UNIFIED_DATA["Species"][current_species].attrs
-            # del HDF_UNIFIED_DATA["Species"][current_species]
-            # dataset = HDF_UNIFIED_DATA['Species'].create_dataset(current_species, data=data_array)
-            return
-        # Compare the arrays to check if they are already the same
-        if np.array_equal(data_array, unified_data_array):
-            print("\nDatasets of species "+ green(current_species) + " are equal, so dataset from " + yellow('unified species database') + " will be kept.\n")
-            return
-
-        # get user input to determine which dataset should be saved
-        print("It seems like the species " + green(current_species) + " is already stored in the SpeciesDatabase at " + cyan(os.path.abspath(os.path.abspath(RELATIVE_PATH)))+' with the following data:\n')
-        print_diffs(data_array, unified_data_array,current_species_NIST)
-
-        # Prompt user to choose which dataset to keep
-        user_input = get_valid_input(create_prompt('to keep data and attributes from '+yellow('unified species database'), 'to save only electronic level data from '+blue(URL_base), 'to skip all electronic levels and continue with only attributes'), lambda x: x == '1' or x == '2' or x == '3' or x == '4')
-        if user_input == '1':
-            print("Keeping electronic level dataset and attributes for species ",green(current_species), "\n")
-            return
-        elif user_input == '2':
-            create_dataset_elec(HDF_UNIFIED_DATA, current_species, data_array)
-            print("Saving electronic level dataset from " + blue('URL') + " for species ",green(current_species), " but keeping attributes\n")
-        elif user_input == '3':
-            return -1           # to break loop in maintain_database.py
-        elif user_input == '4':
-            print(bold(red("Exiting program")))
-            exit(1)
-
-    else:
-        print("Species "+green(current_species)+" not found in database. Please create new species.")
-
-def edit_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPECIES_DICT_FLAG):
-    # check if exists
-    if current_species not in HDF_UNIFIED_DATA['Species'].keys():
-        print("Species "+ green(current_species) + " not found in Species Database - please select an existing species or add this species to the database first. ")
-        own_exit()
-    else:
-        # user-input attribute, if not valid: print list of valid options
-        user_input_attrs = input(bold('\nPlease enter attribute list as comma separated string') + ', e.g. Tref, HeatOfFormation, ...' + ' If internal energy levels should be added please enter AddVibLevels or AddRotLevels\n')
-        attrs_list = user_input_attrs.split(',')
-        old_attrs = HDF_UNIFIED_DATA["Species"][current_species].attrs
-        DATASET = HDF_UNIFIED_DATA["Species"][current_species]
-
-        # check if attribute exists, if yes user input to overwrite or not
-        for attrbs in attrs_list:
-            attrbs = attrbs.replace(" ", "")
-            if attrbs == 'AddVibLevels':
-                add_vib_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPECIES_DICT_FLAG)
-            elif attrbs == 'AddRotLevels':
-                print("TODO für VALENTIN !!!")
-            else:
-                if attrbs in list(old_attrs):
-                    print("\n\nThe attribute " + attrbs + " already exists. Do you want to overwrite the value?")
-                    user_input = get_valid_input(create_prompt('yes', 'no'), lambda x: x == '1' or x == '2' or x =='3')
-                    if user_input == "1":
-                        # Replace the existing value
-                        DATASET.attrs[attrbs] = float(input(bold('\nPlease enter ' + attrbs + ' of current species %s\n-->') % current_species))
-                    elif user_input == "3":
-                        own_exit()
-                else:
-                    # add attribute if not existing
-                    DATASET.attrs[attrbs] = float(input(bold('\nPlease enter ' + attrbs + ' of current species %s\n-->') % current_species))
-
-def add_vib_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,SPECIES_DICT,SPECIES_DICT_FLAG):
-    if 'VibrationalLevels' in HDF_UNIFIED_DATA["Species"][current_species].keys():
-        print("\n\nThe vibrational levels already exists. Do you want to overwrite them?")
-        user_input = get_valid_input(create_prompt('yes', 'no'), lambda x: x == '1' or x == '2' or x =='3')
-
-        if user_input == "1":
-            # Replace the existing value
-            del HDF_UNIFIED_DATA["Species"][current_species]['VibrationalLevels']
-            user_input_csv = input(bold('\nPlease enter the csv file name containing the vibrational levels: ') )
-            # Attempt to convert data to pandas dataframe from custom csv file
-            data = pd.read_csv(f'{user_input_csv}.csv',skipinitialspace=True,delimiter=",",usecols=['VibLevelJ'], na_values=['---'], dtype=str)
-            data = data.astype(float)
-            print(f'Using custom data from custom_vibrational_levels_{current_species}.csv')
-
-            dataset = HDF_UNIFIED_DATA['Species'][current_species].create_dataset('VibrationalLevels', data=data)
-        elif user_input == "3":
-            own_exit()
-
-    else:
-        user_input_csv = input(bold('\nPlease enter the csv file name containing the vibrational levels: ') )
-        # Attempt to convert data to pandas dataframe from custom csv file
-        data = pd.read_csv(f'{user_input_csv}.csv',skipinitialspace=True,delimiter=",",usecols=['VibLevelJ'], na_values=['---'], dtype=str)
-        data = data.astype(float)
-        print(f'Using custom data from custom_vibrational_levels_{current_species}.csv')
-
-        dataset = HDF_UNIFIED_DATA['Species'][current_species].create_dataset('VibrationalLevels', data=data)
-
-def add_dataset(HDF_UNIFIED_DATA,current_species,RELATIVE_PATH,ATCT_URL,SPECIES_DICT,SPECIES_DICT_FLAG):
-    # Base URL of the query
-    URL_base = 'https://physics.nist.gov/cgi-bin/ASD/energy1.pl'
-    # Get the ionization number as the last digits and 1 to comply with the NIST standard
-    ion_level = int(re.sub('.*?([0-9]*)$',r'\1',current_species) or 0) + 1
-    # Get the species (everything before Ion)
-    species = current_species.split('Ion')[0]
-    # break for molecules
-    if bool(re.search(r'[A-Za-z]*\d', species)) or sum(1 for c in species.replace('Ion','') if c.isupper()) != 1:
-        try:
-            # Attempt to convert data to pandas dataframe from custom csv file
-            data = pd.read_csv(f'custom_electronic_levels_{current_species}.csv',skipinitialspace=True,delimiter=",",usecols=['J','Levelcm-1','Term'], na_values=['---'], dtype=str)
-            print(f'Using custom data from custom_electronic_levels_{current_species}.csv')
-        except:
-            print(red('Caution')+": Please make sure you provide a atom species. Automatic read in from online database of electronic levels for molecules not possible yet! Current species: "+green(current_species)+" It is possible to provide a custom csv file containing the electronic levels. To use this option please use the template in this directory, insert the necessary information and add the species to the end like this: 'custom_electronic_levels_H2.csv'")
-            return
-
-
-    else:
-        # get data from Nist database
-        data, current_species_NIST = get_data_from_NIST(current_species, species, ion_level, URL_base, HDF_UNIFIED_DATA)
-        if type(data) == int:
-            print("Error")
-            return
-
-    # convert data from website to fit specifications (e.g. filter unnecessary information )
-    data = convert_electronic_data(data)
-    # check if exists
-    if current_species not in HDF_UNIFIED_DATA['Species'].keys():
-        print("Species "+ green(current_species) + " not found in Species Database - new dataset is being generated at "+ cyan(os.path.abspath(RELATIVE_PATH)))
-        dataset = HDF_UNIFIED_DATA['Species'][current_species].create_dataset('ElectronicLevel', data=data)
-        try:
-            SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID = get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, current_species, ATCT_URL)
-        except:
-            return SPECIES_DICT_FLAG
-        create_attributes(dataset, current_species, ATCT_URL, MassIC_kg, HeatOfFormation_K, current_species_charge, interactionID)
-    else:
-        print("Species already exists in database\n")
-
-
-###################################################################################################
-#   functions for ATcT data handeling
-###################################################################################################
-def create_species_dict(SPECIES_DICT, ATCT_URL):
+    Returns:
+    A dictionary with species names as keys and a tuple with the following values as values:
+    - Heat of formation at 298.15K in J/mol
+    - Mass in kg
+    - Charge of the species in C
+    - Interaction ID of the species
+    """
+    print('Requesting thermodynamic data from ATcT database...')
+    species_dict = {}
     # Create an HTML session
     session = HTMLSession()
     # Make a GET request to the URL
-    response = session.get(ATCT_URL)
+    response = session.get(ATcT_URL)
     # Check if the request was successful (status code 200)
     if response.status_code == 200:
         print('Request at ATcT successful.\n')
@@ -407,192 +882,27 @@ def create_species_dict(SPECIES_DICT, ATCT_URL):
                 mol_mass = float(mol_mass[:index_of_plus-1])
                 # convert with avogadro const and to kg
                 mass = mol_mass/(6.02214076e23 * 1000)
-        SPECIES_DICT.append({
-        "Species": formula,
-        "HeatOfFormation_K": delta_f_H_298K,
-        "MassIC_kg": mass
-    })
-    # print(SPECIES_DICT)
-    return SPECIES_DICT
-
-# Function to search for a species in the dictionary
-def search_species_value(SPECIES_LABEL, SPECIES_DICT, ATCT_URL):
-    # convert species name to fit SPECIES_DICT
-    if 'Ion' in SPECIES_LABEL:
-        Ion_Number =  int(re.search(r'\d+$', SPECIES_LABEL).group())
-        if Ion_Number == 1:
-            SPECIES_LABEL = re.sub('Ion1','+', SPECIES_LABEL)
-        elif Ion_Number != None:
-            SPECIES_LABEL = re.sub('Ion','+', SPECIES_LABEL)
-    for species in SPECIES_DICT:
-        try:
-            if species["Species"] == SPECIES_LABEL:
-                return species["HeatOfFormation_K"], species['MassIC_kg']
-        except:
-            return None  # Return None if species is not found
-
-# function to get values of species out of dictionary
-def get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL):
-    # read-in heat of formation and mass from ATcT at 298.15K
-    if not SPECIES_DICT_FLAG:
-        # create dict with heat of formation and mass for faster read in for second species
-        SPECIES_DICT_FLAG = True
-        SPECIES_DICT = create_species_dict(SPECIES_DICT, ATCT_URL)
-    try:
-        HeatOfFormation_K, MassIC_kg = search_species_value(CURRENT_SPECIES, SPECIES_DICT, ATCT_URL)
-    except:
-        if CURRENT_SPECIES != 'electron':
-            print(red('Error:')+' It seems like the species %s was not found at %s! Please check for the species on website\n' % (CURRENT_SPECIES, ATCT_URL))
-        return SPECIES_DICT_FLAG
-    # read-in ChargeIC from name of species
-    if 'Ion' in CURRENT_SPECIES:
-        Ion_Number =  int(re.search(r'\d+$', CURRENT_SPECIES).group())
-        electron_charge = -1.60217653E-19 # coulombs
-        current_species_charge = - Ion_Number * electron_charge
-    elif 'electron' in CURRENT_SPECIES:
-        current_species_charge = electron_charge
-    else:
-        current_species_charge = 0
-    # get interactionID from current species name
-    if sum(1 for c in CURRENT_SPECIES.replace('Ion','') if c.isupper()) == 1 and not bool(re.search(r'\d+', re.sub(r'Ion\d+','',CURRENT_SPECIES))):
-        if not bool(re.search(r'[A-Za-z]*\d', re.sub(r'Ion\d+','',CURRENT_SPECIES))):
-            if 'Ion' in CURRENT_SPECIES:
-                interactionID = 10
-            elif 'Ion' not in CURRENT_SPECIES:
-                interactionID = 1
-    elif bool(re.search(r'\d+', re.sub(r'Ion\d+','',CURRENT_SPECIES))) or sum(1 for c in CURRENT_SPECIES.replace('Ion','') if c.isupper()) != 1:
-        if 'Ion' in CURRENT_SPECIES:
-            interactionID = 20
-        elif 'Ion' not in CURRENT_SPECIES:
-            interactionID = 2
-    elif 'electron' in CURRENT_SPECIES:
-        interactionID = 4
-    return SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID
-
-# creating attrubutes for current species with data from dict
-def create_attributes(DATASET, CURRENT_SPECIES, ATCT_URL, MassIC_kg, HeatOfFormation_K, current_species_charge, interactionID,old_attrs=[]):
-    # get input from user -> maybe also database read in? where?
-    if 'Tref' in list(old_attrs):
-        DATASET.attrs['Tref'] = old_attrs['Tref']
-    else:
-        DATASET.attrs['Tref'] = float(input(bold('\nPlease enter Tref in [K] of current species %s\n-->') % CURRENT_SPECIES))
-
-    if 'dref' in list(old_attrs):
-        DATASET.attrs['dref'] = old_attrs['dref']
-    else:
-        DATASET.attrs['dref'] = float(input(bold('\nPlease enter dref in [m] of current species %s\n-->') % CURRENT_SPECIES))
-
-    if 'omega' in list(old_attrs):
-        DATASET.attrs['omega'] = old_attrs['omega']
-    else:
-        DATASET.attrs['omega'] = float(input(bold('\nPlease enter omega in [] of current species %s\n-->') % CURRENT_SPECIES))
-
-    # set attributes
-    DATASET.attrs['MassIC'] = MassIC_kg
-    DATASET.attrs['HeatOfFormation_K'] = HeatOfFormation_K
-    DATASET.attrs['ChargeIC'] = current_species_charge
-    DATASET.attrs['InteractionID'] = interactionID
-
-    array_of_strings = np.empty((6,2), dtype='S500')
-    array_of_strings[0,0] = 'Electronic Energy Levels'
-    array_of_strings[1,0] = 'HeatOfFormation_K'
-    array_of_strings[2,0] = 'MassIC'
-    array_of_strings[3,0] = 'Tref'
-    array_of_strings[4,0] = 'dref'
-    array_of_strings[5,0] = 'omega'
-
-    array_of_strings[0,1] = 'Kramida, A., Ralchenko, Yu., Reader, J., and NIST ASD Team (2020). NIST Atomic Spectra Database (ver. 5.8), [Online]. Available: https://physics.nist.gov/asd. National Institute of Standards and Technology, Gaithersburg, MD. DOI: https://doi.org/10.18434/T4W30F. Retrieved on ' + date.today().strftime("%B %d, %Y") + '.'
-    array_of_strings[1,1] = 'B. Ruscic and D. H. Bross, Active Thermochemical Tables (ATcT) values based on ver. 1.130 of the Thermochemical Network. Argonne National Laboratory, Lemont, Illinois 2023; available at ATcT.anl.gov. DOI: https://doi.org/10.17038/CSE/1997229. Retrieved on ' + date.today().strftime("%B %d, %Y") + ' from ' + ATCT_URL + '.'
-    array_of_strings[2,1] = 'B. Ruscic and D. H. Bross, Active Thermochemical Tables (ATcT) values based on ver. 1.130 of the Thermochemical Network. Argonne National Laboratory, Lemont, Illinois 2023; available at ATcT.anl.gov. DOI: https://doi.org/10.17038/CSE/1997229. Retrieved on ' + date.today().strftime("%B %d, %Y") + ' from ' + ATCT_URL + '.'
-    array_of_strings[3,1] = 'User input at ' + date.today().strftime("%B %d, %Y")
-    array_of_strings[4,1] = 'User input at ' + date.today().strftime("%B %d, %Y")
-    array_of_strings[5,1] = 'User input at ' + date.today().strftime("%B %d, %Y")
-
-    DATASET.attrs.create('* Reference', array_of_strings)
-    DATASET.attrs['* Created']   = date.today().strftime("%B %d, %Y")
-
-# checking attribute in existing database
-def check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, WANTED_VALUE, VALUE_NAME, ATCT_URL):
-    try:
-        if np.isclose(HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs[VALUE_NAME], WANTED_VALUE, rtol=1e-03, atol=1e-08):
-            print('%s for ' % (VALUE_NAME) +green(CURRENT_SPECIES)+' is equal so will be kept')
+        # convert species name to fit database
+        if '+' in formula:
+            Ion_Number = re.search(r'\d+$', formula)
+            if Ion_Number is None:
+                species_name = re.sub(r'\+','Ion1',formula)
+            else:
+                Ion_Number = int(re.search(r'\d+$', formula).group())
+                species_name = re.sub(r'\+\d+$',f'Ion{Ion_Number}',formula)
         else:
-            print(underlinE(VALUE_NAME)+' of species '+green(CURRENT_SPECIES)+'\n'+yellow('unified species database')+f': {HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs[VALUE_NAME]}'+"\n"+blue(ATCT_URL) +f': {WANTED_VALUE}\n')
-            return -1
-    except KeyError:
-        if VALUE_NAME in ['HeatOfFormation_K','MassIC']:
-            print("It seems like %s is not set for %s so it will be set as %s with data from "% (VALUE_NAME,CURRENT_SPECIES,WANTED_VALUE)+blue(ATCT_URL))
-        elif VALUE_NAME in ['ChargeIC','InteractionID']:
-            print("It seems like %s is not set for %s so it will be set as %s"% (VALUE_NAME,CURRENT_SPECIES,WANTED_VALUE))
-        return VALUE_NAME
-
-
-# checking all attributes in existing database
-def check_attributes(HDF_UNIFIED_DATA, SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL):
-    try:
-        SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID = get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL)
-    except:
-        return SPECIES_DICT_FLAG, 1
-
-    return_list = []
-
-    if 'HeatOfFormation_K' not in HDF_UNIFIED_DATA['Species'][CURRENT_SPECIES].attrs:                                   # sanity check: calculate heat of formation for ions and compare with data from ATcT
-        Ion_Number =  int(re.search(r'\d+$', CURRENT_SPECIES).group())
-        ground_state = re.sub(r'Ion\d+','',CURRENT_SPECIES)
-        HeatOfFormation_Sum = HDF_UNIFIED_DATA['Species'][ground_state].attrs['HeatOfFormation_K']+HDF_UNIFIED_DATA['Species'][ground_state]['ElectronicLevel'][:][-1,1]
-        for i in range(1, Ion_Number):
-            prev_state = ground_state + 'Ion' + str(i)
-            HeatOfFormation_Sum = HeatOfFormation_Sum + HDF_UNIFIED_DATA['Species'][prev_state]['ElectronicLevel'][:][-1,1]
-
-        if not np.isclose(HeatOfFormation_K, HeatOfFormation_Sum, rtol=1e-03, atol=0.0):          # HeatOfFormation_K being value from ATcT and HeatOfFormation_Sum cal value with relative tolerance of 1e-05
-            print(red('Caution:')+' Please check the heat of formation of the current species: '+green(CURRENT_SPECIES)+', since it did not matcht with the value from '+blue(ATCT_URL)+'!\nIt is calculated in the PICLas source code like this: HeatOfFormation(CurrentSpecies) = HeatOfFormation(previous state) + Ionization Energy(last entry in electronic level dataset of previous state)')
-            print(yellow("Calculated HeatOfFormation: ")+str(HeatOfFormation_Sum)+"\n"+blue("HeatOfFormation form ATcT: ")+str(HeatOfFormation_K))
-
-    else:        # dont check heat of formation of ions because it is not stored
-        return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, HeatOfFormation_K, 'HeatOfFormation_K', ATCT_URL))
-
-    return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, MassIC_kg, 'MassIC', ATCT_URL))
-    return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, current_species_charge, 'ChargeIC', ATCT_URL))
-    return_list.append(check_single_attr(HDF_UNIFIED_DATA, CURRENT_SPECIES, interactionID, 'InteractionID', ATCT_URL))
-    if -1 in return_list:
-        user_input = get_valid_input(bold('\nPlease enter') + "\n " + purple('1') + " to keep attributes from " + yellow('unified species database') + " or \n " + purple('2') + " to save attributes from " + blue(ATCT_URL) + " or \n " + purple('3') + " to exit program here\n-->", lambda x: x == '1' or x == '2' or x == '3')
-        if user_input == '1':
-            print("Keeping attributes for species ",green(CURRENT_SPECIES), "\n")
-            return SPECIES_DICT_FLAG, 1
-        elif user_input == '2':
-            old_attrs = HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES].attrs
-            data_array = HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES][:]
-            del HDF_UNIFIED_DATA["Species"][CURRENT_SPECIES]
-            dataset = HDF_UNIFIED_DATA['Species'].create_dataset_elec(CURRENT_SPECIES, data=data_array)
-            try:
-                SPECIES_DICT_FLAG, HeatOfFormation_K, MassIC_kg, current_species_charge, interactionID = get_attr_values(SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL)
-            except TypeError:
-                return SPECIES_DICT_FLAG, -1
-            create_attributes(dataset, CURRENT_SPECIES, ATCT_URL, MassIC_kg, HeatOfFormation_K, current_species_charge, interactionID,old_attrs)
-        elif user_input == '3':
-            own_exit()
-
-    elif any(item != -1 and item is not None for item in return_list):
-        value_dict={
-            'HeatOfFormation_K':HeatOfFormation_K,
-            'MassIC':MassIC_kg,
-            'ChargeIC':current_species_charge,
-            'InteractionID':interactionID,
-        }
-
-        for VALUE_NAME in return_list:
-            if VALUE_NAME != None:
-                HDF_UNIFIED_DATA['Species'][CURRENT_SPECIES].attrs.create(VALUE_NAME, value_dict.get(VALUE_NAME) ,dtype='float')
-
-    print("\n")
-    return SPECIES_DICT_FLAG, 1
-
-def check_ATcT(CURRENT_SPECIES, HDF_UNIFIED_DATA, SPECIES_DICT_FLAG, SPECIES_DICT, ATCT_URL):
-    # check if species is already in Species database
-    if CURRENT_SPECIES in HDF_UNIFIED_DATA['Species'].keys():
-        SPECIES_DICT_FLAG, break_flag = check_attributes(HDF_UNIFIED_DATA, SPECIES_DICT_FLAG, SPECIES_DICT, CURRENT_SPECIES, ATCT_URL)
-        if break_flag == -1:
-            return SPECIES_DICT_FLAG,-1
-        return SPECIES_DICT_FLAG, 1
-    else:
-        print("Species "+green(CURRENT_SPECIES)+" not found in database. Please create new species.")
+            species_name = formula
+        # get charge of current species
+        if 'Ion' in species_name:
+            Ion_Number =  int(re.search(r'\d+$', species_name).group())
+            species_charge = - Ion_Number * electron_charge
+        elif 'electron' in species_name:
+            species_charge = electron_charge
+        else:
+            species_charge = 0
+        # get interactionID from current species name
+        interactionID = get_interaction_id(species_name)
+        species_dict[species_name] = (float(f"{delta_f_H_298K:.8e}"), float(f"{mass:.8e}"), species_charge, interactionID)
+    # add electron to species_dict since it is not in ATcT database and would cause a keyerror later
+    species_dict['electron'] = (0.0, 9.11e-31, electron_charge, 4)
+    return species_dict
