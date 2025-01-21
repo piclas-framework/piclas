@@ -13,7 +13,6 @@ from config import *
 # arguments for ionization and species setting
 parser = argparse.ArgumentParser(description='Create electronic database')
 parser.add_argument('--species', nargs='+', metavar='', help='Select species to add into Species Database (also possible directly in script, line 160). Enter species like H Fe C')
-parser.add_argument('--reactions', nargs='+', metavar='', help='Select reactions to add into Database (also possible directly in script). Enter reactions like C+N_CNIon1+electron C2+M_C+M+C')
 args = parser.parse_args()
 
 ###################################################################################################
@@ -21,8 +20,7 @@ args = parser.parse_args()
 ###################################################################################################
 # set reaction list in code like ['C+N_CNIon1+electron','C2+M_C+M+C']
 code_reactions = []
-code_species = []
-
+###################################################################################################
 # Initial prompt
 print("\n\nThis script is meant to edit and maintain the " +yellow("unified species database") + " of PICLas")
 user_input = get_valid_input(create_prompt('to maintain/edit species',
@@ -30,7 +28,6 @@ user_input = get_valid_input(create_prompt('to maintain/edit species',
                                            'to maintain/edit cross section data',
                                            'to maintain/edit surface chemistry'),
                                            lambda x: x == '1' or x == '2' or x =='3' or x =='4' or x =='5')
-
 ###################################################################################################
 # SPECIES
 ###################################################################################################
@@ -43,8 +40,10 @@ if user_input == "1":
     for species in existing_species_list:
         instance = create_instance_from_data(species)
         list_of_species_classes.append(instance)
-    # check species list contains the selected species to check
-    check_species_list = []
+    # list contains the species where the excitation states are checked
+    check_levels_list = []
+    # list contains the species where the attributes are checked
+    check_attribute_list = []
 
     user_input = get_valid_input(create_prompt('check existing species',
                                                'add new data to existing species',
@@ -53,52 +52,54 @@ if user_input == "1":
     if user_input == "1":
         # create dictionary from ATcT data for faster access
         species_dict = create_species_dict()
-        print("Checking electronic levels "+red("currently only for atoms")+ " from "+blue(URL_base)+" and from custom csv file for molecules if set\nand attributes for all species from "+ blue(ATcT_URL))
         # check if species to check was provided by argument or in code, if not check all atom species
         if args.species == None:
-            if len(code_species) == 0:
-                # run through all atoms species from species database
-                print('Checking all existing atom species in database and species with provided custom csv electronic levels')
-                for i, species in enumerate(existing_species_list):
-                    if sum(1 for c in species.replace('Ion','') if c.isupper()) == 1:
-                        if bool(re.search(r'[A-Za-z]*\d', re.sub(r'Ion\d+','',species))):
-                            continue
-                        check_species_list.append(species)
+            print("Checking electronic levels "+red("currently only for atoms")+ " from "+blue(URL_base)+" and from custom csv file for molecules if set\nand attributes for all species from "+ blue(ATcT_URL))
+            # run through all atoms species from species database
+            print('Checking all existing atom species in database and species with provided custom csv electronic levels')
+            for i, species in enumerate(existing_species_list):
+                if sum(1 for c in species.replace('Ion','') if c.isupper()) == 1:
+                    if bool(re.search(r'[A-Za-z]*\d', re.sub(r'Ion\d+','',species))):
+                        continue
+                    check_levels_list.append(species)
 
-                # also append species with custom electronic levels
-                current_directory = os.getcwd()
-                for root, dirs, files in os.walk(current_directory):
-                    for filename in files:
-                        if 'custom_electronic_levels' in filename and 'SPECIES' not in filename:        # exclude template
-                            check_species_list.append(filename.split('_')[-1].split('.')[0])
-
-            else:
-                check_species_list = code_species
+            # also append species with custom electronic levels
+            current_directory = os.getcwd()
+            for root, dirs, files in os.walk(current_directory):
+                for filename in files:
+                    if 'custom_electronic_levels' in filename and 'SPECIES' not in filename:        # exclude template
+                        check_levels_list.append(filename.split('_')[-1].split('.')[0])
+                    if 'custom_vibrational_levels' in filename and 'SPECIES' not in filename:        # exclude template
+                        check_levels_list.append(filename.split('_')[-1].split('.')[0])
+            # check attributes for all species
+            check_attribute_list = existing_species_list
 
         else:
-            check_species_list = args.species
-            existing_species_list = args.species
+            check_levels_list = args.species
+            check_attribute_list = args.species
 
-        print('Checking species: ' + ', '.join(check_species_list))
+        print('Checking species: ' + ', '.join(check_attribute_list))
 
         # loop over all classes (equals all species in database)
         for species_class in list_of_species_classes:
             # check electronic levels for atoms and custom data
-            if species_class.name in check_species_list:
+            if species_class.name in check_levels_list:
                 # read in inner energy levels (for atoms only electronic)
                 read_datasets_from_existing_species(species_class)
                 species_class.add_or_update_all_possible_datasets()
 
-            # check attributes for all species in database
-            # use data from ATcT, see edit_species.py for creation of species_dict dictionary
-            atct_data_for_instance={
-                'HeatOfFormation_K':species_dict[species_class.name][0],
-                'MassIC':species_dict[species_class.name][1],
-                'ChargeIC':species_dict[species_class.name][2],
-                'InteractionID':species_dict[species_class.name][3],
-                }
-            check_attributes_from_actc(species_class, atct_data_for_instance)
-            write_instance_to_database(species_class)
+            if species_class.name in check_attribute_list:
+                # check attributes for species in database
+                # use data from ATcT, see edit_species.py for creation of species_dict dictionary
+                atct_data_for_instance={
+                    'HeatOfFormation_K':species_dict[species_class.name][0],
+                    'MassIC':species_dict[species_class.name][1],
+                    'ChargeIC':species_dict[species_class.name][2],
+                    'InteractionID':species_dict[species_class.name][3],
+                    }
+                check_attributes_from_actc(species_class, atct_data_for_instance)
+                write_instance_to_database(species_class)
+
 
     elif user_input == "2":
         # check if species list was provided as argument, if not use species list provided in python
@@ -132,40 +133,41 @@ if user_input == "1":
             check_species_list = args.species
 
         # loop over all classes (equals all species in database)
-        for species_class in list_of_species_classes:
-            if species_class.name in existing_species_list:
-                print('Species ' + species_class.name + ' is already stored in database! Please it can only be edited.')
+        for new_species in check_species_list:
+            # skip if species exists in database
+            if new_species in existing_species_list:
+                print(red('Error:')+' Species ' + new_species + ' is already stored in database! It can only be edited.')
                 continue
 
-            if species_class.name in check_species_list:
-                # create empty instance for given species which results in right class depening on species name
-                species_class = create_empty_instance(species_class.name)
-                # add inner energy levels and degenracy
-                species_class.add_or_update_all_possible_datasets()
+            # create empty instance for given species which results in right class depening on species name
+            species_class = create_empty_instance(new_species)
+            # add inner energy levels and degenracy
+            species_class.add_or_update_all_possible_datasets()
+            # try to add attributes from ATcT data
+            try:
                 # write all possible attributes for given species
                 atct_data_for_instance={
-                    'HeatOfFormation_K':species_dict[species_class.name][0],
-                    'MassIC':species_dict[species_class.name][1],
-                    'ChargeIC':species_dict[species_class.name][2],
-                    'InteractionID':species_dict[species_class.name][3],
+                    'HeatOfFormation_K':species_dict[new_species][0],
+                    'MassIC':species_dict[new_species][1],
+                    'ChargeIC':species_dict[new_species][2],
+                    'InteractionID':species_dict[new_species][3],
                     }
-                # try to add attributes from ATcT data
-                try:
-                    for attr_name, attr_value in atct_data_for_instance.items():
-                        print("Adding attribute " + attr_name + " with value " + str(attr_value))
-                        species_class.attributes[attr_name] = attr_value
-                except Exception as e:
-                    # pass since missing data is added via user input anyway
-                    pass
-
-                # get remaining attributes from user input
-                for attr_name, attr_value in species_class.attributes.items():
-                    if attr_value is None:
-                        # Set the attribute to a default value based on its type
-                        if attr_name in attribute_types:
-                            species_class.attributes[attr_name] = attribute_types[attr_name](input(f"Please enter a value for {attr_name}: "))
+                for attr_name, attr_value in atct_data_for_instance.items():
                     print("Adding attribute " + attr_name + " with value " + str(attr_value))
-                write_instance_to_database(species_class)
+                    species_class.attributes[attr_name] = attr_value
+            except Exception as e:
+                # pass since missing data is added via user input anyway
+                pass
+
+            # get remaining attributes from user input
+            for attr_name, attr_value in species_class.attributes.items():
+                if attr_value is None:
+                    # Set the attribute to a default value based on its type
+                    if attr_name in attribute_types:
+                        attr_value = input(f"Please enter a value for {attr_name}: ")
+                        species_class.attributes[attr_name] = attribute_types[attr_name](attr_value)
+                print("Adding attribute " + attr_name + ": " + str(attr_value))
+            write_instance_to_database(species_class)
 
     elif user_input == "4":
         own_exit()
@@ -186,17 +188,14 @@ elif user_input == "2":
      own_exit()
 
     # operation
-    if args.reactions == None:
-        if len(code_reactions) == 0:
-            user_input_reaction = input(bold('\nPlease enter reactions list as comma separated string') + ', e.g. C+N_CNIon1+electron,C2+M_C+M+C\n')
-            reaction_list = user_input_reaction.split(',')
-        else:
-            reaction_list = code_reactions
+    if len(code_reactions) == 0:
+        user_input_reaction = input(bold('\nPlease enter reactions list as comma separated string') + ', e.g. C+N_CNIon1+electron,C2+M_C+M+C\n')
+        reaction_list = user_input_reaction.split(',')
     else:
-        reaction_list = args.reactions
+        reaction_list = code_reactions
 
     for reaction in reaction_list:
-        function(hdf_unified_data, reaction)
+        function(reaction)
 
 ###################################################################################################
 # CROSS SECTION DATA

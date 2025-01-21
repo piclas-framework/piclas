@@ -47,6 +47,8 @@ class Atom:
                 self.attributes[attr_name] = attr_value
         # create new class to store new data
         else:
+            # The comment below is needed to find the location to add a new attribute to an empty initialized class
+            ##### Atomic Molecule Attributes #####
             self.attributes['* Created'] = None
             self.attributes['* Reference'] = None
             self.attributes['MassIC'] = None
@@ -119,7 +121,7 @@ class Atom:
             print_diffs(elec_levels_nist_array, elec_levels_database, 'Electronic')
 
             # Prompt user to choose which dataset to keep
-            user_input = get_valid_input(create_prompt('to keep data and attributes from '+yellow('unified species database'),
+            user_input = get_valid_input(create_prompt('to keep data from '+yellow('unified species database'),
                                                        'to save only electronic level data from '+blue(URL_base)),
                                                        lambda x: x == '1' or x == '2' or x == '3')
             if user_input == '1':
@@ -166,19 +168,24 @@ class MoleculeHelper:
             # Attempt to convert data to pandas dataframe from custom csv file
             if level_type == 'Rotational':
                 custom_dataset = pd.read_csv(f'custom_rotational_levels_{instance.name}.csv',skipinitialspace=True,delimiter=",",usecols=['J','RotLevelJ'], na_values=['---'], dtype=str)
-                custom_dataset = custom_dataset.astype(float)
+                custom_dataset = custom_dataset.to_numpy()
                 print(f'Using custom data from custom_rotational_levels_{instance.name}.csv')
             elif level_type == 'Vibrational':
-                user_input_csv = input(bold('\nPlease enter the name of the csv file containing the vibrational levels: ') )
-                custom_dataset = pd.read_csv(f'{user_input_csv}.csv',skipinitialspace=True,delimiter=",",usecols=['VibLevelJ'], na_values=['---'], dtype=str)
+                custom_dataset = pd.read_csv(f'custom_rotational_levels_{instance.name}.csv',skipinitialspace=True,delimiter=",",usecols=['VibLevelJ'], na_values=['---'], dtype=str)
                 custom_dataset = custom_dataset.astype(float)
                 print(f'Using custom data from custom_vibrational_levels_{instance.name}.csv')
             else:
                 try:
-                    # Attempt to convert data to pandas dataframe from custom csv file
-                    custom_dataset = pd.read_csv(f'custom_electronic_levels_{instance.name}.csv',skipinitialspace=True,delimiter=",",usecols=['J','Levelcm-1','Term'], na_values=['---'], dtype=str)
+                    # Convert custom electronic data to format which fits nist data
+                    custom_dataset = pd.read_csv(f'custom_electronic_levels_{instance.name}.csv',skipinitialspace=True,delimiter=",",usecols=['J','Levelcm-1'], na_values=['---'], dtype=str)
+                    custom_dataset.insert(0, 'Term', '---')
+                    last_row = custom_dataset.iloc[-1].copy()
+                    last_row['Term'] = 'Limit'
+                    last_row['J'] = '---'
+                    custom_dataset.iloc[-1] = last_row
                     print(f'Using custom data from custom_electronic_levels_{instance.name}.csv')
                     custom_dataset = convert_electronic_data(custom_dataset)
+                    custom_dataset = custom_dataset.to_numpy()
                 except:
                     print(red('Caution')+": Please make sure you provide a atom species. Automatic read in from online database of electronic levels for molecules not possible yet! Current species: "+green(instance.name)+" It is possible to provide a custom csv file containing the electronic levels. To use this option please use the template in this directory, insert the necessary information and add the species to the end like this: 'custom_electronic_levels_H2.csv'")
 
@@ -212,7 +219,7 @@ class MoleculeHelper:
             print_diffs(custom_dataset, levels_database, level_type)
 
             # Prompt user to choose which dataset to keep
-            user_input = get_valid_input(create_prompt('to keep data and attributes from '+yellow('unified species database'),
+            user_input = get_valid_input(create_prompt('to keep data from '+yellow('unified species database'),
                                                        f'to save only {level_type} level data from '+blue(f'custom_{level_type}_levels_{instance.name}.csv')),
                                                        lambda x: x == '1' or x == '2' or x == '3')
             if user_input == '1':
@@ -225,7 +232,7 @@ class MoleculeHelper:
                     instance.VibrationalLevels = custom_dataset
                 else:
                     instance.ElectronicLevels  = custom_dataset
-                print(f"Saving {level_type} level dataset from " + blue(user_input_csv) + " for species ",green(instance.name), "\n")
+                print(f"Saving {level_type} level dataset from " + blue(f'custom_{level_type}_levels_{instance.name}.csv') + " for species ",green(instance.name), "\n")
             elif user_input == '3':
                 print(bold(red("Exiting program")))
                 exit(1)
@@ -266,6 +273,8 @@ class DiatomicMolecule:
                 self.attributes[attr_name] = attr_value
         # create new class to store new data
         else:
+            # The comment below is needed to find the location to add a new attribute to an empty initialized class
+            ##### Diatomic Molecule Attributes #####
             self.attributes['* Created'] = None
             self.attributes['* Reference'] = None
             self.attributes['MassIC'] = None
@@ -322,6 +331,8 @@ class PolyatomicMolecule:
                 self.attributes[attr_name] = attr_value
         # create new class to store new data
         else:
+            # The comment below is needed to find the location to add a new attribute to an empty initialized class
+            ##### Polyatomic Molecule Attributes #####
             self.attributes['* Created'] = None
             self.attributes['* Reference'] = None
             self.attributes['MassIC'] = None
@@ -447,11 +458,13 @@ def read_datasets_from_existing_species(instance):
             print(red('Error'), f"reading {level_type} data from the database for ", green(instance.name), ":", e)
             user_input = get_valid_input(create_prompt('to add new data from csv file',
                                                        'to skip data for this species'),
-                                                       lambda x: x == '1' or x == '2')
+                                                       lambda x: x == '1' or x == '2' or x == '3')
             if user_input == '1':
                 MoleculeHelper.add_or_update_dataset(instance, level_type, create_new=True)
             elif user_input == '2':
                 print(f"Skipping {class_variable} for species ", green(instance.name), "\n")
+            elif user_input == '3':
+                own_exit()
 
 def check_attributes_from_actc(instance, atct_dict):
     """Function to check the attributes of the species with data from the ATcT database
@@ -520,7 +533,7 @@ def edit_attributes(instance):
     instance: Instance of the species class
     """
     # list existing attributes
-    print("Existing attributes for species ", green(instance.name))
+    print("\nExisting attributes for species ", green(instance.name))
     for attr_name, attr_value in instance.attributes.items():
         if isinstance(attr_value, np.ndarray):
             print(f"{attr_name}:")
@@ -530,7 +543,7 @@ def edit_attributes(instance):
             print(f"{attr_name}: {attr_value}")
     user_input_attrs = input(bold('\nPlease enter attribute list as comma separated string. It is also possible to add new attributes.') + ', e.g. Tref, HeatOfFormation, ... or None to skip this species\n')
     attrs_list = user_input_attrs.split(',')
-    if user_input_attrs == 'None':
+    if user_input_attrs.lower() == 'none':
         return
     # check if attribute exists, if yes user input to overwrite or not
     for attr_name in attrs_list:
@@ -550,8 +563,50 @@ def edit_attributes(instance):
                 # type of attribute is already defined
                 instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
             else:
-                print(f"Attribute {attr_name} is not defined in the attribute_types dictionary! Please add it in the config.py first")
-                own_exit()
+                # User input for attribute type
+                attr_type = input(f"Please enter the datatype for {attr_name} (str, int, float): ").strip().lower()
+                if attr_type == 'str':
+                    attribute_types[attr_name] = str
+                    attr_type_str = 'str'
+                elif attr_type == 'int':
+                    attribute_types[attr_name] = int
+                    attr_type_str = 'int'
+                elif attr_type == 'float':
+                    attribute_types[attr_name] = float
+                    attr_type_str = 'float'
+                else:
+                    print("Invalid datatype entered!")
+                    own_exit()
+                instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
+                config_path = os.path.join(os.path.dirname(__file__), 'config.py')
+                # Write the new attribute type to config.py
+                with open(config_path, 'r+') as config_file:
+                    lines = config_file.readlines()
+                    config_file.seek(0)
+                    for line in lines:
+                        config_file.write(line)
+                        if line.strip() == 'attribute_types = {':
+                            config_file.write(f"    '{attr_name}'         : {attr_type_str},\n")
+                    config_file.truncate()
+                # write new attribute to initialize empty class to current file
+                # decide which class to append to
+                if instance.attributes['InteractionID'] == 1 or instance.attributes['InteractionID'] == 10:
+                    line_catch = '##### Atomic Molecule Attributes #####'
+                elif instance.attributes['InteractionID'] == 2 or instance.attributes['InteractionID'] == 20:
+                    if 'PolyatomicMol' in instance.attributes.keys():
+                        line_catch = '##### Polyatomic Molecule Attributes #####'
+                    else:
+                        line_catch = '##### Diatomic Molecule Attributes #####'
+                # write to file
+                class_file_path = os.path.join(os.path.dirname(__file__), 'edit_species.py')
+                with open(class_file_path, 'r+') as class_file:
+                    lines = class_file.readlines()
+                    class_file.seek(0)
+                    for line in lines:
+                        class_file.write(line)
+                        if line.strip() == line_catch:
+                            class_file.write(f"            self.attributes['{attr_name}'] = None\n")
+                    class_file.truncate()
 
 def write_instance_to_database(instance):
     """
