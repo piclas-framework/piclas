@@ -310,7 +310,7 @@ DO iVal=1,nVal
     DO iProc=1,nProcessors-1
       nElems_proc=nElems_glob(iProc)
       IF (nElems_proc.GT.0) THEN
-        CALL MPI_RECV(buf(:,:,:,1:nElems_proc),nElems_proc*NVisu_elem,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPIstatus,iError)
+        CALL MPI_RECV(buf(:,:,:,1:nElems_proc),nElems_proc*NVisu_elem,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPI_STATUS_IGNORE,iError)
         WRITE(ivtk) REAL(buf(:,:,:,1:nElems_proc),4)
       END IF
     END DO !iProc
@@ -342,7 +342,7 @@ IF(MPIRoot)THEN
   DO iProc=1,nProcessors-1
     nElems_proc=nElems_glob(iProc)
     IF (nElems_proc.GT.0) THEN
-      CALL MPI_RECV(buf2(:,:,:,:,1:nElems_proc),nElems_proc*NVisu_elem*3,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPIstatus,iError)
+      CALL MPI_RECV(buf2(:,:,:,:,1:nElems_proc),nElems_proc*NVisu_elem*3,MPI_DOUBLE_PRECISION,iProc,0,MPI_COMM_PICLAS,MPI_STATUS_IGNORE,iError)
       WRITE(ivtk) REAL(buf2(:,:,:,:,1:nElems_proc),4)
     END IF
   END DO !iProc

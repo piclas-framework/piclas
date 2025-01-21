@@ -1206,7 +1206,7 @@ INTEGER             :: iElem,LocSideID
 INTEGER             :: iMortar,nMortars
 INTEGER             :: Flip_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_MINE(nNBProcs))
 INTEGER             :: Flip_YOUR(offsetMPISides_YOUR(0)+1:offsetMPISides_YOUR(nNBProcs))
-INTEGER             :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request)   :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !===================================================================================================================================
 IF(nProcessors.EQ.1) RETURN
 !fill MINE flip info
@@ -1247,10 +1247,10 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
-  IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
@@ -1305,7 +1305,7 @@ INTEGER             :: iElem,LocSideID
 INTEGER             :: iMortar,nMortars
 INTEGER             :: ElemID_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_YOUR(nNBProcs))
 INTEGER             :: ElemID_YOUR(offsetMPISides_MINE(0)+1:offsetMPISides_YOUR(nNBProcs))
-INTEGER             :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request)   :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !===================================================================================================================================
 IF(nProcessors.EQ.1) RETURN
 
@@ -1339,6 +1339,7 @@ DO iNbProc=1,nNbProcs
   IF(nSendVal.GT.0)THEN
     CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_ISEND',iError)
   END IF
   ! Start receive flip to YOUR
   nRecVal     =nMPISides_rec(iNbProc,2)
@@ -1347,15 +1348,16 @@ DO iNbProc=1,nNbProcs
   IF(nRecVal.GT.0)THEN
     CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
                     nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_IRECV',iError)
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   nRecVal     =nMPISides_rec(iNbProc,2)
-  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
   nSendVal    =nMPISides_send(iNBProc,2)
-  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
 ! second communication: Master to Slave
@@ -1379,11 +1381,11 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   nRecVal     =nMPISides_rec(iNbProc,1)
-  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
   nSendVal    =nMPISides_send(iNBProc,1)
-  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
+  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 
 DO iElem=1,nElems

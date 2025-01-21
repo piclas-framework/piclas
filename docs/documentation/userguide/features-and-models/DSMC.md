@@ -451,11 +451,11 @@ Define the size in [m], mass in [kg] of the solid particle (perfectly spherical)
     Part-Species1-MacroParticleFactor
 
 The weighting factor can differ from the weighting factor of gas species and does not depend on the usage of a variable weighting factor for gas species.
-The energy transferred from the gas flow to the solid particle also depends on the thermal accommodation coefficient of the solid particle surface and is provided by the user as follows:
+The energy transferred from the gas flow to the solid particle depends on the thermal accommodation coefficient of the solid particle surface and is provided by the user per gas-phase species by
 
-    Part-Species1-GranularPartTau = 1.0
-    
-To correctly calculate the temperature development of granular species, specify their specific heat capacity in J/(kg K):
+    Part-Species2-GranularPartTau = 1.0
+
+assuming that the second species is a gas species. To correctly calculate the temperature development of granular species, specify their specific heat capacity in J/(kg K):
 
     Part-Species1-GranularPartCsp = 765
 

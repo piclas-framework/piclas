@@ -100,9 +100,6 @@ USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-#if USE_MPI
-USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
-#endif /* USE_MPI */
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
@@ -220,11 +217,6 @@ CALL InitRadiationTransport()
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
-#if USE_MPI
-! New IMD binary format (not TTM needed as this information is stored on the atoms)
-CALL initReadIMDdata()
-CALL read_IMD_results()
-#endif /* USE_MPI */
 #endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)

@@ -128,7 +128,7 @@ USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 #endif
 #if USE_HDG && USE_LOADBALANCE
@@ -550,7 +550,7 @@ IF (ABS(meshMode).GT.1) THEN
 
   IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
-    IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) THEN
       usevMPF = .TRUE.
     ELSE
       usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
@@ -972,7 +972,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
 #if USE_MPI
-USE MPI
+USE mpi_f08
 USE MOD_MPI_Shared
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 #ifdef PARTICLES
@@ -1111,7 +1111,7 @@ USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
 USE MOD_Globals   ,ONLY: myrank,MPI_COMM_PICLAS,iError
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!

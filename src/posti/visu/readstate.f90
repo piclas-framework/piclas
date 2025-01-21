@@ -55,7 +55,7 @@ USE MOD_ReadInTools ,ONLY:ExtractParameterFile
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)               :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)        :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(INOUT) :: prmfile      !< FLEXI parameter file, used if DG operator is called
 CHARACTER(LEN=255),INTENT(IN)    :: statefile    !< HDF5 state file
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -98,7 +98,7 @@ USE MOD_Interpolation       ,ONLY: DefineParametersInterpolation,InitInterpolati
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)           :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)    :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN):: prmfile       !< FLEXI parameter file, used if DG operator is called
 CHARACTER(LEN=255),INTENT(IN):: statefile     !< HDF5 state file
 !-----------------------------------------------------------------------------------------------------------------------------------

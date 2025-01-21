@@ -88,6 +88,9 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
@@ -172,7 +175,7 @@ INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER                        :: nHaloElems
 INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:)
 REAL,POINTER                   :: MPISideBoundsOfElemCenter_Shared(:,:) => null()
-INTEGER                        :: MPISideBoundsOfElemCenter_Shared_Win
+TYPE(MPI_Win)                  :: MPISideBoundsOfElemCenter_Shared_Win
 REAL                           :: BoundsOfElemCenter(1:4)
 LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem

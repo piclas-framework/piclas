@@ -97,6 +97,8 @@ fi
 # sudo apt-get install libgmp-dev libmpfr-dev libmpc-dev
 GCCVERSION='13.2.0'
 
+GCCVERSION='14.2.0'
+
 # --------------------------------------------------------------------------------------------------
 # Check pre-requisites
 # --------------------------------------------------------------------------------------------------
@@ -159,7 +161,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   # Check if tar.gz file was correctly downloaded, abort script if non-existent
   if [ ! -f ${TARFILE} ]; then
     echo "no gcc install-file downloaded for GCC-${GCCVERSION}"
-    echo "check if ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz exists"
+    echo "check if ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz exists under https://ftp.fu-berlin.de/unix/languages/gcc/releases/"
     exit
   fi
 
@@ -170,6 +172,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " " && ls -l ${TARFILE}
     echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
+    echo "check if ftp://ftp.fu-berlin.de/unix/languages/gcc/releases/gcc-${GCCVERSION}/gcc-${GCCVERSION}.tar.gz exists under https://ftp.fu-berlin.de/unix/languages/gcc/releases/"
     exit
   fi
 
