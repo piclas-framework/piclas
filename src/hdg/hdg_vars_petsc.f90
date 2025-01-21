@@ -42,6 +42,7 @@ INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
 INTEGER             :: nLocalPETScDOFs          !< Number of local PETSc DOFs (size of PETSc Vectors & Matrices)
 INTEGER             :: nGlobalPETScDOFs         !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
 INTEGER,ALLOCATABLE :: OffsetGlobalPETScDOF(:)  !< offset of each SideID to the global position in the PETSc system
+REAL                :: PETScFieldTime
 INTEGER,ALLOCATABLE :: SmallMortarType(:,:)   !< Type of Mortar side ([1] Type, [2] Side, nSides)
                                               !< [1] Type: mortar type this small side belongs to (1-3)
                                               !< [2] Side: Small side number (1-4)

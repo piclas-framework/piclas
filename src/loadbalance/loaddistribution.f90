@@ -1254,6 +1254,9 @@ USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeMM,MPIW8CountMM
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_HDG && USE_PETSC
+USE MOD_HDG_Vars_PETSc    ,ONLY: PETScFieldTime
+#endif /*USE_HDG && USE_PETSC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1268,6 +1271,7 @@ CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
 #ifdef PARTICLES
+REAL                                     :: ElemTimeFieldOut
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
 INTEGER,PARAMETER                        :: nOutputVar=23
 #else
@@ -1427,14 +1431,22 @@ IF(PRESENT(time_opt))THEN
 ELSE
   time_loc = -1.
 END IF
+
 #ifdef PARTICLES
+! Add time spent in the PETSc solver, only locally for the output for now
+#if USE_HDG && USE_PETSC
+ElemTimeFieldOut = ElemTimeField + PETScFieldTime
+#else
+ElemTimeFieldOut = ElemTimeField
+#endif
+
 ! Calculate elem time proportions for field and particle routines
-SumElemTime=ElemTimeField+ElemTimePart
+SumElemTime=ElemTimeFieldOut+ElemTimePart
 IF(SumElemTime.LE.0.)THEN
   ElemTimeFieldPercent = 0.
   ElemTimePartPercent  = 0.
 ELSE
-  ElemTimeFieldPercent = 100. * ElemTimeField / SumElemTime
+  ElemTimeFieldPercent = 100. * ElemTimeFieldOut / SumElemTime
   ElemTimePartPercent  = 100. * ElemTimePart / SumElemTime
 END IF ! ElemTimeField+ElemTimePart.LE.0.
 #endif /*PARTICLES*/
@@ -1463,7 +1475,7 @@ IF (FILEEXISTS(outfile)) THEN
       delimiter,memory(3)                &
 #ifdef PARTICLES
      ,delimiter,REAL(nGlobalNbrOfParticles(3)),&
-      delimiter,ElemTimeField              ,&
+      delimiter,ElemTimeFieldOut           ,&
       delimiter,ElemTimePart               ,&
       delimiter,ElemTimeFieldPercent       ,&
       delimiter,ElemTimePartPercent

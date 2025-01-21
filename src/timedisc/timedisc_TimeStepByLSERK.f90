@@ -120,7 +120,7 @@ DO iStage = 1,nRKStages
 #endif /*EXTRAE*/
   IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=1)
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+  CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
   CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
@@ -135,13 +135,10 @@ DO iStage = 1,nRKStages
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-    CALL Deposition(stage_opt=2)
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=2)
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+  CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  END IF
-
   IF (time.GE.DelayTime) THEN
     LastPartPos(     1:3,1:PDM%ParticleVecLength)=PartState(   1:3,1:PDM%ParticleVecLength)
     PEM%LastGlobalElemID(1:PDM%ParticleVecLength)=PEM%GlobalElemID(1:PDM%ParticleVecLength)

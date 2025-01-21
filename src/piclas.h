@@ -291,7 +291,7 @@
 #define LB_EMISSION      5
 #define LB_TRACK         6
 #define LB_INTERPOLATION 7
-#define LB_DEPOSITION    8
+#define LB_DEPO_SF       8
 #define LB_CARTMESHDEPO  9
 #define LB_PUSH          10
 #define LB_PARTANALYZE   11

@@ -298,7 +298,7 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
     ! e.g. 'shape_function', 'shape_function_1d', 'shape_function_cylindrical'
     IF(StringBeginsWith(DepositionType,'shape_function'))THEN
       ElemTimePartElem = ElemTimePartElem &
-          + tCurrent(LB_DEPOSITION) * nDeposPerElem(iElem)*stotalDepos
+          + tCurrent(LB_DEPO_SF) * nDeposPerElem(iElem)*stotalDepos
     END IF
 
     ElemTime(iElem) = ElemTime(iElem) + ElemTimePartElem

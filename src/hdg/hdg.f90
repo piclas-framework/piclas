@@ -55,7 +55,7 @@ CONTAINS
 
 #if USE_HDG
 !===================================================================================================================================
-!> Define parameters for HDG (Hubridized Discontinous Galerkin)
+!> Define parameters for HDG (Hybridized Discontinuous Galerkin)
 !===================================================================================================================================
 SUBROUTINE DefineParametersHDG()
 ! MODULES
@@ -141,7 +141,7 @@ USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 #endif /*USE_MPI*/
-USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix, PETScSetPrecond
+USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix
 #endif /*USE_PETSC*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
@@ -159,6 +159,7 @@ REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
+PetscInt          :: major,minor,subminor,release
 IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iProc
 INTEGER             :: iLocalPETScDOF,iDOF
@@ -171,6 +172,7 @@ INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
 REAL              :: StartT,EndT
+CHARACTER(100)    :: hilf
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -210,7 +212,18 @@ END IF
 
 ! Read in CG parameters (also used for PETSc)
 #if USE_PETSC
-LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: PETSc '
+PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
+#ifdef PETSC_HAVE_HYPRE
+hilf = '(built with Hypre and'
+#else
+hilf = '(built without Hypre and'
+#endif
+#ifdef PETSC_HAVE_MUMPS
+hilf = TRIM(hilf)//' with Mumps)'
+#else
+hilf = TRIM(hilf)//' without Mumps)'
+#endif
+LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor,' '//TRIM(hilf)
 #else
 LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: CG '
 #endif /*USE_PETSC*/
@@ -691,26 +704,15 @@ PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
 PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matrix
 ! Conservative guess for the number of nonzeros: With mortars at most 12 sides with Nmax.
-PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,12 * nGP_face(NMax),PETSC_NULL_INTEGER,11 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
 PetscCallA(MatSetOption(PETScSystemMatrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)) ! Column oriented for more convenient set up
 
 CALL PETScFillSystemMatrix()
 
 ! 3.2.2) Set up Solver
-PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
-PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
-IF(PrecondType.GE.10) THEN ! Exact Solver
-  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr)) ! Exact solver
-ELSE ! Iterative Conjugate Gradient solver
-  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
-  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
-  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-END IF
-
-CALL PETScSetPrecond()
+CALL PETScSetSolver()
 
 ! 3.2.3) Set up RHS and solution vectors
 PetscCallA(VecCreate(PETSC_COMM_WORLD,PETScSolution,ierr))
@@ -742,6 +744,138 @@ LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' INIT HDG'
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
+
+
+#if USE_PETSC
+SUBROUTINE PETScSetSolver()
+!===================================================================================================================================
+!> Set the solver and/or preconditioner combination in PETSc
+!> Iterative solvers
+!>    1: CG + Block Jacobi
+!>    2: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
+!> Direct solvers
+!>    10: CHOLESKY (requires the MUMPS package to support the matrix type)
+!>    PCLU: Does not support the matrix type "sbaij" (MATSBAIJ)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_HDG_Vars
+USE PETSc
+USE MOD_HDG_Vars_PETSc
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode      :: ierr
+PC                  :: pc
+Mat                 :: F
+CHARACTER(LEN=100)  :: ksp_type, pc_type, mat_type
+!===================================================================================================================================
+PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
+PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
+
+PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+SELECT CASE(PrecondType)
+CASE(0)
+  ! ====== Iterative solver: Conjugate Gradient
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: None
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
+CASE(1)
+  ! ====== Iterative solver: Conjugate Gradient
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+#ifdef PETSC_HAVE_HYPRE
+CASE(2)
+  PetscCallA(KSPSetType(PETScSolver,KSPCG, ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1e-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Incomplete factorization preconditioner
+  PetscCallA(PCHYPRESetType(pc,PCILU,ierr))
+CASE(3)
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: matrix element based preconditioner, ParaSails is a parallel implementation of a sparse approximate
+  !      inverse preconditioner
+  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
+  PetscCallA(PCHYPRESetType(pc, "parasails", ierr))
+#endif
+CASE(20)
+  ! ====== Iterative solver: GMRES
+  PetscCallA(KSPSetType(PETScSolver,KSPGMRES, ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+#ifdef PETSC_HAVE_HYPRE
+  ! ===  Preconditioner: BoomerAMG
+  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
+  PetscCallA(PCHYPRESetType(pc, "boomeramg", ierr))
+  ! BoomerAMG options
+  ! Coarsening strategy: HMIS coarsening
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_coarsen_type", "HMIS", ierr))
+  ! Strong threshold for coarsening
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_strong_threshold", "0.5", ierr))
+  ! Maximum number of levels
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_max_levels", "25", ierr))
+  PetscCallA(PCSetFromOptions(pc,ierr))
+#else
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+#endif
+#ifdef PETSC_HAVE_MUMPS
+CASE(10)
+  ! ====== Direct solver: Cholesky
+  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr))
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
+  ! PETSc will most likely use MUMPS anyway
+  PetscCallA(PCFactorSetMatSolverType(pc,MATSOLVERMUMPS,ierr))
+  PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
+  ! We need to get the internal matrix to set its options
+  PetscCallA(PCFactorGetMatrix(pc,F,ierr))
+  ! Tell MUMPS matrix is SPD
+  PetscCallA(MatMumpsSetIcntl(F,7,2,ierr))
+  ! Memory handling
+  PetscCallA(MatMumpsSetIcntl(F,14,200,ierr))    ! Allow 3x estimated memory
+  PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
+#endif
+CASE DEFAULT
+  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE. PrecondType=', IntInfoOpt=PrecondType)
+END SELECT
+
+! Get solver and preconditioner types
+PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
+PetscCallA(PCGetType(pc, pc_type, ierr))
+
+! If using direct solver, print factorization type
+IF (TRIM(ksp_type) .EQ. 'preonly') THEN
+  ! Print factorization details when using Cholesky/LU
+  IF ((TRIM(pc_type) .EQ. 'cholesky') .OR. (TRIM(pc_type) .EQ. 'lu')) then
+    PetscCallA(PCFactorGetMatrix(pc, F, ierr))
+    PetscCallA(MatGetType(F, mat_type, ierr))
+    LBWRITE(UNIT_stdOut,'(A)') ' | Direct solver: '//TRIM(pc_type)//', using factorization type: '//TRIM(mat_type)
+  END IF
+ELSE
+  LBWRITE(UNIT_stdOut,'(A)') ' | Iterative solver: '//TRIM(ksp_type)//' with '//TRIM(pc_type)//' preconditioning'
+END IF
+
+END SUBROUTINE PETScSetSolver
+#endif /*USE_PETSC*/
 
 
 !===================================================================================================================================
