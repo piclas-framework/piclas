@@ -76,8 +76,8 @@ do
     USEMPIVERSION=5.0.6
 
     # MPICH
-    MPINAMES='mpich'
-    USEMPIVERSION=4.1.2
+    #MPINAMES='mpich'
+    #USEMPIVERSION=4.1.2
 
     # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
     # This will use the older ch3:sock channel that does not busy poll.
