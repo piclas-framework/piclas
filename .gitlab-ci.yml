@@ -1131,11 +1131,10 @@ WEK_BGKFlow:
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 WEK_drift_diffusion:
-  <<: *defaults_drift_diffusion_checkin
-  stage: reggie_checkin
+  <<: *defaults_drift_diffusion_weekly
+  stage: reggie_tutorials
   script:
     - cd build_drift_diffusion ; reggie ../regressioncheck/WEK_drift_diffusion_explicit-FV
-
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "documentation": Compile the userguide and developer guide
