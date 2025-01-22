@@ -110,6 +110,7 @@ before_script:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 stages:
   - build
+  - build_weekly
   - reggie_checkin
   - reggie_feature_checkin
   - reggie_DSMC_nightly
@@ -489,7 +490,7 @@ build_hopr:
     paths: [hopr]
   cache:
     - *reggie_cache
-  stage: build
+  stage: build_weekly
   script:
     - git clone https://github.com/hopr-framework/hopr.git hopr;
     - cd hopr ; mkdir -p build ; cd build;
@@ -510,7 +511,7 @@ build_hopr_in_piclas:
   needs: [reggie_download]
   cache:
     <<: *reggie_cache
-  stage: build
+  stage: build_weekly
   script:
     - mkdir -p build_hopr_lib ; cd build_hopr_lib
     - reggie ../regressioncheck/WEK_HOPR
@@ -523,7 +524,7 @@ build_hopr_in_piclas:
 
 build_no_git:
   tags: [withmodules-concurrent]
-  stage: build
+  stage: build_weekly
   cache:
     <<: *reggie_cache
   script:
@@ -538,7 +539,7 @@ build_no_git:
 
 build_outside_repository:
   tags: [withmodules-concurrent]
-  stage: build
+  stage: build_weekly
   cache:
     <<: *reggie_cache
   script:
@@ -554,7 +555,7 @@ build_outside_repository:
 
 build_no_git_libs:
   tags: [withmodules-concurrent]
-  stage: build
+  stage: build_weekly
   cache:
     <<: *reggie_cache
   script:
@@ -576,7 +577,7 @@ build_petsc_in_piclas:
   needs: [reggie_download]
   cache:
     <<: *reggie_cache
-  stage: build
+  stage: build_weekly
   script:
     - mkdir -p build_petsc_lib ; cd build_petsc_lib
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
