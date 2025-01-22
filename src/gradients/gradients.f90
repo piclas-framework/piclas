@@ -56,7 +56,8 @@ SUBROUTINE InitGradients(ini_dim)
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
-USE MOD_Mesh_Vars             ,ONLY: nElems, nSides, Face_xGP_FV
+USE MOD_Mesh_Vars             ,ONLY: nElems, nSides
+USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
 #if USE_MPI
@@ -258,7 +259,7 @@ SUBROUTINE CalcDiff(doMPISides)
 USE MOD_Globals
 USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC, Grad_DIM, Var_slave, Var_master, Diff_side
 USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
-USE MOD_Mesh_Vars                ,ONLY: NormVec_FV,Face_xGP_FV
+USE MOD_Mesh_Vars_FV             ,ONLY: NormVec_FV,Face_xGP_FV
 USE MOD_Mesh_Vars                ,ONLY: firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, SideToElem, ElemToSide
 ! IMPLICIT VARIABLE HANDLING

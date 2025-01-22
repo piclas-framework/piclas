@@ -39,8 +39,8 @@ SUBROUTINE InitGradMetrics(doMPISides)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars,          ONLY: SideToElem, Face_xGP_FV, Elem_xGP_FV
-USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastBCSide, firstMPISide_MINE, lastInnerSide
+USE MOD_Mesh_Vars_FV,       ONLY: Face_xGP_FV, Elem_xGP_FV
+USE MOD_Mesh_Vars,          ONLY: SideToElem, firstBCSide,firstInnerSide, lastBCSide, firstMPISide_MINE, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,lastMortarMPISide
 USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Grad_PerBoxMax, Grad_PerBoxMin
 IMPLICIT NONE
@@ -80,6 +80,7 @@ DO SideID=firstSideID,lastSideID
     END IF
     END DO
     Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP_FV(:,0,0,0,ElemID)
+    print*, Elem_xGP_FV(:,0,0,0,ElemID)
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE

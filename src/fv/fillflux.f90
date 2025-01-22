@@ -44,7 +44,7 @@ USE MOD_GLobals
 USE MOD_PreProc
 USE MOD_Mesh_Vars       ,ONLY: nSides,nBCSides
 USE MOD_Riemann         ,ONLY: Riemann
-USE MOD_Mesh_Vars       ,ONLY: NormVec_FV, TangVec1_FV, tangVec2_FV, SurfElem_FV, Face_xGP_FV
+USE MOD_Mesh_Vars_FV    ,ONLY: NormVec_FV, TangVec1_FV, tangVec2_FV, SurfElem_FV, Face_xGP_FV
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef drift_diffusion

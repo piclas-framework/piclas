@@ -109,7 +109,8 @@ USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
 #ifndef PARTICLES
 USE MOD_Mesh_Tools             ,ONLY: InitGetCNElemID
 #endif /*PARTICLES*/
-USE MOD_Metrics                ,ONLY: CalcMetrics_PP_1,CalcSurfMetrics_PP_1
+USE MOD_Mesh_Vars_FV
+USE MOD_Metrics_FV             ,ONLY: CalcMetrics_PP_1,CalcSurfMetrics_PP_1
 #endif /*FV*/
 USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
@@ -126,6 +127,9 @@ USE MOD_LoadBalance_Metrics    ,ONLY: MoveCoords,MoveMetrics
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
+#if USE_FV
+USE MOD_LoadBalance_Metrics_FV ,ONLY: MoveCoords_FV,MoveMetrics_FV
+#endif /*USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
 USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
@@ -268,7 +272,7 @@ END IF
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   CALL MoveCoords()
 #if USE_FV
-  CALL abort(__STAMP__,'Load balancing not implemented for FV: Elem_xGP_FV')
+  CALL MoveCoords_FV()
 #endif
 ELSE
 ! Build the coordinates of the solution gauss points in the volume
@@ -277,6 +281,7 @@ ELSE
   ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
   CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
 #if USE_FV
+  SDEALLOCATE(Elem_xGP_FV)
   ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))
   CALL BuildCoords(NodeCoords,0,Elem_xGP_FV)
 #endif
@@ -349,6 +354,9 @@ IF (ABS(meshMode).GT.1) THEN
   IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Shift metric arrays during load balance
     CALL MoveMetrics()
+#if USE_FV
+    CALL MoveMetrics_FV()
+#endif
   ELSE
     ! deallocate existing arrays
     ! mesh basis
@@ -444,12 +452,12 @@ IF (ABS(meshMode).GT.1) THEN
 
 #if USE_FV
 #ifdef PARTICLES
-  ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
-  dXCL_NGeo = 0.
-  CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+    ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+    dXCL_NGeo = 0.
+    CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else
-  CALL InitGetCNElemID()
-  CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo)
+    CALL InitGetCNElemID()
+    CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo)
 #endif /*PARTICLES*/
 #endif /*USE_FV*/
 #if !(USE_FV) || (USE_HDG)
@@ -544,6 +552,7 @@ IF (ABS(meshMode).GT.1) THEN
   ! DEALLOCATE(dXCL_N)
   DEALLOCATE(Ja_Face)
 #if USE_FV
+  DEALLOCATE(Ja_Face_PP_1)
   DEALLOCATE(Ja_Face_FV)
 #endif
 ! #endif /*!USE_LOADBALANCE*/
@@ -1180,6 +1189,9 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
+#if USE_FV
+USE MOD_Mesh_Vars_FV
+#endif /*USE_FV*/
 #if defined(PARTICLES) && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/

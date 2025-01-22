@@ -61,7 +61,8 @@ USE MOD_Equation_Vars   ,ONLY:nBCByType,BCSideID
 USE MOD_Equation_Vars_FV,ONLY:nBCByType,BCSideID
 #endif
 USE MOD_Interpolation_Vars,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,BoundaryType_FV,nBCs
+USE MOD_Mesh_Vars         ,ONLY: MeshInitIsDone,nBCSides,BC,BoundaryType,nBCs
+USE MOD_Mesh_Vars_FV      ,ONLY: BoundaryType_FV
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -124,7 +125,8 @@ SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals         ,ONLY: Abort
-USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs,BoundaryType_FV
+USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs
+USE MOD_Mesh_Vars_FV    ,ONLY: BoundaryType_FV
 #if USE_HDG
 USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID
 USE MOD_Mesh_Vars       ,ONLY: SideToElem

@@ -46,7 +46,7 @@ USE MOD_part_tools         ,ONLY: CalcVelocity_maxwell_particle, CalcERot_partic
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_part_emission_tools,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_Mesh_Vars          ,ONLY:Elem_xGP_FV
+USE MOD_Mesh_Vars_FV       ,ONLY:Elem_xGP_FV
 USE MOD_Equation_Vars_FV   ,ONLY:IniExactFunc_FV
 USE MOD_Equation_FV        ,ONLY:ExactFunc_FV
 USE MOD_Interpolation_Vars ,ONLY: wGP

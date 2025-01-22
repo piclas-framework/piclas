@@ -62,7 +62,7 @@ SUBROUTINE ReadBCs()
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
 #if USE_FV && USE_HDG
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType_FV
+USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
 #endif
 #if USE_HDG
 USE MOD_Mesh_Vars        ,ONLY: ChangedPeriodicBC

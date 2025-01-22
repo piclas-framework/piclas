@@ -45,7 +45,8 @@ SUBROUTINE GetBoundaryGrad(SideID,gradU,UPrim_master,NormVec,Face_xGP)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals       ,ONLY: Abort
-USE MOD_Mesh_Vars     ,ONLY: BoundaryType_FV,BC
+USE MOD_Mesh_Vars     ,ONLY: BC
+USE MOD_Mesh_Vars_FV  ,ONLY: BoundaryType_FV
 USE MOD_Equation_FV   ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV
 USE MOD_TimeDisc_Vars, ONLY : time
@@ -86,6 +87,6 @@ CASE DEFAULT ! unknown BCType
 END SELECT ! BCType
 
 END SUBROUTINE GetBoundaryGrad
-  
+
 END MODULE MOD_GetBoundaryGrad
 #endif /*USE_FV*/
