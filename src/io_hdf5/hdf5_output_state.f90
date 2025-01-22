@@ -256,7 +256,7 @@ IF(InitialAutoRestart) THEN
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName) ! 15 for DVM MacroVal (maybe change that)
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,ContainerName='DVM_Solution')
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
@@ -275,7 +275,7 @@ ELSE
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName) ! 15 for DVM MacroVal (maybe change that)
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,ContainerName='DVM_Solution')
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
@@ -543,27 +543,12 @@ ASSOCIATE (&
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
 #elif !(USE_FV)
-#ifdef discrete_velocity
-  DO iElem=1,INT(PP_nElems)
-    DO k=0,INT(PP_N); DO j=0,INT(PP_N); DO i=0,INT(PP_N)
-      CALL MacroValuesFromDistribution(Utemp(1:14,i,j,k,iElem),U(:,i,j,k,iElem),dtMV,tau,1)
-      Utemp(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
-    END DO; END DO; END DO
-  END DO
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DG_Solution', rank=5,&
-      nValGlobal=(/15_IK , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-      nVal=      (/15_IK , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Utemp)
-#else
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
       nVal=      (/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
-#endif /*DVM*/
 #endif /*PP_POIS*/
 
 #if USE_FV
@@ -579,6 +564,7 @@ ASSOCIATE (&
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 #endif
+! drift-diffusion solution already in ElemData
 #endif /*USE_FV*/
 
 
