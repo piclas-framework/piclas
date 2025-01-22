@@ -771,11 +771,18 @@ NIG_convtest_t_poisson:
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
 
-NIG_convtest_poisson:
+NIG_convtest_poisson_Release:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_poisson
+
+# TODO: Move this NIG-based reggie to weekly in the future?
+NIG_convtest_poisson_Debug: # This uses the same reggie as /NIG_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ;  reggie -t Debug ../regressioncheck/NIG_convtest_poisson
 
 NIG_PIC_poisson_RK3:
   <<: *defaults_nightly
@@ -866,7 +873,7 @@ NIG_PIC_Deposition:
 # 2024-01-17: Moved to weekly (reactivated 4 + move to weekly, move release_Leapfrog and debug_Leapfrog from nightly to weekly to reduce time further)
 
 # --- weekly
-WEK_PIC_poisson_Leapfrog_Debug: # # This uses the same reggie as /NIG_PIC_poisson_Leapfrog but compile everything with CMAKE_BUILD_TYPE = Debug
+WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog but compile everything with CMAKE_BUILD_TYPE = Debug
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
