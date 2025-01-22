@@ -1036,6 +1036,12 @@ NIG_Radiation:
   script:
     - cd build ; reggie ../regressioncheck/NIG_Radiation
 
+NIG_drift_diffusion:
+  <<: *defaults_drift_diffusion_nightly
+  stage: reggie_tutorials
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/NIG_drift_diffusion_explicit-FV
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
