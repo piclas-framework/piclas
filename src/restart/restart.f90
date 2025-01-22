@@ -118,7 +118,7 @@ IMPLICIT NONE
 #if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
 #endif /*USE_LOADBALANCE*/
-LOGICAL                     :: FileVersionExists,DG_SolutionExists
+LOGICAL                     :: FileVersionExists,DG_SolutionExists,WriteSuccessful
 INTEGER                     :: FileVersionHDF5Int
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
@@ -147,6 +147,17 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   DoRestart = .TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+  ! Check file version
+  CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+  IF(FileVersionExists) CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5Real)
+  ! Check if restart file was written successfully for piclas version 3.6.0 and newer
+  IF(FileVersionExists)THEN
+    IF(FileVersionHDF5Real.GE.3.59)THEN
+      CALL DatasetExists(File_ID,'TIME',WriteSuccessful,attrib=.TRUE.)
+      IF (.NOT.WriteSuccessful) &
+        CALL Abort(__STAMP__,'Restart file missing WriteSuccessful marker. This indicates that the state file is corrupt.')
+    END IF ! FileVersionHDF5Real.GE.3.59
+  END IF ! FileVersionExists
   N_Restart=-1
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
@@ -168,11 +179,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   END IF
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
-  ! check file version
-  CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
-  IF (FileVersionExists) THEN
-    CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5Real)
-
+  IF(FileVersionExists)THEN
     IF(FileVersionHDF5Real.LT.1.5)THEN
       SWRITE(UNIT_StdOut,'(A)')' '
       SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
