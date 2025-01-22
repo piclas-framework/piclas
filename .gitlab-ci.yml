@@ -118,6 +118,7 @@ stages:
   - reggie_nightly
   - reggie_nightly_build_all
   - reggie_weekly
+  - reggie_tutorials
   - documentation
   - deploy
   - appimage
@@ -250,6 +251,11 @@ stages:
   <<: *defaults_drift_diffusion
   rules:
     - if: '$DO_NIGHTLY'
+
+.defaults_drift_diffusion_weekly: &defaults_drift_diffusion_weekly
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
@@ -1122,8 +1128,18 @@ WEK_BGKFlow:
     - cd build ;  reggie ../regressioncheck/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "documentation": Compile the userguide and developer guide
+# Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+WEK_drift_diffusion:
+  <<: *defaults_drift_diffusion_checkin
+  stage: reggie_checkin
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/WEK_drift_diffusion_explicit-FV
+
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "documentation": Compile the userguide and developer guide
+# ---------------------------------------------------------------------------V
 documentation:
   extends: .default_build_param
   stage: documentation

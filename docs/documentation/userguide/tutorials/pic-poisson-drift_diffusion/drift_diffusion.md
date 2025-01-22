@@ -8,7 +8,7 @@ Before beginning with the tutorial, copy the `pic-poisson-streamer` from the tut
 
     cp -r $PICLAS_PATH/tutorials/pic-poisson-streamer .
     cd pic-poisson-streamer
-    
+
 If the piclas repository is located in the home directory,
 
     cp -r /home/$(whoami)/piclas/tutorials/pic-poisson-streamer .
@@ -28,7 +28,7 @@ Before the actual simulation is conducted, a mesh file in the correct HDF5 forma
 The mesh files used by piclas are created by supplying an input file hopr.ini with the required
 information for a mesh that has either been created by an external mesh generator or directly from
 block-structured information in the hopr.ini file itself.
-Here, a block-structured grid is created directly from the information in the hopr.ini file. 
+Here, a block-structured grid is created directly from the information in the hopr.ini file.
 
 To create the .h5 mesh file, simply run
 
@@ -50,7 +50,7 @@ Each side of the block has to be assigned a boundary index, which corresponds to
     BCIndex    = (/5,3,2,4,1,6/)             ! Indices of UserDefinedBoundaries
 
 
-The field boundaries can directly be defined in the hopr.ini file (contrary to the particle boundary conditions, which are defined in the parameter.ini). 
+The field boundaries can directly be defined in the hopr.ini file (contrary to the particle boundary conditions, which are defined in the parameter.ini).
 Periodic boundaries should be defined in the hopr.ini.
 
     !=============================================================================== !
@@ -78,19 +78,19 @@ Periodic boundaries should be defined in the hopr.ini.
 Install piclas by compiling the source code as described in Chapter Installation, specifically described under Section Compiling the code. Always build the code in a separate directory located in the piclas top level directory. For this PIC tutorial, e.g., create a directory build_drift_diffusion by running
 
     cd $PICLAS_PATH
-    
-where the variable PICLAS_PATH contains the path to the location of the piclas repository. If the piclas repository is located in the home directory, 
-    
+
+where the variable PICLAS_PATH contains the path to the location of the piclas repository. If the piclas repository is located in the home directory,
+
     cd /home/$(whoami)/piclas
-    
+
 and the create the build directory, in which the compilation process will take place. This command should be run in the piclas folder.
 
     mkdir build_drift_diffusion
-    
+
 Always compile the code within the build directory, hence, navigate to the build_drift_diffusion directory before running cmake
 
     cd build_drift_diffusion
-    
+
 For this specific tutorial, make sure to set the correct compile flags
 
     PICLAS_EQNSYSNAME       = drift_diffusion
@@ -137,7 +137,7 @@ The general numerical parameters (defined in the parameter.ini) are selected by 
     ! =============================================================================== !
     MeshFile      = ./streamer_small_1500_mesh.h5 ! Relative path to the mesh .h5 file
 
-    ! =============================================================================== !  
+    ! =============================================================================== !
     ! General
     ! =============================================================================== !
     ProjectName       = streamer_N2
@@ -154,9 +154,9 @@ The temporal parameters of the simulation are controlled via
     ! =============================================================================== !
     ! CALCULATION
     ! =============================================================================== !
-    ManualTimeStep  = 1.e-13 
+    ManualTimeStep  = 1.e-13
     tend            = 7.e-10
-    Analyze_dt      = 1.e-11  
+    Analyze_dt      = 1.e-10
     IterDisplayStep = 100
 
 where the time step for the field and particle solver is set via `ManualTimeStep`, the final simulation time `tend`, the time
@@ -189,7 +189,7 @@ particle solver. The particle boundary conditions are set by the following lines
 
     Part-nPeriodicVectors = 2 ! Number of periodic boundary (particle and field) vector
 
- 
+
 #### Field solver-1
 
 The settings for the field solver (HDGSEM) are given by
@@ -219,10 +219,10 @@ from particle locations to the grid) are selected via
     ! =============================================================================== !
     PIC-DoInterpolation            = T                        ! Activate Lorentz forces acting on charged particles
     PIC-Interpolation-Type         = particle_position        ! Field interpolation method for Lorentz force calculation
-    PIC-Deposition-Type            = cell_volweight_mean       
+    PIC-Deposition-Type            = cell_volweight_mean
     PIC-shapefunction-radius       = 0.0001
     PIC-shapefunction-dimension    = 1                        ! Shape function specific dimensional setting
- 
+
 
 where the interpolation type `PIC-Interpolation-Type = particle_position` is currently the only option for specifying how
 electro(-magnetic) fields are interpolated to the position of the charged particles.
@@ -242,7 +242,7 @@ through chemical reactions).
     Particles-Species-Database = SpeciesDatabase.h5
     Part-nSpecies             = 2        ! Number of particle species
 
- 
+
     ! -------------------------------------
     ! Background Gas - N2
     ! -------------------------------------
@@ -273,7 +273,7 @@ through chemical reactions).
     Particles-HaloEpsVelo = 3.E8
 
 
-#### Field Boundaries-1 
+#### Field Boundaries-1
 
 BoundaryName specifies the name of the boundary. Two boundaries are defined here: BC_Xleft (left x boundary) and BC_Xright (right x boundary). BoundaryType defines the type of boundary condition. Each BoundaryType is expressed as a pair of numbers, such as ((/12,0/), (/4,0/)). '12' represents a Neumann boundary condition, which defines a situation where the electric field (E) remains constant. '4' represents a Dirichlet boundary condition, indicating a situation where the potential is zero (for example, a grounded surface). '11' defines a special type of Neumann boundary condition. In this case, it represents conditions where the electric field (E) has a constant value, but unlike number 12, '11' includes a more specific condition.
 
@@ -306,7 +306,7 @@ Finally, some parameters for run-time analysis are chosen by setting them `T` (t
     CalcPointsPerDebyeLength = T  ! writes the PIC grid step restriction to XXX_State_000.0000XXX.h5 (rule of thumb)
     CalcTotalEnergy          = T  ! writes the total energy of the system to PartAnalyze.csv (field and particle)
 
-    CalcElectronTemperature = T 
+    CalcElectronTemperature = T
     CalcDebyeLength = T
     CalcPlasmaFrequency = T
 
@@ -429,7 +429,7 @@ Electric Field across the domain.
 
 In this tutorial, we build upon the foundational concepts introduced in the fluid model tutorial for negative streamer simulations. While the fluid model provides a macroscopic perspective, the MCC model simulates the microscopic particle dynamics through direct Monte Carlo collision techniques. This approach allows us to capture electron collision and ionization events with high fidelity, particularly critical in simulating the formation and propagation of negative streamers in nitrogen gas. Here, we will guide you through setting up the MCC model in piclas for a detailed and accurate streamer analysis.
 
-This tutorial demonstrates how to simulate a negative streamer discharge using the Particle-in-Cell (PIC) with Monte Carlo Collision (MCC) model in PICLas. 
+This tutorial demonstrates how to simulate a negative streamer discharge using the Particle-in-Cell (PIC) with Monte Carlo Collision (MCC) model in PICLas.
 
 A streamer discharge is a form of plasma created when an electric field in a gas accelerates free electrons, leading to further ionization. We will focus on simulating the evolution of a negative streamer propagating in a 1D domain.
 
@@ -440,7 +440,7 @@ directory to a separate location
 
     cp -r $PICLAS_PATH/tutorials/pic-poisson-streamer .
     cd pic-poisson-streamer
-    
+
 If the piclas repository is located in the home directory,
 
     cp -r /home/$(whoami)/piclas/tutorials/pic-poisson-streamer .
@@ -492,9 +492,9 @@ Periodic boundaries always have to be defined in the hopr.ini.
     !=============================================================================== !
     ! BOUNDARY CONDITIONS
     !=============================================================================== !
-    BoundaryName = BC_Xleft  
-    BoundaryType = (/3,0,0,0/)   
-    BoundaryName = BC_Xright  
+    BoundaryName = BC_Xleft
+    BoundaryType = (/3,0,0,0/)
+    BoundaryName = BC_Xright
     BoundaryType = (/3,0,0,0/)
     BoundaryName = BC_periodicy+ ! Periodic (+vv1)
     BoundaryType = (/1,0,0,1/)   ! Periodic (+vv1)
@@ -519,7 +519,7 @@ For this PIC tutorial, e.g., create a directory *build_poisson_Leapfrog* by runn
     cd $PICLAS_PATH
 
 where the variable `PICLAS_PATH` contains the path to the location of the piclas repository.
-If the piclas repository is located in the home directory, runlasma Wave 
+If the piclas repository is located in the home directory, runlasma Wave
 
     cd /home/$(whoami)/piclas
 
@@ -636,7 +636,7 @@ physical results and might even result in a termination of the simulation.
  -->
 
 
-The physical parameters for this test case are presnt in `DSMC.ini`. These read-in constants are also present in the databse called the `SpeciesDatabase.h5`provided at the top level of the PICLas directory. In our simulation setup we will simply be using the `DSMC.ini` which contains physical properties of all the species in the setup. 
+The physical parameters for this test case are presnt in `DSMC.ini`. These read-in constants are also present in the databse called the `SpeciesDatabase.h5`provided at the top level of the PICLas directory. In our simulation setup we will simply be using the `DSMC.ini` which contains physical properties of all the species in the setup.
 
 
 #### General numerical setup-2
@@ -669,11 +669,11 @@ The temporal parameters of the simulation are controlled via
     ! =============================================================================== !
     ! CALCULATION
     ! =============================================================================== !
-    ManualTimeStep                   = 1e-13 ! Fixed pre-defined time step only when using the Poisson solver. Maxwell solver calculates dt that considers the CFL criterion
-    tend                             = 7e-10 ! Final simulation time
+    ManualTimeStep                   = 1e-13  ! Fixed pre-defined time step only when using the Poisson solver. Maxwell solver calculates dt that considers the CFL criterion
+    tend                             = 7e-10  ! Final simulation time
     Analyze_dt                       = 5E-12  ! decrease analyze_dt for better resolution of fish eye
     IterDisplayStep                  = 500    ! Number of iterations between terminal output showing the current time step iteration
-    Part-WriteMacroValues            = T       ! Set [T] to activate ITERATION DEPENDANT h5 output of macroscopic values sampled (Can not be enabled together with Part-TimeFracForSampling)
+    Part-WriteMacroValues            = T      ! Set [T] to activate ITERATION DEPENDANT h5 output of macroscopic values sampled (Can not be enabled together with Part-TimeFracForSampling)
     Part-IterationForMacroVal        = 100    ! Set number of iterations used for sampling                                      (Can not be enabled together with Part-TimeFracForSampling)
 
 where the time step for the field and particle solver is set via `ManualTimeStep`, the final simulation time `tend`, the time
@@ -720,8 +720,8 @@ The settings for the field solver (HDGSEM) are given by
     epsCG                 = 1e-6   ! Stopping criterion (residual) of iterative CG solver (default that is used for the HDGSEM solver)
     maxIterCG             = 10000  ! Maximum number of iterations
     IniExactFunc          = 0      ! Initial field condition. 0: zero solution vector
-    PrecondType           = 2   
- 
+    PrecondType           = 2
+
 For this tutroial we use a PETSc Solver where a multitude of different numerical methods to solve the resulting system of linear equations is given by the implemented PETSc library and `epsCG` sets the abort residual of the CG solver, `maxIterCG` sets the maximum number of iterations within the CG solver, the `PrecondType` is set to 2, `IniExactFunc` sets the initial solution of the field solver (here 0 says that nothing is selected).
 
 The PIC parameters for interpolation (of electric fields to the particle positions) and deposition (mapping of charge properties
@@ -734,12 +734,12 @@ from particle locations to the grid) are selected via
     PIC-Interpolation-Type   = particle_position   ! Field interpolation method for Lorentz force calculation
 
     PIC-Deposition-Type      = cell_volweight_mean ! Linear deposition method
-   
+
 
 
 where the interpolation type `PIC-Interpolation-Type = particle_position` is currently the only option for specifying how
 electro(-magnetic) fields are interpolated to the position of the charged particles.
-For charge and current deposition, 
+For charge and current deposition,
 `PIC-Deposition-Type = cell_volweight_mean` is selected.
 The different available deposition types are described in more detail in Section {ref}`sec:PIC-deposition`.
 
@@ -778,14 +778,14 @@ The number of initialization sets is defined by `Part-Species[$]-nInits`, where 
 by a block of parameters that is preceded by the corresponding `-Init[$]` counter. In this example we have a single initialization set. The `Part-Species[$]-Init[$]-SpaceIC = cuboid` flag defines the type of the initialization set. Here, the particles are placed in a cuboid which is spanned by its base plane (`Part-Species[$]-Init[$]-BasePointIC`, `Part-Species[$]-Init[$]-BaseVector1IC`, `Part-Species[$]-Init[$]-BaseVector2IC`), a normal (`Part-Species[$]-Init[$]-NormalIC`) and its height (`Part-Species[$]-Init[$]-CuboidHeightIC`). Each type of the initialization set might have a different set of parameters and an overview is given in Section
 {ref}`sec:particle-initialization-and-emission`.
 
-    Part-Species3-Init1-SpaceIC               = cuboid   !(cartesian) 
+    Part-Species3-Init1-SpaceIC               = cuboid   !(cartesian)
     Part-Species3-Init1-BasePointIC           =(/0.0009 , 0. , 0./)
     Part-Species3-Init1-BaseVector1IC         =(/0, 0.00005 , 0./)
-    Part-Species3-Init1-BaseVector2IC         =(/0, 0. , 0.00005/) 
-    Part-Species3-Init1-NormalIC              =(/1, 0. , 0./) 
+    Part-Species3-Init1-BaseVector2IC         =(/0, 0. , 0.00005/)
+    Part-Species3-Init1-NormalIC              =(/1, 0. , 0./)
     Part-Species3-Init1-CuboidHeightIC        = 1e-7
     Part-Species3-Init1-velocityDistribution  = maxwell_lpn !constant( unrealistic temp)
-    Part-Species3-Init1-MWTemperatureIC       = 298       
+    Part-Species3-Init1-MWTemperatureIC       = 298
 
     ! -------------------------------------
     ! Ions - N2+
@@ -793,7 +793,7 @@ by a block of parameters that is preceded by the corresponding `-Init[$]` counte
     Part-Species2-MacroParticleFactor = 1.              ! Weighting factor for species #2
     Part-Species2-nInits              = 0               ! Number of initialization/emission regions for species #1
 
-In order to reduce the simulation time we use the flag 
+In order to reduce the simulation time we use the flag
 
     Part-vMPF                           = T
     Part-Species2-vMPFMergeThreshold    = 300
@@ -805,15 +805,15 @@ The merge routine randomly deletes particles until the desired number of particl
 
 Since we are dealing with ionization reaction in this setup, DSMC has to be enabled (`UseDSMC = T`). `Particles-DSMC-CollisMode` is an important parameterwhich has to beset to 3 so that chemistry is enabled.
 
-    !=============================================================================== 
+    !===============================================================================
     ! DSMC
-    !=============================================================================== 
+    !===============================================================================
     UseDSMC                           = T
     Particles-DSMC-CollisMode         = 3
 
 
 
-After the chemistry is enabled, the model for a reaction has to be chosen. In our setup, it would be the cross section collision model. We only have one ionization reaction due to collision occuring in our setup  $$ e^- + N_2 \rightarrow 2e^- + N_2^+ $$ we will then define the reaction by 
+After the chemistry is enabled, the model for a reaction has to be chosen. In our setup, it would be the cross section collision model. We only have one ionization reaction due to collision occuring in our setup  $$ e^- + N_2 \rightarrow 2e^- + N_2^+ $$ we will then define the reaction by
 
     DSMC-NumOfReactions                       = 1
     DSMC-Reaction1-ReactionModel              = XSec
@@ -834,15 +834,15 @@ To activate the MCC procedure, the collision cross-sections have to be supplied 
     Particles-CollXSec-Database               = XSec_Database_N2_Ionized.h5
     Particles-CollXSec-NullCollision          = T
 
-In PICLas, the null collision method reduces the computational effort as not every particle has to be checked for a collision. 
-Cross-section data can be retrieved from the LXCat database and converted with a Python script provided in the tools folder: piclas/tools/crosssection_database. Refer to the section {ref}`sssec:tools-maintain-database-xsec-collision` for more information. 
+In PICLas, the null collision method reduces the computational effort as not every particle has to be checked for a collision.
+Cross-section data can be retrieved from the LXCat database and converted with a Python script provided in the tools folder: piclas/tools/crosssection_database. Refer to the section {ref}`sssec:tools-maintain-database-xsec-collision` for more information.
 
 For more information regarding cross-section based collision probability refer to the section {ref}`sec:background-gas`.
 
 
 #### Field Boundaries-2
 
-To accelarate the electrons towards the left boundary of the domain, i.e x=0, external electric field is provided. 
+To accelarate the electrons towards the left boundary of the domain, i.e x=0, external electric field is provided.
 
 
 
@@ -875,7 +875,7 @@ Finally, some parameters for run-time analysis are chosen by setting them `T` (t
     CalcElectronTemperature  = T
     CalcDebyeLength          = T
     CalcPlasmaFrequency      = T
-    CalcNumDens              = T  
+    CalcNumDens              = T
     CalcNumSpec              = T
 
 The function of each parameter is given in the code comments. Information regarding every parameter can be obtained from
@@ -911,11 +911,11 @@ If the run has completed successfully, which should take only a brief moment, th
     1.6M -rw-rw-r--  1.6M Jun 28 12:44 streamer_N2_State_000.00000000000000.h5
     ......
     1.6M -rw-rw-r--  1.6M Jun 28 12:51 streamer_N2_State_000.00000000100000.h5
-    
+
     1.6M -rw-rw-r--  1.6M Jun 28 12:51 streamer_N2_DSMCState_000.00000000001000.h5
     .......
     1.6M -rw-rw-r--  1.6M Jun 28 12:51 streamer_N2_DSMCState_000.00000000100000.h5
-    
+
     72K -rw-rw-r--   71K Jun 28 12:51 std.out
 
 Multiple additional files have been created, which are are named  **Projectname_State_Timestamp.h5**.
@@ -964,7 +964,7 @@ Run the command
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electron and ion densities and electric field at t=0.7 ns is shown in the plots. 
+The electron and ion densities and electric field at t=0.7 ns is shown in the plots.
 
 
 ```{figure} results/stream.png
@@ -1035,5 +1035,4 @@ width: 700px
 
 Electric Field
 ```
-
 
