@@ -821,11 +821,11 @@ NIG_PIC_poisson_Leapfrog_single_node_Release:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 # TODO: Make this reggie weekly when everything works
 # Sme reggies only work on single node, e.g., ray tracing
-NIG_PIC_poisson_Leapfrog_single_node_Debug: # Use the same reggie as NIG_PIC_poisson_Leapfrog_single_node_Release but compile everything with CMAKE_BUILD_TYPE = Debug
+NIG_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog_single_node_Release but compile everything with CMAKE_BUILD_TYPE = Debug
 #WEK_PIC_poisson_Leapfrog_single_node_Debug:
   <<: *defaults_nightly
   stage: reggie_nightly
@@ -837,7 +837,7 @@ NIG_PIC_poisson_Leapfrog_single_node_Debug: # Use the same reggie as NIG_PIC_poi
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_WEKHTLY'
+    - if: '$DO_WEEKLY'
 
 NIG_poisson:
   <<: *defaults_nightly
@@ -897,6 +897,12 @@ NIG_PIC_Deposition:
 # 2024-01-17: Moved to weekly (reactivated 4 + move to weekly, move release_Leapfrog and debug_Leapfrog from nightly to weekly to reduce time further)
 
 # --- weekly
+
+WEK_PIC_poisson_Leapfrog:
+  <<: *defaults_weekly
+  stage: reggie_weekly
+  script:
+    - cd build ; reggie ../regressioncheck/WEK_PIC_poisson_Leapfrog/
 
 WEK_Photoionization_release_RK3:
   <<: *defaults_poisson_nightly
