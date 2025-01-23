@@ -386,6 +386,7 @@ IF(PICLAS_FV)
   ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_FV=0)
+  ADD_DEFINITIONS(-DPP_dim=3)
 ENDIF(PICLAS_FV)
 
 # ========================================================================
