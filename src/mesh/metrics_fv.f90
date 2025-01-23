@@ -15,7 +15,8 @@
 MODULE MOD_Metrics_FV
 !===================================================================================================================================
 !> This module contains routines for computing the geometries volume and surface metric terms for the finite volume solver,
-!> using a temporal polynomial degree of 1.
+!> using a temporal polynomial degree of 1 (PP_1), potentially different from the one used for HDG (PP_N).
+!> The PP_1 metrics are then averaged into _FV metrics corresponding to a polynomial degree of 0.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

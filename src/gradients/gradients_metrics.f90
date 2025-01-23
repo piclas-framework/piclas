@@ -43,6 +43,9 @@ USE MOD_Mesh_Vars_FV,       ONLY: Face_xGP_FV, Elem_xGP_FV
 USE MOD_Mesh_Vars,          ONLY: SideToElem, firstBCSide,firstInnerSide, lastBCSide, firstMPISide_MINE, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,lastMortarMPISide
 USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Grad_PerBoxMax, Grad_PerBoxMin
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -52,7 +55,7 @@ LOGICAL, INTENT(IN)                    :: doMPISides
 INTEGER                                :: SideID, ElemID, firstSideID, lastSideID, iCoord
 REAL                                   :: Face_temp(3)
 !==================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  Build Gradient Metrics ...'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  Build Gradient Metrics ...'
 
 IF(doMPISides)THEN
     ! only YOUR MPI Sides are filled
@@ -80,7 +83,6 @@ DO SideID=firstSideID,lastSideID
     END IF
     END DO
     Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP_FV(:,0,0,0,ElemID)
-    print*, Elem_xGP_FV(:,0,0,0,ElemID)
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE
@@ -103,7 +105,7 @@ DO SideID=firstSideID,lastSideID
     IF (SideID.LE.lastBCSide) Grad_dx_slave(:,SideID) = -Grad_dx_master(:,SideID)
 END DO !SideID
 
-SWRITE(UNIT_stdOut,'(A)')' Done !'
+LBWRITE(UNIT_stdOut,'(A)')' Done !'
 
 END SUBROUTINE InitGradMetrics
 

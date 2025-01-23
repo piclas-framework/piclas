@@ -72,6 +72,9 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: nSides
 USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT, CountOption
 USE MOD_Equation_Vars_FV
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars           ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -83,8 +86,8 @@ IF(EquationInitIsDone_FV)THEN
   CALL CollectiveStop(__STAMP__,&
     "InitLinearScalarAdvection not ready to be called or already called.")
 END IF
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT Drift-Diffusion...'
+LBWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT Drift-Diffusion...'
 
 IniExactFunc_FV = GETINT('IniExactFunc-FV')
 
@@ -111,8 +114,8 @@ EFluid_GradSide=0.
 doCalcSource=.TRUE.
 
 EquationInitIsDone_FV=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT Drift-Diffusion DONE!'
-SWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT Drift-Diffusion DONE!'
+LBWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 

@@ -1752,6 +1752,11 @@ SDEALLOCATE(BGGas%Distribution)
 SDEALLOCATE(BGGas%DistributionNumDens)
 SDEALLOCATE(BGGas%Region)
 SDEALLOCATE(BGGas%RegionElemType)
+#ifdef drift_diffusion
+SDEALLOCATE(BGGas%ReducedTownsendCoefficient)
+SDEALLOCATE(BGGas%DriftDiffusionCoefficient)
+SDEALLOCATE(BGGas%ElectronMobility)
+#endif
 
 SDEALLOCATE(ParticleWeighting%ClonePartNum)
 SDEALLOCATE(ParticleWeighting%PartInsSide)

@@ -97,13 +97,13 @@ GradLimiterType=GETINT('Grad-LimiterType')
 GradLimVktK=GETREAL('Grad-VktK')
 SELECT CASE(GradLimiterType)
 CASE(0)
-  SWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+  LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
 CASE(1) !minmax
-  SWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
+  LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
 CASE(4) !venkatakrishnan
-  SWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
+  LBWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
 CASE(9) ! no limiter (central)
-  SWRITE(UNIT_stdOut,*)'Not using any limiter'
+  LBWRITE(UNIT_stdOut,*)'Not using any limiter'
 CASE DEFAULT
   CALL abort(__STAMP__,'Limiter type not implemented.')
 END SELECT
@@ -153,6 +153,9 @@ USE MOD_Mesh_Vars           ,ONLY: nElems,nSides,ElemToSide
 #if USE_MPI
 USE MOD_MPI                 ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
 USE MOD_MPI_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers  ,ONLY: LBStartTime,LBSplitTime
+#endif /*USE_LOADBALANCE*/
 #endif /*MPI*/
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV    ,ONLY: EFluid_GradSide
@@ -168,18 +171,30 @@ REAL,INTENT(IN)         :: VarForGradients(Grad_DIM,nElems)
 ! LOCAL VARIABLES
 INTEGER                 :: ElemID, SideID, locSideID, flip
 REAL                    :: gradWeight, maxDiff(Grad_DIM), minDiff(Grad_DIM)
+#if USE_LOADBALANCE
+REAL                            :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
 ! prolong the solution to the face for grad computation
 #if USE_MPI
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 ! Prolong to face for MPI sides - send direction
 CALL StartReceiveMPIDataFV(Grad_DIM,Var_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
-
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.TRUE.)
 ! CALL U_Mortar(Var_master,Var_slave,doMPISides=.TRUE.)
-
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FV,tLBStart)
+#endif /*USE_LOADBALANCE*/
 CALL StartSendMPIDataFV(Grad_DIM,Var_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
-
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
@@ -187,15 +202,28 @@ CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPIS
 ! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
 
 #if USE_MPI
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FV,tLBStart)
+#endif /*USE_LOADBALANCE*/
 ! Complete send / receive of prolongtoface results
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 CALL StartReceiveMPIDataFV(Grad_DIM,Diff_side,1,nSides,RecRequest_gradUx,SendID=1) ! Receive YOUR
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! fill the global neighbour difference list
 CALL CalcDiff(doMPISides=.TRUE.)
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FV,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 CALL StartSendMPIDataFV(Grad_DIM,Diff_side,1,nSides,SendRequest_gradUx,SendID=1) ! Send MINE
 ! Complete send / receive of gradients (before mpiFALSE gradients because bc grads need further grads)
 CALL FinishExchangeMPIData(SendRequest_gradUx,RecRequest_gradUx,SendID=1)
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
+#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 ! fill all the neighbour differences on this proc
@@ -248,6 +276,10 @@ DO ElemID = 1, nElems
   CALL GradLimiter(ElemID,minDiff,maxDiff,Gradient_elem(:,:,ElemID))
 
 END DO
+
+#if USE_LOADBALANCE
+CALL LBSplitTime(LB_FV,tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE GetGradients
 

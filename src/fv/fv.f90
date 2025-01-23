@@ -14,8 +14,8 @@
 
 MODULE MOD_FV
 !===================================================================================================================================
-! Contains the initialization of the DG global variables
-! Computes the different DG spatial operators/residuals(Ut_FV) using U_FV
+! Contains the initialization of the FV global variables
+! Computes the different FV spatial operators/residuals(Ut_FV) using U_FV
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -50,7 +50,7 @@ CONTAINS
 
 SUBROUTINE InitFV()
 !===================================================================================================================================
-! Allocate global variable U_FV (solution) and Ut_FV (dg time derivative).
+! Allocate global variable U_FV (solution) and Ut_FV (FV time derivative).
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -89,12 +89,12 @@ IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
   ! the local FV solution
   ALLOCATE( U_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
   U_FV=0.
-  ! the time derivative computed with the FV scheme
-  ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
-  Ut_FV=0.
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE)*/
+! the time derivative computed with the FV scheme
+ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
+Ut_FV=0.
 
 ! U_FV is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
@@ -180,8 +180,12 @@ REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-! Compute the FV solution gradients
+! Compute the FV solution gradients (LB times are measured inside GetGradients)
 CALL GetGradients(U_FV(:,0,0,0,:)) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
+
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 #ifdef drift_diffusion
 U_DD(:,:,:,:,:) = 0.
@@ -204,22 +208,22 @@ ASSOCIATE(  PP_nVar_tmp => PP_nVar_FV, &
 #if USE_MPI
 ! Prolong to face for MPI sides - send direction
 #if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
+CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL StartReceiveMPIDataFV(PP_nVar_tmp,U_slave_FV(:,0,0,:),1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.) !not working
 
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
+CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL StartSendMPIDataFV(PP_nVar_tmp,U_slave_FV(:,0,0,:),1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
@@ -248,7 +252,7 @@ Ut_FV=0.
 
 #if USE_MPI
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
+CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! Complete send / receive of prolongtoface results
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
@@ -259,18 +263,17 @@ END ASSOCIATE
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 CALL StartReceiveMPIDataFV(PP_nVar_FV,Flux_Slave_FV(:,0,0,:),1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! fill the global surface flux list
 CALL FillFlux(t,Flux_Master_FV,Flux_Slave_FV,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
+CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
-
 CALL StartSendMPIDataFV(PP_nVar_FV,Flux_Slave_FV(:,0,0,:),1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
 
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
@@ -282,19 +285,19 @@ CALL SurfInt(Flux_Master_FV,Flux_Slave_FV,Ut_FV,doMPISides=.FALSE.)
 
 #if USE_MPI
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
+CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 ! Complete send / receive
 CALL FinishExchangeMPIData(SendRequest_Flux,RecRequest_Flux,SendID=1)
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DGCOMM,tLBStart)
+CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 !FINALIZE Fluxes for MPI Sides
 CALL Flux_Mortar(Flux_Master_FV,Flux_Slave_FV,doMPISides=.TRUE.)
 CALL SurfInt(Flux_Master_FV,Flux_Slave_FV,Ut_FV,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
+CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif
 
@@ -313,7 +316,7 @@ END DO
 IF(doSource) CALL CalcSource_FV(tStage,1.0,Ut_FV)
 
 #if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
+CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 #if defined(PARTICLES) && defined(LSERK)
@@ -366,9 +369,9 @@ SUBROUTINE FinalizeFV()
 ! MODULES
 USE MOD_FV_Vars
 USE MOD_Gradients          ,ONLY: FinalizeGradients
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -389,13 +392,13 @@ CALL FinalizeGradients()
 ! SDEALLOCATE(Flux_loc)
 
 ! Do not deallocate the solution vector during load balance here as it needs to be communicated between the processors
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
   SDEALLOCATE(U_FV)
-#if USE_LOADBALANCE && !(USE_HDG)
+#if USE_LOADBALANCE
 END IF
-#endif /*USE_LOADBALANCE && !(USE_HDG)*/
+#endif /*USE_LOADBALANCE*/
 
 FVInitIsDone = .FALSE.
 END SUBROUTINE FinalizeFV

@@ -275,6 +275,9 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 #else
     ElemTimeFieldElem = (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
 #endif /*USE_HDG*/
+#if USE_FV
+    ElemTimeFieldElem = ElemTimeFieldElem + tCurrent(LB_FV)/REAL(PP_nElems)
+#endif /*USE_FV*/
 
 #if !(USE_HDG) && !(USE_FV)
     ! Add time used in PML routines

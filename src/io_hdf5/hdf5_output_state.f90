@@ -564,7 +564,14 @@ ASSOCIATE (&
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 #endif
-! drift-diffusion solution already in ElemData
+#ifdef drift_diffusion
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DriftDiffusion_Solution', rank=5,&
+      nValGlobal=(/PP_nVarTmp_FV , 1_IK , 1_IK , 1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp_FV , 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=U_FV)
+#endif
 #endif /*USE_FV*/
 
 

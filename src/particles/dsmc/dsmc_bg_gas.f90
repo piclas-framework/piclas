@@ -98,7 +98,6 @@ CHARACTER(LEN=255), DIMENSION(:), ALLOCATABLE         :: datasetsNamesList
 INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
 INTEGER(HID_T)                                        :: file_id_fv                       ! File identifier
 INTEGER(HID_T)                                        :: dset_id_fv                       ! Dataset identifier
-INTEGER(HID_T)                                        :: file_id_specdb                   ! database identifier
 INTEGER(HID_T)                                        :: filespace                        ! filespace identifier
 REAL,ALLOCATABLE                                      :: DriftDiffCoefs(:,:)
 REAL,ALLOCATABLE                                      :: TempDiffusion(:,:)
@@ -209,10 +208,10 @@ ALLOCATE(datasetsNamesList(4))
 datasetsNamesList = (/ 'DIFFUSION ', 'IONIZATION', 'MOBILITY  ', 'ENERGY    ' /)
 ! Initialize FORTRAN interface.
 CALL H5OPEN_F(err)
-CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, File_ID_FV, err)
+CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_fv, err)
 DO iDataset =1, 4
   datasetname = TRIM('/Diffusion-Coefficients/'//TRIM(DatabaseSpeciesName)//'/'//TRIM(BGGas%DatabaseName)//'/'//TRIM(datasetsNamesList(iDataset)))
-  CALL DatasetExists(File_ID_FV,TRIM(datasetname),DataSetFound)
+  CALL DatasetExists(file_id_fv,TRIM(datasetname),DataSetFound)
   IF(DataSetFound)THEN
     LBWRITE(UNIT_StdOut,'(A)') ' | Read diffusion coefficient entries '//TRIM(datasetname)//' from '//TRIM(SpeciesDatabase)
     ! Open the  dataset.
@@ -292,7 +291,7 @@ IF(ALLOCATED(TempDiffusion)) DEALLOCATE(TempDiffusion)
 IF(ALLOCATED(TempEnergy)) DEALLOCATE(TempEnergy)
 IF(ALLOCATED(TempMobility)) DEALLOCATE(TempMobility)
 ! Close the file.
-CALL H5FCLOSE_F(file_id_specdb, err)
+CALL H5FCLOSE_F(file_id_fv, err)
 ! Close FORTRAN interface.
 CALL H5CLOSE_F(err)
 #endif

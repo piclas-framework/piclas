@@ -68,14 +68,14 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift volume coordinates during loadbalance...'
   GETTIME(StartT)
 
-  ALLOCATE(Elem_xGP_LB   (3,0:PP_N,0:PP_N,0:PP_N,nElems))
+  ALLOCATE(Elem_xGP_LB   (3,0:0,0:0,0:0,nElems))
   ASSOCIATE (&
           counts_send  => INT(MPInElemSend     ) ,&
           disp_send    => INT(MPIoffsetElemSend) ,&
           counts_recv  => INT(MPInElemRecv     ) ,&
           disp_recv    => INT(MPIoffsetElemRecv))
     ! Communicate Elem_xGP over MPI
-    MPI_LENGTH       = 3*(PP_N+1)**3
+    MPI_LENGTH       = 3
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
@@ -126,7 +126,7 @@ REAL                               :: StartT,EndT,WallTime
 ! !===================================================================================================================================
 !
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift mesh metrics during loadbalance...'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift FV mesh metrics during loadbalance...'
   GETTIME(StartT)
 
   ! volume data
@@ -173,23 +173,23 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
           counts_recv  => INT(MPInElemRecv     ) ,&
           disp_recv    => INT(MPIoffsetElemRecv))
     ! Communicate metrics over MPI
-    MPI_LENGTH       = 3*(PP_N+1)**3
+    MPI_LENGTH       = 3
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    ALLOCATE(Metrics_fTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
+    ALLOCATE(Metrics_fTilde_LB(3,0:0   ,0:0   ,0:0   ,nElems))
     CALL MPI_ALLTOALLV(Metrics_fTilde_FV,counts_send,disp_send,MPI_STRUCT,Metrics_fTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     DEALLOCATE(Metrics_fTilde_FV)
     CALL MOVE_ALLOC(Metrics_fTilde_LB,Metrics_fTilde_FV)
 
-    ALLOCATE(Metrics_gTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
+    ALLOCATE(Metrics_gTilde_LB(3,0:0   ,0:0   ,0:0   ,nElems))
     CALL MPI_ALLTOALLV(Metrics_gTilde_FV,counts_send,disp_send,MPI_STRUCT,Metrics_gTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     DEALLOCATE(Metrics_gTilde_FV)
     CALL MOVE_ALLOC(Metrics_gTilde_LB,Metrics_gTilde_FV)
 
-    ALLOCATE(Metrics_hTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
+    ALLOCATE(Metrics_hTilde_LB(3,0:0   ,0:0   ,0:0   ,nElems))
     CALL MPI_ALLTOALLV(Metrics_hTilde_FV,counts_send,disp_send,MPI_STRUCT,Metrics_hTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     DEALLOCATE(Metrics_hTilde_FV)
     CALL MOVE_ALLOC(Metrics_hTilde_LB,Metrics_hTilde_FV)
