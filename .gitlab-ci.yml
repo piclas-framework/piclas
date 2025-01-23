@@ -115,8 +115,9 @@ stages:
   - reggie_DSMC_nightly
 #  - reggie_bgk_nightly
   - reggie_tools_nightly
+  - reggie_nightly_special
   - reggie_nightly
-  - reggie_nightly_build_all
+  - reggie_weekly_build_all
   - reggie_weekly
   - documentation
   - deploy
@@ -256,6 +257,11 @@ stages:
   <<: *defaults_poisson_petsc
   rules:
     - if: '$DO_NIGHTLY'
+
+.defaults_poisson_petsc_weekly: &defaults_poisson_petsc_weekly
+  <<: *defaults_poisson_petsc
+  rules:
+    - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DSMC tests (pull only)
@@ -966,9 +972,9 @@ NIG_Photoionization_petsc_release_Leapfrog:
       when: never
     - if: '$DO_NIGHTLY'
 
-NIG_Photoionization_petsc_debug_Leapfrog:
-  <<: *defaults_poisson_petsc_nightly
-  stage: reggie_nightly
+WEK_Photoionization_petsc_debug_Leapfrog:
+  <<: *defaults_poisson_petsc_weekly
+  stage: reggie_weekly
   script:
     - cd build_poisson_petsc_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
@@ -976,7 +982,7 @@ NIG_Photoionization_petsc_debug_Leapfrog:
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: '$DO_WEEKLY'
 
 NIG_Radiation:
   <<: *defaults_nightly
@@ -985,26 +991,26 @@ NIG_Radiation:
     - cd build ; reggie ../regressioncheck/NIG_Radiation
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_nightly_build_all": Build and run
+# Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 #                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
 #                                    - math tools Lapack and OpenBlas with LIBS_BUILD_MATH_LIB = ON and LIBS_BUILD_MATH_LIB_VENDOR = LAPACK,OpenBLAS
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
-  <<: *defaults_nightly
-  stage: reggie_nightly_build_all
+  <<: *defaults_weekly
+  stage: reggie_weekly_build_all
   script:
     - cd build ;  reggie ../regressioncheck/run_basic
 
 build_sanitize:
   <<: *defaults_nightly
-  stage: reggie_nightly_build_all
+  stage: reggie_nightly_special
   script:
     - cd build ;  reggie ../regressioncheck/NIG_sanitize
 
 build_math_tools:
   <<: *defaults_nightly
-  stage: reggie_nightly_build_all
+  stage: reggie_nightly_special
   script:
     - cd build ;  reggie ../regressioncheck/NIG_math_libs
 
