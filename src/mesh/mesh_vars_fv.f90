@@ -12,8 +12,8 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-#if USE_FV
 MODULE MOD_Mesh_Vars_FV
+
 !===================================================================================================================================
 !> Contains finite volumes metrics
 !===================================================================================================================================
@@ -23,6 +23,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 
+#if USE_FV
 REAL,ALLOCATABLE :: NormVec_FV(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
 REAL,ALLOCATABLE :: TangVec1_FV(:,:,:,:)          !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
 REAL,ALLOCATABLE :: TangVec2_FV(:,:,:,:)          !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
@@ -49,5 +50,5 @@ INTEGER,ALLOCATABLE :: BoundaryType_FV(:,:) !< BCType    = BoundaryType(BC(SideI
                                             !< BCState   = BoundaryType(BC(SideID),BC_STATE)
 #endif
 
+#endif /*USE_FV*/
 END MODULE MOD_Mesh_Vars_FV
-#endif

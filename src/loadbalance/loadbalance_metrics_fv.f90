@@ -12,7 +12,6 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-#if USE_FV
 MODULE MOD_LoadBalance_Metrics_FV
 !===================================================================================================================================
 !> \brief This module contains routines for computing the geometries volume and surface metric terms.
@@ -24,7 +23,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE && USE_FV
 INTERFACE MoveCoords_FV
   MODULE PROCEDURE MoveCoords_FV
 END INTERFACE
@@ -202,7 +201,6 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
 END IF
 
 END SUBROUTINE MoveMetrics_FV
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE && USE_FV*/
 
 END MODULE MOD_LoadBalance_Metrics_FV
-#endif /*USE_FV*/
