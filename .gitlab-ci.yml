@@ -263,6 +263,21 @@ stages:
   rules:
     - if: '$DO_NIGHTLY'
 
+.defaults_poisson_build_petsc_lib: &defaults_poisson_build_petsc_lib
+  extends: .default_param
+  needs: [build_petsc_in_piclas]
+  artifacts:
+    paths:
+      - build_petsc_lib
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
+      paths:
+        - build_petsc_lib
+      policy: pull
+  rules:
+    - if: '$DO_WEEKLY'
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DSMC tests (pull only)
 .defaults_DSMC: &defaults_DSMC
@@ -575,17 +590,29 @@ build_no_git_libs:
 build_petsc_in_piclas:
   tags: [withmodules-concurrent]
   needs: [reggie_download]
+  artifacts:
+    paths:
+      - build_petsc_lib
   cache:
-    <<: *reggie_cache
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-BUILD-PETSC"
+      paths:
+        - build_petsc_lib
+      policy: push
   stage: build_weekly
   script:
     - mkdir -p build_petsc_lib ; cd build_petsc_lib
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
-    - reggie -e ./bin/piclas ../regressioncheck/NIG_poisson_PETSC
   rules:
     - if: '$DO_WEEKLY'
+
+run_build_petsc_in_piclas:
+  <<: *defaults_poisson_build_petsc_lib
+  stage: reggie_weekly
+  script:
+    - cd build_petsc_lib ; reggie ../regressioncheck/NIG_poisson_PETSC -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_checkin": Run most simple reggie with previous builds on check-in
