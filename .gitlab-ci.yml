@@ -774,9 +774,10 @@ NIG_convtest_t_poisson:
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
 
+# TODO: Re-name/structure NIG_convtest_poisson to WEK_convtest_poisson in branch feature.p.adaption
 NIG_convtest_poisson:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_poisson
 
@@ -786,9 +787,10 @@ NIG_PIC_poisson_RK3:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_RK3/
 
+# TODO: Re-name/structure NIG_PIC_poisson_Boris-Leapfrog to WEK_PIC_poisson_Boris-Leapfrog in branch feature.p.adaption
 NIG_PIC_poisson_Boris-Leapfrog:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
 
@@ -823,9 +825,10 @@ NIG_poisson:
   script:
     - cd build ; reggie ../regressioncheck/NIG_poisson/
 
+# TODO: Re-name/structure NIG_poisson_PETSC-Leapfrog to WEK_poisson_PETSC-Leapfrog in branch feature.p.adaption
 NIG_poisson_PETSC:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
     - cd build ; reggie ../regressioncheck/NIG_poisson_PETSC/
 
