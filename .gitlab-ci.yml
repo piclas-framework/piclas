@@ -805,16 +805,17 @@ NIG_convtest_t_poisson:
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
 
+# TODO: Re-name/structure NIG_convtest_poisson_Release to WEK_convtest_poisson_Release in branch feature.p.adaption
 NIG_convtest_poisson_Release:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
     - cd build ;  reggie ../regressioncheck/NIG_convtest_poisson
 
-# TODO: Move this NIG-based reggie to weekly in the future?
+# TODO: Re-name/structure NIG_convtest_poisson_Debug to WEK_convtest_poisson_Debug in branch feature.p.adaption
 NIG_convtest_poisson_Debug: # This uses the same reggie as /NIG_convtest_poisson but compile everything with CMAKE_BUILD_TYPE = Debug
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
     - cd build ;  reggie -t Debug ../regressioncheck/NIG_convtest_poisson
 
@@ -824,9 +825,10 @@ NIG_PIC_poisson_RK3:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_RK3/
 
+# TODO: Re-name/structure NIG_PIC_poisson_Boris-Leapfrog to WEK_PIC_poisson_Boris-Leapfrog in branch feature.p.adaption
 NIG_PIC_poisson_Boris-Leapfrog:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
 
@@ -855,9 +857,10 @@ NIG_poisson:
   script:
     - cd build ; reggie ../regressioncheck/NIG_poisson/
 
+# TODO: Re-name/structure NIG_poisson_PETSC-Leapfrog to WEK_poisson_PETSC-Leapfrog in branch feature.p.adaption
 NIG_poisson_PETSC:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
     - cd build ; reggie ../regressioncheck/NIG_poisson_PETSC/
 
