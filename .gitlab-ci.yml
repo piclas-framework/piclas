@@ -1040,6 +1040,7 @@ WEK_Photoionization_petsc_debug_Leapfrog:
     - if: '$DO_WEEKLY'
 
 # Raytracing regression tests
+# TODO: Rename stage to WEK_ when it is finalized
 NIG_Raytracing_release_Leapfrog:
   <<: *defaults_poisson_nightly
   stage: reggie_nightly
@@ -1064,7 +1065,8 @@ WEK_Raytracing_debug_Leapfrog:
       when: never
     - if: '$DO_WEEKLY'
 
-WEK_NIG_Raytracing_debug_Leapfrog:
+# TODO: Rename stage to WEK_ when it is finalized
+NIG_Raytracing_debug_Leapfrog:
   <<: *defaults_poisson_weekly
   stage: reggie_weekly
   script:
