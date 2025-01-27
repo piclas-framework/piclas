@@ -145,9 +145,9 @@ INTEGER                            :: NonUniqueGlobalSideID
 !INTEGER           :: checkRank
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
-INTEGER                            :: PETScLocalID
 PetscErrorCode                     :: ierr
 INTEGER,ALLOCATABLE                :: DOFindices(:)
+INTEGER                            :: PETScDOFs(1:nGP_face(NMax))
 #endif
 #else /*! USE_HDG*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
@@ -302,13 +302,17 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 #endif /*USE_MPI*/
 
 #if USE_PETSC
-  ! TODO PETSC P-Adaption - Restart
-  !DO PETScLocalID=1,nPETScUniqueSides
-  !  SideID=PETScLocalToSideID(PETScLocalID)
-  !  PetscCallA(VecSetValuesBlocked(PETScSolution,1,PETScGlobal(SideID),lambda(1,:,SideID),INSERT_VALUES,ierr))
-  !END DO
-  !PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
-  !PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
+  ! TODO PETSC P-Adaption - Restart: This is also done later (l.670) Delete here?
+  DO SideID=1,nSides
+    IF(MaskedSide(SideID).NE.0) CYCLE ! Skip small mortar sides
+    Nloc = N_SurfMesh(SideID)%NSide
+    DO i=1,nGP_face(Nloc)
+      PETScDOFs(i) = OffsetGlobalPETScDOF(SideID) + i - 1
+    END DO
+    PetscCallA(VecSetValues(PETScSolution,nGP_face(Nloc),PETScDOFs(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%lambda(1,:),INSERT_VALUES,ierr))
+  END DO
+  PetscCallA(VecAssemblyBegin(PETScSolution,ierr))
+  PetscCallA(VecAssemblyEnd(PETScSolution,ierr))
 #endif /*USE_PETSC*/
 
   ! VDL: Exchange PhiF during load balance to continue the time integration of the ODE
@@ -667,7 +671,7 @@ ELSE ! Normal restart
       ! Write the lambda to the solution vector
       ALLOCATE(DOFindices(nGP_face(NMax)))
       DO iSide=1,nSides
-        IF(MaskedSide(iSide).GT.0) CYCLE
+        IF(MaskedSide(iSide).NE.0) CYCLE
         ! TODO: Create a function to map localToGlobalDOFs
         Nloc = N_SurfMesh(iSide)%NSide
         DO i=1,nGP_face(Nloc)
