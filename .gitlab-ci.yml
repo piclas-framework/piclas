@@ -633,12 +633,6 @@ maxwell_only:
   script:
     - cd build_maxwell_only ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
-maxwell_p_adaption:
-  <<: *defaults_checkin
-  stage: reggie_checkin
-  script:
-    - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4_p_adaption -e ./bin/piclas
-
 poisson_release:
   <<: *defaults_poisson_checkin
   stage: reggie_checkin
@@ -674,6 +668,12 @@ CHE_PIC_maxwell_RK4:
   stage: reggie_feature_checkin
   script:
     - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4 -e ./bin/piclas
+
+CHE_PIC_maxwell_RK4_p_adaption:
+  <<: *defaults_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4_p_adaption -e ./bin/piclas
 
 CHE_DSMC:
   <<: *defaults_DSMC_checkin
