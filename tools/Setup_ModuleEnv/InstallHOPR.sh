@@ -100,12 +100,6 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    #CMAKEVERSION=3.15.3-d
-    #CMAKEVERSION=3.17.0-d
-    #CMAKEVERSION=3.20.3
-    #CMAKEVERSION=3.21.3
-    #CMAKEVERSION=3.24.2
-    CMAKEVERSION=3.26.4
 
     #GCCVERSION=9.2.0
     #GCCVERSION=9.3.0
@@ -113,7 +107,8 @@ do
     #GCCVERSION=10.2.0
     #GCCVERSION=11.2.0
     #GCCVERSION=13.1.0
-    GCCVERSION=13.2.0
+    #GCCVERSION=13.2.0
+    GCCVERSION=14.2.0
 
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
@@ -121,6 +116,8 @@ do
     #OPENMPIVERSION=3.1.6
     #OPENMPIVERSION=4.1.1
     #OPENMPIVERSION=4.1.5
+    #OPENMPIVERSION=4.1.6
+    #OPENMPIVERSION=5.0.6
 
     MPICHVERSION=4.1.2
 
@@ -145,7 +142,8 @@ do
     #HDF5VERSION=1.10.5
     #HDF5VERSION=1.10.6
     #HDF5VERSION=1.12.1
-    HDF5VERSION=1.14.0
+    #HDF5VERSION=1.14.0
+    HDF5VERSION=1.14.5
   fi
 
   # Check if re-run mode is selected by the user
@@ -171,7 +169,7 @@ NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
 SOURCESDIR=/opt/sources
 MODULESDIR=/opt/modules/modulefiles
-TEMPLATEPATH=$(echo `pwd`/moduletemplates/utilities/hopr/hopr_temp)
+TEMPLATEPATH=$(echo `pwd`/moduletemplates/hopr/hopr_temp)
 if [[ ! -f ${TEMPLATEPATH} ]]; then
   echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
   exit
@@ -190,11 +188,10 @@ fi
 # take the first gcc compiler installed with first compatible openmpi/mpich and hdf5
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
-  CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   HDF5VERSION=$(ls ${MODULESDIR}/libraries/hdf5/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
+  echo -e "Modules found automatically.\n\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\nHDF5VERSION=${HDF5VERSION}\n\nWARNING: The combination might not be possible!"
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   fi
@@ -202,12 +199,11 @@ else
   echo "Modules defined by user. Check if the combination is possible!"
 fi
 
-check_module "cmake" "${CMAKEVERSION}"
 check_module "gcc" "${GCCVERSION}"
 check_module "${WHICHMPI}" "${MPIVERSION}"
 check_module "hdf5" "${HDF5VERSION}"
 
-HOPRMODULEFILEDIR=${MODULESDIR}/utilities/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}/hdf5
+HOPRMODULEFILEDIR=${MODULESDIR}/hopr/hopr/${HOPRVERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}/hdf5
 MODULEFILE=${HOPRMODULEFILEDIR}/${HDF5VERSION}
 
 # if no HOPR module for this compiler found, install HOPR and create module
@@ -224,10 +220,10 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
   echo -e "$GREEN""$MODULEFILE$NC"
   echo " "
   module purge
-  load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
   load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
   load_module "hdf5/${HDF5VERSION}/gcc/${GCCVERSION}/${WHICHMPI}/${MPIVERSION}"
+  module load cmake
   module list
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
@@ -353,7 +349,6 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
     fi
     cp ${TEMPLATEPATH} ${MODULEFILE}
     sed -i 's/hoprversion/'${HOPRVERSION}'/gI' ${MODULEFILE}
-    sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
     sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${MODULEFILE}
     sed -i 's/HDF5VERSIONFLAG/'${HDF5VERSION}'/gI' ${MODULEFILE}

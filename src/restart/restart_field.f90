@@ -93,7 +93,7 @@ USE MOD_HDG                    ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars               ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
-USE MOD_HDG_Vars               ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
+USE MOD_HDG_Vars_PETSc         ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
 #else /*USE_HDG*/
 ! Non-HDG stuff
@@ -146,7 +146,8 @@ INTEGER(KIND=IK)                   :: PMLnVarTmp
 #if defined(PARTICLES) || !(USE_HDG)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
-INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER                            :: MPI_LENGTH(1)
+TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/

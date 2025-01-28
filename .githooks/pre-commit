@@ -153,13 +153,13 @@ if [ -n "$CHANGED" ]; then
   done
 
   if [ $FILEERR -ne 0 ]; then
-    printf "${RED}The following file(s) exceed the file size limit ($SIZESINGLELIMIT bytes)${NC}\n"
-    printf "$FILEDENYLINE"
+    printf "%sThe following file(s) exceed the file size limit (%s bytes)%s\n" "${RED}" "$SIZESINGLELIMIT" "${NC}"
+    printf "%s" "${SIZEDENYLINE}"
   fi
 
   if [ $FILEWARN -ne 0 ]; then
     printf "${YELLOW}The following large file(s) are about to be committed (>$SIZESINGLEWARN bytes)${NC}\n"
-    printf "$FILEWARNLINE"
+    printf "%s" "${SIZEWARNLINE}"
   fi
 
   if [ $FILESUMERR -ne 0 ]; then
@@ -171,19 +171,19 @@ if [ -n "$CHANGED" ]; then
   fi
 
   if [ "$EXEERR" -ne 0 ]; then
-    printf "${RED}The following file(s) are executable, which is not allowed. Remove the execute permission via 'chmod -x filename' and try again.${NC}\n"
-    printf "$EXELINE"
+    printf "${RED}The following file(s) are executable, which is not allowed. Remove the execute permission via 'chmod -x filename' to fix the files. Run 'git add' on the fixed files and then 'git commit' afterwards.${NC}\n"
+    printf "%s" "${EXELINE}"
   fi
 
   if [ "$TABERR" -ne 0 ]; then
-    printf "${RED}The following file(s) contain tabs, which is not allowed. Remove the tab stops and try again.${NC}\n"
-    printf "$TABLINE"
+    printf "${RED}The following file(s) contain tabs (see https://en.wikipedia.org/wiki/Tab_key), which is not allowed. Remove the tab stops from all files. Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "%s" "${TABLINE}"
   fi
 
   # Abort if hook encountered any error
   if [ "$ERROR" -ne 0 ]; then
-    echo '------------------------------------------------------------------------------------------------------------------------------------'
-    echo 'Commit rejected! You can override this check by passing "GIT_OVERRIDE_LIMITS=1" to git, e.g., run "GIT_OVERRIDE_LIMITS=1 git commit".'
+    echo "------------------------------------------------------------------------------------------------------------------------------------"
+    echo "Commit rejected! If you still want to commit your work by ignoring the errors, you can override this check by passing 'GIT_OVERRIDE_LIMITS=1' to git, e.g., run 'GIT_OVERRIDE_LIMITS=1 git commit'."
     exit 1
   fi
 

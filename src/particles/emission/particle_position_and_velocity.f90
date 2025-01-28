@@ -37,8 +37,8 @@ SUBROUTINE ParticleEmissionCellLocal(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_part_emission_tools     ,ONLY: IntegerDivide
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, ParticleWeighting
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
@@ -52,7 +52,6 @@ USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
-!----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -141,10 +140,16 @@ IF (DoExactPartNumInsert) THEN
     CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(start:end),CellChunkSize(:))
   END ASSOCIATE
 ELSE
-  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-  IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+  ! Numerical number density is needed
+  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
+  ! Radial weighting: scaling it with the average factor from symmetry axis to outer boundary
+  IF(DoRadialWeighting) PartDens = PartDens * 2. / (ParticleWeighting%ScaleFactor)
+  ! Linear weighting: ScaleFactor is actually a regular MPF in this case
+  IF(DoLinearWeighting)  PartDens = Species(iSpec)%MacroParticleFactor*PartDens / (ParticleWeighting%ScaleFactor)
+  ! Sanity check: Resulting number of particles is an integer of KIND = 4
   CHECKSAFEINT(PartDens * LocalVolume, 4)
   chunkSize_tmp = INT(PartDens * LocalVolume)
+  ! Split & Merge: constant number of particles defined by the split threshold
   IF(UseSplitAndMerge) THEN
     IF(vMPFSplitThreshold(iSpec).GT.0) chunkSize_tmp = nElems * vMPFSplitThreshold(iSpec)
   END IF
@@ -170,9 +175,11 @@ DO iElem = 1, nElems
       nPart = CellChunkSize(iGlobalElem)
     ELSE
       ! Number of particles to be inserted through %PartDensity: number depends on cell volume, weighting factor or split threshold
-      ! Apply radial weighting
-      IF(RadialWeighting%DoRadialWeighting) THEN
+      ! Apply particle weighting: radial or linear
+      IF(DoRadialWeighting) THEN
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
+      ELSE IF(DoLinearWeighting) THEN
+        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iElem)
       ELSE
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
       END IF
@@ -197,7 +204,7 @@ DO iElem = 1, nElems
       InsideFlag=.FALSE.
       DO WHILE(.NOT.InsideFlag)
         CALL RANDOM_NUMBER(RandomPos)
-        IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+        IF(Symmetry%Axisymmetric.AND.(.NOT.DoRadialWeighting.AND..NOT.DoLinearWeighting)) THEN
           ! Treatment of axisymmetry without weighting
           RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
           RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
@@ -216,10 +223,12 @@ DO iElem = 1, nElems
       PEM%GlobalElemID(PartID) = iGlobalElem
       ichunkSize = ichunkSize + 1
       IF (UseVarTimeStep) PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID), PartState(2,PartID),iElem)
-      ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
+      ! Check if vMPF (and radial/linear weighting is used) to determine the MPF of the new particle
       IF(usevMPF) THEN
-        IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(DoRadialWeighting) THEN
           PartMPF(PartID) = CalcRadWeightMPF(PartState(2,PartID),iSpec,PartID)
+        ELSE IF(DoLinearWeighting) THEN
+          PartMPF(PartID) = CalcVarWeightMPF(PartState(:,PartID),iElem,PartID)
         ELSE
           PartMPF(PartID) = Species(iSpec)%MacroParticleFactor
         END IF
@@ -249,7 +258,7 @@ USE MOD_Particle_Localization  ,ONLY: SinglePointToElement
 USE MOD_part_emission_tools    ,ONLY: IntegerDivide,SetParticlePositionPoint
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionEquidistLine, SetParticlePositionLine, SetParticlePositionDisk
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionCuboidCylinder, SetParticlePositionGyrotronCircle,SetParticlePositionCircle
-USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation
+USE MOD_part_emission_tools    ,ONLY: SetParticlePositionSphere, SetParticlePositionSinDeviation, SetParticlePositionCosDistribution
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEEDisc, SetParticlePositionPhotonCylinder
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonSEERectangle, SetParticlePositionPhotonRectangle
 USE MOD_part_emission_tools    ,ONLY: SetParticlePositionPhotonHoneycomb, SetParticlePositionPhotonSEEHoneycomb
@@ -299,6 +308,7 @@ IF(PartMPIInitGroup(InitGroup)%COMM.EQ.MPI_COMM_NULL) THEN
 END IF
 IF ( (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle_equidistant'                 ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'sin_deviation'                      ) .OR.  &
+     (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cos_distribution'                   ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle'                             ) .OR.  &
      (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'line_with_equidistant_distribution' )) THEN
   nChunks = 1
@@ -355,6 +365,8 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
   CASE('sin_deviation')
     CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
+  CASE('cos_distribution')
+    CALL SetParticlePositionCosDistribution(FractNbr,iInit,particle_positions)
   CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
   CASE('photon_SEE_rectangle') ! rectangle case for surface distribution
@@ -469,7 +481,7 @@ USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn, CalcVelocity_ta
 USE MOD_part_emission_tools     ,ONLY: CalcVelocity_gyrotroncircle
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition
+USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition, BuildTransGaussNums2
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -487,12 +499,12 @@ INTEGER,INTENT(INOUT)           :: NbrOfParticle
 INTEGER                         :: iPart, PositionNbr
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
-REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
+REAL                            :: Vec3D(3),MPF
+REAL,ALLOCATABLE                :: iRanPart(:,:)
 #if USE_HDG
 INTEGER                         :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
-
 IF(NbrOfParticle.LT.1) RETURN
 IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber! '//&
                                                                 'Increase Part-maxParticleNumber or use more processors.')
@@ -554,12 +566,24 @@ CASE('taylorgreenvortex')
     END IF
   END DO
 CASE('maxwell')
+  ALLOCATE(iRanPart(3, NbrOfParticle))
   CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
        PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3) + iRanPart(1:3,iPart)*maxwellfac
+    END IF
+  END DO
+CASE('maxwell_distribution_1D')
+  ALLOCATE(iRanPart(3, NbrOfParticle))
+  CALL BuildTransGaussNums2(NbrOfParticle, iRanPart(1,:))
+  maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
+  DO iPart = 1,NbrOfParticle
+    PositionNbr = PDM%nextFreePosition(iPart+PDM%CurrentNextFreePosition)
+    IF (PositionNbr.GT.0) THEN
+       PartState(4:6,PositionNbr) = VeloIC *VeloVecIC(1:3)
+       PartState(4,PositionNbr) = PartState(4,PositionNbr) + iRanPart(1,iPart)*maxwellfac
     END IF
   END DO
 CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done

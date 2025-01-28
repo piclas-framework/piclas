@@ -581,7 +581,7 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)             :: nProcs
 INTEGER,INTENT(IN)             :: nGlobalElems
-REAL,INTENT(IN)                :: ElemGlobalTime(:)
+REAL,INTENT(INOUT)             :: ElemGlobalTime(:)
 LOGICAL,INTENT(IN)             :: ElemTimeExists
 INTEGER,INTENT(IN)             :: PartsInElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -781,7 +781,7 @@ SELECT CASE(WeightDistributionMethod)
     CALL WeightDistribution_ElemTime(nProcs,nGlobalElems,ElemGlobalTime,offsetElemMPI)
 END SELECT
 
-!-- calc inital distri
+!-- calc initial distri
 CALL CalcDistriFromOffsets(nProcs,nGlobalElems,ElemGlobalTime,offsetElemMPI &
     ,ElemDistri,LoadDistri,MaxLoadIdx,MaxLoadVal,MinLoadIdx,MinLoadVal,MinLoadIdx_glob)
 

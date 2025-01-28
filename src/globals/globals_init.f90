@@ -18,7 +18,7 @@ MODULE MOD_Globals_Init
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

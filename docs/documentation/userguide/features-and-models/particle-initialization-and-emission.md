@@ -1,10 +1,11 @@
 (sec:particle-initialization-and-emission)=
 # Particle Initialization & Emission
 
-The RAM to store the particles is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
+The RAM to store the particle information is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
 
     Part-MaxParticleNumber=1000000
 
+which results in a program abort, if one of the processes reaches this limit.
 New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
 
     Part-MaxPartNumIncrease=0.1
@@ -69,6 +70,7 @@ Different `SpaceIC` are available and an overview is given in the table below.
 | Distribution         | Description                                                                      | Reference                                    |
 | -------------------- | -------------------------------------------------------------------------------- | -------------------------------------------- |
 | cell_local           | Particles are inserted in every cell at a constant number density                | Section {ref}`sec:particle-cell-local`       |
+| point                | Particles are inserted at a specified point                                      | Section {ref}`sec:particle-point-init`       |
 | disc                 | Particles are inserted on a circular disc                                        | Section {ref}`sec:particle-disk-init`        |
 | cuboid               | Particles are inserted in the given cuboid volume at a constant number density   | Section {ref}`sec:particle-cuboid-init`      |
 | cylinder             | Particles are inserted in the given cylinder volume at a constant number density | Section {ref}`sec:particle-cylinder-init`    |
@@ -117,6 +119,13 @@ can also be utilized for 2D and axisymmetric simulations.
 When using a variable particle weighting as described in Section {ref}`sec:variable-particle-weighting`, the variable `Part-Species1-vMPFSplitThreshold`
 will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
 given number density and cell volume.
+
+(sec:particle-point-init)=
+### Point
+
+Particles can be inserted at a point specified by
+
+    Part-Species1-Init1-BasePointIC=(/1.0,1.0,1.0/)
 
 (sec:particle-disk-init)=
 ### Circular Disc
@@ -531,6 +540,13 @@ simulation is then determined by
 $$\dot{m} = \frac{QM}{1000RT},$$
 
 where $R=8.314$ J mol$^{-1}$K$^{-1}$ is the gas constant, $M$ the molar mass in [g mol$^{-1}$] and $T$ is the gas temperature [K].
+
+In some cases it might be useful to utilize averaged values across the complete BC by enabling
+
+    AdaptiveBC-AverageValuesOverBC = T
+
+Here, the cell-local values are averaged and the resulting macroscopic values are utilized for the particle emission.
+
 It should be noted that while multiple adaptive boundaries are possible, adjacent boundaries that share a mesh element should be avoided or treated carefully.
 Examples are given as part of the regression tests in `regressioncheck/CHE_DSMC/SurfFlux_Tria_Adaptive_ConstMassflow` and `SurfFlux_Tria_Adaptive_ConstPressure`.
 
@@ -551,4 +567,18 @@ ReduceNoise, DoForceFreeSurfaceFlux
 DoPoissonRounding: {cite}`Tysanner2004`
 
 AcceptReject, ARM_DmaxSampleN: {cite}`Garcia2006`
+
+## Fast Initalization BackGround Mesh (FIBGM)
+
+The program constructs a cartesian background mesh if needed to efficiently find locations in the computational grid. This is mostly needed during initialization and restart. It will be deleted if it is not longer needed after the initalization and restart routines. The size of the mesh is usually calculated automatically, but can be specified by the user if necessary.
+
+    Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/) ! Cartesian background mesh (bounding box around the complete simulation domain)
+    Part-FactorFIBGM = (/60     , 1   , 1/)   ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
+
+
+
+The size of the cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells) in each direction given by `Part-factorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+PICLas will determine if the FIBGM is needed. The build can be forced by setting:
+
+    Part-ForceFIBGM = true
 

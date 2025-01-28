@@ -56,7 +56,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE                   :: Elem_xGP_LB(:,:,:,:,:)
 ! Custom data type
-INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER                            :: MPI_LENGTH(1)
+TYPE(MPI_Datatype)                 :: MPI_STRUCT,MPI_TYPE(1)
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 ! Timer
 REAL                               :: StartT,EndT,WallTime
@@ -79,7 +80,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    CALL MPI_ALLTOALLV(Elem_xGP,counts_send,disp_send,MPI_STRUCT,Elem_xGP_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(Elem_xGP,counts_send,disp_send,MPI_STRUCT,Elem_xGP_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   DEALLOCATE(Elem_xGP)
   CALL MOVE_ALLOC(Elem_xGP_LB,Elem_xGP)
@@ -137,7 +138,8 @@ REAL,ALLOCATABLE                   :: dXCL_NGeo_LB(   :,:,:,:,:,:)
 ! REAL,ALLOCATABLE                   :: SurfElem_LB    (    :,:,:)
 ! REAL,ALLOCATABLE                   ::      Ja_Face_LB(:,:,:,:,:)
 ! Custom data type
-INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER                            :: MPI_LENGTH(1)
+TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 ! Timer
 REAL                               :: StartT,EndT,WallTime
@@ -161,7 +163,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    CALL MPI_ALLTOALLV(XCL_N,counts_send,disp_send,MPI_STRUCT,XCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(XCL_N,counts_send,disp_send,MPI_STRUCT,XCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   DEALLOCATE(XCL_N)
   CALL MOVE_ALLOC(XCL_N_LB,XCL_N)
@@ -179,7 +181,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   !   CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
   !   CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
   !
-  !   CALL MPI_ALLTOALLV(dXCL_N,counts_send,disp_send,MPI_STRUCT,dXCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  !   CALL MPI_ALLTOALLV(dXCL_N,counts_send,disp_send,MPI_STRUCT,dXCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   ! END ASSOCIATE
   ! DEALLOCATE(dXCL_N)
   ! CALL MOVE_ALLOC(dXCL_N_LB,dXCL_N)
@@ -197,7 +199,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    CALL MPI_ALLTOALLV(XCL_NGeo,counts_send,disp_send,MPI_STRUCT,XCL_NGeo_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(XCL_NGeo,counts_send,disp_send,MPI_STRUCT,XCL_NGeo_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   DEALLOCATE(XCL_NGeo)
   CALL MOVE_ALLOC(XCL_NGeo_LB,XCL_NGeo)
@@ -216,7 +218,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    CALL MPI_ALLTOALLV(dXCL_NGeo,counts_send,disp_send,MPI_STRUCT,dXCL_NGeo_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(dXCL_NGeo,counts_send,disp_send,MPI_STRUCT,dXCL_NGeo_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   DEALLOCATE(dXCL_NGeo)
   CALL MOVE_ALLOC(dXCL_NGeo_LB,dXCL_NGeo)
@@ -235,7 +237,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    CALL MPI_ALLTOALLV(JaCL_N,counts_send,disp_send,MPI_STRUCT,JaCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(JaCL_N,counts_send,disp_send,MPI_STRUCT,JaCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   DEALLOCATE(JaCL_N)
   CALL MOVE_ALLOC(JaCL_N_LB,JaCL_N)
@@ -253,17 +255,17 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
     ALLOCATE(Metrics_fTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_fTilde,counts_send,disp_send,MPI_STRUCT,Metrics_fTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(Metrics_fTilde,counts_send,disp_send,MPI_STRUCT,Metrics_fTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     DEALLOCATE(Metrics_fTilde)
     CALL MOVE_ALLOC(Metrics_fTilde_LB,Metrics_fTilde)
 
     ALLOCATE(Metrics_gTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_gTilde,counts_send,disp_send,MPI_STRUCT,Metrics_gTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(Metrics_gTilde,counts_send,disp_send,MPI_STRUCT,Metrics_gTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     DEALLOCATE(Metrics_gTilde)
     CALL MOVE_ALLOC(Metrics_gTilde_LB,Metrics_gTilde)
 
     ALLOCATE(Metrics_hTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_hTilde,counts_send,disp_send,MPI_STRUCT,Metrics_hTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(Metrics_hTilde,counts_send,disp_send,MPI_STRUCT,Metrics_hTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     DEALLOCATE(Metrics_hTilde)
     CALL MOVE_ALLOC(Metrics_hTilde_LB,Metrics_hTilde)
   END ASSOCIATE
@@ -281,7 +283,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    CALL MPI_ALLTOALLV(sJ,counts_send,disp_send,MPI_STRUCT,sJ_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+    CALL MPI_ALLTOALLV(sJ,counts_send,disp_send,MPI_STRUCT,sJ_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
   DEALLOCATE(sJ)
   CALL MOVE_ALLOC(sJ_LB,sJ)
@@ -303,22 +305,22 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   !
   !   ! Communicate side metrics over MPI
   !   ALLOCATE(Face_xGP_LB      (3,0:PP_N   ,0:PP_N   ,1:nSides))
-  !   CALL MPI_ALLTOALLV(Face_xGP,counts_send,disp_send,MPI_STRUCT,Face_xGP_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  !   CALL MPI_ALLTOALLV(Face_xGP,counts_send,disp_send,MPI_STRUCT,Face_xGP_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   !   DEALLOCATE(Face_xGP)
   !   CALL MOVE_ALLOC(Face_xGP_LB,Face_xGP)
   !
   !   ALLOCATE(NormVec_LB       (3,0:PP_N   ,0:PP_N   ,1:nSides))
-  !   CALL MPI_ALLTOALLV(NormVec,counts_send,disp_send,MPI_STRUCT,NormVec_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  !   CALL MPI_ALLTOALLV(NormVec,counts_send,disp_send,MPI_STRUCT,NormVec_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   !   DEALLOCATE(NormVec)
   !   CALL MOVE_ALLOC(NormVec_LB,NormVec)
   !
   !   ALLOCATE(TangVec1_LB      (3,0:PP_N   ,0:PP_N   ,1:nSides))
-  !   CALL MPI_ALLTOALLV(TangVec1,counts_send,disp_send,MPI_STRUCT,TangVec1_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  !   CALL MPI_ALLTOALLV(TangVec1,counts_send,disp_send,MPI_STRUCT,TangVec1_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   !   DEALLOCATE(TangVec1)
   !   CALL MOVE_ALLOC(TangVec1_LB,TangVec1)
   !
   !   ALLOCATE(TangVec2_LB      (3,0:PP_N   ,0:PP_N   ,1:nSides))
-  !   CALL MPI_ALLTOALLV(TangVec2,counts_send,disp_send,MPI_STRUCT,TangVec2_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  !   CALL MPI_ALLTOALLV(TangVec2,counts_send,disp_send,MPI_STRUCT,TangVec2_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   !   DEALLOCATE(TangVec2)
   !   CALL MOVE_ALLOC(TangVec2_LB,TangVec2)
   ! END ASSOCIATE
@@ -335,7 +337,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   !   CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
   !   CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
   !   ALLOCATE(SurfElem_LB      (  0:PP_N   ,0:PP_N   ,1:nSides))
-  !   CALL MPI_ALLTOALLV(SurfElem,counts_send,disp_send,MPI_STRUCT,SurfElem_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  !   CALL MPI_ALLTOALLV(SurfElem,counts_send,disp_send,MPI_STRUCT,SurfElem_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   !   DEALLOCATE(SurfElem)
   !   CALL MOVE_ALLOC(SurfElem_LB,SurfElem)
   ! END ASSOCIATE
@@ -352,7 +354,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   !   CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
   !   CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
   !   ALLOCATE(     Ja_Face_LB(3,3,0:PP_N   ,0:PP_N   ,1:nSides))
-  !   CALL MPI_ALLTOALLV(Ja_Face,counts_send,disp_send,MPI_STRUCT,Ja_Face_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_WORLD,iError)
+  !   CALL MPI_ALLTOALLV(Ja_Face,counts_send,disp_send,MPI_STRUCT,Ja_Face_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   !   DEALLOCATE(Ja_Face)
   !   CALL MOVE_ALLOC(Ja_Face_LB,Ja_Face)
   ! END ASSOCIATE

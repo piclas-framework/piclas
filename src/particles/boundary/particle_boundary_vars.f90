@@ -18,7 +18,7 @@ MODULE MOD_Particle_Boundary_Vars
 ! MODULES
 #if USE_MPI
 USE MOD_Globals
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -79,10 +79,10 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: SurfSide2GlobalSide_Shared
 
 #if USE_MPI
 REAL,POINTER,DIMENSION(:,:,:)           :: BoundaryWallTemp_Shared           !> Wall Temperature for Adaptive Case
-INTEGER                                 :: BoundaryWallTemp_Shared_Win
+TYPE(MPI_Win)                           :: BoundaryWallTemp_Shared_Win
 
 REAL,POINTER,DIMENSION(:,:,:)           :: SurfSideArea_Shared           !> Area of supersampled surface side
-INTEGER                                 :: SurfSideArea_Shared_Win
+TYPE(MPI_Win)                           :: SurfSideArea_Shared_Win
 
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: GlobalSide2SurfHaloSide       ! Mapping Global Side ID to Surf Halo Side ID (exists only on leader procs)
                                                                          !> 1st dim: leader rank
@@ -91,8 +91,8 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: SurfHaloSide2GlobalSide       ! Inver
                                                                          !> 1st dim: leader rank
                                                                          !> 2nd dim: Surf SideID
 
-INTEGER                                 :: GlobalSide2SurfSide_Shared_Win
-INTEGER                                 :: SurfSide2GlobalSide_Shared_Win
+TYPE(MPI_Win)                           :: GlobalSide2SurfSide_Shared_Win
+TYPE(MPI_Win)                           :: SurfSide2GlobalSide_Shared_Win
 
 TYPE tSurfaceMapping
   INTEGER,ALLOCATABLE                   :: RecvSurfGlobalID(:)
@@ -115,12 +115,12 @@ REAL,POINTER,DIMENSION(:,:,:,:,:)       :: SampWallImpactVector_Shared
 REAL,POINTER,DIMENSION(:,:,:,:)         :: SampWallImpactAngle_Shared
 REAL,POINTER,DIMENSION(:,:,:,:)         :: SampWallImpactNumber_Shared
 
-INTEGER                                 :: SampWallState_Shared_Win
-INTEGER                                 :: SampWallPumpCapacity_Shared_Win
-INTEGER                                 :: SampWallImpactEnergy_Shared_Win
-INTEGER                                 :: SampWallImpactVector_Shared_Win
-INTEGER                                 :: SampWallImpactAngle_Shared_Win
-INTEGER                                 :: SampWallImpactNumber_Shared_Win
+TYPE(MPI_Win)                           :: SampWallState_Shared_Win
+TYPE(MPI_Win)                           :: SampWallPumpCapacity_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactEnergy_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactVector_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactAngle_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactNumber_Shared_Win
 #endif /* USE_MPI */
 
 ! ====================================================================
@@ -136,17 +136,17 @@ INTEGER,ALLOCATABLE               :: InterPlaneSideMapping(:,:)! Mapping between
 ! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
-INTEGER                         :: SurfSide2RotPeriodicSide_Shared_Win
+TYPE(MPI_Win)                   :: SurfSide2RotPeriodicSide_Shared_Win
 INTEGER,POINTER,DIMENSION(:)    :: NumRotPeriodicNeigh_Shared
-INTEGER                         :: NumRotPeriodicNeigh_Shared_Win
+TYPE(MPI_Win)                   :: NumRotPeriodicNeigh_Shared_Win
 INTEGER,POINTER,DIMENSION(:)    :: Rot2Glob_temp_Shared
-INTEGER                         :: Rot2Glob_temp_Shared_Win
+TYPE(MPI_Win)                   :: Rot2Glob_temp_Shared_Win
 INTEGER,POINTER,DIMENSION(:,:)  :: RotPeriodicSideMapping_temp_Shared
-INTEGER                         :: RotPeriodicSideMapping_temp_Shared_Win
+TYPE(MPI_Win)                   :: RotPeriodicSideMapping_temp_Shared_Win
 INTEGER,POINTER,DIMENSION(:,:)  :: RotPeriodicSideMapping_Shared
-INTEGER                         :: RotPeriodicSideMapping_Shared_Win
+TYPE(MPI_Win)                   :: RotPeriodicSideMapping_Shared_Win
 REAL,POINTER,DIMENSION(:,:)     :: BoundingBox_Shared
-INTEGER                         :: BoundingBox_Shared_Win
+TYPE(MPI_Win)                   :: BoundingBox_Shared_Win
 #endif /*USE_MPI*/
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,7 +166,7 @@ INTEGER                                 :: nComputeNodeInnerBCs(2)       ! Numbe
 
 #if USE_MPI
 TYPE tMPIGROUP
-  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for surface sides (including sides inside the halo region)
+  TYPE(mpi_comm)              :: UNICATOR=MPI_COMM_NULL !< MPI communicator for surface sides (including sides inside the halo region)
   INTEGER                     :: nProcs                 !< number of MPI processes for particles
   INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE
@@ -190,10 +190,10 @@ REAL,ALLOCPOINT                         :: PorousBCSampWall_Shared(:,:)       ! 
                                                                               ! 1: Impinging particles
                                                                               ! 2: Deleted particles
 #if USE_MPI
-INTEGER                                 :: MapSurfSideToPorousSide_Shared_Win
-INTEGER                                 :: PorousBCInfo_Shared_Win
-INTEGER                                 :: PorousBCProperties_Shared_Win
-INTEGER                                 :: PorousBCSampWall_Shared_Win
+TYPE(MPI_Win)                           :: MapSurfSideToPorousSide_Shared_Win
+TYPE(MPI_Win)                           :: PorousBCInfo_Shared_Win
+TYPE(MPI_Win)                           :: PorousBCProperties_Shared_Win
+TYPE(MPI_Win)                           :: PorousBCSampWall_Shared_Win
 #endif
 
 REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-local sampling of impinging and deleted particles
@@ -225,6 +225,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
+  REAL    , ALLOCATABLE                  :: DeformEnergyLoss(:)
   ! Temperature gradient across reflective BC
   REAL    , ALLOCATABLE                  :: WallTemp2(:), WallTempDelta(:)
   REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)

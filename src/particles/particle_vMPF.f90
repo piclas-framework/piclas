@@ -233,7 +233,7 @@ DO iLoop = 1, nPart
       E_rot = E_rot + partWeight * PartStateIntEn(2,iPart)
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
+    IF((DSMC%ElectronicModel.GT.0).AND.(Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
       E_elec = E_elec + partWeight * PartStateIntEn(3,iPart)
     END IF
   END IF
@@ -276,7 +276,7 @@ IF(CollisMode.GT.1) THEN
     DOF_rot = SpecDSMC(iSpec)%Xi_Rot
     T_rot = 2.*E_rot/(DOF_rot*totalWeight*BoltzmannConst)
   END IF
-  IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
+  IF((DSMC%ElectronicModel.GT.0).AND.(Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
     T_elec = CalcTDataset(E_elec/totalWeight, iSpec, 'ELECTRONIC')
     IF (T_elec.GT.0.0) DOF_elec = 2.*E_elec/(totalWeight*BoltzmannConst*T_elec)
   END IF
@@ -320,7 +320,7 @@ DO iLoop = 1, nPartNew
       E_rot_new = E_rot_new + partWeight * PartStateIntEn(2,iPart)
     END IF
     ! Electronic energy
-    IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
+    IF((DSMC%ElectronicModel.GT.0).AND.(Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
       E_elec_new = E_elec_new + partWeight * PartStateIntEn(3,iPart)
     END IF
   END IF
@@ -329,7 +329,7 @@ END DO
 ! 6.) ensuring momentum and energy conservation
 ! 6.1) ensuring electronic excitation
 IF(CollisMode.GT.1) THEN
-  IF(DSMC%ElectronicModel.GT.0.AND.Species(iSpec)%InterID.NE.4) THEN
+  IF((DSMC%ElectronicModel.GT.0).AND.(Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
     Energy_Sum = E_elec
     IF (E_elec.GT.0.0) THEN
       IF (E_elec_new.EQ.0.0) THEN

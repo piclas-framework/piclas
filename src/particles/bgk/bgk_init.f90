@@ -77,7 +77,7 @@ CALL prms%CreateLogicalOption('Particles-BGK-UseQuantVibEn',        'Enable quan
                                                                     '.TRUE.')
 CALL prms%CreateLogicalOption('Particles-CoupledBGKDSMC',           'Perform a coupled DSMC-BGK simulation with a given number '//&
                                                                     'density as a switch parameter','.FALSE.')
-CALL prms%CreateRealOption(   'Particles-BGK-DSMC-SwitchDens',      'Number density [1/m3], above which the BGK method is used, '//&
+CALL prms%CreateRealOption(  'Particles-BGK-DSMC-SwitchDens',       'Number density [1/m3], above which the BGK method is used, '//&
                                                                     'below which DSMC is performed','0.0')
 
 END SUBROUTINE DefineParametersBGK
@@ -94,7 +94,7 @@ USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, NGeo
 USE MOD_Particle_Vars         ,ONLY: nSpecies, Species, DoVirtualCellMerge
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, CollInf
+USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_init_octree
 USE MOD_Globals_Vars          ,ONLY: Pi, BoltzmannConst
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
@@ -121,7 +121,7 @@ ALLOCATE(SpecBGK(nSpecies))
 DO iSpec=1, nSpecies
   IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) MoleculePresent = .TRUE.
   ALLOCATE(SpecBGK(iSpec)%CollFreqPreFactor(nSpecies))
-  ! Calculation of the prefacor of the collision frequency per species
+  ! Calculation of the prefactor of the collision frequency per species
   ! S. Chapman and T.G. Cowling, "The mathematical Theory of Non-Uniform Gases", Cambridge University Press, 1970, S. 87f
   DO iSpec2=1, nSpecies
     SpecBGK(iSpec)%CollFreqPreFactor(iSpec2)= 4.*CollInf%dref(iSpec,iSpec2)**2.0 &
@@ -140,9 +140,13 @@ ESBGKModel = GETINT('Particles-ESBGK-Model')
 
 ! Coupled BGK with DSMC, use a number density as limit above which BGK is used, and below which DSMC is used
 CoupledBGKDSMC = GETLOGICAL('Particles-CoupledBGKDSMC')
+
 IF(CoupledBGKDSMC) THEN
   IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,'Virtual cell merge not implemented for coupled DSMC-BGK simulations!')
+  END IF
+  IF(DSMC%RotRelaxProb.GT.1.0.OR.DSMC%VibRelaxProb.GT.1.0) THEN
+    CALL abort(__STAMP__,'Variable relaxation probabilities not implemented for coupled DSMC-BGK simulations!')
   END IF
 #if USE_MPI
   IF (DoParticleLatencyHiding) THEN
@@ -150,8 +154,6 @@ IF(CoupledBGKDSMC) THEN
   END IF
 #endif /*USE_MPI*/
   BGKDSMCSwitchDens = GETREAL('Particles-BGK-DSMC-SwitchDens')
-ELSE
-  IF(RadialWeighting%DoRadialWeighting) RadialWeighting%PerformCloning = .TRUE.
 END IF
 
 ! Octree-based cell refinement, up to a certain number of particles
