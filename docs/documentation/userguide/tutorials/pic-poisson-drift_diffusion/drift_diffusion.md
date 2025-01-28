@@ -706,9 +706,6 @@ particle solver. The particle boundary conditions are set by the following lines
 
     Part-nPeriodicVectors = 2 ! Number of periodic boundary (particle and field) vectors
 
-    Part-FIBGMdeltas = (/0.0012 , 0.0001, 0.0001/)  ! Cartesian background mesh (bounding box around the complete simulation domain)
-    Part-FactorFIBGM = (/1500     , 1   , 1/)       ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
-
 
 #### Field solver-2
 
