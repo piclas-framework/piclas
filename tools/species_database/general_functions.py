@@ -59,38 +59,3 @@ def create_prompt(*args):
 def own_exit():
     print(bold(red('Exiting')))
     exit(1)
-
-def int_to_Roman(num):
-    val = (1000, 900, 500, 400, 100, 90, 50, 40, 10, 9, 5, 4, 1)
-    syb = ('M', 'CM', 'D', 'CD', 'C', 'XC', 'L', 'XL', 'X', 'IX', 'V', 'IV', 'I')
-    roman_num = ''
-    for i in range(len(val)):
-        count = int(num / val[i])
-        roman_num += syb[i] * count
-        num -= val[i] * count
-    return roman_num
-
-def remove_from_list(List, *args_to_remove):
-    NewList = []
-    for element in List:
-        if element == 'electron':
-            NewList.append('el')
-        elif element not in args_to_remove:
-            NewList.append(element)
-    return NewList
-
-def get_interaction_id(species_name):
-    if sum((1 for c in species_name.replace('Ion', '') if c.isupper())) == 1 and (not bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name)))):
-        if not bool(re.search('[A-Za-z]*\\d', re.sub('Ion\\d+', '', species_name))):
-            if 'Ion' in species_name:
-                interactionID = 10
-            elif 'Ion' not in species_name:
-                interactionID = 1
-    elif bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name))) or sum((1 for c in species_name.replace('Ion', '') if c.isupper())) != 1:
-        if 'Ion' in species_name:
-            interactionID = 20
-        elif 'Ion' not in species_name:
-            interactionID = 2
-    elif 'electron' in species_name:
-        interactionID = 4
-    return interactionID

@@ -1,10 +1,12 @@
 import re
 import argparse
+from pathlib import Path
 from general_functions import *
 from edit_species import *
 from edit_crosssections import *
 from edit_reactions import *
 from edit_surfchem import *
+from edit_diffusion_coefficients import *
 from config import *
 
 ###################################################################################################
@@ -26,8 +28,9 @@ print("\n\nThis script is meant to edit and maintain the " +yellow("unified spec
 user_input = get_valid_input(create_prompt('to maintain/edit species',
                                            'to maintain/edit chemical reactions',
                                            'to maintain/edit cross section data',
-                                           'to maintain/edit surface chemistry'),
-                                           lambda x: x == '1' or x == '2' or x =='3' or x =='4' or x =='5')
+                                           'to maintain/edit surface chemistry',
+                                           'to maintain/edit diffusion coefficients',),
+                                           lambda x: x == '1' or x == '2' or x =='3' or x =='4' or x =='5' or x =='6')
 ###################################################################################################
 # SPECIES
 ###################################################################################################
@@ -210,6 +213,50 @@ elif user_input == "3":
 
 elif user_input == "4":
     print("Not implemented yet")
+
+###################################################################################################
+# Diffusion coefficients
+###################################################################################################
+
+elif user_input == "5":
+    txt_files = [f for f in os.listdir('.') if f.endswith('.txt')]
+    if txt_files == []:
+        # check templates directory
+        txt_files = [f for f in os.listdir('templates') if f.endswith('.txt')]
+        for i, file in enumerate(txt_files):
+            txt_files[i] = 'templates/' + file
+        # exclude template files
+        # if txt_files == ['swarm_data_EXAMPLE.txt']:
+        if False:
+            dir_input = input('No .txt files found in current directory and templates directory (except swarm_data_EXAMPLE.txt). Please supply the path to the .txt files with diffusion coefficients.\n').strip()
+            path = Path(dir_input).expanduser()
+            if not path.is_absolute():
+                # Try the path as-is first
+                if not path.exists():
+                    # Only resolve if the direct path doesn't exist
+                    path = path.resolve()
+                    if not path.exists():
+                        s = f"Path '{path}' does not exist"
+                        raise ValueError(s)
+                    if not path.is_dir():
+                        s = f"'{path}' is not a directory"
+                        raise ValueError(s)
+                    if not any(f.suffix == '.txt' for f in path.iterdir()):
+                        s = f'No .txt files found in {path}'
+                        raise ValueError(s)
+            txt_files = [f for f in os.listdir(path) if f.endswith('.txt')]
+    print('\n------------------------------------------------------------------------')
+    # Display the .txt files with numbers
+    for i, file in enumerate(txt_files):
+        print(f" [{i + 1}] - {file}")
+    print('------------------------------------------------------------------------')
+    InputFILES = read_file_by_numbers(txt_files)
+    for file in InputFILES:
+        bolsig_bool = check_for_bolsig(file)
+        if bolsig_bool == True:
+            append_to_database_bolsig(relative_path, file)
+        else:
+            append_to_database(relative_path, file)
 
 ###################################################################################################
 # EXIT

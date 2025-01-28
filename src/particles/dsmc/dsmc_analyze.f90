@@ -485,7 +485,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset,CalcTVibPoly,CalcTVibAHO
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset,CalcTVibPoly,CalcTVibAHO,CalcTRotQuant
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -608,7 +608,11 @@ DO iElem = 1, nElems ! element/cell main loop
                     END IF
                   END IF
                 END IF
-                Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
+                IF(DSMC%RotRelaxModel.EQ.1)THEN ! quantized rotational relaxation
+                  Macro_TempRot = CalcTRotQuant(PartErot/PartNum, iSpec)
+                ELSE ! continuous rotational relaxation
+                  Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
+                END IF
                 MolecPartNum = MolecPartNum + Macro_PartNum
                 IF(nSpecies.GT.1) THEN
                   Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum

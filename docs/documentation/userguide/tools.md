@@ -26,7 +26,8 @@ The script shows 5 options to choose from:
     2 to maintain/edit chemical reactions  or
     3 to maintain/edit cross section data  or
     4 to maintain/edit surface chemistry  or
-    5 to exit program
+    5 to maintain/edit diffusion coefficients  or
+    6 to exit program
 
 (sssec:tools-maintain-database-species)=
 #### Species parameters
@@ -136,7 +137,7 @@ When adding a new reaction some parameters such as the reaction model and chemis
 The 'delete reactions' option will expect a list of reactions as comma separated string, e.g. `C+N_CNIon1+electron,C2+M_C+M+C`. If there is only one reaction in the database the reaction will be deleted and if there is more than one reaction stored in the database all reactions will be displayed like shown above. To choose which of the listed reactions should be deleted the number(s) of the reaction(s) to delete have to be entered as comma separated string, e.g. `1,2,3`.
 
 (sssec:tools-maintain-database-xsec-collision)=
-### Collision cross-sections
+#### Collision cross-sections
 
 The option to create new collision cross-section data is not implemented in the `maintain_database.py` script. To add new collision cross-section data it is recommended to use the old workflow and revert to the regular parameter read-in for these species as described in {ref}`ssec:usd-species` or insert the cross-section data by hand to the unified species database.
 
@@ -177,9 +178,24 @@ Users of cross-section data are encouraged to download the data directly from th
 and to consider the guidelines regarding referencing and publication.
 
 (sssec:tools-maintain-database-surfchem)=
-### Surface chemistry
+#### Surface chemistry
 
 The option to create new surface chemistry data is not implemented in the `maintain_database.py` script. To add surface chemistry data it is recommended to add data by hand to the unified species database.
+
+(sssec:tools-maintain-database-diffusion)=
+#### Diffusion coefficients
+
+The import process follows these steps:
+
+* The system scans two locations for .txt files:
+  - Current working directory
+  - `piclas/tools/species_database/templates` directory
+
+After that the available .txt files are listed for selection by the user and the data will be saved in the SpeciesDatabase.h5.
+
+This method is currently only implemented for .txt files created with the [BOLSIG+](https://www.bolsig.laplace.univ-tlse.fr/) solver from the [LXCat project website](https://nl.lxcat.net/solvers/BolsigPlus/).
+For reference, a template file is provided at:
+`piclas/tools/species_database/templates/swarm_data_EXAMPLE.txt`
 
 ## Userblock
 

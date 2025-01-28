@@ -804,7 +804,8 @@ ELSE !CollisMode.GT.0
             dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
             CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
             IF (AttrExists) THEN
-              CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=IntToLog,ReadFromSpeciesDatabase=.True.)
+              CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=IntToLog, &
+                ReadFromSpeciesDatabase=.True.)
               IF(IntToLog.EQ.1) SpecDSMC(iSpec)%PolyatomicMol = .TRUE.
               CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
               CALL PrintOption('PolyatomicMol','DB',LogOpt=SpecDSMC(iSpec)%PolyatomicMol)
@@ -822,25 +823,33 @@ ELSE !CollisMode.GT.0
               SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
             ELSE IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
               SpecDSMC(iSpec)%Xi_Rot     = 2
-              CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib,ReadFromSpeciesDatabase=.True.)
+              CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname, &
+                RealScalar=SpecDSMC(iSpec)%CharaTVib,ReadFromSpeciesDatabase=.True.)
               CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
               IF(DSMC%RotRelaxModel.EQ.1)THEN
-                CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+                CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
+                  ReadFromSpeciesDatabase=.True.)
                 IF (AttrExists) THEN
-                  CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+                  CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
+                    RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
                   SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
                   CALL PrintOption('MomentOfInertia','DB',RealOpt=SpecDSMC(iSpec)%MomentOfInertia)
                 ELSE
-                  CALL abort(__STAMP__,'Moment of inertia necessary for quantized rotational energy and is not set for species '//(Species(iSpec)%Name))
+                  CALL abort(__STAMP__,'Moment of inertia necessary for quantized rotational energy and is not set for species '&
+                    //(Species(iSpec)%Name))
                 END IF
               ELSE
-                CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+                CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists, &
+                  ReadFromSpeciesDatabase=.True.)
                 IF(AttrExists)THEN  ! check if CharaTempRot is set without Moment of Inertia
-                  CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTRot,ReadFromSpeciesDatabase=.True.)
+                  CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname, &
+                    RealScalar=SpecDSMC(iSpec)%CharaTRot,ReadFromSpeciesDatabase=.True.)
                 ELSE
-                  CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+                  CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
+                    ReadFromSpeciesDatabase=.True.)
                   IF (AttrExists) THEN
-                    CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+                    CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
+                      RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
                     SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
                   ELSE
                     SpecDSMC(iSpec)%CharaTRot = 0.0
@@ -848,17 +857,21 @@ ELSE !CollisMode.GT.0
                 END IF
               END IF
               CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
-              CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV,ReadFromSpeciesDatabase=.True.)
+              CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV, &
+                ReadFromSpeciesDatabase=.True.)
               CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
               ! Anharmonic Oscillator Model
               IF(DSMC%VibAHO) THEN
-                CALL ReadAttribute(file_id_specdb,'Vib-OmegaE',1,DatasetName = dsetname,RealScalar=AHO%omegaE(iSpec),ReadFromSpeciesDatabase=.True.)
+                CALL ReadAttribute(file_id_specdb,'Vib-OmegaE',1,DatasetName = dsetname,RealScalar=AHO%omegaE(iSpec), &
+                  ReadFromSpeciesDatabase=.True.)
                 CALL PrintOption('Vib-OmegaE','DB',RealOpt=AHO%omegaE(iSpec))
                 CALL AttributeExists(file_id_specdb,'Vib-ChiE ',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
-                CALL ReadAttribute(file_id_specdb,'Vib-ChiE',1,DatasetName = dsetname,RealScalar=AHO%chiE(iSpec),ReadFromSpeciesDatabase=.True.)
+                CALL ReadAttribute(file_id_specdb,'Vib-ChiE',1,DatasetName = dsetname,RealScalar=AHO%chiE(iSpec), &
+                  ReadFromSpeciesDatabase=.True.)
                 CALL PrintOption('Vib-ChiE','DB',RealOpt=AHO%chiE(iSpec))
               ELSE ! SHO model
-                CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib,ReadFromSpeciesDatabase=.True.)
+                CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib, &
+                  ReadFromSpeciesDatabase=.True.)
                 CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
                 SpecDSMC(iSpec)%MaxVibQuant = 200
                 ! Calculation of the dissociation quantum number (used for QK chemistry)
@@ -995,7 +1008,6 @@ ELSE !CollisMode.GT.0
             SpecDSMC(iSpec)%SpecToPolyArray = DSMC%NumPolyatomMolecs
           ELSEIF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
             SpecDSMC(iSpec)%Xi_Rot          = 2
-            SpecDSMC(iSpec)%CharaTVib       = GETREAL('Part-Species'//TRIM(hilf)//'-CharaTempVib')
             IF(DSMC%RotRelaxModel.EQ.1)THEN  ! If MomentOfInertia needed calc CharaTempRot with Moment
               SpecDSMC(iSpec)%MomentOfInertia = GETREAL('Part-Species'//TRIM(hilf)//'-MomentOfInertia')
               SpecDSMC(iSpec)%CharaTRot       = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)

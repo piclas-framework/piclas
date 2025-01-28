@@ -52,7 +52,9 @@ PUBLIC :: CalcMixtureTemp
 PUBLIC :: CalcTVibAHO
 PUBLIC :: CalcXiVib
 PUBLIC :: CalcXiTotalEqui
-PUBLIC :: CalcTDataset,CalcTVibPoly
+PUBLIC :: CalcTDataset
+PUBLIC :: CalcTVibPoly
+PUBLIC :: CalcTRotQuant
 PUBLIC :: CalcPartitionFunction
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib

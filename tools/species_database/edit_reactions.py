@@ -4,6 +4,15 @@ import re
 import numpy as np
 from config import *
 
+def remove_from_list(List, *args_to_remove):
+    NewList = []
+    for element in List:
+        if element == 'electron':
+            NewList.append('el')
+        elif element not in args_to_remove:
+            NewList.append(element)
+    return NewList
+
 def display_reaction(CURRENT_REACTION):
     print("\n"+red("Reaction: ") + green(CURRENT_REACTION))
     for AttrName, AttrValue in list(hdf_unified_data["Reactions"][CURRENT_REACTION].attrs.items()):
