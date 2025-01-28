@@ -118,9 +118,7 @@ stages:
   - reggie_tools_nightly
   - reggie_nightly_special
   - reggie_nightly
-  - reggie_weekly_build_all
   - reggie_weekly
-  - documentation
   - deploy
   - appimage
 
@@ -1092,7 +1090,7 @@ NIG_Radiation:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
   <<: *defaults_weekly
-  stage: reggie_weekly_build_all
+  stage: build_weekly
   script:
     - cd build ;  reggie ../regressioncheck/run_basic
 
@@ -1176,11 +1174,11 @@ WEK_BGKFlow:
     - cd build ;  reggie ../regressioncheck/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "documentation": Compile the userguide and developer guide
+# Stage "build": Compile the userguide and developer guide
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 documentation:
   extends: .default_build_param
-  stage: documentation
+  stage: build
   script:
     - cd docs/documentation
     - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
