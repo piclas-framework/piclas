@@ -693,6 +693,12 @@ CHE_FPFlow:
   script:
     - cd build ; reggie ../regressioncheck/CHE_FPFlow
 
+CHE_poisson_p_adaption:
+  <<: *defaults_poisson_petsc_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build_poisson_petsc_release_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
