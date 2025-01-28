@@ -42,11 +42,12 @@ USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,n
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: BulkElectronTempSEE
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,SurfModEmissionYield,SurfModEmissionEnergy,SurfModEnergyDistribution
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEPowerFit
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
 USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart2
 USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
+USE MOD_Part_Emission_Tools       ,ONLY: SamplePoissonDistri
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -82,6 +83,38 @@ ProductSpecNbr = 0
 TempErgy       = 0.0
 ! Select particle surface modeling
 SELECT CASE(PartBound%SurfaceModel(locBCID))
+CASE(3) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
+  ProductSpecNbr = 0 ! do not create new particle (default value)
+  ! Bombarding electron
+  IF(PARTISELECTRON(PartID_IN))THEN
+    ! Electron energy in [eV]
+    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
+    ! Check probability only above certain threshold
+    IF((eps_e-SurfModSEEFitCoeff(4,locBCID)).GT.0.0) THEN
+      ! Square Fit
+      SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*eps_e + SurfModSEEFitCoeff(2,locBCID)*eps_e*eps_e + SurfModSEEFitCoeff(3,locBCID)
+
+      ! Get the number of electrons from the Poisson distribution
+      CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
+
+      ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
+      IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+
+      ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
+      SELECT CASE(SurfModEnergyDistribution(locBCID))
+      CASE('deltadistribution')
+        ! Energy in [m/s]
+        TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
+      CASE('cosine','uniform-energy','Morozov2004')
+        ! Energy in [eV]
+        TempErgy = eps_e
+      CASE DEFAULT
+        CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
+      END SELECT
+    END IF
+  ELSE ! Neutral bombarding particle
+    RETURN ! nothing to do
+  END IF
 CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
@@ -89,9 +122,9 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
     ! Electron energy in [eV]
     eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
     ! Check probability only above certain threshold
-    IF((eps_e-SurfModSEEPowerFit(4,locBCID)).GT.0.0) THEN
+    IF((eps_e-SurfModSEEFitCoeff(4,locBCID)).GT.0.0) THEN
       ! Power Fit
-      SEE_Prob = SurfModSEEPowerFit(1,locBCID)*eps_e**SurfModSEEPowerFit(2,locBCID) + SurfModSEEPowerFit(3,locBCID)
+      SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*eps_e**SurfModSEEFitCoeff(2,locBCID) + SurfModSEEFitCoeff(3,locBCID)
       ! If the yield is greater than 1.0 (or 2.0 or even higher), set the number of products with the integer and roll the dice for the remainder
       ProductSpecNbr = INT(SEE_Prob)
       SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
@@ -102,9 +135,6 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
 
       ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
       IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
-
-      ! TODO: Limit the number of possible secondary electrons to four to avoid excessive computational duration during energy distribution ARM
-      IF(ProductSpecNbr.GT.4) ProductSpecNbr = 4
 
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
@@ -374,6 +404,40 @@ CASE(11) ! 11: SEE-E by e- on quartz (SiO2) by A. Dunaevsky, "Secondary electron
 
   ELSEIF(Species(SpecID)%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
     RETURN ! nothing to do
+  ELSE ! Neutral bombarding particle
+    RETURN ! nothing to do
+  END IF
+
+CASE(12) ! 12: SEE-E by TODO: Source required
+  ProductSpecNbr = 0 ! do not create new particle (default value)
+  ! Bombarding electron
+  IF(PARTISELECTRON(PartID_IN))THEN
+    ! Electron energy in [eV]
+    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
+    ! Check probability only above certain threshold
+    IF((eps_e-SurfModSEEFitCoeff(4,locBCID)).GT.0.0) THEN
+      ! Yield function
+      SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*1.11*(eps_e/SurfModSEEFitCoeff(2,locBCID))**(-0.35) &
+                 * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
+
+      ! Get the number of electrons from the Poisson distribution
+      CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
+
+      ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
+      IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+
+      ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
+      SELECT CASE(SurfModEnergyDistribution(locBCID))
+      CASE('deltadistribution')
+        ! Energy in [m/s]
+        TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
+      CASE('cosine','uniform-energy','Morozov2004')
+        ! Energy in [eV]
+        TempErgy = eps_e
+      CASE DEFAULT
+        CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
+      END SELECT
+    END IF
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF

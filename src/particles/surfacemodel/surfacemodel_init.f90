@@ -49,7 +49,7 @@ CALL prms%CreateRealOption(    'Part-Boundary[$]-SurfModEmissionYield'      , 'E
 CALL prms%CreateRealOption(    'Part-SurfaceModel-SEE-Te'                   , 'Bulk electron temperature for SEE model by Morozov2004 in Kelvin (default corresponds to 50 eV)' , '5.80226250308285e5')
 CALL prms%CreateLogicalOption( 'Part-SurfaceModel-SEE-Te-automatic'         , 'Automatically set the bulk electron temperature by using the global electron temperature for SEE model by Morozov2004' , '.FALSE.')
 
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-SurfModSEEPowerFit'       , 'SEE power-fit model (SurfaceModel = 4): coefficients of the form a*E(eV)^b + c, input as (a,b,c,W),'//&
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-SurfModSEEFitCoeff'       , 'SEE square/power-fit model (SurfaceModel = 3/4): coefficients of the form a*E(eV) + b*E(eV) + c or a*E(eV)^b + c, input as (a,b,c,W),'//&
                                                                               'where W is the material work function below which the yield is zero.', numberedmulti=.TRUE.,no=2)
 END SUBROUTINE DefineParametersSurfModel
 
@@ -66,7 +66,7 @@ USE MOD_ReadInTools            ,ONLY: GETINT,GETREAL,GETLOGICAL,GETSTR,GETREALAR
 USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound,PartBound
 USE MOD_SurfaceModel_Vars      ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModEnergyDistribution,SurfModEmissionEnergy,SurfModEmissionYield
-USE MOD_SurfaceModel_Vars      ,ONLY: SurfModSEEPowerFit
+USE MOD_SurfaceModel_Vars      ,ONLY: SurfModSEEFitCoeff
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -100,8 +100,8 @@ SurfModEmissionYield = 0.
 ALLOCATE(SumOfResultSpec(nPartBound))
 SumOfResultSpec = 0
 
-ALLOCATE(SurfModSEEPowerFit(1:4, 1:nPartBound))
-SurfModSEEPowerFit = 0
+ALLOCATE(SurfModSEEFitCoeff(1:4, 1:nPartBound))
+SurfModSEEFitCoeff = 0
 
 ! Loop particle boundaries
 DO iPartBound=1,nPartBound
@@ -143,8 +143,8 @@ DO iPartBound=1,nPartBound
   ! Read-in and set SEE model specific parameters
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   ! 4: SEE Power-fit model based on Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
-  CASE(4)
-    SurfModSEEPowerFit(1:4,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEPowerFit',4)
+  CASE(3,4,12)
+    SurfModSEEFitCoeff(1:4,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEFitCoeff',4)
     SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','cosine'))
     ! Loop all species
     DO iSpec = 1,nSpecies
@@ -238,7 +238,7 @@ ADEALLOCATE(ChemWallProp)
 SDEALLOCATE(SurfModEmissionEnergy)
 SDEALLOCATE(SurfModEmissionYield)
 SDEALLOCATE(StickingCoefficientData)
-SDEALLOCATE(SurfModSEEPowerFit)
+SDEALLOCATE(SurfModSEEFitCoeff)
 END SUBROUTINE FinalizeSurfaceModel
 
 END MODULE MOD_SurfaceModel_Init

@@ -761,7 +761,7 @@ INTEGER,INTENT(OUT)            :: IntSample
 ! LOCAL VARIABLES
 LOGICAL         :: Flag
 INTEGER         :: Npois
-REAL            :: Tpois, RandVal1
+REAL            :: Tpois, RandVal1, expTarget
 !===================================================================================================================================
 
 IF (PRESENT(Flag_opt)) THEN
@@ -770,6 +770,7 @@ ELSE
   Flag=.FALSE.
 END IF
 
+! expTarget = EXP(-RealTarget)
 Npois=0
 Tpois=1.0
 CALL RANDOM_NUMBER(RandVal1)
@@ -782,9 +783,7 @@ DO
       Flag = .FALSE.
       EXIT
     ELSE !Turning off not allowed: abort (RealTarget must be decreased ot PoissonSampling turned off manually)
-      CALL abort(&
-__STAMP__&
-,'ERROR in SamplePoissonDistri: RealTarget (e.g. flux) is too large for poisson sampling!')
+      CALL abort(__STAMP__,'ERROR in SamplePoissonDistri: RealTarget (e.g. flux) is too large for poisson sampling!')
     END IF
   END IF
   IF (Tpois.GT.EXP(-RealTarget)) THEN

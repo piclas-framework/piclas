@@ -225,7 +225,8 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 | 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                      |
 |      1      | Empirical modelling of sticking coefficient/probability                                                                                                                                      |
 |      2      | Fixed probability surface chemistry                                                                                                                                                          |
-|      4      | Secondary electron emission as a power-fit ($a E^b + c$) above the work function W                                                                                                           |
+|      3      | Secondary electron emission as a square-fit ($a + b*E + c*E^2$) for electron energies above the work function W                                                                              |
+|      4      | Secondary electron emission as a power-fit ($a E^b + c$) for electron energies above the work function W                                                                                     |
 |      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                              |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%. |
 |      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                             |
@@ -311,21 +312,22 @@ the surface material. All models require the specification of the electron speci
 
 where electrons of species `C` are emitted from boundary `B` on the impact of species `A`.
 
-#### Model 4
+#### Model 3/4
 
-The model is based on {cite}`Goebel2008` and uses a power-fit and an additional threshold to model the secondary electron emission yield.
+These models are based on {cite}`Goebel2008` and use a square- (= 3) or power-fit (= 4) and an additional threshold to model the secondary electron emission yield.
 It is assumed that the impacting particle is absorbed.
 
-$$\gamma = (a E^b + c)H(E-W),$$
+$$\text{Square-fit: }\gamma = (a E + b E^2 + c)H(E-W),$$
+$$\text{Power-fit: }\gamma = (a E^b + c)H(E-W),$$
 
 where $a$, $b$, $c$ are the fitting coefficients and $W$ is the material-dependent work function above which the yield is calculated.
 The parameters are read-in through:
 
-    Part-BoundaryB-SurfModSEEPowerFit   = (/0.1,0.5,0.25,9/)      ! (/a,b,c,W/)
+    Part-BoundaryB-SurfModSEEFitCoeff   = (/0.1,0.5,0.25,9/)      ! (/a,b,c,W/)
 
 Additionally, the energy distribution can be selected with
 
-    Part-BoundaryB-SurfModEnergyDistribution = cosine2
+    Part-BoundaryB-SurfModEnergyDistribution = cosine
 
 An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`.
 
