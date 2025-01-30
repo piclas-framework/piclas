@@ -66,6 +66,7 @@ before_script:
       export NCORES=0;
     else
       echo " Using default generator [Unix Makefiles] and [make] for compiling.";
+      export CMAKE_GENERATOR=;
       export GENERATOR=make;
       export NCORES=;
     fi
@@ -103,7 +104,13 @@ before_script:
       module purge || true;
       module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2 || true;
     fi
-  - module list || true
+  - if [ -n "${DO_RUN_LOCAL}" ]; then
+      source $(ls /opt/modules/*/init/bash | tail -n1);
+      for LOCALMODULE in ${DO_RUN_LOCAL}; do module load ${LOCALMODULE}; done;
+      module list;
+    else
+      module list || true ;
+    fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
