@@ -32,10 +32,6 @@ INTERFACE ApplyWeightDistributionMethod
 END INTERFACE
 #endif /*USE_MPI*/
 
-INTERFACE WriteElemTimeStatistics
-  MODULE PROCEDURE WriteElemTimeStatistics
-END INTERFACE
-
 #if USE_MPI
 PUBLIC::ApplyWeightDistributionMethod
 PUBLIC::WeightDistribution_Equal
@@ -1237,6 +1233,7 @@ USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime,ReadMeshWallTime,memory
 USE MOD_Globals_Vars     ,ONLY: DomainDecompositionWallTime,CommMeshReadinWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Mesh_Vars        ,ONLY: nGlobalDOFs
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
@@ -1273,13 +1270,14 @@ CHARACTER(LEN=150)                       :: formatStr
 #ifdef PARTICLES
 REAL                                     :: ElemTimeFieldOut
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
-INTEGER,PARAMETER                        :: nOutputVar=23
+INTEGER,PARAMETER                        :: nOutputVar=24
 #else
-INTEGER,PARAMETER                        :: nOutputVar=18
+INTEGER,PARAMETER                        :: nOutputVar=19
 #endif /*PARTICLES*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time'                   , &
     'Procs'                  , &
+    'nGlobalDOFs'            , &
     'MinWeight'              , &
     'MaxWeight'              , &
     'CurrentImbalance'       , &
@@ -1457,6 +1455,7 @@ IF (FILEEXISTS(outfile)) THEN
   WRITE(tmpStr2,formatStr)&
             " ",time_loc                ,&
       delimiter,REAL(nProcessors)       ,&
+      delimiter,REAL(nGlobalDOFs)       ,&
       delimiter,MinWeight               ,&
       delimiter,MaxWeight               ,&
       delimiter,CurrentImbalance        ,&
