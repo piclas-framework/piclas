@@ -169,6 +169,7 @@ REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vecto
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0          !< number of elements in mesh
 INTEGER(KIND=8)  :: nGlobalDOFs=0           !< number of DOF in mesh (depends on the polynomial degree in each element)
+INTEGER          :: NMaxGlobal,NMinGlobal   !< global min/max polynomial degree that is actually present (not the theoretical limits)
 INTEGER          :: nElems=0                !< number of local elements
 INTEGER          :: offsetElem=0            !< for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
 INTEGER          :: nSides=0                !< =nInnerSides+nBCSides+nMPISides

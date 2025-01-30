@@ -502,6 +502,7 @@ USE MOD_PreProc
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords,nGlobalDOFs
+USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 IMPLICIT NONE
@@ -585,7 +586,19 @@ DO iElem=1,nElems
   IF(N_DG(iElem).GT.NMax) CALL abort(__STAMP__,'N_DG(iElem)>NMax')
   nLocalDOFs = nLocalDOFs + INT((N_DG(iElem)+1)**3,8)
 END DO
+
+NMinGlobal = MINVAL(N_DG)
+NMaxGlobal = MAXVAL(N_DG)
 #if USE_MPI
+! Get global min/max polynomial degree that are actually present (not the theoretical limits)
+IF(MPIroot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , NMinGlobal , 1 , MPI_INTEGER , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE , NMaxGlobal , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+ELSE
+  CALL MPI_REDUCE(NMinGlobal   , 0          , 1 , MPI_INTEGER , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(NMaxGlobal   , 0          , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+  ! in this case the receive value is not relevant.
+END IF
 ! Calculate the sum across all processes. Only the MPI root process needs this information
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(nLocalDOFs , nGlobalDOFs , 1 , MPI_INTEGER8 , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)

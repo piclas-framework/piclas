@@ -54,7 +54,7 @@ USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze,nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,nGlobalDOFs
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,nGlobalDOFs,NMaxGlobal,NMinGlobal
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
@@ -152,7 +152,9 @@ tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
-SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs      : ',REAL(nGlobalDOFs)
+SWRITE(UNIT_stdOut,'(A13,ES16.7,A,I0,A1,I0,A,I0,A1,I0)')'#DOFs      : ',REAL(nGlobalDOFs), &
+  '   |   polynomial degree min/max : ',NMinGlobal,'/',NMaxGlobal,                              &
+  '  |   #DOFs in each element min/max : ',(NMinGlobal+1)**3,'/',(NMaxGlobal+1)**3
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#Procs     : ',REAL(nProcessors)
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs/Proc : ',REAL(nGlobalDOFs)/REAL(nProcessors)
 
