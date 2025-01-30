@@ -168,6 +168,7 @@ INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangen
 REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0          !< number of elements in mesh
+INTEGER(KIND=8)  :: nGlobalDOFs=0           !< number of DOF in mesh (depends on the polynomial degree in each element)
 INTEGER          :: nElems=0                !< number of local elements
 INTEGER          :: offsetElem=0            !< for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
 INTEGER          :: nSides=0                !< =nInnerSides+nBCSides+nMPISides

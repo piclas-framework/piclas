@@ -501,7 +501,7 @@ USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords
+USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords,nGlobalDOFs
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 IMPLICIT NONE
@@ -512,6 +512,7 @@ IMPLICIT NONE
 INTEGER :: iElem,BCSideID,BCType
 REAL    :: RandVal,x
 LOGICAL :: SetBCElemsToNMax
+INTEGER(KIND=8) :: nLocalDOFs
 !===================================================================================================================================
 ! Set defaults
 SetBCElemsToNMax = .FALSE. ! Initialize
@@ -571,7 +572,8 @@ ELSE
   END IF ! SetBCElemsToNMax
 END IF
 
-! Sanity check
+! Sanity check and nGlobalDOFs calculation
+nLocalDOFs=0
 DO iElem=1,nElems
   IF((N_DG(iElem).LT.NMin).OR.(N_DG(iElem).GT.NMax))THEN
     IPWRITE(*,*) "iElem       = ", iElem
@@ -581,7 +583,20 @@ DO iElem=1,nElems
   END IF
   IF(N_DG(iElem).LT.NMin) CALL abort(__STAMP__,'N_DG(iElem)<NMin')
   IF(N_DG(iElem).GT.NMax) CALL abort(__STAMP__,'N_DG(iElem)>NMax')
+  nLocalDOFs = nLocalDOFs + INT((N_DG(iElem)+1)**3,8)
 END DO
+#if USE_MPI
+! Calculate the sum across all processes. Only the MPI root process needs this information
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(nLocalDOFs , nGlobalDOFs , 1 , MPI_INTEGER8 , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  ! Sanity check
+  IF(nGlobalDOFs.LE.0) CALL abort(__STAMP__,'nGlobalDOFs.LE.0')
+ELSE
+  CALL MPI_REDUCE(nLocalDOFs , 0           , 1 , MPI_INTEGER8 , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
+END IF ! MPIRoot
+#else
+nGlobalDOFs = nLocalDOFs
+#endif /*USE_MPI*/
 
 ! Initialize element containers
 CALL Build_N_DG_Mapping()
