@@ -18,7 +18,7 @@ of the different tests for PICLas are given [here](https://github.com/piclas-fra
 The automatic execution by a [Gitlab Runner](https://docs.gitlab.com/runner/) can be performed on any machine that is connected to the
 internet and in the following sections, the setup of such a machine is described.
 
-### Local execution of reggie2.0
+## Local execution of reggie2.0
 To quickly test regression checks locally, either to reproduce an error that has occurred during a GitLab pipeline or to test newly
 developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) tool can be executed without the need to install a
 [Gitlab Runner](https://docs.gitlab.com/runner/).
@@ -131,7 +131,7 @@ developed code, the [reggie2.0](https://github.com/piclas-framework/reggie2.0) t
 The GitLab CI/CD tests can either be run *locally* or *remotely* and both methods are explained in the following.
 The tests are defined in the file *.gitlab-ci.yml* in the top-level directory of the piclas repository.
 
-### Remote Testing on Gitlab
+## Remote Testing on Gitlab
 
 Open a browser and go to the [piclas gitlab pipelines website](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines), where the
 latest pipeline jobs are displayed. To start a new pipeline, click the button *Run pipeline* and select the required branch name or
@@ -154,7 +154,7 @@ name: tab:pipeline_vars
 Per default, `DO_CHECKIN`, `DO_NIGHTLY`, `DO_WEEKLY`, `DO_NODE_SPLIT` and `DO_CORE_SPLIT` are tested automatically for the branch
 *master.dev*. For details, see the [Pipeline schedules](https://piclas.boltzplatz.eu/piclas/piclas/-/pipeline_schedules) section in Gitlab.
 
-### Local Testing using *gitlab-ci-local*
+## Local Testing using *gitlab-ci-local*
 
 To locally test the GitLab CI (including a YAML verification), [gitlab-ci-local](https://github.com/firecow/gitlab-ci-local) can be used.
 An installation guide can be found [here](https://github.com/firecow/gitlab-ci-local#linux-based-on-debian).
@@ -191,14 +191,23 @@ gitlab-ci-local --preview preview.yml
 ```
 which gives the expanded version of utilized `extends:` and `<<:` templates.
 
-Note that currently (as of 18.06.2024), for gitlab-ci-local to work properly the `module` calls at the end of `before_script` have to be commented out as the software stack of the reggie server is expected.
+When running `gitlab-ci-local` on a system with a module environment, it is neccessary to pass the local modules that are used for compiling
+```
+DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
+gitlab-ci-local --variable --variable DO_RUN_LOCAL=$DO_RUN_LOCAL
+```
+If multiple variables are required add them to the command
+```
+gitlab-ci-local --variable --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable CHECK_WARNINGS=True
+```
+to envoke additional options of the pipeline.
 
-### Regression Test *Gitlab Runner* Setup for self-hosted Servers
+## Regression Test *Gitlab Runner* Setup for self-hosted Servers
 This section describes the necessary steps to install a [Gitlab Runner](https://docs.gitlab.com/runner/) on a Ubuntu system to run *Gitlab Build Pipelines*.
 In a first step, the required software packages for PICLas and [reggie2.0](https://github.com/piclas-framework/reggie2.0) are installed on a new system.
 In a second step, the *gitlab-runner* program is installed and the setup of runner is described.
 
-#### Prerequisites: Installation of Software on Clean Ubuntu Setup (18.04)
+### Prerequisites: Installation of Software on Clean Ubuntu Setup (18.04)
 Latest tests on
 
   * Ubuntu (18.04), 3 Jul 2019
@@ -326,7 +335,7 @@ or by loading the modules directly in the gilab script file, e.g.,
 NOTE: The stack size limit has been removed here by `ulimit -s unlimited`, which might be required
 by memory consuming programs
 
-#### Installation of Gitlab Runners
+### Installation of Gitlab Runners
 Latest tests on
 
   * Ubuntu (18.04) with gitlab-runner 10.5.0 (10.5.0), 3 Jul 2019
@@ -380,7 +389,7 @@ Latest tests on
 
 NOTE: Interesting information is found in `/etc/systemd/system/gitlab-runner.service`.
 
-#### Configuration Files
+### Configuration Files
 
 The runner services can be adjusted by changing the settings in the file
 
@@ -442,7 +451,7 @@ check_interval = 0
   [runners.cache]
 ```
 
-#### Automatic Deployment to Other Platforms (GitHub)
+### Automatic Deployment to Other Platforms (GitHub)
 
 1. Add the required ssh key to the deploy keys on the respective platform (e.g. github)
 1. Clone a code from the platform to update the list of known hosts. Do not forget to copy the
