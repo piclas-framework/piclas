@@ -45,7 +45,6 @@ before_script:
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - ulimit -s unlimited
   - python3 -V || true
-  - python2 -V || true
   - python  -V || true
   - if [ -n "${DO_CORE_SPLIT}" ]; then
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
@@ -790,6 +789,12 @@ NIG_PIC_maxwell_RK4:
   stage: reggie_nightly
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4/
+
+NIG_PIC_maxwell_RK4_p_adaption:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4_p_adaption
 
 NIG_convtest_maxwell:
   <<: *defaults_nightly
