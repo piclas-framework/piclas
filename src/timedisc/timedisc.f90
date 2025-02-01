@@ -35,7 +35,7 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time,tEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,tStart
 USE MOD_TimeDisc_Vars          ,ONLY: time_start
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
@@ -124,7 +124,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL            :: tStart                   !> simulation time at the beginning of the simulation
 REAL            :: tPreviousAnalyze         !> time of previous analyze.
                                             !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL            :: tPreviousAverageAnalyze  !> time of previous Average analyze.

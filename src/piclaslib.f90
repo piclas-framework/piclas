@@ -19,11 +19,6 @@ IMPLICIT NONE
 PRIVATE
 SAVE
 
-INTERFACE InitializePiclas
-   MODULE PROCEDURE InitializePiclas
-END INTERFACE
-
-
 PUBLIC::InitializePiclas
 
 CONTAINS

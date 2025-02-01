@@ -51,10 +51,6 @@ INTERFACE InitOutput
   MODULE PROCEDURE InitOutput
 END INTERFACE
 
-INTERFACE PrintStatusLine
-  MODULE PROCEDURE PrintStatusLine
-END INTERFACE
-
 PUBLIC:: InitOutput
 PUBLIC:: PrintStatusLine
 PUBLIC:: DefineParametersOutput
@@ -173,7 +169,7 @@ SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd,mode)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Output_Vars , ONLY: doPrintStatusLine
-USE MOD_TimeDisc_Vars,ONLY: time_start
+USE MOD_TimeDisc_Vars,ONLY: time_start,tWallRemaining
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -210,6 +206,7 @@ IF(MPIroot)THEN
   time_remaining = time_remaining - time_start
   IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
   percent = percent*100.
+  tWallRemaining = time_remaining/3600.0
   secs = MOD(time_remaining,60.)
   time_remaining = time_remaining / 60
   mins = MOD(time_remaining,60.)
@@ -244,6 +241,7 @@ SUBROUTINE PrintStatusLineRadiation(t,tStart,tEnd,Phot,outputrank)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_TimeDisc_Vars ,ONLY: tWallRemaining
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -273,6 +271,7 @@ IF(myRank.EQ.visRank)THEN
   CALL CPU_TIME(time_remaining)
   IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
   percent =  percent*100.
+  tWallRemaining = time_remaining/3600.0
   secs = MOD(time_remaining,60.)
   time_remaining = time_remaining / 60
   mins = MOD(time_remaining,60.)
