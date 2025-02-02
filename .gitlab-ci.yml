@@ -1176,14 +1176,20 @@ WEK_DSMC_Radiation:
   script:
     # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_Radiation -e bin/piclas -s
+    - STATEFILE=$(find output_dir -name "70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5" | head -n 1)
+    - if [ -z ${STATEFILE} ]; then echo "File 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5 was not created"; exit 1; fi
 
+# This reggie reguies that WEK_DSMC_Radiation is executed beforehand creating 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5
+# and mesh_70degCone2D_Set1_noWake_mesh.h5, which are copied from the cached path to this reggie to serve as input
 WEK_Radiation:
   <<: *defaults_DSMC_weekly_pull_push
   needs: [WEK_DSMC_Radiation]
   stage: reggie_weekly
   script:
     - cd build_radiation
-    - cp $(find ../build_DSMC_release/output_dir -name "70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
+    - STATEFILE=$(find ../build_DSMC_release/output_dir -name "70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5" | head -n 1)
+    - if [ -z ${STATEFILE} ]; then echo "File 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5 not found"; exit 1; fi
+    - cp  ${STATEFILE} ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
     - cp $(find ../build_DSMC_release/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
     - rm -rf ../build_DSMC_release/output_dir
     - reggie -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot
