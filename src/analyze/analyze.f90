@@ -533,6 +533,104 @@ L_2_Error = SQRT(L_2_Error/MeshVolume)
 END SUBROUTINE CalcError_FV
 #endif
 
+#ifdef discrete_velocity
+SUBROUTINE CalcError_DVM(time,L_2_Error,L_Inf_Error)
+!==================================================================================================================================
+!> Calculates L_infinfity and L_2 error norms of state variables using the analyze framework (GL points+weights)
+!> Only first moments (up to temperature) to avoid "end of record" error in the output file
+!==================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars_FV,       ONLY: Elem_xGP_FV
+USE MOD_FV_Vars,            ONLY: U_FV
+USE MOD_Equation_FV,        ONLY: ExactFunc_FV
+USE MOD_TimeDisc_Vars      ,ONLY: dt
+USE MOD_DistFunc,           ONLY: MacroValuesFromDistribution
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_Equation_Vars_FV   ,ONLY: IniExactFunc_FV
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
+USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared
+#ifdef PARTICLES
+USE MOD_Mesh_Vars          ,ONLY: offsetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
+#endif
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+REAL,INTENT(IN)                 :: time                   !< current simulation time
+REAL,INTENT(OUT)                :: L_2_Error(  5)   !< L2 error of the solution
+REAL,INTENT(OUT)                :: L_Inf_Error(5)   !< LInf error of the solution
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iElem,k,l,m
+REAL                          :: U_exact(1:PP_nVar_FV,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: U_NAnalyze(1:PP_nVar_FV,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
+REAL                          :: J_N(1,0:0,0:0,0:0)
+REAL                          :: IntegrationWeight
+REAL                          :: MacroVal(14), MacroVal_exact(14), tau, real_dt
+INTEGER                       :: offsetElemCNProc,CNElemID
+!===================================================================================================================================
+IF (time.EQ.0.) THEN
+  real_dt = 0.
+ELSE
+  real_dt = dt
+END IF
+
+L_Inf_Error(:)=-1.E10
+L_2_Error(:)=0.
+! Interpolate values of Error-Grid from GP's
+DO iElem=1,PP_nElems
+  ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
+  CALL ChangeBasis3D(3,0,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP_FV(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+  ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
+#if USE_MPI && defined(PARTICLES)
+  ! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
+  offsetElemCNProc = offsetElem - offsetComputeNodeElem
+#else
+  offsetElemCNProc = 0
+#endif  /*USE_MPI && defined(PARTICLES)*/
+  CNElemID=iElem+offsetElemCNProc
+  J_N(1,0:0,0:0,0:0)=ElemVolume_Shared(CNElemID)
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  ! Interpolate the solution to the analyze grid
+  CALL ChangeBasis3D(PP_nVar_FV,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,U_FV(1:PP_nVar_FV,:,:,:,iElem),U_NAnalyze(1:PP_nVar_FV,:,:,:))
+  DO m=0,NAnalyze
+    DO l=0,NAnalyze
+      DO k=0,NAnalyze
+        CALL MacroValuesFromDistribution(MacroVal,U_Nanalyze(:,k,l,m),real_dt,tau,1)
+        CALL ExactFunc_FV(IniExactFunc_FV,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar_FV,k,l,m))
+        CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:,k,l,m),real_dt,tau,1)
+        L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:5) - MacroVal_exact(1:5)))
+        IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
+        ! To sum over the elements, We compute here the square of the L_2 error
+        L_2_Error = L_2_Error+(MacroVal(1:5) - MacroVal_exact(1:5))*&
+                              (MacroVal(1:5) - MacroVal_exact(1:5))*IntegrationWeight
+      END DO ! k
+    END DO ! l
+  END DO ! m
+END DO ! iElem=1,PP_nElems
+#if USE_MPI
+  IF(MPIroot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , 5 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , 5 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+  ELSE
+    CALL MPI_REDUCE(L_2_Error   , 0            , 5 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_Inf_Error , 0            , 5 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+    ! in this case the receive value is not relevant.
+  END IF
+#endif /*USE_MPI*/
+
+! We normalize the L_2 Error with the Volume of the domain and take into account that we have to use the square root
+L_2_Error = SQRT(L_2_Error/MeshVolume)
+
+END SUBROUTINE CalcError_DVM
+#endif /*discrete_velocity*/
+
 
 #ifdef PARTICLES
 SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
@@ -933,6 +1031,16 @@ END DO
 WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
 
 #else /* FV alone*/
+#ifdef discrete_velocity
+DO i=1,5
+  WRITE(L2name(i),'(A5,A,A2)')' "L2_',TRIM(StrVarNames_FV(i)),'" '
+END DO
+WRITE(VARformatStr,'(A3)')'(A,'
+DO i=1,5
+  WRITE(VARformatStr,'(A,A1,I2,A1)')TRIM(VARformatStr),'A',LEN_TRIM(L2name(i)),','
+END DO
+WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
+#else  /* no discrete_velocity*/
 DO i=1,PP_nVar_FV
   WRITE(L2name(i),'(A5,A,A2)')' "L2_',TRIM(StrVarNames_FV(i)),'" '
 END DO
@@ -941,6 +1049,7 @@ DO i=1,PP_nVar_FV
   WRITE(VARformatStr,'(A,A1,I2,A1)')TRIM(VARformatStr),'A',LEN_TRIM(L2name(i)),','
 END DO
 WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
+#endif /*discrete_velocity*/
 #endif /*HDG*/
 
 #else /*no FV*/
@@ -1122,8 +1231,13 @@ LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
 #if USE_FV
+#ifdef discrete_velocity
+REAL                          :: L_2_Error_DVM(5)
+REAL                          :: L_Inf_Error_DVM(5)
+#else
 REAL                          :: L_2_Error_FV(PP_nVar_FV)
 REAL                          :: L_Inf_Error_FV(PP_nVar_FV)
+#endif /*discrete_velocity*/
 #endif /*FV*/
 #if (USE_FV) && (USE_HDG)
 REAL                          :: L_2_Error_HDGFV(PP_nVar_FV+PP_nVar)
@@ -1264,8 +1378,12 @@ IF(DoCalcErrorNorms) THEN
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
 #endif
 #if (USE_FV)
+#ifdef discrete_velocity
+  CALL CalcError_DVM(OutputTime,L_2_Error_DVM,L_Inf_Error_DVM)
+#else
   CALL CalcError_FV(OutputTime,L_2_Error_FV,L_Inf_Error_FV)
-#endif
+#endif /*discrete_velocity*/
+#endif /*FV*/
     IF (OutputTime.GE.tEnd)THEN
       CurrentTime=PICLASTIME()
 #if (USE_FV)
@@ -1273,6 +1391,8 @@ IF(DoCalcErrorNorms) THEN
       L_2_Error_HDGFV(1:PP_nVar) = L_2_Error
       L_2_Error_HDGFV(PP_nVar+1:PP_nVar+PP_nVar_FV) = L_2_Error_FV
       CALL AnalyzeToFile(PP_nVar_FV+PP_nVar,OutputTime,CurrentTime,L_2_Error_HDGFV)
+#elif defined(discrete_velocity)
+      CALL AnalyzeToFile(5,OutputTime,CurrentTime,L_2_Error_DVM)
 #else
       CALL AnalyzeToFile(PP_nVar_FV,OutputTime,CurrentTime,L_2_Error_FV)
 #endif /*FV+HDG*/
@@ -1471,9 +1591,20 @@ IF(DoPerformErrorCalc)THEN
   IF(DoCalcErrorNorms) THEN
     ! Graphical output
     IF(MPIroot) THEN
+#ifndef discrete_velocity
       WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar,'ES16.7)'
       WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
       WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
+#if USE_FV
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar_FV,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_FV
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_FV
+#endif /*FV*/
+#else /*discrete_velocity*/
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',5,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_DVM
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_DVM
+#endif /*discrete_velocity*/
     END IF
   END IF
 #ifdef PARTICLES
@@ -1486,16 +1617,6 @@ IF(DoPerformErrorCalc)THEN
     END IF
   END IF
 #endif /* PARTICLES */
-#if USE_FV
-  IF(DoCalcErrorNorms) THEN
-    ! Graphical output
-    IF(MPIroot) THEN
-      WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar_FV,'ES16.7)'
-      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_FV
-      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_FV
-    END IF
-  END IF
-#endif /*FV*/
   IF(EndAnalyzeTime.LT.0.0) EndAnalyzeTime=PICLASTIME()
   IF(MPIroot) THEN
     ! write out has to be "Sim time" due to analyzes in reggie. Reggie searches for exactly this tag
