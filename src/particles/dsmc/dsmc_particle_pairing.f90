@@ -73,7 +73,7 @@ INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 nPart = PEM%pNumber(iElem)
-CNElemID = GetCNElemID(iElem+offSetElem
+CNElemID = GetCNElemID(iElem+offSetElem)
 
 IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
