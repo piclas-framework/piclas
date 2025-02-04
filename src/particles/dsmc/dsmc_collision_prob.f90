@@ -61,7 +61,7 @@ REAL, INTENT(IN), OPTIONAL          :: NodeVolume
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, PairType
+INTEGER                             :: iPType, NbrOfReaction, iPart_p1, iPart_p2, iSpec_p1, iSpec_p2, iCase, PairType, CNElemID
 REAL                                :: SpecNum1, SpecNum2, Weight1, Weight2, Volume, CollProb
 REAL                                :: aCEX, bCEX, aMEX, bMEX, aEL, bEL, sigma_tot, MacroParticleFactor, dtCell, CollCaseNum
 !===================================================================================================================================
@@ -76,7 +76,8 @@ iPType = Species(iSpec_p1)%InterID + Species(iSpec_p2)%InterID !definition of co
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offsetElem)
+  Volume = ElemVolume_Shared(CNElemID)
 END IF
 
 SpecNum1 = CollInf%Coll_SpecPartNum(iSpec_p1)

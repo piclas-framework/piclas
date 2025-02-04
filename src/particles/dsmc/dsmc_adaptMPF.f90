@@ -871,7 +871,7 @@ DO iElem =1, nElems
   CNElemID = GetCNElemID(iElem+offsetElem)
   ! Set the optimal MPF to zero and recalculate it based on the surrounding node values
   OptimalMPF_Shared(CNElemID) = 0.
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   DO iNode = 1, 8
     OptimalMPF_Shared(CNElemID) = OptimalMPF_Shared(CNElemID) + PartWeightAtNode(1,NodeID(iNode))
   END DO

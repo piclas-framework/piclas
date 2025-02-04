@@ -789,7 +789,7 @@ LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
 LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
-INTEGER            :: iPart,iElem, iDim
+INTEGER            :: iPart,iElem,iDim,CNElemID
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -834,8 +834,8 @@ END DO
 
 DO iElem=1, nElems
   !PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-  PS_N(iElem)%PartSource(SourceDim:4,:,:,:) = PS_N(iElem)%PartSource(SourceDim:4,:,:,:) &
-                                            / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  PS_N(iElem)%PartSource(SourceDim:4,:,:,:) = PS_N(iElem)%PartSource(SourceDim:4,:,:,:) / ElemVolume_Shared(CNElemID)
 END DO
 
 #if USE_LOADBALANCE

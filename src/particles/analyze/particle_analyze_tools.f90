@@ -402,7 +402,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iPart,iElem
+INTEGER :: iPart,iElem,CNElemID
 REAL    :: charge, MPF
 #if USE_HDG
 INTEGER :: RegionID
@@ -463,9 +463,10 @@ END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
-  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
-   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(CNElemID)
+       IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(CNElemID)
+   NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(CNElemID)
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculateElectronIonDensityCell
@@ -1155,7 +1156,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: iSpec,bgSpec,iElem
+INTEGER                           :: iSpec,bgSpec,iElem,CNElemID
 REAL                              :: DistriNumDens(1:BGGas%NumberOfSpecies)
 !===================================================================================================================================
 ! Initialize
@@ -1170,8 +1171,9 @@ DO iSpec = 1, nSpecies
     DistriNumDens(bgSpec) = 0.
     DO iElem = 1, nElems
       ! Calculate mass per element (divide by total mesh volume later on)
+      CNElemID = GetCNElemID(iElem+offSetElem)
       DistriNumDens(bgSpec) = DistriNumDens(bgSpec) &
-                            + BGGas%Distribution(bgSpec,7,iElem) * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+                            + BGGas%Distribution(bgSpec,7,iElem) * ElemVolume_Shared(CNElemID)
     END DO ! iElem = 1, nElems
   END IF
 END DO
@@ -2874,7 +2876,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER              :: iElem,CNElemID
 !===================================================================================================================================
 ! Nullify
 IonizationCell        = 0.
@@ -2900,7 +2902,8 @@ DO iElem=1,PP_nElems
       ! Set quasi neutrality between zero and unity depending on which density is larger
       ! Quasi neutrality holds, when n_e ~ Z_i*n_i (electron density approximately equal to ion density multiplied with charge number)
       ! 1.  Calculate Z_i*n_i (Charge density cell average)
-      Q = ChargeNumberCell(iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      Q = ChargeNumberCell(iElem) / ElemVolume_Shared(CNElemID)
 
       ! 2.  Calculate the quasi neutrality parameter: should be near to 1 for quasi-neutrality
       IF(Q.GT.n_e)THEN
@@ -2987,14 +2990,15 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER              :: iElem,CNElemID
 REAL                 :: PIFac
 !===================================================================================================================================
 SELECT CASE(Symmetry%Order)
 CASE(1)
   DO iElem=1,PP_nElems
+    CNElemID = GetCNElemID(iElem+offSetElem)
     IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
-      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / ElemCharLengthX_Shared(GetCNElemID(iElem+offSetElem)) &
+      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / ElemCharLengthX_Shared(CNElemID) &
                                       * (DebyeLengthCell(iElem))
     ELSE
       NumPlasmaParameterCell(iElem) = 0.0
@@ -3002,9 +3006,10 @@ CASE(1)
   END DO ! iElem=1,PP_nElems
 CASE(2)
   DO iElem=1,PP_nElems
+    CNElemID = GetCNElemID(iElem+offSetElem)
     IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
-      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / (ElemCharLengthX_Shared(GetCNElemID(iElem+offSetElem)) &
-                                      * ElemCharLengthY_Shared(GetCNElemID(iElem+offSetElem))) * (DebyeLengthCell(iElem)**2)
+      NumPlasmaParameterCell(iElem) = REAL(ElectronSimNumberCell(iElem)) / (ElemCharLengthX_Shared(CNElemID) &
+                                      * ElemCharLengthY_Shared(CNElemID)) * (DebyeLengthCell(iElem)**2)
     ELSE
       NumPlasmaParameterCell(iElem) = 0.0
     END IF
@@ -3012,8 +3017,9 @@ CASE(2)
 CASE(3)
   PIFac = (4.0/3.0) * PI
   DO iElem=1,PP_nElems
+    CNElemID = GetCNElemID(iElem+offSetElem)
     IF((DebyeLengthCell(iElem).GT.0.0).AND.(ElectronSimNumberCell(iElem).GT.0))THEN
-      NumPlasmaParameterCell(iElem) = PIFac * REAL(ElectronSimNumberCell(iElem)) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem)) &
+      NumPlasmaParameterCell(iElem) = PIFac * REAL(ElectronSimNumberCell(iElem)) / ElemVolume_Shared(CNElemID) &
                                       * (DebyeLengthCell(iElem)**3)
     ELSE
       NumPlasmaParameterCell(iElem) = 0.0
@@ -3046,7 +3052,7 @@ CHARACTER(LEN=*),INTENT(IN)     :: mode                         !< Mode: 'before
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iElem, iSpec
+INTEGER                         :: iElem, iSpec, CNElemID
 !===================================================================================================================================
 
 IF(.NOT.isChargedParticle(iPart)) RETURN
@@ -3062,8 +3068,9 @@ CASE('after')
   PCouplAverage = PCouplAverage + EDiff
   iElem         = PEM%LocalElemID(iPart)
   iSpec         = PartSpecies(iPart)
+  CNElemID = GetCNElemID(iElem+offSetElem)
   PCouplSpec(iSpec)%DensityAvgElem(iElem) = PCouplSpec(iSpec)%DensityAvgElem(iElem) &
-    + EDiff/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    + EDiff/ElemVolume_Shared(CNElemID)
 END SELECT
 
 END SUBROUTINE CalcCoupledPowerPart
