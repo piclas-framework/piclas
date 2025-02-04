@@ -335,7 +335,7 @@ stages:
       - build_radiation
   cache:
     - *reggie_cache
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
       paths:
         - build_DSMC_release
         - build_radiation
