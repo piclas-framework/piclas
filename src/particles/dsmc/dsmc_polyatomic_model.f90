@@ -321,8 +321,7 @@ IF(DSMC%RotRelaxModel.EQ.1)THEN
   END IF
   ! read in rotational levels for asymmetric tops for RotRelaxModel 1 (read in for all species happens only for RotRelaxModel 2)
   IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN
-    CALL ABORT(__STAMP__,'At least one species consists of asymmetric top molecules, where quantized energy cannot be calculated &
-      analytically! Quantized rotational relaxation with a database of energy levels and degeneracies not tested yet!')
+    CALL ABORT(__STAMP__,'At least one species consists of asymmetric top molecules, where quantized energy cannot be calculated analytically! Quantized rotational relaxation with a database of energy levels and degeneracies not tested yet!')
     ! CALL ReadRotationalSpeciesLevel(iSpec)
   END IF
 END IF

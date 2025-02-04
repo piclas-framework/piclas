@@ -831,7 +831,7 @@ END DO
 DO iProd = 1, NumProd
   IF ((Species(ProductReac(iProd))%InterID.EQ.2).OR.(Species(ProductReac(iProd))%InterID.EQ.20)) THEN
     FakXi = FakXi - 0.5*SpecDSMC(ProductReac(iProd))%Xi_Rot
-    IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+    IF(SpecDSMC(ProductReac(iProd))%PolyatomicMol) THEN
       CALL RotRelaxPolyRoutineFuncPTR(iPair, ReactInx(iProd), FakXi)
     ELSE
       CALL RotRelaxDiaRoutineFuncPTR(iPair, ReactInx(iProd), FakXi)

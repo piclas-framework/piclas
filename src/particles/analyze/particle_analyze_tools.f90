@@ -2252,7 +2252,7 @@ REAL FUNCTION CalcTRotQuant(MeanERot, iSpec)
 ! MODULES
 USE MOD_Globals       ,ONLY: Abort
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PlanckConst, PI, ElementaryCharge
-USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC, DSMC
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2264,10 +2264,10 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                 :: iPolyatMole, iLoop, kLoop, iDOF, iQuant, CutOffPartition
+INTEGER                 :: iPolyatMole, iLoop, kLoop, CutOffPartition
 REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
 REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
-REAL                    :: Qrot, SumOne, SumTwo, EVib
+REAL                    :: Qrot, SumOne, SumTwo
 REAL,PARAMETER          :: eps_prec=1E-15                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 ! lower limit: very small value or lowest temperature if ionized

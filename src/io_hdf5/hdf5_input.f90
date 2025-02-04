@@ -289,7 +289,7 @@ LOGICAL,INTENT(OUT)                  :: Exists          !< result: dataset exist
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER(HID_T)                       :: Loc_ID
-LOGICAL                              :: attrib_loc, group_loc
+LOGICAL                              :: attrib_loc
 !==================================================================================================================================
 Loc_ID=Loc_ID_in
 IF (PRESENT(attrib)) THEN

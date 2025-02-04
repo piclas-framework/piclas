@@ -1360,7 +1360,7 @@ REAL FUNCTION CalcERotQuant_particle(iSpec,TRot,iPart)
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst, PlanckConst, PI
-USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, DSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1407,7 +1407,7 @@ IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN            ! diatomic case
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
   END IF
-  jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT((1+jMax)*iRan)
   DO WHILE (ARM)
@@ -1443,7 +1443,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
   END IF
-  jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
   ! ARM
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT((1+jMax)*iRan)
@@ -1481,7 +1481,7 @@ ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
   END IF
-  jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
   ! ARM
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT((1+jMax)*iRan)
@@ -1555,7 +1555,7 @@ ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.PolyatomMolDSMC(
     END DO
     SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
   END IF
-  jMax = SpecDSMC(iSpec)%jMaxAtTemp(2)
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
   ! roll quantum numbers
   CALL RANDOM_NUMBER(iRan)
   iQuant = INT((1+jMax)*iRan)

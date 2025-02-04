@@ -1213,8 +1213,7 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
 ELSE
   IF(DSMC%RotRelaxProb.EQ.3.0)THEN ! only for N2 with NDD Model
     IF(DSMC%RotRelaxModel.NE.0)THEN
-      CALL ABORT(__STAMP__,'ERROR in ProcessRotRelaxGimelshein: Rotational relaxation model (NDD) not tested for quantized &
-                           treatment of rotational relaxation')
+      CALL ABORT(__STAMP__,'ERROR in ProcessRotRelaxGimelshein: Rotational relaxation model (NDD) not tested for quantized treatment of rotational relaxation')
     ELSE
       CALL RANDOM_NUMBER(iRan)
       LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot

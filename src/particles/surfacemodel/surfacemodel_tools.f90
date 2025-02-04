@@ -624,7 +624,7 @@ REAL                  :: VibACC, RotACC, ElecACC
 REAL                  :: ErotNew, ErotWall, EVibNew
 REAL                  :: GroundLevel, VibPartitionTemp
 ! Polyatomic Molecules
-REAL                  :: NormProb, VibQuantNewR
+REAL                  :: VibQuantNewR
 REAL, ALLOCATABLE     :: RanNumPoly(:), VibQuantNewRPoly(:)
 INTEGER               :: iPolyatMole, iDOF, VibDOF
 INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
