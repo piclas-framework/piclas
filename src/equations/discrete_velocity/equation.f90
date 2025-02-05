@@ -232,6 +232,8 @@ REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in 
 REAL                            :: MacroVal(14)
 REAL                            :: WallVelo1, WallTemp1, WallVelo2, WallTemp2
 REAL                            :: SecondDist(PP_nVar_FV)
+REAL                            :: SodMacro_L(5), SodMacro_R(5), SodMacro_LL(5), SodMacro_M(5), SodMacro_RR(5)
+REAL                            :: gamma, Ggamma, beta, pL, pR, pM, cL, cR, cM, vs
 !==================================================================================================================================
 
 Resu   =0.
@@ -261,25 +263,52 @@ CASE(2) ! couette flow, L=1m between walls, RefState: 1 -> initial state, 2 -> y
 CASE(3) !sod shock
   Resu=0.
 
-  IF (x(1).LT.0.) THEN
-    CALL MaxwellDistribution(RefState(:,1),Resu(:))
-  ELSE
-    CALL MaxwellDistribution(RefState(:,2),Resu(:))
+  IF (tIn.EQ.0.) THEN ! initial state
+    IF (x(1).LT.0.) THEN
+      CALL MaxwellDistribution(RefState(:,1),Resu(:))
+    ELSE
+      CALL MaxwellDistribution(RefState(:,2),Resu(:))
+    END IF
+  ELSE ! analytical solution
+    MacroVal = 0.
+    SodMacro_L=RefState(1:5,1)
+    SodMacro_R=RefState(1:5,2)
+    SodMacro_LL = 0.         !     | L | LL | M | RR | R |
+    SodMacro_M = 0.
+    SodMacro_RR = 0.
+    gamma = 5./3. !monatomic gas
+    Ggamma = (gamma-1)/(gamma+1)
+    beta = (gamma-1)/gamma/2.
+    pL = DVMSpeciesData%R_S*SodMacro_L(1)*SodMacro_L(5)
+    pR = DVMSpeciesData%R_S*SodMacro_R(1)*SodMacro_R(5)
+    pM=(pL+pR)/2.
+    CALL SecantSod(pM, pL, pR, SodMacro_L(1), SodMacro_R(1), gamma, Ggamma, beta, 1e-15, 100)
+    cL = sqrt(gamma*DVMSpeciesData%R_S*SodMacro_L(5))
+    cR = sqrt(gamma*DVMSpeciesData%R_S*SodMacro_R(5))
+    cM = cL * (pM/pL)**beta
+    SodMacro_M(1) = SodMacro_L(1)*(pM/pL)**(1./gamma)
+    SodMacro_M(2) = (cL-cM)*2/(gamma-1)
+    SodMacro_M(5) = pM/DVMSpeciesData%R_S/SodMacro_M(1)
+    SodMacro_RR(1) = SodMacro_R(1)*(pM+Ggamma*pR)/(pR+Ggamma*pM)
+    SodMacro_RR(2) = SodMacro_M(2)
+    SodMacro_RR(5) = pM/DVMSpeciesData%R_S/SodMacro_RR(1)
+    vs = cR*sqrt((beta/Ggamma)*(pM/pR + Ggamma))
+    IF (x(1).LT.(-tIn*cL)) THEN
+      MacroVal(1:5) = SodMacro_L
+    ELSE IF (x(1).LT.(tIn*(SodMacro_M(2)-cM))) THEN
+      SodMacro_LL(2) = 2./(gamma+1.) * (cL + x(1)/tIn)
+      SodMacro_LL(1) = SodMacro_L(1) * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2./(gamma-1.))
+      SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/DVMSpeciesData%R_S/SodMacro_LL(1)
+      MacroVal(1:5) = SodMacro_LL
+    ELSE IF (x(1).LT.(tIn*SodMacro_M(2))) THEN
+      MacroVal(1:5) = SodMacro_M
+    ELSE IF (x(1).LT.(tIn*vs)) THEN
+      MacroVal(1:5) = SodMacro_RR
+    ELSE
+      MacroVal(1:5) = SodMacro_R
+    END IF
+    CALL MaxwellDistribution(MacroVal,Resu(:))
   END IF
-  ! IF (x(1).LT.(-tIn*cL)) THEN
-  !   CALL MaxwellDistribution(SodMacro_L,Resu(:))
-  ! ELSE IF (x(1).LT.(tIn*(SodMacro_M(2)-cM))) THEN
-  !   SodMacro_LL(2) = 2./(gamma+1.) * (cL + x(1)/tIn)
-  !   SodMacro_LL(1) = SodMacro_L(1) * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2./(gamma-1.))
-  !   SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/DVMSpeciesData%R_S/SodMacro_LL(1)
-  !   CALL MaxwellDistribution(SodMacro_LL,Resu(:))
-  ! ELSE IF (x(1).LT.(tIn*SodMacro_M(2))) THEN
-  !   CALL MaxwellDistribution(SodMacro_M,Resu(:))
-  ! ELSE IF (x(1).LT.(tIn*vs)) THEN
-  !   CALL MaxwellDistribution(SodMacro_RR,Resu(:))
-  ! ELSE
-  !   CALL MaxwellDistribution(SodMacro_R,Resu(:))
-  ! END IF
 
 CASE(5) !Taylor-Green vortex
   MacroVal(:) = RefState(:,1)
@@ -301,29 +330,68 @@ END SELECT ! ExactFunction
 
 END SUBROUTINE ExactFunc
 
+
+SUBROUTINE SecantSod(pM, pL, pR, rhoL, rhoR, gamma, Ggamma, beta, eps, maxit)
+!==================================================================================================================================
+!> Secant method to get Sod shock middle state
+!==================================================================================================================================
+! MODULES
+USE MOD_Globals
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+REAL,INTENT(IN)     :: pL, pR, rhoL, rhoR, gamma, Ggamma, beta, eps
+INTEGER,INTENT(IN)  :: maxit
+REAL,INTENT(INOUT)  :: pM
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: i
+REAL    :: u3, u4, pMold, pMnew, diffold
+!==================================================================================================================================
+pMold = 2*pM
+u3 = (pL**beta-pMold**beta)*SQRT(((1.-Ggamma**2)*pL**(1./gamma))/(Ggamma**2 * rhoL))
+u4 = (pMold-pR)*SQRT((1.-Ggamma)/(rhoR*(pMold+Ggamma*pR)))
+diffold = u3-u4
+
+DO i=1, maxit
+  u3 = (pL**beta-pM**beta)*SQRT(((1.-Ggamma**2)*pL**(1./gamma))/(Ggamma**2 * rhoL))
+  u4 = (pM-pR)*SQRT((1.-Ggamma)/(rhoR*(pM+Ggamma*pR)))
+  pMnew = pM - (u3-u4)*(pM-pMold)/(u3-u4-diffold)
+  pMold = pM
+  pM = pMnew
+  diffold = u3-u4
+  IF (ABS(pM-pMold).LT.eps) RETURN
+END DO
+
+SWRITE(UNIT_stdOut,*) 'NewtonSod: max number of iterations reached'
+
+END SUBROUTINE SecantSod
+
+
 SUBROUTINE CalcSource(t,coeff,Ut)
-!===================================================================================================================================
+!==================================================================================================================================
 ! Dummy
-!===================================================================================================================================
+!==================================================================================================================================
 ! MODULES
 USE MOD_Globals           ,ONLY: abort
 USE MOD_Globals_Vars      ,ONLY: PI,eps0
 USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t,coeff
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
+!----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 
-!===================================================================================================================================
+!==================================================================================================================================
 
 
 END SUBROUTINE CalcSource
+
 
 !==================================================================================================================================
 !> Finalizes the equation

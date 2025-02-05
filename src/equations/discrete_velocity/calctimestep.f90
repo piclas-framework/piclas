@@ -38,7 +38,8 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ,Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV
+USE MOD_Mesh_Vars     ,ONLY: sJ
+USE MOD_Mesh_Vars_FV  ,ONLY: Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV
 USE MOD_Equation_Vars_FV,      ONLY:DVMVelos, DVMnVelos
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale
 ! IMPLICIT VARIABLE HANDLING
