@@ -733,6 +733,7 @@ USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCe
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -850,6 +851,8 @@ DO iBC=1,countDataBC
                   yMaxTemp = ymin + iSub * (ymax - ymin) / ParticleWeighting%nSubSides
                   IF (yMaxTemp-yMinTemp.LE.0.) THEN
                     BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:) = 0.
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &
+                                                    + ymax/(GEO%ymaxglob)*(ParticleWeighting%ScaleFactor-1.)
                     EXIT
                   END IF
                   BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = 1.          &
