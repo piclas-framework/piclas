@@ -811,6 +811,7 @@ DO iBC=1,countDataBC
         END IF
         IF(Symmetry%Axisymmetric.AND.ParticleWeighting%PerformCloning) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides)=0.
         END IF
       END IF
     END DO
@@ -847,11 +848,16 @@ DO iBC=1,countDataBC
                 DO iSub = 1, ParticleWeighting%nSubSides
                   yMinTemp = ymin + (iSub-1) * (ymax - ymin) / ParticleWeighting%nSubSides
                   yMaxTemp = ymin + iSub * (ymax - ymin) / ParticleWeighting%nSubSides
+                  IF (yMaxTemp-yMinTemp.LE.0.) THEN
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:) = 0.
+                    EXIT
+                  END IF
                   BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = 1.          &
                     + (yMaxTemp**2/(GEO%ymaxglob*2.)*(ParticleWeighting%ScaleFactor-1.) &
                     -  yMinTemp**2/(GEO%ymaxglob*2.)*(ParticleWeighting%ScaleFactor-1.))/(yMaxTemp - yMinTemp)
                 END DO
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
+                IF (ANY(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:).GT.0.)) &
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
               BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &

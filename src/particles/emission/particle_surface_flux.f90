@@ -751,7 +751,7 @@ INTEGER                     :: iSub, iPart, iPartSub, allowedRejectionsSub
 !===================================================================================================================================
 iPart=1
 allowedRejections = 0
-IF (ParticleWeighting%PerformCloning.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
+IF (ParticleWeighting%PerformCloning.AND.(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).GT.0.)) THEN
   IF(ParticleWeighting%UseCellAverage) THEN
     DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
       CALL RANDOM_NUMBER(RandVal1)
@@ -798,7 +798,7 @@ IF (ParticleWeighting%PerformCloning.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+
 ELSE
   DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
     CALL RANDOM_NUMBER(RandVal1)
-    IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+    IF (Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).EQ.0.) THEN
       ! y_min = y_max, faces parallel to x-direction, constant distribution
       Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
     ELSE
@@ -860,13 +860,15 @@ PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec
 
 IF (Symmetry%Axisymmetric) THEN
   IF(.NOT.ParticleWeighting%UseCellAverage) THEN
-    IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).GT.0.) THEN
       PartInsSubSide = 0
       DO iSub = 1, ParticleWeighting%nSubSides
         CALL RANDOM_NUMBER(RandVal)
         ParticleWeighting%PartInsSide(iSub) = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
                 * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal)
         PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
+        ! write(*,*)PartInsSubSide,ParticleWeighting%PartInsSide(iSub) , Species(iSpec)%Surfaceflux(iSF)%PartDensity , Species(iSpec)%MacroParticleFactor &
+        !         , dtVar,RKdtFrac , Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)
       END DO
     END IF
   END IF
