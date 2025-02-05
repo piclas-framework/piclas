@@ -1,8 +1,11 @@
 # Negative Streamer Discharge (PIC, Poisson's Equation)
 
-## Drift-Diffusion Electron Fluid
+This test case describes the simulation of streamer formation. A neutral gas is seeded with a small number of electrons between two planar electrodes. The evolution follows a well-known pattern: initial electron density increases due to ionization, leading to charge separation as oppositely charged particles drift in the electric field. This distortion of the initially uniform field results in localized screening, eventually halting ionization within the ionized region. As a result, characteristic ionization front profiles of electron and ion densities, as well as the electric field, emerge, marking the transition from an ionization avalanche to a fully developed streamer.
 
-Streamers, as seen in lightning and sprite events, are also observed in industrial applications such as lighting, purification of dirty gases and water, plasma jets and bullets for disinfection, and plasma-assisted combustion. Using this setup, a 1D streamer simulation will be carried out using PICLas.
+In this tutorial, the streamer formation will be simulated using two different modeling approaches. First, we employ an electron fluid model, where instead of modeling electrons kinetically as particles, their density evolution is described using a fluid approach. However, ions continue to be treated as particles, resulting in a hybrid fluid-kinetic modeling approach. Next, we simulate the streamer formation using the classical PIC-MCC method. Finally, both models are compared to evaluate their respective strengths and differences.
+
+
+## Drift-Diffusion Electron Fluid
 
 Before beginning with the tutorial, copy the `pic-poisson-streamer` from the tutorial folder in the top level directory to a separate location.
 
