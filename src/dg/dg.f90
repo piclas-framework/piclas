@@ -416,7 +416,7 @@ CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
-#endif /*USE_HDG and USE_FV*/
+#endif /*USE_HDG*/
 
 #ifdef PP_POIS
 
