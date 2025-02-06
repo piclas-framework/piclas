@@ -316,7 +316,7 @@ LOGICAL,INTENT(OUT)              :: ThroughSide
 ! LOCAL VARIABLES
 INTEGER                          :: CNElemID
 REAL                             :: xNode(2), yNode(2), POI(2) , locAlpha, VecPart(2), VecEdge(2)
-REAL                             :: t(2),tmpPoint, PartP1(2), PartP2(2),denominator
+REAL                             :: t(2),tmpPoint, PartP1(2), PartP2(2),denominator, minComp
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(Element)
@@ -348,9 +348,9 @@ VecPart = PartP2-PartP1
 VecEdge(1) = xNode(2)-xNode(1)
 VecEdge(2) = yNode(2)-yNode(1)
 denominator = VecPart(1)*VecEdge(2) - VecPart(2)*VecEdge(1)
-
+minComp = MIN(ABS(VecPart(1)*VecEdge(2)),ABS(VecPart(2)*VecEdge(1)))
 ! Check if the lines are parallel
-IF (ABS(denominator).LT.EpsMach) RETURN
+IF (ABS(denominator).LT.EpsMach*minComp) RETURN
 
 t(1) = ((xNode(1)-PartP1(1))*VecEdge(2)-(yNode(1)-PartP1(2))*VecEdge(1))/denominator
 t(2) = ((xNode(1)-PartP1(1))*VecPart(2)-(yNode(1)-PartP1(2))*VecPart(1))/denominator
