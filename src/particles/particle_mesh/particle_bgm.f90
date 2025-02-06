@@ -106,6 +106,7 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -122,7 +123,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
