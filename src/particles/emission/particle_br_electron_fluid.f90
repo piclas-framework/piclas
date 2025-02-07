@@ -936,7 +936,7 @@ LOGICAL,INTENT(IN)             :: CreateFromRestartFile
 ! LOCAL VARIABLES
 !REAL,DIMENSION(1,1:PP_nElems)  :: ElectronDensityCell,ElectronTemperatureCell
 REAL,ALLOCATABLE               :: ElectronDensityCell(:,:),ElectronTemperatureCell(:,:)
-INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID,CNElemID,CNElemID
+INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID,CNElemID
 REAL                           :: PartPosRef(1:3),ElemTemp
 CHARACTER(32)                  :: hilf
 CHARACTER(1)                   :: hilf2
