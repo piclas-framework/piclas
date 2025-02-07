@@ -1067,7 +1067,7 @@ NIG_Radiation:
 
 NIG_drift_diffusion:
   <<: *defaults_drift_diffusion_nightly
-  stage: reggie_tutorials
+  stage: reggie_nightly
   script:
     - cd build_drift_diffusion ; reggie ../regressioncheck/NIG_drift_diffusion_explicit-FV
 
