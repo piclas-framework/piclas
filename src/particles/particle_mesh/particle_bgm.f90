@@ -401,7 +401,7 @@ IF(GEO%InitFIBGM) THEN
   END IF
 
 ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' | FIBGM is not builded, if you want to force the build set "Part-ForceFIBGM" to true'
+  LBWRITE(UNIT_stdOut,'(A)') ' | FIBGM not built, if you want to force the build set "Part-ForceFIBGM" to true'
   GEO%AutomaticFIBGM=.FALSE.
 END IF
 ! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
