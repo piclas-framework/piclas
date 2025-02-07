@@ -83,6 +83,9 @@ USE MOD_MPI_Vars           ,ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISi
 USE MOD_MPI_Vars           ,ONLY: nMPISides_rec, OffsetMPISides_rec
 USE MOD_LoadBalance_Vars   ,ONLY: writePartitionInfo,DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #endif
+#if USE_FV
+USE MOD_Mesh_Vars_FV       ,ONLY: IsPeriodicSide
+#endif /*USE_FV*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -286,6 +289,11 @@ DO iElem=FirstElemInd,LastElemInd
             iSide=iSide+1
             aSide%SideID=iInnerSide            ! set SideID for this side
             aSide%connection%SideID=iInnerSide ! and set same SideID for connected side
+#if USE_FV
+            IF(aSide%BCIndex.GE.1) THEN
+              IF(BoundaryType(aSide%BCIndex,BC_TYPE).EQ.1) IsPeriodicSide(iInnerSide)=.TRUE.
+            END IF
+#endif
           ELSE  ! side has no connection => big Mortar or BC side
             IF(aSide%MortarType.GT.0) THEN ! if big Mortar side
               IF(aSide%tmp.EQ.-1)THEN         ! if MPI Mortar side

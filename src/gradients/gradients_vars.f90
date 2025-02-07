@@ -38,8 +38,6 @@ REAL,ALLOCATABLE                      :: Grad_SysSol_slave(:,:)
 REAL,ALLOCATABLE                      :: Grad_SysSol_master(:,:)
 REAL,ALLOCATABLE                      :: Grad_SysSol_BC(:,:)
 
-REAL                                  :: Grad_PerBoxMin(3),Grad_PerBoxMax(3)
-
 ! Limiter
 INTEGER                               :: GradLimiterType
 REAL                                  :: GradLimVktK

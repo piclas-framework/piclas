@@ -289,6 +289,12 @@ ELSE
 END IF
 #endif /*USE_LOADBALANCE*/
 
+! initialize flag for gradient calculations (filled in setLocalSideIDs)
+#if USE_FV
+ALLOCATE(IsPeriodicSide(1:nSides))
+IsPeriodicSide(:)=.FALSE.
+#endif /*USE_FV*/
+
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING setLocalSideIDs..."

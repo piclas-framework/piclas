@@ -44,6 +44,7 @@ REAL,ALLOCATABLE :: Vdm_CLN_N_PP_1(:,:)
 REAL,ALLOCATABLE :: XCL_N_PP_1(:,:,:,:,:)             !< mapping X(xi) P\in N
 REAL,ALLOCATABLE :: dXCL_N_PP_1(:,:,:,:,:,:)    !< jacobi matrix of the mapping P\in NGeo
 REAL,ALLOCATABLE :: JaCL_N_PP_1(:,:,:,:,:,:)    !< metric terms P\in N
+LOGICAL,ALLOCATABLE :: IsPeriodicSide(:)        !< Periodic flag for gradient calculations
 
 #if USE_HDG
 INTEGER,ALLOCATABLE :: BoundaryType_FV(:,:) !< BCType    = BoundaryType(BC(SideID),BC_TYPE)
