@@ -39,10 +39,11 @@ SUBROUTINE InitGradMetrics(doMPISides)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars_FV,       ONLY: Face_xGP_FV, Elem_xGP_FV
-USE MOD_Mesh_Vars,          ONLY: SideToElem, firstBCSide,firstInnerSide, lastBCSide, firstMPISide_MINE, lastInnerSide
+USE MOD_Mesh_Vars_FV,       ONLY: Face_xGP_FV, Elem_xGP_FV, IsPeriodicSide
+USE MOD_Mesh_Vars,          ONLY: SideToElem, firstBCSide,firstInnerSide, lastBCSide, firstMPISide_MINE, lastInnerSide, xyzMinMax
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,lastMortarMPISide
-USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Grad_PerBoxMax, Grad_PerBoxMin
+USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave
+USE MOD_Mesh,               ONLY: GetMeshMinMaxBoundaries
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -52,10 +53,11 @@ IMPLICIT NONE
 LOGICAL, INTENT(IN)                    :: doMPISides
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: SideID, ElemID, firstSideID, lastSideID, iCoord
-REAL                                   :: Face_temp(3)
+INTEGER                                :: SideID, ElemID, firstSideID, lastSideID, iCoord, PeriodicDim
+REAL                                   :: Face_temp(3), CloseToTheEdge(6)
 !==================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') '  Build Gradient Metrics ...'
+CALL GetMeshMinMaxBoundaries()
 
 IF(doMPISides)THEN
     ! only YOUR MPI Sides are filled
@@ -70,18 +72,24 @@ END IF
 DO SideID=firstSideID,lastSideID
     ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
     IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
-    DO iCoord=1,3
-    ! If x is greater than the domain, which means we are in the new periodic domain on the right
-    IF (Face_xGP_FV(iCoord,0,0,SideID).GE.Grad_PerBoxMax(iCoord))  THEN
-        Face_temp(iCoord) = Face_xGP_FV(iCoord,0,0,SideID)+Grad_PerBoxMin(iCoord)-Grad_PerBoxMax(iCoord)
-    ! If x is smaller than the domain, which means we are in the other domain on the left
-    ELSE IF (Face_xGP_FV(iCoord,0,0,SideID).LE.Grad_PerBoxMin(iCoord)) THEN
-        Face_temp(iCoord) = Face_xGP_FV(iCoord,0,0,SideID)+Grad_PerBoxMax(iCoord)-Grad_PerBoxMin(iCoord)
-    ! If we are in the defined domain
-    ELSE
-        Face_temp(iCoord) = Face_xGP_FV(iCoord,0,0,SideID)
+    Face_temp(:) = Face_xGP_FV(:,0,0,SideID)
+    IF (IsPeriodicSide(SideID)) THEN
+      ! Only master coordinates in Face_xGP but need coordinates of periodic slave side for distance to slave element
+      ! Currently only works for xyz-aligned periodic vectors
+      DO iCoord=1,3
+        CloseToTheEdge(2*iCoord-1) = ABS(Face_xGP_FV(iCoord,0,0,SideID)-xyzMinMax(2*iCoord-1))
+        CloseToTheEdge(2*iCoord)   = ABS(Face_xGP_FV(iCoord,0,0,SideID)-xyzMinMax(2*iCoord))
+      END DO
+      ! get up or get down
+      PeriodicDim = MINLOC(CloseToTheEdge,1)
+      ! If Face_xGP close to a maximum edge, slave side is at the minimum edge
+      IF (MOD(PeriodicDim,2).EQ.0)  THEN
+        Face_temp(PeriodicDim/2) = xyzMinMax(PeriodicDim-1)
+      ! If Face_xGP close to a minimum edge, slave side is at the maximum edge
+      ELSE
+        Face_temp(PeriodicDim*2-1) = xyzMinMax(PeriodicDim+1)
+      END IF
     END IF
-    END DO
     Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP_FV(:,0,0,0,ElemID)
 END DO
 

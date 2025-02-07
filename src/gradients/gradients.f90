@@ -44,8 +44,6 @@ CALL prms%SetSection("Gradients")
 
 CALL prms%CreateIntOption('Grad-LimiterType',"Type of slope limiter of second order reconstruction", '9')
 CALL prms%CreateRealOption('Grad-VktK',"K parameter for Venkatakrishnan limiter", '1.')
-CALL prms%CreateRealArrayOption('Grad-PeriodicBoxMin', "Minimum coordinates of the periodic box", "(/-Inf, -Inf, -Inf/)")
-CALL prms%CreateRealArrayOption('Grad-PeriodicBoxMax', "Maximum coordinates of the periodic box", "(/Inf, Inf, Inf/)")
 
 END SUBROUTINE DefineParametersGradients
 
@@ -107,9 +105,6 @@ CASE(9) ! no limiter (central)
 CASE DEFAULT
   CALL abort(__STAMP__,'Limiter type not implemented.')
 END SELECT
-
-Grad_PerBoxMin(:)=GETREALARRAY('Grad-PeriodicBoxMin',3)
-Grad_PerBoxMax(:)=GETREALARRAY('Grad-PeriodicBoxMax',3)
 
 !calculate face to center distances for reconstruction
 #if USE_MPI
