@@ -688,8 +688,8 @@ END SELECT
 WRITE(UNIT=hilf3,FMT='(G0)') SFAdaptiveDOFDefault
 SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF',TRIM(hilf3))
 
-LBWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF =", SFAdaptiveDOF
-LBWRITE(UNIT_StdOut,'(A,A19,A,F10.2)') " Maximum allowed is ",TRIM(hilf2)," =", DOFMax
+LBWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF :", SFAdaptiveDOF
+LBWRITE(UNIT_StdOut,'(A,A19,A,F10.2,A,I0,A)') " Maximum allowed is ",TRIM(hilf2)," :", DOFMax," (calculated for N=",PP_N,")"
 LBWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
 LBWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
 LBWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
