@@ -875,12 +875,18 @@ NIG_PIC_poisson_Leapfrog_Release:
       #   script:
       #     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog_not_working/
 
-# Sme reggies only work on single node, e.g., ray tracing
+# Some reggies only work on single node, e.g., ray tracing
 NIG_PIC_poisson_Leapfrog_single_node_Release:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog_single_node/
+  rules:
+    - if: '$DO_CORE_SPLIT'
+      when: never
+    - if: '$DO_NODE_SPLIT'
+      when: never
+    - if: '$DO_NIGHTLY'
 
 NIG_poisson:
   <<: *defaults_nightly
