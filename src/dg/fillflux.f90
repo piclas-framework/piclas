@@ -277,13 +277,6 @@ ELSE ! N_slave > N_master
     ! 4. copy flux from master side to slave side: DO not change sign
     Flux_Slave(:,:,:) = Fluxloc(:,:,:)
   END SELECT
-  !WRITE (*,*) " "
-  !WRITE (*,*) "SideID =", SideID
-  !DO q=0,N_slave; DO p=0,N_slave
-  !  WRITE (*,*) "NormVec =", NormVec(1:3,p,q),N_SurfMesh(SideID)%Face_xGP(1:3,p,q)
-  !END DO; END DO
-  !!write(*,*) Flux_Slave(1,:,:)
-  !read*
 END IF
 SDEALLOCATE(Uloc)
 SDEALLOCATE(Fluxloc)
