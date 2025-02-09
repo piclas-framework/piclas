@@ -470,11 +470,11 @@ END DO ! iElem = 1, nElems
 ! 3. Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar) to
 !    DielectricSurf(:)%Dielectric_dummy_Master, DielectricSurf(:)%Dielectric_dummy_Slave
 CALL ProlongToFace_TypeBased(doDielectricSides=.TRUE., doMPISides=.FALSE.)
-CALL U_Mortar(doDielectricSides=.TRUE., doMPISides=.FALSE.)
+CALL U_Mortar(               doDielectricSides=.TRUE., doMPISides=.FALSE.)
 
 #if USE_MPI
 CALL ProlongToFace_TypeBased(doDielectricSides=.TRUE., doMPISides=.TRUE.)
-CALL U_Mortar(doDielectricSides=.TRUE., doMPISides=.TRUE.)
+CALL U_Mortar(               doDielectricSides=.TRUE., doMPISides=.TRUE.)
 
 ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
 !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
@@ -484,6 +484,7 @@ CALL U_Mortar(doDielectricSides=.TRUE., doMPISides=.TRUE.)
 DO iSide=1,nSides
   N_master = DG_Elems_master(iSide)
   N_slave  = DG_Elems_slave(iSide)
+  IPWRITE(*,*) 'N_master,N_slave:', N_master,N_slave
   DO p=0,N_master
     DO q=0,N_master
       DielectricSurf(iSide)%Dielectric_dummy_Master2(1,p,q) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,p,q)
@@ -495,20 +496,20 @@ DO iSide=1,nSides
     END DO
   END DO
 END DO
-  !write(*,*) ""
-  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
-!     Dielectric_dummy_Slave2
+! SendID.EQ.2: Send Dielectric_dummy_Slave2
 CALL StartReceiveMPIDataType(       RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIDataTypeDielectric(SendRequest_U2,SendID=2) ! Send YOUR
 
 ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
-! Dielectric_dummy_Master2
+! SendID.EQ.1: Send Dielectric_dummy_Master2
 CALL StartReceiveMPIDataType(       RecRequest_U ,SendID=1) ! Receive YOUR
 CALL StartSendMPIDataTypeDielectric(SendRequest_U ,SendID=1) ! Send MINE
 
+! SendID.EQ.2: Fill Dielectric_dummy_Slave2
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
+! SendID.EQ.1: Fill Dielectric_dummy_Master2
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
 #endif /*USE_MPI*/
 
@@ -520,8 +521,10 @@ DO iSide =1, nSides
   N_master = DG_Elems_master(iSide)
   N_slave  = DG_Elems_slave(iSide)
 #if USE_MPI
-  DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:N_master,0:N_master)
-  DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave ) = DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:N_slave ,0:N_slave )
+  DielectricSurf(  iSide)%Dielectric_dummy_Master( 1,0:N_master,0:N_master) = &
+    DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:N_master,0:N_master)
+  DielectricSurf(  iSide)%Dielectric_dummy_Slave(  1,0:N_slave ,0:N_slave ) = &
+    DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:N_slave ,0:N_slave )
 #endif /*USE_MPI*/
   DielectricSurf(iSide)%Dielectric_Master = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
   DielectricSurf(iSide)%Dielectric_Slave  = DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave )
@@ -556,6 +559,7 @@ DO iSide = 1, nSides
       CALL ChangeBasis2D(1, N_master, N_master, N_Inter(N_master)%Vdm_Leg,      &
         DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave ), &
         DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master))
+      DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
     END IF ! N_master.EQ.N_slave
   END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
 END DO ! iSide = 1, nSides
