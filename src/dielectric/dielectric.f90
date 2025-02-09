@@ -525,12 +525,10 @@ DO iSide =1, nSides
 #endif /*USE_MPI*/
   DielectricSurf(iSide)%Dielectric_Master = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
   DielectricSurf(iSide)%Dielectric_Slave  = DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave )
-  !write(*,*) ""
 END DO ! iSide =1, nSides
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
-  ! 7. Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
-  !    master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
+! 7. Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
+!    master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
 DO iSide = 1, nSides
   MinSlave  = MINVAL(DielectricSurf(iSide)%Dielectric_Slave(:,:))
   MinMaster = MINVAL(DielectricSurf(iSide)%Dielectric_Master(:,:))
@@ -560,8 +558,6 @@ DO iSide = 1, nSides
         DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master))
     END IF ! N_master.EQ.N_slave
   END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
-
-
 END DO ! iSide = 1, nSides
 
 ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
@@ -574,6 +570,7 @@ DO iSide =1, nSides
   END IF
 END DO ! iSide =1, nSides
 
+! Cleanup: Deallocate
 DO iSide =1, nSides
   DEALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Slave)
   DEALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master)
@@ -582,7 +579,6 @@ DO iSide =1, nSides
   DEALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master2)
 #endif /*USE_MPI*/
 END DO ! iSide =1, nSides
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 END SUBROUTINE SetDielectricFaceProfile
 #endif /* not USE_HDG*/
