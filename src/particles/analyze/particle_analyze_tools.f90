@@ -674,9 +674,12 @@ SUBROUTINE CalcShapeEfficiencyR()
 ! Initializes variables necessary for analyse subroutines
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcShapeEfficiencyMethod, ShapeEfficiencyNumber
-USE MOD_Mesh_Vars             ,ONLY: nElems, N_VolMesh
-USE MOD_Particle_Mesh_Vars    ,ONLY: GEO
+USE MOD_Particle_Analyze_Vars       ,ONLY: CalcShapeEfficiencyMethod, ShapeEfficiencyNumber
+USE MOD_Mesh_Vars                   ,ONLY: nElems,N_VolMesh,offSetElem
+USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID,GetGlobalElemID
+USE MOD_Particle_Mesh_Vars          ,ONLY: ElemRadiusNGeo,ElemToElemMapping,ElemToElemInfo,ElemBaryNgeo,Elem_xGP_Shared
+USE MOD_PICDepo_Shapefunction_Tools ,ONLY: SFNorm,SFRadius2
+USE MOD_DG_Vars                     ,ONLY: N_DG_Mapping
 USE MOD_PICDepo_Vars
 USE MOD_Particle_Vars
 USE MOD_Preproc
@@ -693,13 +696,16 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                     :: NbrOfComps, NbrWithinRadius, NbrOfElems, NbrOfElemsWithinRadius
 REAL                     :: RandVal1
-LOGICAL                  :: chargedone(1:nElems), WITHIN
-INTEGER                  :: kmin, kmax, lmin, lmax, mmin, mmax
-INTEGER                  :: kk, ll, mm, ppp,m,l,k, i
-INTEGER                  :: ElemID
-REAL                     :: radius, deltax, deltay, deltaz
+LOGICAL,ALLOCATABLE      :: chargedone(:)
+LOGICAL                  :: WITHIN
+INTEGER                  :: kmin, kmax, lmin, lmax, mmin, mmax, Nloc, offSetDof
+INTEGER                  :: ppp,m,l,k, i
+! INTEGER                  :: ElemID
+REAL                     :: radius,radius2, deltax, deltay, deltaz, r
+INTEGER                  :: globElemID, CNElemID, OrigCNElemID, OrigElem, localElem
 !===================================================================================================================================
 
+ALLOCATE(chargedone(1:nElems))
 NbrOfComps = 0.
 NbrOfElems = 0.
 NbrWithinRadius = 0.
@@ -710,48 +716,41 @@ CASE('AllParts')
     IF (PDM%ParticleInside(i)) THEN
       chargedone(:) = .FALSE.
       !-- determine which background mesh cells (and interpolation points within) need to be considered
-      kmax = INT((PartState(1,i)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-      kmax = MIN(kmax,GEO%FIBGMimax)
-      kmin = INT((PartState(1,i)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-      kmin = MAX(kmin,GEO%FIBGMimin)
-      lmax = INT((PartState(2,i)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-      lmax = MIN(lmax,GEO%FIBGMjmax)
-      lmin = INT((PartState(2,i)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-      lmin = MAX(lmin,GEO%FIBGMjmin)
-      mmax = INT((PartState(3,i)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-      mmax = MIN(mmax,GEO%FIBGMkmax)
-      mmin = INT((PartState(3,i)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-      mmin = MAX(mmin,GEO%FIBGMkmin)
+      OrigElem = PEM%GlobalElemID(i)
+      OrigCNElemID = GetCNElemID(OrigElem)
+      SELECT CASE(TRIM(DepositionType))
+      CASE('shape_function_adaptive')
+        radius = SFElemr2_Shared(1,OrigCNElemID)
+      CASE DEFAULT
+        radius = r_sf
+      END SELECT
+      globElemID = OrigElem
       !-- go through all these cells
-      DO kk = kmin,kmax
-        DO ll = lmin, lmax
-          DO mm = mmin, mmax
-            !--- go through all mapped elements not done yet
-            DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-              WITHIN=.FALSE.
-              ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-              IF (.NOT.chargedone(ElemID)) THEN
-                NbrOfElems = NbrOfElems + 1.
-                !--- go through all gauss points
-                DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                  NbrOfComps = NbrOfComps + 1.
-                  !-- calculate distance between gauss and particle
-                  deltax = PartState(1,i) - N_VolMesh(ElemID)%Elem_xGP(1,k,l,m)
-                  deltay = PartState(2,i) - N_VolMesh(ElemID)%Elem_xGP(2,k,l,m)
-                  deltaz = PartState(3,i) - N_VolMesh(ElemID)%Elem_xGP(3,k,l,m)
-                  radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-                  IF (radius .LT. r2_sf) THEN
-                    WITHIN=.TRUE.
-                    NbrWithinRadius = NbrWithinRadius + 1.
-                  END IF
-                END DO; END DO; END DO
-                chargedone(ElemID) = .TRUE.
-              END IF
-              IF(WITHIN) NbrOfElemsWithinRadius = NbrOfElemsWithinRadius + 1.
-            END DO ! ppp
-          END DO ! mm
-        END DO ! ll
-      END DO ! kk
+      DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
+        IF (ppp.GT.0) globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,OrigCNElemID)+ppp))
+        CNElemID = GetCNElemID(globElemID)
+        IF (SFNorm(PartState(1:3,i)-ElemBaryNgeo(1:3,CNElemID)).GT.(radius+ElemRadiusNGeo(CNElemID))) CYCLE
+        localElem = globElemID-offSetElem
+        WITHIN=.FALSE.
+        IF (.NOT.chargedone(localElem)) THEN
+          NbrOfElems = NbrOfElems + 1.
+          !--- go through all gauss points
+          Nloc = N_DG_Mapping(2,globElemID)
+          offSetDof = N_DG_Mapping(1,globElemID)
+          DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
+            NbrOfComps = NbrOfComps + 1
+            r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
+            !-- calculate distance between gauss and particle
+            radius2 = SFRadius2(PartState(1:3,i) - Elem_xGP_Shared(1:3,offSetDof+r))
+            IF (radius2 .LT. r2_sf) THEN
+              WITHIN=.TRUE.
+              NbrWithinRadius = NbrWithinRadius + 1.
+            END IF
+          END DO; END DO; END DO
+          chargedone(localElem) = .TRUE.
+        END IF
+        IF(WITHIN) NbrOfElemsWithinRadius = NbrOfElemsWithinRadius + 1.
+      END DO ! ppp
     END IF ! inside
   END DO ! i
 IF(NbrOfComps.GT.0.0)THEN
@@ -767,53 +766,46 @@ CASE('SomeParts')
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       CALL RANDOM_NUMBER(RandVal1)
-      IF(RandVal1.LT.REAL(ShapeEfficiencyNumber)/100)THEN
+      IF(RandVal1.LT.REAL(ShapeEfficiencyNumber)/100.0)THEN
         chargedone(:) = .FALSE.
         !-- determine which background mesh cells (and interpolation points within) need to be considered
-        kmax = INT((PartState(1,i)+r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-        kmax = MIN(kmax,GEO%FIBGMimax)
-        kmin = INT((PartState(1,i)-r_sf-GEO%xminglob)/GEO%FIBGMdeltas(1)+1)
-        kmin = MAX(kmin,GEO%FIBGMimin)
-        lmax = INT((PartState(2,i)+r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-        lmax = MIN(lmax,GEO%FIBGMjmax)
-        lmin = INT((PartState(2,i)-r_sf-GEO%yminglob)/GEO%FIBGMdeltas(2)+1)
-        lmin = MAX(lmin,GEO%FIBGMjmin)
-        mmax = INT((PartState(3,i)+r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-        mmax = MIN(mmax,GEO%FIBGMkmax)
-        mmin = INT((PartState(3,i)-r_sf-GEO%zminglob)/GEO%FIBGMdeltas(3)+1)
-        mmin = MAX(mmin,GEO%FIBGMkmin)
+        OrigElem = PEM%GlobalElemID(i)
+        OrigCNElemID = GetCNElemID(OrigElem)
+        SELECT CASE(TRIM(DepositionType))
+        CASE('shape_function_adaptive')
+          radius = SFElemr2_Shared(1,OrigCNElemID)
+        CASE DEFAULT
+          radius = r_sf
+        END SELECT
+        globElemID = OrigElem
         !-- go through all these cells
-        DO kk = kmin,kmax
-          DO ll = lmin, lmax
-            DO mm = mmin, mmax
-              !--- go through all mapped elements not done yet
-              DO ppp = 1,GEO%FIBGM(kk,ll,mm)%nElem
-              WITHIN=.FALSE.
-                ElemID = GEO%FIBGM(kk,ll,mm)%Element(ppp)
-                IF (.NOT.chargedone(ElemID)) THEN
-                  NbrOfElems = NbrOfElems + 1
-                  !--- go through all gauss points
-                  DO m=0,PP_N; DO l=0,PP_N; DO k=0,PP_N
-                    NbrOfComps = NbrOfComps + 1
-                    !-- calculate distance between gauss and particle
-                    deltax = PartState(1,i) - N_VolMesh(ElemID)%Elem_xGP(1,k,l,m)
-                    deltay = PartState(2,i) - N_VolMesh(ElemID)%Elem_xGP(2,k,l,m)
-                    deltaz = PartState(3,i) - N_VolMesh(ElemID)%Elem_xGP(3,k,l,m)
-                    radius = deltax * deltax + deltay * deltay + deltaz * deltaz
-                    IF (radius .LT. r2_sf) THEN
-                      NbrWithinRadius = NbrWithinRadius + 1
-                      WITHIN=.TRUE.
-                    END IF
-                    END DO; END DO; END DO
-                    chargedone(ElemID) = .TRUE.
-                  END IF
-                  IF(WITHIN) NbrOfElemsWithinRadius = NbrOfElemsWithinRadius + 1
-                END DO ! ppp
-              END DO ! mm
-            END DO ! ll
-          END DO ! kk
-        END IF  ! RandVal
-      END IF ! inside
+        DO ppp = 0,ElemToElemMapping(2,OrigCNElemID)
+          IF (ppp.GT.0) globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,OrigCNElemID)+ppp))
+          CNElemID = GetCNElemID(globElemID)
+          IF (SFNorm(PartState(1:3,i)-ElemBaryNgeo(1:3,CNElemID)).GT.(radius+ElemRadiusNGeo(CNElemID))) CYCLE
+          localElem = globElemID-offSetElem
+          WITHIN=.FALSE.
+          IF (.NOT.chargedone(localElem)) THEN
+            NbrOfElems = NbrOfElems + 1
+            !--- go through all gauss points
+            Nloc = N_DG_Mapping(2,globElemID)
+            offSetDof = N_DG_Mapping(1,globElemID)
+            DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
+              NbrOfComps = NbrOfComps + 1
+              r=m*(Nloc+1)**2+l*(Nloc+1) + k+1
+              !-- calculate distance between gauss and particle
+              radius2 = SFRadius2(PartState(1:3,i) - Elem_xGP_Shared(1:3,offSetDof+r))
+              IF (radius2 .LT. r2_sf) THEN
+                NbrWithinRadius = NbrWithinRadius + 1
+                WITHIN=.TRUE.
+              END IF
+              END DO; END DO; END DO
+              chargedone(localElem) = .TRUE.
+          END IF
+          IF(WITHIN) NbrOfElemsWithinRadius = NbrOfElemsWithinRadius + 1
+        END DO ! ppp
+      END IF  ! RandVal
+    END IF ! inside
   END DO ! i
 IF(NbrOfComps.GT.0)THEN
 #if USE_MPI

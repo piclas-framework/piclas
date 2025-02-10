@@ -484,7 +484,6 @@ CALL U_Mortar(               doDielectricSides=.TRUE., doMPISides=.TRUE.)
 DO iSide=1,nSides
   N_master = DG_Elems_master(iSide)
   N_slave  = DG_Elems_slave(iSide)
-  IPWRITE(*,*) 'N_master,N_slave:', N_master,N_slave
   DO p=0,N_master
     DO q=0,N_master
       DielectricSurf(iSide)%Dielectric_dummy_Master2(1,p,q) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,p,q)

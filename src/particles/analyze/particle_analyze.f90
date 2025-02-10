@@ -688,6 +688,7 @@ END IF
 !-- Shape function efficiency
 CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency')
 IF (CalcShapeEfficiency) THEN
+  IF(.NOT.StringBeginsWith(DepositionType,'shape_function')) CALL abort(__STAMP__,' CalcShapeEfficiency=T needs shape functions')
   DoPartAnalyze = .TRUE.
   CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
   SELECT CASE(CalcShapeEfficiencyMethod)
@@ -695,9 +696,7 @@ IF (CalcShapeEfficiency) THEN
   CASE('SomeParts') ! A certain percentage of currently available Particles is used
     ShapeEfficiencyNumber = GETINT('ShapeEfficiencyNumber','100')  ! in percent
   CASE DEFAULT
-    CALL abort(&
-        __STAMP__&
-        , ' CalcShapeEfficiencyMethod not implemented: ')
+    CALL abort(__STAMP__,' CalcShapeEfficiencyMethod not implemented')
   END SELECT
 END IF
 
