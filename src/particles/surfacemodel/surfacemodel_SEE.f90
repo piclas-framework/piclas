@@ -87,25 +87,28 @@ CASE(3) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Electron energy in [eV]
-    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
-    ! Check probability only above certain threshold
-    IF((eps_e-SurfModSEEFitCoeff(4,locBCID)).GT.0.0) THEN
+    ! Incident electron energy [eV]
+    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV
+    ! Calculate probability only when energy is sufficient
+    IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Square Fit
       SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*eps_e + SurfModSEEFitCoeff(2,locBCID)*eps_e*eps_e + SurfModSEEFitCoeff(3,locBCID)
-
       ! Get the number of electrons from the Poisson distribution
       CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
 
       ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
-      IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+      IF(ProductSpecNbr.GT.0) THEN
+        ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+        ! Incident electron energy reduced by the material work function [eV]
+        eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
+      END IF
 
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
       CASE('deltadistribution')
         ! Energy in [m/s]
         TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('cosine','uniform-energy','Morozov2004')
+      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004')
         ! Energy in [eV]
         TempErgy = eps_e
       CASE DEFAULT
@@ -119,29 +122,28 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Electron energy in [eV]
-    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
-    ! Check probability only above certain threshold
-    IF((eps_e-SurfModSEEFitCoeff(4,locBCID)).GT.0.0) THEN
+    ! Incident electron energy [eV]
+    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV
+    ! Calculate probability only when energy is sufficient
+    IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Power Fit
       SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*eps_e**SurfModSEEFitCoeff(2,locBCID) + SurfModSEEFitCoeff(3,locBCID)
-      ! If the yield is greater than 1.0 (or 2.0 or even higher), set the number of products with the integer and roll the dice for the remainder
-      ProductSpecNbr = INT(SEE_Prob)
-      SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
-
-      ! Roll the dice and if the yield is greater than the random number, add an additional electron
-      CALL RANDOM_NUMBER(iRan)
-      IF(SEE_Prob.GT.iRan) ProductSpecNbr = ProductSpecNbr + 1
+      ! Get the number of electrons from the Poisson distribution
+      CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
 
       ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
-      IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+      IF(ProductSpecNbr.GT.0) THEN
+        ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+        ! Incident electron energy reduced by the material work function [eV]
+        eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
+      END IF
 
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
       CASE('deltadistribution')
         ! Energy in [m/s]
         TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('cosine','uniform-energy','Morozov2004')
+      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004')
         ! Energy in [eV]
         TempErgy = eps_e
       CASE DEFAULT
@@ -408,30 +410,30 @@ CASE(11) ! 11: SEE-E by e- on quartz (SiO2) by A. Dunaevsky, "Secondary electron
     RETURN ! nothing to do
   END IF
 
-CASE(12) ! 12: SEE-E by TODO: Source required
+CASE(12) ! 12: SEE-E by Seiler, H. (1983). Journal of Applied Physics, 54(11). https://doi.org/10.1063/1.332840
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Electron energy in [eV]
-    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV ! Incident electron energy [eV]
-    ! Check probability only above certain threshold
-    IF((eps_e-SurfModSEEFitCoeff(4,locBCID)).GT.0.0) THEN
+    ! Incident electron energy in [eV]
+    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV
+    ! Calculate probability only when energy is sufficient
+    IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Yield function
       SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*1.11*(eps_e/SurfModSEEFitCoeff(2,locBCID))**(-0.35) &
                  * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
-
       ! Get the number of electrons from the Poisson distribution
       CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
-
-      ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
-      IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
-
+      ! If a single electron or multiple electrons are created (ProductSpecNbr>=1)
+      IF(ProductSpecNbr.GT.0) THEN
+        ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
+        eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
+      END IF
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
       CASE('deltadistribution')
         ! Energy in [m/s]
         TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('cosine','uniform-energy','Morozov2004')
+      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004')
         ! Energy in [eV]
         TempErgy = eps_e
       CASE DEFAULT

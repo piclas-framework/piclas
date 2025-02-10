@@ -508,14 +508,17 @@ END SUBROUTINE DiffuseReflection
 SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID, POI_vec, EnergyDistribution)
 ! MODULES
 USE MOD_Globals!                   ,ONLY: OrthoNormVec
+USE MOD_Globals_Vars              ,ONLY: eV2Joule
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
-USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState
+USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState,PartSpecies
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample, StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE,CalcEnergyViolationSEE
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -532,8 +535,9 @@ CHARACTER(LEN=*),INTENT(IN)  :: EnergyDistribution !< energy distribution model 
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID
+INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID, SEEBCID
 REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3),NewPos(1:3),MPF
+REAL               :: ImpactEnergy, EnergySumSEE
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
@@ -541,6 +545,7 @@ locBCID    = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 WallTemp   = PartBound%WallTemp(locBCID)
 WallVelo   = PartBound%WallVelo(1:3,locBCID)
+EnergySumSEE = 0.
 
 IF(PartBound%RotVelo(locBCID)) THEN
   WallVelo(1:3) = CalcRotWallVelo(locBCID,POI_vec)
@@ -579,6 +584,24 @@ DO iNewPart = 1, ProductSpecNbr
     CALL StoreBoundaryParticleProperties(NewPartID,ProductSpec,PartState(1:3,NewPartID),&
           UNITVECTOR(PartState(4:6,NewPartID)),n_loc,iPartBound=locBCID,mode=2,MPF_optIN=MPF)
   END IF ! DoBoundaryParticleOutputHDF5
+  ! If more than one secondary electron, sum-up the energy to track energy conservation violations
+  IF(CalcEnergyViolationSEE) THEN
+    SEEBCID = SEE%BCIDToSEEBCID(locBCID)
+    ! Sum-up the energy of all secondaries
+    EnergySumSEE = EnergySumSEE + 0.5*Species(ProductSpec)%MassIC*DOTPRODUCT(NewVelo(1:3))
+    ! Treatment at the end of the secondaries loop, energy conservation violation is only counted once per impact
+    IF(iNewPart.EQ.ProductSpecNbr) THEN
+      SEE%EventCount(SEEBCID) = SEE%EventCount(SEEBCID) + 1
+      ! Calculated the resulting energy, which should have been distributed (impact energy minus work function)
+      ImpactEnergy = 0.5*Species(PartSpecies(PartID))%MassIC*DOTPRODUCT(PartState(4:6,PartID)) - SurfModSEEFitCoeff(4,locBCID)*eV2Joule
+      IF(EnergySumSEE.GT.ImpactEnergy) THEN
+        ! Count the violation
+        SEE%RealElectronEnergyViolationCount(SEEBCID) = SEE%RealElectronEnergyViolationCount(SEEBCID) + 1
+        ! Sum-up energy addition as percentage of the impact energy
+        SEE%RealElectronEnergyViolationSum(SEEBCID) = SEE%RealElectronEnergyViolationSum(SEEBCID) + (EnergySumSEE - ImpactEnergy) / ImpactEnergy
+      END IF
+    END IF
+  END IF
 END DO ! iNewPart = 1, ProductSpecNbr
 
 END SUBROUTINE SurfaceModelParticleEmission

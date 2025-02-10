@@ -178,7 +178,8 @@ CASE(20)  ! Catalytic gas-surface interaction: Adsorption or Eley-Rideal reactio
 !-----------------------------------------------------------------------------------------------------------------------------------
   CALL SurfaceModelChemistry(PartID,SideID,GlobalElemID,n_Loc,PartPosImpact(1:3))
 !-----------------------------------------------------------------------------------------------------------------------------------
-CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
+CASE (SEE_MODELS_ID)
+  ! 3: SEE by square-fit
   ! 4: SEE by power-fit
   ! 5: SEE by Levko2015
   ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
@@ -187,16 +188,10 @@ CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
   ! 9: SEE-I when Ar+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
   !10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
   !11: SEE-E by e- on quartz (SiO2) is considered
+  !12: SEE-E Seiler, H. (1983). Secondary electron emission in the scanning electron microscope.
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Get electron emission probability
   CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
-
-  ! Decide the fate of the impacting particle
-  IF (ProductSpec(1).LE.0) THEN
-    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
-  ELSE
-    CALL MaxwellScattering(PartID,SideID,n_Loc)
-  END IF
 
   ! Emit the secondary electrons
   IF (ProductSpec(2).GT.0) THEN
@@ -248,6 +243,12 @@ CASE (SEE_MODELS_ID)!,SEE_VDL_MODEL_ID)
       END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
 #endif /*USE_HDG*/
     END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
+  END IF
+  ! Decide the fate of the impacting particle
+  IF (ProductSpec(1).LE.0) THEN
+    CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
+  ELSE
+    CALL MaxwellScattering(PartID,SideID,n_Loc)
   END IF
 #if USE_HDG
 !-----------------------------------------------------------------------------------------------------------------------------------

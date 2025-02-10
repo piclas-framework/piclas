@@ -142,15 +142,17 @@ DO iPartBound=1,nPartBound
   !---------------------------------------------------------------------------------------------------------------------------------
   ! Read-in and set SEE model specific parameters
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
-  ! 4: SEE Power-fit model based on Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
+  !  3: SEE Square-fit model
+  !  4: SEE Power-fit model based on Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
+  ! 12: SEE semi-empirical model by Seiler, H. (1983). Journal of Applied Physics, 54(11). https://doi.org/10.1063/1.332840
   CASE(3,4,12)
     SurfModSEEFitCoeff(1:4,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEFitCoeff',4)
-    SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','cosine'))
+    SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','Chung-Everhart-cosine'))
     ! Loop all species
     DO iSpec = 1,nSpecies
       IF(SPECIESISELECTRON(iSpec)) THEN
         IF(SurfModResultSpec(iPartBound,iSpec).EQ.-1) CALL abort(__STAMP__,&
-          'SEE Power-fit model (4): Electron species has no resulting secondary electron species (can be the same) defined through Part-Species'//TRIM(int2strf(iSpec))// &
+          'SEE models (3,4,12): Electron species has no resulting secondary electron species (can be the same) defined through Part-Species'//TRIM(int2strf(iSpec))// &
           '-PartBound'//TRIM(int2strf(iPartBound))//'-ResultSpec!')
       END IF
     END DO

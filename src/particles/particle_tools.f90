@@ -579,9 +579,9 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
   ! Set magnitude
   VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
-CASE('cosine')
+CASE('Chung-Everhart-cosine')
 
-  ! === Energy distribution
+  ! === Energy distribution, according to Chung, M. S., & Everhart, T. E. (1974). Journal of Applied Physics, 45(2), 707–709. https://doi.org/10.1063/1.1663306
   ! IF(ProductSpecNbr.EQ.1) THEN
     ! Only 1 SEE
     W = SurfModSEEFitCoeff(4,iPartBound)  ! [eV] Material-dependent work function

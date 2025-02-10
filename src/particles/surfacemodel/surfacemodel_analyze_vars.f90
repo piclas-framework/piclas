@@ -63,10 +63,14 @@ END TYPE
 TYPE(tBoundaryParticleOutput)   :: BPO
 
 !-- Electron SEE emission counter
-LOGICAL :: CalcElectronSEE !< Count the electron emission from BCs where SEE is active
+LOGICAL :: CalcElectronSEE        !< Count the electron emission from BCs where SEE is active
+LOGICAL :: CalcEnergyViolationSEE !< Track the count and amount of energy violation, using the Chung-Everhart distribution
 
 TYPE tSEE
+  REAL,ALLOCATABLE    :: EventCount(:)      !< Number of electrons violating the energy conservation on boundary X
   REAL,ALLOCATABLE    :: RealElectronOut(:) !< Number of electrons emitted on boundary X
+  REAL,ALLOCATABLE    :: RealElectronEnergyViolationCount(:) !< Number of electrons violating the energy conservation on boundary X
+  REAL,ALLOCATABLE    :: RealElectronEnergyViolationSum(:)   !< Energy of electrons violating the energy conservation on boundary X
 
   INTEGER             :: NPartBoundaries    !< Total number of boundaries where the particles are counted
   INTEGER,ALLOCATABLE :: PartBoundaries(:)  !< Part-boundary number on which the particles are counted
