@@ -90,10 +90,6 @@ CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the numbe
 CALL prms%CreateLogicalOption(  'CalcSurfFluxInfo'        , 'Calculate the massflow rate [kg/s], current [A], or pressure [Pa] per species and surface flux','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcShapeEfficiency'     , 'Use efficiency methods for shape functions.', '.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod' , 'Choose between "AllParts" and '//&
-'"SomeParts", to either use all particles or a certain percentage (ShapeEfficiencyNumber) of the currently used particles','AllParts')
-CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'Percentage of currently used particles is used.', '100')
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'Flag, if the current calculation is a restart. ', '.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate the amount of power that is coupled into charged particles during time integration' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , 'Display coupled power in UNIT_stdOut' , '.FALSE.')
@@ -685,21 +681,6 @@ IF (CalcVelos) THEN
   END IF
 END IF
 
-!-- Shape function efficiency
-CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency')
-IF (CalcShapeEfficiency) THEN
-  IF(.NOT.StringBeginsWith(DepositionType,'shape_function')) CALL abort(__STAMP__,' CalcShapeEfficiency=T needs shape functions')
-  DoPartAnalyze = .TRUE.
-  CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
-  SELECT CASE(CalcShapeEfficiencyMethod)
-  CASE('AllParts')  ! All currently available Particles are used
-  CASE('SomeParts') ! A certain percentage of currently available Particles is used
-    ShapeEfficiencyNumber = GETINT('ShapeEfficiencyNumber','100')  ! in percent
-  CASE DEFAULT
-    CALL abort(__STAMP__,' CalcShapeEfficiencyMethod not implemented')
-  END SELECT
-END IF
-
 !-- check if total energy should be computed
 IF(DoPartAnalyze)THEN
   CalcEtot = GETLOGICAL('CalcTotalEnergy')
@@ -858,7 +839,7 @@ USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcKineticEnergy,CalcKineticEnergyAndMaximum
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcSurfaceFluxInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
@@ -1615,8 +1596,6 @@ END IF
     END IF
   END IF
 #endif
-!-----------------------------------------------------------------------------------------------------------------------------------
-  IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
 !===================================================================================================================================
 ! Output Routines
 !===================================================================================================================================
