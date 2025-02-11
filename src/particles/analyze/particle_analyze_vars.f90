@@ -60,9 +60,6 @@ LOGICAL                       :: TrackParticlePosition               !< Track th
 INTEGER                       :: nSpecAnalyze                        !< Number of analyzed species 1 or nSpecies+1
 LOGICAL                       :: IsRestart                           !< Check if restart, add data to Database
 LOGICAL                       :: ChargeCalcDone                      !< Check flag
-LOGICAL                       :: CalcShapeEfficiency                 !< Efficiency of shape function
-CHARACTER(LEN=256)            :: CalcShapeEfficiencyMethod           !< Explanations in particle_analyze.f90
-INTEGER                       :: ShapeEfficiencyNumber               !< Explanations in particle_analyze.f90
 LOGICAL                       :: DoPartAnalyze                       !< perform analyze
 INTEGER(KIND=8)               :: PartAnalyzeStep                     !< Analyze is performed each Nth time step
 INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number of entry and leaving particles
