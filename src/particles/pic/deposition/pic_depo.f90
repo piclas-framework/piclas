@@ -640,6 +640,8 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: ElemMidPoint_Shared,ElemToElemMapping
 USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars          ,ONLY: NodeCoords_Shared
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: SFNorm
+USE MOD_Interpolation_Vars          ,ONLY: Nmax,Nmin
+USE MOD_DG_Vars                     ,ONLY: N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals                     ,ONLY: IERROR
 USE MOD_PICDepo_Vars                ,ONLY: SFElemr2_Shared_Win
@@ -663,7 +665,7 @@ REAL                           :: SFDepoScaling
 LOGICAL                        :: ElemDone
 INTEGER                        :: ppp,globElemID
 REAL                           :: r_sf_tmp,SFAdaptiveDOFDefault,DOFMax
-INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID
+INTEGER                        :: iCNElem,firstElem,lastElem,jNode,NbElemID,NeighNonUniqueNodeID, minN_PP
 CHARACTER(32)                  :: hilf2,hilf3
 #if USE_MPI
 #endif /*USE_MPI*/
@@ -674,22 +676,22 @@ REAL                           :: CharacteristicLength,BoundingBoxVolume
 SELECT CASE(dim_sf)
 CASE(1)
   SFAdaptiveDOFDefault=2.0*(1.+1.)
-  DOFMax = 2.0*(REAL(PP_N)+1.) ! Max. DOF per element in 1D
+  DOFMax = 2.0*(REAL(Nmax)+1.) ! Max. DOF per element in 1D
   hilf2 = '2*(N+1)'            ! Max. DOF per element in 1D for abort message
 CASE(2)
   SFAdaptiveDOFDefault=PI*(1.+1.)**2
-  DOFMax = PI*(REAL(PP_N)+1.)**2 ! Max. DOF per element in 2D
+  DOFMax = PI*(REAL(Nmax)+1.)**2 ! Max. DOF per element in 2D
   hilf2 = 'PI*(N+1)**2'          ! Max. DOF per element in 1D for abort message
 CASE(3)
   SFAdaptiveDOFDefault=(4./3.)*PI*(1.+1.)**3
-  DOFMax = (4./3.)*PI*(REAL(PP_N)+1.)**3 ! Max. DOF per element in 2D
+  DOFMax = (4./3.)*PI*(REAL(Nmax)+1.)**3 ! Max. DOF per element in 2D
   hilf2 = '(4/3)*PI*(N+1)**3'            ! Max. DOF per element in 1D for abort message
 END SELECT
 WRITE(UNIT=hilf3,FMT='(G0)') SFAdaptiveDOFDefault
 SFAdaptiveDOF = GETREAL('PIC-shapefunction-adaptive-DOF',TRIM(hilf3))
 
 LBWRITE(UNIT_StdOut,'(A,F10.2)') "         PIC-shapefunction-adaptive-DOF :", SFAdaptiveDOF
-LBWRITE(UNIT_StdOut,'(A,A19,A,F10.2,A,I0,A)') " Maximum allowed is ",TRIM(hilf2)," :", DOFMax," (calculated for N=",PP_N,")"
+LBWRITE(UNIT_StdOut,'(A,A19,A,F10.2,A,I0,A)') " Maximum allowed is ",TRIM(hilf2)," :", DOFMax," (calculated for N=",Nmax,")"
 LBWRITE(UNIT_StdOut,*) "Set a value lower or equal to than the maximum for a given polynomial degree N\n"
 LBWRITE(UNIT_StdOut,*) "              N:     1      2      3      4      5       6       7"
 LBWRITE(UNIT_StdOut,*) "  ----------------------------------------------------------------"
@@ -734,11 +736,12 @@ CALL BARRIER_AND_SYNC(SFElemr2_Shared_Win,MPI_COMM_SHARED)
 #endif
 DO iCNElem = firstElem,lastElem
   ElemDone = .FALSE.
-
+  minN_PP = N_DG_Mapping(2,GetGlobalElemID(iCNElem))
   DO ppp = 1,ElemToElemMapping(2,iCNElem)
     ! Get neighbour global element ID
     globElemID = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,iCNElem)+ppp))
     NbElemID = GetCNElemID(globElemID)
+    minN_PP = MIN(minN_PP, N_DG_Mapping(2,globElemID))
     ! Loop neighbour nodes
     Nodeloop: DO jNode = 1, 8
       NeighNonUniqueNodeID = ElemNodeID_Shared(jNode,NbElemID)
@@ -802,7 +805,7 @@ DO iCNElem = firstElem,lastElem
   END IF
 
   ! Scale the radius so that it reaches at most the neighbouring cells but no further (all neighbours of the 8 corner nodes)
-  SFElemr2_Shared(1,iCNElem) = SFElemr2_Shared(1,iCNElem) * SFDepoScaling / (PP_N+1.)
+  SFElemr2_Shared(1,iCNElem) = SFElemr2_Shared(1,iCNElem) * SFDepoScaling / (minN_PP+1.)
   SFElemr2_Shared(2,iCNElem) = SFElemr2_Shared(1,iCNElem)**2
 
   ! Sanity checks
