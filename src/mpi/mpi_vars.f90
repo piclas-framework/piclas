@@ -47,12 +47,19 @@ INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSideSend(:,:),DataSizeSideRec(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSurfSendMax(:,:),DataSizeSurfRecMax(:,:)
 INTEGER,ALLOCATABLE   :: DataSizeSurfSendMin(:,:),DataSizeSurfRecMin(:,:)
+#if !(USE_HDG)
+INTEGER,ALLOCATABLE   ::  DataSizeSideSendMaster(:,:), DataSizeSideRecMaster(:,:) !< Master is only required for Maxwell (with Dielectric)
+#endif /*not USE_HDG*/
 
 TYPE tExchangeData
   REAL,ALLOCATABLE      :: FaceDataSendU(:,:)
   REAL,ALLOCATABLE      :: FaceDataRecvU(:,:)
   REAL,ALLOCATABLE      :: FaceDataSendFlux(:,:)
   REAL,ALLOCATABLE      :: FaceDataRecvFlux(:,:)
+#if !(USE_HDG)
+  REAL,ALLOCATABLE      :: FaceDataSendUMaster(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvUMaster(:,:)
+#endif /*not USE_HDG*/
 END TYPE tExchangeData
 
 TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)

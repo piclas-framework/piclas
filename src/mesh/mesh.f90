@@ -985,6 +985,9 @@ USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
 USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send
 USE MOD_MPI_Vars  ,ONLY: DataSizeSurfSendMax,DataSizeSurfRecMax, DataSizeSurfSendMin,DataSizeSurfRecMin
+#if !(USE_HDG)
+USE MOD_MPI_Vars  ,ONLY: DataSizeSideSendMaster,DataSizeSideRecMaster
+#endif /*not USE_HDG*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1064,10 +1067,16 @@ CALL StartExchange_DG_Elems(DG_Elems_master,1,nSides,SendRequest_U2,RecRequest_U
 CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=2) ! Send YOUR - receive MINE
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1) ! Send YOUR - receive MINE
 ! Initialize the send/rec face sizes for master/slave communication
-ALLOCATE(DataSizeSideSend(nNbProcs,2)   , DataSizeSideRec(nNbProcs,2))
+ALLOCATE(DataSizeSideSend(nNbProcs,2), DataSizeSideRec(nNbProcs,2))
 ! Min/Max is only required for HDG
 ALLOCATE(DataSizeSurfSendMax(nNbProcs,2), DataSizeSurfRecMax(nNbProcs,2))
 ALLOCATE(DataSizeSurfSendMin(nNbProcs,2), DataSizeSurfRecMin(nNbProcs,2))
+#if !(USE_HDG)
+! Master is only required for Maxwell (with Dielectric)
+ALLOCATE(DataSizeSideSendMaster(nNbProcs,2), DataSizeSideRecMaster(nNbProcs,2))
+DataSizeSideSendMaster=0
+DataSizeSideRecMaster=0
+#endif /*not USE_HDG*/
 DataSizeSideSend=0
 DataSizeSideRec=0
 DataSizeSurfSendMax =0; DataSizeSurfRecMax = 0; DataSizeSurfSendMin =0; DataSizeSurfRecMin = 0
@@ -1082,6 +1091,11 @@ DO iNbProc = 1, nNbProcs
       DataSizeSurfRecMax(iNbProc,1) = DataSizeSurfRecMax(iNbProc,1)  + (Nloc+1)**2
       Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
       DataSizeSurfRecMin(iNbProc,1) = DataSizeSurfRecMin(iNbProc,1)  + (Nloc+1)**2
+#if !(USE_HDG)
+      ! Master is only required for Maxwell (with Dielectric)
+      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideRecMaster(iNbProc,1) = DataSizeSideRecMaster(iNbProc,1)  + (Nloc+1)**2
+#endif /*not USE_HDG*/
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
@@ -1093,6 +1107,11 @@ DO iNbProc = 1, nNbProcs
       DataSizeSurfSendMax(iNbProc,1) = DataSizeSurfSendMax(iNbProc,1)  + (Nloc+1)**2
       Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
       DataSizeSurfSendMin(iNbProc,1) = DataSizeSurfSendMin(iNbProc,1)  + (Nloc+1)**2
+#if !(USE_HDG)
+      ! Master is only required for Maxwell (with Dielectric)
+      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideSendMaster(iNbProc,1) = DataSizeSideSendMaster(iNbProc,1)  + (Nloc+1)**2
+#endif /*not USE_HDG*/
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
@@ -1103,6 +1122,11 @@ DO iNbProc = 1, nNbProcs
   DataSizeSurfRecMax( iNbProc,2) = DataSizeSurfSendMax(iNbProc,1)
   DataSizeSurfSendMin(iNbProc,2) = DataSizeSurfRecMin( iNbProc,1)
   DataSizeSurfRecMin( iNbProc,2) = DataSizeSurfSendMin(iNbProc,1)
+#if !(USE_HDG)
+  ! Master is only required for Maxwell (with Dielectric)
+  DataSizeSideSendMaster(iNbProc,2) = DataSizeSideRecMaster( iNbProc,1)
+  DataSizeSideRecMaster( iNbProc,2) = DataSizeSideSendMaster(iNbProc,1)
+#endif /*not USE_HDG*/
 END DO ! iNbProc = 1, nNbProcs
 
 #endif /*USE_MPI*/
@@ -1446,6 +1470,9 @@ USE MOD_MPI_Vars         ,ONLY: DataSizeSideRec,DataSizeSurfRecMax,DataSizeSurfR
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance!,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if !(USE_HDG)
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideSendMaster,DataSizeSideRecMaster
+#endif /*not USE_HDG*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1493,7 +1520,6 @@ SDEALLOCATE(DG_Elems_slave)
 SDEALLOCATE(n_surfmesh)
 
 #if USE_MPI
-
 SDEALLOCATE(DataSizeSideSend)
 SDEALLOCATE(DataSizeSideRec)
 
@@ -1502,6 +1528,12 @@ SDEALLOCATE(DataSizeSurfSendMax)
 SDEALLOCATE(DataSizeSurfSendMin)
 SDEALLOCATE(DataSizeSurfRecMax)
 SDEALLOCATE(DataSizeSurfRecMin)
+
+#if !(USE_HDG)
+! Master is only required for Maxwell (with Dielectric)
+SDEALLOCATE(DataSizeSideSendMaster)
+SDEALLOCATE(DataSizeSideRecMaster)
+#endif /*not USE_HDG*/
 
 ! Do not deallocate during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE

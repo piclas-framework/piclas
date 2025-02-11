@@ -400,7 +400,8 @@ USE MOD_Interpolation_Vars , ONLY: PREF_VDM,N_Inter
 USE MOD_ChangeBasis        , ONLY:ChangeBasis2D
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI                , ONLY: StartReceiveMPIDataType,StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
+USE MOD_MPI                , ONLY: StartReceiveMPIDataTypeDielectric,StartSendMPIDataTypeDielectric
+USE MOD_MPI                , ONLY: FinishExchangeMPIDataTypeDielectric
 #endif
 !USE MOD_FillMortar      ,ONLY: U_Mortar
 ! IMPLICIT VARIABLE HANDLING
@@ -497,18 +498,18 @@ DO iSide=1,nSides
 END DO
 
 ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
-! SendID.EQ.2: Send Dielectric_dummy_Slave2
-CALL StartReceiveMPIDataType(       RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIDataTypeDielectric(SendRequest_U2,SendID=2) ! Send YOUR
+! SendID=2: Send Dielectric_dummy_Slave2
+CALL StartReceiveMPIDataTypeDielectric( RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIDataTypeDielectric(   SendRequest_U2,SendID=2) ! Send YOUR
 
 ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
-! SendID.EQ.1: Send Dielectric_dummy_Master2
-CALL StartReceiveMPIDataType(       RecRequest_U ,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataTypeDielectric(SendRequest_U ,SendID=1) ! Send MINE
+! SendID=1: Send Dielectric_dummy_Master2
+CALL StartReceiveMPIDataTypeDielectric( RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataTypeDielectric(   SendRequest_U,SendID=1) ! Send MINE
 
-! SendID.EQ.2: Fill Dielectric_dummy_Slave2
+! SendID=2: Fill Dielectric_dummy_Slave2
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
-! SendID.EQ.1: Fill Dielectric_dummy_Master2
+! SendID=1: Fill Dielectric_dummy_Master2
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
 #endif /*USE_MPI*/
 
@@ -520,10 +521,8 @@ DO iSide =1, nSides
   N_master = DG_Elems_master(iSide)
   N_slave  = DG_Elems_slave(iSide)
 #if USE_MPI
-  DielectricSurf(  iSide)%Dielectric_dummy_Master( 1,0:N_master,0:N_master) = &
-    DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:N_master,0:N_master)
-  DielectricSurf(  iSide)%Dielectric_dummy_Slave(  1,0:N_slave ,0:N_slave ) = &
-    DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:N_slave ,0:N_slave )
+  DielectricSurf(  iSide)%Dielectric_dummy_Master( 1,0:N_master,0:N_master) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:N_master,0:N_master)
+  DielectricSurf(  iSide)%Dielectric_dummy_Slave(  1,0:N_slave ,0:N_slave ) = DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:N_slave ,0:N_slave )
 #endif /*USE_MPI*/
   DielectricSurf(iSide)%Dielectric_Master = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
   DielectricSurf(iSide)%Dielectric_Slave  = DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave )
@@ -584,7 +583,7 @@ DO iSide =1, nSides
 END DO ! iSide =1, nSides
 
 END SUBROUTINE SetDielectricFaceProfile
-#endif /* not USE_HDG*/
+#endif /*not USE_HDG*/
 
 
 #if USE_HDG
