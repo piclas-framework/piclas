@@ -310,26 +310,32 @@ the surface material. All models require the specification of the electron speci
 
     Part-SpeciesA-PartBoundB-ResultSpec = C
 
-where electrons of species `C` are emitted from boundary `B` on the impact of species `A`.
+where electrons of species `C` are emitted from boundary `B` on the impact of species `A`. Some of the models allow the choice of an angle and energy distribution function to define the velocity vector of the secondary. The available options are:
+
+|                  Name | Description                                                                                                                                                                                         |      Source       |
+| --------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------: |
+|     deltadistribution | Random velocity vector and complete remaining impact energy                                                                                                           |         -         |
+|        uniform-energy | Random velocity vector and random uniform distribution of the remaining impact energy                                                                                                               |         -         |
+| Chung-Everhart-cosine | Angle distribution according to $2\sin\cos\theta$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$ | {cite}`Chung1974` |
 
 #### Model 3/4
 
-These models are based on {cite}`Goebel2008` and use a square- (= 3) or power-fit (= 4) and an additional threshold to model the secondary electron emission yield.
+These models use a square- (= 3) or power-fit (= 4) and an additional threshold to model the secondary electron emission yield.
 It is assumed that the impacting particle is absorbed.
 
 $$\text{Square-fit: }\gamma = (a E + b E^2 + c)H(E-W),$$
 $$\text{Power-fit: }\gamma = (a E^b + c)H(E-W),$$
 
-where $a$, $b$, $c$ are the fitting coefficients and $W$ is the material-dependent work function above which the yield is calculated.
+where $a$, $b$, $c$ are the fitting coefficients and $W$ is the material-dependent work function [eV] above which the yield is calculated.
 The parameters are read-in through:
 
     Part-BoundaryB-SurfModSEEFitCoeff   = (/0.1,0.5,0.25,9/)      ! (/a,b,c,W/)
 
 Additionally, the energy distribution can be selected with
 
-    Part-BoundaryB-SurfModEnergyDistribution = cosine
+    Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
 
-An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`.
+It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`. Fit coefficients can be found for example in {cite}`Goebel2008`.
 
 #### Model 5
 
@@ -385,6 +391,23 @@ activated via `Part-BoundaryX-SurfaceModel=10`. For more details, see the origin
 An energy-dependent model (linear and power fit of measured SEE yields) of secondary electron emission due to $e^{-}$ impact on a
 quartz (SiO$_{2}$) surface as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003` is
 activated via `Part-BoundaryX-SurfaceModel=11`. For more details, see the original publications.
+
+#### Model 12
+
+This model relies on a semi-empirical formulation from {cite}`Seiler1983`. It is assumed that the impacting particle is absorbed.
+
+$$\gamma = a \cdot 1.11 \cdot \left(\frac{E}{b}\right)^{-0.35}\left(1-e^{-2.3\left(\frac{E}{b}\right)^{1.35}}\right)$$
+
+where $a$ and $b$ [eV] are material-specific coefficients and $W$ is the work function [eV] above which the yield is calculated.
+The parameters are read-in through:
+
+    Part-BoundaryB-SurfModSEEFitCoeff   = (/1.0,700,0.0,9/)      ! (/a,b,c,W/)
+
+Additionally, the energy distribution can be selected with
+
+    Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
+
+It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_12/`.
 
 (sec:catalytic-surface)=
 ## Catalytic Surfaces

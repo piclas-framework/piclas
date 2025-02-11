@@ -29,7 +29,9 @@ PUBLIC:: Deposition, InitializeDeposition, FinalizeDeposition, DefineParametersP
 #if USE_MPI
 PUBLIC :: ExchangeNodeSourceExtTmp
 #endif /*USE_MPI*/
+#if USE_HDG
 PUBLIC :: DepositVirtualDielectricLayerParticles
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
@@ -1013,6 +1015,7 @@ END IF
 END SUBROUTINE Deposition
 
 
+#if USE_HDG
 !===================================================================================================================================
 !> Loop over all particles and find that ones that have been flagged during particle-boundary interaction and have hit a VDL
 !> boundary. They are flagged there as they might move to another process during that interaction.
@@ -1022,10 +1025,9 @@ END SUBROUTINE Deposition
 SUBROUTINE DepositVirtualDielectricLayerParticles()
 ! MODULES
 USE MOD_Particle_Vars   ,ONLY: PEM, PDM, Species, PartSpecies, usevmpf, PartMPF, PartState
-USE MOD_Particle_Vars   ,ONLY: SpeciesOffsetVDL
+USE MOD_Particle_Vars   ,ONLY: IsVDLSpecID, SpeciesOffsetVDL
 USE MOD_PICDepo_Tools   ,ONLY: DepositParticleOnNodes
 USE MOD_part_operations ,ONLY: RemoveParticle
-!USE MOD_Part_Tools      ,ONLY: UpdateNextFreePosition
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
@@ -1039,7 +1041,7 @@ DO iPart=1,PDM%ParticleVecLength
   ! Only consider un-deleted particles
   IF (PDM%ParticleInside(iPart)) THEN
     ! Check particle index for VDL particles
-    IF(ABS(PartSpecies(iPart)).GT.SpeciesOffsetVDL)THEN
+    IF(IsVDLSpecID(iPart))THEN
       ! Check for negative sign
       IF(PartSpecies(iPart).LT.0)THEN
         ! If negative sign is found in the species index, invert the deposited charge
@@ -1064,11 +1066,12 @@ DO iPart=1,PDM%ParticleVecLength
       CALL DepositParticleOnNodes(SignSwitch*charge, PartState(1:3,iPart), PEM%GlobalElemID(iPart))
       ! After deposition, delete the particle from existence
       CALL RemoveParticle(iPart)
-    END IF ! PartSpecies(iPart).GT.SpeciesOffsetVDL
+    END IF ! IsVDLSpecID(iPart)
   END IF !PDM%ParticleInside(iPart)
 END DO ! iPart=1,PDM%ParticleVecLength
 
 END SUBROUTINE DepositVirtualDielectricLayerParticles
+#endif /*USE_HDG*/
 
 
 PPURE LOGICAL FUNCTION SFMeasureDistance(v1,v2)

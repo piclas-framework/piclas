@@ -62,7 +62,7 @@ USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, 
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput
 USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModelParticleEmission
 USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEventProbability
-USE MOD_SEE                       ,ONLY: SecondaryElectronEmission
+USE MOD_SEE                       ,ONLY: SecondaryElectronEmissionYield
 USE MOD_SurfaceModel_Porous       ,ONLY: PorousBoundaryTreatment
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample
 USE MOD_PICDepo_Tools             ,ONLY: DepositParticleOnNodes
@@ -190,10 +190,10 @@ CASE (SEE_MODELS_ID)
   !11: SEE-E by e- on quartz (SiO2) is considered
   !12: SEE-E Seiler, H. (1983). Secondary electron emission in the scanning electron microscope.
 !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Get electron emission probability
-  CALL SecondaryElectronEmission(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
+  ! Determine the yield and consequently the number of secondaries to be emitted
+  CALL SecondaryElectronEmissionYield(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
 
-  ! Emit the secondary electrons
+  ! Emit the secondary electrons and deposit the opposite charge on the boundary (in case of a dielectric/VDL)
   IF (ProductSpec(2).GT.0) THEN
     CALL SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec(2), ProductSpecNbr, TempErgy, GlobalElemID, &
                                       PartPosImpact(1:3),EnergyDistribution=SurfModEnergyDistribution(locBCID))

@@ -508,7 +508,7 @@ END SUBROUTINE DiffuseReflection
 SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID, POI_vec, EnergyDistribution)
 ! MODULES
 USE MOD_Globals!                   ,ONLY: OrthoNormVec
-USE MOD_Globals_Vars              ,ONLY: eV2Joule
+USE MOD_Globals_Vars              ,ONLY: eV2Joule, Joule2eV
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
 USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState,PartSpecies
@@ -517,7 +517,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, DoBound
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE,CalcEnergyViolationSEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcEnergyViolationSEE
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -591,14 +591,19 @@ DO iNewPart = 1, ProductSpecNbr
     EnergySumSEE = EnergySumSEE + 0.5*Species(ProductSpec)%MassIC*DOTPRODUCT(NewVelo(1:3))
     ! Treatment at the end of the secondaries loop, energy conservation violation is only counted once per impact
     IF(iNewPart.EQ.ProductSpecNbr) THEN
-      SEE%EventCount(SEEBCID) = SEE%EventCount(SEEBCID) + 1
+      IF(usevMPF)THEN
+        MPF = PartMPF(NewPartID)
+      ELSE
+        MPF = Species(ProductSpec)%MacroParticleFactor
+      END IF ! usevMPF
+      SEE%EventCount(SEEBCID) = SEE%EventCount(SEEBCID) + MPF
       ! Calculated the resulting energy, which should have been distributed (impact energy minus work function)
       ImpactEnergy = 0.5*Species(PartSpecies(PartID))%MassIC*DOTPRODUCT(PartState(4:6,PartID)) - SurfModSEEFitCoeff(4,locBCID)*eV2Joule
       IF(EnergySumSEE.GT.ImpactEnergy) THEN
         ! Count the violation
-        SEE%RealElectronEnergyViolationCount(SEEBCID) = SEE%RealElectronEnergyViolationCount(SEEBCID) + 1
+        SEE%RealElectronEnergyViolationCount(SEEBCID) = SEE%RealElectronEnergyViolationCount(SEEBCID) + MPF
         ! Sum-up energy addition as percentage of the impact energy
-        SEE%RealElectronEnergyViolationSum(SEEBCID) = SEE%RealElectronEnergyViolationSum(SEEBCID) + (EnergySumSEE - ImpactEnergy) / ImpactEnergy
+        SEE%RealElectronEnergyViolationSum(SEEBCID) = SEE%RealElectronEnergyViolationSum(SEEBCID) + (EnergySumSEE - ImpactEnergy) * MPF / ImpactEnergy
       END IF
     END IF
   END IF

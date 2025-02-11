@@ -25,12 +25,12 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: SecondaryElectronEmission
+PUBLIC :: SecondaryElectronEmissionYield
 !===================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE SecondaryElectronEmission(PartID_IN,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
+SUBROUTINE SecondaryElectronEmissionYield(PartID_IN,locBCID,ProductSpec,ProductSpecNbr,TempErgy)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! Determine the probability of an electron being emitted due to an impacting particles (ion/electron bombardment)
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -76,7 +76,7 @@ SpecID = PartSpecies(PartID_IN)
 ! Squared velocity of bombarding particle
 velo2=DOTPRODUCT(PartState(4:6,PartID_IN))
 ! Sanity check: is the impacting particle faster than c
-IF(velo2.GT.c2) CALL abort(__STAMP__,'SecondaryElectronEmission: Bombarding particle is faster than the speed of light: ',RealInfoOpt=SQRT(velo2))
+IF(velo2.GT.c2) CALL abort(__STAMP__,'SecondaryElectronEmissionYield: Bombarding particle is faster than the speed of light: ',RealInfoOpt=SQRT(velo2))
 ! Default 0
 ProductSpec    = 0
 ProductSpecNbr = 0
@@ -244,7 +244,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
   END ASSOCIATE
 
   ! Sanity check: is the newly created particle faster than c
-  IF(TempErgy.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light:'&
+  IF(TempErgy.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmissionYield: Particle is faster than the speed of light:'&
       ,RealInfoOpt=TempErgy)
 
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
@@ -287,7 +287,7 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
   END IF
 
   ! Sanity check: is the newly created particle faster than c
-  IF(TempErgy.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmission: Particle is faster than the speed of light:'&
+  IF(TempErgy.GT.c) CALL abort(__STAMP__,'SecondaryElectronEmissionYield: Particle is faster than the speed of light:'&
       ,RealInfoOpt=TempErgy)
 
 CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes)
@@ -468,7 +468,7 @@ IF(ProductSpecNbr.GT.0)THEN
   END IF ! CalcElectronSEE
 END IF ! ProductSpecNbr.GT.0
 
-END SUBROUTINE SecondaryElectronEmission
+END SUBROUTINE SecondaryElectronEmissionYield
 
 
 END MODULE MOD_SEE
