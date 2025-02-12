@@ -73,9 +73,9 @@ USE MOD_GetBoundaryFlux      ,ONLY: InitBC
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if ! (USE_HDG)
 USE MOD_Equation_Vars        ,ONLY: DoExactFlux
 USE MOD_Equation             ,ONLY: InitExactFlux
-#if ! (USE_HDG)
 USE MOD_PML                  ,ONLY: InitPML
 #if USE_MPI
 USE MOD_DG                   ,ONLY: InitDGExchange
