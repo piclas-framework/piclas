@@ -639,11 +639,15 @@ REAL                  :: U_loc(1:PP_nVar)
 
 UseMaster=.TRUE.
 ! emission over plane, hence, first entry decides orientation of  plane
-IF(NormVec(ExactFluxDir,0,0).GT.0)THEN
+IF(NormVec(ExactFluxDir,0,0).GT.0.)THEN
   UseMaster=.FALSE.
-ELSE IF(NormVec(ExactFluxDir,0,0).LT.0)THEN
+ELSE IF(NormVec(ExactFluxDir,0,0).LT.0.)THEN
   UseMaster=.TRUE.
 ELSE
+  IPWRITE(*,*) 'ExactFluxDir              : ', ExactFluxDir
+  IPWRITE(*,*) 'NormVec(ExactFluxDir,0,0) : ', NormVec(ExactFluxDir,0,0)
+  IPWRITE(*,*) 'NormVec(:,0,0)            : ', NormVec(:,0,0)
+  IPWRITE(*,*) 'NormVec                   : ', NormVec
   CALL abort(__STAMP__,'ExactFlux has encountered an error with the normal vector.')
 END IF
 

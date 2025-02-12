@@ -136,7 +136,7 @@ END IF
 !  6. Exact flux determination (inner BC)
 IF(DoExactFlux) THEN
   DO SideID=firstSideID,lastSideID
-    IF (isExactFluxInterFace(SideID))THEN! CAUTION: Multiplication with SurfElem is done in ExactFlux
+    IF (isExactFluxInterFace(SideID))THEN ! CAUTION: Multiplication with SurfElem is done in ExactFlux
       ! Get polynomial degrees of master/slave sides
       N_master = DG_Elems_master(SideID)
       N_slave  = DG_Elems_slave (SideID)

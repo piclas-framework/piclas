@@ -41,6 +41,7 @@ PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping
 !===================================================================================================================================
 
 PUBLIC::DefineParametersEquation
+PUBLIC::InitExactFlux
 CONTAINS
 
 !==================================================================================================================================
@@ -234,7 +235,6 @@ DO iBC=1,nBCs
   END IF
 END DO
 IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux')
-IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
   CASE(2,22)
@@ -1167,7 +1167,7 @@ IF(1.EQ.2)THEN ! new formulation with divergence correction considered
     END DO; END DO; END DO
   END DO
 ELSE ! old/original formulation
-  DO iElem=1,PP_nElems; 
+  DO iElem=1,PP_nElems;
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     IF (t.LE.2*tPulse) THEN

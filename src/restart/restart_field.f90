@@ -726,7 +726,7 @@ ELSE ! Normal restart
     END IF ! DoVirtualDielectricLayer
 
 #else /*not USE_HDG*/
-    ALLOCATE(U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+    ALLOCATE(   U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
     ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
     CALL ReadArray('DG_Solution',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
     DO iElem = 1, nElems
@@ -734,19 +734,25 @@ ELSE ! Normal restart
       IF(Nloc.EQ.N_Restart)THEN ! N is equal
         U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
       ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
+        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
+                          U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                     &
+               U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       ELSE ! N reduces
         !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
+        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
+                          U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                        &
+                       Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
         ! switch back to nodal basis
-        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
+        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
+                       Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc),              &
+               U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
       END IF ! Nloc.EQ.N_Restart
     END DO ! iElem = 1, nElems
     DEALLOCATE(U)
     DEALLOCATE(Uloc)
     IF(DoPML)THEN
-      ALLOCATE(U_local(PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
-      ALLOCATE(Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+      ALLOCATE(U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
+      ALLOCATE(   Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
       CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
       DO iPML=1,nPMLElems
@@ -755,12 +761,18 @@ ELSE ! Normal restart
         IF(Nloc.EQ.N_Restart)THEN ! N is equal
           U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
         ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-          CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
+                   U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                     &
+             U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
         ELSE ! N reduces
           !transform the slave side to the same degree as the master: switch to Legendre basis
-          CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+          CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
+                   U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                        &
+                      Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
           ! switch back to nodal basis
-          CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
+                      Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc),              &
+             U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
         END IF ! Nloc.EQ.N_Restart
       END DO ! iPML
       DEALLOCATE(U_local)
