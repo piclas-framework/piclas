@@ -63,7 +63,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Perfectly Matched Layer (PML) Region")
 
-CALL prms%CreateLogicalOption(  'DoPML'            , 'Use a PML region' , '.FALSE.')
 CALL prms%CreateRealOption(     'PMLzeta0'         , 'Damping parameter maximum' , '0.')
 CALL prms%CreateRealOption(     'PMLalpha0'        , 'Complex frequency shift parameter' , '0.')
 CALL prms%CreateIntOption(      'PMLzetaShape'     , 'Parameter for selecting the shape of the damping function'&
@@ -88,6 +87,7 @@ CALL prms%CreateRealArrayOption('xyzPMLMinMax'          , '[xmin, xmax, ymin, ym
     //' PML region by giving the bounding box coordinates of the PML region', '0.0 , 0.0 , 0.0 , 0.0 , 0.0 , 0.0')
 
 END SUBROUTINE DefineParametersPML
+
 
 SUBROUTINE InitPML()
 !===================================================================================================================================
