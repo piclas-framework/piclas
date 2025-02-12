@@ -25,21 +25,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitEquation
-  MODULE PROCEDURE InitEquation
-END INTERFACE
-INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc
-END INTERFACE
-INTERFACE CalcSourceHDG
-  MODULE PROCEDURE CalcSourceHDG
-END INTERFACE
-INTERFACE FinalizeEquation
-  MODULE PROCEDURE FinalizeEquation
-END INTERFACE
-
 PUBLIC :: InitEquation,ExactFunc,FinalizeEquation, CalcSourceHDG
 PUBLIC :: DefineParametersEquation
+PUBLIC :: InitChiTens
 !===================================================================================================================================
 CONTAINS
 
@@ -113,7 +101,6 @@ USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs, offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -223,7 +210,6 @@ IF(nRefState .GT. 0)THEN
   END DO
 END IF
 
-
 ! Read the velocity vector from ini file
 IniWavenumber = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
 IniCenter     = GETREALARRAY('IniCenter',3,'0.,0.,0.')
@@ -238,6 +224,41 @@ IF(chitensWhichField.GT.0.0.OR.&
    chitensRadius    .GT.0.0)THEN
   CALL abort(__STAMP__,'chitensWhichField, chitensValue and chitensRadius are no longer supported. Deactivate them!')
 END IF
+
+alpha_shape = GETINT('AlphaShape','2')
+rCutoff     = GETREAL('r_cutoff','1.')
+! Compute factor for shape function
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
+
+
+!ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+!E=0.
+
+EquationInitIsDone=.TRUE.
+LBWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitEquation
+
+
+!===================================================================================================================================
+!> Allocate chi struct and fill %tens and %tensInv
+!===================================================================================================================================
+SUBROUTINE InitChiTens()
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Equation_Vars
+USE MOD_Mesh_Vars     ,ONLY: offSetElem
+USE MOD_DG_Vars       ,ONLY: N_DG_Mapping
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: Nloc,iElem
+!===================================================================================================================================
 
 ! Chitens
 ALLOCATE(chi(1:PP_nElems))
@@ -255,20 +276,7 @@ DO iElem = 1, PP_nElems
   chi(iElem)%tensInv(:,:,:,:,:) = chi(iElem)%tens(:,:,:,:,:)
 END DO ! iElem = 1, PP_nElems
 
-alpha_shape = GETINT('AlphaShape','2')
-rCutoff     = GETREAL('r_cutoff','1.')
-! Compute factor for shape function
-ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
-                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
-
-!ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-!E=0.
-
-
-EquationInitIsDone=.TRUE.
-LBWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
-LBWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitEquation
+END SUBROUTINE InitChiTens
 
 
 #if defined(PARTICLES)
