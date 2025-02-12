@@ -78,14 +78,14 @@ width: 600px
 
 For the general information on the setup of the DSMC simulation, please see the previous tutorial {ref}`sec:tutorial-dsmc-cone-2D`. In this tutorial, only the changes in the `parameter.ini` file for the 3D simulation compared to the 2D simulation are explained further.
 
-First, the mesh file name is adapted. The number of boundaries is reduced from five to four, as only one symmetrical boundary is used in this 3D simulation. The maximum particle number per processor is increased due to the changed simulation domain. Additionally, the octree is adapted to appropriate values for a 3D simulation.
+First, the mesh file name is adapted. The number of boundaries is reduced from five (6 with Gmsh) to four, as only one symmetrical boundary is used in this 3D simulation. The octree is adapted to appropriate values for a 3D simulation.
 
     MeshFile                        = 70degCone_3D_mesh.h5
     Part-nBounds                    = 4
     Particles-OctreePartNumNode     = 80
     Particles-OctreePartNumNodeMin  = 60
 
-Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundaries, the commands for the 2D axisymmetric simulation and the radial weighting are deleted:
+Compared to the `parameter.ini` for the 2D simulation, the symmetrical boundaries, these commands for the 2D axisymmetric simulation and the radial weighting are deleted:
 
     Part-Boundary4-SourceName                   = SYMAXIS
     Part-Boundary4-Condition                    = symmetric_axis

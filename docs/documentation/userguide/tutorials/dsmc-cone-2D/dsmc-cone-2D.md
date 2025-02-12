@@ -290,13 +290,16 @@ $t_\text{samp,start} = T_\text{end} \cdot \left(1 - f_\text{samp}\right)$
     Part-TimeFracForSampling          = 0.5
     Particles-NumberForDSMCOutputs    = 2
 
-The second method is activated via `Part-WriteMacroValues = T`. In this approach, `Part-IterationForMacroVal` defines the number of iterations that are used for one sample. After the first sample has been written, the data is discarded and the next sampling process is started. The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
+The second method is activated via `Part-WriteMacroValues = T`. In this approach, `Part-IterationForMacroVal` defines the number of iterations that are used for one sample. After the first sample has been written, the data is discarded and the next sampling process is started.
 
     Part-WriteMacroValues             = T
     Part-IterationForMacroVal         = 1250
-    doPrintStatusLine                 = T
 
 For further information see {ref}`sec:sampled-flow-field-and-surface-variables`.
+
+The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
+
+    doPrintStatusLine                 = T
 
 ## Run the simulation
 
@@ -378,6 +381,7 @@ Translational temperature and velocity in front of the 70° Cone, top: original 
 ### Visualizing surface variables (DSMCSurfState)
 
 For postprocessing and visualization, the parameter `TimeStampLength = 13` is set in*parameter.ini* . This limits the output filename length. This can be needed, as e.g. Paraview may sort the files incorrectly and display a faulty time solution.
+
 To visualize the data which represents the properties at closed boundaries (e.g. heat flux, force per area, etc. the *DSMCSurfState*-files are needed. They are converted using the program **piclas2vtk** into the VTK format suitable for **ParaView**, **VisIt** or many other visualization tools. Run the command
 
     ./piclas2vtk dsmc_cone_DSMCSurfState_000.00*
