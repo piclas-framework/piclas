@@ -770,7 +770,7 @@ ELSE
   Flag=.FALSE.
 END IF
 
-! expTarget = EXP(-RealTarget)
+expTarget = EXP(-RealTarget)
 Npois=0
 Tpois=1.0
 CALL RANDOM_NUMBER(RandVal1)
@@ -786,7 +786,7 @@ DO
       CALL abort(__STAMP__,'ERROR in SamplePoissonDistri: RealTarget (e.g. flux) is too large for poisson sampling!')
     END IF
   END IF
-  IF (Tpois.GT.EXP(-RealTarget)) THEN
+  IF (Tpois.GT.expTarget) THEN
     Npois=Npois+1
     CALL RANDOM_NUMBER(RandVal1)
   ELSE
