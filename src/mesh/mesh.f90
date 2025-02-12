@@ -165,7 +165,7 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
-INTEGER             :: Nloc,iSide,NSideMin
+INTEGER             :: Nloc,iSide,NSideMin,N_max
 LOGICAL             :: validMesh,ReadNodes
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
@@ -410,14 +410,14 @@ IF (ABS(meshMode).GT.1) THEN
   DO iSide = 1, nSides
 
     ! Allocate with max. polynomial degree of the two master-slave sides
-    Nloc     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    N_max     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     N_SurfMesh(iSide)%NSide = NSideMin
-    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:Nloc,0:Nloc))
+    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
     N_SurfMesh(iSide)%Face_xGP = 0.
     N_SurfMesh(iSide)%NormVec  = 0.

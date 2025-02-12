@@ -397,7 +397,7 @@ USE MOD_DG_Vars            , ONLY: DG_Elems_master, DG_Elems_slave, N_DG_Mapping
 USE MOD_ProlongToFace      , ONLY: ProlongToFace_TypeBased
 USE MOD_FillMortar         , ONLY: U_Mortar
 USE MOD_Interpolation_Vars , ONLY: PREF_VDM,N_Inter
-USE MOD_ChangeBasis        , ONLY:ChangeBasis2D
+USE MOD_ChangeBasis        , ONLY: ChangeBasis2D
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI                , ONLY: StartReceiveMPIDataTypeDielectric,StartSendMPIDataTypeDielectric
@@ -555,7 +555,7 @@ DO iSide = 1, nSides
         DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave ))
       ! Switch back to nodal basis but cut-off the higher-order DOFs
       CALL ChangeBasis2D(1, N_master, N_master, N_Inter(N_master)%Vdm_Leg,      &
-        DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave ), &
+        DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_master,0:N_master ), &
         DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master))
       DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
     END IF ! N_master.EQ.N_slave
