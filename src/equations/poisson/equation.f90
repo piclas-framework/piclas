@@ -28,6 +28,7 @@ PRIVATE
 PUBLIC :: InitEquation,ExactFunc,FinalizeEquation, CalcSourceHDG
 PUBLIC :: DefineParametersEquation
 PUBLIC :: InitChiTens
+PUBLIC :: InitRefState
 !===================================================================================================================================
 CONTAINS
 
@@ -51,10 +52,6 @@ CALL prms%CreateRealArrayOption('IniWavenumber'    , 'TODO-DEFINE-PARAMETER' , '
 CALL prms%CreateRealArrayOption('IniCenter'        , 'TODO-DEFINE-PARAMETER' , '0. , 0. , 0.')
 CALL prms%CreateRealOption(     'IniAmplitude'     , 'TODO-DEFINE-PARAMETER' , '0.1')
 CALL prms%CreateRealOption(     'IniHalfwidth'     , 'TODO-DEFINE-PARAMETER' , '0.1')
-
-CALL prms%CreateIntOption(      'chitensWhichField', 'TODO-DEFINE-PARAMETER', '-1')
-CALL prms%CreateRealOption(     'chitensValue'     , 'TODO-DEFINE-PARAMETER', '-1.0')
-CALL prms%CreateRealOption(     'chitensRadius'    , 'TODO-DEFINE-PARAMETER', '-1.0')
 
 CALL prms%CreateIntOption(      'AlphaShape'       , 'TODO-DEFINE-PARAMETER', '2')
 CALL prms%CreateRealOption(     'r_cutoff'         , 'TODO-DEFINE-PARAMETER\n'//&
@@ -97,7 +94,6 @@ USE MOD_HDG_vars
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
-USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs, offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -109,16 +105,6 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL               :: chitensValue,chitensRadius ! Deprecated variables, remove in future (by the end of 2017)
-INTEGER            :: chitensWhichField          ! Deprecated variables, remove in future (by the end of 2017)
-INTEGER            :: iState                     ! i-th RefState
-INTEGER            :: i,BCType,BCState
-CHARACTER(LEN=255) :: BCName
-INTEGER            :: nRefStateMax
-INTEGER            :: nLinState,nLinStateMax
-INTEGER,PARAMETER  :: BCTypeRefstate(1:4)=(/5,51,52,60/)
-CHARACTER(LEN=32)  :: hilf
-INTEGER            :: Nloc,iElem
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
    LBWRITE(*,*) "InitPoisson not ready to be called or already called."
@@ -137,6 +123,54 @@ CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasm
   !CALL abort(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, LIBS_USE_PETSC=ON and PICLAS_PARTICLES=ON')
 #endif /*! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)*/
 END SELECT
+
+! CALL InitRefState()
+
+! Read the velocity vector from ini file
+IniWavenumber = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
+IniCenter     = GETREALARRAY('IniCenter',3,'0.,0.,0.')
+IniAmplitude  = GETREAL('IniAmplitude','0.1')
+IniHalfwidth  = GETREAL('IniHalfwidth','0.1')
+
+alpha_shape = GETINT('AlphaShape','2')
+rCutoff     = GETREAL('r_cutoff','1.')
+! Compute factor for shape function
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
+
+EquationInitIsDone=.TRUE.
+LBWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitEquation
+
+
+!===================================================================================================================================
+!> Initialize reference state containers used for boundary conditions
+!===================================================================================================================================
+SUBROUTINE InitRefState()
+! MODULES
+USE MOD_Preproc
+USE MOD_Globals
+USE MOD_Equation_Vars
+USE MOD_HDG_vars
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs, offSetElem
+USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iState                     ! i-th RefState
+INTEGER            :: i,BCType,BCState
+CHARACTER(LEN=255) :: BCName
+INTEGER            :: nRefStateMax
+INTEGER            :: nLinState,nLinStateMax
+INTEGER,PARAMETER  :: BCTypeRefstate(1:4)=(/5,51,52,60/)
+CHARACTER(LEN=32)  :: hilf
+INTEGER            :: Nloc,iElem
+!===================================================================================================================================
 
 ! Sanity Check BCs
 nRefStateMax = 0
@@ -209,36 +243,7 @@ IF(nRefState .GT. 0)THEN
     RefState(1:3,iState) = GETREALARRAY('RefState',3)
   END DO
 END IF
-
-! Read the velocity vector from ini file
-IniWavenumber = GETREALARRAY('IniWavenumber',3,'1.,1.,1.')
-IniCenter     = GETREALARRAY('IniCenter',3,'0.,0.,0.')
-IniAmplitude  = GETREAL('IniAmplitude','0.1')
-IniHalfwidth  = GETREAL('IniHalfwidth','0.1')
-
-chitensWhichField = GETINT( 'chitensWhichField','-1')
-chitensValue      = GETREAL('chitensValue','-1.0')
-chitensRadius     = GETREAL('chitensRadius','-1.0')
-IF(chitensWhichField.GT.0.0.OR.&
-   chitensValue     .GT.0.0.OR.&
-   chitensRadius    .GT.0.0)THEN
-  CALL abort(__STAMP__,'chitensWhichField, chitensValue and chitensRadius are no longer supported. Deactivate them!')
-END IF
-
-alpha_shape = GETINT('AlphaShape','2')
-rCutoff     = GETREAL('r_cutoff','1.')
-! Compute factor for shape function
-ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
-                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
-
-
-!ALLOCATE(E(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-!E=0.
-
-EquationInitIsDone=.TRUE.
-LBWRITE(UNIT_stdOut,'(A)')' INIT POISSON DONE!'
-LBWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitEquation
+END SUBROUTINE InitRefState
 
 
 !===================================================================================================================================

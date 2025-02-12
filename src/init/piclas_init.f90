@@ -99,7 +99,7 @@ USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
 #endif
 #if USE_HDG
 USE MOD_HDG                  ,ONLY: InitHDG
-USE MOD_Equation             ,ONLY: InitChiTens
+USE MOD_Equation             ,ONLY: InitRefState,InitChiTens
 #endif
 #if (PP_TimeDiscMethod==600)
 USE MOD_RadiationTrans_Init        ,ONLY: InitRadiationTransport
@@ -172,6 +172,7 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 CALL InitDGExchange()
 #endif /*USE_MPI*/
 #else
+CALL InitRefState()
 CALL InitChiTens()
 #endif /*!USE_HDG*/
 CALL InitDielectric() ! Dielectric media
