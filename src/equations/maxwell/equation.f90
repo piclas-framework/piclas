@@ -151,6 +151,7 @@ SUBROUTINE InitEquation()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge,c,c_inv,c2,mu0,eps0
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLnVar,nPMLElems
 USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
@@ -197,6 +198,13 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
+DoPML              = GETLOGICAL('DoPML','.FALSE.')
+IF(DoPML)THEN
+  PMLnVar = 24
+ELSE
+  PMLnVar = 0
+  nPMLElems = 0
+END IF
 ! Read correction velocity
 c_corr             = GETREAL('c_corr','1.')
 fDamping           = GETREAL('fDamping','0.999')

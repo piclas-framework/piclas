@@ -61,6 +61,9 @@ USE MOD_Mortar_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#ifdef maxwell
+USE MOD_PML_vars           ,ONLY: PMLnVar
+#endif /*maxwell*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_NodeType==1)
@@ -80,10 +83,10 @@ DO Nloc = NMin, NMax
   ALLOCATE(N_Mortar(Nloc)%M_0_2(0:Nloc,0:Nloc))
   ALLOCATE(N_Mortar(Nloc)%M_1_0(0:Nloc,0:Nloc))
   ALLOCATE(N_Mortar(Nloc)%M_2_0(0:Nloc,0:Nloc))
-  ALLOCATE(N_Mortar(Nloc)%U_tmp(PP_nVar,0:Nloc,0:Nloc,1:4))
-  ALLOCATE(N_Mortar(Nloc)%U_tmp2(PP_nVar,0:Nloc,0:Nloc,1:2))
+  ALLOCATE(N_Mortar(Nloc)%U_tmp( PP_nVar+PMLnVar,0:Nloc,0:Nloc,1:4))
+  ALLOCATE(N_Mortar(Nloc)%U_tmp2(PP_nVar+PMLnVar,0:Nloc,0:Nloc,1:2))
   CALL MortarBasis_BigToSmall(0, Nloc, NodeType, N_Mortar(Nloc)%M_0_1, N_Mortar(Nloc)%M_0_2)
-  CALL MortarBasis_SmallToBig(0,Nloc,NodeType,   N_Mortar(Nloc)%M_1_0, N_Mortar(Nloc)%M_2_0)
+  CALL MortarBasis_SmallToBig(0, Nloc, NodeType, N_Mortar(Nloc)%M_1_0, N_Mortar(Nloc)%M_2_0)
 END DO ! Nloc = NMin, NMax
 
 
