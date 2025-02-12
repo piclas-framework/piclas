@@ -134,15 +134,73 @@ This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format.
 
 ## Flow simulation with DSMC
 
-Install **piclas** by compiling the source code as described in Section {ref}`userguide/installation:Installation` and make sure to set the correct compile flags. For this setup, we are utilizing the regular Direct Simulation Monte Carlo (DSMC) method
+Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
+described under Section {ref}`userguide/installation:Compiling the code`.
+Always build the code in a separate directory located in the piclas top level directory.
+For this DSMC tutorial, e.g., create a directory *build_DSMC* in the piclas repository by running
 
+    cd $PICLAS_PATH
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd /home/$(whoami)/piclas
+
+and the create the build directory, in which the compilation process will take place
+
+    mkdir build_DSMC
+
+and the directory structure, which can be viewed via
+
+    ls -l
+
+should look like this
+
+     build_DSMC
+     cmake
+     CMakeListsLib.txt
+     CMakeListsMachine.txt
+     CMakeLists.txt
+     CONTRIBUTORS.md
+     docs
+     LICENCE.md
+     README.md
+     REFERENCE.md
+     REGGIE.md
+     regressioncheck
+     share
+     SpeciesDatabase.h5
+     src
+     tools
+     tutorials
+     unitTests
+
+Always compile the code within the *build* directory, hence, navigate to the *build_DSMC* directory before running cmake
+
+    cd build_DSMC
+
+For this specific tutorial, make sure to set the correct compile flags
+
+    PICLAS_EQNSYSNAME     = maxwell
     PICLAS_TIMEDISCMETHOD = DSMC
 
-or simply run the following command from inside the *build* directory
+or simply run the following command from inside the created *build* directory
 
-    cmake ../ -DPICLAS_TIMEDISCMETHOD=DSMC
+    cmake .. -DPICLAS_TIMEDISCMETHOD=DSMC -DPICLAS_EQNSYSNAME=maxwell
 
-to configure the build process and run `make` afterwards to build the executable. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
+to configure the build process and run
+
+    make -j
+
+afterwards to compile the executable.
+
+It is recommended to utilize a separate *build* folder whenever compiling a different solver in piclas to avoid confusion.
+Especially when switching between this DSMC tutorial and the PIC plasma wave tutorial as fundamentally different compiler settings
+are required.
+
+An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`.
+
+The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
 
 ```{table} Physical properties at the simulation start
 ---
