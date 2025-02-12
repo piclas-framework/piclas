@@ -4,3 +4,7 @@
 * Comparison of the heat flux with a reference surface state file, which was compared to the experimental values from publication mentioned above (first 4 thermocouples)
 * The wake of the heat shield was not included due to strong fluctuations and long sampling duration prohibiting the use of the test case as a regression test
 * Additionally, properties of impacting particles are sampled and tested: impact energy (trans, rot, vib), angle and number of impacts
+* Different types of particle weighting are tested
+  * Conventional radial weighting along y-axis
+  * Linear weighting along a coordinate axis
+  * Linear weighting along a user-defined vector

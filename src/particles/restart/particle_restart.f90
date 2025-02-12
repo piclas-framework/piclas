@@ -68,6 +68,7 @@ USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
+USE MOD_Particle_BGM           ,ONLY: CheckAndMayDeleteFIBGM
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues, DoCatalyticRestart
 ! HDG
@@ -844,6 +845,8 @@ IF (DoVirtualCellMerge) CALL MergeCells()
 ! Deallocate the read-in macroscopic values (might have been utilized in RestartAdaptiveBCSampling)
 SDEALLOCATE(MacroRestartValues)
 
+CALL CheckAndMayDeleteFIBGM() ! Check if FIBGM can be deleted (it is necessary for restart)
+
 END SUBROUTINE ParticleRestart
 
 
@@ -926,7 +929,14 @@ END IF
 CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
-CALL CloseDataFile()
+#if USE_MPI
+! Only the surface leaders open the file
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+  CALL CloseDataFile()
+END IF
+#else
+  CALL CloseDataFile()
+#endif
 
 END SUBROUTINE RestartAdaptiveWallTemp
 

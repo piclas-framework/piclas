@@ -23,8 +23,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 CHARACTER(LEN=6),PARAMETER :: ProgramName  = 'PICLas'              !> name of this program
 INTEGER,PARAMETER          :: MajorVersion = 3                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: MinorVersion = 3                     !> FileVersion number saved in each hdf5 file with hdf5 header
-INTEGER,PARAMETER          :: PatchVersion = 1                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: MinorVersion = 6                     !> FileVersion number saved in each hdf5 file with hdf5 header
+INTEGER,PARAMETER          :: PatchVersion = 0                     !> FileVersion number saved in each hdf5 file with hdf5 header
 REAL,PARAMETER             :: FileVersionReal  = REAL(MajorVersion,8)+REAL(MinorVersion,8)/10.+REAL(PatchVersion,8)/100.
                                                                    !> OLD number saved in each hdf5 file with hdf5 header
 INTEGER,PARAMETER          :: FileVersionInt = PatchVersion+MinorVersion*100+MajorVersion*10000
@@ -66,6 +66,7 @@ REAL, PARAMETER            :: eV2Joule=1.60217734e-19               !> Conversio
 CHARACTER(LEN=5)           :: TimeStampLenStr,TimeStampLenStr2      !> Strings for timestamp format of time
 REAL,PARAMETER             :: BohrRadius     = 5.2917721067E-11     !> Radius, 1st Bohr orbit for H (a0) [m]
 REAL,PARAMETER             :: AtomicMassUnit = 1.660539040E-27      !> Atomic mass unit [kg]
+REAL,PARAMETER             :: GravityAccelerationEarth = 9.8067     !> Acceleration due to Earth's gravity [m/s^2]
 
 REAL,PARAMETER             :: maxEXP= LOG(HUGE(maxexp))
 ! Set variables (natural constants and derived quantities) from user input or hard coded

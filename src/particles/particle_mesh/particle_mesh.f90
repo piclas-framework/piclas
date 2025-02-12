@@ -174,6 +174,7 @@ USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GE
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_DSMC_Vars              ,ONLY: DoCellLocalWeighting
 #ifdef CODE_ANALYZE
 !USE MOD_Particle_Surfaces_Vars ,ONLY: SideBoundingBoxVolume
 USE MOD_Particle_Tracking_Vars ,ONLY: PartOut,MPIRankOut
@@ -373,6 +374,11 @@ END IF
 
 ! Set logical for building node neighbourhood
 FindNeighbourElems = .FALSE.
+
+IF (DoCellLocalWeighting) THEN
+  FindNeighbourElems = .TRUE.
+END IF
+
 ! PIC deposition types require the neighbourhood
 SELECT CASE(TRIM(DepositionType))
   CASE('cell_volweight_mean','shape_function_adaptive')
@@ -874,7 +880,9 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
   END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
 #endif /*USE_LOADBALANCE*/
   IF(FindNeighbourElems)THEN
+    ADEALLOCATE(NodeToElemMapping)
     ADEALLOCATE(NodeToElemMapping_Shared)
+    ADEALLOCATE(NodeToElemInfo)
     ADEALLOCATE(NodeToElemInfo_Shared)
     ADEALLOCATE(ElemToElemMapping_Shared)
     ADEALLOCATE(ElemToElemInfo_Shared)
@@ -906,6 +914,8 @@ ADEALLOCATE(ConcaveElemSide_Shared)
 ADEALLOCATE(ElemSideNodeID_Shared)
 ADEALLOCATE(ElemMidPoint_Shared)
 SDEALLOCATE(SymmetrySide)
+! Cell-local weighting
+SDEALLOCATE(PartWeightAtNode)
 
 ! Load Balance
 !#if !USE_LOADBALANCE

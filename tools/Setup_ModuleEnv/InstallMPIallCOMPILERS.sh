@@ -46,8 +46,8 @@ fi
 # --------------------------------------------------------------------------------------------------
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 # chose which mpi you want to have installed (openmpi or mpich)
-#WHICHMPI=openmpi
-WHICHMPI=mpich
+WHICHMPI=openmpi
+#WHICHMPI=mpich
 #WHICHMPI=mpich-debug
 # choose for which compilers mpi is build (gcc or intel)
 WHICHCOMPILER=gcc
@@ -64,7 +64,8 @@ fi
 CONFIGSUFFIX=''
 if [ "${WHICHMPI}" == "openmpi" ]; then
   # DOWNLOAD and INSTALL OPENMPI (example OpenMPI-2.1.6)
-  MPIVERSION=4.1.6
+  MPIVERSION=4.1.5
+  MPIVERSION=5.0.6
 elif [ "${WHICHMPI}" == "mpich" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=4.1.2

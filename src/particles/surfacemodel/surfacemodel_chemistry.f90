@@ -619,7 +619,7 @@ USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, SurfSideArea
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfChem, SurfChemReac , ChemWallProp, ChemSampWall
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, BoundsOfElem_Shared
-USE MOD_DSMC_Vars                 ,ONLY: DSMC, RadialWeighting, SamplingActive
+USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -669,7 +669,7 @@ iReac_ER = 0
 speciesID = PartSpecies(PartID)
 ! MacroParticleFactor
 partWeight = GetParticleWeight(PartID)
-IF(.NOT.(usevMPF.OR.RadialWeighting%DoRadialWeighting)) THEN
+IF(.NOT.(usevMPF)) THEN
   partWeight = partWeight * Species(speciesID)%MacroParticleFactor
 END IF
 
@@ -1189,7 +1189,7 @@ IMPLICIT NONE
 INTEGER                         :: iSpec,iProc,SideID,iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
 INTEGER                         :: nValues, SurfChemVarNum, SurfChemSampSize
-INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
+TYPE(MPI_Request)               :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -1273,12 +1273,12 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
-      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
 
     IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
   END DO ! iProc

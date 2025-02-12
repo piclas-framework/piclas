@@ -1126,7 +1126,7 @@ USE MOD_piclas2vtk_Vars         ,ONLY: SurfConnect, SurfOutputSideToUniqueSide
 USE MOD_Interpolation           ,ONLY: GetVandermonde
 USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
-USE MOD_Mesh_Vars               ,ONLY: Face_xGP, Ngeo
+USE MOD_Mesh_Vars               ,ONLY: Face_xGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

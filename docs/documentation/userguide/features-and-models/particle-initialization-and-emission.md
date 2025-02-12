@@ -70,6 +70,7 @@ Different `SpaceIC` are available and an overview is given in the table below.
 | Distribution         | Description                                                                      | Reference                                    |
 | -------------------- | -------------------------------------------------------------------------------- | -------------------------------------------- |
 | cell_local           | Particles are inserted in every cell at a constant number density                | Section {ref}`sec:particle-cell-local`       |
+| point                | Particles are inserted at a specified point                                      | Section {ref}`sec:particle-point-init`       |
 | disc                 | Particles are inserted on a circular disc                                        | Section {ref}`sec:particle-disk-init`        |
 | cuboid               | Particles are inserted in the given cuboid volume at a constant number density   | Section {ref}`sec:particle-cuboid-init`      |
 | cylinder             | Particles are inserted in the given cylinder volume at a constant number density | Section {ref}`sec:particle-cylinder-init`    |
@@ -118,6 +119,13 @@ can also be utilized for 2D and axisymmetric simulations.
 When using a variable particle weighting as described in Section {ref}`sec:variable-particle-weighting`, the variable `Part-Species1-vMPFSplitThreshold`
 will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
 given number density and cell volume.
+
+(sec:particle-point-init)=
+### Point
+
+Particles can be inserted at a point specified by
+
+    Part-Species1-Init1-BasePointIC=(/1.0,1.0,1.0/)
 
 (sec:particle-disk-init)=
 ### Circular Disc
@@ -559,4 +567,18 @@ ReduceNoise, DoForceFreeSurfaceFlux
 DoPoissonRounding: {cite}`Tysanner2004`
 
 AcceptReject, ARM_DmaxSampleN: {cite}`Garcia2006`
+
+## Fast Initalization BackGround Mesh (FIBGM)
+
+The program constructs a cartesian background mesh if needed to efficiently find locations in the computational grid. This is mostly needed during initialization and restart. It will be deleted if it is not longer needed after the initalization and restart routines. The size of the mesh is usually calculated automatically, but can be specified by the user if necessary.
+
+    Part-FIBGMdeltas = (/6.2831 , 0.2 , 0.2/) ! Cartesian background mesh (bounding box around the complete simulation domain)
+    Part-FactorFIBGM = (/60     , 1   , 1/)   ! Division factor that is applied t the "Part-FIBGMdeltas" values to define the dx, dy and dz distances of the Cartesian background mesh
+
+
+
+The size of the cartesian background mesh `Part-FIBGMdeltas`, which can be accompanied by a division factor (i.e. number of background cells) in each direction given by `Part-factorFIBGM`. Here, the size and number of cells of the background mesh correspond to the actual mesh.
+PICLas will determine if the FIBGM is needed. The build can be forced by setting:
+
+    Part-ForceFIBGM = true
 

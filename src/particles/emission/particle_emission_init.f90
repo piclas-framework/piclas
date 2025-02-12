@@ -193,6 +193,8 @@ ELSE
   BGGas%NumberDensity = 0.
 END IF
 
+MPFOld = 0.0
+
 DO iSpec = 1, nSpecies
   LBWRITE (UNIT_stdOut,'(66(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -205,11 +207,14 @@ DO iSpec = 1, nSpecies
   END IF
 #endif /*USE_MPI*/
   Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor')
-  IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
-    IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
+  !IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
+  IF((.NOT.ALMOSTZERO(MPFOld)).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
+    IF(Species(iSpec)%InterID.NE.100) THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
         'Different MPFs only allowed when using Part-vMPF=T')
+    END IF
   END IF ! (iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF)
-  MPFOld = Species(iSpec)%MacroParticleFactor
+  IF(Species(iSpec)%InterID.NE.100) MPFOld = Species(iSpec)%MacroParticleFactor
   ! Species-specific time step
   Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
@@ -239,6 +244,10 @@ DO iSpec = 1, nSpecies
       ,'maxwell_lpn'))
     Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
     Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3)
+    ! Velocity distribution of granular species must be constant
+    IF(Species(iSpec)%InterID.EQ.100) THEN
+      Species(iSpec)%Init(iInit)%velocityDistribution  = 'constant'
+    END IF
     !--- Normalize VeloVecIC
     IF(.NOT.ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).EQ.0.)) THEN
       Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC / VECNORM(Species(iSpec)%Init(iInit)%VeloVecIC)
@@ -479,9 +488,11 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
 REAL                :: TimeStepOverWeight, v_thermal, dtVar
+REAL                :: StartT,EndT
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
+GETTIME(StartT)
 
 CALL UpdateNextFreePosition()
 
@@ -605,7 +616,8 @@ END IF
 
 IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()
 
-LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT,'INITIAL PARTICLE INSERTING DONE!')
 
 END SUBROUTINE InitialParticleInserting
 
@@ -821,7 +833,7 @@ SUBROUTINE DetermineInitialParticleNumber()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
-USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DoRadialWeighting, DoLinearWeighting, ParticleWeighting, DSMC
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,SpecReset
 USE MOD_ReadInTools
@@ -889,10 +901,14 @@ DO iSpec=1,nSpecies
         CASE DEFAULT
           CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
         END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
+        IF(DoLinearWeighting) THEN
+          Species(iSpec)%Init(iInit)%ParticleNumber=INT(Species(iSpec)%MacroParticleFactor*Species(iSpec)%Init(iInit)%ParticleNumber&
+                                                      /(ParticleWeighting%ScaleFactor),8)
+        END IF
         IF(Symmetry%Order.LE.2) THEN
           ! The radial scaling of the weighting factor has to be considered
-          IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
-                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
+          IF(DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
+                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (ParticleWeighting%ScaleFactor),8)
         END IF
       CASE('background')
         ! do nothing
