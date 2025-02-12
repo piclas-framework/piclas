@@ -804,7 +804,7 @@ REAL, INTENT(INOUT)           :: Pt(3)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                  :: ElemID, nPart, locPart, iLoop, SpecID, SpecIDSolid
+INTEGER                  :: ElemID, nPart, locPart, iLoop, SpecID, SpecIDSolid, CNElemID
 REAL                     :: Energy, c_r_abs, ElemVolume
 REAL                     :: c_r(3), Force(3)
 !===================================================================================================================================
@@ -813,7 +813,8 @@ Energy = 0.0
 
 ElemID = PEM%LocalElemID(iPart)
 SpecIDSolid = PartSpecies(iPart)
-ElemVolume = ElemVolume_Shared(GetCNElemID(ElemID+offSetElem))
+CNElemID = GetCNElemID(ElemID+offSetElem)
+ElemVolume = ElemVolume_Shared(CNElemID)
 
 nPart = PEM%pNumber(ElemID)
 

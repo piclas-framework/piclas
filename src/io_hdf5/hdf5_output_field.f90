@@ -657,7 +657,7 @@ IF(DoPML)THEN
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nGlobalElems    => INT(nGlobalElems,IK)    ,&
-      N               => INT(PP_N,IK)            ,&
+      N               => INT(NMax,IK)            ,&
       PMLnVar         => INT(PMLnVar,IK)         ,&
       PP_nElems       => INT(PP_nElems,IK)       ,&
       offsetElem      => INT(offsetElem,IK)      )

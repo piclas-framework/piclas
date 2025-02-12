@@ -936,7 +936,7 @@ LOGICAL,INTENT(IN)             :: CreateFromRestartFile
 ! LOCAL VARIABLES
 !REAL,DIMENSION(1,1:PP_nElems)  :: ElectronDensityCell,ElectronTemperatureCell
 REAL,ALLOCATABLE               :: ElectronDensityCell(:,:),ElectronTemperatureCell(:,:)
-INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID
+INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID,CNElemID
 REAL                           :: PartPosRef(1:3),ElemTemp
 CHARACTER(32)                  :: hilf
 CHARACTER(1)                   :: hilf2
@@ -1015,7 +1015,8 @@ DO iElem=1,PP_nElems
 
   ! Set electron charge number for each cell
   IF(CreateFromRestartFile)THEN
-    ElemCharge=NINT(ElectronDensityCell(1,iElem)*ElemVolume_Shared(GetCNElemID(iElem+offSetElem))/MPF)
+    CNElemID = GetCNElemID(iElem+offSetElem)
+    ElemCharge=NINT(ElectronDensityCell(1,iElem)*ElemVolume_Shared(CNElemID)/MPF)
   ELSE
     RegionID=ElemToBRRegion(iElem)
     CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)

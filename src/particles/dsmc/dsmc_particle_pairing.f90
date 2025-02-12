@@ -66,13 +66,14 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc
+INTEGER                       :: iPart, iLoop, nPart, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc, CNElemID
 INTEGER, ALLOCATABLE          :: iPartIndx(:)                 !< List of particles in the cell required for pairing
 REAL                          :: elemVolume
 INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 nPart = PEM%pNumber(iElem)
+CNElemID = GetCNElemID(iElem+offSetElem)
 
 IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
@@ -124,7 +125,7 @@ IF (DoVirtualCellMerge) THEN
     END DO
     elemVolume = VirtMergedCells(iELem)%MergedVolume
   ELSE
-    elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    elemVolume = ElemVolume_Shared(CNElemID)
   END IF
 ELSE
   nPartMerged = nPart
@@ -143,7 +144,7 @@ ELSE
     ! Choose next particle in the element
     iPart = PEM%pNext(iPart)
   END DO
-  elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  elemVolume = ElemVolume_Shared(CNElemID)
 END IF
 
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
@@ -2033,7 +2034,7 @@ REAL,INTENT(IN)               :: x_in(2)                               !< physic
 REAL,INTENT(INOUT)            :: xi_Out(2)  ! Interpolated Pos
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: i,j,k, iNode, SideID
+INTEGER                       :: i,j,k, iNode, SideID, CNElemID
 REAL                          :: xi(2)
 REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
 REAL, PARAMETER               :: EPS=1E-10
@@ -2045,7 +2046,8 @@ REAL                          :: T_inv(2,2), DP(2), T(2,2)
 ! 1.1.) initial guess from linear part:
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,CNElemID)+1)
 END DO
 T(:,1) = 0.5 * (P(:,2)-P(:,1))
 T(:,2) = 0.5 * (P(:,4)-P(:,1))
@@ -2117,12 +2119,13 @@ INTEGER, INTENT(IN)             :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iNode
+INTEGER                         :: SideID, iNode, CNElemID
 REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,CNElemID)+1)
 END DO
 
 MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &

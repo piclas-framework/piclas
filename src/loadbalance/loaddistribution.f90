@@ -25,17 +25,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-#if USE_MPI
-INTERFACE ApplyWeightDistributionMethod
-  MODULE PROCEDURE ApplyWeightDistributionMethod
-END INTERFACE
-#endif /*USE_MPI*/
-
-INTERFACE WriteElemTimeStatistics
-  MODULE PROCEDURE WriteElemTimeStatistics
-END INTERFACE
-
 #if USE_MPI
 PUBLIC::ApplyWeightDistributionMethod
 PUBLIC::WeightDistribution_Equal
@@ -1232,11 +1221,13 @@ END SUBROUTINE freeList
 !===================================================================================================================================
 SUBROUTINE WriteElemTimeStatistics(WriteHeader,time_opt,iter_opt)
 ! MODULES
+USE MOD_TimeDisc_Vars    ,ONLY: tStart,tEnd,tWallRemaining
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
 USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors,ProcessMemUsage,nProcessors
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime,ReadMeshWallTime,memory
 USE MOD_Globals_Vars     ,ONLY: DomainDecompositionWallTime,CommMeshReadinWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Mesh_Vars        ,ONLY: nGlobalDOFs
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
@@ -1270,16 +1261,20 @@ REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-#ifdef PARTICLES
+#if defined(PARTICLES)
 REAL                                     :: ElemTimeFieldOut
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
-INTEGER,PARAMETER                        :: nOutputVar=23
+INTEGER,PARAMETER                        :: nOutputVar=27
 #else
-INTEGER,PARAMETER                        :: nOutputVar=18
-#endif /*PARTICLES*/
+INTEGER,PARAMETER                        :: nOutputVar=22
+#endif /*defined(PARTICLES)*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time'                   , &
+    'tStartSim'              , &
+    'tEndSim'                , &
+    'ETA[h]'                 , &
     'Procs'                  , &
+    'nGlobalDOFs'            , &
     'MinWeight'              , &
     'MaxWeight'              , &
     'CurrentImbalance'       , &
@@ -1296,13 +1291,13 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'MemoryUsed'             , &
     'MemoryAvailable'        , &
     'MemoryTotal'              &
-#ifdef PARTICLES
+#if defined(PARTICLES)
   , '#Particles'             , &
     'FieldTime'              , &
     'PartTime'               , &
     'FieldTimePercent'       , &
     'PartTimePercent'          &
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES)*/
     /)
 CHARACTER(LEN=255)         :: tmpStr(nOutputVar) ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)        :: tmpStr2
@@ -1456,7 +1451,11 @@ IF (FILEEXISTS(outfile)) THEN
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   WRITE(tmpStr2,formatStr)&
             " ",time_loc                ,&
+      delimiter,tStart                  ,&
+      delimiter,tEnd                    ,&
+      delimiter,tWallRemaining          ,&
       delimiter,REAL(nProcessors)       ,&
+      delimiter,REAL(nGlobalDOFs)       ,&
       delimiter,MinWeight               ,&
       delimiter,MaxWeight               ,&
       delimiter,CurrentImbalance        ,&

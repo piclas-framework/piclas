@@ -1057,7 +1057,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, iSpec
+INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, iSpec, CNElemID
 REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
 LOGICAL,ALLOCATABLE           :: PerformReaction(:)
@@ -1071,7 +1071,8 @@ ALLOCATE(PerformReaction(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  Volume = ElemVolume_Shared(CNElemID)
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum

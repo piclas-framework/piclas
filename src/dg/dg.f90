@@ -318,6 +318,10 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars ,ONLY: nNbProcs, DataSizeSideRec, DataSizeSideSend, DGExchange
 USE MOD_PML_Vars ,ONLY: DoPML,PMLnVar
+#if !(USE_HDG)
+! Master is only required for Maxwell (with Dielectric)
+USE MOD_MPI_Vars ,ONLY: DataSizeSideRecMaster, DataSizeSideSendMaster
+#endif /*not USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -338,6 +342,11 @@ DO iNbProc=1,nNbProcs
     ALLOCATE(DGExchange(iNbProc)%FaceDataRecvFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideRec(iNbProc,:))  ))
     ALLOCATE(DGExchange(iNbProc)%FaceDataSendFlux( PP_nVar+PMLnVar, MAXVAL(DataSizeSideSend(iNbProc,:)) ))
   END IF ! DoPML
+#if !(USE_HDG)
+  ! Master is only required for Maxwell (with Dielectric)
+  ALLOCATE(DGExchange(iNbProc)%FaceDataRecvUMaster(PP_nVar        , MAXVAL(DataSizeSideRecMaster(iNbProc,:))  ))
+  ALLOCATE(DGExchange(iNbProc)%FaceDataSendUMaster(PP_nVar        , MAXVAL(DataSizeSideSendMaster(iNbProc,:)) ))
+#endif /*not USE_HDG*/
 END DO !iProc=1,nNBProcs
 
 END SUBROUTINE InitDGExchange

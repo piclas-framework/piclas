@@ -582,7 +582,7 @@ END DO
 END SUBROUTINE RiemannPML
 
 
-SUBROUTINE ExactFlux(SideID,t,tDeriv,Nloc,Flux_Master,Flux_Slave,U_Master, U_slave,NormVec,Face_xGP,SurfElem)
+SUBROUTINE ExactFlux(SideID,t,tDeriv,N_master,N_slave,N_max,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,Face_xGP,SurfElem)
 !===================================================================================================================================
 ! Routine to add an exact function to a Riemann-Problem Face
 ! used at PML interfaces to emit a wave
@@ -600,33 +600,36 @@ SUBROUTINE ExactFlux(SideID,t,tDeriv,Nloc,Flux_Master,Flux_Slave,U_Master, U_sla
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
-!USE MOD_DG_Vars,         ONLY:U_Master_loc,U_Slave_loc,Flux_loc
-USE MOD_Equation_Vars,   ONLY:IniExactFunc,ExactFluxDir
-USE MOD_Equation,        ONLY:ExactFunc
-USE MOD_PML_vars,        ONLY:PMLnVar
-USE MOD_Interfaces_Vars, ONLY:InterfaceRiemann
-USE MOD_Dielectric_vars, ONLY:DielectricSurf
+USE MOD_Equation_Vars      ,ONLY:IniExactFunc,ExactFluxDir
+USE MOD_Equation           ,ONLY:ExactFunc
+USE MOD_PML_vars           ,ONLY:PMLnVar
+USE MOD_Interfaces_Vars    ,ONLY:InterfaceRiemann
+USE MOD_Dielectric_vars    ,ONLY:DielectricSurf
+USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,N_Inter
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)    :: SideID
-INTEGER,INTENT(IN)    :: Nloc
+INTEGER,INTENT(IN)    :: N_master
+INTEGER,INTENT(IN)    :: N_slave
+INTEGER,INTENT(IN)    :: N_max
 REAL,INTENT(IN)       :: t
 INTEGER,INTENT(IN)    :: tDeriv
-REAL,INTENT(IN)       :: NormVec( 1:3      ,0:Nloc,0:Nloc)
-REAL,INTENT(IN)       :: Face_xGP(1:3      ,0:Nloc,0:Nloc)
-REAL,INTENT(IN)       :: U_master(1:PP_nVar,0:Nloc,0:Nloc)
-REAL,INTENT(IN)       :: U_slave (1:PP_nVar,0:Nloc,0:Nloc)
-REAL,INTENT(IN)       :: SurfElem(          0:Nloc,0:Nloc)
+REAL,INTENT(IN)       :: NormVec( 1:3      ,0:N_max,0:N_max)
+REAL,INTENT(IN)       :: Face_xGP(1:3      ,0:N_max,0:N_max)
+REAL,INTENT(IN)       :: U_Master(1:PP_nVar,0:N_master,0:N_master)
+REAL,INTENT(IN)       :: U_Slave (1:PP_nVar,0:N_slave ,0:N_slave )
+REAL,INTENT(IN)       :: SurfElem(          0:N_max   ,0:N_max   )
 ! Allocate arrays to hold the face flux to reduce memory churn
-REAL                  :: U_Master_loc(1:PP_nVar        ,0:Nloc,0:Nloc)
-REAL                  :: U_Slave_loc (1:PP_nVar        ,0:Nloc,0:Nloc)
-REAL                  :: Flux_loc(    1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
+REAL                  :: U_Master_loc(1:PP_nVar        ,0:N_max,0:N_max)
+REAL                  :: U_Slave_loc (1:PP_nVar        ,0:N_max,0:N_max)
+REAL                  :: Flux_loc(    1:PP_nVar+PMLnVar,0:N_max,0:N_max)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)    :: Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
-REAL,INTENT(INOUT)    :: Flux_Slave (1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
+REAL,INTENT(INOUT)    :: Flux_Master(1:PP_nVar+PMLnVar,0:N_master,0:N_master)
+REAL,INTENT(INOUT)    :: Flux_Slave (1:PP_nVar+PMLnVar,0:N_slave ,0:N_slave )
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER               :: p,q
@@ -636,19 +639,38 @@ REAL                  :: U_loc(1:PP_nVar)
 
 UseMaster=.TRUE.
 ! emission over plane, hence, first entry decides orientation of  plane
-IF(NormVec(ExactFluxDir,0,0).GT.0)THEN
+IF(NormVec(ExactFluxDir,0,0).GT.0.)THEN
   UseMaster=.FALSE.
-ELSE IF(NormVec(ExactFluxDir,0,0).LT.0)THEN
+ELSE IF(NormVec(ExactFluxDir,0,0).LT.0.)THEN
   UseMaster=.TRUE.
 ELSE
+  IPWRITE(*,*) 'ExactFluxDir              : ', ExactFluxDir
+  IPWRITE(*,*) 'NormVec(ExactFluxDir,0,0) : ', NormVec(ExactFluxDir,0,0)
+  IPWRITE(*,*) 'NormVec(:,0,0)            : ', NormVec(:,0,0)
+  IPWRITE(*,*) 'NormVec                   : ', NormVec
   CALL abort(__STAMP__,'ExactFlux has encountered an error with the normal vector.')
 END IF
 
-U_Slave_loc  = U_Slave
-U_Master_loc = U_Master
+! Map from N_slave to N_max
+! 1. U_Slave
+IF(N_max.EQ.N_slave)THEN ! N is equal
+  U_Slave_loc(:,:,:) = U_Slave(:,:,:)
+ELSEIF(N_max.GT.N_slave)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+  CALL ChangeBasis2D(PP_nVar, N_slave, N_max, PREF_VDM(N_slave, N_max)%Vdm, &
+           U_Slave(1:PP_nVar, 0:N_slave, 0:N_slave ),                       &
+       U_Slave_loc(1:PP_nVar, 0:N_max  , 0:N_max   ))
+END IF
+! 2. U_Master
+IF(N_max.EQ.N_master)THEN ! N is equal
+  U_Master_loc(:,:,:) = U_Master(:,:,:)
+ELSEIF(N_max.GT.N_master)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+  CALL ChangeBasis2D(PP_nVar, N_master, N_max, PREF_VDM(N_master, N_max)%Vdm, &
+          U_Master(1:PP_nVar, 0:N_master, 0:N_master ),                       &
+      U_Master_loc(1:PP_nVar, 0:N_max   , 0:N_max    ))
+END IF
 
-DO q=0,Nloc
-  DO p=0,Nloc
+DO q=0,N_max
+  DO p=0,N_max
     ! the second state is always zero and already computed
     ! caution, rotation
     CALL ExactFunc(IniExactFunc,t,tDeriv,Face_xGP(:,p,q),U_loc(:))
@@ -665,34 +687,72 @@ Flux_loc=0.
 ! check interface type for Riemann solver selection
 SELECT CASE(InterfaceRiemann(SideID))
 CASE(RIEMANN_VACUUM) ! standard flux
-  CALL RiemannVacuum(Nloc,Flux_loc(1:8,:,:),U_Master_loc( :,:,:),U_Slave_loc(  :,:,:),NormVec(:,:,:))
+  CALL RiemannVacuum(N_max,Flux_loc(1:8,:,:),U_Master_loc( :,:,:),U_Slave_loc(  :,:,:),NormVec(:,:,:))
 CASE(RIEMANN_PML) ! RiemannPML additionally calculates the 24 fluxes needed for the auxiliary equations (flux-splitting!)
-  CALL RiemannPML(Nloc,Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
+  CALL RiemannPML(N_max,Flux_loc(1:32,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:), NormVec(:,:,:))
 CASE(RIEMANN_DIELECTRIC) ! dielectric region <-> dielectric region
-  CALL RiemannDielectric(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
-                         NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+  CALL RiemannDielectric(N_max,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                         NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:N_max,0:N_max))
 CASE(RIEMANN_DIELECTRIC2VAC) ! master is DIELECTRIC and slave PHYSICAL: A+(Eps0,Mu0) and A-(EpsR,MuR)
-  CALL RiemannDielectricInterFace2(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
-                                              NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+  CALL RiemannDielectricInterFace2(N_max,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                                              NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:N_max,0:N_max))
 CASE(RIEMANN_VAC2DIELECTRIC) ! master is PHYSICAL and slave DIELECTRIC: A+(EpsR,MuR) and A-(Eps0,Mu0)
-  CALL RiemannDielectricInterFace(Nloc,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
-                                              NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:Nloc,0:Nloc))
+  CALL RiemannDielectricInterFace(N_max,Flux_loc(1:8,:,:),U_Master_loc(:,:,:),U_Slave_loc(:,:,:),&
+                                              NormVec(:,:,:),DielectricSurf(SideID)%Dielectric_Master(0:N_max,0:N_max))
 CASE DEFAULT
   CALL abort(__STAMP__,'Unknown interface type for Riemann solver (vacuum, dielectric, PML ...)')
 END SELECT
 
 IF(UseMaster)THEN
-  DO q=0,Nloc
-    DO p=0,Nloc
-      Flux_Master(:,p,q) = Flux_loc(:,p,q)*SurfElem(p,q)
+  ! Apply surface element on N_max
+  DO q=0,N_max
+    DO p=0,N_max
+      Flux_loc(:,p,q) = Flux_loc(:,p,q)*SurfElem(p,q)
     END DO ! p
   END DO ! q
+  ! Map from N_max to N_master
+  IF(N_master.EQ.N_max)THEN ! N is equal
+    Flux_Master(:,:,:) = Flux_loc(:,:,:)
+  ELSEIF(N_master.GT.N_max)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+    CALL abort(__STAMP__,'This cannot happen')
+    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_max, N_master, PREF_VDM(N_max, N_master)%Vdm, &
+            Flux_loc(1:PP_nVar+PMLnVar, 0:N_max   , 0:N_max ),                          &
+         Flux_Master(1:PP_nVar+PMLnVar, 0:N_master, 0:N_master))
+  ELSE ! N reduces: This requires an intermediate modal basis
+    ! Switch to Legendre basis (stay on N_max)
+    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_max, N_max, N_Inter(N_max)%sVdm_Leg, &
+            Flux_loc(1:PP_nVar+PMLnVar, 0:N_max, 0:N_max ),                    &
+            Flux_loc(1:PP_nVar+PMLnVar, 0:N_max, 0:N_max ))
+    ! Switch back to nodal basis but cut-off the higher-order DOFs (go from N_master to N_master)
+    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_master, N_master, N_Inter(N_master)%Vdm_Leg, &
+            Flux_loc(1:PP_nVar+PMLnVar, 0:N_master, 0:N_master ),                      &
+         Flux_Master(1:PP_nVar+PMLnVar, 0:N_master, 0:N_master))
+  END IF ! N_master.EQ.N_max
 ELSE
-  DO q=0,Nloc
-    DO p=0,Nloc
-      Flux_Slave(:,p,q)  = Flux_loc(:,p,q)*SurfElem(p,q)
+  ! Apply surface element on N_max
+  DO q=0,N_max
+    DO p=0,N_max
+      Flux_loc(:,p,q)  = Flux_loc(:,p,q)*SurfElem(p,q)
     END DO ! p
   END DO ! q
+  ! Map from N_max to N_slave
+  IF(N_slave.EQ.N_max)THEN ! N is equal
+    Flux_Slave(:,:,:) = Flux_loc(:,:,:)
+  ELSEIF(N_slave.GT.N_max)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+    CALL abort(__STAMP__,'This cannot happen')
+    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_max, N_slave, PREF_VDM(N_max, N_slave)%Vdm, &
+              Flux_loc(PP_nVar+PMLnVar, 0:N_max  , 0:N_max ),                         &
+            Flux_Slave(PP_nVar+PMLnVar, 0:N_slave, 0:N_slave))
+  ELSE ! N reduces: This requires an intermediate modal basis
+    ! Switch to Legendre basis (stay on N_max)
+    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_max, N_max, N_Inter(N_max)%sVdm_Leg, &
+              Flux_loc(PP_nVar+PMLnVar, 0:N_max, 0:N_max ),                    &
+              Flux_loc(PP_nVar+PMLnVar, 0:N_max, 0:N_max ))
+    ! Switch back to nodal basis but cut-off the higher-order DOFs (go from N_slave to N_slave)
+    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_slave, N_slave, N_Inter(N_slave)%Vdm_Leg, &
+              Flux_loc(PP_nVar+PMLnVar, 0:N_slave, 0:N_slave ),                     &
+            Flux_Slave(PP_nVar+PMLnVar, 0:N_slave, 0:N_slave))
+  END IF ! N_slave.EQ.N_max
 END IF
 
 END SUBROUTINE ExactFlux

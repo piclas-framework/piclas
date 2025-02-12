@@ -196,7 +196,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies)
+REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies),CNElemID
 INTEGER       :: iSpec,iElem
 CHARACTER(5)  :: hilf
 !===================================================================================================================================
@@ -210,7 +210,8 @@ PTotal = 0.
 DO iSpec = 1, nSpecies
   IF(ABS(Species(iSpec)%ChargeIC).GT.0.0)THEN
     DO iElem = 1, nElems
-      PTotal(iSpec) = PTotal(iSpec) + PCouplSpec(iSpec)%DensityAvgElem(iElem) * ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      PTotal(iSpec) = PTotal(iSpec) + PCouplSpec(iSpec)%DensityAvgElem(iElem) * ElemVolume_Shared(CNElemID)
     END DO ! iElem = 1, nElems
   END IF ! ABS(Species(iSpec)%ChargeIC).GT.0.0)
 END DO ! iSpec = 1, nSpecies

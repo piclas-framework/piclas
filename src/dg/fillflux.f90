@@ -119,15 +119,15 @@ END DO ! SideID
 IF(.NOT.doMPISides)THEN
   DO SideID=1,nBCSides
     ! BC sides are always master sides
-    Nloc = DG_Elems_master(SideID)
-    CALL GetBoundaryFlux(SideID,t,tDeriv,Nloc&
-                                 ,U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar , 0:Nloc , 0:Nloc) &
-                                 ,U_Surf_N(SideID)%U_Master   (1:PP_nVar         , 0:Nloc , 0:Nloc) &
-                                 ,N_SurfMesh(SideID)%NormVec  (1:3               , 0:Nloc , 0:Nloc) &
-                                 ,N_SurfMesh(SideID)%TangVec1 (1:3               , 0:Nloc , 0:Nloc) &
-                                 ,N_SurfMesh(SideID)%TangVec2 (1:3               , 0:Nloc , 0:Nloc) &
-                                 ,N_SurfMesh(SideID)%Face_XGP (1:3               , 0:Nloc , 0:Nloc) )
-    DO q=0,Nloc; DO p=0,Nloc
+    N_master = DG_Elems_master(SideID)
+    CALL GetBoundaryFlux(SideID,t,tDeriv,N_master&
+                                 ,U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar , 0:N_master , 0:N_master) &
+                                 ,U_Surf_N(SideID)%U_Master   (1:PP_nVar         , 0:N_master , 0:N_master) &
+                                 ,N_SurfMesh(SideID)%NormVec  (1:3               , 0:N_master , 0:N_master) &
+                                 ,N_SurfMesh(SideID)%TangVec1 (1:3               , 0:N_master , 0:N_master) &
+                                 ,N_SurfMesh(SideID)%TangVec2 (1:3               , 0:N_master , 0:N_master) &
+                                 ,N_SurfMesh(SideID)%Face_XGP (1:3               , 0:N_master , 0:N_master) )
+    DO q=0,N_master; DO p=0,N_master
       U_Surf_N(SideID)%Flux_Master(:,p,q)=U_Surf_N(SideID)%Flux_Master(:,p,q)*N_SurfMesh(SideID)%SurfElem(p,q)
     END DO; END DO
   END DO
@@ -136,14 +136,12 @@ END IF
 !  6. Exact flux determination (inner BC)
 IF(DoExactFlux) THEN
   DO SideID=firstSideID,lastSideID
-    IF (isExactFluxInterFace(SideID))THEN! CAUTION: Multiplication with SurfElem is done in ExactFlux
+    IF (isExactFluxInterFace(SideID))THEN ! CAUTION: Multiplication with SurfElem is done in ExactFlux
       ! Get polynomial degrees of master/slave sides
       N_master = DG_Elems_master(SideID)
       N_slave  = DG_Elems_slave (SideID)
-      IF(N_master.NE.N_slave) CALL abort(__STAMP__,'exact flux for different N not imeplemented')
-      Nloc     = DG_Elems_master(SideID)
       N_max    = MAX(N_master,N_slave)
-      CALL ExactFlux(SideID,t,tDeriv,Nloc&
+      CALL ExactFlux(SideID,t,tDeriv, N_master, N_slave, N_max&
                     , U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar , 0:N_master , 0:N_master)&
                     , U_Surf_N(SideID)%Flux_Slave( 1:PP_nVar+PMLnVar , 0:N_slave  , 0:N_slave )&
                     , U_Surf_N(SideID)%U_Master(   1:PP_nVar         , 0:N_master , 0:N_master)&
@@ -277,13 +275,6 @@ ELSE ! N_slave > N_master
     ! 4. copy flux from master side to slave side: DO not change sign
     Flux_Slave(:,:,:) = Fluxloc(:,:,:)
   END SELECT
-  !WRITE (*,*) " "
-  !WRITE (*,*) "SideID =", SideID
-  !DO q=0,N_slave; DO p=0,N_slave
-  !  WRITE (*,*) "NormVec =", NormVec(1:3,p,q),N_SurfMesh(SideID)%Face_xGP(1:3,p,q)
-  !END DO; END DO
-  !!write(*,*) Flux_Slave(1,:,:)
-  !read*
 END IF
 SDEALLOCATE(Uloc)
 SDEALLOCATE(Fluxloc)

@@ -258,9 +258,10 @@ SUBROUTINE CalcPMLSource()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals  ,ONLY: abort
-USE MOD_DG_Vars  ,ONLY: U_N
-USE MOD_PML_Vars ,ONLY: nPMLElems,PMLToElem,PML,PMLTimeRamp
+USE MOD_Globals   ,ONLY: abort
+USE MOD_DG_Vars   ,ONLY: U_N,N_DG_Mapping
+USE MOD_PML_Vars  ,ONLY: nPMLElems,PMLToElem,PML,PMLTimeRamp
+USE MOD_Mesh_Vars ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -269,18 +270,20 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,iPMLElem,m,iElem
+INTEGER :: i,j,k,iPMLElem,m,iElem,Nloc
 !===================================================================================================================================
 ! sources for the standard variables
-DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+DO iPMLElem=1,nPMLElems
   iElem = PMLToElem(iPMLElem)
-  DO m=1,8
-    U_N(iElem)%Ut(m,i,j,k) = U_N(iElem)%Ut(m,i,j,k) - PMLTimeRamp*(&
-        PML(iPMLElem)%zeta(1,i,j,k)*U_N(iElem)%U2(m*3-2,i,j,k) +&   ! = 1,4,7,10,13,16,19,22
-        PML(iPMLElem)%zeta(2,i,j,k)*U_N(iElem)%U2(m*3-1,i,j,k) +&   ! = 2,5,8,11,12,17,20,23
-        PML(iPMLElem)%zeta(3,i,j,k)*U_N(iElem)%U2(m*3  ,i,j,k) )    ! = 3,6,9,12,15,18,21,24
-  END DO
-END DO; END DO; END DO !nPMLElems,k,j,i
+  Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    DO m=1,8
+      U_N(iElem)%Ut(m,i,j,k) = U_N(iElem)%Ut(m,i,j,k) - PMLTimeRamp*(&
+          PML(iPMLElem)%zeta(1,i,j,k)*U_N(iElem)%U2(m*3-2,i,j,k) +&   ! = 1,4,7,10,13,16,19,22
+          PML(iPMLElem)%zeta(2,i,j,k)*U_N(iElem)%U2(m*3-1,i,j,k) +&   ! = 2,5,8,11,12,17,20,23
+          PML(iPMLElem)%zeta(3,i,j,k)*U_N(iElem)%U2(m*3  ,i,j,k) )    ! = 3,6,9,12,15,18,21,24
+    END DO
+  END DO; END DO; END DO !nPMLElems,k,j,i
 END DO
 END SUBROUTINE CalcPMLSource
 
@@ -292,11 +295,11 @@ SUBROUTINE PMLTimeDerivative()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars       ,ONLY: U_N
-USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLnVar
+USE MOD_DG_Vars       ,ONLY: U_N,N_DG_Mapping
+USE MOD_PML_Vars      ,ONLY: nPMLElems,PMLToElem,PMLnVar
 USE MOD_PML_Vars      ,ONLY: PML,PMLTimeRamp
-USE MOD_Mesh_Vars     ,ONLY: N_VolMesh
-USE MOD_Equation_Vars, ONLY: fDamping
+USE MOD_Mesh_Vars     ,ONLY: N_VolMesh,offSetElem
+USE MOD_Equation_Vars ,ONLY: fDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -305,30 +308,36 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i,j,k,iPMLElem,iPMLVar,iElem
+INTEGER :: i,j,k,iPMLElem,iPMLVar,iElem,Nloc
 !===================================================================================================================================
 ! We have to take the inverse of the Jacobians into account
 ! the '-' sign is due to the movement of the term to the right-hand-side of the equation
-DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+DO iPMLElem=1,nPMLElems
   iElem = PMLToElem(iPMLElem)
-  DO iPMLVar=1,PMLnVar
-    U_N(iElem)%U2t(iPMLVar,i,j,k) = - U_N(iElem)%U2t(iPMLVar,i,j,k) * N_VolMesh(iElem)%sJ(i,j,k)
-  END DO
-END DO; END DO; END DO; END DO !nPMLElems,k,j,i
+  Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    DO iPMLVar=1,PMLnVar
+      U_N(iElem)%U2t(iPMLVar,i,j,k) = - U_N(iElem)%U2t(iPMLVar,i,j,k) * N_VolMesh(iElem)%sJ(i,j,k)
+    END DO
+  END DO; END DO; END DO; ! k,j,i
+END DO ! nPMLElems
 
 
 ! Add Source Terms
-DO iPMLElem=1,nPMLElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+DO iPMLElem=1,nPMLElems
   iElem = PMLToElem(iPMLElem)
-  U_N(iElem)%U2t(1 : 3,i,j,k) = U_N(iElem)%U2t(1 : 3,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(1 : 3,i,j,k) * PMLTimeRamp
-  U_N(iElem)%U2t(4 : 6,i,j,k) = U_N(iElem)%U2t(4 : 6,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(4 : 6,i,j,k) * PMLTimeRamp
-  U_N(iElem)%U2t(7 : 9,i,j,k) = U_N(iElem)%U2t(7 : 9,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(7 : 9,i,j,k) * PMLTimeRamp
-  U_N(iElem)%U2t(10:12,i,j,k) = U_N(iElem)%U2t(10:12,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(10:12,i,j,k) * PMLTimeRamp
-  U_N(iElem)%U2t(13:15,i,j,k) = U_N(iElem)%U2t(13:15,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(13:15,i,j,k) * PMLTimeRamp
-  U_N(iElem)%U2t(16:18,i,j,k) = U_N(iElem)%U2t(16:18,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(16:18,i,j,k) * PMLTimeRamp
-  U_N(iElem)%U2t(19:21,i,j,k) = U_N(iElem)%U2t(19:21,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(19:21,i,j,k) * PMLTimeRamp
-  U_N(iElem)%U2t(22:24,i,j,k) = U_N(iElem)%U2t(22:24,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(22:24,i,j,k) * PMLTimeRamp
-END DO; END DO; END DO; END DO !nPMLElems,k,j,i
+  Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    U_N(iElem)%U2t(1 : 3,i,j,k) = U_N(iElem)%U2t(1 : 3,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(1 : 3,i,j,k) * PMLTimeRamp
+    U_N(iElem)%U2t(4 : 6,i,j,k) = U_N(iElem)%U2t(4 : 6,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(4 : 6,i,j,k) * PMLTimeRamp
+    U_N(iElem)%U2t(7 : 9,i,j,k) = U_N(iElem)%U2t(7 : 9,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(7 : 9,i,j,k) * PMLTimeRamp
+    U_N(iElem)%U2t(10:12,i,j,k) = U_N(iElem)%U2t(10:12,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(10:12,i,j,k) * PMLTimeRamp
+    U_N(iElem)%U2t(13:15,i,j,k) = U_N(iElem)%U2t(13:15,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(13:15,i,j,k) * PMLTimeRamp
+    U_N(iElem)%U2t(16:18,i,j,k) = U_N(iElem)%U2t(16:18,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(16:18,i,j,k) * PMLTimeRamp
+    U_N(iElem)%U2t(19:21,i,j,k) = U_N(iElem)%U2t(19:21,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(19:21,i,j,k) * PMLTimeRamp
+    U_N(iElem)%U2t(22:24,i,j,k) = U_N(iElem)%U2t(22:24,i,j,k) - PML(iPMLElem)%zetaEff(1:3,i,j,k) * U_N(iElem)%U2(22:24,i,j,k) * PMLTimeRamp
+  END DO; END DO; END DO; ! k,j,i
+END DO ! nPMLElems
 
 
 ! 1.) DEBUGPML: apply the damping factor also to PML source terms

@@ -19,16 +19,9 @@ MODULE MOD_PICDepo_Shapefunction_Tools
 IMPLICIT NONE
 PRIVATE
 !===================================================================================================================================
-INTERFACE calcSfSource
-  MODULE PROCEDURE calcSfSource
-END INTERFACE
-
-INTERFACE SFNorm
-  MODULE PROCEDURE SFNorm
-END INTERFACE
-
 PUBLIC:: calcSfSource
 PUBLIC:: SFNorm
+PUBLIC:: SFRadius2
 PUBLIC:: InitShapeFunctionDimensionalty
 !===================================================================================================================================
 
@@ -163,8 +156,7 @@ ELSE
       CALL depoChargeOnDOFsSFAdaptive(  PartPos , SourceSize , Fac      , PartID )
     END IF ! SFAdaptiveSmoothing
   CASE DEFAULT
-    CALL CollectiveStop(__STAMP__,&
-        'Unknown ShapeFunction Method!')
+    CALL CollectiveStop(__STAMP__,'Unknown ShapeFunction Method!')
   END SELECT ! DepositionType
 END IF ! TRIM(DepositionType).EQ.'shape_function_cc'.AND.(NbrOfPeriodicSFCases.GT.1)
 
@@ -402,7 +394,7 @@ DO kk = kmin,kmax
         IF (((globElemID-offSetElem).GE.1).AND.(globElemID-offSetElem).LE.nElems) &
           nDeposPerElem(globElemID-offSetElem)=nDeposPerElem(globElemID-offSetElem)+1
 #endif /*USE_LOADBALANCE*/
-          !--- go through all gauss points
+        !--- go through all gauss points
         Nloc = N_DG_Mapping(2,globElemID)
         offSetDof = N_DG_Mapping(1,globElemID)
         DO m=0,Nloc; DO l=0,Nloc; DO k=0,Nloc
@@ -770,12 +762,12 @@ SUBROUTINE depoChargeOnDOFsSFAdaptive(Position,SourceSize,Fac,PartIdx)
 ! use MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF, N_ShapeTmp
+USE MOD_PICDepo_Vars       ,ONLY: alpha_sf,SFElemr2_Shared,ChargeSFDone,sfDepo3D,dimFactorSF,N_ShapeTmp
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo, Elem_xGP_Shared,ElemsJ
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo, ElemToElemMapping,ElemToElemInfo
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemBaryNgeo,Elem_xGP_Shared,ElemsJ
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemRadiusNGeo,ElemToElemMapping,ElemToElemInfo
 USE MOD_Preproc
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID, GetGlobalElemID
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Particle_Vars      ,ONLY: PEM
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping

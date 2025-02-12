@@ -391,14 +391,17 @@ SUBROUTINE SetDielectricFaceProfile()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric, DielectricSurf, DielectricVol, DielectricVolDummy
-USE MOD_Mesh_Vars       ,ONLY: nSides, SideToElem, nElems, offSetElem
-USE MOD_DG_Vars         ,ONLY: DG_Elems_master, DG_Elems_slave, N_DG_Mapping
-USE MOD_ProlongToFace   ,ONLY: ProlongToFace_TypeBased
-USE MOD_FillMortar      ,ONLY: U_Mortar
+USE MOD_Dielectric_Vars    , ONLY: isDielectricElem,ElemToDielectric, DielectricSurf, DielectricVol, DielectricVolDummy
+USE MOD_Mesh_Vars          , ONLY: nSides, SideToElem, nElems, offSetElem
+USE MOD_DG_Vars            , ONLY: DG_Elems_master, DG_Elems_slave, N_DG_Mapping
+USE MOD_ProlongToFace      , ONLY: ProlongToFace_TypeBased
+USE MOD_FillMortar         , ONLY: U_Mortar
+USE MOD_Interpolation_Vars , ONLY: PREF_VDM,N_Inter
+USE MOD_ChangeBasis        , ONLY: ChangeBasis2D
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI             ,ONLY: StartReceiveMPIDataType,StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
+USE MOD_MPI                , ONLY: StartReceiveMPIDataTypeDielectric,StartSendMPIDataTypeDielectric
+USE MOD_MPI                , ONLY: FinishExchangeMPIDataTypeDielectric
 #endif
 !USE MOD_FillMortar      ,ONLY: U_Mortar
 ! IMPLICIT VARIABLE HANDLING
@@ -412,7 +415,7 @@ IMPLICIT NONE
 #if USE_MPI
 INTEGER           :: p,q
 #endif /*USE_MPI*/
-INTEGER           :: nMaster, nSlave, locSideID, iElem, flip, iSide, Nloc
+INTEGER           :: N_master, N_slave, locSideID, iElem, flip, iSide, Nloc
 REAL              :: dummy,MinSlave,MinMaster
 !===================================================================================================================================
 ! General workflow:
@@ -433,20 +436,20 @@ REAL              :: dummy,MinSlave,MinMaster
 ! 1.  Initialize dummy arrays for Elem/Face
 ALLOCATE(DielectricSurf(nSides))
 DO iSide =1, nSides
-  nMaster = DG_Elems_master(iSide)
-  nSlave = DG_Elems_slave(iSide)
-  ALLOCATE(DielectricSurf(iSide)%Dielectric_Master(        0:nMaster,0:nMaster))
+  N_master = DG_Elems_master(iSide)
+  N_slave = DG_Elems_slave(iSide)
+  ALLOCATE(DielectricSurf(iSide)%Dielectric_Master(        0:N_master,0:N_master))
   DielectricSurf(iSide)%Dielectric_Master = 0.
-  ALLOCATE(DielectricSurf(iSide)%Dielectric_Slave(         0:nSlave ,0:nSlave))
+  ALLOCATE(DielectricSurf(iSide)%Dielectric_Slave(         0:N_slave ,0:N_slave))
   DielectricSurf(iSide)%Dielectric_Slave = 0.
-  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:nMaster,0:nMaster))
+  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master))
   DielectricSurf(iSide)%Dielectric_dummy_Master = 0.
-  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:nSlave ,0:nSlave))
+  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave))
   DielectricSurf(iSide)%Dielectric_dummy_Slave = 0.
 #if USE_MPI
-  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:nMaster,0:nMaster))
+  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:N_master,0:N_master))
   DielectricSurf(iSide)%Dielectric_dummy_Master2 = 0.
-  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:nSlave ,0:nSlave))
+  ALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:N_slave ,0:N_slave))
   DielectricSurf(iSide)%Dielectric_dummy_Slave2 = 0.
 #endif /*USE_MPI*/
 END DO
@@ -468,11 +471,11 @@ END DO ! iElem = 1, nElems
 ! 3. Map dummy element values to face arrays (prolong to face needs data of dimension PP_nVar) to
 !    DielectricSurf(:)%Dielectric_dummy_Master, DielectricSurf(:)%Dielectric_dummy_Slave
 CALL ProlongToFace_TypeBased(doDielectricSides=.TRUE., doMPISides=.FALSE.)
-CALL U_Mortar(doDielectricSides=.TRUE., doMPISides=.FALSE.)
+CALL U_Mortar(               doDielectricSides=.TRUE., doMPISides=.FALSE.)
 
 #if USE_MPI
 CALL ProlongToFace_TypeBased(doDielectricSides=.TRUE., doMPISides=.TRUE.)
-CALL U_Mortar(doDielectricSides=.TRUE., doMPISides=.TRUE.)
+CALL U_Mortar(               doDielectricSides=.TRUE., doMPISides=.TRUE.)
 
 ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
 !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
@@ -480,29 +483,33 @@ CALL U_Mortar(doDielectricSides=.TRUE., doMPISides=.TRUE.)
 !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
 !     information)
 DO iSide=1,nSides
-  !WRITE (*,*) "MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave)   =", MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave)
-  DO p=0,PP_N
-    DO q=0,PP_N
+  N_master = DG_Elems_master(iSide)
+  N_slave  = DG_Elems_slave(iSide)
+  DO p=0,N_master
+    DO q=0,N_master
       DielectricSurf(iSide)%Dielectric_dummy_Master2(1,p,q) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,p,q)
+    END DO
+  END DO
+  DO p=0,N_slave
+    DO q=0,N_slave
       DielectricSurf(iSide)%Dielectric_dummy_Slave2 (1,p,q) = DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,p,q)
     END DO
   END DO
-  !WRITE (*,*) "MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master2),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave2) =", MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master2),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave2)
 END DO
-  !write(*,*) ""
-  !IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
-!     Dielectric_dummy_Slave2
-CALL StartReceiveMPIDataType(       RecRequest_U2,SendID=2) ! Receive MINE
-CALL StartSendMPIDataTypeDielectric(SendRequest_U2,SendID=2) ! Send YOUR
+! SendID=2: Send Dielectric_dummy_Slave2
+CALL StartReceiveMPIDataTypeDielectric( RecRequest_U2,SendID=2) ! Receive MINE
+CALL StartSendMPIDataTypeDielectric(   SendRequest_U2,SendID=2) ! Send YOUR
 
 ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
-! Dielectric_dummy_Master2
-CALL StartReceiveMPIDataType(       RecRequest_U ,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataTypeDielectric(SendRequest_U ,SendID=1) ! Send MINE
+! SendID=1: Send Dielectric_dummy_Master2
+CALL StartReceiveMPIDataTypeDielectric( RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataTypeDielectric(   SendRequest_U,SendID=1) ! Send MINE
 
+! SendID=2: Fill Dielectric_dummy_Slave2
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U2,RecRequest_U2,SendID=2) !Send MINE - receive YOUR
+! SendID=1: Fill Dielectric_dummy_Master2
 CALL FinishExchangeMPIDataTypeDielectric(SendRequest_U, RecRequest_U ,SendID=1) !Send YOUR - receive MINE
 #endif /*USE_MPI*/
 
@@ -511,32 +518,47 @@ DEALLOCATE(DielectricVolDummy)
 ! 6.  With MPI, use dummy array which was used for sending the MPI data
 !     or with single execution, directly use prolonged data on face
 DO iSide =1, nSides
-  nMaster = DG_Elems_master(iSide)
-  nSlave  = DG_Elems_slave(iSide)
-  !WRITE (*,*) "MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master2),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave2) =", MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Master2),MINVAL(DielectricSurf(iSide)%Dielectric_dummy_Slave2)
+  N_master = DG_Elems_master(iSide)
+  N_slave  = DG_Elems_slave(iSide)
 #if USE_MPI
-  DielectricSurf(iSide)%Dielectric_Master = DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:nMaster,0:nMaster)
-  DielectricSurf(iSide)%Dielectric_Slave  = DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:nSlave ,0:nSlave )
-#else
-  DielectricSurf(iSide)%Dielectric_Master = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:nMaster,0:nMaster)
-  DielectricSurf(iSide)%Dielectric_Slave  = DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:nSlave ,0:nSlave )
+  DielectricSurf(  iSide)%Dielectric_dummy_Master( 1,0:N_master,0:N_master) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1,0:N_master,0:N_master)
+  DielectricSurf(  iSide)%Dielectric_dummy_Slave(  1,0:N_slave ,0:N_slave ) = DielectricSurf(iSide)%Dielectric_dummy_Slave2( 1,0:N_slave ,0:N_slave )
 #endif /*USE_MPI*/
-  !WRITE (*,*) "MINVAL(DielectricSurf(iSide)%Dielectric_Master),MINVAL(DielectricSurf(iSide)%Dielectric_Slave)               =", MINVAL(DielectricSurf(iSide)%Dielectric_Master),MINVAL(DielectricSurf(iSide)%Dielectric_Slave)
-  !write(*,*) ""
+  DielectricSurf(iSide)%Dielectric_Master = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
+  DielectricSurf(iSide)%Dielectric_Slave  = DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave )
 END DO ! iSide =1, nSides
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
-  ! 7. Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
-  !    master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
+! 7. Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
+!    master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
 DO iSide = 1, nSides
   MinSlave  = MINVAL(DielectricSurf(iSide)%Dielectric_Slave(:,:))
   MinMaster = MINVAL(DielectricSurf(iSide)%Dielectric_Master(:,:))
   IF((MinMaster.LT.0.0).AND.(MinSlave.LT.0.0))THEN
-    ! Both are negative: vacuum-vacuum side
+    ! Both are negative, that means vacuum-vacuum side
     DielectricSurf(iSide)%Dielectric_Master(:,:) = 1.0
   ELSEIF(MinMaster.LT.0.0)THEN
-    ! Master is negative: master side is in vacuum, slave side is in dielectric
-    DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_Slave(:,:)
+    ! Master is negative, that means master side is in vacuum, slave side is in dielectric
+    N_master = DG_Elems_master(iSide)
+    N_slave  = DG_Elems_slave(iSide)
+    ! Mapping direction is from N_slave to N_master
+    IF(N_master.EQ.N_slave)THEN ! N is equal
+      DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_Slave(:,:)
+    ELSEIF(N_master.GT.N_slave)THEN ! N increases: Simply interpolate the lower polynomial degree solution
+      CALL ChangeBasis2D(1, N_slave, N_master, PREF_VDM(N_slave, N_master)%Vdm, &
+        DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave ), &
+        DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master))
+      DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
+    ELSE ! N reduces: This requires an intermediate modal basis
+      ! Switch to Legendre basis
+      CALL ChangeBasis2D(1, N_slave, N_slave, N_Inter(N_slave)%sVdm_Leg,        &
+        DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave ), &
+        DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_slave ,0:N_slave ))
+      ! Switch back to nodal basis but cut-off the higher-order DOFs
+      CALL ChangeBasis2D(1, N_master, N_master, N_Inter(N_master)%Vdm_Leg,      &
+        DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,0:N_master,0:N_master ), &
+        DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master))
+      DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
+    END IF ! N_master.EQ.N_slave
   END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
 END DO ! iSide = 1, nSides
 
@@ -550,6 +572,7 @@ DO iSide =1, nSides
   END IF
 END DO ! iSide =1, nSides
 
+! Cleanup: Deallocate
 DO iSide =1, nSides
   DEALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Slave)
   DEALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master)
@@ -558,10 +581,9 @@ DO iSide =1, nSides
   DEALLOCATE(DielectricSurf(iSide)%Dielectric_dummy_Master2)
 #endif /*USE_MPI*/
 END DO ! iSide =1, nSides
-!IF(myrank.eq.0) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 END SUBROUTINE SetDielectricFaceProfile
-#endif /* not USE_HDG*/
+#endif /*not USE_HDG*/
 
 
 #if USE_HDG

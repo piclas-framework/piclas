@@ -165,7 +165,7 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
-INTEGER             :: Nloc,iSide,NSideMin
+INTEGER             :: Nloc,iSide,NSideMin,N_max
 LOGICAL             :: validMesh,ReadNodes
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
@@ -410,14 +410,14 @@ IF (ABS(meshMode).GT.1) THEN
   DO iSide = 1, nSides
 
     ! Allocate with max. polynomial degree of the two master-slave sides
-    Nloc     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    N_max     = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
     N_SurfMesh(iSide)%NSide = NSideMin
-    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:Nloc,0:Nloc))
-    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:Nloc,0:Nloc))
+    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
     N_SurfMesh(iSide)%Face_xGP = 0.
     N_SurfMesh(iSide)%NormVec  = 0.
@@ -501,7 +501,8 @@ USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
 USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords
+USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords,nGlobalDOFs
+USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 IMPLICIT NONE
@@ -512,6 +513,7 @@ IMPLICIT NONE
 INTEGER :: iElem,BCSideID,BCType
 REAL    :: RandVal,x
 LOGICAL :: SetBCElemsToNMax
+INTEGER(KIND=8) :: nLocalDOFs
 !===================================================================================================================================
 ! Set defaults
 SetBCElemsToNMax = .FALSE. ! Initialize
@@ -571,7 +573,8 @@ ELSE
   END IF ! SetBCElemsToNMax
 END IF
 
-! Sanity check
+! Sanity check and nGlobalDOFs calculation
+nLocalDOFs=0
 DO iElem=1,nElems
   IF((N_DG(iElem).LT.NMin).OR.(N_DG(iElem).GT.NMax))THEN
     IPWRITE(*,*) "iElem       = ", iElem
@@ -581,7 +584,32 @@ DO iElem=1,nElems
   END IF
   IF(N_DG(iElem).LT.NMin) CALL abort(__STAMP__,'N_DG(iElem)<NMin')
   IF(N_DG(iElem).GT.NMax) CALL abort(__STAMP__,'N_DG(iElem)>NMax')
+  nLocalDOFs = nLocalDOFs + INT((N_DG(iElem)+1)**3,8)
 END DO
+
+NMinGlobal = MINVAL(N_DG)
+NMaxGlobal = MAXVAL(N_DG)
+#if USE_MPI
+! Get global min/max polynomial degree that are actually present (not the theoretical limits)
+IF(MPIroot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , NMinGlobal , 1 , MPI_INTEGER , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE , NMaxGlobal , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+ELSE
+  CALL MPI_REDUCE(NMinGlobal   , 0          , 1 , MPI_INTEGER , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(NMaxGlobal   , 0          , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+  ! in this case the receive value is not relevant.
+END IF
+! Calculate the sum across all processes. Only the MPI root process needs this information
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(nLocalDOFs , nGlobalDOFs , 1 , MPI_INTEGER8 , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  ! Sanity check
+  IF(nGlobalDOFs.LE.0) CALL abort(__STAMP__,'nGlobalDOFs.LE.0')
+ELSE
+  CALL MPI_REDUCE(nLocalDOFs , 0           , 1 , MPI_INTEGER8 , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
+END IF ! MPIRoot
+#else
+nGlobalDOFs = nLocalDOFs
+#endif /*USE_MPI*/
 
 ! Initialize element containers
 CALL Build_N_DG_Mapping()
@@ -957,6 +985,9 @@ USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
 USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send
 USE MOD_MPI_Vars  ,ONLY: DataSizeSurfSendMax,DataSizeSurfRecMax, DataSizeSurfSendMin,DataSizeSurfRecMin
+#if !(USE_HDG)
+USE MOD_MPI_Vars  ,ONLY: DataSizeSideSendMaster,DataSizeSideRecMaster
+#endif /*not USE_HDG*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1036,10 +1067,16 @@ CALL StartExchange_DG_Elems(DG_Elems_master,1,nSides,SendRequest_U2,RecRequest_U
 CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=2) ! Send YOUR - receive MINE
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1) ! Send YOUR - receive MINE
 ! Initialize the send/rec face sizes for master/slave communication
-ALLOCATE(DataSizeSideSend(nNbProcs,2)   , DataSizeSideRec(nNbProcs,2))
+ALLOCATE(DataSizeSideSend(nNbProcs,2), DataSizeSideRec(nNbProcs,2))
 ! Min/Max is only required for HDG
 ALLOCATE(DataSizeSurfSendMax(nNbProcs,2), DataSizeSurfRecMax(nNbProcs,2))
 ALLOCATE(DataSizeSurfSendMin(nNbProcs,2), DataSizeSurfRecMin(nNbProcs,2))
+#if !(USE_HDG)
+! Master is only required for Maxwell (with Dielectric)
+ALLOCATE(DataSizeSideSendMaster(nNbProcs,2), DataSizeSideRecMaster(nNbProcs,2))
+DataSizeSideSendMaster=0
+DataSizeSideRecMaster=0
+#endif /*not USE_HDG*/
 DataSizeSideSend=0
 DataSizeSideRec=0
 DataSizeSurfSendMax =0; DataSizeSurfRecMax = 0; DataSizeSurfSendMin =0; DataSizeSurfRecMin = 0
@@ -1054,6 +1091,11 @@ DO iNbProc = 1, nNbProcs
       DataSizeSurfRecMax(iNbProc,1) = DataSizeSurfRecMax(iNbProc,1)  + (Nloc+1)**2
       Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
       DataSizeSurfRecMin(iNbProc,1) = DataSizeSurfRecMin(iNbProc,1)  + (Nloc+1)**2
+#if !(USE_HDG)
+      ! Master is only required for Maxwell (with Dielectric)
+      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideRecMaster(iNbProc,1) = DataSizeSideRecMaster(iNbProc,1)  + (Nloc+1)**2
+#endif /*not USE_HDG*/
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
@@ -1065,6 +1107,11 @@ DO iNbProc = 1, nNbProcs
       DataSizeSurfSendMax(iNbProc,1) = DataSizeSurfSendMax(iNbProc,1)  + (Nloc+1)**2
       Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
       DataSizeSurfSendMin(iNbProc,1) = DataSizeSurfSendMin(iNbProc,1)  + (Nloc+1)**2
+#if !(USE_HDG)
+      ! Master is only required for Maxwell (with Dielectric)
+      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideSendMaster(iNbProc,1) = DataSizeSideSendMaster(iNbProc,1)  + (Nloc+1)**2
+#endif /*not USE_HDG*/
     END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
 
@@ -1075,6 +1122,11 @@ DO iNbProc = 1, nNbProcs
   DataSizeSurfRecMax( iNbProc,2) = DataSizeSurfSendMax(iNbProc,1)
   DataSizeSurfSendMin(iNbProc,2) = DataSizeSurfRecMin( iNbProc,1)
   DataSizeSurfRecMin( iNbProc,2) = DataSizeSurfSendMin(iNbProc,1)
+#if !(USE_HDG)
+  ! Master is only required for Maxwell (with Dielectric)
+  DataSizeSideSendMaster(iNbProc,2) = DataSizeSideRecMaster( iNbProc,1)
+  DataSizeSideRecMaster( iNbProc,2) = DataSizeSideSendMaster(iNbProc,1)
+#endif /*not USE_HDG*/
 END DO ! iNbProc = 1, nNbProcs
 
 #endif /*USE_MPI*/
@@ -1418,6 +1470,9 @@ USE MOD_MPI_Vars         ,ONLY: DataSizeSideRec,DataSizeSurfRecMax,DataSizeSurfR
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance!,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if !(USE_HDG)
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideSendMaster,DataSizeSideRecMaster
+#endif /*not USE_HDG*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1465,7 +1520,6 @@ SDEALLOCATE(DG_Elems_slave)
 SDEALLOCATE(n_surfmesh)
 
 #if USE_MPI
-
 SDEALLOCATE(DataSizeSideSend)
 SDEALLOCATE(DataSizeSideRec)
 
@@ -1474,6 +1528,12 @@ SDEALLOCATE(DataSizeSurfSendMax)
 SDEALLOCATE(DataSizeSurfSendMin)
 SDEALLOCATE(DataSizeSurfRecMax)
 SDEALLOCATE(DataSizeSurfRecMin)
+
+#if !(USE_HDG)
+! Master is only required for Maxwell (with Dielectric)
+SDEALLOCATE(DataSizeSideSendMaster)
+SDEALLOCATE(DataSizeSideRecMaster)
+#endif /*not USE_HDG*/
 
 ! Do not deallocate during load balance here as it needs to be communicated between the processors
 #if USE_LOADBALANCE

@@ -66,11 +66,12 @@ END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
-PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric
 #if USE_HDG
 PUBLIC :: StartReceiveMPISurfDataType
 PUBLIC :: StartSendMPISurfDataType,FinishExchangeMPISurfDataType
 PUBLIC :: Mask_MPIsides
+#else
+PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric,StartReceiveMPIDataTypeDielectric
 #endif /*USE_HDG*/
 PUBLIC :: StartExchange_DG_Elems
 PUBLIC :: StartReceiveMPIDataInt,StartSendMPIDataInt
@@ -454,6 +455,46 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPISurfDataType
+#else
+!===================================================================================================================================
+!> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
+!===================================================================================================================================
+SUBROUTINE StartReceiveMPIDataTypeDielectric(MPIRequest, SendID)
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: SendID !< defines the send / receive direction -> 1=send MINE
+                              !< / receive YOUR, 3=send YOUR / receive MINE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs) !< communication handles
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+DO iNbProc=1,nNbProcs
+  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+    IF(SendID.EQ.2)THEN
+      ! Send slave U
+      nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
+      CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvU,nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+    ELSE
+    ! Send mater U
+      nRecVal = PP_nVar*DataSizeSideRecMaster(iNbProc,SendID)
+      CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvUMaster,nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+    END IF ! SendID.EQ.2
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_IRECV',iError)
+  ELSE
+    MPIRequest(iNbProc)=MPI_REQUEST_NULL
+  END IF
+END DO !iProc=1,nNBProcs
+END SUBROUTINE StartReceiveMPIDataTypeDielectric
 #endif /*USE_MPI*/
 
 
@@ -735,6 +776,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataType
 
 
+#if !(USE_HDG)
 !===================================================================================================================================
 !> See above, but for for send direction (type-based p-adaption).
 !===================================================================================================================================
@@ -743,7 +785,7 @@ SUBROUTINE StartSendMPIDataTypeDielectric(MPIRequest,SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars         ,ONLY: DG_Elems_slave
+USE MOD_DG_Vars         ,ONLY: DG_Elems_slave,DG_Elems_master
 USE MOD_Dielectric_Vars ,ONLY: DielectricSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -755,51 +797,52 @@ INTEGER, INTENT(IN)          :: SendID
 TYPE(MPI_Request), INTENT(OUT)         :: MPIRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: i,p,q,iSide,N_slave
+INTEGER                      :: i,p,q,iSide,N_slave,N_master
 !===================================================================================================================================
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    nSendVal     = PP_nVar*DataSizeSideSend(iNbProc,SendID)
     SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
     SideID_end   = OffsetMPISides_send(iNbProc,SendID)
 
-    ! Dummy zeros
-    !DGExchange(iNbProc)%FaceDataSend(2:PP_nVar,:) = 0.
-
+    ! SendID: Send either master or slave values
     i = 1
     IF(SendID.EQ.2)THEN
+      nSendVal = PP_nVar*DataSizeSideSend(iNbProc,SendID)
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            !DGExchange(iNbProc)%FaceDataSend(1:1,i) = U_Surf_N(iSide)%U_Slave(1:1,p,q)
             DGExchange(iNbProc)%FaceDataSendU(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
+      ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendU,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
+      nSendVal = PP_nVar*DataSizeSideSendMaster(iNbProc,SendID)
       DO iSide = SideID_start, SideID_end
-        N_slave = DG_Elems_slave(iSide)
-        DO p = 0, N_slave
-          DO q = 0, N_slave
-            !DGExchange(iNbProc)%FaceDataSend(1:1,i) = U_Surf_N(iSide)%Flux_Slave(1:1,p,q)
-            DGExchange(iNbProc)%FaceDataSendU(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q)
+        N_master = DG_Elems_master(iSide)
+        DO p = 0, N_master
+          DO q = 0, N_master
+            DGExchange(iNbProc)%FaceDataSendUMaster(1:1,i) = DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q)
             i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
+          END DO ! q = 0, N_master
+        END DO ! p = 0, N_master
       END DO ! iSide = SideID_start, SideID_end
+
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendUMaster,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     END IF ! SendID.EQ.2
 
-    ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
-    CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendU,nSendVal,MPI_DOUBLE_PRECISION,  &
-                    nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_ISEND',iError)
   ELSE
     MPIRequest(iNbProc)=MPI_REQUEST_NULL
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataTypeDielectric
+#endif /*not USE_HDG*/
 
 
 !==================================================================================================================================
@@ -1215,6 +1258,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE FinishExchangeMPIDataType
 
 
+#if !(USE_HDG)
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
 !> SendRequest, RecRequest: communication handles
@@ -1225,7 +1269,7 @@ SUBROUTINE FinishExchangeMPIDataTypeDielectric(SendRequest,RecRequest,SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars         ,ONLY: DG_Elems_slave
+USE MOD_DG_Vars         ,ONLY: DG_Elems_slave,DG_Elems_master
 USE MOD_Dielectric_Vars ,ONLY: DielectricSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1241,7 +1285,7 @@ TYPE(MPI_Request), INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbPr
 INTEGER(KIND=8)               :: CounterStart,CounterEnd
 REAL(KIND=8)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
-INTEGER                       :: i,p,q,iSide,N_slave
+INTEGER                       :: i,p,q,iSide,N_slave,N_master
 !===================================================================================================================================
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterStart)
@@ -1288,7 +1332,6 @@ DO iNbProc=1,nNbProcs
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            !U_Surf_N(iSide)%U_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
             DielectricSurf(iSide)%Dielectric_dummy_Slave2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecvU(1:1,i)
             i = i + 1
           END DO ! q = 0, N_slave
@@ -1296,14 +1339,13 @@ DO iNbProc=1,nNbProcs
       END DO ! iSide = SideID_start, SideID_end
     ELSE
       DO iSide = SideID_start, SideID_end
-        N_slave = DG_Elems_slave(iSide)
-        DO p = 0, N_slave
-          DO q = 0, N_slave
-            !U_Surf_N(iSide)%Flux_Slave(1:PP_nVar,p,q) = DGExchange(iNbProc)%FaceDataRecv(1:PP_nVar,i)
-            DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecvU(1:1,i)
+        N_master = DG_Elems_master(iSide)
+        DO p = 0, N_master
+          DO q = 0, N_master
+            DielectricSurf(iSide)%Dielectric_dummy_Master2(1:1,p,q) = DGExchange(iNbProc)%FaceDataRecvUMaster(1:1,i)
             i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
+          END DO ! q = 0, N_master
+        END DO ! p = 0, N_master
       END DO ! iSide = SideID_start, SideID_end
     END IF ! SendID.EQ.2
 
@@ -1311,6 +1353,7 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 
 END SUBROUTINE FinishExchangeMPIDataTypeDielectric
+#endif /*not USE_HDG*/
 
 
 #if USE_HDG

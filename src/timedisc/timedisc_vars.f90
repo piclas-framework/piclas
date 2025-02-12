@@ -27,9 +27,11 @@ REAL             :: time_start                        !< start time of the timed
 REAL             :: ManualTimeStep                    !> Manual TimeStep
 LOGICAL          :: useManualTimeStep                 !> Logical Flag for manual timestep. For consistency
                                                       !> with IAG programming style
-REAL             :: TEnd                              !> simulation end time
-REAL             :: TAnalyze                          !> time for next analyze
-REAL             :: Time                              !> Simulation Time
+REAL             :: tWallRemaining                    !> Remaining wall time in hours
+REAL             :: tStart                            !> simulation time at the beginning of the simulation
+REAL             :: tEnd                              !> simulation end time
+REAL             :: tAnalyze                          !> time for next analyze
+REAL             :: time                              !> Simulation Time
 REAL             :: dt                                !> simulation time step
 REAL             :: dtWeight                          !> part of original dt that is currently used as dt (output, rk, ...)
 REAL             :: CFLScale                          !> cfl scale
