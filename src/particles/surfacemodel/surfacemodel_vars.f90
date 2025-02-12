@@ -35,7 +35,6 @@ CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy dis
 REAL , ALLOCATABLE               :: SurfModEmissionEnergy(:)        ! Energy of emitted particle for surface emission model (only available for SurfaceModel=7)
 REAL , ALLOCATABLE               :: SurfModEmissionYield(:)         ! Emission yield factor for surface emission model (only changable for SurfaceModel=7)
 REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARMfor 2nd SEE
-REAL , ALLOCATABLE               :: BackupVeloABSArray(:)           ! Precalculated velocities in case of multiple SEE
 ! === Porous BC ====================================================================================================================
 INTEGER                          :: nPorousBC                       ! Number of porous BCs
 TYPE tPorousBC
@@ -138,7 +137,7 @@ TYPE(MPI_Win)                            :: ChemWallProp_Shared_Win
 REAL                             :: BulkElectronTempSEE             ! Bulk electron temperature for SEE model by Morozov2004
                                                                     ! read-in in Kelvin (when using the SEE mode), but is directly
                                                                     ! converted to eV for usage in the code
-LOGICAL                          :: SurfModSEEelectronTempAutoamtic ! BulkElectronTempSEE = BulkElectronTemp, which is calculated
+LOGICAL                          :: SurfModSEEelectronTempAutomatic ! BulkElectronTempSEE = BulkElectronTemp, which is calculated
                                                                     ! automatically for the first species ID for electrons
 REAL, ALLOCATABLE                :: SurfModSEEFitCoeff(:,:)         !> Model coefficients (1-3: model dependent, 4: work function in eV; 1:nPartBound)
 

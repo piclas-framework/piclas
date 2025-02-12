@@ -316,7 +316,10 @@ where electrons of species `C` are emitted from boundary `B` on the impact of sp
 | --------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------: |
 |     deltadistribution | Random velocity vector and complete remaining impact energy                                                                                                           |         -         |
 |        uniform-energy | Random velocity vector and random uniform distribution of the remaining impact energy                                                                                                               |         -         |
-| Chung-Everhart-cosine | Angle distribution according to $2\sin\cos\theta$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$ | {cite}`Chung1974` |
+| Chung-Everhart-cosine | Angle distribution according to $\sin2\theta$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$ | {cite}`Chung1974`, {cite}`Greenwood2002` |
+
+For the `Chung-Everhart-cosine` distribution, in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
+addition and thus energy conservation violation. An output to monitor the percentage of violations and energy addition as a percentage of the impact energy per SEE event can be enabled through `CalcEnergyViolationSEE = T`.
 
 #### Model 3/4
 

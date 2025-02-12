@@ -723,7 +723,7 @@ USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
 USE MOD_ReadInTools           ,ONLY: PrintOption
-USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
+USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutomatic
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -771,7 +771,7 @@ IF(CalcBulkElectronTemp)THEN
   END DO
   IF (BulkElectronTempSpecID.EQ.-1) CALL abort(__STAMP__&
     ,'Electron species not found for bulk electron temperature calculation (CalcBulkElectronTemp set True automatically).')
-  IF(SurfModSEEelectronTempAutoamtic)THEN
+  IF(SurfModSEEelectronTempAutomatic)THEN
     IF(TRIM(velocityDistribution).NE.'')THEN
       hilf=' (used for SEE and '//TRIM(velocityDistribution)//')'
     ELSE
@@ -779,7 +779,7 @@ IF(CalcBulkElectronTemp)THEN
     END IF ! TRIM(velocityDistribution).NE.''
   ELSE
     hilf=' (used for '//TRIM(velocityDistribution)//')'
-  END IF ! SurfModSEEelectronTempAutoamtic
+  END IF ! SurfModSEEelectronTempAutomatic
   SWRITE(UNIT_stdOut,'(A,I0,A)')' Bulk electron temperature is calculated using species ',BulkElectronTempSpecID,TRIM(hilf)
 
   ! Restart: Only root reads state file to prevent access with a large number of processors
@@ -807,7 +807,7 @@ IF(CalcBulkElectronTemp)THEN
   ! Broadcast from root to other processors. Only root knows if BulkElectronTempExists=T/F so always broadcast message
   CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
 #endif /*USE_MPI*/
-  IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
+  IF(SurfModSEEelectronTempAutomatic) BulkElectronTempSEE = BulkElectronTemp
 END IF ! CalcBulkElectronTemp
 
 END SUBROUTINE InitBulkElectronTemp

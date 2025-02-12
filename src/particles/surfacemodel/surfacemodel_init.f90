@@ -49,7 +49,10 @@ CALL prms%CreateRealOption(    'Part-Boundary[$]-SurfModEmissionYield'      , 'E
 CALL prms%CreateRealOption(    'Part-SurfaceModel-SEE-Te'                   , 'Bulk electron temperature for SEE model by Morozov2004 in Kelvin (default corresponds to 50 eV)' , '5.80226250308285e5')
 CALL prms%CreateLogicalOption( 'Part-SurfaceModel-SEE-Te-automatic'         , 'Automatically set the bulk electron temperature by using the global electron temperature for SEE model by Morozov2004' , '.FALSE.')
 
-CALL prms%CreateRealArrayOption('Part-Boundary[$]-SurfModSEEFitCoeff'       , 'SEE square/power-fit model (SurfaceModel = 3/4): coefficients of the form a*E(eV) + b*E(eV) + c or a*E(eV)^b + c, input as (a,b,c,W),'//&
+CALL prms%CreateRealArrayOption('Part-Boundary[$]-SurfModSEEFitCoeff'       , 'SEE square/power-fit/semi-empirical model (SurfaceModel = 3/4/12):\n'//&
+                                                                              'square fit: a*E(eV) + b*E(eV) + c,\n'//&
+                                                                              'power fit: a*E(eV)^b + c,\n'//&
+                                                                              'semi-empirical: see documentation; input as (a,b,c,W), '//&
                                                                               'where W is the material work function below which the yield is zero.', numberedmulti=.TRUE.,no=2)
 END SUBROUTINE DefineParametersSurfModel
 
@@ -64,7 +67,7 @@ USE MOD_Globals_Vars           ,ONLY: Kelvin2eV
 USE MOD_Particle_Vars          ,ONLY: nSpecies,Species,usevMPF
 USE MOD_ReadInTools            ,ONLY: GETINT,GETREAL,GETLOGICAL,GETSTR,GETREALARRAY
 USE MOD_Particle_Boundary_Vars ,ONLY: nPartBound,PartBound
-USE MOD_SurfaceModel_Vars      ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
+USE MOD_SurfaceModel_Vars      ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutomatic
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModResultSpec,SurfModEnergyDistribution,SurfModEmissionEnergy,SurfModEmissionYield
 USE MOD_SurfaceModel_Vars      ,ONLY: SurfModSEEFitCoeff
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
@@ -130,7 +133,7 @@ DO iPartBound=1,nPartBound
             IPWRITE(UNIT_StdOut,*) "Bombarding particle:    MPF =", MPFiSpec
             IPWRITE(UNIT_StdOut,*) "Secondary electron : SpecID =", SurfModResultSpec(iPartBound,iSpec)
             IPWRITE(UNIT_StdOut,*) "Secondary electron :    MPF =", MPFresultSpec
-            CALL abort(__STAMP__,'SEE model: MPF of bomarding particle and secondary electron must be the same.')
+            CALL abort(__STAMP__,'SEE model: MPF of bombarding particle and secondary electron must be the same.')
           END IF ! .NOT.(ALMOSTEQUALRELATIVE(MPFiSpec,MPFresultSpec,1e-3))
         END IF ! MPFresultSpec.NE.-1
       END IF ! .NOT.usevMPF
@@ -182,8 +185,8 @@ DEALLOCATE(SumOfResultSpec)
 IF(SurfModelElectronTemp)THEN
   BulkElectronTempSEE             = GETREAL('Part-SurfaceModel-SEE-Te') ! default is 50 eV = 5.80226250308285e5 K
   BulkElectronTempSEE             = BulkElectronTempSEE*Kelvin2eV       ! convert to eV to be used in the code
-  SurfModSEEelectronTempAutoamtic = GETLOGICAL('Part-SurfaceModel-SEE-Te-automatic')
-  IF(SurfModSEEelectronTempAutoamtic)THEN
+  SurfModSEEelectronTempAutomatic = GETLOGICAL('Part-SurfaceModel-SEE-Te-automatic')
+  IF(SurfModSEEelectronTempAutomatic)THEN
     CalcBulkElectronTemp = .TRUE.
     BulkElectronTemp     = BulkElectronTempSEE
   END IF

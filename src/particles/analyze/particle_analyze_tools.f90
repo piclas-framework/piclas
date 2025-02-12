@@ -1373,7 +1373,7 @@ USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars             ,ONLY: DSMC, AmbipolElecVelo
 USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
 #if USE_MPI
-USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
+USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutomatic
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1453,7 +1453,7 @@ IF(MPIRoot.AND.CalcBulkElectronTemp)THEN
 END IF
 #if USE_MPI
 IF(CalcBulkElectronTemp) CALL MPI_BCAST(BulkElectronTemp,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
-IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
+IF(SurfModSEEelectronTempAutomatic) BulkElectronTempSEE = BulkElectronTemp
 #endif /*USE_MPI*/
 
 END SUBROUTINE CalcTransTemp

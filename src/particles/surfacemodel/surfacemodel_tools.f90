@@ -507,8 +507,8 @@ END SUBROUTINE DiffuseReflection
 !===================================================================================================================================
 SUBROUTINE SurfaceModelParticleEmission(n_loc, PartID, SideID, ProductSpec, ProductSpecNbr, TempErgy, GlobalElemID, POI_vec, EnergyDistribution)
 ! MODULES
-USE MOD_Globals!                   ,ONLY: OrthoNormVec
-USE MOD_Globals_Vars              ,ONLY: eV2Joule, Joule2eV
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: eV2Joule
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
 USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState,PartSpecies
@@ -601,9 +601,9 @@ DO iNewPart = 1, ProductSpecNbr
       ImpactEnergy = 0.5*Species(PartSpecies(PartID))%MassIC*DOTPRODUCT(PartState(4:6,PartID)) - SurfModSEEFitCoeff(4,locBCID)*eV2Joule
       IF(EnergySumSEE.GT.ImpactEnergy) THEN
         ! Count the violation
-        SEE%RealElectronEnergyViolationCount(SEEBCID) = SEE%RealElectronEnergyViolationCount(SEEBCID) + MPF
+        SEE%EnergyConsViolationCount(SEEBCID) = SEE%EnergyConsViolationCount(SEEBCID) + MPF
         ! Sum-up energy addition as percentage of the impact energy
-        SEE%RealElectronEnergyViolationSum(SEEBCID) = SEE%RealElectronEnergyViolationSum(SEEBCID) + (EnergySumSEE - ImpactEnergy) * MPF / ImpactEnergy
+        SEE%EnergyConsViolationSum(SEEBCID) = SEE%EnergyConsViolationSum(SEEBCID) + (EnergySumSEE - ImpactEnergy) * MPF / ImpactEnergy
       END IF
     END IF
   END IF

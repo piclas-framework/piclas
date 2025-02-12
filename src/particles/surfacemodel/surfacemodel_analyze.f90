@@ -454,14 +454,14 @@ IF(MPIRoot)THEN
           CALL WriteDataInfo(unit_index,RealScalar=0.0)
           CALL WriteDataInfo(unit_index,RealScalar=0.0)
         ELSE
-          CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronEnergyViolationCount(iPartBound)/SEE%EventCount(iPartBound))
-          CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronEnergyViolationSum(iPartBound)/SEE%EventCount(iPartBound))
+          CALL WriteDataInfo(unit_index,RealScalar=SEE%EnergyConsViolationCount(iPartBound)/SEE%EventCount(iPartBound))
+          CALL WriteDataInfo(unit_index,RealScalar=SEE%EnergyConsViolationSum(iPartBound)/SEE%EventCount(iPartBound))
         END IF ! ABS(SEE%EventCount(iPartBound)).LE.0.0
         ! Reset MPIRoot counters after writing the data to the file,
         ! non-MPIRoot are reset in SyncBoundaryParticleOutput()
         SEE%EventCount(iPartBound) = 0.
-        SEE%RealElectronEnergyViolationCount(iPartBound) = 0.
-        SEE%RealElectronEnergyViolationSum(iPartBound) = 0.
+        SEE%EnergyConsViolationCount(iPartBound) = 0.
+        SEE%EnergyConsViolationSum(iPartBound) = 0.
       END IF
     END DO ! iPartBound = 1, SEE%NPartBoundaries
   END IF ! CalcElectronSEE
@@ -761,24 +761,24 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF (MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%RealElectronOut             , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%RealElectronOut         , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   IF(CalcEnergyViolationSEE) THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%EventCount , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%RealElectronEnergyViolationCount , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
-    CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%RealElectronEnergyViolationSum , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE      , SEE%EventCount              , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE      , SEE%EnergyConsViolationCount, SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE      , SEE%EnergyConsViolationSum  , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   END IF
 ELSE
-  CALL MPI_REDUCE(SEE%RealElectronOut , 0                  , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  CALL MPI_REDUCE(SEE%RealElectronOut             , 0               , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   ! Reset non MPIRoot counters, MPIRoot counters are reset after writing the data to the file
   SEE%RealElectronOut = 0.
   IF(CalcEnergyViolationSEE) THEN
-    CALL MPI_REDUCE(SEE%EventCount , 0      , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
-    CALL MPI_REDUCE(SEE%RealElectronEnergyViolationCount , 0      , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
-    CALL MPI_REDUCE(SEE%RealElectronEnergyViolationSum , 0      , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(SEE%EventCount                , 0               , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(SEE%EnergyConsViolationCount  , 0               , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(SEE%EnergyConsViolationSum    , 0               , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
     ! Reset non MPIRoot counters, MPIRoot counters are reset after writing the data to the file
     SEE%EventCount = 0.
-    SEE%RealElectronEnergyViolationCount = 0.
-    SEE%RealElectronEnergyViolationSum = 0.
+    SEE%EnergyConsViolationCount = 0.
+    SEE%EnergyConsViolationSum = 0.
   END IF
 END IF
 
@@ -1112,10 +1112,10 @@ SEE%RealElectronOut = 0.
 IF(CalcEnergyViolationSEE) THEN
   ALLOCATE(SEE%EventCount(1:SEE%NPartBoundaries))
   SEE%EventCount = 0.
-  ALLOCATE(SEE%RealElectronEnergyViolationCount(1:SEE%NPartBoundaries))
-  SEE%RealElectronEnergyViolationCount = 0.
-  ALLOCATE(SEE%RealElectronEnergyViolationSum(1:SEE%NPartBoundaries))
-  SEE%RealElectronEnergyViolationSum = 0.
+  ALLOCATE(SEE%EnergyConsViolationCount(1:SEE%NPartBoundaries))
+  SEE%EnergyConsViolationCount = 0.
+  ALLOCATE(SEE%EnergyConsViolationSum(1:SEE%NPartBoundaries))
+  SEE%EnergyConsViolationSum = 0.
 END IF
 
 ! 3) Create Mapping from particle BC index to SEE BC index
@@ -1164,8 +1164,8 @@ END IF ! CalcBoundaryParticleOutput
 IF(CalcElectronSEE)THEN
   SDEALLOCATE(SEE%RealElectronOut)
   SDEALLOCATE(SEE%EventCount)
-  SDEALLOCATE(SEE%RealElectronEnergyViolationCount)
-  SDEALLOCATE(SEE%RealElectronEnergyViolationSum)
+  SDEALLOCATE(SEE%EnergyConsViolationCount)
+  SDEALLOCATE(SEE%EnergyConsViolationSum)
   SDEALLOCATE(SEE%PartBoundaries)
   SDEALLOCATE(SEE%BCIDToSEEBCID)
 END IF ! CalcElectronSEE
