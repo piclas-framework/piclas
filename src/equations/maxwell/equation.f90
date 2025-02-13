@@ -25,19 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitEquation
-  MODULE PROCEDURE InitEquation
-END INTERFACE
-INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc
-END INTERFACE
-INTERFACE CalcSource
-  MODULE PROCEDURE CalcSource
-END INTERFACE
-INTERFACE DivCleaningDamping
-  MODULE PROCEDURE DivCleaningDamping
-END INTERFACE
-PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping
+PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping,InitRefState
 !===================================================================================================================================
 
 PUBLIC::DefineParametersEquation
@@ -141,8 +129,10 @@ CALL prms%CreateIntOption(      'ExactFluxDir'     , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Flux direction for ExactFlux', '3')
 CALL prms%CreateRealOption(     'ExactFluxPosition', 'TODO-DEFINE-PARAMETER\n'//&
                                                      'x,y, or z-position of interface')
+CALL prms%CreateLogicalOption(  'DoPML'            , 'Activate Perfectly Matched Layer (PML) region for damping incident electromagnetic waves' , '.FALSE.')
 
 END SUBROUTINE DefineParametersEquation
+
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
@@ -174,14 +164,6 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: nRefStates,iBC,ntmp,iRefState
-INTEGER,ALLOCATABLE              :: RefStates(:)
-LOGICAL                          :: isNew
-REAL                             :: PulseCenter
-REAL,ALLOCATABLE                 :: nRoots(:)
-LOGICAL                          :: DoSide(1:nSides)
-INTEGER                          :: locType,locState,iSide
-REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
 !===================================================================================================================================
 IF(EquationInitIsDone)THEN
 #ifdef PARTICLES
@@ -198,7 +180,7 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
-DoPML              = GETLOGICAL('DoPML','.FALSE.')
+DoPML = GETLOGICAL('DoPML','.FALSE.')
 IF(DoPML)THEN
   PMLnVar = 24
 ELSE
@@ -212,15 +194,63 @@ DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 Beam_t0            = GETREAL('Beam_t0','0.0')
 
+! Speed of light derived factors
 c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
-! default
-WaveLength = -1.
-
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
+
+BCStateFile=GETSTR('BCStateFile','no file found')
+
+! Read exponent for shape function
+alpha_shape = GETINT('AlphaShape','2')
+rCutoff     = GETREAL('r_cutoff','1.')
+! Compute factor for shape function
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
+
+EquationInitIsDone=.TRUE.
+LBWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitEquation
+
+
+!===================================================================================================================================
+!> Initialize reference state containers used for boundary conditions
+!===================================================================================================================================
+SUBROUTINE InitRefState()
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge,c,c_inv,c2,mu0,eps0
+USE MOD_ReadInTools
+USE MOD_Equation_Vars
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCs,BC
+USE MOD_Globals_Vars       ,ONLY: EpsMach
+USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
+USE MOD_Mesh               ,ONLY: GetMeshMinMaxBoundaries
+USE MOD_Utils              ,ONLY: RootsOfBesselFunctions
+USE MOD_ReadInTools        ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: nRefStates,iBC,ntmp,iRefState
+INTEGER,ALLOCATABLE              :: RefStates(:)
+LOGICAL                          :: isNew
+REAL                             :: PulseCenter
+REAL,ALLOCATABLE                 :: nRoots(:)
+LOGICAL                          :: DoSide(1:nSides)
+INTEGER                          :: locType,locState,iSide
+REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
+!===================================================================================================================================
+WaveLength = -1.
 nRefStates=nBCs+1
 nTmp=0
 ALLOCATE(RefStates(nRefStates))
@@ -290,21 +320,22 @@ DO iRefState=1,nTmp
           END IF ! locState.EQ.BCIn
         END DO
         ! call function to get radius
-        CALL GetWaveGuideRadius(DoSide)
+        CALL GetWaveGuideRadius(DoSide) ! Determines TERadius
       END IF
     END DO
     IF((TEPolarization.NE.'x').AND.(TEPolarization.NE.'y').AND.(TEPolarization.NE.'r').AND.(TEPolarization.NE.'l'))THEN
-      CALL abort(&
-    __STAMP__&
-    ,' TEPolarization has to be x,y,l or r.')
+      CALL abort(__STAMP__,' TEPolarization has to be x,y,l or r.')
     END IF
     IF(TERadius.LT.0.0)THEN ! not set
       TERadius=GETREAL('TERadius','0.0')
       LBWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
+    ELSE
+      LBWRITE(UNIT_StdOut,*) ' TERadius determined automatically: ', TERadius
     END IF
+    IF(TERadius.LE.0.) CALL abort(__STAMP__,'TERadius <= 0:',RealInfoOpt=TERadius)
     IF ( (2*PI*TEFrequency*c_inv).LT.(TEModeRoot/TERadius)) THEN
       SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(k)**2 = ',((2*PI*TEFrequency*c_inv))**2
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'kCut**2          = ',TEModeRoot/TERadius**2
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'kCut**2 = TEModeRoot/TERadius**2 = ',TEModeRoot/TERadius**2
       SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
       CALL abort(__STAMP__,'kz=SQRT(k**2-kCut**2), but the argument is negative!')
     END IF
@@ -433,9 +464,7 @@ DO iRefState=1,nTmp
         BeamIdir2   = 2
         BeamMainDir = 3
       ELSE
-        CALL abort(&
-            __STAMP__&
-            ,'RefStates CASE(121,14,15,16): wave vector currently only in x,y,z!')
+        CALL abort(__STAMP__,'RefStates CASE(121,14,15,16): wave vector currently only in x,y,z!')
       END IF
 
       ! determine active time for time-dependent BC: save computational time for BC -> or possible switch to SM BC?
@@ -485,32 +514,7 @@ DO iRefState=1,nTmp
 END DO
 
 DEALLOCATE(RefStates)
-
-BCStateFile=GETSTR('BCStateFile','no file found')
-!WRITE(DefBCState,'(I3,A,I3,A,I3,A,I3,A,I3,A,I3)') &
-!  IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc
-!IF(BCType_in(1) .EQ. -999)THEN
-!  BCType = GETINTARRAY('BoundaryType',6)
-!ELSE
-!  BCType=BCType_in
-!  SWRITE(UNIT_stdOut,*)'|                   BoundaryType | -> Already read in CreateMPICart!'
-
-!END IF
-!BCState   = GETINTARRAY('BoundaryState',6,TRIM(DefBCState))
-!BoundaryCondition(:,1) = BCType
-!BoundaryCondition(:,2) = BCState
-! Read exponent for shape function
-alpha_shape = GETINT('AlphaShape','2')
-rCutoff     = GETREAL('r_cutoff','1.')
-! Compute factor for shape function
-ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
-                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
-
-EquationInitIsDone=.TRUE.
-LBWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
-LBWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitEquation
-
+END SUBROUTINE InitRefState
 
 
 SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu)
