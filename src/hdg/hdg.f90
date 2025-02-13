@@ -848,11 +848,28 @@ CASE(10)
   PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
   ! We need to get the internal matrix to set its options
   PetscCallA(PCFactorGetMatrix(pc,F,ierr))
-  ! Tell MUMPS matrix is SPD
-  PetscCallA(MatMumpsSetIcntl(F,7,2,ierr))
-  ! Memory handling
-  PetscCallA(MatMumpsSetIcntl(F,14,200,ierr))    ! Allow 3x estimated memory
-  PetscCallA(MatMumpsSetIcntl(F,23,1000,ierr))   ! Limit to 2GB per process
+#if USE_DEBUG
+  ! Increase MUMPS diagnostics level: Errors, warnings, and main statistics printed.
+  PetscCallA(MatMumpsSetIcntl(F, 4, 2, ierr))
+#endif
+  ! === Compression
+  ! Enable BLR compression with automatic settings: showed better performance for initial factorization and better memory footprint
+  PetscCallA(MatMumpsSetIcntl(F, 35, 1, ierr))
+  ! ! Enable BLR compression of the contribution blocks, reducing the memory consumption at the cost of some additional operations
+  ! ! during factorization
+  ! PetscCallA(MatMumpsSetIcntl(F, 37, 1, ierr))
+  ! === Parallel ordering (select one): first tests showed increased memory consumption and reduced performance (single node)
+  ! PetscCallA(MatMumpsSetIcntl(F, 28, 2, ierr))
+  ! ! Use PT-SCOTCH for ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 1, ierr))
+  ! ! Use ParMetis for parallel ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 2, ierr))
+
+  ! === Memory handling
+  ! ! Workspace allocation: Allow 2x estimated memory (default is at 35%)
+  ! PetscCallA(MatMumpsSetIcntl(F,14,100,ierr))
+  ! ! Limit to 2GB per process, or default (=0): each processor will allocate workspace based on the estimates computed during the analysis
+  ! PetscCallA(MatMumpsSetIcntl(F,23,2000,ierr))
 #endif
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS and the iteratice (2) only with HYPRE. PrecondType=', IntInfoOpt=PrecondType)
