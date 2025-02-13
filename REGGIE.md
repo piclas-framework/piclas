@@ -19,6 +19,7 @@ Overview of the test cases performed after a commit.
 |    6    |            CHE_PIC_maxwell_implicitBC            |               maxwell,PIC,ImplicitO4               |                                                                                     Implicit reflective particle BC                                                                                      |    nProcs=1    | Particle Position |                                                                                     |
 |    7    |            [CHE_BGK](#che_bgkfpflow)             |                      BGK-Flow                      |                                                                                                                                                                                                          |                |                   |                                                                                     |
 |    8    |           [CHE_FPFlow](#che_bgkfpflow)           |                      FP-Flow                       |                                                                                                                                                                                                          |                |                   |                                                                                     |
+| 9    | [CHE_DVM](#che_dvm) |     |   |  |  |  |
 
 
 #### CHE_PIC_maxwell_RK4
@@ -95,6 +96,11 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 |         |         RELAX_CH4         |                  |                               CH4: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_CH4/readme.md)         |
 |         |         RELAX_N2          |                  |                                N2: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_N2/readme.md)          |
 
+#### CHE_DVM
+
+| **No.** |         **Case**          | **CMAKE-CONFIG** |                                                       **Feature**                                                       | **Execution** |       **Comparing**        |                             **Readme**                              |
+| :-----: | :-----------------------: | :--------------: | :---------------------------------------------------------------------------------------------------------------------: | :-----------: | :------------------------: | :-----------------------------------------------------------------: |
+| 1    | heatflux_relax |     |  Heat flux relaxation | nProcs=1, nDim=1,2,3, EDDVM/DUGKS, ESBGK/Shakhov | final L2 error norm (mainly heat flux) | [Link](regressioncheck/CHE_DVMheatflux_relax/readme.md) |
 
 
 ## Nightly

@@ -561,8 +561,8 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 REAL,INTENT(IN)                 :: time                   !< current simulation time
-REAL,INTENT(OUT)                :: L_2_Error(  5)   !< L2 error of the solution
-REAL,INTENT(OUT)                :: L_Inf_Error(5)   !< LInf error of the solution
+REAL,INTENT(OUT)                :: L_2_Error(  14)   !< L2 error of the solution
+REAL,INTENT(OUT)                :: L_Inf_Error(14)   !< LInf error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iElem,k,l,m
@@ -605,22 +605,22 @@ DO iElem=1,PP_nElems
         CALL MacroValuesFromDistribution(MacroVal,U_Nanalyze(:,k,l,m),real_dt,tau,1)
         CALL ExactFunc_FV(IniExactFunc_FV,time,0,Coords_NAnalyze(1:3,k,l,m),U_exact(1:PP_nVar_FV,k,l,m))
         CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:,k,l,m),real_dt,tau,1)
-        L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:5) - MacroVal_exact(1:5)))
+        L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:14) - MacroVal_exact(1:14)))
         IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
         ! To sum over the elements, We compute here the square of the L_2 error
-        L_2_Error = L_2_Error+(MacroVal(1:5) - MacroVal_exact(1:5))*&
-                              (MacroVal(1:5) - MacroVal_exact(1:5))*IntegrationWeight
+        L_2_Error = L_2_Error+(MacroVal(1:14) - MacroVal_exact(1:14))*&
+                              (MacroVal(1:14) - MacroVal_exact(1:14))*IntegrationWeight
       END DO ! k
     END DO ! l
   END DO ! m
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , 5 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , 5 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , 14 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , 14 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error   , 0            , 5 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
-    CALL MPI_REDUCE(L_Inf_Error , 0            , 5 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_2_Error   , 0            , 14 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_Inf_Error , 0            , 14 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
     ! in this case the receive value is not relevant.
   END IF
 #endif /*USE_MPI*/
@@ -948,7 +948,7 @@ REAL,INTENT(IN)                :: L_2_Error(nVar)           ! L2 error norms
 ! LOCAL VARIABLES
 !REAL                           :: Dummyreal(PP_nVar+1),Dummytime  ! Dummy values for file handling
 INTEGER                        :: openStat! File IO status
-CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
+CHARACTER(LEN=80)              :: formatStr                    ! format string for the output and Tecplot header
 CHARACTER(LEN=30)              :: L2name(nVar)              ! variable name for the Tecplot header
 CHARACTER(LEN=300)             :: Filename                     ! Output filename,
 !LOGICAL                        :: fileExists                   ! Error handler for file
@@ -977,7 +977,7 @@ ioUnit=1746 ! This number must be fixed?
   WRITE(ioUnit,*) 'ZONE T="Analysis,'//TRIM(ProjectName)//'"'
 
 ! Create format string for the variable output
-WRITE(formatStr,'(A10,I1,A37)')'(E23.14E5,',nVar,'(1X,E23.14E5),4(1X,E23.14E5),2X,I6.6)'
+WRITE(formatStr,'(A10,I2,A37)')'(E23.14E5,',nVar,'(1X,E23.14E5),4(1X,E23.14E5),2X,I6.6)'
 WRITE(ioUnit,formatstr) REAL(iter),L_2_Error(:),TIME,CalcTime-StartTime, &
                  REAL(nGlobalElems*(PP_N+1)**3),REAL(nGlobalElems),nProcessors
 
@@ -1007,7 +1007,7 @@ SUBROUTINE getVARformatStr(VARformatStr,L2name)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
   CHARACTER(LEN=30) :: L2name(:) ! The name of the Tecplot variables
-  CHARACTER(LEN=50) :: VARformatStr ! L2name format string
+  CHARACTER(LEN=80) :: VARformatStr ! L2name format string
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
   INTEGER           :: i ! counter
@@ -1032,11 +1032,11 @@ WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
 
 #else /* FV alone*/
 #ifdef discrete_velocity
-DO i=1,5
+DO i=1,14
   WRITE(L2name(i),'(A5,A,A2)')' "L2_',TRIM(StrVarNames_FV(i)),'" '
 END DO
 WRITE(VARformatStr,'(A3)')'(A,'
-DO i=1,5
+DO i=1,14
   WRITE(VARformatStr,'(A,A1,I2,A1)')TRIM(VARformatStr),'A',LEN_TRIM(L2name(i)),','
 END DO
 WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
@@ -1232,8 +1232,8 @@ REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
 #if USE_FV
 #ifdef discrete_velocity
-REAL                          :: L_2_Error_DVM(5)
-REAL                          :: L_Inf_Error_DVM(5)
+REAL                          :: L_2_Error_DVM(14)
+REAL                          :: L_Inf_Error_DVM(14)
 #else
 REAL                          :: L_2_Error_FV(PP_nVar_FV)
 REAL                          :: L_Inf_Error_FV(PP_nVar_FV)
@@ -1392,7 +1392,7 @@ IF(DoCalcErrorNorms) THEN
       L_2_Error_HDGFV(PP_nVar+1:PP_nVar+PP_nVar_FV) = L_2_Error_FV
       CALL AnalyzeToFile(PP_nVar_FV+PP_nVar,OutputTime,CurrentTime,L_2_Error_HDGFV)
 #elif defined(discrete_velocity)
-      CALL AnalyzeToFile(5,OutputTime,CurrentTime,L_2_Error_DVM)
+      CALL AnalyzeToFile(14,OutputTime,CurrentTime,L_2_Error_DVM)
 #else
       CALL AnalyzeToFile(PP_nVar_FV,OutputTime,CurrentTime,L_2_Error_FV)
 #endif /*FV+HDG*/
@@ -1601,9 +1601,9 @@ IF(DoPerformErrorCalc)THEN
       WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_FV
 #endif /*FV*/
 #else /*discrete_velocity*/
-      WRITE(formatStr,'(A5,I1,A7)')'(A13,',5,'ES16.7)'
-      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_DVM
-      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_DVM
+      WRITE(formatStr,'(A5,I2,A7)')'(A13,',14,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_DVM(1:14)
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_DVM(1:14)
 #endif /*discrete_velocity*/
     END IF
   END IF

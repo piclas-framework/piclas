@@ -217,7 +217,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
-USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState
+USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState, DVMBGKModel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -234,6 +234,7 @@ REAL                            :: WallVelo1, WallTemp1, WallVelo2, WallTemp2
 REAL                            :: SecondDist(PP_nVar_FV)
 REAL                            :: SodMacro_L(5), SodMacro_R(5), SodMacro_LL(5), SodMacro_M(5), SodMacro_RR(5)
 REAL                            :: gamma, Ggamma, beta, pL, pR, pM, cL, cR, cM, vs
+REAL                            :: mu, tau
 !==================================================================================================================================
 
 Resu   =0.
@@ -242,7 +243,7 @@ SELECT CASE (ExactFunction)
 CASE(0)
   Resu=0.
 
-CASE(1,4) !Grad 13 uniform init (only heat flux for now); 4 = heat flux relaxation test case
+CASE(1) !Grad 13 uniform init
   CALL GradDistribution(RefState(:,1),Resu(:))
 
 CASE(2) ! couette flow, L=1m between walls, RefState: 1 -> initial state, 2 -> y=-0.5 boundary, 3 -> y=0.5 boundary
@@ -308,6 +309,16 @@ CASE(3) !sod shock
       MacroVal(1:5) = SodMacro_R
     END IF
     CALL MaxwellDistribution(MacroVal,Resu(:))
+  END IF
+
+CASE(4) !heat flux relaxation test case
+  CALL GradDistribution(RefState(:,1),Resu(:))
+  IF (tIn.GT.0.) THEN ! relaxation
+    MacroVal(:) = RefState(:,1)
+    mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%omegaVHS+0.5)
+    tau = mu/(DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5))
+    MacroVal(12:14) = MacroVal(12:14)*EXP(-tIn*DVMSpeciesData%Prandtl/tau) !Heat flux relaxes with rate Pr/tau
+    CALL GradDistribution(MacroVal(:),Resu(:))
   END IF
 
 CASE(5) !Taylor-Green vortex
