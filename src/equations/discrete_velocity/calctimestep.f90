@@ -38,10 +38,15 @@ FUNCTION CALCTIMESTEP()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars     ,ONLY: sJ
-USE MOD_Mesh_Vars_FV  ,ONLY: Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV
-USE MOD_Equation_Vars_FV,      ONLY:DVMVelos, DVMnVelos
-USE MOD_TimeDisc_Vars ,ONLY: CFLScale
+USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Vars_FV      ,ONLY: NormVec_FV, SurfElem_FV
+USE MOD_Mesh_Vars         ,ONLY: ElemToSide
+USE MOD_Equation_Vars_FV  ,ONLY: DVMVelos, DVMnVelos
+USE MOD_TimeDisc_Vars     ,ONLY: CFLScale
+#ifdef PARTICLES
+USE MOD_Mesh_Vars         ,ONLY: offsetElem
+USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
+#endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -51,50 +56,40 @@ IMPLICIT NONE
 REAL                         :: CalcTimeStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: i,j,k,iElem
-REAL                         :: Max_Lambda1,Max_Lambda2,Max_Lambda3
+INTEGER                      :: iElem,CNELemID,locSideID,SideID,flip
+INTEGER                      :: iVel,jVel,kVel,upos
+REAL                         :: FluxFac(PP_nVar_FV), SideFac
 REAL                         :: TimeStepConv,locTimeStepConv
+REAL                         :: n_loc(3)
 !===================================================================================================================================
 locTimeStepConv=HUGE(1.)
 DO iElem=1,PP_nElems
-  Max_Lambda1=0.
-  Max_Lambda2=0.
-  Max_Lambda3=0.
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
-        ! Convective Eigenvalues
-! VERSION 1 & 2: -----------------------------
-        Max_Lambda1=MAX(Max_Lambda1,sJ(i,j,k,iElem)*(MAX(ABS(DVMVelos(1,1)),ABS(DVMVelos(DVMnVelos(1),1))) &
-                        *SQRT(SUM(Metrics_fTilde_FV(:,i,j,k,iElem)*Metrics_fTilde_FV(:,i,j,k,iElem)))))
-        Max_Lambda2=MAX(Max_Lambda2,sJ(i,j,k,iElem)*(MAX(ABS(DVMVelos(1,2)),ABS(DVMVelos(DVMnVelos(1),2))) &
-                        *SQRT(SUM(Metrics_gTilde_FV(:,i,j,k,iElem)*Metrics_gTilde_FV(:,i,j,k,iElem)))))
-        Max_Lambda3=MAX(Max_Lambda3,sJ(i,j,k,iElem)*(MAX(ABS(DVMVelos(1,3)),ABS(DVMVelos(DVMnVelos(1),3))) &
-                        *SQRT(SUM(Metrics_hTilde_FV(:,i,j,k,iElem)*Metrics_hTilde_FV(:,i,j,k,iElem)))))
-! --------------------------------------------
-! VERSION 3: ---------------------------------
-!        Max_Lambda1=MAX(&
-!                        Max_Lambda1,&
-!                        sJ(i,j,k,iElem)*(MAX(1.,c_corr)*c &
-!                        *(SQRT(SUM(Metrics_fTilde(:,i,j,k,iElem)*Metrics_fTilde(:,i,j,k,iElem)) &
-!                              +SUM(Metrics_gTilde(:,i,j,k,iElem)*Metrics_gTilde(:,i,j,k,iElem)) &
-!                              +SUM(Metrics_hTilde(:,i,j,k,iElem)*Metrics_hTilde(:,i,j,k,iElem)) ) ))&
-!                        )
-! --------------------------------------------
-      END DO ! i
-    END DO ! j
-  END DO ! k
+#if USE_MPI && defined(PARTICLES)
+  CNElemID=GetCNElemID(iElem+offSetElem)
+#else
+  CNElemID=iElem
+#endif
+  FluxFac = 0.
+#if PP_dim == 3
+  DO locSideID=1,6
+#else
+  DO locSideID=2,5
+#endif
+    SideID=ElemToSide(E2S_SIDE_ID,locSideID,iElem)
+    flip=ElemToSide(E2S_FLIP,locSideID,iElem)
+    IF (flip.EQ.0) THEN !master side, outgoing normal OK
+      n_loc = NormVec_FV(:,0,0,SideID)
+    ELSE !slave side, flip ingoing normal
+      n_loc = -NormVec_FV(:,0,0,SideID)
+    END IF
+    SideFac = SurfElem_FV(0,0,SideID)/ElemVolume_Shared(CNElemID)
+    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+      FluxFac(upos) = FluxFac(upos) + SideFac*MAX(0.,n_loc(1)*DVMVelos(iVel,1)+n_loc(2)*DVMVelos(jVel,2)+n_loc(3)*DVMVelos(kVel,3))
+    END DO; END DO; END DO
+  END DO
+  locTimeStepConv = MIN(locTimeStepConv,CFLScale/MAXVAL(FluxFac))
 
-  locTimeStepConv=MIN(locTimeStepConv,CFLScale/Max_Lambda1,CFLScale/Max_Lambda2,CFLScale/Max_Lambda3)
-! VERSION 3: ---------------------------------
-!   locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1))
-! --------------------------------------------
-! VERSION 2: quadratic superposition
-!  locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./SQRT(Max_Lambda1**2+Max_Lambda2**2+Max_Lambda3**2))
-! --------------------------------------------
-! VERSION 1: linear superposition
-!  locTimeStepConv=MIN(locTimeStepConv,CFLScale*2./(Max_Lambda1+Max_Lambda2+Max_Lambda3))
-! --------------------------------------------
   IF(locTimeStepConv.NE.locTimeStepConv)THEN
     ERRWRITE(*,'(A,I0,A,I0,A,I0,A,I0)')'Convective timestep NaN on proc ',myRank,' at global position (iElem): ',iElem
     ERRWRITE(*,*)'dt_conv=',locTimeStepConv
