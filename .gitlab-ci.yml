@@ -264,6 +264,37 @@ stages:
     - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for DVM tests
+.defaults_DVM: &defaults_DVM
+  extends: .default_param
+  needs: [build_DVM]
+  artifacts:
+    paths:
+      - build_DVM
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM"
+      paths:
+        - build_DVM
+      policy: pull
+
+.defaults_DVM_checkin: &defaults_DVM_checkin
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_DVM_nightly: &defaults_DVM_nightly
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_DVM_weekly: &defaults_DVM_weekly
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
 .defaults_poisson_petsc: &defaults_poisson_petsc
   extends: .default_param
@@ -552,6 +583,21 @@ build_drift_diffusion:
     - mkdir -p build_drift_diffusion ; cd build_drift_diffusion
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
 
+build_DVM:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_DVM]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM"
+      paths: [build_DVM]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_DVM ; cd build_DVM
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
+
 build_hopr:
   extends: .default_build_param
   artifacts:
@@ -699,6 +745,12 @@ drift_diffusion:
   stage: reggie_checkin
   script:
     - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream -e ./bin/piclas
+
+discrete_velocity:
+  <<: *defaults_DVM_checkin
+  stage: reggie_checkin
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM/heatflux_relax -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
