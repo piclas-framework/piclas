@@ -166,12 +166,12 @@ CALL InitMPIvars()
 CALL InitBC()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
-IF(DoExactFlux) CALL InitExactFlux()
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #if USE_MPI
 CALL InitDGExchange()
 #endif /*USE_MPI*/
 CALL InitRefState()
+IF(DoExactFlux) CALL InitExactFlux() ! Requires that InitRefState() has already been called
 #else
 CALL InitRefState()
 CALL InitChiTens()
