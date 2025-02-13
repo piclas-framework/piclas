@@ -29,7 +29,6 @@ PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping,In
 !===================================================================================================================================
 
 PUBLIC::DefineParametersEquation
-PUBLIC::InitExactFlux
 CONTAINS
 
 !==================================================================================================================================
@@ -180,7 +179,7 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
-DoPML = GETLOGICAL('DoPML','.FALSE.')
+DoPML = GETLOGICAL('DoPML')
 IF(DoPML)THEN
   PMLnVar = 24
 ELSE
@@ -272,7 +271,9 @@ DO iBC=1,nBCs
     END IF
   END IF
 END DO
+DoExactFlux=.FALSE.
 IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux')
+IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
   CASE(2,22)
