@@ -40,13 +40,17 @@ END TYPE tXSecData
 TYPE tSpeciesXSec
   LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species pair should be treated with
                                                             ! read-in collision cross-section (currently only with BGG)
+  LOGICAL                           :: UseBackScatterXSec   ! Flag if the backscattering cross-section have been read-in
   LOGICAL                           :: CollXSec_Effective   ! Flag whether the given cross-section data is "effective" (complete set
                                                             ! including other processes such as e.g.excitation and ionization) or
                                                             ! "elastic", including only the elastic collision cross-section.
   REAL                              :: CrossSection         ! Current collision cross-section
+  REAL                              :: CollEnergy           ! Current collision energy
   REAL,ALLOCATABLE                  :: CollXSecData(:,:)    ! Collision cross-section as read-in from the database
                                                             ! 1: Energy (at read-in in [eV], during simulation in [J])
                                                             ! 2: Cross-section at the respective energy level [m^2]
+  REAL,ALLOCATABLE                  :: BackXSecData(:,:)    ! Backscattering cross-section as read-in from the database (same as above)
+  REAL                              :: BackNumColl          ! Number of backscattering events
   REAL                              :: ProbNull             ! Collision probability at the maximal collision frequency for the
                                                             ! null collision method of MCC
   REAL,ALLOCATABLE                  :: ProbNullElem(:)      ! Collision probability at the maximal collision frequency for the
