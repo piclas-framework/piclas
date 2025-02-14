@@ -866,8 +866,8 @@ CASE(10)
   ! PetscCallA(MatMumpsSetIcntl(F, 29, 2, ierr))
 
   ! === Memory handling
-  ! ! Workspace allocation: Allow 2x estimated memory (default is at 35%)
-  ! PetscCallA(MatMumpsSetIcntl(F,14,100,ierr))
+  ! Workspace allocation: Allow 2x estimated memory (default is at 35%)
+  PetscCallA(MatMumpsSetIcntl(F,14,100,ierr))
   ! ! Limit to 2GB per process, or default (=0): each processor will allocate workspace based on the estimates computed during the analysis
   ! PetscCallA(MatMumpsSetIcntl(F,23,2000,ierr))
 #endif
