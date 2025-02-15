@@ -1174,7 +1174,8 @@ ELSE !CollisMode.GT.0
     IF(NGeo.GT.PP_N) CALL abort(__STAMP__,' Set PP_N to NGeo, else, the volume is not computed correctly.')
     CALL DSMC_init_octree()
   END IF
-  IF(Symmetry%Order.LE.2) THEN
+  ! Prohibiting consecutive collisions between the same particles (enabled per default in 2D/axisymmetric simulations without a background gas)
+  IF(Symmetry%Order.LE.2.AND.(BGGas%NumberOfSpecies.EQ.0)) THEN
     CollInf%ProhibitDoubleColl = GETLOGICAL('Particles-DSMC-ProhibitDoubleCollisions','.TRUE.')
     IF (CollInf%ProhibitDoubleColl) THEN
       IF(.NOT.ALLOCATED(CollInf%OldCollPartner)) ALLOCATE(CollInf%OldCollPartner(1:PDM%maxParticleNumber))
