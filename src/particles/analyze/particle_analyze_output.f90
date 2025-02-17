@@ -196,8 +196,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies),CNElemID
-INTEGER       :: iSpec,iElem
+REAL          :: timediff,PTotal(1:nSpecies),SumPTotal(1:nSpecies)
+INTEGER       :: iSpec,iElem,CNElemID
 CHARACTER(5)  :: hilf
 !===================================================================================================================================
 
