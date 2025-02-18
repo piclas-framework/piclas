@@ -49,9 +49,9 @@ USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
-USE MOD_Particle_Vars             ,ONLY: PartState,PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
+USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos, PEM
@@ -233,9 +233,10 @@ CASE (SEE_MODELS_ID)
           ! Create new position by using POI
           NewPos(1:3) = PartPosImpact(1:3)
           ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
+          ! Routine sets PartState and LastPartPos to the given position (in this case the POI)
           CALL CreateParticle(ProductSpec(2),NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
-          ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be
-          ! used anymore
+          ! This routines moves the particle away from the boundary using LastPartPos as the starting point and changes the species index
+          ! and before the particle is deposited and removed, the species index cannot be used anymore
           CALL VirtualDielectricLayerDisplacement(NewPartID,SideID,n_Loc)
           ! Invert species index to invert the charge later in the deposition step
           PartSpecies(NewPartID) = -PartSpecies(NewPartID)
@@ -257,8 +258,10 @@ CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
   ! Check if BPO boundary is encountered: Do this here because the BC info is lost during MPI communication of these particles
   ! Normally, this happens in RemoveParticle()
   IF(CalcBoundaryParticleOutput) CALL UpdateBPO(PartID,SideID)
-  ! This routines changes the species index and before the particle is deposited and removed, the species index cannot be used
-  ! anymore
+  ! Set the LastPartPos to the POI
+  LastPartPos(1:3,PartID) = PartPosImpact(1:3)
+  ! This routines moves the particle away from the boundary using LastPartPos as the starting point and changes the species index
+  ! and before the particle is deposited and removed, the species index cannot be used anymore
   CALL VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 #endif /*USE_HDG*/
 CASE DEFAULT
@@ -417,6 +420,7 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 !> Shift impacting particles by a specific displacement away from the boundary in the normal direction. Change the species ID to
 !> flag such particles so that later, after MPI communication, they can be deleted and deposited at the target position to form a
 !> surface charge on a (virtual) dielectric layer.
+!> Note: LastPartPos must be set to the impact position on the surface
 !===================================================================================================================================
 SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 ! MODULES
@@ -435,22 +439,15 @@ INTEGER,INTENT(IN) :: PartID, SideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: iPartBound
-REAL    :: POI_vec(1:3)
 !===================================================================================================================================
 ! Get particle boundary index
 iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
-
-! Get Point Of Intersection
-POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
-
-! Set particle position on face
-LastPartPos(1:3,PartID) = POI_vec(1:3)
 
 ! Set new particle position: Shift away from face by ratio of real VDL thickness and permittivity.
 ! Note the negative sign that is required as the normal vector points outwards
 PartState(1:3,PartID) = LastPartPos(1:3,PartID) - (PartBound%ThicknessVDL(iPartBound)/PartBound%PermittivityVDL(iPartBound))*n_loc
 
-! Compute moved particle || rest of movement
+! Set tracking variables
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
 TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
@@ -477,7 +474,7 @@ SUBROUTINE StickingCoefficientModel(PartID,SideID,n_Loc)
 !===================================================================================================================================
 !> Empirical sticking coefficient model using the product of a non-bounce probability (angle dependence with a cut-off angle) and
 !> condensation probability (linear temperature dependence, using different temperature limits). Particle sticking to the wall
-!> will be simply deleted, transfering the complete energy to the wall heat flux
+!> will be simply deleted, transferring the complete energy to the wall heat flux
 !> Assumed data input is [upper impact angle limit (deg), alpha_B (deg), T_1 (K), T_2 (K)]
 !===================================================================================================================================
 ! MODULES
