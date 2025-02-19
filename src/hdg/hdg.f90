@@ -555,14 +555,6 @@ DO SideID = 1, nSides
   NSide = N_SurfMesh(SideID)%NSide
   ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%lambda=0.
-  ! TODO NSideMin - LambdaMax: It is actually the "other" polynomial degree, not necessarily the maximum
-  IF(UseNSideMin)THEN
-    NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  ELSE
-    NSideMax = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  END IF
-  ALLOCATE(HDG_Surf_N(SideID)%lambdaMax(PP_nVar,nGP_face(NSideMax)))
-  HDG_Surf_N(SideID)%lambdaMax=0.
   ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%RHS_face=0.
   ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSide)))

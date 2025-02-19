@@ -683,36 +683,28 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iElem,Nloc,idx_m,idx_p,SideIDm,SideIDp,NSideMin,NSideMax,iSide,NSide
-INTEGER          :: SideID(6),Flip(6)
-INTEGER          :: q,g1,g2,g3,gdx(3),jdx(3),jDir
-REAL             :: aCon(3,3),q_loc
-REAL,DIMENSION(1,0:NMax,0:NMax) :: tmp2,tmp3
+INTEGER                            :: iElem,Nloc,idx_m,idx_p,iSide,NSide
+INTEGER                            :: SideID(6),Flip(6)
+INTEGER                            :: q,g1,g2,g3,gdx(3),jdx(3),jDir
+REAL                               :: aCon(3,3),q_loc
+REAL,DIMENSION(0:NMax,0:NMax)      :: tmp2
+REAL,DIMENSION(1:nGP_face(NMax),6) :: lambdatmp
 !===================================================================================================================================
-DO iSide = 1, nSides
-  NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-
-  IF(NSideMin.EQ.NSideMax)THEN
-    HDG_Surf_N(iSide)%lambdaMax(1,:) = HDG_Surf_N(iSide)%lambda(1,:)
-  ELSE
-    NSide = N_SurfMesh(iSide)%NSide
-    tmp2(1:1,0:NSide,0:NSide) = RESHAPE(HDG_Surf_N(iSide)%lambda(1,:),(/1,NSide+1,NSide+1/))
-    IF(NSide.EQ.NSideMax)THEN
-      CALL ChangeBasis2D(1, NSide, NSideMin, PREF_VDM(NSide,NSideMin)%Vdm , tmp2(1,0:NSide,0:NSide), tmp3(1,0:NSideMin,0:NSideMin))
-      HDG_Surf_N(iSide)%lambdaMax(1,:) = RESHAPE(tmp3(1,0:NSideMin,0:NSideMin),(/nGP_face(NSideMin)/))
-    ELSE
-      CALL ChangeBasis2D(1, NSide, NSideMax, PREF_VDM(NSide,NSideMax)%Vdm , tmp2(1,0:NSide,0:NSide), tmp3(1,0:NSideMax,0:NSideMax))
-      HDG_Surf_N(iSide)%lambdaMax(1,:) = RESHAPE(tmp3(1,0:NSideMax,0:NSideMax),(/nGP_face(NSideMax)/))
-    END IF
-  END IF ! NSideMin.EQ.NSideMax
-END DO ! iSide = 1, nSides
-
 DO iElem=1,PP_nElems
   U_N(iElem)%E = 0.
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   SideID(:)=ElemToSide(E2S_SIDE_ID,:,iElem)
   Flip(:)  =ElemToSide(E2S_FLIP,:,iElem)
+
+  DO iSide=1,6
+    NSide=N_SurfMesh(SideID(iSide))%NSide
+    lambdatmp(1:nGP_face(NSide),iSide) = HDG_Surf_N(SideID(iSide))%lambda(1,1:nGP_face(NSide))
+    IF(NSide.NE.Nloc)THEN
+      tmp2(0:NSide,0:NSide) = RESHAPE(lambdatmp(1:nGP_face(NSide),iSide),(/NSide+1,NSide+1/))
+      CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm, tmp2(0:NSide,0:NSide), tmp2(0:Nloc,0:Nloc))
+      lambdatmp(1:nGP_face(Nloc),iSide) = RESHAPE(tmp2(0:Nloc,0:Nloc),(/nGP_face(Nloc)/))
+    END IF
+  END DO
 
   ! Loop over the Gauss points with indexes (g1,g2,g3); for each
   ! point, compute all the i,j contributions in the local matrices.
@@ -756,18 +748,8 @@ DO iElem=1,PP_nElems
               idx_m = q_m*(Nloc+1)+p_m+1
               idx_p = q_p*(Nloc+1)+p_p+1
 
-              ! TODO NSideMin - LambdaMax: Only place where it is used
-              IF(Nloc.EQ.mNSide)THEN
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*HDG_Surf_N(SideID(mLocSide))%lambda(1,idx_m)
-              ELSE
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*HDG_Surf_N(SideID(mLocSide))%lambdaMax(1,idx_m)
-              END IF ! Nloc.EQ.mNSide
-
-              IF(Nloc.EQ.pNSide)THEN
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*HDG_Surf_N(SideID(pLocSide))%lambda(1,idx_p)
-              ELSE
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*HDG_Surf_N(SideID(pLocSide))%lambdaMax(1,idx_p)
-              END IF ! Nloc.EQ.mNSide
+              q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*lambdatmp(idx_m,mLocSide)
+              q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*lambdatmp(idx_p,pLocSide)
             END ASSOCIATE
           END ASSOCIATE
           U_N(iElem)%E(:,g1,g2,g3)=U_N(iElem)%E(:,g1,g2,g3)+aCon(:,jDir)*q_loc
