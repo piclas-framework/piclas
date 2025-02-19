@@ -445,7 +445,6 @@ DO SideID=firstSideID,lastSideID
     END IF ! DoVZ
     ElemID     = SideToElem(S2E_ELEM_ID,SideID)
     Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
-    ! TODO NSideMin - LOW/HIGH: It seems like we always need to Multiply with the VDM before and the transpose after since it does not matter if we go from low to high or high to low
     IF(Nloc.NE.NSide)THEN
       CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , lambdatmp(1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
     END IF !Nloc.NE.NSide
@@ -457,7 +456,6 @@ DO SideID=firstSideID,lastSideID
                         HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
                         mvtmp(1:nGP_face(Nloc)),1)
-      ! TODO NSideMin - LOW/HIGH
       IF(Nloc.NE.NSide)THEN
         CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSide)))
       END IF !Nloc.NE.NSide
@@ -481,9 +479,8 @@ DO SideID=firstSideID,lastSideID
     ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
     Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
-    ! TODO NSideMin - LOW/HIGH
     IF(Nloc.NE.NSide)THEN
-      CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , lambdatmp(1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
+      CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm, lambdatmp(1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
     END IF !Nloc.NE.NSide
     DO jLocSide = 1,6
       SideID2 = jSideID(jLocSide)
@@ -492,9 +489,8 @@ DO SideID=firstSideID,lastSideID
                         HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
                         mvtmp(1:nGP_face(Nloc)),1)
-      ! TODO NSideMin - LOW/HIGH
       IF(Nloc.NE.NSide)THEN
-        CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSide)))
+        CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm), mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSide)))
       END IF !Nloc.NE.NSide
       IF(DoVZ)THEN
         HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSide))
@@ -532,7 +528,6 @@ DO SideID=firstSideID,lastSideID
     END IF ! DoVZ
     ElemID     = SideToElem(S2E_ELEM_ID,SideID)
     Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
-    ! TODO NSideMin - LOW/HIGH
     IF(Nloc.NE.NSide)THEN
       CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , lambdatmp(1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
     END IF !Nloc.NE.NSide
@@ -544,7 +539,6 @@ DO SideID=firstSideID,lastSideID
                         HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
                         mvtmp(1:nGP_face(Nloc)),1)
-      ! TODO NSideMin - LOW/HIGH
       IF(Nloc.NE.NSide)THEN
         CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSide)))
       END IF ! Nloc.NE.NSide
@@ -568,9 +562,8 @@ DO SideID=firstSideID,lastSideID
     ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
     Nloc       = N_DG_Mapping(2,ElemID+offSetElem)
     jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
-    ! TODO NSideMin - LOW/HIGH
     IF(Nloc.NE.NSide)THEN
-      CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , lambdatmp(1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
+      CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm, lambdatmp(1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
     END IF ! Nloc.NE.NSide
     DO jLocSide = 1,6
       SideID2 = jSideID(jLocSide)
@@ -579,10 +572,8 @@ DO SideID=firstSideID,lastSideID
                         HDG_Vol_N(ElemID)%Smat(:,:,jLocSide,locSideID), nGP_face(Nloc), &
                         lambdatmp(1:nGP_face(Nloc)),1,0.,& ! !: add to mv, 0: set mv
                         mvtmp(1:nGP_face(Nloc)),1)
-      ! TODO NSideMin - LOW/HIGH
       IF(Nloc.NE.NSide)THEN
-        ! From high to low
-        CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSide)))
+        CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm), mvtmp(1:nGP_face(Nloc)), mvtmp(1:nGP_face(NSide)))
       END IF ! Nloc.NE.NSide
       IF(DoVZ)THEN
         HDG_Surf_N(SideID2)%Z(iVar,:)  = HDG_Surf_N(SideID2)%Z(iVar,:)  + mvtmp(1:nGP_face(NSide))
@@ -591,7 +582,6 @@ DO SideID=firstSideID,lastSideID
       END IF ! DoVZ
     END DO !jLocSide
   END IF !locSideID.NE.-1
-  !add mass matrix
 END DO ! SideID=1,nSides
 #if USE_LOADBALANCE
 CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
@@ -612,7 +602,7 @@ CALL SmallToBigMortar_HDG(iVar,MERGE(1, 2, DoVZ)) ! CALL SmallToBigMortar_HDG(1,
 IF (iVar.EQ.4) THEN
 #endif
 
-  !set mv on Dirichlet BC to zero!
+  ! Set mv on Dirichlet BC to zero!
   IF(DoVZ)THEN
     DO BCsideID=1,nDirichletBCSides
       HDG_Surf_N(DirichletBC(BCsideID))%Z(iVar,:) =0.
@@ -684,7 +674,7 @@ DO SideID = 1, nSides
   HDG_Surf_N(SideID)%R(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) - HDG_Surf_N(SideID)%mv(iVar,:)
 END DO ! SideID = 1, nSides
 
-!set mv on Dirichlet BC to zero!
+! Set mv on Dirichlet BC to zero!
 #if (PP_nVar!=1)
 IF (iVar.EQ.4) THEN
 #endif

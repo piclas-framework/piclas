@@ -336,7 +336,6 @@ END DO !iProc=1,nNBProcs
 
 ! -------------------------------------------------------------------------------------------------
 ! 3. Build SurfElemMin for all sides (including Mortar sides)
-! TODO NSideMin - SurfElemMin
 DO iSide = 1, nSides
   ! Get SurfElemMin
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))

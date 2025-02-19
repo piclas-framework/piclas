@@ -395,8 +395,6 @@ INTEGER              :: iGP, jGP, ip, iq, jp, jq
 ! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
 
 ! First, loop over all mortar sides (also MPI Mortar sides) and add M / M^T to Smat!!!
-! TODO PETSC P-Adaption: How to do small slave mortar sides??? (MortarType(1,SideID)=-10, We can use SmallMortarType)
-! Easy way: Loop over all SideIDs, check if SmallMortarType is
 IF(nGlobalMortarSides.GT.0)THEN
   DO iSideID=1,nSides
     IF(SmallMortarInfo(iSideID).EQ.0) CYCLE ! Not a small mortar side

@@ -263,14 +263,11 @@ DO iVar = 1, PP_nVar
                           rtmp(1:nGP_face(Nloc)),1,0.,& ! 1: add to RHS_face, 0: set value
                           RHS_facetmp(1:nGP_face(Nloc)),1)
 
-      ! TODO NSideMin - LOW/HIGH
       NSide = N_SurfMesh(SideID)%NSide
-      IF(Nloc.EQ.NSide)THEN
-        HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(Nloc))
-      ELSE
+      IF(Nloc.NE.NSide)THEN
         CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , RHS_facetmp(1:nGP_face(Nloc)), RHS_facetmp(1:nGP_face(NSide)))
-        HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
       END IF ! Nloc.NE.NSide
+      HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
     END DO
   END DO !iElem
 END DO !ivar
@@ -351,7 +348,6 @@ PetscCallA(VecZeroEntries(PETScRHS,ierr))
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
 
-  ! TODO Create a function to map localToGlobalDOFs
   Nloc = N_SurfMesh(SideID)%NSide
   DO i=1,nGP_face(Nloc)
     DOFindices(i) = i + OffsetGlobalPETScDOF(SideID) - 1
@@ -360,7 +356,6 @@ DO SideID=1,nSides
   PetscCallA(VecSetValues(PETScRHS,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(SideID)%RHS_face(1,:),ADD_VALUES,ierr))
 END DO
 
-! TODO We had to use ADD_VALUES when filling the RHS. Maybe loop over sideID=1,nSides-nSides_YOUR?
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
 PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 
@@ -514,12 +509,10 @@ PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
     ! for post-proc
     DO iLocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      ! TODO NSideMin - LOW/HIGH
       NSide = N_SurfMesh(SideID)%NSide
       IF(Nloc.EQ.NSide)THEN
         lambdatmp(1:nGP_face(Nloc)) = HDG_Surf_N(SideID)%lambda(iVar,:)
       ELSE
-        ! From low to high
         CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
       END IF ! Nloc.EQ.NSide
       CALL DGEMV('T',nGP_face(Nloc),nGP_vol(Nloc),1., &

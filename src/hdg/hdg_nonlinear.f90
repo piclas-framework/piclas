@@ -196,13 +196,10 @@ DO iElem=1,PP_nElems
                         RHS_facetmp(1:nGP_face(Nloc)),1)
 
     NSide = N_SurfMesh(SideID)%NSide
-    ! TODO NSideMin - LOW/HIGH
-    IF(Nloc.EQ.NSide)THEN
-      HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(Nloc))
-    ELSE
+    IF(Nloc.NE.NSide)THEN
       CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , RHS_facetmp(1:nGP_face(Nloc)), RHS_facetmp(1:nGP_face(NSide)))
-      HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
-    END IF ! Nloc.EQ.NSide
+    END IF ! Nloc.NE.NSide
+    HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
   END DO
 END DO !iElem
 
@@ -249,11 +246,9 @@ ELSE
     DO iLocSide=1,6
       SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
       NSide = N_SurfMesh(SideID)%NSide
-      ! TODO NSideMin - LOW/HIGH
       IF(Nloc.EQ.NSide)THEN
         lambdatmp(1:nGP_face(Nloc)) = HDG_Surf_N(SideID)%lambda(iVar,:)
       ELSE
-        ! From low to high
         CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
       END IF ! Nloc.EQ.NSide
       CALL DGEMV('T',nGP_face(Nloc),nGP_vol(Nloc),1., &
@@ -380,15 +375,11 @@ ELSE
                             rtmp(1:nGP_face(Nloc)),1,0.,& ! 1: add to RHS_face, 0: set value
                             RHS_facetmp(1:nGP_face(Nloc)),1)
 
-      NSide = N_SurfMesh(SideID)%NSide
-      ! TODO NSideMin - LOW/HIGH
-      IF(Nloc.EQ.NSide)THEN
-        HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(Nloc))
-      ELSE
-        ! From high to low
-        CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm) , RHS_facetmp(1:nGP_face(Nloc)), RHS_facetmp(1:nGP_face(NSide)))
+        NSide = N_SurfMesh(SideID)%NSide
+        IF(Nloc.NE.NSide)THEN
+          CALL ChangeBasis2D(1, Nloc, NSide, TRANSPOSE(PREF_VDM(NSide,Nloc)%Vdm), RHS_facetmp(1:nGP_face(Nloc)), RHS_facetmp(1:nGP_face(NSide)))
+        END IF ! Nloc.NE.NSide
         HDG_Surf_N(SideID)%RHS_face(iVar,:) = HDG_Surf_N(SideID)%RHS_face(iVar,:) + RHS_facetmp(1:nGP_face(NSide))
-      END IF ! Nloc.EQ.NSide
       END DO
     END DO !iElem
 
@@ -432,11 +423,9 @@ ELSE
       DO iLocSide=1,6
         SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
         NSide = N_SurfMesh(SideID)%NSide
-        ! TODO NSideMin - LOW/HIGH
         IF(Nloc.EQ.NSide)THEN
           lambdatmp(1:nGP_face(Nloc)) = HDG_Surf_N(SideID)%lambda(iVar,:)
         ELSE
-          ! From low to high
           CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm , HDG_Surf_N(SideID)%lambda(iVar,1:nGP_face(NSide)), lambdatmp(1:nGP_face(Nloc)))
         END IF ! Nloc.EQ.NSide
         CALL DGEMV('T',nGP_face(Nloc),nGP_vol(Nloc),1., &
