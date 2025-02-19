@@ -197,7 +197,7 @@ INTEGER                          :: n, NodeID
 REAL                             :: Px, Py, Pz
 REAL                             :: Vx, Vy, Vz
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
-REAL                             :: det(3)
+REAL                             :: det(3), minComp(3)
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(Element)
@@ -258,8 +258,13 @@ det(1) = (Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + (Az(1) * Vx - Ax(1) * Vz) * Ay(3) 
 det(2) = (Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + (Ax(2) * Vy - Ay(2) * Vx) * Az(1)
 det(3) = (Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + (Ax(3) * Vy - Ay(3) * Vx) * Az(2)
 
+! calculating the "relative" zero
+minComp(1) = epsMach*MIN(ABS((Ay(1) * Vz - Az(1) * Vy) * Ax(3)),ABS((Az(1) * Vx - Ax(1) * Vz) * Ay(3)),ABS((Ax(1) * Vy - Ay(1) * Vx) * Az(3)))
+minComp(2) = epsMach*MIN(ABS((Ay(2) * Vz - Az(2) * Vy) * Ax(1)),ABS((Az(2) * Vx - Ax(2) * Vz) * Ay(1)),ABS((Ax(2) * Vy - Ay(2) * Vx) * Az(1)))
+minComp(3) = epsMach*MIN(ABS((Ay(3) * Vz - Az(3) * Vy) * Ax(2)),ABS((Az(3) * Vx - Ax(3) * Vz) * Ay(2)),ABS((Ax(3) * Vy - Ay(3) * Vx) * Az(2)))
+
 ! Comparison of the determinants with eps due to machine precision
-IF ((det(1).ge.-epsMach).AND.(det(2).ge.-epsMach).AND.(det(3).ge.-epsMach)) THEN
+IF ((det(1).GT.minComp(1)).AND.(det(2).GT.minComp(2)).AND.(det(3).GT.minComp(3))) THEN
   ThroughSide = .TRUE.
 END IF
 
@@ -350,7 +355,7 @@ VecEdge(2) = yNode(2)-yNode(1)
 denominator = VecPart(1)*VecEdge(2) - VecPart(2)*VecEdge(1)
 minComp = MIN(ABS(VecPart(1)*VecEdge(2)),ABS(VecPart(2)*VecEdge(1)))
 ! Check if the lines are parallel
-IF (ABS(denominator).LT.EpsMach*minComp) RETURN
+IF (ABS(denominator).LE.EpsMach*minComp) RETURN
 
 t(1) = ((xNode(1)-PartP1(1))*VecEdge(2)-(yNode(1)-PartP1(2))*VecEdge(1))/denominator
 t(2) = ((xNode(1)-PartP1(1))*VecPart(2)-(yNode(1)-PartP1(2))*VecPart(1))/denominator
