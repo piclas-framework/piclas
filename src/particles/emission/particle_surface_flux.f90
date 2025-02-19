@@ -733,7 +733,8 @@ SUBROUTINE CalcPartPosAxisym(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,particle
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DoRadialWeighting
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -748,10 +749,24 @@ REAL, INTENT(OUT)           :: particle_positions(:)
 ! LOCAL VARIABLES
 REAL                        :: RandVal1, PminTemp, PmaxTemp, Particle_pos(2)
 INTEGER                     :: iSub, iPart, iPartSub, allowedRejectionsSub
+LOGICAL                     :: PerpToYDir
 !===================================================================================================================================
 iPart=1
 allowedRejections = 0
-IF (ParticleWeighting%PerformCloning.AND.(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).GT.0.)) THEN
+IF(Symmetry%Axisymmetric.AND.ParticleWeighting%PerformCloning) THEN
+  IF(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).GT.0.) THEN
+    PerpToYDir = .TRUE.
+  ELSE
+    PerpToYDir = .FALSE.
+  END IF
+ELSE
+  IF(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+    PerpToYDir = .TRUE.
+  ELSE
+    PerpToYDir = .FALSE.
+  END IF
+END IF
+IF (ParticleWeighting%PerformCloning.AND.PerpToYDir) THEN
   IF(ParticleWeighting%UseCellAverage) THEN
     DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
       CALL RANDOM_NUMBER(RandVal1)
@@ -798,7 +813,7 @@ IF (ParticleWeighting%PerformCloning.AND.(Species(iSpec)%Surfaceflux(iSF)%nVFRSu
 ELSE
   DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
     CALL RANDOM_NUMBER(RandVal1)
-    IF (Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).EQ.0.) THEN
+    IF (PerpToYDir) THEN
       ! y_min = y_max, faces parallel to x-direction, constant distribution
       Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
     ELSE

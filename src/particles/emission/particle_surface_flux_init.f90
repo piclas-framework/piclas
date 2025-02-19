@@ -879,10 +879,16 @@ DO iBC=1,countDataBC
                 DO iSub = 1, ParticleWeighting%nSubSides
                   yMinTemp = ymin + (iSub-1) * (ymax - ymin) / ParticleWeighting%nSubSides
                   yMaxTemp = ymin + iSub * (ymax - ymin) / ParticleWeighting%nSubSides
+                  IF (yMaxTemp-yMinTemp.LE.0.) THEN
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:) = 0.
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/),ElemID)
+                    EXIT
+                  END IF
                   yAvTemp = (yMaxTemp + yMinTemp)/2.
                   BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = CalcVarWeightMPF((/0.0,yAvTemp,0.0/),ElemID)
                 END DO
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
+                IF (ANY(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:).GT.0.)) &
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
               BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/),ElemID)
