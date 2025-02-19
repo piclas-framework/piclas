@@ -180,23 +180,26 @@ IF(SpeciesDatabase.NE.'none') THEN
     PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(2:3) = 0
   ELSE
     IF(DSMC%RotRelaxModel.EQ.1)THEN
+      CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
+        ReadFromSpeciesDatabase=.True.)
+      IF (AttrExists) THEN
+        CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
+          RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+      ELSE
+        CALL abort(__STAMP__,'Moment of inertia necessary for quantized rotational energy and is not set for species '&
+          //TRIM(Species(iSpec)%Name))
+      END IF
       DO iVibDOF = 1,3
         WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-        CALL AttributeExists(file_id_specdb,TRIM('MomentOfInertia'//TRIM(hilf2)),TRIM(dsetname), AttrExists=AttrExists, &
-          ReadFromSpeciesDatabase=.True.)
-        IF (AttrExists) THEN
-          CALL ReadAttribute(file_id_specdb,TRIM('MomentOfInertia'//TRIM(hilf2)),1,DatasetName = dsetname, &
-            RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF),ReadFromSpeciesDatabase=.True.)
-        ELSE
-          CALL abort(__STAMP__,'Moment of inertia necessary for quantized rotational energy and is not set for species '&
-            //TRIM(Species(iSpec)%Name))
-        END IF
         PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = PlanckConst**2 / &
           (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF) * BoltzmannConst)
-        CALL PrintOption('MomentOfInertia'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
-          RealOpt=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF))
         CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
           RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
+      END DO
+      DO iVibDOF = 1,3
+        WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
+        CALL PrintOption('MomentOfInertia'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
+          RealOpt=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF))
       END DO
       ! sanity checks for order of moments of inertia
       IF((PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3).EQ.PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(2).AND.  &
@@ -205,40 +208,40 @@ IF(SpeciesDatabase.NE.'none') THEN
         CALL abort(__STAMP__,'Moments of inertia in wrong order in database for species', iSpec)
       END IF
     ELSE  ! DSMC RotRelaxModel NE 1
-      DO iVibDOF = 1,3
-        WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-        CALL AttributeExists(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),TRIM(dsetname), &
-          AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
-        IF (AttrExists) THEN  ! read in CharaTempRot
-          CALL ReadAttribute(file_id_specdb,TRIM('CharaTempRot'//TRIM(hilf2)),1,DatasetName = dsetname, &
-            RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF),ReadFromSpeciesDatabase=.True.)
+      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists, &
+      ReadFromSpeciesDatabase=.True.)
+      IF (AttrExists) THEN
+        CALL ReadAttribute(file_id_specdb,'CharaTempRot',3,DatasetName = dsetname,  &
+          RealArray=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF,ReadFromSpeciesDatabase=.True.)
+        DO iVibDOF = 1,3
+          WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
           CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
-            RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
-        ELSE  ! CharaTempRot not found
-          CALL AttributeExists(file_id_specdb,TRIM('MomentOfInertia'//TRIM(hilf2)),TRIM(dsetname), &
-            AttrExists=AttrExists, ReadFromSpeciesDatabase=.True.)
-          IF (AttrExists) THEN
-            CALL ReadAttribute(file_id_specdb,TRIM('MomentOfInertia'//TRIM(hilf2)),1,DatasetName = dsetname, &
-              RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF),ReadFromSpeciesDatabase=.True.)
+          RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
+        END DO
+      ELSE  ! CharaTempRot not found
+        CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
+          ReadFromSpeciesDatabase=.True.)
+        IF (AttrExists) THEN
+          CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
+            RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+          DO iVibDOF = 1,3
+            WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
             PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = PlanckConst**2 / &
               (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(iVibDOF) * BoltzmannConst)
-          ELSE ! set dummy value to zero
-            PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = 0
-          END IF
+            CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
+              RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
+          END DO
+        ELSE  ! set dummy value to zero
+          PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1:3) = 0
         END IF
-      END DO
+      END IF
     END IF
-    DO iVibDOF = 1,3
-      WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-      CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
-        RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF))
-    END DO
   END IF
   ! Read-in of characteristic vibrational temperature
+  CALL ReadAttribute(file_id_specdb,'CharaTempVib',PolyatomMolDSMC(iPolyatMole)%VibDOF,DatasetName = dsetname,  &
+    RealArray=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF,ReadFromSpeciesDatabase=.True.)
   DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
-    CALL ReadAttribute(file_id_specdb,TRIM('CharaTempVib'//TRIM(hilf2)),1,DatasetName = dsetname, &
-      RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF),ReadFromSpeciesDatabase=.True.)
     CALL PrintOption('CharaTempVib'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',  &
       RealOpt=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iVibDOF))
   END DO
@@ -410,7 +413,7 @@ USE MOD_Particle_Vars           ,ONLY: Species, PEM
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample
 USE MOD_DSMC_ElectronicModel    ,ONLY: InitElectronShell
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
-USE MOD_DSMC_Relaxation         ,ONLY: DSMC_SetInternalEnr_Diatomic
+USE MOD_part_tools              ,ONLY: RotInitPolyRoutineFuncPTR, CalcEVib_particle
 ! USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr_Poly
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -474,7 +477,11 @@ IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
   IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
     CALL DSMC_SetInternalEnr_Poly(iSpec, iInit, iPart, init_or_sf)
   ELSE
-    CALL DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
+    ! Nullify energy for atomic species
+    PartStateIntEn(1:2,iPart) = 0
+    ! set initial vibrational and rotational energy for diatomic molecules
+    PartStateIntEn( 1,iPart) = CalcEVib_particle(iSpec,TVib)
+    PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpec,TRot,iPart)
   END IF
 ! For granular species E vib is used as value for bulk temperatur
 ELSE IF (Species(iSpec)%InterID.EQ.100) THEN

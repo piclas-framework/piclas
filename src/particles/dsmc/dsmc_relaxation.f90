@@ -39,96 +39,11 @@ PROCEDURE(RotRelaxDiaRoutine),POINTER :: RotRelaxDiaRoutineFuncPTR !< pointer de
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_VibRelaxDiatomic, CalcMeanVibQuaDiatomic, DSMC_calc_P_rot, DSMC_calc_var_P_vib
 PUBLIC :: InitCalcVibRelaxProb, DSMC_calc_P_vib, SumVibRelaxProb, FinalizeCalcVibRelaxProb, DSMC_calc_P_elec
-PUBLIC :: DSMC_SetInternalEnr_Diatomic, RotRelaxDiaRoutineFuncPTR
-PUBLIC :: DSMC_RotRelaxDiaContinuous, DSMC_RotRelaxDiaQuant
+PUBLIC :: RotRelaxDiaRoutineFuncPTR, DSMC_RotRelaxDiaContinuous, DSMC_RotRelaxDiaQuant
 
 !===================================================================================================================================
 
 CONTAINS
-
-SUBROUTINE DSMC_SetInternalEnr_Diatomic(iSpec, iPart, TRot, TVib)
-!===================================================================================================================================
-!> Energy distribution according to dissertation of Laux (diatomic)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars               ,ONLY: PartStateIntEn, SpecDSMC, DSMC, AHO
-USE MOD_part_tools              ,ONLY: RotInitPolyRoutineFuncPTR, CalcEVib_particle
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)             :: iSpec, iPart
-REAL, INTENT(IN)                :: TRot, TVib
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                            :: iRan, temp, GroundLevel, VibPartitionTemp
-INTEGER                         :: iQuant
-! Quantized rotational energy
-INTEGER                         :: jMax
-LOGICAL                         :: ARM
-REAL                            :: fNorm, J
-!===================================================================================================================================
-! Nullify energy for atomic species
-PartStateIntEn(1:2,iPart) = 0
-! Set vibrational energy
-! IF(DSMC%VibAHO) THEN
-!   ! Other possible variants (not tested):
-!   ! V1: calculate sum over all energy levels = complete partition function for vibration
-!   !   VibPartition = 0.
-!   !   DO iQuant = 1, AHO%NumVibLevels(iSpec)
-!   !     VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
-!   !   END DO
-!   !   then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib)))
-!   !   Sum up until random number is reached
-!   ! V2: calculate partition function for each level (sums up to 1) --> contribution of each level
-!   !   Sum up contribution * energy of each level
-
-!   temp = TVib
-
-!   IF (CHECKEXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))) THEN
-!     ! Calculation of ground state partition
-!     GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
-!     ! Select a quantum number randomly (from 1 to AHO%NumVibLevels(iSpec))
-!     CALL RANDOM_NUMBER(iRan)
-!     iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
-!     ! Calculate vibrational partition for this quantum number
-!     VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
-!     ! decide if quantum number is accepted
-!     ! acceptance is higher for lower levels
-!     CALL RANDOM_NUMBER(iRan)
-!     DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
-!       ! select random quantum number and calculate partition function again
-!       CALL RANDOM_NUMBER(iRan)
-!       iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
-!       VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
-!       CALL RANDOM_NUMBER(iRan)
-!     END DO
-!     ! vibrational energy is table value of the accepted quantum number
-!     PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,iQuant)
-
-!   ! Utilization of ground state energy if CHECKEXP = F
-!   ELSE
-!     PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,1)
-!   END IF
-
-! ELSE ! SHO
-!   CALL RANDOM_NUMBER(iRan)
-!   iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
-!   DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
-!     CALL RANDOM_NUMBER(iRan)
-!     iQuant = INT(-LOG(iRan)*TVib/SpecDSMC(iSpec)%CharaTVib)
-!   END DO
-!   PartStateIntEn( 1,iPart) = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
-! END IF
-! //TODO: use CalcEVib_particle?
-PartStateIntEn( 1,iPart) = CalcEVib_particle(iSpec,TVib)
-PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpec,TRot,iPart)
-
-
-END SUBROUTINE DSMC_SetInternalEnr_Diatomic
 
 
 SUBROUTINE DSMC_RotRelaxDiaQuant(iPair,iPart,FakXi)
@@ -231,7 +146,7 @@ SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
 ! Performs the vibrational relaxation of diatomic molecules
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, CollInf, AHO
+USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, AHO
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, c
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -246,7 +161,7 @@ REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                          :: MaxColQua, iRan, Ec, ProbAccept
-INTEGER                       :: iQuaMax, iQua, iSpec, iSpec1, iSpec2
+INTEGER                       :: iQuaMax, iQua, iSpec
 !===================================================================================================================================
 IF (usevMPF.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
@@ -271,23 +186,18 @@ IF(DSMC%VibAHO) THEN ! AHO
   ! choose random quantum number
   CALL RANDOM_NUMBER(iRan)
   iQua = INT(iRan * iQuaMax + 1)
-  ! species of pair
-  ! iSpec1 = PartSpecies(Coll_pData(iPair)%iPart_p1)
-  ! iSpec2 = PartSpecies(Coll_pData(iPair)%iPart_p2)
   ! Ec without zero-point energy for calc of ProbAccept
   Ec = Ec - AHO%VibEnergy(iSpec,1)
   ! calculate probability of acceptance of the chosen quantum number
-  ! //TODO: changed (1-omega) to FakXi which is adapted to which relaxations are done?
   ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%chiE(iSpec) * iQua)) &
-    / Ec) **FakXi!(1. - CollInf%omega(iSpec1,iSpec2))
+    / Ec) **FakXi
   ! compare to random number and repeat until accepted
   CALL RANDOM_NUMBER(iRan)
   DO WHILE (iRan.GT.ProbAccept)
     CALL RANDOM_NUMBER(iRan)
     iQua = INT(iRan * iQuaMax + 1)
-    ! //TODO: changed (1-omega) to FakXi which is adapted to which relaxations are done?
     ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%chiE(iSpec) * iQua)) &
-      / Ec) **FakXi!(1. - CollInf%omega(iSpec1,iSpec2))
+      / Ec) **FakXi
     CALL RANDOM_NUMBER(iRan)
   END DO
   ! vibrational energy is table value of the accepted quantum number

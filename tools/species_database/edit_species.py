@@ -23,7 +23,7 @@ from config import *
 # If the value can be determined automatically, the value can be set in the __init__ function of the class, e.g. ChargeIC and InteractionID
 # The key of the dictionary will be the name of the attribute in the database!!!
 # For already existing species with existing attributes the __init__ functions will just loop over all attributes so the addition must only be made for the case of creating and adding a new species
-# In addition the type of the new attribute must be added to the attribute_types dictionary in the config.py file
+# In addition the type of the new attribute must be added to the attribute_types dictionary in the config.py file or needs to be set if a new attribute is added using the script
 # Generally the attributes dictionary should be used to store all attributes which are written to the database
 # Other variables of the class like the name of the species or the electronic levels are be stored separately to simplify the handling of a different number of attributes in loops
 # The new references are also stored in a separate dictionary so they can be added to the existing references
@@ -47,15 +47,9 @@ class Atom:
                 self.attributes[attr_name] = attr_value
         # create new class to store new data
         else:
-            # The comment below is needed to find the location to add a new attribute to an empty initialized class
-            ##### Atomic Molecule Attributes #####
-            self.attributes['* Created'] = None
-            self.attributes['* Reference'] = None
-            self.attributes['MassIC'] = None
-            self.attributes['HeatOfFormation_K'] = None
-            self.attributes['Tref'] = None
-            self.attributes['dref'] = None
-            self.attributes['omega'] = None
+            # initialize the attributes of the class with the configuration from the config file
+            for attr_name, attr_value in atom_attributes.items():
+                self.attributes[attr_name] = attr_value
             if 'ion' in self.name.lower():
                 Ion_Number = int(re.search(r'\d+$', self.name).group())
                 self.attributes['ChargeIC'] = -Ion_Number * electron_charge
@@ -273,23 +267,9 @@ class DiatomicMolecule:
                 self.attributes[attr_name] = attr_value
         # create new class to store new data
         else:
-            # The comment below is needed to find the location to add a new attribute to an empty initialized class
-            ##### Diatomic Molecule Attributes #####
-            self.attributes['* Created'] = None
-            self.attributes['* Reference'] = None
-            self.attributes['MassIC'] = None
-            self.attributes['HeatOfFormation_K'] = None
-            self.attributes['Ediss_eV'] = None
-            self.attributes['SymmetryFactor'] = None
-            self.attributes['CharaTempRot'] = None
-            self.attributes['CharaTempVib'] = None
-            self.attributes['MomentOfInertia'] = None
-            self.attributes['Tref'] = None
-            self.attributes['dref'] = None
-            self.attributes['omega'] = None
-            # AHO model attributes
-            self.attributes['omegaE'] = None
-            self.attributes['xiE'] = None
+            # initialize the attributes of the class with the configuration from the config file
+            for attr_name, attr_value in diatomic_attributes.items():
+                self.attributes[attr_name] = attr_value
             if 'ion' in self.name.lower():
                 Ion_Number = int(re.search(r'\d+$', self.attributes['name']).group())
                 self.attributes['ChargeIC'] = -Ion_Number * electron_charge
@@ -331,20 +311,9 @@ class PolyatomicMolecule:
                 self.attributes[attr_name] = attr_value
         # create new class to store new data
         else:
-            # The comment below is needed to find the location to add a new attribute to an empty initialized class
-            ##### Polyatomic Molecule Attributes #####
-            self.attributes['* Created'] = None
-            self.attributes['* Reference'] = None
-            self.attributes['MassIC'] = None
-            self.attributes['HeatOfFormation_K'] = None
-            self.attributes['Ediss_eV'] = None
-            self.attributes['SymmetryFactor'] = None
-            self.attributes['CharaTempRot'] = None
-            self.attributes['CharaTempVib'] = None
-            self.attributes['Tref'] = None
-            self.attributes['dref'] = None
-            self.attributes['omega'] = None
-            self.attributes['PolyatomicMol'] = 1
+            # initialize the attributes of the class with the configuration from the config file
+            for attr_name, attr_value in polyatomic_attributes.items():
+                self.attributes[attr_name] = attr_value
             # gets updated in function
             self.attributes['NumOfAtoms'] = MoleculeHelper.get_num_of_atoms(self.name)
             if 'ion' in self.name.lower():
@@ -438,18 +407,18 @@ def create_empty_instance(species):
 
 def determine_class_with_given_data(attrs):
     """Determines the class of the species based on the attributes of the species"""
-    if 'CharaTempRot' in attrs and 'CharaTempVib' in attrs:
-        if 'PolyatomicMol' in attrs:
-            return PolyatomicMolecule
-        else:
-            return DiatomicMolecule
+    if 'PolyatomicMol' in attrs:
+        return PolyatomicMolecule
     else:
-        return Atom
+        if 'CharaTempRot' in attrs or 'CharaTempVib' in attrs or 'CharaTempRot1' in attrs or 'CharaTempVib1' in attrs:
+            return DiatomicMolecule
+        else:
+            return Atom
 
 def create_instance_from_data(species):
     """Creates an instance of the correct class based on the attributes of the species when reading in species data from the database"""
     attrs = hdf_unified_data["Species"][species].attrs
-    cls = determine_class_with_given_data(attrs)
+    cls = determine_class_with_given_data(attrs.keys())
     if cls is None:
         raise ValueError("Unknown class type for the given data.")
 
@@ -552,9 +521,16 @@ def edit_attributes(instance):
     print("\nExisting attributes for species ", green(instance.name))
     for attr_name, attr_value in instance.attributes.items():
         if isinstance(attr_value, np.ndarray):
-            print(f"{attr_name}:")
-            for i in range(attr_value.shape[0]):
-                print(f"\t{attr_value[i,0]} : {attr_value[i,1]}")
+            # used for reference data
+            if attr_value.ndim == 2:
+                print(f"{attr_name}:")
+                for i in range(attr_value.shape[0]):
+                    print(f"\t{attr_value[i,0]} : {attr_value[i,1]}")
+            # used for array data, e.g. CharaTempVib or CharaTempRot
+            elif attr_value.ndim == 1:
+                print(f"{attr_name}:")
+                for i in range(attr_value.shape[0]):
+                    print(f"\tMode {i+1} : {attr_value[i]}")
         else:
             print(f"{attr_name}: {attr_value}")
     user_input_attrs = input(bold('\nPlease enter attribute list as comma separated string. It is also possible to add new attributes.') + ', e.g. Tref, HeatOfFormation, ... or None to skip this species\n')
@@ -570,17 +546,25 @@ def edit_attributes(instance):
                                                        'no'),
                                                        lambda x: x == '1' or x == '2' or x =='3')
             if user_input == "1":
+                new_data = input(bold('\nPlease enter ' + attr_name + ' of current species (arrays can be entered as comma separated strings, e.g. 1.2,3.4,5.9) %s\n-->') % instance.name)
+                if ',' in new_data:
+                    new_data = [np.float64(val) for val in new_data.split(',')]
+                    # sanity check if array has same length as before
+                    if len(new_data) != len(instance.attributes[attr_name]):
+                        print(red('Error')+': New array has not the same length as the old one! Please check the input!')
+                        own_exit()
                 # Replace the existing value
-                instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
+                instance.attributes[attr_name] = attribute_types[attr_name](new_data)
             elif user_input == "3":
                 own_exit()
         else:
             if attr_name in attribute_types.keys():
-                # type of attribute is already defined
-                instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
+                new_data = input(bold('\nPlease enter ' + attr_name + ' of current species (arrays can be entered as comma separated strings, e.g. 1.2,3.4,5.9) %s\n-->') % instance.name)
+                if ',' in new_data:
+                    new_data = [np.float64(val) for val in new_data.split(',')]
             else:
                 # User input for attribute type
-                attr_type = input(f"Please enter the datatype for {attr_name} (str, int, float): ").strip().lower()
+                attr_type = input(f"Please enter the datatype for {attr_name} (str, int, float or array): ").strip().lower()
                 if attr_type == 'str':
                     attribute_types[attr_name] = str
                     attr_type_str = 'str'
@@ -590,11 +574,26 @@ def edit_attributes(instance):
                 elif attr_type == 'float':
                     attribute_types[attr_name] = float
                     attr_type_str = 'float'
+                elif attr_type == 'array':
+                    attribute_types[attr_name] = np.array
+                    attr_type_str = 'np.array'
                 else:
                     print("Invalid datatype entered!")
                     own_exit()
-                instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
+                new_data = (input(bold('\nPlease enter ' + attr_name + ' of current species (arrays can be entered as comma separated strings, e.g. 1.2,3.4,5.9) %s\n-->') % instance.name))
+                if ',' in new_data:
+                    new_data = [np.float64(val) for val in new_data.split(',')]
+
+                # Add the new attribute type to the config file
                 config_path = os.path.join(os.path.dirname(__file__), 'config.py')
+                # decide which class to append to
+                if instance.attributes['InteractionID'] == 1 or instance.attributes['InteractionID'] == 10:
+                    line_catch = 'atom_attributes = {'
+                elif instance.attributes['InteractionID'] == 2 or instance.attributes['InteractionID'] == 20:
+                    if 'PolyatomicMol' in instance.attributes.keys():
+                        line_catch = 'polyatomic_attributes = {'
+                    else:
+                        line_catch = 'diatomic_attributes = {'
                 # Write the new attribute type to config.py
                 with open(config_path, 'r+') as config_file:
                     lines = config_file.readlines()
@@ -603,26 +602,30 @@ def edit_attributes(instance):
                         config_file.write(line)
                         if line.strip() == 'attribute_types = {':
                             config_file.write(f"    '{attr_name}'         : {attr_type_str},\n")
-                    config_file.truncate()
-                # write new attribute to initialize empty class to current file
-                # decide which class to append to
-                if instance.attributes['InteractionID'] == 1 or instance.attributes['InteractionID'] == 10:
-                    line_catch = '##### Atomic Molecule Attributes #####'
-                elif instance.attributes['InteractionID'] == 2 or instance.attributes['InteractionID'] == 20:
-                    if 'PolyatomicMol' in instance.attributes.keys():
-                        line_catch = '##### Polyatomic Molecule Attributes #####'
-                    else:
-                        line_catch = '##### Diatomic Molecule Attributes #####'
-                # write to file
-                class_file_path = os.path.join(os.path.dirname(__file__), 'edit_species.py')
-                with open(class_file_path, 'r+') as class_file:
-                    lines = class_file.readlines()
-                    class_file.seek(0)
-                    for line in lines:
-                        class_file.write(line)
                         if line.strip() == line_catch:
-                            class_file.write(f"            self.attributes['{attr_name}'] = None\n")
-                    class_file.truncate()
+                            config_file.write(f"    '{attr_name}'         : None,\n")
+                    config_file.truncate()
+
+            # sanity check in both cases for characteristic temperatures
+            if 'LinearMolec' in instance.attributes.keys():
+                if attr_name == 'CharaTempRot' or attr_name == 'MomentOfInertia':
+                    print(f'Current species {instance.name} is a linear molecule, so only one characteristic temperature/moment of inertia is needed!')
+                    own_exit()
+                if attr_name == 'CharaTempVib':
+                    if len(new_data) != 3*instance.attributes['NumOfAtoms']-5:
+                        print(red('Error')+f': New array for characteristic vibrational temperatures does not fit expected value for a linear molecule with {instance.attributes["NumOfAtoms"]} atoms!')
+                        own_exit()
+            else:
+                if attr_name == 'CharaTempRot' or attr_name == 'MomentOfInertia':
+                    if len(new_data) != 3:
+                        print(red('Error')+': New array for characteristic rotational temperatures/moment of inertia does not fit expected value for a non-linear molecule!')
+                        own_exit()
+                    if attr_name == 'CharaTempVib':
+                        if len(new_data) != 3*instance.attributes['NumOfAtoms']-6:
+                            print(red('Error')+f': New array for characteristic vibrational temperatures does not fit expected value for a non-linear molecule with {instance.attributes["NumOfAtoms"]} atoms!')
+                            own_exit()
+            # if passed write to class
+            instance.attributes[attr_name] = attribute_types[attr_name](new_data)
 
 def write_instance_to_database(instance):
     """

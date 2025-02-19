@@ -1,6 +1,6 @@
 import h5py
-import os
-import ast
+import numpy as np
+
 ###################################################################################################
 # This file contains the configuration and global variables the script uses
 ###################################################################################################
@@ -16,6 +16,10 @@ electron_charge = -1.60217653E-19 # coulombs
 # datatype for strings in database file
 datatype_h5 = h5py.string_dtype(encoding='utf-8')
 
+###################################################################################################
+# This section contains the data types and needed attributes for the different types of species
+# if a new attribute is added using this script it will be added to this file automatically
+###################################################################################################
 
 # setup for types of attributes
 attribute_types = {
@@ -28,27 +32,59 @@ attribute_types = {
     'ChargeIC'          : float,
     'MassIC'            : float,
     'SymmetryFactor'    : float,
-    'CharaTempRot'      : float,
-    'CharaTempRot1'     : float,
-    'CharaTempRot2'     : float,
-    'CharaTempRot3'     : float,
-    'CharaTempVib'      : float,
-    'CharaTempVib1'     : float,
-    'CharaTempVib2'     : float,
-    'CharaTempVib3'     : float,
-    'CharaTempVib4'     : float,
-    'CharaTempVib5'     : float,
-    'CharaTempVib6'     : float,
-    'CharaTempVib7'     : float,
-    'CharaTempVib8'     : float,
-    'CharaTempVib9'     : float,
-    'MomentOfInertia'   : float,
-    'MomentOfInertia1'  : float,
-    'MomentOfInertia2'  : float,
-    'MomentOfInertia3'  : float,
+    'CharaTempRot'      : np.array,
+    'CharaTempVib'      : np.array,
+    'MomentOfInertia'   : np.array,
     'Tref'              : float,
     'dref'              : float,
     'omega'             : float,
     'Vib-OmegaE'        : float,
     'Vib-ChiE'          : float,
+}
+
+# setup of different empty classes
+# these attributes include all attributes needed for the different types of species, which cannot be obtained from the name of the species
+# attributes which can be obtained from the name of the species are directly written to the class in __init__ function of the class in edit_species.py
+atom_attributes = {
+    '* Created'         : None,
+    '* Reference'       : None,
+    'MassIC'            : None,
+    'HeatOfFormation_K' : None,
+    'Tref'              : None,
+    'dref'              : None,
+    'omega'             : None,
+}
+
+diatomic_attributes = {
+    '* Created'         : None,
+    '* Reference'       : None,
+    'MassIC'            : None,
+    'HeatOfFormation_K' : None,
+    'Ediss_eV'          : None,
+    'SymmetryFactor'    : None,
+    'CharaTempRot'      : None,
+    'CharaTempVib'      : None,
+    'MomentOfInertia'   : None,
+    'Tref'              : None,
+    'dref'              : None,
+    'omega'             : None,
+    # AHO model attributes
+    'Vib-OmegaE'        : None,
+    'Vib-ChiE'          : None,
+}
+
+polyatomic_attributes = {
+    'NewData'         : None,
+    '* Created'         : None,
+    '* Reference'       : None,
+    'MassIC'            : None,
+    'HeatOfFormation_K' : None,
+    'Ediss_eV'          : None,
+    'SymmetryFactor'    : None,
+    'CharaTempRot'      : None,
+    'CharaTempVib'      : None,
+    'Tref'              : None,
+    'dref'              : None,
+    'omega'             : None,
+    'PolyatomicMol'     : 1,
 }
