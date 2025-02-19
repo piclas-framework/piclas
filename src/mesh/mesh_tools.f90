@@ -397,7 +397,7 @@ USE MOD_HDG_Vars  ,ONLY: iLocSides
 USE MOD_Mesh_Vars ,ONLY: nSides
 #if USE_MPI
 USE MOD_MPI_Vars  ,ONLY: RecRequest_U,SendRequest_U
-USE MOD_MPI       ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI       ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -409,10 +409,10 @@ INTEGER :: iSide,SideID,iLocSide,iMortar,nMortars,MortarSideID
 ! Exchange iLocSides from master to slaves: Send MINE, receive YOUR direction
 SDEALLOCATE(iLocSides)
 ALLOCATE(iLocSides(PP_nVar,nSides))
-iLocSides = -100.
+iLocSides = -100
 DO iSide = 1, nSides
   ! Get local side ID for each side ID
-  iLocSides(:,iSide) = REAL(SideToElem(S2E_LOC_SIDE_ID,iSide))
+  iLocSides(:,iSide) = SideToElem(S2E_LOC_SIDE_ID,iSide)
 
   ! Small virtual mortar master side (blue) is encountered with MortarType(1,iSide) = 0
   ! Blue (small mortar master) side writes as yellow (big mortar master) for consistency (you spin me right round baby right round)
@@ -425,7 +425,7 @@ DO iSide = 1, nSides
         IF(iSide.EQ.SideID)THEN
           iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
           IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-            iLocSides(:,iSide) = REAL(iLocSide)
+            iLocSides(:,iSide) = iLocSide
           ELSE
             CALL abort(__STAMP__,'This big mortar side must be master')
           END IF !iLocSide.NE.-1
@@ -437,8 +437,8 @@ DO iSide = 1, nSides
 END DO
 
 ! At Mortar interfaces: Send my loc side ID (normal master or small mortar master sides) to the slave sides
-CALL StartReceiveMPIData( 1 , iLocSides , 1 , nSides , RecRequest_U  , SendID=1 ) ! Receive YOUR
-CALL StartSendMPIData(    1 , iLocSides , 1 , nSides , SendRequest_U , SendID=1 ) ! Send MINE
+CALL StartReceiveMPIDataInt( 1 , iLocSides , 1 , nSides , RecRequest_U  , SendID=1 ) ! Receive YOUR
+CALL StartSendMPIDataInt(    1 , iLocSides , 1 , nSides , SendRequest_U , SendID=1 ) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 END SUBROUTINE GetMasteriLocSides
 #endif /*USE_MPI*/
@@ -473,7 +473,7 @@ INTEGER          :: SideID,iLocSide,iMortar,nMortars,MortarSideID
 ! When slave sides are encountered, get the iLocSide ID from the neighbouring master, because later the orientation of the data
 ! is assumed to be in the master orientation
 IF(iSide.GT.lastMPISide_MINE)THEN
-  iLocSide = NINT(iLocSides(1,iSide))
+  iLocSide = iLocSides(1,iSide)
 ELSE
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
 END IF ! iSide.GT.lastMPISide_MINE
