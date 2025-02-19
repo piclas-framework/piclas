@@ -1158,8 +1158,10 @@ USE MOD_RecordPoints              ,ONLY: RecordPoints
 USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_AnalyzeField              ,ONLY: AnalyzeField
-#ifdef PARTICLES
+#if defined(PARTICLES) || defined(discrete_velocity)
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
+#endif
+#ifdef PARTICLES
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
 USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
@@ -1203,6 +1205,10 @@ USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 USE MOD_TimeDisc_Vars             ,ONLY: time
+#ifdef discrete_velocity
+USE MOD_Equation_Vars_FV          ,ONLY: WriteDVMSurfaceValues
+USE MOD_DVM_Boundary_Analyze      ,ONLY: WriteDVMSurfToHDF5
+#endif /*discrete_velocity*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1405,6 +1411,15 @@ IF(DoCalcErrorNorms) THEN
 #endif /*PARTICLES*/
   END IF
 END IF
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! DVM Surface analyze
+!----------------------------------------------------------------------------------------------------------------------------------
+#ifdef discrete_velocity
+IF (WriteDVMSurfaceValues.AND.(OutPutHDF5.OR.FirstOrLastIter)) THEN
+  CALL WriteDVMSurfToHDF5(TRIM(MeshFile),OutputTime)
+END IF
+#endif /*discrete_velocity*/
 
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
 #if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)

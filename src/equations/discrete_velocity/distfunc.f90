@@ -27,7 +27,7 @@ PRIVATE
 PUBLIC:: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
 PUBLIC:: ShakhovDistribution, ESBGKDistribution, GradDistribution, GradDistributionPrandtl
 PUBLIC:: SkewNormalDistribution, SkewtDistribution
-PUBLIC:: MaxwellScattering, RescaleU, RescaleInit, ForceStep
+PUBLIC:: MaxwellScattering, RescaleU, RescaleInit, ForceStep, IntegrateFluxValues
 !==================================================================================================================================
 
 CONTAINS
@@ -182,7 +182,7 @@ IF (tDeriv.GT.0.) THEN
   END SELECT
 END IF
 
-END SUBROUTINE
+END SUBROUTINE MacroValuesFromDistribution
 
 SUBROUTINE MaxwellDistributionCons(MacroVal,fMaxwell)
 !===================================================================================================================================
@@ -269,7 +269,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   END IF
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE MaxwellDistributionCons
 
 SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell)
 !===================================================================================================================================
@@ -307,7 +307,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   END IF
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE MaxwellDistribution
 
 SUBROUTINE ShakhovDistribution(MacroVal,fShakhov)
 !===================================================================================================================================
@@ -351,7 +351,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   END IF
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE ShakhovDistribution
 
 SUBROUTINE ESBGKDistribution(MacroVal,fESBGK)
 !===================================================================================================================================
@@ -420,7 +420,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   END IF
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE ESBGKDistribution
 
 SUBROUTINE GradDistribution(MacroVal,fGrad)
 !===================================================================================================================================
@@ -489,7 +489,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   END IF
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE GradDistribution
 
 SUBROUTINE GradDistributionPrandtl(MacroVal,fGrad)
 !===================================================================================================================================
@@ -559,7 +559,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   END IF
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE GradDistributionPrandtl
 
 SUBROUTINE SkewNormalDistribution(MacroVal,fSkew)
 !===================================================================================================================================
@@ -615,7 +615,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE SkewNormalDistribution
 
 ! function outer_product(A,B) result(AB)
 !   double precision, intent(in) :: A(:),B(:)
@@ -884,7 +884,7 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
 
 END DO; END DO; END DO
 
-END SUBROUTINE
+END SUBROUTINE SkewtDistribution
 
 REAL FUNCTION CalcdeltafromSkew(gamma1,b1,nu)
 !===================================================================================================================================
@@ -1003,7 +1003,7 @@ END DO; END DO; END DO
 fBoundary = fBoundary * (Sout/Sin)
 ! no additional rescaling needed because it is an equilibrium distribution
 
-END SUBROUTINE
+END SUBROUTINE MaxwellScattering
 
 SUBROUTINE RescaleU(tilde,tDeriv)
 !===================================================================================================================================
@@ -1073,7 +1073,7 @@ DO iElem =1, nElems
     U_FV(:,i,j,k,iElem) = U_FV(:,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
   END DO; END DO; END DO
 END DO
-END SUBROUTINE
+END SUBROUTINE RescaleU
 
 SUBROUTINE RescaleInit(tDeriv)
 !===================================================================================================================================
@@ -1129,7 +1129,7 @@ DO iElem =1, nElems
     U_FV(:,i,j,k,iElem) = U_FV(:,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
   END DO; END DO; END DO
 END DO
-END SUBROUTINE
+END SUBROUTINE RescaleInit
 
 SUBROUTINE ForceStep(tDeriv)
 !===================================================================================================================================
@@ -1198,7 +1198,53 @@ DO iElem =1, nElems
     END DO; END DO; END DO
   END DO; END DO; END DO
 END DO
-END SUBROUTINE
+END SUBROUTINE ForceStep
+
+
+SUBROUTINE IntegrateFluxValues(MacroVal,U)
+!===================================================================================================================================
+! Calculates the surface macro values from distribution fluxes
+!===================================================================================================================================
+! MODULES
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMWeights, DVMDim
+USE MOD_PreProc
+USE MOD_Globals               ,ONLY: abort
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: U(PP_nVar_FV)
+REAL, INTENT(OUT)               :: MacroVal(5)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                            :: rho, rhoU(3), rhoE, weight
+INTEGER                         :: iVel,jVel,kVel, upos
+!===================================================================================================================================
+rho = 0.
+rhoU = 0.
+rhoE = 0.
+MacroVal = 0.
+
+DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+  upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+  weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+  rho = rho + weight*U(upos)
+  rhoU(1) = rhoU(1) + weight*DVMVelos(iVel,1)*U(upos)
+  rhoU(2) = rhoU(2) + weight*DVMVelos(jVel,2)*U(upos)
+  rhoU(3) = rhoU(3) + weight*DVMVelos(kVel,3)*U(upos)
+  IF (DVMDim.LT.3) THEN
+    rhoE = rhoE + weight*0.5*((DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)+U(PP_nVar_FV/2+upos))
+  ELSE
+    rhoE = rhoE + weight*0.5*(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)*U(upos)
+  END IF
+END DO; END DO; END DO
+
+MacroVal(1) = rho ! mass flow
+MacroVal(2:4) = rhoU ! force per area
+MacroVal(5) = rhoE ! heat flux
+
+END SUBROUTINE IntegrateFluxValues
 
 END MODULE MOD_DistFunc
-

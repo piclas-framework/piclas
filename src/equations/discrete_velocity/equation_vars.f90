@@ -85,6 +85,10 @@ CHARACTER(LEN=255),DIMENSION(15),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=
                                                                                     'HeatfluxZ', &
                                                                                     'RelaxationFactor'/)
 
+LOGICAL              :: WriteDVMSurfaceValues
+REAL,ALLOCATABLE     :: DVMSurfaceValues(:,:,:,:)
+INTEGER              :: nVarDVMSurf=4
+
 LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux
 LOGICAL,ALLOCATABLE  ::isExactFluxInterFace(:)

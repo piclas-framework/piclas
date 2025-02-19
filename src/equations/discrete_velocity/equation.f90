@@ -81,6 +81,7 @@ CALL prms%CreateIntOption(      'IniRefState',  'Refstate required for initializ
 CALL prms%CreateRealArrayOption('RefState',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
                                                  multiple=.TRUE., no=14 )
 CALL prms%CreateRealArrayOption('DVM-Accel',    'Acceleration vector for force term', '(/0., 0., 0./)')
+CALL prms%CreateLogicalOption(  'DVM-WriteMacroSurfaceValues',  'Surface output', '.FALSE.')
 END SUBROUTINE DefineParametersEquation
 
 !==================================================================================================================================
@@ -92,10 +93,11 @@ USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY : BoltzmannConst
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: nElems
-USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT, CountOption
+USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT,GETLOGICAL, CountOption
 USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights, GaussHermiteNodesAndWeights, NewtonCotesNodesAndWeights
 USE MOD_Equation_Vars_FV
+USE MOD_DVM_Boundary_Analyze,ONLY: InitDVMBoundaryAnalyze
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -201,6 +203,8 @@ CASE(2)
   SWRITE(UNIT_stdOut,*)'Method: DUGKS'
 END SELECT
 
+WriteDVMSurfaceValues = GETLOGICAL('DVM-WriteMacroSurfaceValues')
+IF (WriteDVMSurfaceValues) CALL InitDVMBoundaryAnalyze()
 
 EquationInitIsDone=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT DVM DONE!'
@@ -409,10 +413,12 @@ END SUBROUTINE CalcSource
 !==================================================================================================================================
 SUBROUTINE FinalizeEquation()
 ! MODULES
-USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState
+USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState, WriteDVMSurfaceValues
+USE MOD_DVM_Boundary_Analyze,ONLY: FinalizeDVMBoundaryAnalyze
 IMPLICIT NONE
 !==================================================================================================================================
 EquationInitIsDone = .FALSE.
+IF (WriteDVMSurfaceValues) CALL FinalizeDVMBoundaryAnalyze()
 SDEALLOCATE(DVMVelos)
 SDEALLOCATE(DVMWeights)
 SDEALLOCATE(RefState)

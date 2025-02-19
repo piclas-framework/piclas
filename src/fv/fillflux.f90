@@ -47,6 +47,11 @@ USE MOD_Riemann         ,ONLY: Riemann
 USE MOD_Mesh_Vars_FV    ,ONLY: NormVec_FV, TangVec1_FV, tangVec2_FV, SurfElem_FV, Face_xGP_FV
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
+#ifdef discrete_velocity
+USE MOD_TimeDisc_Vars   ,ONLY: dt,dt_Min
+USE MOD_Equation_Vars_FV,ONLY: WriteDVMSurfaceValues,DVMSurfaceValues
+USE MOD_DistFunc        ,ONLY: IntegrateFluxValues
+#endif
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
 USE MOD_Interpolation_Vars ,ONLY: wGP
@@ -72,6 +77,9 @@ REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: SideID,firstSideID_wo_BC,firstSideID,lastSideID
+#ifdef discrete_velocity
+REAL               :: MacroVal(5)
+#endif
 !===================================================================================================================================
 
 ! fill flux for sides ranging between firstSideID and lastSideID using Riemann solver
@@ -115,6 +123,17 @@ IF(.NOT.doMPISides)THEN
                                ,TangVec1_FV       (1:3              ,0:0,0:0,1:nBCSides) &
                                ,TangVec2_FV       (1:3              ,0:0,0:0,1:nBCSides) &
                                ,Face_XGP_FV       (1:3              ,0:0,0:0,1:nBCSides) )
+#ifdef discrete_velocity
+  IF (WriteDVMSurfaceValues) THEN
+    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END))) THEN
+      ! ADD moments de fluxmaster(1:nbcsides) TO SURFOUTPUT
+      DO SideID=1,nBCSides
+        CALL IntegrateFluxValues(MacroVal,Flux_Master(:,0,0,SideID))
+        DVMSurfaceValues(1:4,1,1,SideID) = MacroVal(2:5)
+      END DO
+    END IF
+  END IF
+#endif
 END IF
 
 ! 3. multiply by SurfElem: Apply surface element size

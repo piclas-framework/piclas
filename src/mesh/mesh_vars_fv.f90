@@ -51,5 +51,11 @@ INTEGER,ALLOCATABLE :: BoundaryType_FV(:,:) !< BCType    = BoundaryType(BC(SideI
                                             !< BCState   = BoundaryType(BC(SideID),BC_STATE)
 #endif
 
+! For surface output
+INTEGER          :: nGlobalBCSides=0
+INTEGER          :: offsetBCSide=0
+INTEGER                                 :: nFVSurfBC                       ! number of surface side BCs
+CHARACTER(LEN=255),ALLOCATABLE          :: FVSurfBCName(:)                 ! names of belonging surface BC
+
 #endif /*USE_FV*/
 END MODULE MOD_Mesh_Vars_FV

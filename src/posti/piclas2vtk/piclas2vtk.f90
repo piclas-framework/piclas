@@ -1220,7 +1220,7 @@ REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)          !< Coordi
 CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
+IF((TRIM(File_Type).NE.'RadiationSurfState').AND.(TRIM(File_Type).NE.'DVMSurfState')) THEN
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
 ELSE
   nSurfSample = 1
@@ -1278,7 +1278,11 @@ END IF
 
 IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
   IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+    IF(TRIM(File_Type).NE.'DVMSurfState') THEN
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+    ELSE
+      FileString=TRIM(TRIM(ProjectName)//'_DVMSurfVisu')//'.vtu'
+    END IF
   ELSE
     FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
   END IF
