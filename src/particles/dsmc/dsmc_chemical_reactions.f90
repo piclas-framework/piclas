@@ -57,7 +57,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
 USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, PartStateIntEn, ChemReac, CollInf, ReactionProbGTUnityCounter
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, UseVarTimeStep, usevMPF
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTDataset
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTVibPoly, CalcTelec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_GetAnalyticRate
 ! IMPLICIT VARIABLE HANDLING
@@ -210,7 +210,7 @@ IF(((Coll_pData(iPair)%Ec-EZeroPoint_Educt).GE.(SumWeightEduct/NumWeightEduct*Ch
     IF (DSMC%ElectronicModel.GT.0) THEN
       IF((Species(EductReac(iPart))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(iPart))%FullyIonized)) THEN
         IF(PartStateIntEn(3,ReactInx(iPart)).GT.0.0)THEN
-          Telec=CalcTDataset( PartStateIntEn(3,ReactInx(iPart)) , EductReac(iPart), 'ELECTRONIC')
+          Telec=CalcTelec( PartStateIntEn(3,ReactInx(iPart)) , EductReac(iPart))
           Xi_elec(iPart)=2.*PartStateIntEn(3,ReactInx(iPart))/(BoltzmannConst*Telec)
         END IF
       END IF

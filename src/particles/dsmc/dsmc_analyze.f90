@@ -189,7 +189,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollInf, PartStateIntEn
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -222,7 +222,7 @@ DO iSpec=1, nSpecies
   IF(SpecPartNum_Simu(iSpec).GT.1) THEN
     ElecEnergy(iSpec) = ElecEnergy(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
     ! Compute temperatures
-    DSMC%InstantTXiElec(1,iSpec) = CalcTDataset(ElecEnergy(iSpec), iSpec, 'ELECTRONIC')
+    DSMC%InstantTXiElec(1,iSpec) = CalcTelec(ElecEnergy(iSpec), iSpec)
     IF (DSMC%InstantTXiElec(1,iSpec).GT.0.0) THEN
       DSMC%InstantTXiElec(2,iSpec) = 2.*ElecEnergy(iSpec) /(BoltzmannConst*DSMC%InstantTXiElec(1,iSpec))
     ELSE
@@ -485,7 +485,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset,CalcTVibPoly,CalcTVibAHO,CalcTRotQuant
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly,CalcTVibAHO,CalcTRotQuant
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -625,7 +625,7 @@ DO iElem = 1, nElems ! element/cell main loop
               IF (DSMC%ElectronicModel.GT.0) THEN
                 ! All species except electrons, fully-ionized and granular species
                 IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
-                  Macro_TempElec = CalcTDataset(PartEelec/PartNum, iSpec, 'ELECTRONIC')
+                  Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
                 END IF
                 IF(nSpecies.GT.1) Total_TempElec = Total_TempElec + Macro_TempElec*Macro_PartNum

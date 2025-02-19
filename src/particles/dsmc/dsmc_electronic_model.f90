@@ -245,7 +245,7 @@ USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
 USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, Coll_pData, DSMC, ElectronicDistriPart, CollInf
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, UseVarTimeStep, usevMPF, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTDataset
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
 USE MOD_MCC_Vars                ,ONLY: SpecXSec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -352,7 +352,7 @@ CASE(2)
   END DO
   IF ((Coll_pData(iPair)%Ec-PartStateIntEn(3,iPart1)*GetParticleWeight(iPart1)).LT.0.0) then
     Etmp = (Coll_pData(iPair)%Ec - (1.-LocRelaxProb)*Eold*GetParticleWeight(iPart1))/(GetParticleWeight(iPart1)*LocRelaxProb)
-    TransElec = CalcTDataset(Etmp, iSpec, 'ELECTRONIC')*0.98
+    TransElec = CalcTelec(Etmp, iSpec)*0.98
     ElectronicPartition = 0.0
     DO iQua = 0, SpecDSMC(iSpec)%MaxElecQuant - 1
       tmpExp = SpecDSMC(iSpec)%ElectronicState(2,iQua) / TransElec
@@ -414,7 +414,7 @@ USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, CollInf, ElecRe
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcXiElec
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTDataset
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcTelec
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -461,7 +461,7 @@ Xi_ElecSpec=0.; Xi_Elec_oldSpec=0.; TElecSpec=0.
 DO iSpec = 1, nSpecies
   IF (nSpec(iSpec).EQ.0) CYCLE
   IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-    TElecSpec(iSpec)=CalcTDataset( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec, 'ELECTRONIC')
+    TElecSpec(iSpec)=CalcTelec( EElecSpec(iSpec)/totalWeightSpec(iSpec), iSpec)
     Xi_ElecSpec(iSpec)=CalcXiElec(TElecSpec(iSpec),iSpec)
     Xi_Elec_oldSpec(iSpec) = Xi_ElecSpec(iSpec)
   END IF
