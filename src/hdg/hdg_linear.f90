@@ -295,7 +295,6 @@ DO iBCSide=1,nDirichletBCSides
     IF(MaskedSide(SideID).GT.0) CYCLE
 
     ! TODO PETSC P-Adaption - Improvement: Store V^T * S * V in Smat
-    ! TODO PETSC P-Adaption: ij vs ji
     Smatloc(1:nGP_face(jNloc),1:nGP_face(jNloc)) = HDG_Vol_N(ElemID)%Smat(:,:,iLocSide,jLocSide)
     ! 1. S_{Ij} = (V^T)_{Ii} * S_{ij}
     IF(jNloc.NE.iNloc)THEN

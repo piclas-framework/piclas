@@ -496,7 +496,6 @@ DO iElem=1,PP_nElems
         jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
-      ! TODO NSideMin - Same when NElem<Nloc and NElem>Nloc?
       Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide)
       IF(NElem.NE.jNloc)THEN
         ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T
@@ -609,7 +608,6 @@ CASE(1)
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      ! TODO NSideMin - We may need to check if NSide != NMin when HDGNSideMin is set to false or sth...
       IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
@@ -635,7 +633,6 @@ CASE(2)
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-      ! TODO NSideMin - We may need to check if NSide != NMin when HDGNSideMin is set to false or sth...
       IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       DO igf = 1, nGP_face(NSide)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
@@ -695,7 +692,6 @@ REAL             :: aCon(3,3),q_loc
 REAL,DIMENSION(1,0:NMax,0:NMax) :: tmp2,tmp3
 !===================================================================================================================================
 DO iSide = 1, nSides
-  ! TODO NSideMin - LambdaMax: Calculate it
   NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
 
