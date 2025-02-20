@@ -259,12 +259,12 @@ det(2) = (Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + (Az(2) * Vx - Ax(2) * Vz) * Ay(1) 
 det(3) = (Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + (Ax(3) * Vy - Ay(3) * Vx) * Az(2)
 
 ! calculating the "relative" zero
-minComp(1) = epsMach*MIN(ABS((Ay(1) * Vz - Az(1) * Vy) * Ax(3)),ABS((Az(1) * Vx - Ax(1) * Vz) * Ay(3)),ABS((Ax(1) * Vy - Ay(1) * Vx) * Az(3)))
-minComp(2) = epsMach*MIN(ABS((Ay(2) * Vz - Az(2) * Vy) * Ax(1)),ABS((Az(2) * Vx - Ax(2) * Vz) * Ay(1)),ABS((Ax(2) * Vy - Ay(2) * Vx) * Az(1)))
-minComp(3) = epsMach*MIN(ABS((Ay(3) * Vz - Az(3) * Vy) * Ax(2)),ABS((Az(3) * Vx - Ax(3) * Vz) * Ay(2)),ABS((Ax(3) * Vy - Ay(3) * Vx) * Az(2)))
+minComp(1) = -epsMach*MINVAL((/ABS((Ay(1) * Vz - Az(1) * Vy) * Ax(3)),ABS((Az(1) * Vx - Ax(1) * Vz) * Ay(3)),ABS((Ax(1) * Vy - Ay(1) * Vx) * Az(3))/),MASK=(/ABS((Ay(1) * Vz - Az(1) * Vy) * Ax(3)),ABS((Az(1) * Vx - Ax(1) * Vz) * Ay(3)),ABS((Ax(1) * Vy - Ay(1) * Vx) * Az(3))/).GT.0.0)
+minComp(2) = -epsMach*MINVAL((/ABS((Ay(2) * Vz - Az(2) * Vy) * Ax(1)),ABS((Az(2) * Vx - Ax(2) * Vz) * Ay(1)),ABS((Ax(2) * Vy - Ay(2) * Vx) * Az(1))/),MASK=(/ABS((Ay(2) * Vz - Az(2) * Vy) * Ax(1)),ABS((Az(2) * Vx - Ax(2) * Vz) * Ay(1)),ABS((Ax(2) * Vy - Ay(2) * Vx) * Az(1))/).GT.0.0)
+minComp(3) = -epsMach*MINVAL((/ABS((Ay(3) * Vz - Az(3) * Vy) * Ax(2)),ABS((Az(3) * Vx - Ax(3) * Vz) * Ay(2)),ABS((Ax(3) * Vy - Ay(3) * Vx) * Az(2))/),MASK=(/ABS((Ay(3) * Vz - Az(3) * Vy) * Ax(2)),ABS((Az(3) * Vx - Ax(3) * Vz) * Ay(2)),ABS((Ax(3) * Vy - Ay(3) * Vx) * Az(2))/).GT.0.0)
 
 ! Comparison of the determinants with eps due to machine precision
-IF ((det(1).GT.minComp(1)).AND.(det(2).GT.minComp(2)).AND.(det(3).GT.minComp(3))) THEN
+IF ((det(1).GE.minComp(1)).AND.(det(2).GE.minComp(2)).AND.(det(3).GE.minComp(3))) THEN
   ThroughSide = .TRUE.
 END IF
 
