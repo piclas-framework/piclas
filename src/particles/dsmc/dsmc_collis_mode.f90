@@ -195,7 +195,9 @@ INTEGER                       :: ElecLevelRelax
 LOGICAL                       :: DoElec1, DoElec2
 ! backscatter
 LOGICAL                       :: PerformBackScatter
-REAL                          :: CrossSection, MacroParticleFactor
+REAL                          :: CrossSection, MacroParticleFactor, VeloBackup(1:3)
+REAL                          :: CRelaTrafo
+REAL,DIMENSION(3,3)           :: trafoMatrix
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
@@ -490,8 +492,18 @@ END IF
 !--------------------------------------------------------------------------------------------------!
 
 IF(PerformBackScatter) THEN
-  PartState(4:6,iPart1) = -PartState(4:6,iPart1)
-  PartState(4:6,iPart2) = -PartState(4:6,iPart2)
+  IF((Species(iSpec1)%InterID.EQ.10).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
+    ! Store velocity of ion
+    VeloBackup(1:3) = PartState(4:6,iPart1)
+    ! Overwrite ion velocity with neutral velocity to emulate charge exchange -> slow ion
+    PartState(4:6,iPart1) = PartState(4:6,iPart2)
+    ! Overwrite neutral velocity with ion velocity and invert velocity vector to emulate backscattering -> fast neutral
+    PartState(4:6,iPart2) = -VeloBackup(1:3)
+  ELSE
+    VeloBackup(1:3) = PartState(4:6,iPart2)
+    PartState(4:6,iPart2) = PartState(4:6,iPart1)
+    PartState(4:6,iPart1) = -VeloBackup(1:3)
+  END IF
 ELSE
   IF (UseVarTimeStep.OR.usevMPF) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -509,7 +521,34 @@ ELSE
   VeloMz = FracMassCent1 * PartState(6,iPart1) + FracMassCent2 * PartState(6,iPart2)
 
   Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/ReducedMass
-  cRelaNew(1:3) = PostCollVec(iPair)
+
+  ! IF(PerformBackScatter) THEN
+  !   cRelaNew(1) = -SQRT(Coll_pData(iPair)%cRela2)                  ! x-component in collision plane
+  !   cRelaNew(2) = 0.0
+  !   cRelaNew(3) = 0.0
+  !   ASSOCIATE ( ur => PartState(4,iPart1) - PartState(4,iPart2) , &
+  !               vr => PartState(5,iPart1) - PartState(5,iPart2) , &
+  !               wr => PartState(6,iPart1) - PartState(6,iPart2) )
+  !     IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
+  !       CrelaTrafo = SQRT(ur**2 + vr**2 + wr**2)
+  !       ! axis transformation from reduced- mass frame back to center-of-mass frame via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
+  !       ! initializing rotation matrix
+  !       trafoMatrix(1,1) = ur / cRelaTrafo
+  !       trafoMatrix(1,2) = 0
+  !       trafoMatrix(1,3) = SQRT (vr ** 2 + wr ** 2) / cRelaTrafo
+  !       trafoMatrix(2,1) = vr / cRelaTrafo
+  !       trafoMatrix(2,2) = wr / SQRT (vr ** 2 + wr ** 2)
+  !       trafoMatrix(2,3) = - ur * vr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
+  !       trafoMatrix(3,1) = wr / cRelaTrafo
+  !       trafoMatrix(3,2) = - vr / SQRT (vr ** 2 + wr ** 2)
+  !       trafoMatrix(3,3) = - ur * wr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
+  !       ! relative post collision v elocity transformation from reduced mass to COM frame
+  !       cRelaNew(:) = MATMUL (trafoMatrix , cRelaNew)
+  !     END IF ! transformation
+  !   END ASSOCIATE
+  ! ELSE
+    cRelaNew(1:3) = PostCollVec(iPair)
+  ! END IF
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
