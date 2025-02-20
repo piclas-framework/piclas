@@ -100,7 +100,8 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 
 | **No.** |         **Case**          | **CMAKE-CONFIG** |                                                       **Feature**                                                       | **Execution** |       **Comparing**        |                             **Readme**                              |
 | :-----: | :-----------------------: | :--------------: | :---------------------------------------------------------------------------------------------------------------------: | :-----------: | :------------------------: | :-----------------------------------------------------------------: |
-| 1    | heatflux_relax |     |  Heat flux relaxation | nProcs=1, nDim=1,2,3, EDDVM/DUGKS, ESBGK/Shakhov | final L2 error norm (mainly heat flux) | [Link](regressioncheck/CHE_DVMheatflux_relax/readme.md) |
+| 1    | heatflux_relax |     |  Heat flux relaxation | nProcs=1, nDim=1,2,3, EDDVM/DUGKS, ESBGK/Shakhov | final L2 error norm | [Link](regressioncheck/CHE_DVM/heatflux_relax/readme.md) |
+| 2    | Sod_shock |     |  Dense Sod shock | nProcs=1,2,7, nDim=1, EDDVM/DUGKS, ESBGK/Shakhov | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock/readme.md) |
 
 
 ## Nightly

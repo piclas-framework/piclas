@@ -100,7 +100,8 @@ END SUBROUTINE InitDVMBoundaryAnalyze
 
 SUBROUTINE WriteDVMSurfToHDF5(MeshFileName,OutputTime)
 !===================================================================================================================================
-!> write the final values of the surface sampling to a HDF5 state file
+!> write the suerface values to a HDF5 state file
+!> now with general communicator as surface communicator only built for particles
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -139,8 +140,6 @@ IF (nGlobalBCSides      .EQ.0) RETURN
 IF (myRank.EQ.0) THEN
     WRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DVMSurfSTATE TO HDF5 FILE...'
     StartT=LOCALTIME()
-ELSE
-    IF (nBCSides.EQ.0) RETURN
 END IF
 FileName   = TIMESTAMP(TRIM(ProjectName)//'_DVMSurfState',OutputTime)
 FileString = TRIM(FileName)//'.h5'

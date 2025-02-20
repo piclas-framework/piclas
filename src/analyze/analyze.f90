@@ -1616,9 +1616,9 @@ IF(DoPerformErrorCalc)THEN
       WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_FV
 #endif /*FV*/
 #else /*discrete_velocity*/
-      WRITE(formatStr,'(A5,I2,A7)')'(A13,',14,'ES16.7)'
-      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_DVM(1:14)
-      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_DVM(1:14)
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',5,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_DVM(1:5)
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_DVM(1:5)
 #endif /*discrete_velocity*/
     END IF
   END IF

@@ -750,7 +750,7 @@ discrete_velocity:
   <<: *defaults_DVM_checkin
   stage: reggie_checkin
   script:
-    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM/heatflux_relax -e ./bin/piclas
+    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
