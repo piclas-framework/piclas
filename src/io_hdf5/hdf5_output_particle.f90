@@ -111,7 +111,7 @@ REAL,INTENT(IN)     :: OutputTime
 INTEGER,PARAMETER              :: N_variables=1
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255)             :: FileName,DataSetName
-INTEGER                        :: iElem,i,iMax
+INTEGER                        :: iElem,i,iMax,CNElemID
 REAL                           :: NodeSourceExtEqui(1:N_variables,0:1,0:1,0:1),sNodeVol(1:8)
 INTEGER                        :: NodeID(1:8)
 !===================================================================================================================================
@@ -148,7 +148,8 @@ IF(.NOT.ALLOCATED(NodeSourceExt)) THEN
 END IF
 DO iElem=1,PP_nElems
   ! Copy values to equidistant distribution
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  CNElemID = GetCNElemID(iElem+offsetElem)
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   IF(DoDeposition) sNodeVol(1:8) = 1./NodeVolume(NodeID(1:8)) ! only required when actual deposition is performed
   NodeSourceExtEqui(1,0,0,0) = NodeSourceExt(NodeID(1))*sNodeVol(1)
   NodeSourceExtEqui(1,1,0,0) = NodeSourceExt(NodeID(2))*sNodeVol(2)
@@ -274,8 +275,10 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartDataSize,locnPart,offsetnPart,PartIntSize,PartDataVarNames
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY: UseDSMC, DSMC
+USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, CalcVarWeightMPF
+USE MOD_DSMC_Vars              ,ONLY: UseDSMC, DSMC, DoCellLocalWeighting
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -291,6 +294,8 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 LOGICAL                        :: reSwitch
+REAL, ALLOCATABLE              :: AdaptMPF_Output(:)
+INTEGER                        :: iElem, CNElemID
 !===================================================================================================================================
 
 IF (MPIRoot) THEN
@@ -317,6 +322,13 @@ END IF
 !-----------------------------------------------------
 ! 1. Basic particle properties
 !-----------------------------------------------------
+IF (DoCellLocalWeighting) THEN
+  ALLOCATE(AdaptMPF_Output(PP_nElems))
+  DO iElem = 1, PP_nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    AdaptMPF_Output(iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
+  END DO
+END IF
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
       nGlobalElems          => INT(nGlobalElems,IK)          ,&
@@ -324,7 +336,6 @@ ASSOCIATE (&
       PP_nElems             => INT(PP_nElems,IK)             ,&
       offsetElem            => INT(offsetElem,IK)            ,&
       PartDataSize          => INT(PartDataSize,IK)          )
-
   CALL GatheredWriteArray(FileName                    , create = .FALSE.            , &
                           DataSetName     = 'PartInt' , rank   = 2                  , &
                           nValGlobal      = (/nVar    , nGlobalElems/)              , &
@@ -367,6 +378,16 @@ ASSOCIATE (&
                               collective   = UseCollectiveIO , offSetDim = 1 , &
                               communicator = MPI_COMM_PICLAS    , RealArray = VarTimeStep%ElemFac)
   END IF
+  ! Output of the element-wise adapted MPF as a separate container in state file
+  IF(DoCellLocalWeighting) THEN
+    CALL DistributedWriteArray(FileName                                      , &
+                              DataSetName  = 'ElemLocalWeight'  , rank = 2      , &
+                              nValGlobal   = (/nGlobalElems  , 1_IK/)        , &
+                              nVal         = (/PP_nElems     , 1_IK/)        , &
+                              offset       = (/offsetElem    , 0_IK/)        , &
+                              collective   = UseCollectiveIO , offSetDim = 1 , &
+                              communicator = MPI_COMM_PICLAS , RealArray = AdaptMPF_Output)
+  END IF
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
   CALL WriteArrayToHDF5(DataSetName = 'PartData'     , rank = 2                 , &
@@ -382,9 +403,19 @@ ASSOCIATE (&
                           offset      = (/offsetElem   , 0_IK/) , &
                           collective  = .FALSE.        , RealArray=VarTimeStep%ElemFac)
   END IF
+  ! Output of the element-wise time step as a separate container in state file
+  IF(DoCellLocalWeighting) THEN
+    CALL WriteArrayToHDF5(DataSetName = 'ElemLocalWeight' , rank=2 , &
+                          nValGlobal  = (/nGlobalElems , 1_IK/) , &
+                          nVal        = (/PP_nElems    , 1_IK/) , &
+                          offset      = (/offsetElem   , 0_IK/) , &
+                          collective  = .FALSE.        , RealArray= AdaptMPF_Output)
+  END IF
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 END ASSOCIATE
+
+SDEALLOCATE(AdaptMPF_Output)
 
 !-----------------------------------------------------
 ! 2. Polyatomic
@@ -1312,7 +1343,7 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep
 USE MOD_DSMC_Vars     ,ONLY: UseDSMC, CollisMode, DSMC, PolyatomMolDSMC, SpecDSMC
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, ClonedParticles
+USE MOD_DSMC_Vars     ,ONLY: DoRadialWeighting, ParticleWeighting, ClonedParticles
 USE MOD_PARTICLE_Vars ,ONLY: nSpecies, usevMPF, Species, PartDataSize
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1326,7 +1357,7 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 !INTEGER(HID_T)                 :: Dset_ID
 !INTEGER                        :: nVal
-INTEGER                        :: pcount, iDelay, iElem_glob, iPos
+INTEGER                        :: pcount, iDelay, iElem_glob, iPos, ClonePartNumber
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,globnPart(6)
 REAL,ALLOCATABLE               :: PartData(:,:)
@@ -1359,17 +1390,17 @@ END IF
 
 locnPart =   0
 
-SELECT CASE(RadialWeighting%CloneMode)
+SELECT CASE(ParticleWeighting%CloneMode)
 CASE(1)
-  tempDelay = RadialWeighting%CloneInputDelay - 1
+  tempDelay = ParticleWeighting%CloneInputDelay - 1
 CASE(2)
-  tempDelay = RadialWeighting%CloneInputDelay
+  tempDelay = ParticleWeighting%CloneInputDelay
 CASE DEFAULT
-  CALL abort(__STAMP__, 'RadialWeighting: CloneMode is not supported!')
+  CALL abort(__STAMP__, 'ParticleWeighting: CloneMode is not supported!')
 END SELECT
 
 DO pcount = 0,tempDelay
-  locnPart = locnPart + RadialWeighting%ClonePartNum(pcount)
+  locnPart = locnPart + ParticleWeighting%ClonePartNum(pcount)
 END DO
 
 ! Communicate the total number and offset
@@ -1394,7 +1425,8 @@ IF (useDSMC.AND.DSMC%DoAmbipolarDiff)  THEN
 END IF
 iPart=offsetnPart
 DO iDelay=0,tempDelay
-  DO pcount = 1, RadialWeighting%ClonePartNum(iDelay)
+  ClonePartNumber = ParticleWeighting%ClonePartNum(iDelay)
+  DO pcount = 1, ClonePartNumber
     iElem_glob = ClonedParticles(pcount,iDelay)%Element
     iPart = iPart + 1
     PartData(1:6,iPart)=ClonedParticles(pcount,iDelay)%PartState(1:6)
@@ -1528,7 +1560,8 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'VarNamesParticleClones',PartDataSizeLoc,StrArray=StrVarNames,DatasetName='CloneData')
   CALL WriteAttributeToHDF5(File_ID,'ManualTimeStep',1,RealScalar=ManualTimeStep,DatasetName='CloneData')
   CALL WriteAttributeToHDF5(File_ID,'WeightingFactor',1,RealScalar=Species(1)%MacroParticleFactor,DatasetName='CloneData')
-  CALL WriteAttributeToHDF5(File_ID,'RadialWeightingFactor',1,RealScalar=RadialWeighting%PartScaleFactor,DatasetName='CloneData')
+  ! Output of the factor to re-use the clones, the other methods require a reset
+  IF(DoRadialWeighting) CALL WriteAttributeToHDF5(File_ID,'RadialWeightingFactor',1,RealScalar=ParticleWeighting%ScaleFactor,DatasetName='CloneData')
   CALL CloseDataFile()
 END IF
 
@@ -1655,7 +1688,7 @@ END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 SUBROUTINE WriteEmissionVariablesToHDF5(FileName)
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 !USE MOD_io_HDF5
 USE MOD_Globals

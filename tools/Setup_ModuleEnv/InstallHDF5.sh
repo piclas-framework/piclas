@@ -66,11 +66,14 @@ do
 
     # GCC
     #USECOMPILERVERSION=13.1.0
-    USECOMPILERVERSION=13.2.0
+    #USECOMPILERVERSION=13.2.0
+    USECOMPILERVERSION=14.2.0
 
     # OpenMPI
     MPINAMES='openmpi'
-    USEMPIVERSION=4.1.6
+    #USEMPIVERSION=4.1.5
+    #USEMPIVERSION=4.1.6
+    USEMPIVERSION=5.0.6
 
     # MPICH
     #MPINAMES='mpich'
@@ -114,8 +117,18 @@ fi
 #HDF5VERSION=1.12.0 # CAUTION NIG_PIC_maxwell_RK4/TWT_recordpoints fails for: 1) gcc/11.2.0   2) cmake/3.21.3   3) openmpi/4.1.1/gcc/11.2.0   4) hdf5/1.12.0/gcc/11.2.0/openmpi/4.1.1
 #HDF5VERSION=1.12.1
 #HDF5VERSION=1.12.2
-HDF5VERSION=1.14.0
-#HDF5VERSION=1.14.3    # Error during mesh read-in in piclas/src/io_hdf5/hdf5_input.f90
+#HDF5VERSION=1.14.0
+#HDF5VERSION=1.14.3 # Error during mesh read-in in piclas/src/io_hdf5/hdf5_input.f90
+# old download link
+DOWNLOADPATH="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+CONFIGFLAGS="--with-pic --enable-fortran --enable-fortran2003 --disable-shared"
+
+HDF5VERSION=1.14.5 # Old download link dows not work anymore
+# new download link: https://support.hdfgroup.org/releases/hdf5/v1_14/v1_14_5/downloads/hdf5-1.14.5.tar.gz
+HDF5VERSIONSHORT=${HDF5VERSION%.*}
+DOWNLOADPATH="https://support.hdfgroup.org/releases/hdf5/v${HDF5VERSIONSHORT//./_}/v${HDF5VERSION//./_}/downloads/hdf5-${HDF5VERSION}.tar.gz"
+CONFIGFLAGS="--with-pic --enable-fortran --enable-fortran2003 --disable-shared F9X=${LIBS_HDF5FC} --enable-hl --enable-unsupported"
+
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0
@@ -128,18 +141,20 @@ TARFILE=${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz
 # Change to sources directors
 cd ${SOURCESDIR}
 
-echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC}."
+echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC} from ${DOWNLOADPATH}"
 read -p "Press [Enter] to continue or [Crtl+c] to abort!"
 
 # Download tar.gz file
 if [ ! -f ${TARFILE} ]; then
-  wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+  #wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+  echo "Downloading from ... ${DOWNLOADPATH}"
+  wget ${DOWNLOADPATH}
 fi
 
 # Check if tar.gz file was correctly downloaded
 if [ ! -f ${TARFILE} ]; then
   echo "${RED} no hdf5 install-file downloaded for HDF5-${HDF5VERSION}${NC}"
-  echo "${RED} check if https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz exists${NC}"
+  echo "${RED} check if ${DOWNLOADPATH}${NC}"
   break
 fi
 
@@ -227,9 +242,9 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
 
       # Configure setup
       if [ "${WHICHCOMPILER}" == "gcc" ]; then
-        ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single --with-pic --enable-fortran --enable-fortran2003 --disable-shared CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran)
+        ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran) ${CONFIGFLAGS}
       elif [ "${WHICHCOMPILER}" == "intel" ]; then
-        ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single --with-pic --enable-fortran --enable-fortran2003 --disable-shared CC=$(which icc) CXX=$(which icpc) FC=$(which ifort)
+        ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single CC=$(which icc) CXX=$(which icpc) FC=$(which ifort) ${CONFIGFLAGS}
       fi
 
       # Compile source files with NBROFCORES threads
@@ -323,7 +338,7 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           cd ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
 
           # Configure setup
-          ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} --with-pic --enable-fortran --enable-fortran2003 --disable-shared --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+          ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort) ${CONFIGFLAGS}
 
           # Compile source files with NBROFCORES threads
           make -j 2>&1 | tee make.out

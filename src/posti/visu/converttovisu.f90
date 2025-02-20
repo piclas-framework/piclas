@@ -111,7 +111,7 @@ USE MOD_Interpolation_Vars ,ONLY: NodeType
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)           :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)      :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)  :: statefile   !< HDF5 state file
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

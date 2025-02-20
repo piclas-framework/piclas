@@ -124,7 +124,7 @@ FPDoVibRelaxation = GETLOGICAL('Particles-FP-DoVibRelaxation')
 FPUseQuantVibEn = GETLOGICAL('Particles-FP-UseQuantVibEn')
 CoupledFPDSMC = GETLOGICAL('Particles-CoupledFPDSMC')
 IF(CoupledFPDSMC) THEN
-  IF (DoVirtualCellMerge) THEN  
+  IF (DoVirtualCellMerge) THEN
     CALL abort(__STAMP__,' Virtual cell merge not implemented for coupled DSMC-FP simulations!')
   END IF
   FPDSMCSwitchDens = GETREAL('Particles-FP-DSMC-SwitchDens')

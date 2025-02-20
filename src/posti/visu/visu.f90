@@ -64,7 +64,7 @@ USE MOD_IO_HDF5        ,ONLY: GetDatasetNamesInGroup,File_ID
 USE MOD_StringTools    ,ONLY: STRICMP
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)                                  :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)                           :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)                       :: statefile
 CHARACTER(LEN=*)  ,INTENT(IN)                       :: meshfile
 CHARACTER(LEN=255),INTENT(INOUT),ALLOCATABLE,TARGET :: varnames_loc(:)
@@ -214,7 +214,7 @@ USE MOD_StringTools        ,ONLY: STRICMP
 USE MOD_ReadInTools        ,ONLY: prms,GETINT,GETLOGICAL,addStrListEntry,GETSTR
 USE MOD_Posti_Mappings     ,ONLY: Build_mapDepToCalc_mapAllVarsToVisuVars
 IMPLICIT NONE
-INTEGER,INTENT(IN)               :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)        :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)    :: statefile
 CHARACTER(LEN=255),INTENT(INOUT) :: postifile
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -334,7 +334,7 @@ USE MOD_Posti_Mappings      ,ONLY: Build_mapBCSides
 USE MOD_IO_HDF5             ,ONLY: InitMPIInfo
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)               :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)        :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(INOUT) :: prmfile
 CHARACTER(LEN=255),INTENT(INOUT) :: postifile
 CHARACTER(LEN=255),INTENT(IN)    :: statefile

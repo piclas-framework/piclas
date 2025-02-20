@@ -98,7 +98,7 @@ USE MOD_VTK           ,ONLY: WriteCoordsToVTK_array
 USE MOD_HDF5_Input    ,ONLY: ReadAttribute,File_ID,OpenDataFile,CloseDataFile
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)           :: mpi_comm_IN    
+TYPE(MPI_Comm),INTENT(IN)    :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN):: postifile
 CHARACTER(LEN=255),INTENT(IN):: meshfile_in
 ! LOCAL VARIABLES

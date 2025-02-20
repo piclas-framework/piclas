@@ -182,7 +182,7 @@ IF(GEO%InitFIBGM) THEN
     ! Adjust Automatic FIBGM to be a integer divide of periodic vectors
     DO iDim=1,3
       IF(SUM(GEO%PeriodicVectors(iDim,:)).GT.0) &
-        GEO%FIBGMDeltas(iDim) = SUM(GEO%PeriodicVectors(iDim,:))/CEILING(SUM(GEO%PeriodicVectors(iDim,:))/GEO%FIBGMDeltas(iDim))
+        GEO%FIBGMDeltas(iDim) = SUM(GEO%PeriodicVectors(iDim,:))/NINT(SUM(GEO%PeriodicVectors(iDim,:))/GEO%FIBGMDeltas(iDim))
     END DO
   END IF
 

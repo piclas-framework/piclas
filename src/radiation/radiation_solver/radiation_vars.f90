@@ -16,6 +16,9 @@ MODULE MOD_Radiation_Vars
 ! Contains the radiation variables
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -108,15 +111,15 @@ INTEGER(KIND = 2), ALLOCPOINT   :: Radiation_Absorption_SpecPercent(:,:,:)  ! 1:
 REAL,ALLOCPOINT                 :: MacroRadInputParameters(:,:,:)   ! DSMC Output file (iElem, iSpec, 5 (density, Tvib, Trot, Telec, Ttrans_mean))
 
 #if USE_MPI
-INTEGER                         :: MacroRadInputParameters_Shared_Win
+TYPE(MPI_Win)                   :: MacroRadInputParameters_Shared_Win
 REAL,ALLOCPOINT                 :: MacroRadInputParameters_Shared(:,:,:)
-INTEGER                         :: Radiation_Emission_Spec_Shared_Win
+TYPE(MPI_Win)                   :: Radiation_Emission_Spec_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Emission_Spec_Shared(:,:)
-INTEGER                         :: Radiation_Absorption_Spec_Shared_Win
+TYPE(MPI_Win)                   :: Radiation_Absorption_Spec_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_Absorption_Spec_Shared(:)
-INTEGER                         :: Radiation_Absorption_SpecPercent_Shared_Win
+TYPE(MPI_Win)                   :: Radiation_Absorption_SpecPercent_Shared_Win
 INTEGER(KIND = 2),ALLOCPOINT    :: Radiation_Absorption_SpecPercent_Shared(:)
-INTEGER                         :: Radiation_ElemEnergy_Species_Shared_Win
+TYPE(MPI_Win)                   :: Radiation_ElemEnergy_Species_Shared_Win
 REAL,ALLOCPOINT                 :: Radiation_ElemEnergy_Species_Shared(:,:,:)
 #endif
 !===================================================================================================================================

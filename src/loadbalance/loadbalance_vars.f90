@@ -15,6 +15,9 @@ MODULE MOD_LoadBalance_Vars
 ! Variables needed for the evaluation of the record points
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -81,7 +84,9 @@ INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartSend(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPInPartRecv(:)
 INTEGER(KIND=IK),ALLOCATABLE        :: MPIoffsetPartRecv(:)
 INTEGER,POINTER                     :: ElemInfoRank_Shared(:) => NULL()
-INTEGER                             :: ElemInfoRank_Shared_Win
+#if USE_MPI
+TYPE(MPI_Win)                       :: ElemInfoRank_Shared_Win
+#endif /*USE_MPI*/
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! side load balancing

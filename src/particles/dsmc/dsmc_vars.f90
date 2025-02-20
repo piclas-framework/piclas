@@ -10,11 +10,16 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_DSMC_Vars
 !===================================================================================================================================
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -62,24 +67,66 @@ END TYPE tVarVibRelaxProb
 
 TYPE(tVarVibRelaxProb) VarVibRelaxProb
 
-TYPE tRadialWeighting
-  REAL                        :: PartScaleFactor
+LOGICAL                       :: DoRadialWeighting          ! Enables radial weighting in DSMC
+LOGICAL                       :: DoLinearWeighting          ! Enables linear weighting in DSMC
+LOGICAL                       :: DoCellLocalWeighting       ! Enables cell-local weighting in DSMC
+
+TYPE tParticleWeighting
+  CHARACTER(LEN=256)          :: Type
+  REAL                        :: ScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the axisymmetric simulations
   LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
                                                             ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
   INTEGER                     :: CloneMode                  ! 1 = Clone Delay
                                                             ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
-  LOGICAL                     :: CellLocalWeighting
+  LOGICAL                     :: UseCellAverage
   INTEGER                     :: nSubSides
+  INTEGER, ALLOCATABLE        :: PartInsSide(:)
   INTEGER                     :: CloneVecLength
   INTEGER                     :: CloneVecLengthDelta
-END TYPE tRadialWeighting
+  LOGICAL                     :: EnableOutput               ! Output of the cell-local weighting factor
+END TYPE tParticleWeighting
 
-TYPE(tRadialWeighting)        :: RadialWeighting
+TYPE(tParticleWeighting)      :: ParticleWeighting
+
+TYPE tLinearWeighting
+  INTEGER                     :: nScalePoints               ! Number of sub-cell divisions for the scaling of the weighting factor
+                                                            ! Default = 2 (borders of the simulation domain along one axis)
+  INTEGER                     :: ScaleAxis                  ! Direction of the increase in the variable weight
+                                                            ! 1: x-axis, 2: y-axis, 3: z-axis, 0: use of scaling vector
+  REAL                        :: ScalingVector(3)           ! Direction of the increase in the variable weight
+                                                            ! For a scaling not along the coordinate axes
+  REAL                        :: StartPointScaling(1:3)     ! Start point for the scaling domain not defined by the coordinate axes
+  REAL                        :: EndPointScaling(1:3)       ! End point for the scaling domain not defined by the coordinate axes
+  REAL, ALLOCATABLE           :: ScalePoint(:)              ! Points along the defined scaling vector on which the MPF is changed(%)
+  REAL, ALLOCATABLE           :: VarMPF(:)                  ! Desired MPF at the respective scaling points
+END TYPE tLinearWeighting
+
+TYPE(tLinearWeighting)        :: LinearWeighting
+
+! Automatic adaption of the particle weight
+TYPE tCellLocalWeight
+  LOGICAL                     :: SkipAdaption                ! Use of the MPF distribution from the previous adaption
+  LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
+  LOGICAL                     :: IncludeMaxPartNum           ! Enables the refinement based on the max. particle number
+  REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
+  REAL                        :: QualityFactor               ! Refinement factor in cases where the quality factor is not resolved
+  REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
+  REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
+  REAL                        :: BGKFactor                   ! Ratio between the BGK- and DSMC-MPF for further refinement of BGK simulations
+  REAL                        :: FPFactor                    ! Ratio between the FP- and DSMC-MPF for further refinement of FP simulations
+  INTEGER                     :: SymAxis_MinPartNum          ! Target minimum number of simulation particles close to the symmetry axis
+  INTEGER                     :: Cat_MinPartNum              ! Target minimum number of simulation particles close to catalytic surfaces
+  INTEGER                     :: nRefine                     ! Number of times the MPF filter routine is called
+END TYPE tCellLocalWeight
+
+TYPE(tCellLocalWeight)        :: CellLocalWeight
+
+REAL,ALLOCPOINT :: AdaptMPFInfo_Shared(:,:)
+REAL,ALLOCPOINT :: OptimalMPF_Shared(:)
 
 TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step
@@ -140,23 +187,27 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
                                                             ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
-  REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
-  REAL                              :: EZeroPoint           ! Zero point energy for molecules
-  REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
-  INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
-  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
-  INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
-                                                            ! ionization)
+  REAL, ALLOCATABLE                 :: PartitionFunction(:)          ! Partition function for each species in given temperature range
+  REAL                              :: EZeroPoint                    ! Zero point energy for molecules
+  REAL                              :: HeatOfFormation               ! Heat of formation of the respective species [Kelvin]
+  INTEGER                           :: PreviousState                 ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized                  ! Flag if the species is fully ionized (e.g. C^6+)
+  INTEGER                           :: NextIonizationSpecies         ! SpeciesID of the next higher ionization level (required for field
+                                                                     ! ionization)
   ! Collision cross-sections for MCC
-  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
-                                                            ! treated with read-in collision cross-section
-  LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
-                                                            ! using read-in cross-sectional data
-  LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
-                                                            ! using read-in cross-sectional data (currently only with BGG)
-  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
-  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronic landau-teller relaxation
-  REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
+  LOGICAL                           :: UseCollXSec                   ! Flag if the collisions of the species with a background gas should be
+                                                                     ! treated with read-in collision cross-section
+  LOGICAL                           :: UseVibXSec                    ! Flag if the vibrational relaxation probability should be treated,
+                                                                     ! using read-in cross-sectional data
+  LOGICAL                           :: UseElecXSec                   ! Flag if the electronic relaxation probability should be treated,
+                                                                     ! using read-in cross-sectional data (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)          ! Prefactors for calculating the collision frequency in each time step
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:)        ! Correction factor for electronic landau-teller relaxation
+  REAL                              :: MaxMeanXiElec(2)              ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
+
+  ! Granular particle interaction
+  REAL                              :: ThermalACCGranularPart        ! thermal accommodation coefficient during granular particle interaction
+  REAL                              :: SpecificHeatSolid             ! solid particle specific heat [J/(kg*K)]
 END TYPE tSpeciesDSMC
 
 TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
@@ -197,10 +248,10 @@ TYPE tDSMC
                                                             !     2: Max Prob
                                                             !     3: Sample size
   REAL                          :: MeanFreePath
-  real                          :: CollProbMaxProcMax       ! Maximum CollProbMax of every cell in Process
+  REAL                          :: CollProbMaxProcMax       ! Maximum CollProbMax of every cell in Process
   REAL                          :: MaxMCSoverMFP            ! Maximum MCSoverMFP after each time step
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
-  INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collison. Used for ResolvedCellPercentage
+  INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collision. Used for ResolvedCellPercentage
   INTEGER                       :: ResolvedCellCounter      ! Counts resolved Cells. Used for ResolvedCellPercentage
   INTEGER                       :: ResolvedTimestepCounter  ! Counts Cells with MeanCollProb below 1
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
@@ -542,5 +593,10 @@ TYPE tOctreeVdm
 END TYPE
 
 TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
+
+#if USE_MPI
+TYPE(MPI_Win)                             :: AdaptMPFInfo_Shared_Win
+TYPE(MPI_Win)                             :: OptimalMPF_Shared_Win
+#endif
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

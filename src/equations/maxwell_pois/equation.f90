@@ -1109,7 +1109,7 @@ INTEGER, INTENT(IN)          :: SendID
 INTEGER, INTENT(IN)          :: LowerBound,UpperBound
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, INTENT(OUT)         :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request), INTENT(OUT) :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 REAL, INTENT(INOUT)          :: FaceData(1:4,0:PP_N,0:PP_N,LowerBound:UpperBound)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

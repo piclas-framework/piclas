@@ -292,7 +292,7 @@ END SUBROUTINE InitParticleThroughSideCheck1D2D
 
 SUBROUTINE ParticleThroughSideCheck2D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================
-!> Routine to check whether a particle crossed the given 2D side. The intersection of the edge and the particle trajectory is 
+!> Routine to check whether a particle crossed the given 2D side. The intersection of the edge and the particle trajectory is
 !> calculated and checked to see if it is within the side.
 !===================================================================================================================================
 ! MODULES
@@ -346,7 +346,7 @@ ELSE
 END IF
 VecPart = PartP2-PartP1
 VecEdge(1) = xNode(2)-xNode(1)
-VecEdge(2) = yNode(2)-yNode(1) 
+VecEdge(2) = yNode(2)-yNode(1)
 denominator = VecPart(1)*VecEdge(2) - VecPart(2)*VecEdge(1)
 
 ! Check if the lines are parallel
@@ -364,7 +364,7 @@ IF (t(1) >= 0.0 .AND. t(1) <= 1.0 .AND. t(2) >= 0.0 .AND. t(2) <= 1.0) THEN
   locAlpha = VECNORM2D(POI)
   IF (locAlpha.LE.TrackInfo%lengthPartTrajectory) THEN
     ThroughSide = .TRUE.
-    TrackInfo%alpha = locAlpha 
+    TrackInfo%alpha = locAlpha
   END IF
 END IF
 
@@ -372,7 +372,7 @@ END SUBROUTINE ParticleThroughSideCheck2D
 
 SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================
-!> Routine to check whether a particle crossed the given 1D  side. It simply checks whether lastpartpos - xnode and partpos-xnode 
+!> Routine to check whether a particle crossed the given 1D  side. It simply checks whether lastpartpos - xnode and partpos-xnode
 !> have different signs. Then the side was crossed.
 !===================================================================================================================================
 ! MODULES
@@ -399,7 +399,7 @@ REAL                             :: xNode
 CNElemID = GetCNElemID(Element)
 
 ThroughSide = .FALSE.
-! Get the coordinates of the first node 
+! Get the coordinates of the first node
 xNode = NodeCoords_Shared(1,ElemSideNodeID1D_Shared(iLocSide, CNElemID))
 
 DiffSign(1) = NINT(SIGN(1.,LastPartPos(1,PartID) - xNode))
@@ -1806,7 +1806,7 @@ IF(.NOT.hasInter) THEN
   RETURN
 END IF
 
-! inital guess
+! initial guess
 SELECT CASE(BezierNewtonGuess)
 CASE(1)
   ! assume:_minvalue at -1, maxvalue at 1

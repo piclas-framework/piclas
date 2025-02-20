@@ -37,6 +37,7 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SynchronizeCPP()
 ! MODULES
+USE mpi_f08
 USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION
 USE MOD_HDG_Vars ,ONLY: CPPCOMM
 USE MOD_HDG_Vars ,ONLY: CoupledPowerPotential,CPPDataLength
@@ -45,8 +46,10 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+TYPE(MPI_Comm) :: comm
 !===================================================================================================================================
-IF(CPPCOMM%UNICATOR.NE.MPI_COMM_NULL)THEN
+comm = CPPCOMM%UNICATOR
+IF(comm.NE.MPI_COMM_NULL)THEN
   ! Broadcast from root to other processors on the sub-communicator
   CALL MPI_BCAST(CoupledPowerPotential, CPPDataLength, MPI_DOUBLE_PRECISION, 0, CPPCOMM%UNICATOR, IERROR)
 END IF

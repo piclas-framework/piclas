@@ -62,5 +62,6 @@ TYPE tNodeAverage
 END TYPE
 
 TYPE (tElemNodeAveraging), ALLOCATABLE         :: ElemNodeAveraging(:)
+
 !===================================================================================================================================
 END MODULE MOD_BGK_Vars
