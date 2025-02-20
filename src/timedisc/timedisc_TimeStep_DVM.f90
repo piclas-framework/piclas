@@ -49,7 +49,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF (IniExactFunc_FV.EQ.4.AND.time.EQ.0.) CALL RescaleInit(dt) ! initial rescaling if initialized with non-equilibrium flow
+! initial rescaling if initialized with non-equilibrium flow
+IF ((IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.time.EQ.0.) CALL RescaleInit(dt)
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
 

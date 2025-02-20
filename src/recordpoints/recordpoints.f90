@@ -315,6 +315,11 @@ USE MOD_Globals
 USE MOD_Preproc
 #if USE_FV
 USE MOD_FV_Vars                ,ONLY: U_FV
+#ifdef discrete_velocity
+USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
+USE MOD_DistFunc               ,ONLY: MaxwellDistributionCons, SkewNormalDistribution, SkewtDistribution, GradDistributionPrandtl
+#endif
 #endif
 #if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
@@ -350,7 +355,7 @@ INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 INTEGER                 :: nVar
 #ifdef discrete_velocity
-REAL                    :: U_RP(PP_nVar_FV,nRP)
+REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(14), fTarget(PP_nVar_FV)
 #else
 REAL                    :: U_RP(PP_nVar+AddVar,nRP)
 #endif /*discrete_velocity*/
@@ -393,7 +398,36 @@ DO iRP=1,nRP
 #endif /*drift_diffusion*/
 #else
 #ifdef discrete_velocity
-        U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
+        IF (t.GT.0.) THEN
+          CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1)
+          SELECT CASE(DVMMethod)
+            CASE(1)
+              prefac = tau*(1.-EXP(-dt/tau))/dt
+            CASE(2)
+              prefac = 2.*tau/(2.*tau+dt)
+          END SELECT
+          SELECT CASE (DVMBGKModel)
+            CASE(1)
+              CALL ESBGKDistribution(MacroVal,fTarget)
+            CASE(2)
+              CALL ShakhovDistribution(MacroVal,fTarget)
+            CASE(3)
+              CALL MaxwellDistribution(MacroVal,fTarget)
+            CASE(4)
+              CALL MaxwellDistributionCons(MacroVal,fTarget)
+            CASE(5)
+              CALL SkewNormalDistribution(MacroVal,fTarget)
+            CASE(6)
+              CALL SkewtDistribution(MacroVal,fTarget)
+            CASE(7)
+              CALL GradDistributionPrandtl(MacroVal,fTarget)
+            CASE DEFAULT
+              CALL abort(__STAMP__,'DVM BGK Model not implemented')
+          END SELECT
+          U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
+        ELSE
+          U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
+        END IF
 #else
         U_RP(:,iRP)=U_RP(:,iRP) +    U(:,i,j,k,RP_ElemID(iRP))                                *l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*discrete_velocity*/
