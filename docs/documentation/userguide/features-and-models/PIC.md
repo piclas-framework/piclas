@@ -6,12 +6,12 @@
 Charge and current deposition can be performed using different methods, among others, shape
 functions, B-splines or locally volume-weighted approaches.
 
-|  **PIC-Deposition-Type**  |                             **Description**                            |
-|      :--------------:     |                  :-----------------------------------:                 |
-|   *cell_volweight_mean*   | Linear distribution in each element (continuous on element boundaries) |
-|      *shape_function*     |                standard shape function with fixed radius               |
-|    *shape_function_cc*    |            charge corrected shape function with fixed radius           |
-| *shape_function_adaptive* |      charge corrected shape function with element-dependent radius     |
+| **PIC-Deposition-Type**   | **Description**                                                                                                                  | **Recommended<br/>polynomial degree** $N$ |
+| :-----------------------: | :------------------------------------------------------------------------------------------------------------------------------: | :-----------------------------------:     |
+| *cell_volweight_mean*     | Linear distribution, i.e., charge density is represented on $N$<br/>in each element (continuous on element boundaries)           | 1 to 2                                    |
+| *shape_function*          | standard shape function with fixed radius $R$ and exponent $\alpha$, where<br/>charge density is represented on $N^{2^{\alpha}}$ | $>2$                                      |
+| *shape_function_cc*       | charge corrected shape function with fixed radius                                                                                | $>2$                                      |
+| *shape_function_adaptive* | charge corrected shape function with element-dependent radius                                                                    | $>2$                                      |
 
 ### Linear Distribution Over Cell Interfaces
 A linear deposition method that also considers neighbouring elements can be selected by
@@ -31,16 +31,28 @@ method.
 
 ### Shape Function
 
-High-order field solvers require deposition methods that reduce the noise, e.g., shape functions {cite}`Jacobs2006`. The standard 3D shape function is selected by
+High-order field solvers require deposition methods that reduce the noise, e.g., shape functions {cite}`Jacobs2006`.
+The standard 3D shape function is selected by
 
     PIC-Deposition-Type = shape_function
 
-or
+Two additional parameters are required for this deposition method. The shape function radius $R$ and the shape
+function exponent $\alpha$
+
+     PIC-shapefunction-radius = 5e-3
+     PIC-shapefunction-alpha = 2
+
+Their functionality is shown in the equations for 1D, 2D and 3D shape function kernles in Sections {ref}`userguide/features-and-models/PIC:shape function 1D`,
+{ref}`userguide/features-and-models/PIC:shape function 2D` and  {ref}`userguide/features-and-models/PIC:shape function 3D`.
+Field interpolation points within the radius are given part of the total charge of each particle that is within reach depending on
+the shape function value calculated in 1D, 2D or 3D.
+The shape function exponent $\alpha$ effectively concentrates the charge by reducing the waist radius of the shape function with
+incrasing value.
+
+A numerically charge-conserving method that adjusts the deposited charge by comparing its integral value to the
+total charge given by the particles can be selected via
 
     PIC-Deposition-Type = shape_function_cc
-
-where `shape_function_cc` is a numerically charge-conserving method that adjusts the deposited charge by
-comparing its integral value to the total charge given by the particles.
 
 The shape function sphere might be truncated at walls or open boundaries, which is compensated when using `shape_function_cc` by
 increasing the deposited charge of truncated particles.
@@ -145,4 +157,3 @@ which is normalized to give $\int_{0}^{\pi}\int_{0}^{2\pi}\int_{0}^{R}S_{2D}(r,R
 where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the
 grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and
 $R$ is the cut-off radius.
-
