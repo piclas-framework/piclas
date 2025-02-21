@@ -338,6 +338,16 @@ CASE(6) !Sum of 2 distributions
   CALL GradDistribution(RefState(:,2),SecondDist(:))
   Resu(:) = Resu(:) + SecondDist(:)
 
+CASE(7) ! Poiseuille flow with force corresponding to 0.01 Pa/m
+  CALL GradDistribution(RefState(:,1),Resu(:))
+  ! steady state in continuum limit
+  IF (tIn.GT.0.) THEN
+    MacroVal(:) = RefState(:,1)
+    mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%omegaVHS+0.5)
+    MacroVal(2) = 0.01*(1.*x(2)-x(2)*x(2))/mu/2.
+    CALL MaxwellDistribution(MacroVal,Resu(:))
+  END IF
+
 CASE DEFAULT
   CALL abort(__STAMP__,&
              'Specified exact function not implemented!')
