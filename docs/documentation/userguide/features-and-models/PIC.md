@@ -157,3 +157,14 @@ which is normalized to give $\int_{0}^{\pi}\int_{0}^{2\pi}\int_{0}^{R}S_{2D}(r,R
 where the radius ${r=|\boldsymbol{x}-\boldsymbol{x}_{n}|}$ is the distance between the position of the
 grid point at position $\boldsymbol{x}$ and the $n$-th particle at position $\boldsymbol{x}_{n}$ and
 $R$ is the cut-off radius.
+
+### Compatibility with Field Solver Symmetry Settings
+
+The compatibility of `PIC-Deposition-Type` with the symmetry parameter settings `Particles-Symmetry-Order` and `Particles-Symmetry2DAxisymmetric`,
+which are described in Section {ref}`userguide/features-and-models/poisson-field-solver:symmetric simulations`, are shown in the table below
+
+| `Particles-Symmetry-Order` | `Particles-Symmetry2DAxisymmetric` | `cell_mean`<br/>`cell_volweight`<br/>`cell_volweight_mean` | `shape_function`<br/>`shape_function_cc`<br/>`shape_function_adaptive`               |
+| --------------:            | -------------------------          | ---------------------------------------------------------  | ---------------------------------------------------------                            |
+| 1                          | `F` ($x,r$)                        | charge is deposited in 3D                                  | suggested settings:<br/>`PIC-shapefunction-direction=1`<br/>`PIC-shapefunction-dimension=1` |
+| 2                          | `T` ($x,y$), `F` ($x,r$)           | 3D for $x,y$, 2D for $x,r$                                 | suggested settings:<br/>`PIC-shapefunction-direction=1`<br/>`PIC-shapefunction-dimension=2` |
+| 3                          | `F` ($x,r$)                        | charge is deposited in 3D                                  |                                                                                      |
