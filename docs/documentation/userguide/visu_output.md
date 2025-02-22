@@ -508,16 +508,17 @@ If this analysis is not required in each time step, the parameter `Surface-Analy
 greater or equal 1. Some values are sampled only during one time step and others are accumulated over the number of time steps
 defined by `Surface-AnalyzeStep`.
 
-| Parameter                    | Parameter                                                                   |
-| ---------------------------- | --------------------------------------------------------------------------- |
-| `CalcElectronSEE`            | Secondary electron emission current for each `Part-Boundary` with SEE model |
-| `CalcBoundaryParticleOutput` | Particle flux for each user-defined `Part-Boundary` and `Part-Species`      |
+| Parameter                    | Parameter                                                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `CalcCurrentSEE`             | Secondary electron emission current for each `Part-Boundary` with SEE model (photon- and electron/ion-based) |
+| `CalcBoundaryParticleOutput` | Particle flux for each user-defined `Part-Boundary` and `Part-Species`                                       |
 
 **Secondary Electron Emission**
-When `CalcElectronSEE=T` is activated, the secondary electron emission current (on all surfaces where such a model is used) is
-calculated and written to `SurfaceAnalyze.csv`. Note that all secondary electrons between two outputs are accumulated and divided by
-the time difference between these outputs. Hence, the averaging time can be adjusted using `Surface-AnalyzeStep`.
-The output in the .csv file will be similar to this example: `012-ElectricCurrentSEE-BC_WALL`
+When `CalcCurrentSEE=T` is activated, the secondary electron emission current (on all surfaces where such a model is used) is
+calculated and written to `SurfaceAnalyze.csv`. This includes the photon- and electron/ion-based currents. Note that all secondary
+electrons between two outputs are accumulated and divided by the time difference between these outputs. Hence, the averaging time
+can be adjusted using `Surface-AnalyzeStep`. The output in the .csv file will be similar to this example: `012-ElectricCurrentSEE-BC_WALL`
+for electron/ion-based SEE and `013-ElectricCurrentPhotonSEE-BC_WALL` for photon-based SEE.
 
 **BoundaryParticleOutput (BPO):** The flux of particles crossing boundaries where they are removed can be calculated by setting
 `CalcBoundaryParticleOutput = T`. Additionally, the boundaries and species IDs must be supplied for which the output is to be

@@ -67,7 +67,7 @@ USE MOD_Mesh_Vars               ,ONLY: BoundaryType
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars           ,ONLY: LastPartPos
 #endif /*USE_HDG*/
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Vars           ,ONLY: nSpecies
@@ -206,11 +206,11 @@ DO BCSideID=1,nBCSides
       ! NbrOfSEE: Number of particles to be inserted
       IF(NbrOfSEE.GT.0)THEN
         ! Check if photon SEE electric current is to be measured
-        IF(CalcElectronSEE)THEN
+        IF(CalcPhotonSEE)THEN
           ! Note that the negative value of the charge -q is used below
           iSEEBC = SEE%BCIDToSEEBCID(iPartBound)
-          SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
-        END IF ! (NbrOfSEE.GT.0).AND.(CalcElectronSEE)
+          SEE%RealElectronOutPhoton(iSEEBC) = SEE%RealElectronOutPhoton(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
+        END IF ! (NbrOfSEE.GT.0).AND.(CalcPhotonSEE)
         ! Calculate the normal & tangential vectors
         IF(UseBezierControlPoints)THEN
           ! Use Bezier polynomial
