@@ -265,28 +265,18 @@ IF(MPIRoot)THEN
       END IF ! UseNeutralization
       IF(CalcCurrentSEE)THEN
         DO iSEE = 1, SEE%NPartBoundaries
-          IF(CalcElectronSEE) THEN
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ElectricCurrentSEE-'//&
-                TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iSEE)))
-            OutputCounter = OutputCounter + 1
-          END IF
-          IF(CalcPhotonSEE) THEN
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ElectricCurrentPhotonSEE-'//&
-                TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iSEE)))
-            OutputCounter = OutputCounter + 1
-          END IF
-          IF(CalcEnergyViolationSEE) THEN
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-EnergyViolationRatioSEE-'//&
-                TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iSEE)))
-            OutputCounter = OutputCounter + 1
-            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-EnergyViolationAdditionSEE-'//&
-                TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iSEE)))
-            OutputCounter = OutputCounter + 1
-          END IF
+          ASSOCIATE(BoundaryNameSEE => PartBound%SourceBoundName(SEE%PartBoundaries(iSEE)))
+            IF(CalcElectronSEE) THEN
+              CALL WriteDataHeaderInfo(unit_index,'ElectricCurrentSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+            END IF
+            IF(CalcPhotonSEE) THEN
+              CALL WriteDataHeaderInfo(unit_index,'ElectricCurrentPhotonSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+            END IF
+            IF(CalcEnergyViolationSEE) THEN
+              CALL WriteDataHeaderInfo(unit_index,'EnergyViolationRatioSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+              CALL WriteDataHeaderInfo(unit_index,'EnergyViolationAdditionSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+            END IF
+          END ASSOCIATE
         END DO ! iSEE = 1, SEE%NPartBoundaries
       END IF ! CalcCurrentSEE
       WRITE(unit_index,'(A)') ''
@@ -301,7 +291,7 @@ IF (CalcSurfCollCounter)        CALL GetCollCounter(SurfCollNum,AdsorptionNum,De
 IF (CalcPorousBCInfo)           CALL GetPorousBCInfo()
 #if USE_MPI
 IF (CalcBoundaryParticleOutput) CALL SyncBoundaryParticleOutput()
-IF (CalcCurrentSEE)            CALL SyncElectronSEE()
+IF (CalcCurrentSEE)             CALL SyncElectronSEE()
 #endif /*USE_MPI*/
 !===================================================================================================================================
 ! Output Analyzed variables
@@ -359,11 +349,12 @@ IF(MPIRoot)THEN
             ! Get SEE ID
             iSEE = SEE%BCIDToSEEBCID(iPartBound)
             ! Skip boundaries without SEE
-            IF(iSEE.EQ.0) CYCLE
-            ! Add SEE current if this BC has secondary electron emission
-            IF(CalcElectronSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
-            ! Add SEE current if this BC has photon-based SEE
-            IF(CalcPhotonSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOutPhoton(iSEE)
+            IF(iSEE.GT.0) THEN
+              ! Add SEE current if this BC has secondary electron emission
+              IF(CalcElectronSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
+              ! Add SEE current if this BC has photon-based SEE
+              IF(CalcPhotonSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOutPhoton(iSEE)
+            END IF
           END IF ! CalcCurrentSEE
           TotalElectricCharge = TotalElectricCharge/SurfModelAnalyzeSampleTime
 #if USE_HDG
@@ -403,11 +394,12 @@ IF(MPIRoot)THEN
           ! Get SEE ID
           iSEE = SEE%BCIDToSEEBCID(iPartBound)
           ! Skip boundaries without SEE
-          IF(iSEE.EQ.0) CYCLE
-          ! Add SEE current if this BC has secondary electron emission
-          IF(CalcElectronSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
-          ! Add SEE current if this BC has photon-based SEE
-          IF(CalcPhotonSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOutPhoton(iSEE)
+          IF(iSEE.GT.0) THEN
+            ! Add SEE current if this BC has secondary electron emission
+            IF(CalcElectronSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
+            ! Add SEE current if this BC has photon-based SEE
+            IF(CalcPhotonSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOutPhoton(iSEE)
+          END IF
         END IF ! CalcCurrentSEE
       END DO ! iBoundary = 1, BiasVoltage%NPartBoundaries
 
@@ -463,6 +455,8 @@ IF(MPIRoot)THEN
         ELSE
           CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime)
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+        ! Reset MPIRoot counters after writing the data to the file, non-MPIRoot are reset in SyncBoundaryParticleOutput()
+        SEE%RealElectronOut(iPartBound) = 0.
       END IF
       IF(CalcPhotonSEE) THEN
         IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
@@ -470,11 +464,9 @@ IF(MPIRoot)THEN
         ELSE
           CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronOutPhoton(iPartBound)/SurfModelAnalyzeSampleTime)
         END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+        ! Reset MPIRoot counters after writing the data to the file, non-MPIRoot are reset in SyncBoundaryParticleOutput()
+        SEE%RealElectronOutPhoton(iPartBound) = 0.
       END IF
-      ! Reset MPIRoot counters after writing the data to the file,
-      ! non-MPIRoot are reset in SyncBoundaryParticleOutput()
-      IF(CalcElectronSEE) SEE%RealElectronOut(iPartBound) = 0.
-      IF(CalcPhotonSEE) SEE%RealElectronOutPhoton(iPartBound) = 0.
       IF(CalcEnergyViolationSEE) THEN
         IF(ABS(SEE%EventCount(iPartBound)).LE.0.0)THEN
           CALL WriteDataInfo(unit_index,RealScalar=0.0)
@@ -483,8 +475,7 @@ IF(MPIRoot)THEN
           CALL WriteDataInfo(unit_index,RealScalar=SEE%EnergyConsViolationCount(iPartBound)/SEE%EventCount(iPartBound))
           CALL WriteDataInfo(unit_index,RealScalar=SEE%EnergyConsViolationSum(iPartBound)/SEE%EventCount(iPartBound))
         END IF ! ABS(SEE%EventCount(iPartBound)).LE.0.0
-        ! Reset MPIRoot counters after writing the data to the file,
-        ! non-MPIRoot are reset in SyncBoundaryParticleOutput()
+        ! Reset MPIRoot counters after writing the data to the file, non-MPIRoot are reset in SyncBoundaryParticleOutput()
         SEE%EventCount(iPartBound) = 0.
         SEE%EnergyConsViolationCount(iPartBound) = 0.
         SEE%EnergyConsViolationSum(iPartBound) = 0.
