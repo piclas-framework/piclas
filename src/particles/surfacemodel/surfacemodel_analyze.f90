@@ -1018,12 +1018,16 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSEE,iPartBound,NPartBoundariesReflectiveSEE,NPartBoundariesPhotonSEE,iInit,iSpec
+INTEGER           :: iSEE,iPartBound,iInit,iSpec, PartBoundID
+INTEGER           :: NPartBoundariesReflectiveSEE,NPartBoundariesPhotonSEE
+LOGICAL           :: IsMappedBC(1:nPartBound)
 !===================================================================================================================================
 
 ! Initialize
 CalcElectronSEE = .FALSE.
 CalcPhotonSEE   = .FALSE.
+IsMappedBC      = .FALSE.
+NPartBoundariesPhotonSEE = 0
 
 ! 1) Check if secondary electron emission occurs
 ! 1.1) Count number of different SEE boundaries via reflective particle BC
@@ -1033,6 +1037,8 @@ DO iPartBound=1,nPartBound
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
     SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    ! Mark BC as mapped for SEE
+    IsMappedBC(iPartBound) = .TRUE.
   END SELECT
 END DO ! iPartBound=1,nPartBound
 NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
@@ -1040,25 +1046,38 @@ NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
 ! 1.2) Count number of different photon SEE boundaries
 DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
-    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
-      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    PartBoundID = Species(iSpec)%Init(iInit)%PartBCIndex
+    IF(PartBoundID.GT.0)THEN
+      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) THEN
+        NPartBoundariesPhotonSEE = NPartBoundariesPhotonSEE + 1
+        ! Check if BC has already been flagged for regular SEE to avoid double count
+        IF(.NOT.IsMappedBC(PartBoundID)) THEN
+          SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+          IsMappedBC(PartBoundID) = .TRUE.
+        END IF
+      END IF
     END IF
   END DO
 END DO
-NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
-! 1.3) Count number of ray tracing photon SEE boundaries. WARNING: The combination of Init-based photon SEE and ray tracing photon
-!      SEE is not allowed
+! Sanity check: The combination of Init-based photon SEE and ray tracing photon SEE is not allowed
+IF(NPartBoundariesPhotonSEE.GT.0) THEN
+  IF(ANY(PartBound%PhotonSEEYield(:).GT.0.0)) CALL abort(__STAMP__,'The combination of Init-based + ray tracing photon SEE is not allowed!')
+END IF
+
+! 1.3) Count number of ray tracing photon SEE boundaries
 DO iPartBound = 1, nPartBound
   IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
-    ! Sanity checks
-    IF(NPartBoundariesPhotonSEE.GT.0) CALL abort(__STAMP__,'The combination of Init-based + ray tracing photon SEE is not allowed!')
     ! Remove the following check when the model is implemented (deposited charge holes by SEE)
     IF(PartBound%Dielectric(iPartBound)) CALL abort(__STAMP__,'Dielectric surfaces and ray tracing ist not implemented')
-    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    NPartBoundariesPhotonSEE = NPartBoundariesPhotonSEE + 1
+    ! Check if BC has already been flagged for regular SEE to avoid double count
+    IF(.NOT.IsMappedBC(iPartBound)) THEN
+      SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+      IsMappedBC(iPartBound) = .TRUE.
+    END IF
   END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
 END DO ! iPartBound = 1, nPartBound
-NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
 ! If not SEE boundaries exist, no measurement of the current can be performed
 IF(SEE%NPartBoundaries.EQ.0) RETURN
@@ -1103,21 +1122,27 @@ DoSurfModelAnalyze = .TRUE.
 ! 2.1) Create mapping for reactive surface SEE (non-photon impacts)
 ALLOCATE(SEE%PartBoundaries(SEE%NPartBoundaries))
 SEE%NPartBoundaries = 0
+IsMappedBC          = .FALSE.
 DO iPartBound=1,nPartBound
   IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
     SEE%NPartBoundaries = SEE%NPartBoundaries + 1
     SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+    IsMappedBC(iPartBound) = .TRUE.
   END SELECT
 END DO ! iPartBound=1,nPartBound
 ! 2.2) Create mapping for photon-surface SEE (Init-based)
 DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
-    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
+    PartBoundID = Species(iSpec)%Init(iInit)%PartBCIndex
+    IF(PartBoundID.GT.0)THEN
       IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
-        SEE%NPartBoundaries = SEE%NPartBoundaries + 1
-        SEE%PartBoundaries(SEE%NPartBoundaries) = Species(iSpec)%Init(iInit)%PartBCIndex
+        IF(.NOT.IsMappedBC(PartBoundID)) THEN
+          SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+          SEE%PartBoundaries(SEE%NPartBoundaries) = PartBoundID
+          IsMappedBC(PartBoundID) = .TRUE.
+        END IF
       END IF
     END IF
   END DO
@@ -1125,8 +1150,11 @@ END DO
 ! 2.3) Create mapping for photon-surface SEE (ray tracing)
 DO iPartBound = 1, nPartBound
   IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
-    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
-    SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+    IF(.NOT.IsMappedBC(iPartBound)) THEN
+      SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+      SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+      IsMappedBC(iPartBound) = .TRUE.
+    END IF
   END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
 END DO ! iPartBound = 1, nPartBound
 
