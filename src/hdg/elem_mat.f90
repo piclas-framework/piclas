@@ -384,7 +384,7 @@ INTEGER              :: iElem,NElem
 INTEGER              :: iLocSide,iSideID,iNloc,iPETScGlobal, iNdof, iIndices(nGP_face(Nmax))
 INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP_face(Nmax))
 REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
-INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSide
+INTEGER              :: l,p,q,g1,g2,g3,Nloc
 INTEGER              :: i,j,i_m,i_p,j_m,j_p
 INTEGER              :: BCsideID, BCState
 INTEGER              :: locSideID,nGP
@@ -401,8 +401,8 @@ IF(nGlobalMortarSides.GT.0)THEN
     iType=SmallMortarType(1,iSideID)
     iMortar=SmallMortarType(2,iSideID)
 
-    NSide = N_SurfMesh(iSideID)%NSide
-    nGP = nGP_face(NSide)
+    Nloc = N_SurfMesh(iSideID)%NSide
+    nGP = nGP_face(Nloc)
     iLocSide = SideToElem(S2E_NB_LOC_SIDE_ID,iSideID)
     iElem = SideToElem(S2E_NB_ELEM_ID,iSideID)
     IF(iElem.LE.0) CYCLE ! Small Mortar side does not belong to an element
