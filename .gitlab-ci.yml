@@ -1123,6 +1123,12 @@ NIG_drift_diffusion:
   script:
     - cd build_drift_diffusion ; reggie ../regressioncheck/NIG_drift_diffusion_explicit-FV
 
+NIG_DVM:
+  <<: *defaults_DVM_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/NIG_DVM
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
@@ -1213,6 +1219,12 @@ WEK_BGKFlow:
   stage: reggie_weekly
   script:
     - cd build ;  reggie ../regressioncheck/WEK_BGKFlow
+
+WEK_DVM:
+  <<: *defaults_DVM_weekly
+  stage: reggie_weekly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
