@@ -383,6 +383,14 @@ IF (ABS(meshMode).GT.1) THEN
     SDEALLOCATE(Metrics_gTilde)
     SDEALLOCATE(Metrics_hTilde)
     SDEALLOCATE(sJ)
+#if USE_FV
+    SDEALLOCATE(       XCL_N_PP_1)
+    SDEALLOCATE(      dXCL_N_PP_1)
+    SDEALLOCATE(      JaCL_N_PP_1)
+    SDEALLOCATE(Metrics_fTilde_FV)
+    SDEALLOCATE(Metrics_gTilde_FV)
+    SDEALLOCATE(Metrics_hTilde_FV)
+#endif /*FV*/
 
     ! Vandermonde
     SDEALLOCATE(Vdm_CLN_N)
@@ -1307,6 +1315,8 @@ SDEALLOCATE(Metrics_fTilde_FV)
 SDEALLOCATE(Metrics_gTilde_FV)
 SDEALLOCATE(Metrics_hTilde_FV)
 SDEALLOCATE(JaCL_N_PP_1)
+SDEALLOCATE(       XCL_N_PP_1)
+SDEALLOCATE(      dXCL_N_PP_1)
 #endif
 #ifdef maxwell
 #if defined(ROS) || defined(IMPA)

@@ -744,7 +744,7 @@ drift_diffusion:
   <<: *defaults_drift_diffusion_checkin
   stage: reggie_checkin
   script:
-    - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV/periodic_box_free-stream -e ./bin/piclas
+    - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV -e ./bin/piclas
 
 discrete_velocity:
   <<: *defaults_DVM_checkin
