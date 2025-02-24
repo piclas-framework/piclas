@@ -1,11 +1,10 @@
 (sec:tutorial-dsmc-reservoir)=
 
 # Adiabatic Box/Reservoir (DSMC, Relaxation/Chemistry)
-An essential feature of DSMC simulations is their ability to treat a thermal and chemical non-equilibrium in a physically correct manner.
-A simple example for such a case is a reservoir simulation (adiabatic box), which starts in a non-equilibrium state.
+An essential feature of DSMC simulations is their ability to treat thermal and chemical non-equilibrium in a physically correct manner.
+A simple example for such a use case is a reservoir simulation (adiabatic box), which starts in a non-equilibrium state.
 The subsequent simulation should lead the system towards equilibrium via a relaxation process.
-The first part of this tutorial provides an example at thermal non-equilibrium with disabled chemistry and the second part is
-based on chemical non-equilibrium with chemistry enabled.
+The first part of this tutorial provides an example at thermal non-equilibrium with disabled chemistry, the second part is based on chemical non-equilibrium with chemistry enabled.
 
 Before beginning with the tutorial, copy the `dsmc-reservoir` directory from the tutorials in the top level directory of the
 piclas repository to a separate location
@@ -77,7 +76,7 @@ For more information about hopr, visit [https://github.com/hopr-framework/hopr](
 Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
 described under Section {ref}`userguide/installation:Compiling the code`.
 Always build the code in a separate directory located in the piclas top level directory.
-For this PIC tutorial, e.g., create a directory *build_poisson_RK3* in the piclas repository by running
+For this DSMC tutorial, e.g., create a directory *build_DSMC* in the piclas repository by running
 
     cd $PICLAS_PATH
 
@@ -124,7 +123,7 @@ For this specific tutorial, make sure to set the correct compile flags
     PICLAS_EQNSYSNAME     = maxwell
     PICLAS_TIMEDISCMETHOD = DSMC
 
-or simply run the following command from inside the *build* directory
+or simply run the following command from inside the created *build* directory
 
     cmake .. -DPICLAS_TIMEDISCMETHOD=DSMC -DPICLAS_EQNSYSNAME=maxwell
 
@@ -157,7 +156,7 @@ name: tab:dsmc_chem_off_phys
 
 ### General numerical setup
 
-The general numerical parameters are selected by the following
+The general numerical parameters, which are defined in the parameter.ini file are selected by the following
 
     ! =============================================================================== !
     ! MESH
@@ -182,7 +181,7 @@ where, the path to the mesh file `MeshFile`, project name and particle tracking 
     Particles-HaloEpsVelo = 5000
     doPrintStatusLine     = T
 
-where the final simulation time `tend` [s], the time step for the field and particle solver is set via `ManualTimeStep` [s]. The time between restart/checkpoint file output is defined via `Analyze_dt` (which is also the output time for specific analysis functions in the field solver context). The number of time step iterations `IterDisplayStep` defines the interval between information output regarding the current status of the simulation, which is written to std.out. The `Particles-HaloEpsVelo` [m/s] determines the size of the halo region for MPI communication and should not be smaller than the fastest particles in the simulation.The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
+where the final simulation time `tend` [s], the time step for the field and particle solver is set via `ManualTimeStep` [s]. The time between restart/checkpoint file output is defined via `Analyze_dt` (which is also the output time for specific analysis functions in the field solver context). The number of time step iterations `IterDisplayStep` defines the interval between information output regarding the current status of the simulation, which is written to std.out. The `Particles-HaloEpsVelo` [m/s] determines the size of the halo region for MPI communication and should not be smaller than the fastest particles in the simulation. The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
 
 (sec:tutorial-dsmc-analysis-setup)=
 ### Analysis setup
@@ -219,7 +218,7 @@ where, the number of boundaries `Part-nBounds` is followed by the names of the b
 (sec:tutorial-dsmc-particle-solver)=
 ### Particle solver
 
-For the treatment of particles, the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time through chemical reactions).
+For the treatment of particles, the number of particle species `Part-nSpecies` that are used in the simulation (created initially or during the simulation time through chemical reactions) has to be provided.
 
     ! =============================================================================== !
     ! PARTICLES
@@ -255,7 +254,7 @@ by a block of parameters that is preceded by the corresponding `-Init[$]` counte
     Part-Species1-Init1-VeloIC               = 0
     Part-Species1-Init1-VeloVecIC            = (/0.,0.,1./)
 
-To calculate the number of simulation particles defined by `Part-Species[$]-Init[$]-PartDensity`, the selected weighting factor $w_{\text{CO}_2}$ and the volume of the complete domain $V=(\pu{4.64e-6 m})^3$ are utilized. This value can be used to chose the maximum particle number per processor accordingly.
+To calculate the number of simulation particles defined by `Part-Species[$]-Init[$]-PartDensity`, the selected weighting factor $w_{\text{CO}_2}$ and the volume of the complete domain $V=(\pu{4.64e-6 m})^3$ are utilized.
 
 $$ N_{\text{CO}_2,\text{sim}} = \frac{n_{\text{CO}_2} V}{w_{\text{CO}_2}} $$
 
@@ -403,7 +402,7 @@ The parameter `Particles-DSMC-CollisMode = 3` mentioned in {ref}`sec:tutorial-ds
     Particles-DSMC-BackwardReacRate  = T
     CalcReacRates = T
 
-While the electronic model is disabled by `Particles-DSMC-ElectronicModel = 0`, a `Particles-DSMCElectronicDatabase` has to be provided for the calculation of the partition functions for the equilibrium constant required for the calculation of the backward reaction rates. It contains the species-specific electronic energy levels, for more information see Secion {ref}`sec:DSMC-electronic-relaxation`.
+While the electronic model is disabled by `Particles-DSMC-ElectronicModel = 0`, an **ElectronicDatabase** has to be provided for the calculation of the partition functions for the equilibrium constant required for the calculation of the backward reaction rates. It contains the species-specific electronic energy levels, for more information see Secion {ref}`sec:DSMC-electronic-relaxation`.
 
     Particles-DSMC-ElectronicModel   = 0
     Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5
@@ -442,7 +441,7 @@ Navigate to the second example of the tutorial with chemical reactions
 
     cd ~/workspace/dsmc-reservoir/chemistry-on
 
-To avoid having to use the entire file path, you can either set aliases for both, copy them to your local tutorial directory or
+To avoid having to use the entire file path for starting the simulation, you can either set aliases for both, copy them to your local tutorial directory or
 create a link to the files via
 
     ln -s $PICLAS_PATH/build_DSMC/bin/piclas

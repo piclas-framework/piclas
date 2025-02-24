@@ -134,15 +134,73 @@ This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format.
 
 ## Flow simulation with DSMC
 
-Install **piclas** by compiling the source code as described in Section {ref}`userguide/installation:Installation` and make sure to set the correct compile flags. For this setup, we are utilizing the regular Direct Simulation Monte Carlo (DSMC) method
+Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
+described under Section {ref}`userguide/installation:Compiling the code`.
+Always build the code in a separate directory located in the piclas top level directory.
+For this DSMC tutorial, e.g., create a directory *build_DSMC* in the piclas repository by running
 
+    cd $PICLAS_PATH
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd /home/$(whoami)/piclas
+
+and the create the build directory, in which the compilation process will take place
+
+    mkdir build_DSMC
+
+and the directory structure, which can be viewed via
+
+    ls -l
+
+should look like this
+
+     build_DSMC
+     cmake
+     CMakeListsLib.txt
+     CMakeListsMachine.txt
+     CMakeLists.txt
+     CONTRIBUTORS.md
+     docs
+     LICENCE.md
+     README.md
+     REFERENCE.md
+     REGGIE.md
+     regressioncheck
+     share
+     SpeciesDatabase.h5
+     src
+     tools
+     tutorials
+     unitTests
+
+Always compile the code within the *build* directory, hence, navigate to the *build_DSMC* directory before running cmake
+
+    cd build_DSMC
+
+For this specific tutorial, make sure to set the correct compile flags
+
+    PICLAS_EQNSYSNAME     = maxwell
     PICLAS_TIMEDISCMETHOD = DSMC
 
-or simply run the following command from inside the *build* directory
+or simply run the following command from inside the created *build* directory
 
-    cmake ../ -DPICLAS_TIMEDISCMETHOD=DSMC
+    cmake .. -DPICLAS_TIMEDISCMETHOD=DSMC -DPICLAS_EQNSYSNAME=maxwell
 
-to configure the build process and run `make` afterwards to build the executable. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
+to configure the build process and run
+
+    make -j
+
+afterwards to compile the executable.
+
+It is recommended to utilize a separate *build* folder whenever compiling a different solver in piclas to avoid confusion.
+Especially when switching between this DSMC tutorial and the PIC plasma wave tutorial as fundamentally different compiler settings
+are required.
+
+An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`.
+
+The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
 
 ```{table} Physical properties at the simulation start
 ---
@@ -232,13 +290,16 @@ $t_\text{samp,start} = T_\text{end} \cdot \left(1 - f_\text{samp}\right)$
     Part-TimeFracForSampling          = 0.5
     Particles-NumberForDSMCOutputs    = 2
 
-The second method is activated via `Part-WriteMacroValues = T`. In this approach, `Part-IterationForMacroVal` defines the number of iterations that are used for one sample. After the first sample has been written, the data is discarded and the next sampling process is started. The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
+The second method is activated via `Part-WriteMacroValues = T`. In this approach, `Part-IterationForMacroVal` defines the number of iterations that are used for one sample. After the first sample has been written, the data is discarded and the next sampling process is started.
 
     Part-WriteMacroValues             = T
     Part-IterationForMacroVal         = 1250
-    doPrintStatusLine                 = T
 
 For further information see {ref}`sec:sampled-flow-field-and-surface-variables`.
+
+The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
+
+    doPrintStatusLine                 = T
 
 ## Run the simulation
 
@@ -320,6 +381,7 @@ Translational temperature and velocity in front of the 70° Cone, top: original 
 ### Visualizing surface variables (DSMCSurfState)
 
 For postprocessing and visualization, the parameter `TimeStampLength = 13` is set in*parameter.ini* . This limits the output filename length. This can be needed, as e.g. Paraview may sort the files incorrectly and display a faulty time solution.
+
 To visualize the data which represents the properties at closed boundaries (e.g. heat flux, force per area, etc. the *DSMCSurfState*-files are needed. They are converted using the program **piclas2vtk** into the VTK format suitable for **ParaView**, **VisIt** or many other visualization tools. Run the command
 
     ./piclas2vtk dsmc_cone_DSMCSurfState_000.00*
