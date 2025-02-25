@@ -181,7 +181,7 @@ REAL                            :: tLBStart
 !===================================================================================================================================
 
 ! Compute the FV solution gradients (LB times are measured inside GetGradients)
-CALL GetGradients(U_FV(:,0,0,0,:)) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
+CALL GetGradients(U_FV(:,0,0,0,:),output=.FALSE.) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)

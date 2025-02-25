@@ -137,7 +137,7 @@ LBWRITE(UNIT_stdOut,'(A)')' INIT GRADIENTS DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitGradients
 
-SUBROUTINE GetGradients(VarForGradients)
+SUBROUTINE GetGradients(VarForGradients,output)
 !===================================================================================================================================
 !> Main routine for the gradient calculation
 !===================================================================================================================================
@@ -161,6 +161,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL,INTENT(IN)         :: VarForGradients(Grad_DIM,nElems)
+LOGICAL,INTENT(IN)      :: output ! true if routine called during output
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -209,7 +210,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 ! fill the global neighbour difference list
-CALL CalcDiff(doMPISides=.TRUE.)
+CALL CalcDiff(output,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -223,7 +224,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_MPI*/
 
 ! fill all the neighbour differences on this proc
-CALL CalcDiff(doMPISides=.FALSE.)
+CALL CalcDiff(output,doMPISides=.FALSE.)
 
 #ifdef drift_diffusion
 EFluid_GradSide(:)=Diff_side(1,:)/(SQRT((Grad_dx_master(1,:)-Grad_dx_slave(1,:))**2 &
@@ -279,7 +280,7 @@ CALL LBSplitTime(LB_FV,tLBStart)
 
 END SUBROUTINE GetGradients
 
-SUBROUTINE CalcDiff(doMPISides)
+SUBROUTINE CalcDiff(output,doMPISides)
 !===================================================================================================================================
 ! Compute difference between neighbour elements
 !===================================================================================================================================
@@ -294,7 +295,7 @@ USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, Side
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)      :: doMPISides
+LOGICAL,INTENT(IN)      :: output,doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -336,7 +337,7 @@ IF (.NOT.doMPISides) THEN
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),diffUinside,&
                           Var_master(:,SideID),&
                           NormVec_FV(:,0,0,SideID),&
-                          Face_xGP_FV(:,0,0,SideID))
+                          Face_xGP_FV(:,0,0,SideID),output)
 #else
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),&
                           Var_master(:,SideID),&

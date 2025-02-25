@@ -41,7 +41,7 @@ CONTAINS
 !==================================================================================================================================
 !> Computes the gradient at a boundary for Finite Volumes reconstruction (2nd order version).
 !==================================================================================================================================
-SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP)
+SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xGP,output)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals          ,ONLY: Abort
@@ -49,7 +49,7 @@ USE MOD_Mesh_Vars        ,ONLY: BoundaryType,BC
 USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState!, DVMBGKModel
 USE MOD_Equation_Vars_FV ,ONLY: DVMVelos, DVMnVelos, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMDim!, Pi, DVMWeights
-USE MOD_TimeDisc_Vars    ,ONLY : dt, time
+USE MOD_TimeDisc_Vars    ,ONLY: dt, time
 USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -60,7 +60,7 @@ REAL,INTENT(IN)   :: gradUinside (PP_nVar_FV)
 REAL,INTENT(IN)   :: UPrim_master(PP_nVar_FV)
 REAL,INTENT(IN)   :: NormVec (3)
 REAL,INTENT(IN)   :: Face_xGP(3)
-
+LOGICAL,INTENT(IN):: output
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
@@ -146,7 +146,11 @@ CASE(4) ! diffusive
   fplus(:)=UPrim_master(:)-gradUinside(:)
   MacroVal(:) = RefState(:,BCState)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
-  CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,2,dt/2.)
+  IF (output) THEN
+    CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,1,dt)
+  ELSE
+    CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,2,dt/2.)
+  END IF
   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
@@ -166,7 +170,11 @@ CASE(4) ! diffusive
 CASE(14) ! diffusive order 1
   MacroVal(:) = RefState(:,BCState)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
-  CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,2,dt/2.)
+  IF (output) THEN
+    CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,1,dt)
+  ELSE
+    CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,2,dt/2.)
+  END IF
   gradU = 2.*(UPrim_master-UPrim_boundary)
 
 CASE(7) ! open outlet

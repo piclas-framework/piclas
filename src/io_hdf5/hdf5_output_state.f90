@@ -561,7 +561,7 @@ ASSOCIATE (&
 
 #if USE_FV
   ! reconstruct solution using gradients, as done during simulation
-  CALL GetGradients(U_FV(:,0,0,0,:))
+  CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
   CALL ProlongToOutput(U_FV,Ureco)
 #ifdef discrete_velocity
   DO iElem=1,INT(PP_nElems)
