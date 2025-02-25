@@ -791,7 +791,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
-        END IF ! useuvMPF
+        END IF ! usevMPF
       END IF ! partV2 .LT. RelativisticLimit
     END IF ! particle inside
   END DO ! particleveclength
@@ -910,7 +910,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
-        END IF ! useuvMPF
+        END IF ! usevMPF
 
       END IF ! par2
       ! Determine energy of the most energetic particle in [eV]

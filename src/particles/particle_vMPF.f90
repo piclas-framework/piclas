@@ -137,6 +137,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Speci
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Analyze_Tools,ONLY: CalcTelec, CalcTVibPoly
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcEnergyScalingRatioVMPF,EnergyScalingRatioVMPF
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: LOG_RAN
 #ifdef CODE_ANALYZE
@@ -473,6 +474,11 @@ END IF
 #ifdef CODE_ANALYZE
 Energy_new = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
 #endif /* CODE_ANALYZE */
+
+IF(CalcEnergyScalingRatioVMPF) THEN
+  EnergyScalingRatioVMPF(1,iSpec) = EnergyScalingRatioVMPF(1,iSpec) + alpha
+  EnergyScalingRatioVMPF(2,iSpec) = EnergyScalingRatioVMPF(2,iSpec) + 1.
+END IF
 
 DO iLoop = 1, nPartNew
   iPart = iPartIndx_Node(iLoop)

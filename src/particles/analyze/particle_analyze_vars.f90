@@ -66,6 +66,8 @@ INTEGER,ALLOCATABLE           :: nPartIn(:)                          !< Number o
 INTEGER,ALLOCATABLE           :: nPartOut(:)                         !< Number of entry and leaving particles
 REAL,ALLOCATABLE              :: PartEkinIn(:)                       !< Energy and temperature of input particle
 REAL,ALLOCATABLE              :: PartEkinOut(:)                      !< Energy and temperature of input particle
+LOGICAL                       :: CalcEnergyScalingRatioVMPF          !< Flag to enable output of EnergyRatioVMPF
+REAL,ALLOCATABLE              :: EnergyScalingRatioVMPF(:,:)         !< Average ratio of kinetic energy scaling after a particle merge
 
 ! get derived particle properties
 LOGICAL                       :: CalcDebyeLength                     !< Compute the Debye length (min and max) in each cell
