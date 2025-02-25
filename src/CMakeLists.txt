@@ -524,7 +524,6 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
 
 
 FILE(GLOB_RECURSE fvF90 ./src/fv/*.f90
-                        ./src/interpolation/prolongtoface.f90
                         ./src/gradients/*.f90
                         ./src/equations/${PICLAS_EQNSYSNAME}/*.f90)
 

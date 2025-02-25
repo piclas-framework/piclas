@@ -47,7 +47,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
-USE MOD_Mesh_Vars_FV       ,ONLY: Elem_xGP_FV
+USE MOD_Mesh_Vars_FV       ,ONLY: Elem_xGP_FV,Elem_xGP_PP_1
 USE MOD_Mesh_Vars          ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -56,6 +56,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE                   :: Elem_xGP_LB(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: Elem_xGP_PP_1_LB(:,:,:,:,:)
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1)
 TYPE(MPI_Datatype)                 :: MPI_STRUCT,MPI_TYPE(1)
@@ -85,6 +86,24 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   END ASSOCIATE
   DEALLOCATE(Elem_xGP_FV)
   CALL MOVE_ALLOC(Elem_xGP_LB,Elem_xGP_FV)
+
+  ALLOCATE(Elem_xGP_PP_1_LB(3,0:PP_1,0:PP_1,0:PP_1,nElems))
+  ASSOCIATE (&
+          counts_send  => INT(MPInElemSend     ) ,&
+          disp_send    => INT(MPIoffsetElemSend) ,&
+          counts_recv  => INT(MPInElemRecv     ) ,&
+          disp_recv    => INT(MPIoffsetElemRecv))
+    ! Communicate Elem_xGP over MPI
+    MPI_LENGTH       = 3*(PP_1+1)**3
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+
+    CALL MPI_ALLTOALLV(Elem_xGP_PP_1,counts_send,disp_send,MPI_STRUCT,Elem_xGP_PP_1_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+  END ASSOCIATE
+  DEALLOCATE(Elem_xGP_PP_1)
+  CALL MOVE_ALLOC(Elem_xGP_PP_1_LB,Elem_xGP_PP_1)
 
   GETTIME(EndT)
   WallTime = EndT-StartT

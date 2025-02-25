@@ -217,8 +217,10 @@ CALL CountAndCreateMappings('Dielectric',&
 CALL SetDielectricVolumeProfile()
 
 #if !(USE_HDG)
+#if !(USE_FV)
   ! Determine dielectric Values on faces and communicate them: only for Maxwell
   CALL SetDielectricFaceProfile()
+#endif /*USE_FV*/
 #else /*if USE_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces
   CALL SetDielectricFaceProfile_HDG()
@@ -337,7 +339,7 @@ END IF
 END SUBROUTINE SetDielectricVolumeProfile
 
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 SUBROUTINE SetDielectricFaceProfile()
 !===================================================================================================================================
 !> Set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master".
@@ -482,7 +484,7 @@ IF(MINVAL(Dielectric_Master).LT.0.0)THEN
   RealInfoOpt=MINVAL(Dielectric_Master))
 END IF
 END SUBROUTINE SetDielectricFaceProfile
-#endif /* not USE_HDG*/
+#endif /* not USE_HDG or USE_FV*/
 
 
 #if USE_HDG

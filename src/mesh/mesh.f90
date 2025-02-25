@@ -281,9 +281,15 @@ ELSE
   ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
   CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
 #if USE_FV
+  ! Element centers
   SDEALLOCATE(Elem_xGP_FV)
   ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))
   CALL BuildCoords(NodeCoords,0,Elem_xGP_FV)
+  ! Output points
+  SDEALLOCATE(Elem_xGP_PP_1)
+  ALLOCATE(Elem_xGP_PP_1 (3,0:PP_1,0:PP_1,0:PP_1,nElems))
+  CALL BuildCoords(NodeCoords,PP_1,Elem_xGP_PP_1)
+  ! Normal Elem_xGP useless for FV, remove?
 #endif
 #if USE_LOADBALANCE
 END IF
@@ -1311,6 +1317,7 @@ SDEALLOCATE(Elem_xGP)
 SDEALLOCATE(sJ)
 #if USE_FV
 SDEALLOCATE(Elem_xGP_FV)
+SDEALLOCATE(Elem_xGP_PP_1)
 SDEALLOCATE(Metrics_fTilde_FV)
 SDEALLOCATE(Metrics_gTilde_FV)
 SDEALLOCATE(Metrics_hTilde_FV)

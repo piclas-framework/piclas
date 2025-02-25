@@ -144,6 +144,7 @@ SUBROUTINE GetGradients(VarForGradients)
 ! MODULES
 USE MOD_Globals
 USE MOD_Gradient_Vars
+USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
 USE MOD_Mesh_Vars           ,ONLY: nElems,nSides,ElemToSide
 #if USE_MPI
 USE MOD_MPI                 ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
@@ -437,67 +438,6 @@ Gradient(2,:) = limiter(:)*Gradient(2,:)
 Gradient(3,:) = limiter(:)*Gradient(3,:)
 
 END SUBROUTINE GradLimiter
-
-SUBROUTINE ProlongToFace_ElemCopy(VarDim,ElemVar,SideVar_master,SideVar_slave,doMPISides)
-!===================================================================================================================================
-! Simply copies element-based variable to sides
-!===================================================================================================================================
-! MODULES
-USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem, nElems
-USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
-USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
-INTEGER,INTENT(IN)              :: VarDim
-REAL,INTENT(IN)                 :: ElemVar(VarDim,nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: SideVar_master(VarDim,1:nSides)
-REAL,INTENT(INOUT)              :: SideVar_slave(VarDim,1:nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                         :: ElemID,SideID,firstSideID,lastSideID
-!===================================================================================================================================
-IF(doMPISides)THEN
-! only YOUR MPI Sides are filled
-firstSideID = firstMPISide_YOUR
-lastSideID  = lastMPISide_YOUR
-ELSE
-! (Mortar-)InnerSides are filled
-firstSideID = firstInnerSide
-lastSideID  = lastInnerSide
-END IF
-
-DO SideID=firstSideID,lastSideID
-! neighbor side !ElemID=-1 if not existing
-ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
-!Copy Bulk Velocity in U for Dense Fokker Planck instead of Finite Volumes Solution
-IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
-SideVar_slave(:,SideID) = ElemVar(:,ElemID)
-END DO
-
-! Second process Minus/Master sides, U_Minus is always MINE
-! master side, flip=0
-IF(doMPISides)THEN
-! only MPI mortars
-firstSideID = firstMortarMPISide
-lastSideID =  lastMortarMPISide
-ELSE
-! BCSides, (Mortar-)InnerSides and MINE MPISides are filled
-firstSideID = firstBCSide
-lastSideID =  lastMPISide_MINE
-END IF
-
-DO SideID=firstSideID,lastSideID
-ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
-SideVar_master(:,SideID)=ElemVar(:,ElemID)
-END DO !SideID
-
-END SUBROUTINE ProlongToFace_ElemCopy
 
 SUBROUTINE FinalizeGradients()
 !===================================================================================================================================

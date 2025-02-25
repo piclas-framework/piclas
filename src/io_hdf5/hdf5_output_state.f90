@@ -50,6 +50,8 @@ USE MOD_PreProc
 USE MOD_Globals
 #if USE_FV
 USE MOD_FV_Vars                ,ONLY: U_FV
+USE MOD_Gradients              ,ONLY: GetGradients
+USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 #endif
 #if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
@@ -156,10 +158,13 @@ REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
+#if USE_FV
+REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
+#endif
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#elif (PP_TimeDiscMethod==700) /*DVM with FV*/
-REAL                           :: Utemp(1:15,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+#elif defined(discrete_velocity)
+REAL                           :: Utemp(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -256,7 +261,7 @@ IF(InitialAutoRestart) THEN
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,ContainerName='DVM_Solution')
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution')
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
@@ -275,7 +280,7 @@ ELSE
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,ContainerName='DVM_Solution')
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution')
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
@@ -307,6 +312,9 @@ PP_nVarTmp = INT(PP_nVar,IK)
 PP_nVarTmp_FV = INT(PP_nVar_FV,IK)
 #endif
 ASSOCIATE (&
+#if USE_FV
+      N_FV              => INT(PP_1,IK)               ,&
+#endif /*USE_FV*/
       N                 => INT(PP_N,IK)               ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
       PP_nElems         => INT(PP_nElems,IK)          ,&
@@ -552,25 +560,34 @@ ASSOCIATE (&
 #endif /*PP_POIS*/
 
 #if USE_FV
+  ! reconstruct solution using gradients, as done during simulation
+  CALL GetGradients(U_FV(:,0,0,0,:))
+  CALL ProlongToOutput(U_FV,Ureco)
 #ifdef discrete_velocity
   DO iElem=1,INT(PP_nElems)
-    CALL MacroValuesFromDistribution(Utemp(1:14,0,0,0,iElem),U_FV(:,0,0,0,iElem),dtMV,tau,1)
-    Utemp(15,0,0,0,iElem) = dt_Min(DT_MIN)/tau
+    DO k=0,PP_1
+      DO j=0,PP_1
+        DO i=0,PP_1
+          CALL MacroValuesFromDistribution(Utemp(1:14,i,j,k,iElem),Ureco(:,i,j,k,iElem),dtMV,tau,1)
+          Utemp(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+        END DO
+      END DO
+    END DO
   END DO
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DVM_Solution', rank=5,&
-      nValGlobal=(/15_IK, 1_IK , 1_IK , 1_IK , nGlobalElems/) , &
-      nVal=      (/15_IK, 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
+      nValGlobal=(/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+      nVal=      (/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
 #endif
 #ifdef drift_diffusion
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DriftDiffusion_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp_FV , 1_IK , 1_IK , 1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp_FV , 1_IK , 1_IK , 1_IK , PP_nElems/)    , &
+      nValGlobal=(/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=U_FV)
+      collective=.TRUE.,RealArray=Ureco)
 #endif
 #endif /*USE_FV*/
 

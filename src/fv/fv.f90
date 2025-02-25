@@ -136,7 +136,7 @@ USE MOD_Vector
 USE MOD_FV_Vars           ,ONLY: U_FV,Ut_FV,Flux_Master_FV,Flux_Slave_FV
 USE MOD_FV_Vars           ,ONLY: U_master_FV,U_slave_FV
 USE MOD_SurfInt           ,ONLY: SurfInt
-USE MOD_ProlongToFace     ,ONLY: ProlongToFace_FV
+USE MOD_Prolong_FV        ,ONLY: ProlongToFace_FV
 USE MOD_Gradients         ,ONLY: GetGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation_FV       ,ONLY: CalcSource_FV

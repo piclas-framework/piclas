@@ -32,7 +32,8 @@ REAL,ALLOCATABLE :: Ja_Face_FV(:,:,:,:,:)         !< surface  metrics for each s
 REAL,ALLOCATABLE :: Metrics_fTilde_FV(:,:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
 REAL,ALLOCATABLE :: Metrics_gTilde_FV(:,:,:,:,:)
 REAL,ALLOCATABLE :: Metrics_hTilde_FV(:,:,:,:,:)
-REAL,ALLOCATABLE,TARGET :: Elem_xGP_FV(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
+REAL,ALLOCATABLE,TARGET :: Elem_xGP_FV(:,:,:,:,:)          !< Element centers (1:3,0,0,0,nElems)
+REAL,ALLOCATABLE,TARGET :: Elem_xGP_PP_1(:,:,:,:,:)          !< Element centers (1:3,0:PP_1,0:PP_1,0:PP_1,nElems)
 REAL,ALLOCATABLE :: Face_xGP_FV(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
 REAL,ALLOCATABLE :: Face_xGP_PP_1(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
 REAL,ALLOCATABLE :: NormVec_PP_1(:,:,:,:)           !< normal vector for each side       (1:3,0:N,0:N,nSides)
