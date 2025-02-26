@@ -56,9 +56,9 @@ INTEGER,INTENT(IN)      :: PartID_IN           !< Bombarding Particle ID
 INTEGER,INTENT(IN)      :: locBCID
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
-INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new ID of impacting particle (the old one can change)
-                                               !< ProductSpec(2) new ID of newly released electron
-INTEGER,INTENT(OUT)     :: ProductSpecNbr      !< number of species for ProductSpec(1)
+INTEGER,INTENT(OUT)     :: ProductSpec(2)      !< ProductSpec(1) new species ID of impacting particle (the old one can change)
+                                               !< ProductSpec(2) new species ID of newly released electron/ion
+INTEGER,INTENT(OUT)     :: ProductSpecNbr      !< number of species for ProductSpec(2)
 REAL,INTENT(OUT)        :: TempErgy            !< temperature, energy or velocity used for VeloFromDistribution
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -77,8 +77,9 @@ SpecID = PartSpecies(PartID_IN)
 velo2=DOTPRODUCT(PartState(4:6,PartID_IN))
 ! Sanity check: is the impacting particle faster than c
 IF(velo2.GT.c2) CALL abort(__STAMP__,'SecondaryElectronEmissionYield: Bombarding particle is faster than the speed of light: ',RealInfoOpt=SQRT(velo2))
-! Default 0
-ProductSpec    = 0
+! Default value set to the negative SpecID to remove bombarding particle but keep species index information for VDL treatment
+ProductSpec(1) = -SpecID
+ProductSpec(2) = 0
 ProductSpecNbr = 0
 TempErgy       = 0.0
 ! Select particle surface modeling
