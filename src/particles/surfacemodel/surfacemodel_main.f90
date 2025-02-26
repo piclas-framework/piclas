@@ -200,7 +200,7 @@ CASE (SEE_MODELS_ID)
     ! Deposit opposite charge of SEE on node
     IF(DoDeposition.AND.DoDielectricSurfaceCharge)THEN
 
-      ! Method 1: PartBound%Dielectric = T
+      ! Method 1: PartBound%Dielectric = T (dielectric boundary)
       IF(PartBound%Dielectric(locBCID))THEN
         ! Get MPF
         IF (usevMPF) THEN
@@ -244,9 +244,11 @@ CASE (SEE_MODELS_ID)
       END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
 #endif /*USE_HDG*/
     END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
-  END IF
+  END IF ! ProductSpec(2).GT.0
+
   ! Decide the fate of the impacting particle
   IF (ProductSpec(1).LE.0) THEN
+    ! This routine also calls UpdateBPO()
     CALL RemoveParticle(PartID,BCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)))
   ELSE
     CALL MaxwellScattering(PartID,SideID,n_Loc)
@@ -271,28 +273,61 @@ END SELECT
 !===================================================================================================================================
 ! 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SurfaceModel
 !===================================================================================================================================
-IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface charging active + dielectric surface contact
-  IF(.NOT.PDM%ParticleInside(PartID))THEN
-    ! Particle was deleted on surface contact: deposit impacting charge
-    CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
-  ELSEIF(PDM%ParticleInside(PartID))THEN
-    ! Sanity check
-    IF(PartSpecies(PartID).LT.0)THEN
-      IPWRITE (*,*) "PartID        :", PartID
-      IPWRITE (*,*) "global ElemID :", GlobalElemID
-      CALL abort(__STAMP__,'SurfaceModel() -> DepositParticleOnNodes(): Negative PartSpecies')
-    END IF
-    ! Particle may have been swapped: check difference in charge
-    IF(usevMPF)THEN
-      MPF = PartMPF(PartID)
-    ELSE
-      MPF = Species(PartSpecies(PartID))%MacroParticleFactor
-    END IF ! usevMPF
-    ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*MPF
-    ! Calculate the charge difference between the impacting and reflecting particle
-    CALL DepositParticleOnNodes(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID)
-  END IF ! .NOT.PDM%ParticleInside(PartID)
-END IF
+IF(DoDeposition.AND.DoDielectricSurfaceCharge) THEN ! Surface charging active
+
+  ! Method 1: PartBound%Dielectric = T (dielectric boundary)
+  IF(PartBound%Dielectric(locBCID))THEN
+    ! Check what happened to the impacting particle
+    IF(.NOT.PDM%ParticleInside(PartID))THEN
+      ! Particle was deleted on surface contact: deposit impacting charge
+      CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
+    ELSEIF(PDM%ParticleInside(PartID))THEN
+      ! Sanity check
+      IF(PartSpecies(PartID).LT.0)THEN
+        IPWRITE (*,*) "PartID        :", PartID
+        IPWRITE (*,*) "global ElemID :", GlobalElemID
+        CALL abort(__STAMP__,'SurfaceModel() -> DepositParticleOnNodes(): Negative PartSpecies')
+      END IF
+      ! Particle may have been swapped: check difference in charge
+      IF(usevMPF)THEN
+        MPF = PartMPF(PartID)
+      ELSE
+        MPF = Species(PartSpecies(PartID))%MacroParticleFactor
+      END IF ! usevMPF
+      ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*MPF
+      ! Calculate the charge difference between the impacting and reflecting particle
+      CALL DepositParticleOnNodes(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID)
+    END IF ! .NOT.PDM%ParticleInside(PartID)
+  END IF ! PartBound%Dielectric(locBCID)
+
+#if USE_HDG
+  ! Method 2: Virtual dielectric layer (VDL)
+  IF(ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0)THEN
+    ! Check what happened to the impacting particle
+    IF(.NOT.PDM%ParticleInside(PartID))THEN
+      ! Particle was deleted on surface contact: deposit impacting charge but shifted by the VDL offset away from the surface
+      ! Set velocity to zero
+      NewVelo(1:3) = 0.0
+      ! Create new position by using POI
+      NewPos(1:3) = PartPosImpact(1:3)
+      ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
+      ! Routine sets PartState and LastPartPos to the given position (in this case the POI)
+      CALL CreateParticle(ABS(ProductSpec(1)),NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+      ! This routines moves the particle away from the boundary using LastPartPos as the starting point and changes the species index
+      ! and before the particle is deposited and removed, the species index cannot be used anymore
+      CALL VirtualDielectricLayerDisplacement(NewPartID,SideID,n_Loc)
+    ELSEIF(PDM%ParticleInside(PartID))THEN
+      ! Particle is still inside and was not deleted
+      SELECT CASE(PartBound%SurfaceModel(locBCID))
+      CASE (VDL_MODEL_ID)  ! Virtual dielectric layer (VDL)
+        ! Particle is still inside because it possibly needs to be communicated via MPI to a different process where it is killed
+      CASE DEFAULT
+        CALL abort(__STAMP__,'Reflected particles not implemented for VDL in combination with, e.g., SEE')
+      END SELECT
+    END IF ! .NOT.PDM%ParticleInside(PartID)
+  END IF ! ABS(PartBound%PermittivityVDL(locBCID)).GT.0.0
+#endif /*USE_HDG*/
+END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
 
 !===================================================================================================================================
 ! 5.) Count and sample the properties AFTER the surface interaction
