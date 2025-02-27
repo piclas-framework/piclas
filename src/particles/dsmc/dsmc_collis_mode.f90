@@ -156,6 +156,7 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, UseVarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
@@ -187,7 +188,7 @@ REAL (KIND=8)                 :: iRan                             ! Random numbe
 LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
 REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
 REAL                          :: cRelaNew(3)                       ! random relative velocity
-REAL                          :: ReducedMass
+REAL                          :: ReducedMass, V2
 REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2, ProbElec1, ProbElec2
 INTEGER                       :: iCase, iSpec1, iSpec2, iPart1, iPart2, iElem ! Colliding particles 1 and 2 and their species
 ! variables for electronic level relaxation and transition
