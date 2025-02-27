@@ -370,9 +370,7 @@ DO iSpec = 1, nSpecies
       ELSE
         CALL CalcVelocity_maxwell_lpn(FractNbr=jSpec, Vec3D=VeloBGGPart(1:3), iInit=1)
       END IF
-      CRela2 = (PartState(4,PartIndex) - VeloBGGPart(1))**2 &
-             + (PartState(5,PartIndex) - VeloBGGPart(2))**2 &
-             + (PartState(6,PartIndex) - VeloBGGPart(3))**2
+      CRela2 = DOTPRODUCT(PartState(4:6,PartIndex) - VeloBGGPart(1:3))
 
       IF(BGGas%UseDistribution) THEN
         BGGasNumDens  = BGGas%Distribution(bgSpec,7,iElem)
