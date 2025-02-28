@@ -25,19 +25,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE GetPositionInRefElem
-  MODULE PROCEDURE GetPositionInRefElem
-END INTERFACE
-
-INTERFACE TensorProductInterpolation
-  MODULE PROCEDURE TensorProductInterpolation
-END INTERFACE
-
-INTERFACE EvaluateFieldAtRefPos
-  MODULE PROCEDURE EvaluateFieldAtRefPos
-END INTERFACE
-
 PUBLIC :: GetPositionInRefElem
 PUBLIC :: TensorProductInterpolation
 PUBLIC :: EvaluateFieldAtRefPos
@@ -250,7 +237,7 @@ END DO ! k=0,N_In
 !  X3D_Out(:)=X3D_Out(:)+Lag2(3,k)*X3D_Buf2(:,k)
 !END DO
 
-IF(useBGField)THEN
+IF(useBGField.AND.(NVar_OUT.GT.1))THEN
   ! use of BG-Field with possible different polynomial order and nodetype
   ALLOCATE( U_BGField(1:BGDataSize)           )
 !          , X3D_tmp1(BGDataSize,0:NBG,0:NBG) &

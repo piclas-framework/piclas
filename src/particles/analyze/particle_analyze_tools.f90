@@ -55,6 +55,7 @@ PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
 #if USE_HDG
 PUBLIC :: CalculatePCouplElectricPotential
+PUBLIC :: CalculateParticlePotentialEnergy
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -923,6 +924,57 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 END IF
 
 END SUBROUTINE CalcKineticEnergyAndMaximum
+
+
+#if USE_HDG
+SUBROUTINE CalculateParticlePotentialEnergy(EpotPart)
+!===================================================================================================================================
+! compute the potential energy of particles within a potential electric field
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars          ,ONLY: PartSpecies,Species,PDM,nSpecies,PEM,usevMPF
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_PICInterpolation_tools ,ONLY: GetInterpolatedPotentialPartPos
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: EpotPart(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iPart,iElem,iSpec
+REAL                            :: phi(1:1),MPF
+!===================================================================================================================================
+! Default values
+EpotPart =  0.
+! Loop over all particles
+DO iPart=1,PDM%ParticleVecLength
+  ! Check if particle is still inside the simulation domain
+  IF (PDM%ParticleInside(iPart)) THEN
+    ! Get species index of particle
+    iSpec = PartSpecies(iPart)
+    ! Get particle MPF
+    IF(usevMPF) THEN
+      MPF = GetParticleWeight(iPart)
+    ELSE
+      MPF = GetParticleWeight(iPart) * Species(iSpec)%MacroParticleFactor
+    END IF
+    ! Get local element index
+    iElem = PEM%LocalElemID(iPart)
+    ! Get the electric potential at the particle position
+    phi(1:1) = GetInterpolatedPotentialPartPos(iElem+offSetElem,iPart)
+    ! Calculate the potential energy of the particle
+    EpotPart(iSpec) = EpotPart(iSpec) + 0.5 * MPF * Species(iSpec)%ChargeIC * phi(1)
+  END IF ! PDM%ParticleInside(iPart)
+END DO ! iPart=1,PDM%ParticleVecLength
+
+END SUBROUTINE CalculateParticlePotentialEnergy
+#endif /*USE_HDG*/
 
 
 !===================================================================================================================================
