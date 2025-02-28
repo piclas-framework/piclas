@@ -56,7 +56,7 @@ USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,nGlobalDOFs,NMaxGlobal,NMinGlobal
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
+USE MOD_RecordPoints           ,ONLY: WriteRP!,RecordPoints
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
 #if !(USE_HDG)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
@@ -391,7 +391,7 @@ DO !iter_t=0,MaxIter
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
       ! Write recordpoints data to hdf5
-      IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
+      IF(RP_onProc) CALL WriteRP(tAnalyze,.TRUE.)
       tPreviousAnalyze        = tAnalyze
       tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
