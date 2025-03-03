@@ -731,6 +731,7 @@ USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL,nVarSurfData
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDLPerSide
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
@@ -758,6 +759,8 @@ REAL,DIMENSION(4,6) :: distances
 ! 1) Determine volume container ElementThicknessVDL that holds the approximate thickness of the element with respect to the boundary
 ALLOCATE(ElementThicknessVDL(1:nElems))
 ElementThicknessVDL = 0.
+ALLOCATE(ElementThicknessVDLPerSide(1:nBCSides))
+ElementThicknessVDLPerSide = 0.
 CALL AddToElemData(ElementOut,'ElementThicknessVDL',RealArray=ElementThicknessVDL(1:nElems))
 
 ! Loop over all local boundary sides
@@ -792,9 +795,9 @@ DO BCSideID=1,nBCSides
       END DO ! iNode = 1, 4
     END DO
 
-    ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
+    ElementThicknessVDLPerSide(BCSideID) = MAXVAL(distances) - MINVAL(distances)
     ! Sanity check
-    IF(ElementThicknessVDL(iElem).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDL(iElem) is negative for iElem=',IntInfoOpt=iElem)
+    IF(ElementThicknessVDLPerSide(BCSideID).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDLPerSide(BCSideID) is negative for iElem=',IntInfoOpt=iElem)
   END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 
 END DO ! BCSideID=1,nBCSides
@@ -2480,6 +2483,7 @@ END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
 SDEALLOCATE(ElementThicknessVDL)
+SDEALLOCATE(ElementThicknessVDLPerSide)
 SDEALLOCATE(StretchingFactorVDL)
 SDEALLOCATE(N_SurfVDL)
 

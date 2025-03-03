@@ -307,9 +307,10 @@ REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: 
 INTEGER, PARAMETER   :: nVarPartStateBoundary=11
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
 ! Virtual dielectric layer (VDL)
-LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a VDL permittivity is set >= 0.0
-REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element layer at a VDL boundary
-REAL, ALLOCATABLE    :: StretchingFactorVDL(:)   ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
+LOGICAL              :: DoVirtualDielectricLayer      ! Flag set automatically if a VDL permittivity is set >= 0.0
+REAL, ALLOCATABLE    :: ElementThicknessVDL(:)        ! Thickness of first element layer at a VDL boundary
+REAL, ALLOCATABLE    :: ElementThicknessVDLPerSide(:) ! Thickness of first element layer at a VDL boundary per side to account for multiple VDLs within a single element
+REAL, ALLOCATABLE    :: StretchingFactorVDL(:)        ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
 
 TYPE, PUBLIC :: VDLSurfMesh
   REAL,ALLOCATABLE :: U(:,:,:) !<  1: PhiF_From_E      - PhiF calculated from E (2-4)
