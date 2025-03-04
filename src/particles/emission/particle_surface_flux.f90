@@ -755,9 +755,9 @@ iPart=1
 allowedRejections = 0
 IF(Symmetry%Axisymmetric.AND.ParticleWeighting%PerformCloning) THEN
   IF(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).GT.0.) THEN
-    PerpToYDir = .TRUE.
-  ELSE
     PerpToYDir = .FALSE.
+  ELSE
+    PerpToYDir = .TRUE.
   END IF
 ELSE
   IF(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
@@ -766,7 +766,7 @@ ELSE
     PerpToYDir = .FALSE.
   END IF
 END IF
-IF (ParticleWeighting%PerformCloning.AND.PerpToYDir) THEN
+IF (ParticleWeighting%PerformCloning.AND..NOT.PerpToYDir) THEN
   IF(ParticleWeighting%UseCellAverage) THEN
     DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
       CALL RANDOM_NUMBER(RandVal1)
