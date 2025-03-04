@@ -336,7 +336,6 @@ END DO !iProc=1,nNBProcs
 
 ! -------------------------------------------------------------------------------------------------
 ! 3. Build SurfElemMin for all sides (including Mortar sides)
-! TODO NSideMin - SurfElemMin
 DO iSide = 1, nSides
   ! Get SurfElemMin
   NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
@@ -344,17 +343,8 @@ DO iSide = 1, nSides
   IF(NSideMax.EQ.NSideMin)THEN
     N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
   ELSE
-    ! We just evaluate the SurfElem at the gauss points of the lower degree...
     CALL ChangeBasis2D(1,NSideMax,NSideMin,PREF_VDM(NSideMax,NSideMin)%Vdm,N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
                                                                           N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
-
-    !!!! From high to low
-    !!!! Transform the slave side to the same degree as the master: switch to Legendre basis
-    !!!CALL ChangeBasis2D(1, NSideMax, NSideMax, N_Inter(NSideMax)%sVdm_Leg, N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
-    !!!                                                                                                   tmp(1,0:NSideMax,0:NSideMax))
-    !!! !Switch back to nodal basis
-    !!!CALL ChangeBasis2D(1, NSideMin, NSideMin, N_Inter(NSideMin)%Vdm_Leg , tmp(1,0:NSideMin,0:NSideMin), &
-    !!!                                                                           N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
   END IF ! NSideMax.EQ.NSideMin
 END DO ! iSide = 1, nSides
 
@@ -565,14 +555,6 @@ DO SideID = 1, nSides
   NSide = N_SurfMesh(SideID)%NSide
   ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%lambda=0.
-  ! TODO NSideMin - LambdaMax: It is actually the "other" polynomial degree, not necessarily the maximum
-  IF(UseNSideMin)THEN
-    NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  ELSE
-    NSideMax = MIN(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  END IF
-  ALLOCATE(HDG_Surf_N(SideID)%lambdaMax(PP_nVar,nGP_face(NSideMax)))
-  HDG_Surf_N(SideID)%lambdaMax=0.
   ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSide)))
   HDG_Surf_N(SideID)%RHS_face=0.
   ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSide)))
@@ -721,7 +703,6 @@ PetscCallA(VecSetType(PETScSolution,VECSTANDARD,ierr))
 PetscCallA(VecSetUp(PETScSolution,ierr))
 PetscCallA(VecDuplicate(PETScSolution,PETScRHS,ierr))
 
-! TODO PETSc P-Adaption: nLocalPETScDOFs is all DOFs including Small Mortar Sides!
 ! 3.2.4) Set up Scatter stuff
 PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
 ! Create a PETSc Vector 0:(nLocalPETScDOFs-1)

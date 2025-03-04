@@ -38,7 +38,7 @@ SUBROUTINE ReadExternalFieldFromHDF5( DataSet, ExternalField, DeltaExternalField
 !===================================================================================================================================
 !> Read-in of spatially variable external magnetic field or macroscopic species data (n, T, vx, vy and vz) from .h5 file
 !> Check for different fields in the file: x,y,z or x,r or y,r or z,r to determine a possible axial symmetry
-!> as well as 
+!> as well as
 !> a) Bx, By, Bz or Br, Bz etc. (magnetic fields)
 !> b) vx, vy, vz or vr, vz etc. (macroscopic data)
 !===================================================================================================================================
@@ -54,7 +54,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)     :: DataSet               !< dataset name to read from .h5
-CHARACTER(LEN=255),INTENT(IN)   :: FileNameExternalField !< data read from .h5
+CHARACTER(LEN=255),INTENT(IN)   :: FileNameExternalField !< data read from .h5, e.g., read via 'PIC-variableExternalField'
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,ALLOCATABLE,INTENT(OUT)    :: ExternalField(:,:)    !< array to be read

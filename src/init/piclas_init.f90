@@ -74,8 +74,7 @@ USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Mortar               ,ONLY: InitMortar
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if ! (USE_HDG)
-USE MOD_Equation_Vars        ,ONLY: DoExactFlux
-USE MOD_Equation             ,ONLY: InitExactFlux,InitRefState
+USE MOD_Equation             ,ONLY: InitRefState
 USE MOD_PML                  ,ONLY: InitPML
 #if USE_MPI
 USE MOD_DG                   ,ONLY: InitDGExchange
@@ -171,7 +170,6 @@ CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing l
 CALL InitDGExchange()
 #endif /*USE_MPI*/
 CALL InitRefState()
-IF(DoExactFlux) CALL InitExactFlux() ! Requires that InitRefState() has already been called
 #else
 CALL InitRefState()
 CALL InitChiTens()

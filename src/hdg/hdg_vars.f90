@@ -49,9 +49,7 @@ TYPE(HDG_Vol_N_Type),ALLOCATABLE :: HDG_Vol_N(:)      !<
 
 ! HDG side variables
 TYPE HDG_Surf_N_Type
-! TODO NSideMin - LambdaMax: Rename it so that it actually makes sense
   REAL,ALLOCATABLE    :: lambda(:,:)          !< lambda, ((NSideMin+1)^2,nSides) where NSideMin is the minimum of the two faces
-  REAL,ALLOCATABLE    :: lambdaMax(:,:)       !< lambda, ((NSideMax+1)^2,nSides) where NSideMax is the maximum of the two faces
   REAL,ALLOCATABLE    :: Precond(:,:)         !< block diagonal preconditioner for lambda(nGP_face, nGP-face, nSides)
   REAL,ALLOCATABLE    :: InvPrecondDiag(:)    !< 1/diagonal of Precond
   REAL,ALLOCATABLE    :: qn_face(:,:)         !< for Neumann BC
@@ -71,7 +69,7 @@ TYPE(HDG_Surf_N_Type),ALLOCATABLE :: HDG_Surf_N(:) !< Solution variable for each
 
 REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
 REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
-REAL,ALLOCATABLE    :: iLocSides(:,:)         !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
+INTEGER,ALLOCATABLE :: iLocSides(:,:)         !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
 INTEGER             :: nDirichletBCsides
 INTEGER             :: nNeumannBCsides
