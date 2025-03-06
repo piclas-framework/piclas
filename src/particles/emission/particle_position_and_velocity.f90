@@ -133,7 +133,7 @@ IF ((chunksize.EQ.0).AND.(Species(iSpec)%Init(iInit)%PartDensity.EQ.0.)) RETURN
 
 ! Approximate the total number of particles to be inserted
 IF (DoExactPartNumInsert) THEN
-  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize)
+  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0.AND..NOT.ParticleWeighting%PerformCloning) CALL IncreaseMaxParticleNumber(chunkSize)
   CellChunkSize(:)=0
   ASSOCIATE( start => GetCNElemID(1+offsetElem),&
              end   => GetCNElemID(nElems+offsetElem))
@@ -153,7 +153,7 @@ ELSE
   IF(UseSplitAndMerge) THEN
     IF(vMPFSplitThreshold(iSpec).GT.0) chunkSize_tmp = nElems * vMPFSplitThreshold(iSpec)
   END IF
-  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize_tmp)
+  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0.AND..NOT.ParticleWeighting%PerformCloning) CALL IncreaseMaxParticleNumber(chunkSize_tmp)
 END IF
 
 ! Loop over all local elements and insert particles
@@ -268,6 +268,7 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralizat
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Part_Tools             ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
+USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
@@ -424,7 +425,7 @@ ELSE
     IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
   END DO
   Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles = 0
-  IF (Species(FractNbr)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(AcceptedParts(0))
+  IF (Species(FractNbr)%Init(iInit)%ParticleEmissionType.EQ.0.AND..NOT.ParticleWeighting%PerformCloning) CALL IncreaseMaxParticleNumber(AcceptedParts(0))
   DO i = 1,chunkSize
     ! Find a free position in the PDM array
     IF(AcceptedParts(i).NE.-1) THEN
