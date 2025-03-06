@@ -268,7 +268,6 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralizat
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Part_Tools             ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
-USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
