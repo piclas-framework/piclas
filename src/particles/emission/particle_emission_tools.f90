@@ -818,15 +818,14 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3)
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -858,7 +857,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), VectorGap(3)
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 IF(chunkSize.EQ.1)THEN
@@ -866,11 +865,10 @@ IF(chunkSize.EQ.1)THEN
 ELSE
   i=1
   chunkSize2=0
-  Arraysize=3
   VectorGap = Species(FractNbr)%Init(iInit)%BaseVector1IC/(REAL(chunkSize)-1.)
   DO WHILE (i .LE. chunkSize)
     Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + (i-1)*VectorGap
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -903,16 +901,15 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   CALL RANDOM_NUMBER(iRan)
   Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC*iRan
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -945,14 +942,13 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), RandVec(2), lineVector(3), lineVector2(3), radius
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
 CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
   DO WHILE(radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC)
@@ -968,7 +964,7 @@ DO WHILE (i .LE. chunkSize)
                     (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) * &
                     (Particle_pos(3)-Species(FractNbr)%Init(iInit)%BasePointIC(3)) )
   END DO
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1002,7 +998,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan, lineVector(3), lineVector2(3), radius, Phi
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
@@ -1010,7 +1006,6 @@ CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3
 radius = Species(FractNbr)%Init(iInit)%RadiusIC
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') THEN
     CALL RANDOM_NUMBER(iRan)
@@ -1021,7 +1016,7 @@ DO WHILE (i .LE. chunkSize)
   Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC +        &
                 linevector * COS(Phi) * radius +  &
                 linevector2 * SIN(Phi) * radius
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1061,7 +1056,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan, lineVector(3), lineVector2(3), radius, Phi, n(3), radius_vec(3)
 REAL                    :: JJ(3,3), II(3,3), NN(3,3), rgyrate, Bintpol
-INTEGER                 :: i,j, chunkSize2,ArraySize
+INTEGER                 :: i,j, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
@@ -1069,7 +1064,6 @@ CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3
 radius = Species(FractNbr)%Init(iInit)%RadiusIC
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   CALL RANDOM_NUMBER(iRan)
   Phi = 2.*Pi*iRan
@@ -1122,7 +1116,7 @@ DO WHILE (i .LE. chunkSize)
   radius_vec = MATMUL( NN+cos(Phi)*(II-NN)+sin(Phi)*JJ , radius_vec )
   radius_vec(1:3) = radius_vec(1:3) / SQRT(radius_vec(1)**2+radius_vec(2)**2+radius_vec(3)**2) &
                 * rgyrate !Species(1)%RadiusICGyro
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1158,7 +1152,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
   ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
@@ -1172,7 +1166,6 @@ LOGICAL                 :: PartAccepted
   END ASSOCIATE
   i=1
   chunkSize2=0
-  Arraysize=3
   DO WHILE (i .LE. chunkSize)
     SELECT CASE (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
     CASE ('cuboid')
@@ -1201,7 +1194,7 @@ LOGICAL                 :: PartAccepted
       Particle_pos = Particle_pos + Species(FractNbr)%Init(iInit)%BasePointIC
       Particle_pos = Particle_pos + lineVector * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal(3)
     END SELECT
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1235,17 +1228,16 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan, radius
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
   i=1
   chunkSize2=0
-  ArraySize=3
   DO WHILE (i .LE. chunkSize)
     CALL RANDOM_NUMBER(iRan)
     radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
     Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1258,7 +1250,7 @@ LOGICAL                 :: PartAccepted
 END SUBROUTINE SetParticlePositionSphere
 
 
-SUBROUTINE SetParticlePositionSinDeviation(FractNbr,iInit)
+SUBROUTINE SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1274,46 +1266,54 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)     :: FractNbr, iInit
+INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos
-INTEGER                 :: i, iPart, j, k
+REAL                    :: xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos, Particle_pos(3)
+INTEGER                 :: i, j, k
+LOGICAL                 :: PartAccepted
 !===================================================================================================================================
-  IF(Species(FractNbr)%Init(iInit)%ParticleNumber.NE. &
-      (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
-      * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
-   SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
-   CALL abort(__STAMP__,'ERROR: Number of particles in init / emission region',iInit)
-  END IF
-  xlen = ABS(GEO%xmaxglob  - GEO%xminglob)
-  ylen = ABS(GEO%ymaxglob  - GEO%yminglob)
-  zlen = ABS(GEO%zmaxglob  - GEO%zminglob)
-  pilen=2.0*PI/xlen
-  x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
-  y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
-  z_step = zlen/Species(FractNbr)%Init(iInit)%maxParticleNumberZ
-  iPart = 1
-  DO i=1,Species(FractNbr)%Init(iInit)%maxParticleNumberX
-    x_pos = (i * x_step - x_step*0.5)
-    x_pos = GEO%xminglob + x_pos + Species(FractNbr)%Init(iInit)%Amplitude &
-            * SIN(Species(FractNbr)%Init(iInit)%WaveNumber * pilen * x_pos)
-    DO j=1,Species(FractNbr)%Init(iInit)%maxParticleNumberY
-      y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
-      DO k=1,Species(FractNbr)%Init(iInit)%maxParticleNumberZ
-        particle_positions(iPart*3-2) = x_pos
-        particle_positions(iPart*3-1) = y_pos
-        particle_positions(iPart*3  ) = GEO%zminglob &
-                                  + k * z_step - z_step * 0.5
-        iPart = iPart + 1
-      END DO
+chunkSize=0
+IF(Species(FractNbr)%Init(iInit)%ParticleNumber.NE. &
+    (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
+    * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
+  SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
+  CALL abort(__STAMP__,'ERROR: Number of particles in init / emission region',iInit)
+END IF
+xlen = ABS(GEO%xmaxglob  - GEO%xminglob)
+ylen = ABS(GEO%ymaxglob  - GEO%yminglob)
+zlen = ABS(GEO%zmaxglob  - GEO%zminglob)
+pilen=2.0*PI/xlen
+x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
+y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
+z_step = zlen/Species(FractNbr)%Init(iInit)%maxParticleNumberZ
+DO i=1,Species(FractNbr)%Init(iInit)%maxParticleNumberX
+  x_pos = (i * x_step - x_step*0.5)
+  x_pos = GEO%xminglob + x_pos + Species(FractNbr)%Init(iInit)%Amplitude &
+          * SIN(Species(FractNbr)%Init(iInit)%WaveNumber * pilen * x_pos)
+  DO j=1,Species(FractNbr)%Init(iInit)%maxParticleNumberY
+    y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
+    DO k=1,Species(FractNbr)%Init(iInit)%maxParticleNumberZ
+      Particle_pos(1) = x_pos
+      Particle_pos(2) = y_pos
+      Particle_pos(3) = GEO%zminglob &
+                                + k * z_step - z_step * 0.5
+      CALL ApplySymmetryAndWeighting(FractNbr,chunkSize,Particle_pos,PartAccepted)
+      IF(PartAccepted) THEN
+        chunkSize=chunkSize+1
+        particle_positions((chunkSize)*3-2) = Particle_pos(1)
+        particle_positions((chunkSize)*3-1) = Particle_pos(2)
+        particle_positions((chunkSize)*3  ) = Particle_pos(3)
+      END IF
     END DO
   END DO
+END DO
 END SUBROUTINE SetParticlePositionSinDeviation
 
 
-SUBROUTINE SetParticlePositionCosDistribution(FractNbr,iInit)
+SUBROUTINE SetParticlePositionCosDistribution(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1329,53 +1329,63 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)     :: FractNbr, iInit
+INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                    :: xlen, ylen, zlen, x_step, y_step, z_step, x_pos, y_pos, x_uniform
+REAL                    :: xlen, ylen, zlen, x_step, y_step, z_step, x_pos, y_pos, x_uniform, Particle_pos(3)
 REAL                    :: a, w
 INTEGER                 :: i, iPart, j, k
+LOGICAL                 :: PartAccepted
 !===================================================================================================================================
-  IF(Species(FractNbr)%Init(iInit)%ParticleNumber.NE. &
-      (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
-      * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
-    SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
-    CALL abort(__STAMP__,'ERROR: Number of particles in init / emission region',iInit)
-  END IF
-  xlen = ABS(GEO%xmaxglob  - GEO%xminglob)
-  ylen = ABS(GEO%ymaxglob  - GEO%yminglob)
-  zlen = ABS(GEO%zmaxglob  - GEO%zminglob)
-  x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
-  y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
-  z_step = zlen/Species(FractNbr)%Init(iInit)%maxParticleNumberZ
-  a = Species(FractNbr)%Init(iInit)%Amplitude
-  w = Species(FractNbr)%Init(iInit)%WaveNumber
-  iPart = 1
-  DO i=1,Species(FractNbr)%Init(iInit)%maxParticleNumberX
-    ! calculate x position by calculating the inverse cumulative distribution function
-    ! with Newton's algorithm
-    ! propability density function
-    ! f(x) = 1 + a * cos(w * x)
-    ! Cumulative distribution function (not normalized)
-    ! F(x) = x + a / w * sin(w * x) = R(0->1)
-    x_uniform = (i * x_step - x_step*0.5)
-    x_pos = x_uniform
-    DO WHILE(ABS(x_pos + a / w * SIN(w * x_pos) - x_uniform).GT.1.E-12)
-      x_pos = x_pos - (x_pos + a / w * SIN(w * x_pos) - x_uniform) / (1 + a * cos(w * x_pos))
-    END DO
-    x_pos = GEO%xminglob + x_pos
-    DO j=1,Species(FractNbr)%Init(iInit)%maxParticleNumberY
-      y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
-      DO k=1,Species(FractNbr)%Init(iInit)%maxParticleNumberZ
-        particle_positions(iPart*3-2) = x_pos
-        particle_positions(iPart*3-1) = y_pos
-        particle_positions(iPart*3  ) = GEO%zminglob &
-                                  + k * z_step - z_step * 0.5
-        iPart = iPart + 1
-      END DO
+chunkSize=0
+IF(Species(FractNbr)%Init(iInit)%ParticleNumber.NE. &
+    (Species(FractNbr)%Init(iInit)%maxParticleNumberX * Species(FractNbr)%Init(iInit)%maxParticleNumberY &
+    * Species(FractNbr)%Init(iInit)%maxParticleNumberZ)) THEN
+  SWRITE(*,*) 'for species ',FractNbr,' does not match number of particles in each direction!'
+  CALL abort(__STAMP__,'ERROR: Number of particles in init / emission region',iInit)
+END IF
+xlen = ABS(GEO%xmaxglob  - GEO%xminglob)
+ylen = ABS(GEO%ymaxglob  - GEO%yminglob)
+zlen = ABS(GEO%zmaxglob  - GEO%zminglob)
+x_step = xlen/Species(FractNbr)%Init(iInit)%maxParticleNumberX
+y_step = ylen/Species(FractNbr)%Init(iInit)%maxParticleNumberY
+z_step = zlen/Species(FractNbr)%Init(iInit)%maxParticleNumberZ
+a = Species(FractNbr)%Init(iInit)%Amplitude
+w = Species(FractNbr)%Init(iInit)%WaveNumber
+iPart = 1
+DO i=1,Species(FractNbr)%Init(iInit)%maxParticleNumberX
+  ! calculate x position by calculating the inverse cumulative distribution function
+  ! with Newton's algorithm
+  ! propability density function
+  ! f(x) = 1 + a * cos(w * x)
+  ! Cumulative distribution function (not normalized)
+  ! F(x) = x + a / w * sin(w * x) = R(0->1)
+  x_uniform = (i * x_step - x_step*0.5)
+  x_pos = x_uniform
+  DO WHILE(ABS(x_pos + a / w * SIN(w * x_pos) - x_uniform).GT.1.E-12)
+    x_pos = x_pos - (x_pos + a / w * SIN(w * x_pos) - x_uniform) / (1 + a * cos(w * x_pos))
+  END DO
+  x_pos = GEO%xminglob + x_pos
+  DO j=1,Species(FractNbr)%Init(iInit)%maxParticleNumberY
+    y_pos =  GEO%yminglob + j * y_step - y_step * 0.5
+    DO k=1,Species(FractNbr)%Init(iInit)%maxParticleNumberZ
+      Particle_pos(1) = x_pos
+      Particle_pos(2) = y_pos
+      Particle_pos(3) = GEO%zminglob &
+                                + k * z_step - z_step * 0.5
+      CALL ApplySymmetryAndWeighting(FractNbr,chunkSize,Particle_pos,PartAccepted)
+      IF(PartAccepted) THEN
+        chunkSize=chunkSize+1
+        particle_positions((chunkSize)*3-2) = Particle_pos(1)
+        particle_positions((chunkSize)*3-1) = Particle_pos(2)
+        particle_positions((chunkSize)*3  ) = Particle_pos(3)
+      END IF
+      iPart = iPart + 1
     END DO
   END DO
+END DO
 END SUBROUTINE SetParticlePositionCosDistribution
 
 
@@ -1670,7 +1680,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3),radius
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: lineVector(3),lineVector2(3)
 LOGICAL                 :: ARM_Gauss
 REAL                    :: RandVal(2),RandVal1
@@ -1682,7 +1692,6 @@ lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
 
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
   ARM_Gauss = .TRUE.
@@ -1704,7 +1713,7 @@ DO WHILE (i .LE. chunkSize)
     IF(CalcIntensity_Gaussian(radius,Species(FractNbr)%Init(iInit)%WaistRadius).GT.RandVal1) ARM_Gauss = .FALSE.
     ! End ARM for Gauss distribution
   END DO
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1736,7 +1745,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: RandVal(2)
 REAL                    :: Particle_pos(3)
 LOGICAL                 :: PartAccepted
@@ -1747,11 +1756,10 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
           v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC       )
   i=1
   chunkSize2=0
-  Arraysize=3
   DO WHILE (i .LE. chunkSize)
     CALL RANDOM_NUMBER(RandVal)
     Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3 + O
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1788,7 +1796,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3)
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: RandVal(2)
 REAL                    :: R3,R4,a,b
 LOGICAL                 :: PartAccepted
@@ -1802,7 +1810,6 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
   a = R**2-b
   i=1
   chunkSize2=0
-  Arraysize=3
   DO WHILE (i .LE. chunkSize)
     DO
       CALL RANDOM_NUMBER(RandVal)
@@ -1830,7 +1837,7 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
     Particle_pos(1) = Particle_pos(1) + Species(FractNbr)%Init(iInit)%BasePointIC(1)
     Particle_pos(2) = Particle_pos(2) + Species(FractNbr)%Init(iInit)%BasePointIC(2)
     Particle_pos(3) = Species(FractNbr)%Init(iInit)%BasePointIC(3)
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1864,7 +1871,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3),radius
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: lineVector(3),lineVector2(3)
 LOGICAL                 :: ARM_Gauss
 REAL                    :: RandVal(2),RandVal1
@@ -1876,7 +1883,6 @@ lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
 
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
   ARM_Gauss = .TRUE.
@@ -1901,7 +1907,7 @@ DO WHILE (i .LE. chunkSize)
   CALL RANDOM_NUMBER(RandVal1)
   Particle_pos = Particle_pos &
       + Species(FractNbr)%Init(iInit)%NormalIC * Species(FractNbr)%Init(iInit)%CylinderHeightIC * RandVal1
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -1935,7 +1941,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3)
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: RandVal(2),RandVal1
 REAL                    :: R3,R4,a,b
 LOGICAL                 :: PartAccepted
@@ -1949,7 +1955,6 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
   a = R**2-b
   i=1
   chunkSize2=0
-  Arraysize=3
   DO WHILE (i .LE. chunkSize)
     DO
       CALL RANDOM_NUMBER(RandVal)
@@ -1979,7 +1984,7 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
     Particle_pos(3) = Particle_pos(1) + Species(FractNbr)%Init(iInit)%BasePointIC(1)
     Particle_pos(2) = Particle_pos(2) + Species(FractNbr)%Init(iInit)%BasePointIC(2)
     Particle_pos(1) = Particle_pos(3) + Species(FractNbr)%Init(iInit)%BasePointIC(3)
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -2012,7 +2017,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: RandVal(3)
 REAL                    :: Particle_pos(3)
 LOGICAL                 :: PartAccepted
@@ -2024,11 +2029,10 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
           h  => Species(FractNbr)%Init(iInit)%CuboidHeightIC )
   i=1
   chunkSize2=0
-  Arraysize=3
   DO WHILE (i .LE. chunkSize)
     CALL RANDOM_NUMBER(RandVal)
     Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3 + RandVal(3)*(/0.,0.,h/) + O
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -2192,7 +2196,7 @@ INTEGER, INTENT(INOUT)  :: chunkSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: RandVal(2)
 REAL                    :: Particle_pos(3)
 LOGICAL                 :: PartAccepted
@@ -2207,7 +2211,6 @@ END IF
 IF(mode.EQ.1)THEN!Create new position and store them
   i=1
   chunkSize2=0
-  Arraysize=3
   DO WHILE (i .LE. chunkSize)
     CALL RANDOM_NUMBER(RandVal)
       ASSOCIATE( x2 => 1.0e-2                           ,& ! m
@@ -2218,7 +2221,7 @@ IF(mode.EQ.1)THEN!Create new position and store them
       Particle_pos(2) = RandVal(2) * Ly
       Particle_pos(3) = z
     END ASSOCIATE
-    CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+    CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
       chunkSize2=chunkSize2+1
       particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -2261,14 +2264,13 @@ INTEGER, INTENT(INOUT)     :: chunkSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: RandVal
 REAL                    :: Particle_pos(3)
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   CALL RANDOM_NUMBER(RandVal)
   ASSOCIATE( Ly => 1.28e-2                          ,& ! m
@@ -2277,7 +2279,7 @@ DO WHILE (i .LE. chunkSize)
     Particle_pos(2) = RandVal * Ly
     Particle_pos(3) = z
   END ASSOCIATE
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -2309,14 +2311,13 @@ INTEGER, INTENT(INOUT)     :: chunkSize
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i, chunkSize2,ArraySize
+INTEGER                 :: i, chunkSize2
 REAL                    :: RandVal
 REAL                    :: Particle_pos(3)
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 i=1
 chunkSize2=0
-Arraysize=3
 DO WHILE (i .LE. chunkSize)
   CALL RANDOM_NUMBER(RandVal)
   ASSOCIATE( Ly => 14.0e-3                          ,& ! m
@@ -2325,7 +2326,7 @@ DO WHILE (i .LE. chunkSize)
     Particle_pos(2) = RandVal * Ly + 21.5e-3
     Particle_pos(3) = z
   END ASSOCIATE
-  CALL ApplySymmetryAndWeighting(FractNbr,Arraysize,chunkSize2,Particle_pos,PartAccepted)
+  CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
     particle_positions((chunkSize2)*3-2) = Particle_pos(1)
@@ -2508,10 +2509,10 @@ END SUBROUTINE CountNeutralizationParticles
 !===================================================================================================================================
 !> Calculates Symmetry Position, may withdraw the particle by weighting, and increases particle_positions array if necessary
 !===================================================================================================================================
-SUBROUTINE ApplySymmetryAndWeighting(iSpec,particle_positions_size,chunkSize2,Particle_pos,ParticleAccepted)
+SUBROUTINE ApplySymmetryAndWeighting(iSpec,chunkSize2,Particle_pos,ParticleAccepted)
 ! MODULES
 USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions, particle_positions_size
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting
@@ -2520,7 +2521,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 INTEGER, INTENT(IN)     :: iSpec
-INTEGER, INTENT(INOUT)  :: particle_positions_size, chunkSize2
+INTEGER, INTENT(INOUT)  :: chunkSize2
 REAL, INTENT(INOUT)     :: Particle_pos(3)
 LOGICAL,INTENT(OUT)     :: ParticleAccepted
 !-----------------------------------------------------------------------------------------------------------------------------------

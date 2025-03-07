@@ -269,7 +269,7 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Part_Tools             ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
 USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
-USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions, particle_positions_size
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
@@ -341,20 +341,15 @@ END SELECT
 IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
   ! Allocate part pos buffer
-  IF(ParticleWeighting%PerformCloning.AND.chunkSize.GT.100) THEN
+  IF(ParticleWeighting%PerformCloning.AND.chunkSize.GT.100.AND.&
+     .NOT.(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_Liu2010_neutralization_Szabo'&
+     .OR.TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization_Szabo')) THEN
     ! particle_positions will be increased in size if necessary
-    SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
-    CASE('point','line_with_equidistant_distribution','line','disc','circle','circle_equidistant','gyrotron_circle','cuboid'&
-        ,'cylinder','sphere','photon_SEE_disc','photon_SEE_rectangle','photon_SEE_honeycomb','photon_cylinder','photon_rectangle'&
-        ,'photon_honeycomb')
-      ALLOCATE( particle_positions(1:100*DimSend), STAT=allocStat )
-    CASE('sin_deviation','cos_distribution','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'&
-        ,'2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
-      ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
-    END SELECT
+    particle_positions_size = 100*DimSend
   ELSE
-    ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
+    particle_positions_size = chunkSize*DimSend
   END IF
+  ALLOCATE( particle_positions(1:particle_positions_size), STAT=allocStat )
   IF (allocStat .NE. 0) &
     CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
   ! Sanity check
@@ -379,9 +374,9 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   CASE('sphere')
     CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize)
   CASE('sin_deviation')
-    CALL SetParticlePositionSinDeviation(FractNbr,iInit)
+    CALL SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize)
   CASE('cos_distribution')
-    CALL SetParticlePositionCosDistribution(FractNbr,iInit)
+    CALL SetParticlePositionCosDistribution(FractNbr,iInit,chunkSize)
   CASE('photon_SEE_disc') ! disc case for surface distribution
     CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize)
   CASE('photon_SEE_rectangle') ! rectangle case for surface distribution
