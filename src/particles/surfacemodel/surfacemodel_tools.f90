@@ -512,6 +512,7 @@ USE MOD_Globals_Vars              ,ONLY: eV2Joule
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
 USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState,PartSpecies
+USE MOD_Particle_Vars             ,ONLY: InterPlanePartNumber, InterPlanePartIndx, PDM
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample, StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars    ,ONLY: Partbound, GlobalSide2SurfSide, DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
@@ -519,6 +520,9 @@ USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcEnergyViolationSEE
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff
+USE MOD_Particle_Vars             ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
+USE MOD_TimeDisc_Vars             ,ONLY: dt,RKdtFrac
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -536,8 +540,9 @@ CHARACTER(LEN=*),INTENT(IN)  :: EnergyDistribution !< energy distribution model 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iNewPart, NewPartID, locBCID, SurfSideID, SEEBCID
-REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3),NewPos(1:3),MPF
+REAL               :: tang1(1:3), tang2(1:3), WallVelo(1:3), WallTemp, NewVelo(3), BoundsOfElemCenter(1:3), MPF
 REAL               :: ImpactEnergy, EnergySumSEE
+REAL               :: dtVar
 REAL,PARAMETER     :: eps=1e-6
 REAL,PARAMETER     :: eps2=1.0-eps
 !===================================================================================================================================
@@ -558,6 +563,18 @@ BoundsOfElemCenter(1:3) = (/SUM(BoundsOfElem_Shared(1:2,1,GlobalElemID)), &
                             SUM(BoundsOfElem_Shared(1:2,2,GlobalElemID)), &
                             SUM(BoundsOfElem_Shared(1:2,3,GlobalElemID)) /) / 2.
 
+! Set the time step, considering whether a variable particle time step or Runge-Kutta time discretization is used
+IF (UseVarTimeStep) THEN
+  dtVar = dt*RKdtFrac*PartTimeStep(PartID)
+ELSE
+  dtVar = dt*RKdtFrac
+END IF
+! Species-specific time step
+IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
+
+! Pushing secondaries with the "remaining" time step away from the boundary
+dtVar = dtVar * TrackInfo%alpha / TrackInfo%lengthPartTrajectory
+
 ! Create new particles
 DO iNewPart = 1, ProductSpecNbr
   ! create new particle and assign correct energies
@@ -565,15 +582,21 @@ DO iNewPart = 1, ProductSpecNbr
   NewVelo(1:3) = VeloFromDistribution(EnergyDistribution,TempErgy,iNewPart,ProductSpecNbr,locBCID)
   ! Rotate velocity vector from global coordinate system into the surface local coordinates (important: n_loc points outwards)
   NewVelo(1:3) = tang1(1:3)*NewVelo(1) + tang2(1:3)*NewVelo(2) - n_Loc(1:3)*NewVelo(3) + WallVelo(1:3)
-  ! Create new position by using POI and moving the particle by eps in the direction of the element center
-  NewPos(1:3) = eps*BoundsOfElemCenter(1:3) + eps2*POI_vec(1:3)
   ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
-  CALL CreateParticle(ProductSpec,NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+  ! Provide the POI as position to set LastPartPos
+  CALL CreateParticle(ProductSpec,POI_vec(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
   ! Adding the energy that is transferred from the surface onto the internal energies of the particle
   CALL SurfaceModelEnergyAccommodation(NewPartID,locBCID,WallTemp)
   ! Sampling of newly created particles
   IF((DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)) &
     CALL CalcWallSample(NewPartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  ! Add newly created particles to the list of particles to track
+  InterPlanePartNumber = InterPlanePartNumber + 1
+  InterPlanePartIndx(InterPlanePartNumber) = NewPartID
+  ! Avoid tracking particle within the regular loop
+  PDM%ParticleInside(NewPartID) = .FALSE.
+  ! Push particle with the remaining timestep, LastPartPos was set to POI in CreateParticle
+  PartState(1:3,NewPartID) = POI_vec(1:3) + NewVelo(1:3) * dtVar
   ! Store the particle information in PartStateBoundary.h5
   IF(DoBoundaryParticleOutputHDF5) THEN
     IF(usevMPF)THEN

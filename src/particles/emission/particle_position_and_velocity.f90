@@ -689,15 +689,12 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
-USE MOD_Basis                  ,ONLY: BarycentricWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Equation               ,ONLY: ExactFunc
 USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 !----------------------------------------------------------------------------------------------------------------------------------

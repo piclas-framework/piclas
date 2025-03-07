@@ -215,6 +215,7 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species, usevMPF
+USE MOD_Particle_Vars          ,ONLY: InterPlanePartIndx, PDM
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,DoVirtualDielectricLayer
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
@@ -248,8 +249,9 @@ REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf,hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE,AnyBoundaryUsesSEE
 INTEGER               :: iInit,iSpec
+INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -387,6 +389,7 @@ PartMeshHasPeriodicBCs= .FALSE.
 PartBound%UseRotPeriodicBC     = .FALSE.
 nRotPeriodicBCs       = 0
 PartBound%UseInterPlaneBC      = .FALSE.
+AnyBoundaryUsesSEE    = .FALSE.
 
 ! Read-in flag for output of boundary-related data in a csv for regression testing
 PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
@@ -517,6 +520,7 @@ DO iPartBound=1,nPartBound
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
         BoundaryUsesSEE = .TRUE.
+        AnyBoundaryUsesSEE = .TRUE.
       CASE (VDL_MODEL_ID) ! VDL - cannot be actively selected! See ./src/piclas.h for numbers
         CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = VDL_MODEL_ID,SEE_VDL_MODEL_ID cannot be selected!')
       CASE DEFAULT
@@ -704,6 +708,12 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   ! Read-in array
   CALL ReadArray(TRIM(dsetname),2,INT(HSize,IK),0_IK,1,RealArray=StickingCoefficientData)
   CALL CloseDataFile()
+END IF
+
+IF(AnyBoundaryUsesSEE) THEN
+  ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: Cannot allocate InterPlanePartIndx array!')
+  InterPlanePartIndx = 0
 END IF
 
 !-- Sanity check: Mesh requires specific boundary conditions for 1D/2D/axisymmetric simulations
@@ -2154,9 +2164,11 @@ INTEGER                           :: ALLOCSTAT
 LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
 !===================================================================================================================================
 
-ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
-InterPlanePartIndx = 0
+IF(.NOT.ALLOCATED(InterPlanePartIndx)) THEN
+  ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+  InterPlanePartIndx = 0
+END IF
 
 HasInterPlaneOnProc = .FALSE.
 

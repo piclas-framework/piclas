@@ -30,7 +30,6 @@ KSP             :: ksp
 PetscInt        :: n, i, j, Ii, Jj
 PetscScalar     :: v, one, neg_one
 PetscReal       :: norm, tol
-PetscViewer     :: viewer
 !==================================================================================================================================
 
 n = 3  ! Size of the linear system
