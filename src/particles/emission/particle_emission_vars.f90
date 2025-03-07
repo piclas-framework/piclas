@@ -137,5 +137,6 @@ INTEGER              :: EmissionDistributionNum(1:3)  !< Number of points in x, 
 REAL                 :: EmissionDistributionMin(1:3)  !< Minimum values in x,y,z
 REAL                 :: EmissionDistributionMax(1:3)  !< Maximum values in x,y,z
 REAL                 :: EmissionDistributionDelta(1:3)!< equidistant z-spacing for the VariableExternalField (fast computation)
+REAL,ALLOCATABLE     :: particle_positions(:)         !< Particle positions for the emission distribution needed as global for ChangeArraySize
 !===================================================================================================================================
 END MODULE MOD_Particle_Emission_Vars

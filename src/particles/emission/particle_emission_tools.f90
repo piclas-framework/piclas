@@ -799,12 +799,13 @@ END DO
 END SUBROUTINE SamplePoissonDistri
 
 
-SUBROUTINE SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionPoint(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -813,7 +814,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3)
@@ -828,12 +828,13 @@ END DO
 END SUBROUTINE SetParticlePositionPoint
 
 
-SUBROUTINE SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -842,7 +843,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), VectorGap(3)
@@ -862,12 +862,13 @@ INTEGER                 :: i
 END SUBROUTINE SetParticlePositionEquidistLine
 
 
-SUBROUTINE SetParticlePositionLine(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionLine(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -876,7 +877,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan
@@ -892,13 +892,14 @@ INTEGER                 :: i
 END SUBROUTINE SetParticlePositionLine
 
 
-SUBROUTINE SetParticlePositionDisk(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionDisk(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -907,7 +908,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), RandVec(2), lineVector(3), lineVector2(3), radius
@@ -937,7 +937,7 @@ INTEGER                 :: i
 END SUBROUTINE SetParticlePositionDisk
 
 
-SUBROUTINE SetParticlePositionCircle(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionCircle(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -945,6 +945,7 @@ SUBROUTINE SetParticlePositionCircle(FractNbr,iInit,chunkSize,particle_positions
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_SuperB_Tools           ,ONLY: FindLinIndependentVectors, GramSchmidtAlgo
 USE MOD_Globals_Vars           ,ONLY: Pi
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -953,7 +954,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan, lineVector(3), lineVector2(3), radius, Phi
@@ -979,7 +979,7 @@ INTEGER                 :: i
 END SUBROUTINE SetParticlePositionCircle
 
 
-SUBROUTINE SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -992,6 +992,7 @@ USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac, dt
 USE MOD_PICInterpolation_vars  ,ONLY: useVariableExternalField, VariableExternalField
 USE MOD_PICInterpolation_tools ,ONLY: InterpolateVariableExternalField1D
 USE MOD_Globals_Vars           ,ONLY: c_inv
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1000,7 +1001,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan, lineVector(3), lineVector2(3), radius, Phi, n(3), radius_vec(3)
@@ -1071,7 +1071,7 @@ END DO
 END SUBROUTINE SetParticlePositionGyrotronCircle
 
 
-SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1081,6 +1081,8 @@ USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting
+USE MOD_Array_Operations       ,ONLY: ChangeSizeArray
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
@@ -1088,14 +1090,13 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)     :: FractNbr, iInit
+INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, INTENT(INOUT)  :: chunkSize
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), RandVal(3), lineVector(3), radius, VarWeightMPF, iRan
-INTEGER                 :: i, chunkSize2
+INTEGER                 :: i, chunkSize2,ArraySize
 !===================================================================================================================================
   ! Calculate the cross-product vector from the two base vectors to get the perpendicular direction
   ASSOCIATE(v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC ,&
@@ -1108,6 +1109,7 @@ INTEGER                 :: i, chunkSize2
   END ASSOCIATE
   i=1
   chunkSize2=0
+  Arraysize=3
   DO WHILE (i .LE. chunkSize)
     SELECT CASE (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
     CASE ('cuboid')
@@ -1155,6 +1157,11 @@ INTEGER                 :: i, chunkSize2
         IF(Species(FractNbr)%MacroParticleFactor/VarWeightMPF.LT.iRan) THEN
           i=i+1
           CYCLE
+        ELSE
+          IF(chunkSize2*3+3.GT.ArraySize) THEN
+            CALL ChangeSizeArray(particle_positions,ArraySize,ArraySize*2)
+            ArraySize=ArraySize*2
+          END IF
         END IF
       END IF
     END IF
@@ -1168,7 +1175,7 @@ INTEGER                 :: i, chunkSize2
 END SUBROUTINE SetParticlePositionCuboidCylinder
 
 
-SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionSphere(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1178,23 +1185,25 @@ USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Part_tools             ,ONLY: DICEUNITVECTOR, CalcPartSymmetryPos, CalcRadWeightMPF, CalcVarWeightMPF
 USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting
+USE MOD_Array_Operations       ,ONLY: ChangeSizeArray
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)     :: FractNbr, iInit
+INTEGER, INTENT(INOUT)  :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-INTEGER, INTENT(INOUT)  :: chunkSize
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3), iRan, radius, VarWeightMPF
-INTEGER                 :: i, chunkSize2
+INTEGER                 :: i, chunkSize2,ArraySize
 !===================================================================================================================================
   i=1
   chunkSize2=0
+  ArraySize=3
   DO WHILE (i .LE. chunkSize)
     CALL RANDOM_NUMBER(iRan)
     radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
@@ -1218,6 +1227,11 @@ INTEGER                 :: i, chunkSize2
         IF(Species(FractNbr)%MacroParticleFactor/VarWeightMPF.LT.iRan) THEN
           i=i+1
           CYCLE
+        ELSE
+          IF(chunkSize2*3+3.GT.ArraySize) THEN
+            CALL ChangeSizeArray(particle_positions,ArraySize,ArraySize*2)
+            ArraySize=ArraySize*2
+          END IF
         END IF
       END IF
     END IF
@@ -1231,7 +1245,7 @@ INTEGER                 :: i, chunkSize2
 END SUBROUTINE SetParticlePositionSphere
 
 
-SUBROUTINE SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
+SUBROUTINE SetParticlePositionSinDeviation(FractNbr,iInit)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1240,6 +1254,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Globals_Vars           ,ONLY: Pi
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1248,7 +1263,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: xlen, ylen, zlen, pilen, x_step, y_step, z_step, x_pos, y_pos
@@ -1286,7 +1300,7 @@ INTEGER                 :: i, iPart, j, k
 END SUBROUTINE SetParticlePositionSinDeviation
 
 
-SUBROUTINE SetParticlePositionCosDistribution(FractNbr,iInit,particle_positions)
+SUBROUTINE SetParticlePositionCosDistribution(FractNbr,iInit)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
@@ -1295,6 +1309,7 @@ USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Globals_Vars           ,ONLY: Pi
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1303,7 +1318,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: xlen, ylen, zlen, x_step, y_step, z_step, x_pos, y_pos, x_uniform
@@ -1623,13 +1637,14 @@ Vec3D = VeloVec_norm * VeloABS
 END SUBROUTINE CalcVelocity_FromWorkFuncSEE
 
 
-SUBROUTINE SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position for 'photon_SEE_disc'
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1638,7 +1653,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3),radius
@@ -1679,13 +1693,14 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonSEEDisc
 
 
-SUBROUTINE SetParticlePositionPhotonSEERectangle(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionPhotonSEERectangle(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position for 'photon_SEE_rectangle'
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1694,7 +1709,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i
@@ -1721,11 +1735,12 @@ END SUBROUTINE SetParticlePositionPhotonSEERectangle
 !> 1. Get random position in hollow circle
 !> 2. Check if the position is outside of the outer hexagon or inside of the inner hexagon and loop until the particle is positioned
 !===================================================================================================================================
-SUBROUTINE SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize)
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Vars ,ONLY: Species
-USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1734,7 +1749,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3)
@@ -1781,13 +1795,14 @@ END ASSOCIATE
 END SUBROUTINE SetParticlePositionPhotonSEEHoneycomb
 
 
-SUBROUTINE SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position for 'photon_cylinder'
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1796,7 +1811,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3),radius
@@ -1840,14 +1854,15 @@ END DO
 END SUBROUTINE SetParticlePositionPhotonCylinder
 
 
-SUBROUTINE SetParticlePositionPhotonHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionPhotonHoneycomb(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position 'photon_honeycomb'
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
-USE MOD_Globals_Vars  ,ONLY: PI
+USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1856,7 +1871,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(3)
@@ -1905,13 +1919,14 @@ END ASSOCIATE
 END SUBROUTINE SetParticlePositionPhotonHoneycomb
 
 
-SUBROUTINE SetParticlePositionPhotonRectangle(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionPhotonRectangle(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position for 'photon_rectangle'
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars          ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1920,7 +1935,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i
@@ -2072,15 +2086,16 @@ END IF ! .NOT.L
 END FUNCTION InsideQuadrilateral
 
 
-SUBROUTINE SetParticlePositionLandmark(chunkSize,particle_positions,mode)
+SUBROUTINE SetParticlePositionLandmark(chunkSize,mode)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Globals_Vars       ,ONLY: PI
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-USE MOD_Particle_Vars      ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
+USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Vars          ,ONLY: PartPosLandmark,NbrOfParticleLandmarkMax
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2089,7 +2104,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: chunkSize, mode
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i
@@ -2103,7 +2117,7 @@ IF(NbrOfParticleLandmarkMax.LT.chunkSize) THEN
 END IF
 
 IF(mode.EQ.1)THEN!Create new position and store them
-  DO i=1,chunkSize
+  DO WHILE (i .LE. chunkSize)
     CALL RANDOM_NUMBER(RandVal)
       ASSOCIATE( x2 => 1.0e-2                           ,& ! m
                  x1 => 0.25e-2                          ,& ! m
@@ -2119,7 +2133,7 @@ IF(mode.EQ.1)THEN!Create new position and store them
     END ASSOCIATE
   END DO
 ELSEIF(mode.EQ.2)THEN!Re-use previously created positions
-  DO i=1,chunkSize
+  DO WHILE (i .LE. chunkSize)
     particle_positions(i*3-2) = PartPosLandmark(1,i)
     particle_positions(i*3-1) = PartPosLandmark(2,i)
     particle_positions(i*3  ) = PartPosLandmark(3,i)
@@ -2128,13 +2142,14 @@ END IF ! mode.EQ.1
 END SUBROUTINE SetParticlePositionLandmark
 
 
-SUBROUTINE SetParticlePositionLandmarkNeutralization(chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionLandmarkNeutralization(chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2143,7 +2158,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i
@@ -2161,13 +2175,14 @@ END DO
 END SUBROUTINE SetParticlePositionLandmarkNeutralization
 
 
-SUBROUTINE SetParticlePositionLiu2010Neutralization(chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionLiu2010Neutralization(chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
-USE MOD_Particle_Mesh_Vars ,ONLY: GEO
+USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2176,7 +2191,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i
@@ -2194,7 +2208,7 @@ END DO
 END SUBROUTINE SetParticlePositionLiu2010Neutralization
 
 
-SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization(chunkSize)
 !===================================================================================================================================
 ! Create particle position at random position within one of the neutralization elements
 !===================================================================================================================================
@@ -2205,6 +2219,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared
 USE MOD_Particle_Vars          ,ONLY: isNeutralizationElem,NeutralizationBalanceElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: ParticleInsideQuad
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2213,7 +2228,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i,emittedParticles,iElem,GlobalElemID
@@ -2262,13 +2276,14 @@ END IF ! emittedParticles.NE.chunkSize
 END SUBROUTINE SetParticlePositionLiu2010SzaboNeutralization
 
 
-SUBROUTINE SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
+SUBROUTINE SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize)
 !===================================================================================================================================
 ! Set particle position
 !===================================================================================================================================
 ! modules
 USE MOD_Globals
 USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2277,7 +2292,6 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)     :: FractNbr, iInit, chunkSize
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)       :: particle_positions(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Particle_pos(2),radius
