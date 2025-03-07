@@ -341,9 +341,17 @@ END SELECT
 IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
   ! Allocate part pos buffer
-  IF(ParticleWeighting%PerformCloning.AND.(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cuboid'&
-     .OR.TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'cylinder'.OR.TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
-    ALLOCATE( particle_positions(1:DimSend), STAT=allocStat )
+  IF(ParticleWeighting%PerformCloning.AND.chunkSize.GT.100) THEN
+    ! particle_positions will be increased in size if necessary
+    SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
+    CASE('point','line_with_equidistant_distribution','line','disc','circle','circle_equidistant','gyrotron_circle','cuboid'&
+        ,'cylinder','sphere','photon_SEE_disc','photon_SEE_rectangle','photon_SEE_honeycomb','photon_cylinder','photon_rectangle'&
+        ,'photon_honeycomb')
+      ALLOCATE( particle_positions(1:100*DimSend), STAT=allocStat )
+    CASE('sin_deviation','cos_distribution','2D_landmark','2D_landmark_copy','2D_landmark_neutralization'&
+        ,'2D_Liu2010_neutralization','3D_Liu2010_neutralization','2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
+      ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
+    END SELECT
   ELSE
     ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
   END IF
@@ -392,17 +400,17 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
     IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')THEN
       FractNbrOld  = FractNbr
       chunkSizeOld = chunkSize
-      CALL SetParticlePositionLandmark(chunkSize,1)
+      CALL SetParticlePositionLandmark(FractNbr,chunkSize,1)
     ELSEIF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark_copy')THEN
-      CALL SetParticlePositionLandmark(chunkSizeOld,2)
+      CALL SetParticlePositionLandmark(FractNbr,chunkSizeOld,2)
     END IF ! TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')
   CASE('2D_landmark_neutralization')
     ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
-    CALL SetParticlePositionLandmarkNeutralization(chunkSize)
+    CALL SetParticlePositionLandmarkNeutralization(FractNbr,chunkSize)
   CASE('2D_Liu2010_neutralization')
     ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D case
-    CALL SetParticlePositionLiu2010Neutralization(chunkSize)
+    CALL SetParticlePositionLiu2010Neutralization(FractNbr,chunkSize)
   CASE('3D_Liu2010_neutralization')
     ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 3D case
     CALL SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize)
