@@ -46,7 +46,7 @@ The `Radiation-Species[$]-SpectraFileName` contains information about level ener
     5: 2Pi -> 2Pi
     6: 3Pi -> 3Pi
 
-$\sum_{i=1}^n X_i$ Next, the different energy levels are described in more detail and vibtrational and rotational constants are defined (degeneracy, T<sub>e</sub>, D<sub>0</sub>, w<sub>e</sub>, w<sub>e</sub>x<sub>e</sub>, w<sub>e</sub>y<sub>e</sub>, w<sub>e</sub>z<sub>e</sub>, B<sub>e</sub>, $\alpha$<sub>e</sub>, $\mu$, $\nu$<sub>spin</sub>, alternating factor, D<sub>e</sub>, $\beta$<sub>e</sub>, R<sub>equilibrium</sub>, A, $\Lambda$). Last, information on the transition lines are given (first number of lines, then nu<sub>upper level</sub>, nu<sub>lower level</sub>, sumre/Franck-Condon-Factor, Franck-Condon-Factor, SumRe<sup>2</sup>)
+Next, the different energy levels are described in more detail and vibtrational and rotational constants are defined (degeneracy, T<sub>e</sub>, D<sub>0</sub>, w<sub>e</sub>, w<sub>e</sub>x<sub>e</sub>, w<sub>e</sub>y<sub>e</sub>, w<sub>e</sub>z<sub>e</sub>, B<sub>e</sub>, $\alpha$<sub>e</sub>, $\mu$, $\nu$<sub>spin</sub>, alternating factor, D<sub>e</sub>, $\beta$<sub>e</sub>, R<sub>equilibrium</sub>, A, $\Lambda$). Last, information on the transition lines are given (first number of lines, then nu<sub>upper level</sub>, nu<sub>lower level</sub>, sumre/Franck-Condon-Factor, Franck-Condon-Factor, SumRe<sup>2</sup>)
 
 For convenience, the calculation of each species can be disabled with
 
