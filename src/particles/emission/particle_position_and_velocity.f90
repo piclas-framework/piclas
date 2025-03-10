@@ -471,7 +471,7 @@ Species(FractNbr)%Init(iInit)%sumOfMatchedParticles = Species(FractNbr)%Init(iIn
 ! the values for the local particles
 NbrOfParticle = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles
 
-IF (chunkSize.GT.0) THEN
+IF (ALLOCATED(particle_positions)) THEN
   DEALLOCATE(particle_positions, STAT=allocStat)
   IF (allocStat .NE. 0) CALL ABORT(__STAMP__,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
 END IF
