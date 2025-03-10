@@ -2236,7 +2236,7 @@ IF(mode.EQ.1)THEN!Create new position and store them
   END DO
   chunkSize = chunkSize2
 ELSEIF(mode.EQ.2)THEN!Re-use previously created positions
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     particle_positions(i*3-2) = PartPosLandmark(1,i)
     particle_positions(i*3-1) = PartPosLandmark(2,i)
     particle_positions(i*3  ) = PartPosLandmark(3,i)
