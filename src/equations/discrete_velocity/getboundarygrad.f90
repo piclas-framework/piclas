@@ -171,9 +171,9 @@ CASE(14) ! diffusive order 1
   MacroVal(:) = RefState(:,BCState)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
   IF (output) THEN
-    CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,1,dt)
+    CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,1,dt)
   ELSE
-    CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,2,dt/2.)
+    CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,2,dt/2.)
   END IF
   gradU = 2.*(UPrim_master-UPrim_boundary)
 
