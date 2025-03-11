@@ -226,38 +226,34 @@ SampWallImpactNumber(SpecID,SubP,SubQ,SurfSideID) = SampWallImpactNumber(SpecID,
 END SUBROUTINE SampleImpactProperties
 
 
+!----------------------------------------------------------------------------------------------------------------------------------!
+!> Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
+!----------------------------------------------------------------------------------------------------------------------------------!
 SUBROUTINE StoreBoundaryParticleProperties(iPart,SpecID,PartPos,PartTrajectory,SurfaceNormal,iPartBound,mode,MPF_optIN,Velo_optIN)
-!----------------------------------------------------------------------------------------------------------------------------------!
-! Save particle position, velocity and species to PartDataBoundary container for writing to .h5 later
-!----------------------------------------------------------------------------------------------------------------------------------!
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,Species,PartState
-USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
+USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
 USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Array_Operations       ,ONLY: ChangeSizeArray
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 INTEGER,INTENT(IN) :: iPart
-INTEGER,INTENT(IN) :: SpecID ! The species ID is required as it might not yet be set during emission
+INTEGER,INTENT(IN) :: SpecID !> The species ID is required as it might not yet be set during emission
 REAL,INTENT(IN)    :: PartPos(1:3)
 REAL,INTENT(IN)    :: PartTrajectory(1:3)
 REAL,INTENT(IN)    :: SurfaceNormal(1:3)
-INTEGER,INTENT(IN) :: iPartBound  ! Part-BoundaryX on which the impact occurs
-INTEGER,INTENT(IN) :: mode ! 1: particle impacts on BC (species is stored as positive value)
-                           ! 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
-REAL,INTENT(IN),OPTIONAL :: MPF_optIN ! Supply the MPF in special cases
-REAL,INTENT(IN),OPTIONAL :: Velo_optIN(1:3) ! Supply the velocity in special cases
+INTEGER,INTENT(IN) :: iPartBound  !> Part-BoundaryX on which the impact occurs
+INTEGER,INTENT(IN) :: mode !> 1: particle impacts on BC (species is stored as positive value)
+                           !> 2: particles is emitted from the BC into the simulation domain (species is stored as negative value)
+REAL,INTENT(IN),OPTIONAL :: MPF_optIN !> Supply the MPF in special cases
+REAL,INTENT(IN),OPTIONAL :: Velo_optIN(1:3) !> Supply the velocity in special cases
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                 :: MPF
 INTEGER              :: dims(2)
-! Temporary arrays
-REAL, ALLOCATABLE    :: PartStateBoundary_tmp(:,:) ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle,iPartBound
-!                                                  !                 2nd index: 1 to number of boundary-crossed particles
-INTEGER              :: ALLOCSTAT
 !===================================================================================================================================
 IF(PRESENT(MPF_optIN))THEN
   MPF = MPF_optIN
@@ -275,25 +271,10 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
   ! Increase maximum number of boundary-impact particles
   iMax = iMax + 1
 
-  ! Check if array maximum is reached.
-  ! If this happens, re-allocate the arrays and increase their size (every time this barrier is reached, double the size)
+  ! Check if array maximum is reached and increase size if it does
   IF(iMax.GT.dims(2))THEN
-
-    ! --- PartStateBoundary ---
-    ALLOCATE(PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary_tmp temporary array!')
-    ! Save old data
-    PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2)) = PartStateBoundary(1:nVarPartStateBoundary,1:dims(2))
-
-    ! Re-allocate PartStateBoundary to twice the size
-    DEALLOCATE(PartStateBoundary)
-    ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:2*dims(2)), STAT=ALLOCSTAT)
-    IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-          ,'ERROR in particle_boundary_tools.f90: Cannot allocate PartStateBoundary array!')
-    PartStateBoundary(1:nVarPartStateBoundary,        1:  dims(2)) = PartStateBoundary_tmp(1:nVarPartStateBoundary,1:dims(2))
-    PartStateBoundary(1:nVarPartStateBoundary,dims(2)+1:2*dims(2)) = 0.
-
+    ! Utilizing routine using MOVE_ALLOC and increase array by 20%
+    CALL ChangeSizeArray(PartStateBoundary,dims(2),CEILING(dims(2)*1.2),0.)
   END IF
 
   PartStateBoundary(1:3,iMax) = PartPos
