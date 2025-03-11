@@ -40,9 +40,10 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SplitAndMerge()
 ! MODULES
-USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM, vMPFSplitAndMergeStep
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
+USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -60,6 +61,9 @@ INTEGER, ALLOCATABLE  :: iPartIndx_Node(:,:), nPart(:)
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+
+IF(MOD(iter,vMPFSplitAndMergeStep).NE.0) RETURN
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
