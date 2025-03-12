@@ -822,9 +822,8 @@ INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
   IF(PartAccepted) THEN
     chunkSize2=chunkSize2+1
@@ -832,7 +831,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionPoint
@@ -863,10 +861,9 @@ LOGICAL                 :: PartAccepted
 IF(chunkSize.EQ.1)THEN
     Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + 0.5 * Species(FractNbr)%Init(iInit)%BaseVector1IC
 ELSE
-  i=1
   chunkSize2=0
   VectorGap = Species(FractNbr)%Init(iInit)%BaseVector1IC/(REAL(chunkSize)-1.)
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + (i-1)*VectorGap
     CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
     IF(PartAccepted) THEN
@@ -875,7 +872,6 @@ ELSE
       particle_positions((chunkSize2)*3-1) = Particle_pos(2)
       particle_positions((chunkSize2)*3  ) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 END IF
@@ -904,9 +900,8 @@ REAL                    :: Particle_pos(3), iRan
 INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   CALL RANDOM_NUMBER(iRan)
   Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + Species(FractNbr)%Init(iInit)%BaseVector1IC*iRan
   CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
@@ -916,7 +911,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionLine
@@ -947,9 +941,8 @@ LOGICAL                 :: PartAccepted
 !===================================================================================================================================
 CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
 CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1.
   DO WHILE(radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC)
     CALL RANDOM_NUMBER(RandVec)
@@ -971,7 +964,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionDisk
@@ -1004,9 +996,8 @@ LOGICAL                 :: PartAccepted
 CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
 CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
 radius = Species(FractNbr)%Init(iInit)%RadiusIC
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'circle') THEN
     CALL RANDOM_NUMBER(iRan)
     Phi = 2.*Pi*iRan
@@ -1023,7 +1014,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionCircle
@@ -1062,9 +1052,8 @@ LOGICAL                 :: PartAccepted
 CALL FindLinIndependentVectors(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
 CALL GramSchmidtAlgo(Species(FractNbr)%Init(iInit)%NormalIC(1:3), lineVector(1:3), lineVector2(1:3))
 radius = Species(FractNbr)%Init(iInit)%RadiusIC
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   CALL RANDOM_NUMBER(iRan)
   Phi = 2.*Pi*iRan
   Particle_pos = Species(FractNbr)%Init(iInit)%BasePointIC + (linevector * COS(Phi) + linevector2 * SIN(Phi)) * radius
@@ -1123,7 +1112,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 
@@ -1164,9 +1152,8 @@ LOGICAL                 :: PartAccepted
     lineVector = UNITVECTOR(lineVector)
     IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
   END ASSOCIATE
-  i=1
   chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     SELECT CASE (TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
     CASE ('cuboid')
       CALL RANDOM_NUMBER(RandVal)
@@ -1178,7 +1165,6 @@ LOGICAL                 :: PartAccepted
         ! Debugging: Get linear distribution in y for 2D cases
         !CALL RANDOM_NUMBER(iRan)
         !IF(Particle_pos(2)/GEO%ymaxglob.GT.iRan) THEN
-        !  i=i+1
         !  CYCLE
         !END IF
     CASE ('cylinder')
@@ -1201,7 +1187,6 @@ LOGICAL                 :: PartAccepted
       particle_positions((chunkSize2)*3-1) = Particle_pos(2)
       particle_positions((chunkSize2)*3  ) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionCuboidCylinder
@@ -1231,9 +1216,8 @@ REAL                    :: Particle_pos(3), iRan, radius
 INTEGER                 :: i, chunkSize2
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
-  i=1
   chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     CALL RANDOM_NUMBER(iRan)
     radius = Species(FractNbr)%Init(iInit)%RadiusIC*iRan**(1./3.)
     Particle_pos = DICEUNITVECTOR()*radius + Species(FractNbr)%Init(iInit)%BasePointIC
@@ -1244,7 +1228,6 @@ LOGICAL                 :: PartAccepted
       particle_positions((chunkSize2)*3-1) = Particle_pos(2)
       particle_positions((chunkSize2)*3  ) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionSphere
@@ -1690,9 +1673,8 @@ LOGICAL                 :: PartAccepted
 lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
 lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
 
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
   ARM_Gauss = .TRUE.
   DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
@@ -1720,7 +1702,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionPhotonSEEDisc
@@ -1754,9 +1735,8 @@ LOGICAL                 :: PartAccepted
 ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
           v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC       ,&
           v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC       )
-  i=1
   chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     CALL RANDOM_NUMBER(RandVal)
     Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3 + O
     CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
@@ -1766,7 +1746,6 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
       particle_positions((chunkSize2)*3-1) = Particle_pos(2)
       particle_positions((chunkSize2)*3  ) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 END ASSOCIATE
@@ -1808,9 +1787,8 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
 
   b = R4**2
   a = R**2-b
-  i=1
   chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     DO
       CALL RANDOM_NUMBER(RandVal)
       ! RandVal(1): radius
@@ -1844,7 +1822,6 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
       particle_positions((chunkSize2)*3-1) = Particle_pos(2)
       particle_positions((chunkSize2)*3  ) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 END ASSOCIATE
@@ -1881,9 +1858,8 @@ LOGICAL                 :: PartAccepted
 lineVector = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector1IC(1:3))
 lineVector2 = UNITVECTOR(Species(FractNbr)%Init(iInit)%BaseVector2IC(1:3))
 
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   radius = Species(FractNbr)%Init(iInit)%RadiusIC + 1
   ARM_Gauss = .TRUE.
   DO WHILE((radius.GT.Species(FractNbr)%Init(iInit)%RadiusIC).OR.(ARM_Gauss))
@@ -1914,7 +1890,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionPhotonCylinder
@@ -1953,9 +1928,8 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
 
   b = R4**2
   a = R**2-b
-  i=1
   chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     DO
       CALL RANDOM_NUMBER(RandVal)
       ! RandVal(1): radius
@@ -1991,7 +1965,6 @@ ASSOCIATE( R  => Species(FractNbr)%Init(iInit)%RadiusIC  ,&
       particle_positions((chunkSize2)*3-1) = Particle_pos(2)
       particle_positions((chunkSize2)*3  ) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 END ASSOCIATE
@@ -2027,9 +2000,8 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
           v2 => Species(FractNbr)%Init(iInit)%BaseVector1IC       ,&
           v3 => Species(FractNbr)%Init(iInit)%BaseVector2IC       ,&
           h  => Species(FractNbr)%Init(iInit)%CuboidHeightIC )
-  i=1
   chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     CALL RANDOM_NUMBER(RandVal)
     Particle_pos(1:3) = RandVal(1)*v2 + RandVal(2)*v3 + RandVal(3)*(/0.,0.,h/) + O
     CALL ApplySymmetryAndWeighting(FractNbr,chunkSize2,Particle_pos,PartAccepted)
@@ -2039,7 +2011,6 @@ ASSOCIATE( O => Species(FractNbr)%Init(iInit)%BasePointIC         ,&
       particle_positions((chunkSize2)*3-1) = Particle_pos(2)
       particle_positions((chunkSize2)*3  ) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 END ASSOCIATE
@@ -2209,9 +2180,8 @@ IF(NbrOfParticleLandmarkMax.LT.chunkSize) THEN
 END IF
 
 IF(mode.EQ.1)THEN!Create new position and store them
-  i=1
   chunkSize2=0
-  DO WHILE (i .LE. chunkSize)
+  DO i=1,chunkSize
     CALL RANDOM_NUMBER(RandVal)
       ASSOCIATE( x2 => 1.0e-2                           ,& ! m
                  x1 => 0.25e-2                          ,& ! m
@@ -2232,7 +2202,6 @@ IF(mode.EQ.1)THEN!Create new position and store them
       PartPosLandmark(2,chunkSize2) = Particle_pos(2)
       PartPosLandmark(3,chunkSize2) = Particle_pos(3)
     END IF
-    i=i+1
   END DO
   chunkSize = chunkSize2
 ELSEIF(mode.EQ.2)THEN!Re-use previously created positions
@@ -2269,9 +2238,8 @@ REAL                    :: RandVal
 REAL                    :: Particle_pos(3)
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   CALL RANDOM_NUMBER(RandVal)
   ASSOCIATE( Ly => 1.28e-2                          ,& ! m
              z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
@@ -2286,7 +2254,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionLandmarkNeutralization
@@ -2316,9 +2283,8 @@ REAL                    :: RandVal
 REAL                    :: Particle_pos(3)
 LOGICAL                 :: PartAccepted
 !===================================================================================================================================
-i=1
 chunkSize2=0
-DO WHILE (i .LE. chunkSize)
+DO i=1,chunkSize
   CALL RANDOM_NUMBER(RandVal)
   ASSOCIATE( Ly => 14.0e-3                          ,& ! m
              z  => (GEO%zmaxglob+GEO%zminglob)/2.0 )   ! m
@@ -2333,7 +2299,6 @@ DO WHILE (i .LE. chunkSize)
     particle_positions((chunkSize2)*3-1) = Particle_pos(2)
     particle_positions((chunkSize2)*3  ) = Particle_pos(3)
   END IF
-  i=i+1
 END DO
 chunkSize = chunkSize2
 END SUBROUTINE SetParticlePositionLiu2010Neutralization
