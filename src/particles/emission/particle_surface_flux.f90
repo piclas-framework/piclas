@@ -74,7 +74,7 @@ REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), m
 REAL                        :: ndist(3), midpoint(3)
 REAL                        :: MPF
 LOGICAL                     :: AcceptPos
-REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
+REAL,ALLOCATABLE            :: particle_xis(:)!, particle_positions(:)
 INTEGER,ALLOCATABLE         :: PartInsSubSides(:,:,:)
 #if USE_LOADBALANCE
 REAL                        :: tLBStart
