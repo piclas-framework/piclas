@@ -354,6 +354,9 @@ HDGNonLinSolver = -1 ! init
 #if defined(PARTICLES)
 ! BR electron fluid model
 IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
+#if USE_PETSC
+  CALL CollectiveStop(__STAMP__,' HDG with BR electron fluid (non-linear HDG solver) is not implemented with PETSc')
+#endif /*USE_PETSC*/
   HDGNonLinSolver=GETINT('HDGNonLinSolver')
 
   IF (HDGNonLinSolver.EQ.1) THEN
@@ -439,7 +442,7 @@ CALL InitBV()
 IF(nDirichletBCsidesGlobal.EQ.0) THEN
 #else
 IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
-#endif
+#endif /*USE_PETSC*/
   SetZeroPotentialDOF = .TRUE.
 ELSE
   SetZeroPotentialDOF = .FALSE.
@@ -2161,7 +2164,6 @@ USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
 USE MOD_PICDepo_Vars           ,ONLY: PS_N
 USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound
 USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
-USE MOD_TimeDisc_Vars          ,ONLY: time
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
