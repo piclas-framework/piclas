@@ -511,6 +511,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: eV2Joule
 USE MOD_Part_Tools                ,ONLY: VeloFromDistribution
 USE MOD_part_operations           ,ONLY: CreateParticle
+USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart2
 USE MOD_Particle_Vars             ,ONLY: WriteMacroSurfaceValues,Species,usevMPF,PartMPF,PartState,PartSpecies
 USE MOD_Particle_Vars             ,ONLY: InterPlanePartNumber, InterPlanePartIndx, PDM
 USE MOD_Particle_Boundary_Tools   ,ONLY: CalcWallSample, StoreBoundaryParticleProperties
@@ -573,7 +574,7 @@ END IF
 IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(PartID))%TimeStepFactor
 
 ! Pushing secondaries with the "remaining" time step away from the boundary
-dtVar = dtVar * TrackInfo%alpha / TrackInfo%lengthPartTrajectory
+dtVar = dtVar * 0.5
 
 ! Create new particles
 DO iNewPart = 1, ProductSpecNbr
@@ -610,18 +611,18 @@ DO iNewPart = 1, ProductSpecNbr
   ! If more than one secondary electron, sum-up the energy to track energy conservation violations
   IF(CalcEnergyViolationSEE) THEN
     SEEBCID = SEE%BCIDToSEEBCID(locBCID)
+    IF(usevMPF)THEN
+      MPF = PartMPF(NewPartID)
+    ELSE
+      MPF = Species(ProductSpec)%MacroParticleFactor
+    END IF ! usevMPF
     ! Sum-up the energy of all secondaries
-    EnergySumSEE = EnergySumSEE + 0.5*Species(ProductSpec)%MassIC*DOTPRODUCT(NewVelo(1:3))
+    EnergySumSEE = EnergySumSEE + CalcEkinPart2(NewVelo(1:3),ProductSpec,MPF)
     ! Treatment at the end of the secondaries loop, energy conservation violation is only counted once per impact
     IF(iNewPart.EQ.ProductSpecNbr) THEN
-      IF(usevMPF)THEN
-        MPF = PartMPF(NewPartID)
-      ELSE
-        MPF = Species(ProductSpec)%MacroParticleFactor
-      END IF ! usevMPF
       SEE%EventCount(SEEBCID) = SEE%EventCount(SEEBCID) + MPF
       ! Calculated the resulting energy, which should have been distributed (impact energy minus work function)
-      ImpactEnergy = 0.5*Species(PartSpecies(PartID))%MassIC*DOTPRODUCT(PartState(4:6,PartID)) - SurfModSEEFitCoeff(4,locBCID)*eV2Joule
+      ImpactEnergy = TempErgy*eV2Joule
       IF(EnergySumSEE.GT.ImpactEnergy) THEN
         ! Count the violation
         SEE%EnergyConsViolationCount(SEEBCID) = SEE%EnergyConsViolationCount(SEEBCID) + MPF

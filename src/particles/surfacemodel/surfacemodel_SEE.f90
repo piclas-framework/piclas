@@ -45,7 +45,7 @@ USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,SurfModEmissionYield,
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
-USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart2
+USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart,CalcEkinPart2
 USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
 USE MOD_Part_Emission_Tools       ,ONLY: SamplePoissonDistri
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -89,7 +89,7 @@ CASE(3) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
     ! Incident electron energy [eV]
-    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV
+    eps_e = CalcEkinPart(PartID_IN)*Joule2eV
     ! Calculate probability only when energy is sufficient
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Square Fit
@@ -124,7 +124,7 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
     ! Incident electron energy [eV]
-    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV
+    eps_e = CalcEkinPart(PartID_IN)*Joule2eV
     ! Calculate probability only when energy is sufficient
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Power Fit
@@ -416,7 +416,7 @@ CASE(12) ! 12: SEE-E by Seiler, H. (1983). Journal of Applied Physics, 54(11). h
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
     ! Incident electron energy in [eV]
-    eps_e = 0.5*Species(SpecID)%MassIC*velo2*Joule2eV
+    eps_e = CalcEkinPart(PartID_IN)*Joule2eV
     ! Calculate probability only when energy is sufficient
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Yield function
