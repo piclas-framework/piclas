@@ -617,7 +617,7 @@ DO iNewPart = 1, ProductSpecNbr
       MPF = Species(ProductSpec)%MacroParticleFactor
     END IF ! usevMPF
     ! Sum-up the energy of all secondaries
-    EnergySumSEE = EnergySumSEE + CalcEkinPart2(NewVelo(1:3),ProductSpec,MPF)
+    EnergySumSEE = EnergySumSEE + CalcEkinPart2(NewVelo(1:3),ProductSpec,1.)
     ! Treatment at the end of the secondaries loop, energy conservation violation is only counted once per impact
     IF(iNewPart.EQ.ProductSpecNbr) THEN
       SEE%EventCount(SEEBCID) = SEE%EventCount(SEEBCID) + MPF

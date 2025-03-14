@@ -37,7 +37,7 @@ SUBROUTINE SecondaryElectronEmissionYield(PartID_IN,locBCID,ProductSpec,ProductS
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals                   ,ONLY: abort,PARTISELECTRON,DOTPRODUCT
-USE MOD_Globals_Vars              ,ONLY: c,c2,Joule2eV,eV2Joule
+USE MOD_Globals_Vars              ,ONLY: c,c2,Joule2eV,eV2Joule,c2_inv, RelativisticLimit
 USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,nSpecies
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: BulkElectronTempSEE
@@ -82,14 +82,20 @@ ProductSpec(1) = -SpecID
 ProductSpec(2) = 0
 ProductSpecNbr = 0
 TempErgy       = 0.0
+
+! Incident electron energy [eV]
+IF (velo2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
+  eps_e = 0.5 * Species(SpecID)%MassIC * velo2 *Joule2eV
+ELSE
+  eps_e=(1.0/SQRT(1.-velo2*c2_inv)-1.0)*Species(SpecID)%MassIC*c2 *Joule2eV
+END IF
+
 ! Select particle surface modeling
 SELECT CASE(PartBound%SurfaceModel(locBCID))
 CASE(3) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Incident electron energy [eV]
-    eps_e = CalcEkinPart(PartID_IN)*Joule2eV
     ! Calculate probability only when energy is sufficient
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Square Fit
@@ -123,8 +129,6 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Incident electron energy [eV]
-    eps_e = CalcEkinPart(PartID_IN)*Joule2eV
     ! Calculate probability only when energy is sufficient
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Power Fit
@@ -171,8 +175,6 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
             eps_0          => 150  ,& ! eV
             mass           => Species(SpecID)%MassIC &! mass of bombarding particle
             )
-        ! Electron energy in [eV]
-        eps_e = 0.5*mass*velo2/ElementaryCharge
         ! Calculate the electron impact coefficient
         IF(eps_e.LE.5)THEN ! Electron energy <= 5 eV
           k_ee = 0.
@@ -298,7 +300,6 @@ CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three d
       ASSOCIATE( P0   => 0.9               ,& ! Assumption in paper
                  Te0  => BulkElectronTempSEE  ,& ! Assumed bulk electron temperature [eV] (note this parameter is read as [K])
                  mass => Species(SpecID)%MassIC  ) ! mass of bombarding particle
-        eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
         ASSOCIATE( alpha0 => 1.5*Te0 ,& ! Energy normalization parameter
                    alpha2 => 6.0*Te0  ) ! Energy normalization parameter
           W0 = P0*EXP(-(eps_e/alpha0)**2)
@@ -353,8 +354,6 @@ CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is conside
     RETURN ! nothing to do
   ELSEIF(Species(SpecID)%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
     ASSOCIATE (mass  => Species(SpecID)%MassIC )! mass of bombarding particle
-      ! Electron energy in [eV]
-      eps_e = 0.5*mass*velo2/ElementaryCharge
       IF(eps_e.LT.700) THEN
         SEE_Prob = 0.09*(eps_e/700.0)**0.05
       ELSE
@@ -378,16 +377,10 @@ CASE(11) ! 11: SEE-E by e- on quartz (SiO2) by A. Dunaevsky, "Secondary electron
   ProductSpecNbr = 0 ! do not create new particle (default value)
 
   IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
-    ASSOCIATE (mass  => Species(SpecID)%MassIC )! mass of bombarding particle
-      ! Electron energy in [eV]
-      eps_e = 0.5*mass*velo2*Joule2eV ! Incident electron energy [eV]
-
-      ! Linear Fit
-      SEE_Prob = 0.8 + 0.2 * eps_e/35.0
-      ! Power Fit
-      !SEE_Prob = (eps_e/30.0)**0.26
-
-    END ASSOCIATE
+    ! Linear Fit
+    SEE_Prob = 0.8 + 0.2 * eps_e/35.0
+    ! Power Fit
+    !SEE_Prob = (eps_e/30.0)**0.26
     ! If the yield is greater than 1.0 (or 2.0 or even higher) store the integer and roll the dice for the remainder
     ProductSpecNbr = INT(SEE_Prob)
     SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
@@ -415,8 +408,6 @@ CASE(12) ! 12: SEE-E by Seiler, H. (1983). Journal of Applied Physics, 54(11). h
   ProductSpecNbr = 0 ! do not create new particle (default value)
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Incident electron energy in [eV]
-    eps_e = CalcEkinPart(PartID_IN)*Joule2eV
     ! Calculate probability only when energy is sufficient
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
       ! Yield function
