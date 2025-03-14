@@ -169,7 +169,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-    IF(Species(PartSpecies(iPart))%InterID.NE.100) THEN
+    IF(Species(PartSpecies(iPart))%InterID.NE.100.AND..NOT.PRESENT(IsInterPlanePart)) THEN
       ! Regular species
       ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
       CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)
