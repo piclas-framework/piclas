@@ -520,7 +520,7 @@ USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcEnergyViolationSEE
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff, ImpactWeight
 USE MOD_Particle_Vars             ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars             ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
@@ -617,12 +617,12 @@ DO iNewPart = 1, ProductSpecNbr
       MPF = Species(ProductSpec)%MacroParticleFactor
     END IF ! usevMPF
     ! Sum-up the energy of all secondaries
-    EnergySumSEE = EnergySumSEE + CalcEkinPart2(NewVelo(1:3),ProductSpec,1.)
+    EnergySumSEE = EnergySumSEE + CalcEkinPart2(NewVelo(1:3),ProductSpec,MPF)
     ! Treatment at the end of the secondaries loop, energy conservation violation is only counted once per impact
     IF(iNewPart.EQ.ProductSpecNbr) THEN
       SEE%EventCount(SEEBCID) = SEE%EventCount(SEEBCID) + MPF
       ! Calculated the resulting energy, which should have been distributed (impact energy minus work function)
-      ImpactEnergy = TempErgy*eV2Joule
+      ImpactEnergy = TempErgy*eV2Joule*ImpactWeight
       IF(EnergySumSEE.GT.ImpactEnergy) THEN
         ! Count the violation
         SEE%EnergyConsViolationCount(SEEBCID) = SEE%EnergyConsViolationCount(SEEBCID) + MPF

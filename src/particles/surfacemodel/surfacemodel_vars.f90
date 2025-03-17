@@ -34,7 +34,8 @@ INTEGER , ALLOCATABLE            :: SurfModResultSpec(:,:)          ! Resulting 
 CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy distribution of the reflected/created particle(s)
 REAL , ALLOCATABLE               :: SurfModEmissionEnergy(:)        ! Energy of emitted particle for surface emission model (only available for SurfaceModel=7)
 REAL , ALLOCATABLE               :: SurfModEmissionYield(:)         ! Emission yield factor for surface emission model (only changable for SurfaceModel=7)
-REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARMfor 2nd SEE
+REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARM for 2nd SEE
+REAL                             :: ImpactWeight                    ! Weighting factor of impacting particle (stored separately as actual value might be overwritten)
 ! === Porous BC ====================================================================================================================
 INTEGER                          :: nPorousBC                       ! Number of porous BCs
 TYPE tPorousBC

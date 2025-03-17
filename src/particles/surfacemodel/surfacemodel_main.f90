@@ -34,12 +34,13 @@ CONTAINS
 !> Selection and execution of a gas-surface interaction model
 !> 0.) Initial surface pre-treatment: Porous BC and initialization of charge deposition on dielectrics
 !> 1.) Count and sample the properties BEFORE the surface interaction
-!> 2.) Perform the species swap
+!> 2.) Perform the species swap (PIC only: Deposit charges on dielectric surface when activated)
 !> 3.) Perform the selected gas-surface interaction, currently implemented models:
-!           0: Maxwell Scattering
-!          20: Adsorption or Eley-Rideal reaction
-!       5/6/7/8/9/10/11: Secondary Electron Emission
-!> 4.) PIC ONLY: Deposit charges on dielectric surface (when activated), if these were removed/changed in SpeciesSwap or SurfaceModel
+!                     0: Maxwell Scattering
+!                    20: Adsorption or Eley-Rideal reaction
+!         SEE_MODELS_ID: Secondary Electron Emission
+!          VDL_MODEL_ID: Virtual dielectric layer
+!> 4.) PIC ONLY: Deposit charges on dielectric/VDL surface (when activated), if these were removed/changed in SurfaceModel
 !> 5.) Count and sample the properties AFTER the surface interaction
 !===================================================================================================================================
 SUBROUTINE SurfaceModelling(PartID,SideID,GlobalElemID,n_Loc)
@@ -52,7 +53,7 @@ USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution, ImpactWeight
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos, PEM
 USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
@@ -93,7 +94,7 @@ INTEGER            :: PartSpecImpact, locBCID, SurfSideID
 LOGICAL            :: SpecularReflectionOnly,DoSample
 REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of impact of bombarding particle
 REAL               :: ChargeRefl                      !< Charge of reflected particle
-REAL               :: MPF                             !< macro-particle factor
+REAL               :: MPF                             !< macro-particle factor (temporary)
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
 INTEGER            :: iProd,iNewPart,NewPartID,iElem
 REAL               :: NewVelo(3), NewPos(1:3)
@@ -114,13 +115,14 @@ ProductSpecNbr = 0
 
 ! Store info of impacting particle for possible surface charging
 PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
+! Storing weighting factor for energy check after emission
+IF(usevMPF)THEN
+  ImpactWeight = GetParticleWeight(PartID)
+ELSE
+  ImpactWeight = Species(PartSpecImpact)%MacroParticleFactor
+END IF ! usevMPF
 IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface charging active + dielectric surface contact
-  IF(usevMPF)THEN
-    MPF = PartMPF(PartID)
-  ELSE
-    MPF = Species(PartSpecies(PartID))%MacroParticleFactor
-  END IF ! usevMPF
-  ChargeImpact = Species(PartSpecies(PartID))%ChargeIC*MPF
+  ChargeImpact = Species(PartSpecImpact)%ChargeIC*ImpactWeight
 END IF
 !===================================================================================================================================
 ! 1.) Count and sample the properties BEFORE the surface interaction
@@ -202,18 +204,12 @@ CASE (SEE_MODELS_ID)
 
       ! Method 1: PartBound%Dielectric = T (dielectric boundary)
       IF(PartBound%Dielectric(locBCID))THEN
-        ! Get MPF
+        ! In case of vMPF: Get the weight stored in the original particle index. The MPF of the secondary corresponds to the yield*MPF
+        ! and was stored in PartMPF(PartID) during SecondaryElectronEmissionYield, while ImpactWeight still has the old weight
         IF (usevMPF) THEN
-          IF (DoRadialWeighting) THEN
-            MPF = CalcRadWeightMPF(PartPosImpact(2),ProductSpec(2))
-          ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
-            iElem = PEM%LocalElemID(PartID)
-            MPF = CalcVarWeightMPF(PartPosImpact(:),iElem)
-          ELSE
-            MPF = Species(ProductSpec(2))%MacroParticleFactor
-          END IF
+          MPF = PartMPF(PartID)
         ELSE
-            MPF = Species(ProductSpec(2))%MacroParticleFactor
+          MPF = Species(ProductSpec(2))%MacroParticleFactor
         END IF ! usevMPF
         ! Calculate the opposite charge
         ChargeHole = -Species(ProductSpec(2))%ChargeIC*MPF
@@ -279,7 +275,7 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge) THEN ! Surface charging active
   IF(PartBound%Dielectric(locBCID))THEN
     ! Check what happened to the impacting particle
     IF(.NOT.PDM%ParticleInside(PartID))THEN
-      ! Particle was deleted on surface contact: deposit impacting charge
+      ! Default case for SEE: Particle was deleted on surface contact -> deposit impacting charge
       CALL DepositParticleOnNodes(ChargeImpact, PartPosImpact, GlobalElemID)
     ELSEIF(PDM%ParticleInside(PartID))THEN
       ! Sanity check
@@ -288,13 +284,8 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge) THEN ! Surface charging active
         IPWRITE (*,*) "global ElemID :", GlobalElemID
         CALL abort(__STAMP__,'SurfaceModel() -> DepositParticleOnNodes(): Negative PartSpecies')
       END IF
-      ! Particle may have been swapped: check difference in charge
-      IF(usevMPF)THEN
-        MPF = PartMPF(PartID)
-      ELSE
-        MPF = Species(PartSpecies(PartID))%MacroParticleFactor
-      END IF ! usevMPF
-      ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*MPF
+      ! Particle species may have been swapped: check difference in charge under the assumption that the weight remains the same
+      ChargeRefl = Species(PartSpecies(PartID))%ChargeIC*ImpactWeight
       ! Calculate the charge difference between the impacting and reflecting particle
       CALL DepositParticleOnNodes(ChargeImpact-ChargeRefl, PartPosImpact, GlobalElemID)
     END IF ! .NOT.PDM%ParticleInside(PartID)
@@ -310,9 +301,10 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge) THEN ! Surface charging active
       NewVelo(1:3) = 0.0
       ! Create new position by using POI
       NewPos(1:3) = PartPosImpact(1:3)
-      ! Create new particle: in case of vMPF or VarTimeStep, new particle inherits the values of the old particle
+      ! Create new particle: use the stored impact MPF, since the weighting of the old particle might have been used to store the new MPF for
+      ! the secondaries. In case of VarTimeStep, new particle inherits the values of the old particle (but should not be relevant for VDL)
       ! Routine sets PartState and LastPartPos to the given position (in this case the POI)
-      CALL CreateParticle(ABS(ProductSpec(1)),NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID)
+      CALL CreateParticle(ABS(ProductSpec(1)),NewPos(1:3),GlobalElemID,GlobalElemID,NewVelo(1:3),0.,0.,0.,OldPartID=PartID,NewPartID=NewPartID,NewMPF=ImpactWeight)
       ! This routines moves the particle away from the boundary using LastPartPos as the starting point and changes the species index
       ! and before the particle is deposited and removed, the species index cannot be used anymore
       CALL VirtualDielectricLayerDisplacement(NewPartID,SideID,n_Loc)

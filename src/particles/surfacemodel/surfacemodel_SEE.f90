@@ -48,6 +48,7 @@ USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
 USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart,CalcEkinPart2
 USE MOD_PARTICLE_Vars             ,ONLY: usevMPF
 USE MOD_Part_Emission_Tools       ,ONLY: SamplePoissonDistri
+USE MOD_part_tools                ,ONLY: GetParticleWeight
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -70,7 +71,7 @@ REAL              :: k_refl ! Coefficient for reflection of bombarding electron
 REAL              :: W0,W1,W2
 REAL              :: velo2
 REAL              :: MPF
-REAL              :: SEE_Prob
+REAL              :: SEEYield
 !===================================================================================================================================
 SpecID = PartSpecies(PartID_IN)
 ! Squared velocity of bombarding particle
@@ -92,64 +93,44 @@ END IF
 
 ! Select particle surface modeling
 SELECT CASE(PartBound%SurfaceModel(locBCID))
-CASE(3) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
-  ProductSpecNbr = 0 ! do not create new particle (default value)
+CASE(3,4,12) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
+             ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
+             ! 12: SEE-E by Seiler, H. (1983). Journal of Applied Physics, 54(11). https://doi.org/10.1063/1.332840
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
-    ! Calculate probability only when energy is sufficient
+    ! Material work function as the energy threshold: Calculate yield only when energy is sufficient
     IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
-      ! Square Fit
-      SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*eps_e + SurfModSEEFitCoeff(2,locBCID)*eps_e*eps_e + SurfModSEEFitCoeff(3,locBCID)
-      ! Get the number of electrons from the Poisson distribution
-      CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
-
-      ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
-      IF(ProductSpecNbr.GT.0) THEN
-        ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
-        ! Incident electron energy reduced by the material work function [eV]
-        eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
-      END IF
-
-      ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
-      SELECT CASE(SurfModEnergyDistribution(locBCID))
-      CASE('deltadistribution')
-        ! Energy in [m/s]
-        TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004')
-        ! Energy in [eV]
-        TempErgy = eps_e
-      CASE DEFAULT
-        CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
+      ! Calculate the yield
+      SELECT CASE(PartBound%SurfaceModel(locBCID))
+      CASE(3)   ! Square Fit
+        SEEYield = SurfModSEEFitCoeff(1,locBCID)*eps_e + SurfModSEEFitCoeff(2,locBCID)*eps_e*eps_e + SurfModSEEFitCoeff(3,locBCID)
+      CASE(4)   ! Power Fit
+        SEEYield = SurfModSEEFitCoeff(1,locBCID)*eps_e**SurfModSEEFitCoeff(2,locBCID) + SurfModSEEFitCoeff(3,locBCID)
+      CASE(12)  ! Yield function
+        SEEYield = SurfModSEEFitCoeff(1,locBCID)*1.11*(eps_e/SurfModSEEFitCoeff(2,locBCID))**(-0.35) &
+                   * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
       END SELECT
-    END IF
-  ELSE ! Neutral bombarding particle
-    RETURN ! nothing to do
-  END IF
-CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
-  ProductSpecNbr = 0 ! do not create new particle (default value)
-  ! Bombarding electron
-  IF(PARTISELECTRON(PartID_IN))THEN
-    ! Calculate probability only when energy is sufficient
-    IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
-      ! Power Fit
-      SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*eps_e**SurfModSEEFitCoeff(2,locBCID) + SurfModSEEFitCoeff(3,locBCID)
-      ! Get the number of electrons from the Poisson distribution
-      CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
-
-      ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
+      ! Determine the number of secondaries to be emitted
+      IF(usevMPF) THEN
+        ! Scale the weighting factor by the yield and force the insertion of a single secondary to exactly to correspond to the yield
+        ! Original particle will be deleted anyway, old weighting factor stored in ImpactWeight
+        PartMPF(PartID_IN) = SEEYield * PartMPF(PartID_IN)
+        ProductSpecNbr = 1
+      ELSE
+        ! Get the number of electrons from the Poisson distribution
+        CALL SamplePoissonDistri(SEEYield,ProductSpecNbr)
+      END IF
+      ! Subtract work function and set emitted species, if a single electron or multiple electrons are created (ProductSpecNbr>=1)
       IF(ProductSpecNbr.GT.0) THEN
         ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
         ! Incident electron energy reduced by the material work function [eV]
         eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
       END IF
-
       ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
       SELECT CASE(SurfModEnergyDistribution(locBCID))
-      CASE('deltadistribution')
-        ! Energy in [m/s]
+      CASE('deltadistribution') ! Energy in [m/s]
         TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004')
-        ! Energy in [eV]
+      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004') ! Energy in [eV]
         TempErgy = eps_e
       CASE DEFAULT
         CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
@@ -159,7 +140,7 @@ CASE(4) ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
     RETURN ! nothing to do
   END IF
 CASE(5) ! 5: SEE by Levko2015 for copper electrodes
-  !     !    by D. Levko, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
+        !    by D. Levko, Breakdown of atmospheric pressure microgaps at high excitation, J. Appl. Phys. 117, 173303 (2015)
 
   ProductSpec(1)  = SpecID ! old particle
 
@@ -232,17 +213,7 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
         ProductSpecNbr = 0 ! do not create new particle
       END IF
     ELSE ! Neutral bombarding particle
-    !  IF(iRan.LT.0.1)THEN ! SEE-N: from svn-trunk PICLas version
-    !    !ReflectionIndex = -2 ! SEE + perfect elastic scattering of the bombarding electron
-    !    ProductSpec(2)  = SurfModelResultSpec(locBCID,SpecID)  ! Species of the injected electron
-    !    ProductSpecNbr = 1
-    !  ELSE
-    !    !ReflectionIndex = -1 ! Only perfect elastic scattering of the bombarding electron
-    !    ReflectionIndex = -1 ! Removal of the bombarding neutral
-        ProductSpecNbr = 0 ! do not create new particle
-    !    WRITE (*,*) "Neutral bombarding particle =", PartID_IN
-    !    stop "stop"
-    !  END IF
+      ProductSpecNbr = 0 ! do not create new particle
     END IF
   END ASSOCIATE
 
@@ -253,9 +224,6 @@ CASE(5) ! 5: SEE by Levko2015 for copper electrodes
 CASE(6) ! 6: SEE by Pagonakis2016 (originally from Harrower1956)
   CALL abort(__STAMP__,'Not implemented yet')
 CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials is considered for SEE)
-  ProductSpec(1)  = -SpecID ! Negative value: Remove bombarding particle and sample
-  ProductSpecNbr = 0 ! do not create new particle (default value)
-
   IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
     RETURN ! nothing to do
   ELSEIF(Species(SpecID)%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
@@ -295,44 +263,31 @@ CASE(7) ! 7: SEE-I (bombarding electrons are removed, Ar+ on different materials
 
 CASE(8) ! 8: SEE-E (e- on dielectric materials is considered for SEE and three different outcomes)
         !    by A.I. Morozov, "Structure of Steady-State Debye Layers in a Low-Density Plasma near a Dielectric Surface", 2004
-
-    IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
-      ASSOCIATE( P0   => 0.9               ,& ! Assumption in paper
-                 Te0  => BulkElectronTempSEE  ,& ! Assumed bulk electron temperature [eV] (note this parameter is read as [K])
-                 mass => Species(SpecID)%MassIC  ) ! mass of bombarding particle
-        ASSOCIATE( alpha0 => 1.5*Te0 ,& ! Energy normalization parameter
-                   alpha2 => 6.0*Te0  ) ! Energy normalization parameter
-          W0 = P0*EXP(-(eps_e/alpha0)**2)
-          W2 = 1.0 - EXP(-(eps_e/alpha2)**2)
-          W1 = 1.0 - W2 - W0
-          CALL RANDOM_NUMBER(iRan) ! 1st random number
-          IF(iRan.GT.W0)THEN ! Remove incident electron
-            iRan = iRan - W0
-            IF(iRan.LT.W1)THEN ! 1 SEE
-              !ASSOCIATE( P10 => 1.5*W1/eps_e )
-                ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)  ! Species of the injected electron
-                ProductSpecNbr = 1 ! Create one new particle
-                ProductSpec(1) = SpecID ! Reflect old particle
-                !const          = P10 ! Store constant here for usage in VeloFromDistribution()
-              !END ASSOCIATE
-            ELSE ! 2 SEE
-              !ASSOCIATE( P20 => 3.0*W2/(eps_e**2) )
-                ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)  ! Species of the injected electron
-                ProductSpecNbr = 2 ! Create two new particles
-                ProductSpec(1) = SpecID ! Reflect old particle
-                !const          = P20 ! Store constant here for usage in VeloFromDistribution()
-              !END ASSOCIATE
-            END IF
-            TempErgy = eps_e ! electron energy
-          ELSE
-            ProductSpec(1) = -SpecID ! Negative value: Remove bombarding particle and sample
-          END IF
-        END ASSOCIATE
-      END ASSOCIATE
-    END IF
+  IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
+    ASSOCIATE(P0     => 0.9                     ,& ! Assumption in paper
+              alpha0 => 1.5*BulkElectronTempSEE ,& ! Energy normalization parameter
+              alpha2 => 6.0*BulkElectronTempSEE  ) ! Energy normalization parameter
+      W0 = P0*EXP(-(eps_e/alpha0)**2)
+      W2 = 1.0 - EXP(-(eps_e/alpha2)**2)
+      W1 = 1.0 - W2 - W0
+      CALL RANDOM_NUMBER(iRan) ! 1st random number
+      IF(iRan.GT.W0)THEN ! Remove incident electron
+        iRan = iRan - W0
+        IF(iRan.LT.W1)THEN ! 1 SEE
+          ProductSpecNbr = 1 ! Create one new particle
+        ELSE ! 2 SEE
+          ProductSpecNbr = 2 ! Create two new particles
+        END IF
+        ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)  ! Species of the injected electron
+        ProductSpec(1) = SpecID ! Reflect old particle
+        TempErgy = eps_e ! electron energy
+      ELSE
+        ProductSpec(1) = -SpecID ! Negative value: Remove bombarding particle and sample
+      END IF
+    END ASSOCIATE
+  END IF
 
 CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixed SEE electron energy of 6.8 eV
-  ProductSpec(1)  = -SpecID ! Negative value: Remove bombarding particle and sample
   IF(Species(SpecID)%ChargeIC.GT.0.0)THEN ! Bombarding positive ion
     CALL RANDOM_NUMBER(iRan) ! 1st random number
     ASSOCIATE( eps_e => 6.8 )! Ejected electron energy [eV]
@@ -347,21 +302,18 @@ CASE(9) ! 9: SEE-I when Ar^+ ion bombards surface with 0.01 probability and fixe
 CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
          !     by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021
          !     Plasmas 28, 063513, doi: 10.1063/5.0051095
-  ProductSpec(1)  = -SpecID ! Negative value: Remove bombarding particle and sample
-  ProductSpecNbr = 0 ! do not create new particle (default value)
-
   IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
     RETURN ! nothing to do
   ELSEIF(Species(SpecID)%ChargeIC.GT.0.0)THEN ! Positive bombarding ion
     ASSOCIATE (mass  => Species(SpecID)%MassIC )! mass of bombarding particle
       IF(eps_e.LT.700) THEN
-        SEE_Prob = 0.09*(eps_e/700.0)**0.05
+        SEEYield = 0.09*(eps_e/700.0)**0.05
       ELSE
-        SEE_Prob = 0.09*(eps_e/700.0)**0.72
+        SEEYield = 0.09*(eps_e/700.0)**0.72
       END IF
     END ASSOCIATE
     CALL RANDOM_NUMBER(iRan)
-    IF(iRan.LT.SEE_Prob)THEN
+    IF(iRan.LT.SEEYield)THEN
       ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)  ! Species of the injected electron
       ProductSpecNbr = 1 ! Create one new particle
       TempErgy       = 0.0 ! emit electrons with zero velocity
@@ -373,21 +325,18 @@ CASE(10) ! 10: SEE-I (bombarding electrons are removed, Ar+ on copper is conside
 CASE(11) ! 11: SEE-E by e- on quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall
          !     thruster with segmented electrodes", 2003
          !     PHYSICS OF PLASMAS, VOLUME 10, NUMBER 6, DOI: 10.1063/1.1568344
-  ProductSpec(1)  = -SpecID ! Negative value: Remove bombarding particle and sample
-  ProductSpecNbr = 0 ! do not create new particle (default value)
-
   IF(PARTISELECTRON(PartID_IN))THEN ! Bombarding electron
     ! Linear Fit
-    SEE_Prob = 0.8 + 0.2 * eps_e/35.0
+    SEEYield = 0.8 + 0.2 * eps_e/35.0
     ! Power Fit
-    !SEE_Prob = (eps_e/30.0)**0.26
+    !SEEYield = (eps_e/30.0)**0.26
     ! If the yield is greater than 1.0 (or 2.0 or even higher) store the integer and roll the dice for the remainder
-    ProductSpecNbr = INT(SEE_Prob)
-    SEE_Prob = SEE_Prob - REAL(ProductSpecNbr)
+    ProductSpecNbr = INT(SEEYield)
+    SEEYield = SEEYield - REAL(ProductSpecNbr)
 
     ! Roll the dice
     CALL RANDOM_NUMBER(iRan)
-    IF(iRan.LT.SEE_Prob) ProductSpecNbr = ProductSpecNbr + 1 ! Create one additional electron
+    IF(iRan.LT.SEEYield) ProductSpecNbr = ProductSpecNbr + 1 ! Create one additional electron
 
     ! If the electron is reflected (ProductSpecNbr=1) or multiple electrons are created (ProductSpecNbr>1)
     IF(ProductSpecNbr.GT.0) ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)  ! Species of the injected electron
@@ -403,39 +352,6 @@ CASE(11) ! 11: SEE-E by e- on quartz (SiO2) by A. Dunaevsky, "Secondary electron
   ELSE ! Neutral bombarding particle
     RETURN ! nothing to do
   END IF
-
-CASE(12) ! 12: SEE-E by Seiler, H. (1983). Journal of Applied Physics, 54(11). https://doi.org/10.1063/1.332840
-  ProductSpecNbr = 0 ! do not create new particle (default value)
-  ! Bombarding electron
-  IF(PARTISELECTRON(PartID_IN))THEN
-    ! Calculate probability only when energy is sufficient
-    IF(eps_e.GT.SurfModSEEFitCoeff(4,locBCID)) THEN
-      ! Yield function
-      SEE_Prob = SurfModSEEFitCoeff(1,locBCID)*1.11*(eps_e/SurfModSEEFitCoeff(2,locBCID))**(-0.35) &
-                 * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
-      ! Get the number of electrons from the Poisson distribution
-      CALL SamplePoissonDistri(SEE_Prob,ProductSpecNbr)
-      ! If a single electron or multiple electrons are created (ProductSpecNbr>=1)
-      IF(ProductSpecNbr.GT.0) THEN
-        ProductSpec(2) = SurfModResultSpec(locBCID,SpecID)
-        eps_e = eps_e - SurfModSEEFitCoeff(4,locBCID)
-      END IF
-      ! Store the velocity [m/s] or energy [eV] depending on the energy distribution (store the total energy, which will be distributed later)
-      SELECT CASE(SurfModEnergyDistribution(locBCID))
-      CASE('deltadistribution')
-        ! Energy in [m/s]
-        TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004')
-        ! Energy in [eV]
-        TempErgy = eps_e
-      CASE DEFAULT
-        CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
-      END SELECT
-    END IF
-  ELSE ! Neutral bombarding particle
-    RETURN ! nothing to do
-  END IF
-
 END SELECT
 
 IF(ProductSpecNbr.GT.0)THEN
