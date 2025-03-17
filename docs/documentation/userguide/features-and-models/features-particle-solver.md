@@ -359,6 +359,12 @@ $$ v^{\mathrm{new}}_{i} = v_{\mathrm{bulk}} + \alpha (v_{i} - v^{\mathrm{new}}_{
 
 Internal degrees of freedom are conserved analogously. In the case of quantized energy treatment (for vibrational and electronic excitation), energy is only conserved over time, where the energy difference (per species and energy type) in each time step due to quantized energy levels is stored and accounted for in the next merge process.
 
+It is important to note that the variable `Part-SpeciesX-vMPFMergeThreshold` is ignored when using cell-local particle emission as
+described in Section {ref}`sec:particle-cell-local` and `Part-SpeciesX-vMPFSplitThreshold` is set. In this case, the splitting
+threshold variable are created in each element.
+will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
+given number density and cell volume.
+
     Part-Species2-vMPFSplitThreshold    = 10
 
 The split routine clones particles until the desired number of particles is reached.
