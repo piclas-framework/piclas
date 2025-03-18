@@ -181,6 +181,9 @@ BRNbrOfRegions = GETINT('BRNbrOfRegions','0')
 UseBRElectronFluid = .FALSE. ! Initialize
 CalcBRVariableElectronTemp = .FALSE. ! Initialize
 IF(BRNbrOfRegions.GT.0)THEN
+#if USE_PETSC
+  CALL CollectiveStop(__STAMP__,' HDG with BR electron fluid (non-linear HDG solver) is not implemented with PETSc')
+#endif /*USE_PETSC*/
   UseBRElectronFluid = .TRUE.
 
   !--- Set BR electron region(s)
