@@ -111,11 +111,16 @@ CASE(3,4,12) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
                    * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
       END SELECT
       ! Determine the number of secondaries to be emitted
-      IF(usevMPF.AND.(SEEYield * PartMPF(PartID_IN).GT.vMPFSplitLimit)) THEN
-        ! Scale the weighting factor by the yield and force the insertion of a single secondary to exactly to correspond to the yield
-        ! Original particle will be deleted anyway, old weighting factor stored in ImpactWeight
-        PartMPF(PartID_IN) = SEEYield * PartMPF(PartID_IN)
-        ProductSpecNbr = 1
+      IF(usevMPF) THEN
+        IF(SEEYield * PartMPF(PartID_IN).GT.vMPFSplitLimit) THEN
+          ! Scale the weighting factor by the yield and force the insertion of a single secondary to exactly to correspond to the yield
+          ! Original particle will be deleted anyway, old weighting factor stored in ImpactWeight
+          PartMPF(PartID_IN) = SEEYield * PartMPF(PartID_IN)
+          ProductSpecNbr = 1
+        ELSE
+          ! Get the number of electrons from the Poisson distribution
+          CALL SamplePoissonDistri(SEEYield,ProductSpecNbr)
+        END IF
       ELSE
         ! Get the number of electrons from the Poisson distribution
         CALL SamplePoissonDistri(SEEYield,ProductSpecNbr)
