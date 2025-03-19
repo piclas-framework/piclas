@@ -42,7 +42,7 @@ USE MOD_Particle_Vars             ,ONLY: PartState,Species,PartSpecies,PartMPF,n
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge,ElectronMass
 USE MOD_SurfaceModel_Vars         ,ONLY: BulkElectronTempSEE
 USE MOD_SurfaceModel_Vars         ,ONLY: SurfModResultSpec,SurfModEmissionYield,SurfModEmissionEnergy,SurfModEnergyDistribution
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff,SurfModSEEvMPF
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcElectronSEE,SEE
 USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart,CalcEkinPart2
@@ -111,7 +111,7 @@ CASE(3,4,12) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
                    * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
       END SELECT
       ! Determine the number of secondaries to be emitted
-      IF(usevMPF) THEN
+      IF(SurfModSEEvMPF(locBCID)) THEN
         IF(SEEYield * PartMPF(PartID_IN).GT.vMPFSplitLimit) THEN
           ! Scale the weighting factor by the yield and force the insertion of a single secondary to exactly to correspond to the yield
           ! Original particle will be deleted anyway, old weighting factor stored in ImpactWeight
