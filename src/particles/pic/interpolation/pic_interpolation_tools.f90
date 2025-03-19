@@ -300,7 +300,7 @@ END IF
 
 ! Interpolate the field and return the vector
 IF ((.NOT.SucRefPos).AND.(TRIM(DepositionType).EQ.'cell_volweight_mean')) THEN
-  CALL abort( __STAMP__,'Fallback "dist-weight" not implemented in GetInterpolatedPotentialPartPos()')
+  GetInterpolatedPotentialPartPos(1:1) = GetPotentialDW(PEM%LocalElemID(PartID),PartState(1:3,PartID))
 ELSE
   GetInterpolatedPotentialPartPos(1:1) = GetPotential(PEM%LocalElemID(PartID),PartPosRef_loc(1:3))
 END IF
@@ -332,16 +332,63 @@ REAL,INTENT(IN)    :: PartPosRef_loc(1:3)
 REAL :: GetPotential(1:1)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if (USE_HDG && PP_nVar==4)
-REAL, ALLOCATABLE :: HelperU(:,:,:,:)
-#endif /*(USE_HDG)*/
-INTEGER         :: Nloc
+INTEGER :: Nloc
 !===================================================================================================================================
 GetPotential(1:1)=0.
 Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 !--- evaluate at Particle position
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),1,Nloc,U_N(ElemID)%U(1:1,:,:,:),1,GetPotential(1:1),ElemID)
 END FUNCTION GetPotential
+
+
+PPURE FUNCTION GetPotentialDW(ElemID, PartPos_loc)
+!===================================================================================================================================
+! Evaluate the electro-(magnetic) field using the reference position and return the field
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars ,ONLY: N_VolMesh, offSetElem
+USE MOD_DG_Vars   ,ONLY: N_DG_Mapping, U_N
+!----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: ElemID !< Local element ID
+REAL,INTENT(IN)    :: PartPos_loc(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: GetPotentialDW(1:1)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,ALLOCATABLE :: PartDistDepo(:,:,:)
+INTEGER          :: k,l,m,Nloc
+REAL             :: norm,DistSum
+!===================================================================================================================================
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+ALLOCATE(PartDistDepo(0:Nloc,0:Nloc,0:Nloc))
+GetPotentialDW = 0.0
+PartDistDepo = 0.0
+DistSum = 0.0
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
+  norm = VECNORM(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
+  IF(norm.GT.0.)THEN
+    PartDistDepo(k,l,m) = 1./norm
+  ELSE
+    PartDistDepo(:,:,:) = 0.
+    PartDistDepo(k,l,m) = 1.
+    DistSum = 1.
+    EXIT
+  END IF ! norm.GT.0.
+  DistSum = DistSum + PartDistDepo(k,l,m)
+END DO; END DO; END DO
+
+GetPotentialDW = 0.0
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
+  GetPotentialDW(1:1) = GetPotentialDW(1:1) + PartDistDepo(k,l,m)/DistSum*U_N(ElemID)%U(1:1,k,l,m)
+END DO; END DO; END DO
+
+END FUNCTION GetPotentialDW
 #endif /*USE_HDG*/
 
 
@@ -393,7 +440,7 @@ CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),3
 #elif PP_nVar==3
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,B(1:3,:,:,:,ElemID),3,GetEMField(4:6),ElemID)
 #else
-HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetEMField(1:6),ElemID)
 #endif
@@ -463,15 +510,15 @@ HelperU(1:6,:,:,:) = U_N(ElemID)%U(1:6,:,:,:)
 #if PP_nVar==1
 #if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
 ! Boris or HC: consider B-Field, e.g., from SuperB
-HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 #else
 ! Consider only electric fields
-HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 #endif
 #elif PP_nVar==3
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 #else
-HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:) 
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 #endif
 #else
@@ -490,7 +537,7 @@ DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
     DistSum = 1.
     EXIT
   END IF ! norm.GT.0.
-  DistSum = DistSum + PartDistDepo(k,l,m) 
+  DistSum = DistSum + PartDistDepo(k,l,m)
 END DO; END DO; END DO
 
 GetEMFieldDW = 0.0

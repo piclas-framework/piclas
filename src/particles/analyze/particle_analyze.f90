@@ -1341,6 +1341,10 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPICTimeStep'
           OutputCounter = OutputCounter + 1
         END IF ! CalcPICTimeStep
+        IF(CalcElectronEnergy)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentElectronsUnder2700eV'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcElectronEnergy
         IF(CalcGranularDragHeat)THEN
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceX'
           OutputCounter = OutputCounter + 1
@@ -1899,6 +1903,13 @@ IF (MPIRoot) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
     END IF ! PICValidPlasmaCellSum.GT.0
   END IF ! CalcPICTimeStep
+  IF(CalcElectronEnergy)THEN
+    IF (NbrOfElemsWithElectrons(2).GT.0) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(NbrOfElemsWithElectrons(2)) / REAL(NbrOfElemsWithElectrons(1))
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF !  NbrOfElemsWithElectrons(2)
+  END IF ! CalcElectronEnergy
   IF(CalcGranularDragHeat) THEN
     IF(SumForceAverage(1).GT.0.0) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(2)/SumForceAverage(1)
