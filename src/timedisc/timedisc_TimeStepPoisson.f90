@@ -87,14 +87,13 @@ REAL                       :: tLBStart ! load balance
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
-! IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
-IF (iter.EQ.0) CALL Deposition()
+IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(0))
 #endif /*EXTRAE*/
 #endif /*PARTICLES*/
 
-IF (iter.EQ.0) CALL HDG(time,iter)
+CALL HDG(time,iter)
 
 #ifdef PARTICLES
 #ifdef EXTRAE
@@ -143,10 +142,10 @@ IF (time.GE.DelayTime) THEN
 #if (PP_TimeDiscMethod==509)
         IF (PDM%IsNewPart(iPart)) THEN
           ! Don't push the velocity component of neutral particles!
-          ! IF(isPushParticle(iPart))THEN
-          !   !-- v(n) => v(n-0.5) by a(n):
-          !   PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dtVar*0.5
-          ! END IF
+          IF(isPushParticle(iPart))THEN
+            !-- v(n) => v(n-0.5) by a(n):
+            PartState(4:6,iPart) = PartState(4:6,iPart) - Pt(1:3,iPart) * dtVar*0.5
+          END IF
           PDM%IsNewPart(iPart)=.FALSE. !IsNewPart-treatment is now done
         ELSE
           !IF ((ABS(dt-dt_old).GT.1.0E-6*dt_old).AND.&
@@ -175,8 +174,8 @@ IF (time.GE.DelayTime) THEN
       ELSE
         ! Don't push the velocity component of neutral particles!
         IF(isPushParticle(iPart))THEN
-          !-- v(n+0.5) = v(n) + a(n) * dt * 0.5
-          PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar * 0.5
+          !-- v(n-0.5) => v(n+0.5) by a(n):
+          PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar
         END IF
         !-- x(n) => x(n+1) by v(n+0.5):
         PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
@@ -226,7 +225,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
   ! This must be called directly after "CALL MPIParticleRecv()" to delete the virtual particles that are created in PerformTracking()
   IF(DoVirtualDielectricLayer) CALL DepositVirtualDielectricLayerParticles()
 #if (PP_TimeDiscMethod==509)
-  ! IF (velocityOutputAtTime) THEN
+  IF (velocityOutputAtTime) THEN
 #ifdef EXTRAE
     CALL extrae_eventandcounters(int(9000001), int8(5))
 #endif /*EXTRAE*/
@@ -257,8 +256,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
         ! Set the species-specific time step
         IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
         !-- v(n+0.5) => v(n+1) by a(n+1):
-        ! velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar*0.5
-        IF(isPushParticle(iPart)) PartState(4:6,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar*0.5
+        velocityAtTime(1:3,iPart) = PartState(4:6,iPart) + Pt(1:3,iPart) * dtVar*0.5
       END IF
     END DO
 #ifdef EXTRAE
@@ -267,7 +265,7 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 #if USE_LOADBALANCE
     CALL LBPauseTime(LB_PUSH,tLBStart)
 #endif /*USE_LOADBALANCE*/
-  ! END IF !velocityOutputAtTime
+  END IF !velocityOutputAtTime
 #endif /*(PP_TimeDiscMethod==509)*/
 END IF
 
