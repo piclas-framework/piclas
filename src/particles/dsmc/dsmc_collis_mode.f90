@@ -188,7 +188,7 @@ REAL (KIND=8)                 :: iRan                             ! Random numbe
 LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2   ! Check whether rot or vib relax is performed
 REAL (KIND=8)                 :: Xi_rel, Xi, FakXi                ! Factors of DOF
 REAL                          :: cRelaNew(3)                       ! random relative velocity
-REAL                          :: ReducedMass, V2
+REAL                          :: ReducedMass
 REAL                          :: ProbRot1, ProbRotMax1, ProbRot2, ProbRotMax2, ProbVib1, ProbVib2, ProbElec1, ProbElec2
 INTEGER                       :: iCase, iSpec1, iSpec2, iPart1, iPart2, iElem ! Colliding particles 1 and 2 and their species
 ! variables for electronic level relaxation and transition
@@ -196,7 +196,7 @@ INTEGER                       :: ElecLevelRelax
 LOGICAL                       :: DoElec1, DoElec2
 ! backscatter
 LOGICAL                       :: PerformBackScatter
-REAL                          :: CrossSection, MacroParticleFactor, VeloBackup(1:3)
+REAL                          :: CrossSection, MacroParticleFactor
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2

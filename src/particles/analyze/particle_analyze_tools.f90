@@ -1874,7 +1874,7 @@ END SUBROUTINE CalcVelocities
 #if (PP_TimeDiscMethod==4)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
-!> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep
+!> Calculate the collision rate [1/s] per species pairing by averaging over the particle analyze interval
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1923,14 +1923,14 @@ DSMC%NumColl = 0.
 END SUBROUTINE CollRates
 
 
+!===================================================================================================================================
+!> Calculates the backscatter collision rate [1/s] per species pairing by averaging over the particle analyze interval
+!===================================================================================================================================
 SUBROUTINE CollRatesBackScatter(BackScatterRate)
-!===================================================================================================================================
-!>
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
-USE MOD_DSMC_Vars             ,ONLY: CollInf, DSMC
+USE MOD_DSMC_Vars             ,ONLY: CollInf
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: VarTimeStep
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep

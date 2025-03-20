@@ -79,7 +79,7 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceUnitVector
 REAL                       :: VeloVec(3) ! post-collision relative velocity vector cRela*
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                       :: cRela,CRelaTrafo               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
+REAL                       :: cRela               !> absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
 REAL                       :: VeloRel(3),VeloMag,VeloYZMag
 REAL                       :: rRan, rotAngle, cos_scatAngle, sin_scatAngle
 REAL,DIMENSION(3,3)        :: trafoMatrix
@@ -168,10 +168,10 @@ END IF
 END FUNCTION DiceVelocityVector4Coll
 
 
-PPURE FUNCTION VelocityCOMBackscatter(iPair) RESULT(VeloVec)
 !===================================================================================================================================
 !> Backscattering in the centre of mass plane
 !===================================================================================================================================
+PPURE FUNCTION VelocityCOMBackscatter(iPair) RESULT(VeloVec)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals         ,ONLY: VECNORM

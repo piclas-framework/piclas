@@ -369,7 +369,6 @@ USE MOD_Particle_Analyze_Pure   ,ONLY: CalcEkinPart
 #if USE_MPI
 USE MOD_Globals                ,ONLY: myrank
 #endif /*USE_MPI*/
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -852,13 +851,6 @@ DO iProd = 1, NumProd
     PartStateIntEn(2,ReactInx(iProd)) = 0.0
   END IF
 END DO
-
-! NumProd = 2
-! ! Forcing to treat only two particles
-! ProductReac(3) = 0
-! ! Setting the first product to the electron species
-! ProductReac(1) = ProductReac(2)
-
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
@@ -1040,11 +1032,6 @@ ELSEIF(ProductReac(3).EQ.0) THEN
     VeloCOM(1:3) = FracMassCent1 * PartState(4:6,ReactInx(1)) + FracMassCent2 * PartState(4:6,ReactInx(2))
   END IF
   ERel_React1_React3 = Coll_pData(iPair)%Ec
-
-  ! ! Set the ion velocity to the background gas
-  ! CALL CalcVelocity_maxwell_lpn(FractNbr=EductReac(1), Vec3D=PartState(4:6,ReactInx(1)), iInit=1)
-  ! ! Overwrite first index (ion) with the third (electron)
-  ! ReactInx(1) = ReactInx(3)
 
   ! Sanity check
   IF(ERel_React1_React3.LT.0.) THEn
