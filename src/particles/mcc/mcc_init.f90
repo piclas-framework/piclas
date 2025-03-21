@@ -239,24 +239,24 @@ DO iSpec = 1, nSpecies
             MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
           END IF
         END IF
-      END IF
-      ! Interpolate the backscattering cross section at the energy levels of the collision collision cross section and add the
-      ! backscattering probability
-      DO iStep = 1, MaxDim
-        CrossSection = InterpolateCrossSection(SpecXSec(iCase)%BackXSecData,SpecXSec(iCase)%CollXSecData(1,iStep))
-        ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
-        IF(SpecXSec(iCase)%CollXSec_Effective) THEN
-          IF(CrossSection.GT.SpecXSec(iCase)%CollXSecData(2,iStep)) THEN
-            SWRITE(*,*) 'backscattering cross-section: ', CrossSection
-            SWRITE(*,*) 'Effective cross-section: ', SpecXSec(iCase)%CollXSecData(2,iStep)
-            SWRITE(*,*) 'Effective cross-section should be greater as the backscattering is supposed to be part of the effective cross-section.'
-            SWRITE(*,*) 'Check the last value of the backscattering data, the cross-section should be zero, otherwise the last value will be taken for energies outside the backscattering data.'
-            CALL abort(__STAMP__,'ERROR: Effective cross-section is smaller than the interpolated backscattering level cross-section!')
+        ! Interpolate the backscattering cross section at the energy levels of the collision collision cross section and add the
+        ! backscattering probability
+        DO iStep = 1, MaxDim
+          CrossSection = InterpolateCrossSection(SpecXSec(iCase)%BackXSecData,SpecXSec(iCase)%CollXSecData(1,iStep))
+          ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
+          IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+            IF(CrossSection.GT.SpecXSec(iCase)%CollXSecData(2,iStep)) THEN
+              SWRITE(*,*) 'backscattering cross-section: ', CrossSection
+              SWRITE(*,*) 'Effective cross-section: ', SpecXSec(iCase)%CollXSecData(2,iStep)
+              SWRITE(*,*) 'Effective cross-section should be greater as the backscattering is supposed to be part of the effective cross-section.'
+              SWRITE(*,*) 'Check the last value of the backscattering data, the cross-section should be zero, otherwise the last value will be taken for energies outside the backscattering data.'
+              CALL abort(__STAMP__,'ERROR: Effective cross-section is smaller than the interpolated backscattering level cross-section!')
+            END IF
+          ELSE
+            SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + CrossSection
           END IF
-        ELSE
-          SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + CrossSection
-        END IF
-      END DO
+        END DO
+      END IF
     END IF
     ! Read-in vibrational cross sections
     IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) CALL ReadVibXSec(iCase, iSpec, jSpec)
