@@ -909,7 +909,7 @@ INTEGER             :: iRegions
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
 #if USE_HDG
-REAL                :: PCouplDelta
+REAL                :: PCouplDelta,SumEpotPart
 #endif /*USE_HDG*/
 REAL                :: TimeDelta
 !===================================================================================================================================
@@ -1040,6 +1040,11 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
             WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Epot-Spec-', iSpec
             OutputCounter = OutputCounter + 1
           END DO ! nSpecies
+          IF (nSpecies.GT.1) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Epot-Spec-Sum'
+            OutputCounter = OutputCounter + 1
+          END IF ! nSpecies.GT.1
         END IF ! CalcParticlePotentialEnergy
 #endif /*USE_HDG*/
         IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
@@ -1678,9 +1683,14 @@ IF (MPIRoot) THEN
   END IF
 #if USE_HDG
   IF (CalcParticlePotentialEnergy) THEN
+    SumEpotPart = 0.
     DO iSpec=1, nSpecies
+      SumEpotPart = SumEpotPart + EpotPart(iSpec)
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EpotPart(iSpec)
     END DO
+    IF (nSpecies.GT.1) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumEpotPart
+    END IF ! nSpecies.GT.1
   END IF ! CalcParticlePotentialEnergy
 #endif /*USE_HDG*/
   IF (CalcLaserInteraction) THEN
