@@ -113,8 +113,6 @@ TYPE, PUBLIC :: SurfMesh
   REAL,ALLOCATABLE :: TangVec1(:,:,:)  !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: TangVec2(:,:,:)  !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
   REAL,ALLOCATABLE :: SurfElem(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
-  ! TODO NSideMin - SurfElemMin : I think that we actually do not need to (and should) calculate SurfElemMin by projection.
-  ! When evaluating the integral, J is just evaluated at the Gauss points, so by interplation
   REAL,ALLOCATABLE :: SurfElemMin(:,:) !< surface area for each side        (    0:N,0:N,nSides)
 
   INTEGER          :: NSide

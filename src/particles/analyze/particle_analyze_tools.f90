@@ -55,6 +55,7 @@ PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
 #if USE_HDG
 PUBLIC :: CalculatePCouplElectricPotential
+PUBLIC :: CalculateParticlePotentialEnergy
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -278,7 +279,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcNumPlasmaParameter
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCyclotronFrequency
 #if USE_MPI
 USE MOD_Globals
-USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum
+USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum,NbrOfElemsWithElectrons
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -289,7 +290,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER :: tmpArray(1:6)
+INTEGER, PARAMETER :: lenArray=8
+INTEGER :: tmpArray(1:lenArray)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -298,12 +300,18 @@ IF(CalcElectronIonDensity) CALL CalculateElectronIonDensityCell()
 
 ! Ionization degree: n_i / (n_i + n_n)
 ! ion density versus sum of ion and neutral density
+#if USE_MPI
+PICValidPlasmaCellSum = 0 ! nullify in case CalcIonizationDegree=F
+#endif /*USE_MPI*/
 IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 
 ! electron temperature
 IF(CalcElectronTemperature) CALL CalculateElectronTemperatureCell()
 
 ! electron energies
+#if USE_MPI
+NbrOfElemsWithElectrons(:) = 0 ! nullify in case CalcElectronEnergy=F
+#endif /*USE_MPI*/
 IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 
 ! plasma frequency
@@ -339,7 +347,7 @@ IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
 
 ! Communicate data
 #if USE_MPI
-IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy)THEN
   tmpArray = 0
   IF(CalcPointsPerDebyeLength)THEN
     tmpArray(1) = PPDCellResolved(1)
@@ -347,26 +355,26 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
     tmpArray(3) = PPDCellResolved(3)
     tmpArray(4) = PPDCellResolved(4)
   END IF ! CalcPointsPerDebyeLength
-  IF(CalcPICTimeStep)THEN
-    tmpArray(5) = PICTimeCellResolved
-  END IF ! CalcPICTimeStep
+  IF(CalcPICTimeStep) tmpArray(5) = PICTimeCellResolved
   tmpArray(6) = PICValidPlasmaCellSum
+  tmpArray(7) = NbrOfElemsWithElectrons(1)
+  tmpArray(8) = NbrOfElemsWithElectrons(2)
 
   ! Collect sum on MPIRoot
   IF(MPIRoot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , tmpArray , 6 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE , tmpArray , lenArray , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
     IF(CalcPointsPerDebyeLength)THEN
        PPDCellResolved(1) = tmpArray(1)
        PPDCellResolved(2) = tmpArray(2)
        PPDCellResolved(3) = tmpArray(3)
        PPDCellResolved(4) = tmpArray(4)
     END IF ! CalcPointsPerDebyeLength
-    IF(CalcPICTimeStep)THEN
-      PICTimeCellResolved = tmpArray(5)
-    END IF ! CalcPICTimeStep
-    PICValidPlasmaCellSum = tmpArray(6)
+    IF(CalcPICTimeStep) PICTimeCellResolved = tmpArray(5)
+    PICValidPlasmaCellSum   = tmpArray(6)
+    NbrOfElemsWithElectrons(1) = tmpArray(7)
+    NbrOfElemsWithElectrons(2) = tmpArray(8)
   ELSE
-    CALL MPI_REDUCE(tmpArray     , 0        , 6 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(tmpArray     , 0        , lenArray , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   END IF ! MPIRoot
 END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
 
@@ -588,7 +596,7 @@ USE MOD_Globals
 USE MOD_Globals               ,ONLY: PARTISELECTRON
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,Joule2eV
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell,NbrOfElemsWithElectrons
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
@@ -611,9 +619,10 @@ REAL    :: WeightingFactor
 INTEGER :: RegionID
 #endif /*USE_HDG*/
 !===================================================================================================================================
-ElectronMinEnergyCell     = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
-ElectronMaxEnergyCell     = 0.
-ElectronAverageEnergyCell = 0.
+ElectronMinEnergyCell      = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
+ElectronMaxEnergyCell      = 0.
+ElectronAverageEnergyCell  = 0.
+NbrOfElemsWithElectrons(:) = 0
 #if USE_HDG
 IF (UseBRElectronFluid) THEN ! check for BR electrons
   DO iElem=1,PP_nElems
@@ -656,6 +665,8 @@ ELSE
       ElectronAverageEnergyCell(iElem) = ElectronAverageEnergyCell(iElem)/nElectronsPerCell(iElem)*Joule2eV
       ElectronMinEnergyCell(iElem)     = ElectronMinEnergyCell(iElem)*Joule2eV
       ElectronMaxEnergyCell(iElem)     = ElectronMaxEnergyCell(iElem)*Joule2eV
+      NbrOfElemsWithElectrons(1)       = NbrOfElemsWithElectrons(1) + 1 ! Count number of elements with electrons
+      IF(ElectronMaxEnergyCell(iElem).LT.2700.) NbrOfElemsWithElectrons(2) = NbrOfElemsWithElectrons(2) + 1 ! less than 10% of c
     ELSE
       ElectronMinEnergyCell(iElem) = 0. ! Set from HUGE(1.) to zero for output to .h5
     END IF ! nElectronsPerCell(iElem).GT.0.
@@ -923,6 +934,57 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 END IF
 
 END SUBROUTINE CalcKineticEnergyAndMaximum
+
+
+#if USE_HDG
+SUBROUTINE CalculateParticlePotentialEnergy(EpotPart)
+!===================================================================================================================================
+! compute the potential energy of particles within a potential electric field
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Particle_Vars          ,ONLY: PartSpecies,Species,PDM,nSpecies,PEM,usevMPF
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_PICInterpolation_tools ,ONLY: GetInterpolatedPotentialPartPos
+USE MOD_part_tools             ,ONLY: GetParticleWeight
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                :: EpotPart(nSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iPart,iElem,iSpec
+REAL                            :: phi(1:1),MPF
+!===================================================================================================================================
+! Default values
+EpotPart =  0.
+! Loop over all particles
+DO iPart=1,PDM%ParticleVecLength
+  ! Check if particle is still inside the simulation domain
+  IF (PDM%ParticleInside(iPart)) THEN
+    ! Get species index of particle
+    iSpec = PartSpecies(iPart)
+    ! Get particle MPF
+    IF(usevMPF) THEN
+      MPF = GetParticleWeight(iPart)
+    ELSE
+      MPF = GetParticleWeight(iPart) * Species(iSpec)%MacroParticleFactor
+    END IF
+    ! Get local element index
+    iElem = PEM%LocalElemID(iPart)
+    ! Get the electric potential at the particle position
+    phi(1:1) = GetInterpolatedPotentialPartPos(iElem+offSetElem,iPart)
+    ! Calculate the potential energy of the particle
+    EpotPart(iSpec) = EpotPart(iSpec) + 0.5 * MPF * Species(iSpec)%ChargeIC * phi(1)
+  END IF ! PDM%ParticleInside(iPart)
+END DO ! iPart=1,PDM%ParticleVecLength
+
+END SUBROUTINE CalculateParticlePotentialEnergy
+#endif /*USE_HDG*/
 
 
 !===================================================================================================================================

@@ -46,6 +46,7 @@ CALL prms%SetSection("Particle Analyze")
 
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'        , 'Analyze is performed each Nth time step','1')
 CALL prms%CreateLogicalOption(  'CalcTotalEnergy'         , 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcParticlePotentialEnergy'  , 'Compute the potential particle energy as sum(q_i*phi(x_i)), with electric potential phi at the position x_i and q_i as the electric charge of the i-th particle','.FALSE.')
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Compute the ionization degree in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the average number of interpolation points that are used for the shape function in each cell','.FALSE.')
@@ -681,6 +682,11 @@ IF (CalcVelos) THEN
   END IF
 END IF
 
+!-- Compute the potential particle energy as sum(q_i*phi(x_i)), with electric potential phi at
+!   the position x_i and q_i as the electric charge of the i-th particle
+CalcParticlePotentialEnergy = GETLOGICAL('CalcParticlePotentialEnergy')
+IF(CalcParticlePotentialEnergy) DoPartAnalyze = .TRUE.
+
 !-- check if total energy should be computed
 IF(DoPartAnalyze)THEN
   CalcEtot = GETLOGICAL('CalcTotalEnergy')
@@ -692,6 +698,8 @@ IsRestart = GETLOGICAL('IsRestart')
 IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef) DoPartAnalyze=.TRUE.
 CALL PrintOption('CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef','INFO',&
     LogOpt=CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)
+#else
+IF(CalcParticlePotentialEnergy) CALL CollectiveStop(__STAMP__,'CalcParticlePotentialEnergy=T requires PICLAS_EQNSYSNAME=poisson')
 #endif /*USE_HDG*/
 
 !-- check if magnetic field on each DG DOF of every element is to be written to .h5
@@ -859,7 +867,7 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesEl
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPotential,CoupledPowerFrequency,CoupledPowerMode
-USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
+USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential,CalculateParticlePotentialEnergy
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,ForceAverage, SumForceAverage
@@ -894,13 +902,14 @@ REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velo
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
 #if USE_HDG
+REAL                :: EpotPart(nSpecies)
 INTEGER             :: iRegions
 #endif /*USE_HDG*/
 #if USE_MPI
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
 #if USE_HDG
-REAL                :: PCouplDelta
+REAL                :: PCouplDelta,SumEpotPart
 #endif /*USE_HDG*/
 REAL                :: TimeDelta
 !===================================================================================================================================
@@ -1030,6 +1039,20 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
         END IF
+#if USE_HDG
+        IF (CalcParticlePotentialEnergy) THEN
+          DO iSpec = 1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Epot-Spec-', iSpec
+            OutputCounter = OutputCounter + 1
+          END DO ! nSpecies
+          IF (nSpecies.GT.1) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Epot-Spec-Sum'
+            OutputCounter = OutputCounter + 1
+          END IF ! nSpecies.GT.1
+        END IF ! CalcParticlePotentialEnergy
+#endif /*USE_HDG*/
         IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
           DO iSpec=1, nSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1328,6 +1351,10 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPICTimeStep'
           OutputCounter = OutputCounter + 1
         END IF ! CalcPICTimeStep
+        IF(CalcElectronEnergy)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentElectronsUnder2700eV'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcElectronEnergy
         IF(CalcGranularDragHeat)THEN
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceX'
           OutputCounter = OutputCounter + 1
@@ -1383,6 +1410,18 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
     CALL CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
   END IF
+#if USE_HDG
+  IF (CalcParticlePotentialEnergy) THEN
+    CALL CalculateParticlePotentialEnergy(EpotPart)
+#if USE_MPI
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE , EpotPart , nSpecies , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    ELSE
+      CALL MPI_REDUCE(EpotPart     ,        0 , nSpecies , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    END IF
+#endif /*USE_MPI*/
+  END IF ! CalcParticlePotentialEnergy
+#endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
 ! in case of more cells, the value of the last element of the root is shown)
@@ -1480,17 +1519,9 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   IF(CalcGranularDragHeat) THEN
     IF(MPIRoot)THEN
       SumForceAverage = 0.0
-      CALL MPI_REDUCE(ForceAverage(1),SumForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(2),SumForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(3),SumForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(4),SumForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(5),SumForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage,SumForceAverage,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
     ELSE
-      CALL MPI_REDUCE(ForceAverage(1),ForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(2),ForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(3),ForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(4),ForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(5),ForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage,              0,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
     END IF
   END IF
 #endif /*USE_MPI*/
@@ -1672,6 +1703,18 @@ IF (MPIRoot) THEN
     END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
   END IF
+#if USE_HDG
+  IF (CalcParticlePotentialEnergy) THEN
+    SumEpotPart = 0.
+    DO iSpec=1, nSpecies
+      SumEpotPart = SumEpotPart + EpotPart(iSpec)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EpotPart(iSpec)
+    END DO
+    IF (nSpecies.GT.1) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumEpotPart
+    END IF ! nSpecies.GT.1
+  END IF ! CalcParticlePotentialEnergy
+#endif /*USE_HDG*/
   IF (CalcLaserInteraction) THEN
     DO iSpec=1, nSpecies
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EkinMax(iSpec)
@@ -1866,6 +1909,13 @@ IF (MPIRoot) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
     END IF ! PICValidPlasmaCellSum.GT.0
   END IF ! CalcPICTimeStep
+  IF(CalcElectronEnergy)THEN
+    IF (NbrOfElemsWithElectrons(2).GT.0) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(NbrOfElemsWithElectrons(2)) / REAL(NbrOfElemsWithElectrons(1))
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF !  NbrOfElemsWithElectrons(2)
+  END IF ! CalcElectronEnergy
   IF(CalcGranularDragHeat) THEN
     IF(SumForceAverage(1).GT.0.0) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(2)/SumForceAverage(1)

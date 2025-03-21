@@ -32,6 +32,7 @@ LOGICAL                       :: CalcReacRates                       !< Calculat
 LOGICAL                       :: CalcRelaxProb                       !< Calculate relaxation probabilities
 LOGICAL                       :: CalcEkin                            !< Compute the kinetic energy of each species
 LOGICAL                       :: CalcEtot                            !< Compute the total energy as sum of potential and kin eng
+LOGICAL                       :: CalcParticlePotentialEnergy         !< Compute the potential particle energy as sum(q_i*phi(x_i)), with electric potential phi at the position x_i and q_i as the electric charge of the i-th particle
 LOGICAL                       :: CalcEint(2)                         !< Compute the internal energy of each species [1: Calculate, 2: Output]
 LOGICAL                       :: CalcTemp(2)                         !< Computation of the temperature (trans, rot, vib, total)
 LOGICAL                       :: CalcCoupledPower                    !< Computation of the power that is coupled into plasma
@@ -135,6 +136,7 @@ REAL,ALLOCATABLE              :: NeutralDensityCell(:)               !< Neutral 
 REAL,ALLOCATABLE              :: ChargeNumberCell(:)                 !< Charge number (cell mean value)
 INTEGER,ALLOCATABLE           :: PICValidPlasmaCell(:)               !< Check that quasi-neutrality is above 0.5 and at least 20 particles are inside the element
 INTEGER                       :: PICValidPlasmaCellSum               !< Global number of elements that have quasi-neutrality above 0.5 and at least 20 particles are inside the element
+INTEGER                       :: NbrOfElemsWithElectrons(1:2)        !< Global number of elements that contain electrons (1) and also have <2700 eV max energy (approx 10 percent the speed of light)
 REAL,ALLOCATABLE              :: ElectronTemperatureCell(:)          !< Electron temperature (cell mean value)
 REAL,ALLOCATABLE              :: ElectronMinEnergyCell(:)            !< Electron minimum cell energy [eV]
 REAL,ALLOCATABLE              :: ElectronMaxEnergyCell(:)            !< Electron maximum cell energy [eV]

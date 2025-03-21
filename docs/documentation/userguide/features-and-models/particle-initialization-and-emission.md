@@ -116,7 +116,7 @@ Additional options are available to limit the local emission to certain limits i
 To limit the insertion only to a specific dimension, simply provide a sufficiently large number for the other dimensions. This approach
 can also be utilized for 2D and axisymmetric simulations.
 
-When using a variable particle weighting as described in Section {ref}`sec:variable-particle-weighting`, the variable `Part-Species1-vMPFSplitThreshold`
+When using a variable particle weighting as described in Section {ref}`sec:split-merge`, the variable `Part-Species1-vMPFSplitThreshold`
 will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
 given number density and cell volume.
 

@@ -325,27 +325,6 @@ stages:
   rules:
     - if: '$DO_WEEKLY'
 
-# Defaults for DSMC tests (pull-push: required if data from one job is to be accessed by another job afterwards)
-.defaults_DSMC_pull_push: &defaults_DSMC_pull_push
-  extends: .default_param
-  needs: [build_DSMC]
-  artifacts:
-    paths:
-      - build_DSMC_release
-      - build_radiation
-  cache:
-    - *reggie_cache
-    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
-      paths:
-        - build_DSMC_release
-        - build_radiation
-      policy: pull-push
-
-.defaults_DSMC_weekly_pull_push: &defaults_DSMC_weekly_pull_push
-  <<: *defaults_DSMC_pull_push
-  rules:
-    - if: '$DO_WEEKLY'
-
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -405,7 +384,11 @@ build_maxwell_only:
   stage: build
   script:
     - mkdir -p build_maxwell_only ; cd build_maxwell_only
-    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
+    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
 
 build_poisson:
   extends: .default_build_param
@@ -479,7 +462,11 @@ build_poisson_petsc:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
@@ -512,7 +499,11 @@ build_DSMC:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_DSMC_debug ; cd build_DSMC_debug
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - if [ -n "${DO_WEEKLY}" ]; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
@@ -1176,29 +1167,59 @@ WEK_DSMC_N1:
     - cd build_DSMC_N1 ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
 
 WEK_DSMC_Radiation:
-  <<: *defaults_DSMC_weekly_pull_push
+  <<: *defaults_DSMC_weekly
   needs: [build_DSMC]
+  cache:
+    - key: "reggie"
+      paths: [reggie]
+      policy: pull
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
+      paths:
+        - build_DSMC_release
+      policy: pull
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
+      paths:
+        - build_DSMC_release_WEK_DSMC_Radiation
+      policy: push
   stage: reggie_weekly
   script:
     # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
+    - OUTPUTSTATE=70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5;
     - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_Radiation -e bin/piclas -s
-    - STATEFILE=$(find output_dir -name "70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5" | head -n 1)
-    - if [ -z ${STATEFILE} ]; then echo "File 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5 was not created"; exit 1; fi
+    - STATEFILE=$(find output_dir -name ${OUTPUTSTATE} | head -n 1)
+    - if [ -z ${STATEFILE} ]; then echo "File ${OUTPUTSTATE} was not created"; exit 1; fi
+    - cd ..
+    - cp -r build_DSMC_release build_DSMC_release_WEK_DSMC_Radiation
 
 # This reggie reguies that WEK_DSMC_Radiation is executed beforehand creating 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5
 # and mesh_70degCone2D_Set1_noWake_mesh.h5, which are copied from the cached path to this reggie to serve as input
 WEK_Radiation:
-  <<: *defaults_DSMC_weekly_pull_push
+  <<: *defaults_DSMC_weekly
   needs: [WEK_DSMC_Radiation]
+  artifacts:
+    paths:
+      - build_DSMC_release_WEK_DSMC_Radiation
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC"
+      paths: [build_radiation]
+      policy: pull
+    - key: "${CI_COMMIT_REF_SLUG}-DSMC-CS-${DO_CORE_SPLIT}-NS-${DO_NODE_SPLIT}"
+      paths:
+        - build_DSMC_release_WEK_DSMC_Radiation
+      policy: pull-push
   stage: reggie_weekly
   script:
+    - REGGIEDIR=../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot; BUILDDIR=build_DSMC_release_WEK_DSMC_Radiation; INPUTSTATE=70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5;
     - cd build_radiation
-    - STATEFILE=$(find ../build_DSMC_release/output_dir -name "70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5" | head -n 1)
-    - if [ -z ${STATEFILE} ]; then echo "File 70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5 not found"; exit 1; fi
-    - cp  ${STATEFILE} ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
-    - cp $(find ../build_DSMC_release/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
-    - rm -rf ../build_DSMC_release/output_dir
-    - reggie -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot
+    - STATEFILE=$(find ../${BUILDDIR}/output_dir -name ${INPUTSTATE} | head -n 1)
+    - if [ -z ${STATEFILE} ]; then echo "File ${INPUTSTATE} not found"; exit 1; fi
+    - cp  ${STATEFILE} ${REGGIEDIR}/.
+    - cp $(find ../${BUILDDIR}/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ${REGGIEDIR}/.
+    - rm -rf ../${BUILDDIR}/output_dir
+    - reggie -e ./bin/piclas ${REGGIEDIR}
+  rules:
+    - if: '$DO_WEEKLY'
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly

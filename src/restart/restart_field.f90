@@ -672,10 +672,9 @@ ELSE ! Normal restart
       ALLOCATE(DOFindices(nGP_face(NMax)))
       DO iSide=1,nSides
         IF(MaskedSide(iSide).NE.0) CYCLE
-        ! TODO: Create a function to map localToGlobalDOFs
         Nloc = N_SurfMesh(iSide)%NSide
         DO i=1,nGP_face(Nloc)
-          DOFindices(i) = i + OffsetGlobalPETScDOF(iSide) - 1
+          DOFindices(i) = OffsetGlobalPETScDOF(iSide) + i - 1
         END DO
         PetscCallA(VecSetValues(PETScSolution,nGP_face(Nloc),DOFindices(1:nGP_face(Nloc)),HDG_Surf_N(iSide)%lambda(1,:),INSERT_VALUES,ierr))
       END DO

@@ -384,85 +384,34 @@ INTEGER              :: iElem,NElem
 INTEGER              :: iLocSide,iSideID,iNloc,iPETScGlobal, iNdof, iIndices(nGP_face(Nmax))
 INTEGER              :: jLocSide,jSideID,jNloc,jPETScGlobal, jNdof, jIndices(nGP_face(Nmax))
 REAL                 :: Smatloc(nGP_face(Nmax),nGP_face(Nmax))
-INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSide
+INTEGER              :: l,p,q,g1,g2,g3,Nloc
 INTEGER              :: i,j,i_m,i_p,j_m,j_p
 INTEGER              :: BCsideID, BCState
 INTEGER              :: locSideID,nGP
 REAL                 :: intMat(nGP_face(Nmax), nGP_face(Nmax))
-INTEGER              :: iMortar, nMortars
+INTEGER              :: iType,iMortar,nMortars
 INTEGER              :: iGP, jGP, ip, iq, jp, jq
 !===================================================================================================================================
 ! TODO PETSC P-Adaption - Fill directly when SmatK is filled... (or sth like that)
 
 ! First, loop over all mortar sides (also MPI Mortar sides) and add M / M^T to Smat!!!
-! TODO PETSC P-Adaption: How to do small slave mortar sides??? (MortarType(1,SideID)=-10, We can use SmallMortarType)
-! Easy way: Loop over all SideIDs, check if SmallMortarType is
 IF(nGlobalMortarSides.GT.0)THEN
   DO iSideID=1,nSides
     IF(SmallMortarInfo(iSideID).EQ.0) CYCLE ! Not a small mortar side
+    iType=SmallMortarType(1,iSideID)
     iMortar=SmallMortarType(2,iSideID)
 
-    NSide = N_SurfMesh(iSideID)%NSide
-    nGP = nGP_face(NSide)
+    Nloc = N_SurfMesh(iSideID)%NSide
+    nGP = nGP_face(Nloc)
     iLocSide = SideToElem(S2E_NB_LOC_SIDE_ID,iSideID)
     iElem = SideToElem(S2E_NB_ELEM_ID,iSideID)
     IF(iElem.LE.0) CYCLE ! Small Mortar side does not belong to an element
     DO jLocSide=1,6
-
-      ASSOCIATE(&
-        M_0_1 => N_Mortar(NSide)%M_0_1 ,&
-        M_0_2 => N_Mortar(NSide)%M_0_2 )
-
-
-        ! Let p,q be the indices of the small side and P,Q the indices of the big side. Then we have...
-        ! ... for 1 -> 4 mortar
-        ! I * lambda({p,q}) = M_0_X(P,p) * M_0_X(Q,q) * lambda({P,Q}) => A({p,q},{P,Q}) = -M_0_X(P,p) * M_0_Y(Q,q)
-        ! ... for 1 -> 2 mortar in p
-        ! I * lambda({p,q}) = M_0_X(P,p) * delta(q,Q) * lambda({P,Q}) => A({p,q},{P,Q}) = -M_0_X(P,p) * delta(q, Q)
-        ! ... for 1 -> 2 mortar in q
-        ! I * lambda({p,q}) = M_0_X(Q,q) * delta(p,P) * lambda({P,Q}) => A({p,q},{P,Q}) = -M_0_Y(Q,q) * delta(p, P)
-
-        ! At the rows for the small side, we add I at the diagonal and A at the jIndices of the big side
-        ! At the rows for the big side, we add A^T * A at the diagonal and A^T at the iIndices of the small side
-
-        ! TODO PETSc P-Adaption: Build Mortar matrices somewhere else...
-        Smatloc(:,:) = 0.
-        DO ip=0,NSide; DO iq=0,NSide
-          iGP = (NSide + 1) * iq + ip + 1
-          DO jp=0,NSide; DO jq=0,NSide
-            jGP = (NSide + 1) * jq + jp + 1
-            SELECT CASE(SmallMortarType(1,iSideID))
-            CASE(1) ! 1 -> 4
-              SELECT CASE(iMortar)
-              CASE(1)
-                Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_1(jq,iq)
-              CASE(2)
-                Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_1(jq,iq)
-              CASE(3)
-                Smatloc(iGP,jGP) = M_0_1(jp,ip) * M_0_2(jq,iq)
-              CASE(4)
-                Smatloc(iGP,jGP) = M_0_2(jp,ip) * M_0_2(jq,iq)
-              END SELECT
-            CASE(2) ! 1 -> 2 in q
-              IF (iMortar.EQ.1) THEN
-                Smatloc(iGP,jGP) = M_0_1(jq,iq) * MERGE(1, 0, ip.EQ.jp)
-              ELSE
-                Smatloc(iGP,jGP) = M_0_2(jq,iq) * MERGE(1, 0, ip.EQ.jp)
-              END IF
-            CASE(3) ! 1 -> 2 in p
-              IF (iMortar.EQ.1) THEN
-                Smatloc(iGP,jGP) = M_0_1(jp,ip) * MERGE(1, 0, iq.EQ.jq)
-              ELSE
-                Smatloc(iGP,jGP) = M_0_2(jp,ip) * MERGE(1, 0, iq.EQ.jq)
-              END IF
-            END SELECT
-          END DO; END DO
-        END DO; END DO
-      END ASSOCIATE
-
       ! Multiply M and M' to Smat
-      HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide) = MATMUL(TRANSPOSE(Smatloc(1:nGP,1:nGP)), HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide))
-      HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide) = MATMUL(HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide), Smatloc(1:nGP,1:nGP))
+      HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide) = MATMUL(TRANSPOSE(N_Inter(Nloc)%IntMatMortar(:,:,iMortar,iType)),&
+                                                                                    HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide))
+      HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide) = MATMUL(HDG_Vol_N(iElem)%Smat(:,:,jLocSide,iLocSide),&
+                                                                                    N_Inter(Nloc)%IntMatMortar(:,:,iMortar,iType))
     END DO
   END DO
 END IF ! nGlobalMortarSides.GT.0
@@ -496,7 +445,6 @@ DO iElem=1,PP_nElems
         jIndices(i) = OffsetGlobalPETScDOF(jSideID) + i - 1
       END DO
 
-      ! TODO NSideMin - Same when NElem<Nloc and NElem>Nloc?
       Smatloc(1:nGP_face(NElem),1:nGP_face(NElem)) = HDG_Vol_N(iElem)%Smat(:,:,iLocSide,jLocSide)
       IF(NElem.NE.jNloc)THEN
         ! 1. S_{iJ} = S_{ij} * V_{jJ} = ((V^T)_{Jj} * (S^T)_{ji})^T
@@ -609,7 +557,6 @@ CASE(1)
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      ! TODO NSideMin - We may need to check if NSide != NMin when HDGNSideMin is set to false or sth...
       IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
@@ -635,7 +582,6 @@ CASE(2)
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-      ! TODO NSideMin - We may need to check if NSide != NMin when HDGNSideMin is set to false or sth...
       IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       DO igf = 1, nGP_face(NSide)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
@@ -688,37 +634,28 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER          :: iElem,Nloc,idx_m,idx_p,SideIDm,SideIDp,NSideMin,NSideMax,iSide,NSide
-INTEGER          :: SideID(6),Flip(6)
-INTEGER          :: q,g1,g2,g3,gdx(3),jdx(3),jDir
-REAL             :: aCon(3,3),q_loc
-REAL,DIMENSION(1,0:NMax,0:NMax) :: tmp2,tmp3
+INTEGER                            :: iElem,Nloc,idx_m,idx_p,iSide,NSide
+INTEGER                            :: SideID(6),Flip(6)
+INTEGER                            :: q,g1,g2,g3,gdx(3),jdx(3),jDir
+REAL                               :: aCon(3,3),q_loc
+REAL,DIMENSION(0:NMax,0:NMax)      :: tmp2
+REAL,DIMENSION(1:nGP_face(NMax),6) :: lambdatmp
 !===================================================================================================================================
-DO iSide = 1, nSides
-  ! TODO NSideMin - LambdaMax: Calculate it
-  NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-
-  IF(NSideMin.EQ.NSideMax)THEN
-    HDG_Surf_N(iSide)%lambdaMax(1,:) = HDG_Surf_N(iSide)%lambda(1,:)
-  ELSE
-    NSide = N_SurfMesh(iSide)%NSide
-    tmp2(1:1,0:NSide,0:NSide) = RESHAPE(HDG_Surf_N(iSide)%lambda(1,:),(/1,NSide+1,NSide+1/))
-    IF(NSide.EQ.NSideMax)THEN
-      CALL ChangeBasis2D(1, NSide, NSideMin, PREF_VDM(NSide,NSideMin)%Vdm , tmp2(1,0:NSide,0:NSide), tmp3(1,0:NSideMin,0:NSideMin))
-      HDG_Surf_N(iSide)%lambdaMax(1,:) = RESHAPE(tmp3(1,0:NSideMin,0:NSideMin),(/nGP_face(NSideMin)/))
-    ELSE
-      CALL ChangeBasis2D(1, NSide, NSideMax, PREF_VDM(NSide,NSideMax)%Vdm , tmp2(1,0:NSide,0:NSide), tmp3(1,0:NSideMax,0:NSideMax))
-      HDG_Surf_N(iSide)%lambdaMax(1,:) = RESHAPE(tmp3(1,0:NSideMax,0:NSideMax),(/nGP_face(NSideMax)/))
-    END IF
-  END IF ! NSideMin.EQ.NSideMax
-END DO ! iSide = 1, nSides
-
 DO iElem=1,PP_nElems
   U_N(iElem)%E = 0.
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   SideID(:)=ElemToSide(E2S_SIDE_ID,:,iElem)
   Flip(:)  =ElemToSide(E2S_FLIP,:,iElem)
+
+  DO iSide=1,6
+    NSide=N_SurfMesh(SideID(iSide))%NSide
+    lambdatmp(1:nGP_face(NSide),iSide) = HDG_Surf_N(SideID(iSide))%lambda(1,1:nGP_face(NSide))
+    IF(NSide.NE.Nloc)THEN
+      tmp2(0:NSide,0:NSide) = RESHAPE(lambdatmp(1:nGP_face(NSide),iSide),(/NSide+1,NSide+1/))
+      CALL ChangeBasis2D(1, NSide, Nloc, PREF_VDM(NSide,Nloc)%Vdm, tmp2(0:NSide,0:NSide), tmp2(0:Nloc,0:Nloc))
+      lambdatmp(1:nGP_face(Nloc),iSide) = RESHAPE(tmp2(0:Nloc,0:Nloc),(/nGP_face(Nloc)/))
+    END IF
+  END DO
 
   ! Loop over the Gauss points with indexes (g1,g2,g3); for each
   ! point, compute all the i,j contributions in the local matrices.
@@ -762,18 +699,8 @@ DO iElem=1,PP_nElems
               idx_m = q_m*(Nloc+1)+p_m+1
               idx_p = q_p*(Nloc+1)+p_p+1
 
-              ! TODO NSideMin - LambdaMax: Only place where it is used
-              IF(Nloc.EQ.mNSide)THEN
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*HDG_Surf_N(SideID(mLocSide))%lambda(1,idx_m)
-              ELSE
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*HDG_Surf_N(SideID(mLocSide))%lambdaMax(1,idx_m)
-              END IF ! Nloc.EQ.mNSide
-
-              IF(Nloc.EQ.pNSide)THEN
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*HDG_Surf_N(SideID(pLocSide))%lambda(1,idx_p)
-              ELSE
-                q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*HDG_Surf_N(SideID(pLocSide))%lambdaMax(1,idx_p)
-              END IF ! Nloc.EQ.mNSide
+              q_loc = q_loc - N_Inter(Nloc)%Lomega_m(gdx(jDir))*lambdatmp(idx_m,mLocSide)
+              q_loc = q_loc - N_Inter(Nloc)%Lomega_p(gdx(jDir))*lambdatmp(idx_p,pLocSide)
             END ASSOCIATE
           END ASSOCIATE
           U_N(iElem)%E(:,g1,g2,g3)=U_N(iElem)%E(:,g1,g2,g3)+aCon(:,jDir)*q_loc
