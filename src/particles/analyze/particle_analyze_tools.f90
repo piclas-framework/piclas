@@ -45,7 +45,7 @@ PUBLIC :: CalcRelaxProbRotVib
 #endif
 PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==4)
-PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
+PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates,CollRatesBackScatter
 #endif /*(PP_TimeDiscMethod==4)*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 PUBLIC :: CalcPowerDensity
@@ -1936,7 +1936,7 @@ END SUBROUTINE CalcVelocities
 #if (PP_TimeDiscMethod==4)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
-!> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep
+!> Calculate the collision rate [1/s] per species pairing by averaging over the particle analyze interval
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1983,6 +1983,56 @@ END IF
 DSMC%NumColl = 0.
 
 END SUBROUTINE CollRates
+
+
+!===================================================================================================================================
+!> Calculates the backscatter collision rate [1/s] per species pairing by averaging over the particle analyze interval
+!===================================================================================================================================
+SUBROUTINE CollRatesBackScatter(BackScatterRate)
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
+USE MOD_DSMC_Vars             ,ONLY: CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_Particle_Vars         ,ONLY: VarTimeStep
+USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)              :: BackScatterRate(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iCase
+REAL                          :: dtVar
+!===================================================================================================================================
+
+#if USE_MPI
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%BackNumColl,CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+ELSE
+  CALL MPI_REDUCE(SpecXSec(:)%BackNumColl,SpecXSec(:)%BackNumColl,CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(MPIRoot)THEN
+  DO iCase=1, CollInf%NumCase
+    IF(.NOT.SpecXSec(iCase)%UseBackScatterXSec) CYCLE
+    ! Species-specific time step
+    IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+      dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
+    ELSE
+      dtVar = ParticleAnalyzeSampleTime
+    END IF
+    BackScatterRate(iCase) =  SpecXSec(iCase)%BackNumColl / dtVar
+  END DO
+END IF
+
+SpecXSec(:)%BackNumColl = 0.
+
+END SUBROUTINE CollRatesBackScatter
 
 
 SUBROUTINE CalcRelaxRates(NumSpec,VibRelaxProbCase)

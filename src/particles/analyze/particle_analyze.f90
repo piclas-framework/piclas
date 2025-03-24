@@ -860,8 +860,8 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcMixtureTemp, CalcRelaxProbRotVib
 #if (PP_TimeDiscMethod==4)
 USE MOD_DSMC_Vars               ,ONLY: CollInf, useDSMC, ChemReac, SpecDSMC
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
-USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_Relaxation
-USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
+USE MOD_MCC_Vars                ,ONLY: UseMCC, SpecXSec, XSec_Relaxation
+USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates,CollRatesBackScatter
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
@@ -896,7 +896,7 @@ INTEGER             :: bgSpec
 #endif
 #if (PP_TimeDiscMethod==4)
 INTEGER             :: jSpec, iCase, iLevel
-REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:)
+REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:), BackScatterRate(:)
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
@@ -923,6 +923,12 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
         SDEALLOCATE(CRate)
         ALLOCATE(CRate(CollInf%NumCase + 1))
         CRate = 0.0
+        IF(UseMCC) THEN
+          IF(ANY(SpecXSec(:)%UseBackScatterXSec)) THEN
+            SDEALLOCATE(BackScatterRate)
+            ALLOCATE(BackScatterRate(CollInf%NumCase))
+          END IF
+        END IF
         IF(CalcRelaxProb) THEN
           ALLOCATE(VibRelaxRate(CollInf%NumCase))
           VibRelaxRate = 0.0
@@ -1260,6 +1266,17 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-TotalCollRate'
             OutputCounter = OutputCounter + 1
+            IF(UseMCC) THEN
+              DO iSpec = 1, nSpecies
+                DO jSpec = iSpec, nSpecies
+                  iCase = CollInf%Coll_Case(iSpec,jSpec)
+                  IF(.NOT.SpecXSec(iCase)%UseBackScatterXSec) CYCLE
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-BackscatterCollRate', iSpec, '+', jSpec
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END DO
+            END IF
           END IF
           IF(CalcRelaxProb) THEN
             IF(XSec_Relaxation) THEN
@@ -1614,7 +1631,12 @@ END IF
 #if (PP_TimeDiscMethod==4)
   IF (DSMC%ReservoirSimu) THEN
     IF(iter.GT.0) THEN
-      IF(CalcCollRates) CALL CollRates(CRate)
+      IF(CalcCollRates) THEN
+        CALL CollRates(CRate)
+        IF(UseMCC) THEN
+          IF(ANY(SpecXSec(:)%UseBackScatterXSec)) CALL CollRatesBackScatter(BackScatterRate)
+        END IF
+      END IF
       IF(CalcRelaxProb) THEN
         CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
         IF(DSMC%ElectronicModel.EQ.3) THEN
@@ -1808,6 +1830,15 @@ IF (MPIRoot) THEN
       DO iCase=1, CollInf%NumCase +1
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CRate(iCase)
       END DO
+      IF(UseMCC) THEN
+        DO iSpec = 1, nSpecies
+          DO jSpec = iSpec, nSpecies
+            iCase = CollInf%Coll_Case(iSpec,jSpec)
+            IF(.NOT.SpecXSec(iCase)%UseBackScatterXSec) CYCLE
+            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BackScatterRate(iCase)
+          END DO
+        END DO
+      END IF
     END IF
     IF(CalcRelaxProb) THEN
       IF(XSec_Relaxation) THEN
