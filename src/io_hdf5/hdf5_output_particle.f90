@@ -1589,8 +1589,11 @@ USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile,N
 USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars     ,ONLY: NodeType
 USE MOD_PICInterpolation_tools ,ONLY: GetExternalFieldAtParticle,GetEMField
-USE MOD_Interpolation_Vars     ,ONLY: N_Inter
 USE MOD_Restart_Vars           ,ONLY: RestartTime
+USE MOD_Interpolation_Vars     ,ONLY: N_Inter,InterpolationInitIsDone,Nmax,Nmin
+USE MOD_DG_Vars                ,ONLY: nDofsMapping,N_DG_Mapping,N_DG
+USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
+USE MOD_IO_HDF5                ,ONLY: ElementOutNloc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1602,24 +1605,38 @@ IMPLICIT NONE
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal
-INTEGER,PARAMETER              :: outputVars=6
-REAL,ALLOCATABLE               :: outputArray(:,:,:,:,:)
+INTEGER,PARAMETER              :: nVarOut=6
+REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
 REAL                           :: StartT,EndT
-INTEGER                        :: iElem,i,j,k
+INTEGER                        :: iElem,k,i,j,iDOF,nDOFOutput,offsetDOF,Nloc
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE PIC EM-FIELD TO HDF5 FILE...'
 GETTIME(StartT)
 
-ALLOCATE(outputArray(1:outputVars,0:PP_N,0:PP_N,0:PP_N,1:nElems))
+! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+
+! Allocate local 2D array
+ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+
 DO iElem=1,PP_nElems
-  DO k=0,PP_N
-    DO j=0,PP_N
-      DO i=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offsetElem)
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        iDOF = iDOF + 1
         ASSOCIATE( x => N_VolMesh(iElem)%Elem_xGP(1,i,j,k), y => N_VolMesh(iElem)%Elem_xGP(2,i,j,k), z => N_VolMesh(iElem)%Elem_xGP(3,i,j,k))
           ! Superposition of the external and calculated electromagnetic field
           !   GetExternalFieldAtParticle : Get the 1 of 4 external fields (analytic, variable, etc.) at position x,y,z
           !                   GetEMField : Evaluate the electro-(magnetic) field using the reference position and return the field
-          outputArray(1:6,i,j,k,iElem) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/N_Inter(PP_N)%xGP(i),N_Inter(PP_N)%xGP(j),N_Inter(PP_N)%xGP(k)/))
+          U_N_2D_local(1:nVarOut,iDOF) = GetExternalFieldAtParticle((/x,y,z/)) &
+                                       + GetEMField(iElem,(/N_Inter(Nloc)%xGP(i),N_Inter(Nloc)%xGP(j),N_Inter(Nloc)%xGP(k)/))
         END ASSOCIATE
       END DO ! i
     END DO ! j
@@ -1628,7 +1645,7 @@ END DO ! iElem=1,PP_nElems
 
 
 ! Create dataset attribute "VarNames"
-ALLOCATE(StrVarNames(1:outputVars))
+ALLOCATE(StrVarNames(1:nVarOut))
 StrVarNames(1)='ElectricFieldX'
 StrVarNames(2)='ElectricFieldY'
 StrVarNames(3)='ElectricFieldZ'
@@ -1643,11 +1660,13 @@ IF(MPIRoot) THEN
   ! Write file header
   CALL WriteHDF5Header('BField',File_ID) ! File_Type='BField'
   ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-  CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
-  CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFile)/))
-  CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
-  CALL WriteAttributeToHDF5(File_ID,'VarNames',outputVars,StrArray=StrVarNames)
-  CALL WriteAttributeToHDF5(File_ID,'Time'    ,1,RealScalar=RestartTime)
+  CALL WriteAttributeToHDF5(File_ID , 'N'        , 1       , IntegerScalar = PP_N)
+  CALL WriteAttributeToHDF5(File_ID , 'Nmin'     , 1       , IntegerScalar = Nmin)
+  CALL WriteAttributeToHDF5(File_ID , 'Nmax'     , 1       , IntegerScalar = Nmax)
+  CALL WriteAttributeToHDF5(File_ID , 'MeshFile' , 1       , StrScalar     = (/TRIM(MeshFile)/))
+  CALL WriteAttributeToHDF5(File_ID , 'NodeType' , 1       , StrScalar     = (/NodeType/))
+  CALL WriteAttributeToHDF5(File_ID , 'VarNames' , nVarOut , StrArray      = StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID , 'Time'     , 1       , RealScalar    = RestartTime)
   CALL CloseDataFile()
   ! Add userblock to hdf5-file
   CALL copy_userblock(TRIM(FileName)//C_NULL_CHAR,TRIM(UserblockTmpFile)//C_NULL_CHAR)
@@ -1655,28 +1674,25 @@ END IF
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
-nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+CALL WriteAdditionalElemData(FileName,ElementOutNloc)
 
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-  outputVars   => INT(outputVars,IK)   ,&
-  N            => INT(PP_N,IK)         ,&
-  PP_nElems    => INT(PP_nElems,IK)    ,&
-  offsetElem   => INT(offsetElem,IK)   ,&
-  nGlobalElems => INT(nGlobalElems,IK) )
-CALL WriteArrayToHDF5(DataSetName = 'DG_Solution' , rank = 5                                    , &
-                      nValGlobal  = (/outputVars  , N+1_IK   , N+1_IK , N+1_IK , nGlobalElems/) , &
-                      nVal        = (/outputVars  , N+1_IK   , N+1_IK , N+1_IK , PP_nElems/)    , &
-                      offset      = (/0_IK        , 0_IK     , 0_IK   , 0_IK   , offsetElem/)   , &
-                      collective  = .FALSE.       , RealArray = outputArray)
+ASSOCIATE(nVarOut         => INT(nVarOut,IK)      ,&
+          nDofsMapping    => INT(nDofsMapping,IK) ,&
+          nDOFOutput      => INT(nDOFOutput,IK)   ,&
+          offsetDOF       => INT(offsetDOF,IK)    )
+CALL GatheredWriteArray(FileName,create = .FALSE.                  , &
+                           DataSetName  = 'DG_Solution', rank = 2  , &
+                           nValGlobal   = (/nVarOut, nDofsMapping/), &
+                           nVal         = (/nVarOut, nDOFOutput/)  , &
+                           offset       = (/0_IK   , offsetDOF/)   , &
+                           collective   = .TRUE.   , RealArray = U_N_2D_local)
 END ASSOCIATE
 
-CALL CloseDataFile()
-
 DEALLOCATE(StrVarNames)
-DEALLOCATE(outputArray)
+DEALLOCATE(U_N_2D_local)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)

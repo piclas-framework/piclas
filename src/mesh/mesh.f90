@@ -500,7 +500,7 @@ USE MOD_Globals
 USE MOD_PreProc
 !USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
-USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut
+USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut,ElementOutNloc
 USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords,nGlobalDOFs
 USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
@@ -530,6 +530,8 @@ N_DG = -1
 !CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Mapping(2,1+offSetElem:nElems+offSetElem)) ! TODO: Why does this not work?
 ! Add array containing the local polynomial degree to the hdf5 output
 CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
+! Add the same container to a separate object for writing it to special .h5 files that contain other fields using Nloc
+CALL AddToElemData(ElementOutNloc,'Nloc',IntArray=N_DG)
 
 SELECT CASE(pAdaptionType)
 CASE(PRM_P_ADAPTION_ZERO)
