@@ -235,8 +235,9 @@ USE MOD_Globals                ,ONLY: abort
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,Species,PartState
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
-USE MOD_Globals_Vars           ,ONLY: PI
+USE MOD_Globals_Vars           ,ONLY: PI, Joule2eV
 USE MOD_Array_Operations       ,ONLY: ChangeSizeArray
+USE MOD_Particle_Analyze_Pure  ,ONLY: CalcEkinPart2
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -292,10 +293,17 @@ ASSOCIATE( iMax => PartStateBoundaryVecLength )
     CALL abort(__STAMP__,'StoreBoundaryParticleProperties: mode must be either 1 or 2! mode=',IntInfoOpt=mode)
   END IF ! mode.EQ.1
   IF(PartStateBoundary(7,iMax).EQ.0) CALL abort(__STAMP__,'Error in StoreBoundaryParticleProperties. SpecID is zero')
-  PartStateBoundary(8  ,iMax) = MPF
-  PartStateBoundary(9  ,iMax) = time
-  PartStateBoundary(10 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
-  PartStateBoundary(11 ,iMax) = REAL(iPartBound)
+  ! Calculate kinetic energy (or set to zero for photon debug output)
+  IF(SpecID.EQ.999)THEN
+    PartStateBoundary(8  ,iMax) = 0.
+  ELSE
+    PartStateBoundary(8  ,iMax) = CalcEkinPart2(PartStateBoundary(4:6,iMax),SpecID,1.0) * Joule2eV
+  END IF
+  PartStateBoundary(9  ,iMax) = MPF
+  PartStateBoundary(10 ,iMax) = time
+  PartStateBoundary(11 ,iMax) = (90.-ABS(90.-(180./PI)*ACOS(DOT_PRODUCT(PartTrajectory,SurfaceNormal))))
+  PartStateBoundary(12 ,iMax) = REAL(iPartBound)
+
 END ASSOCIATE
 
 END SUBROUTINE StoreBoundaryParticleProperties

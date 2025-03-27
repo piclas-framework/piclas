@@ -488,16 +488,6 @@ END IF ! DoVirtualDielectricLayer
 #ifdef PARTICLES
 CALL WriteParticleToHDF5(FileName)
 ! ---------------------------------------------------------
-! Write the boundary impacting particle data
-! ---------------------------------------------------------
-IF(DoBoundaryParticleOutputHDF5) THEN
-  IF (usePreviousTime_loc) THEN
-    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
-  ELSE
-    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
-  END IF
-END IF
-! ---------------------------------------------------------
 ! Additional DSMC-related output
 ! ---------------------------------------------------------
 IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
@@ -663,6 +653,18 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
+! ---------------------------------------------------------
+! Output to separate files
+! ---------------------------------------------------------
+! Boundary impacting particle data
+! ---------------------------------------------------------
+IF(DoBoundaryParticleOutputHDF5) THEN
+  IF (usePreviousTime_loc) THEN
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
+  ELSE
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
+  END IF
+END IF
 
 ! ---------------------------------------------------------
 ! Output for the virtual dielectric layer (VDL)

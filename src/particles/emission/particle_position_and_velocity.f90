@@ -609,7 +609,7 @@ CASE('photon_SEE_energy')
         ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
 
           ! 1. Store the particle information in PartStateBoundary.h5
-          IF(DoBoundaryParticleOutputHDF5) THEN
+          IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputEmission(PartBCIndex)) THEN
             IF(usevMPF)THEN
               MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
             ELSE

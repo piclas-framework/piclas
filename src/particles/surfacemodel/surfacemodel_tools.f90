@@ -599,7 +599,7 @@ DO iNewPart = 1, ProductSpecNbr
   ! Push particle with the remaining timestep, LastPartPos was set to POI in CreateParticle
   PartState(1:3,NewPartID) = POI_vec(1:3) + NewVelo(1:3) * dtVar
   ! Store the particle information in PartStateBoundary.h5
-  IF(DoBoundaryParticleOutputHDF5) THEN
+  IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputEmission(locBCID)) THEN
     IF(usevMPF)THEN
       MPF = PartMPF(NewPartID)
     ELSE

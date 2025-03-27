@@ -24,7 +24,9 @@ To sample the particles impinging on a certain surface between `Analyze_dt` outp
 
     Part-Boundary1-BoundaryParticleOutput = T
 
-The particle data will then be written to `*_PartStateBoundary_*.h5` and includes besides the position, velocity vector and kinetic energy (in eV), additionally the impact obliqueness angle between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$. This allows you to create a histogram of the particle impacts in the post-processing.
+The particle data will then be written to `*_PartStateBoundary_*.h5` and includes besides the position, velocity vector and kinetic energy (in eV), additionally the impact obliqueness angle between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an impact angle of $0^{\circ}$. This allows you to create a histogram of the particle impacts in the post-processing. Additionally, particles emitted on a specific surface, for example due to secondary electron emission (SEE), can be included in the container with a negative species index through
+
+    Part-Boundary1-BoundaryParticleOutput-Emission = T
 
 The output of lost particles in a separate `*_PartStateLost*.h5` file can be enabled by
 

@@ -80,9 +80,10 @@ CALL prms%CreateRealOption(   'Part-Boundary[$]-PermittivityVDL', 'Permittivity 
 CALL prms%CreateRealOption(   'Part-Boundary[$]-ThicknessVDL'   , 'Thickness of the real dielectric layer in the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
-                              'or not [.FALSE.].'&
-                              , '.FALSE.', numberedmulti=.TRUE.)
-
+                              'or not [.FALSE.].', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput-Emission' , 'Define if the emitted particles on '//&
+                              'boundary [$] are to be stored in the same .h5 file with a negative species index for post-processing analysis [.TRUE.] '//&
+                              'or not [.FALSE.].', '.FALSE.', numberedmulti=.TRUE.)
 ! Radiative equilibrium temperature
 CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
@@ -384,6 +385,8 @@ DoVirtualDielectricLayer  = .FALSE.
 ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
 PartBound%BoundaryParticleOutputHDF5=.FALSE.
 DoBoundaryParticleOutputHDF5=.FALSE.
+ALLOCATE(PartBound%BoundaryParticleOutputEmission(1:nPartBound))
+PartBound%BoundaryParticleOutputEmission=.FALSE.
 
 PartMeshHasPeriodicBCs= .FALSE.
 PartBound%UseRotPeriodicBC     = .FALSE.
@@ -627,7 +630,10 @@ DO iPartBound=1,nPartBound
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
+  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) THEN
+    DoBoundaryParticleOutputHDF5=.TRUE.
+    PartBound%BoundaryParticleOutputEmission(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput-Emission')
+  END IF
 END DO
 
 ! Check if there is an particle init with photon SEE
@@ -2438,6 +2444,7 @@ SDEALLOCATE(PartBound%MolPerUnitCell)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
+SDEALLOCATE(PartBound%BoundaryParticleOutputEmission)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
 SDEALLOCATE(PartBound%PermittivityVDL)
 SDEALLOCATE(PartBound%ThicknessVDL)
