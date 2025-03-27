@@ -1129,6 +1129,12 @@ NIG_DVM:
   script:
     - cd build_DVM ; reggie ../regressioncheck/NIG_DVM
 
+NIG_convtest_DVM:
+  <<: *defaults_DVM_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/NIG_convtest_DVM
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON

@@ -100,8 +100,9 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 
 | **No.** |         **Case**          | **CMAKE-CONFIG** |                                                       **Feature**                                                       | **Execution** |       **Comparing**        |                             **Readme**                              |
 | :-----: | :-----------------------: | :--------------: | :---------------------------------------------------------------------------------------------------------------------: | :-----------: | :------------------------: | :-----------------------------------------------------------------: |
-| 1    | heatflux_relax |     |  Heat flux relaxation | nProcs=1, nDim=1,2,3, EDDVM/DUGKS, ESBGK/Shakhov | final L2 error norm | [Link](regressioncheck/CHE_DVM/heatflux_relax/readme.md) |
-| 2    | Sod_shock |     |  Dense Sod shock | nProcs=1,2,7, nDim=1, EDDVM/DUGKS, ESBGK/Shakhov | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock/readme.md) |
+| 1    | heatflux_relax |     |  nDim=1,2,3, EDDVM/DUGKS, ESBGK/Shakhov | nProcs=1 | final L2 error norm | [Link](regressioncheck/CHE_DVM/heatflux_relax/readme.md) |
+| 2    | Sod_shock |     |  EDDVM/DUGKS, ESBGK/Shakhov, minmax/Venkatakrishnan limiter | nProcs=1,2,7 | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock/readme.md) |
+| 3    | Sod_shock_restart |     |  DVM macro restart | nProcs=1,3 | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock_restart/readme.md) |
 
 
 ## Nightly
@@ -125,6 +126,7 @@ Overview of the test cases performed during the nightly regression testing.
 |    -    |           [NIG_poisson_PETSC](#NIG_poisson_PETSC)            | Poisson, PETSC, Code Analyze=ON, PARTICLES=OFF  |                     Poisson solver without particles, with PETSC library                     |                                             |                                |                                                                                                |
 |    -    |         [NIG_Photoionization](#nig_photoionization)          |            Poisson, Code Analyze=ON             |        Photoionization of H2 and secondary electron emission and initial load balance        |                                             |                                |                                                                                                |
 |    -    |               [NIG_DVM](#nig_dvm)                |                    discrete_velocity                    |      DVM      |                                             |                                |                                                                                                |
+|    -    |               [NIG_convtest_DVM](#nig_convtest_dvm)                |                    discrete_velocity                    |      Spatio-temporal order of convergence for DVM      |                                             |                                |                                                                                                |
 |    -    |               [NIG_Radiation](#nig_radiation)                |                    Radiation                    |      Radiation timedisc, cell-local emission and radiative transfer (2D rot sym and 3D)      |                                             |                                |                                                                                                |
 |    1    |                   NIG_PIC_maxwell_bgfield                    |                 maxwell,PIC,RK4                 |                                 External Background-field,h5                                 |                  nProcs=2                   |          DG_Solution           |                                                                                                |
 |    2    |                 NIG_PIC_poisson_powerdensity                 |             Poisson, Crank-Nicolson             |                                    Implicit, CalcTimeAvg                                     |         DoRefMapping=T/F, nProcs=2          |     Final TimeAvg, h5diff      |                                                                                                |
@@ -473,11 +475,19 @@ Test all features of radiation timedisc (cell-local emission using the radiation
 
 ### NIG_DVM
 
-Test discrete velocity method: [Link to build](regressioncheck/NIG_Radiation/builds.ini).
+Test discrete velocity method: [Link to build](regressioncheck/NIG_DVM/builds.ini).
 
 | **No.** |         **Case**          | **CMAKE-CONFIG** |                                                                        **Feature**                                                                        |  **Execution**  |       **Comparing**        |                                **Readme**                                 |
 | :-----: | :-----------------------: | :--------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------: | :------------------------: | :-----------------------------------------------------------------------: |
-| 1    | Poiseuille_flow_force |     |  Force-driven Poiseuille flow | nProcs=10 | L2 error | [Link](regressioncheck/NIG_DVMPoiseuille_flow_force/readme.md) |
+| 1    | Poiseuille_flow_force |     |  Force-driven Poiseuille flow | nProcs=10 | L2 error | [Link](regressioncheck/NIG_DVM/Poiseuille_flow_force/readme.md) |
+
+### NIG_convtest_DVM
+
+Test discrete velocity method: [Link to build](regressioncheck/NIG_convtest_DVM/builds.ini).
+
+| **No.** |         **Case**          | **CMAKE-CONFIG** |                                                                        **Feature**                                                                        |  **Execution**  |       **Comparing**        |                                **Readme**                                 |
+| :-----: | :-----------------------: | :--------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------: | :------------------------: | :-----------------------------------------------------------------------: |
+| 1    | Poiseuille_flow_force |     |  Force-driven Poiseuille flow | nProcs=4 | Spatio-temporal convergence order | [Link](regressioncheck/NIG_convtest_DVM/Poiseuille_flow_force/readme.md) |
 
 ## Weekly
 
