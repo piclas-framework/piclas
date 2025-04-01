@@ -1328,25 +1328,29 @@ IF(SF%Adaptive) THEN !SF%Adaptive
   CASE DEFAULT
     CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong adaptive type!')
   END SELECT
+  ! Sampled velocity vector
   VeloVec(1) = AdaptBCMacroVal(DSMC_VELOX,SampleElemID,iSpec)
   VeloVec(2) = AdaptBCMacroVal(DSMC_VELOY,SampleElemID,iSpec)
   VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
   vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
-  VeloVec(1:3) = DOT_PRODUCT(VeloVec,vec_nIn)*vec_nIn(1:3)
-  VeloIC = SQRT(DOT_PRODUCT(VeloVec,VeloVec))
+  ! Velocity magnitude
+  VeloIC = VECNORM(VeloVec)
   IF (ABS(VeloIC).GT.0.) THEN
     VeloVecIC = VeloVec / VeloIC
   ELSE
-    VeloVecIC = (/1.,0.,0./)
+    ! Fallback to value from parameter read-in
+    VeloVecIC = SF%VeloVecIC
   END IF
-  projFak = DOT_PRODUCT(vec_nIn,VeloVecIC) !VeloVecIC projected to inwards normal
-  v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC) !thermal speed
-  IF ( ALMOSTEQUAL(v_thermal,0.)) THEN
-    v_thermal = 1.
-  END IF
-  a = VeloIC * projFak / v_thermal !speed ratio proj. to inwards n (can be negative!)
-  Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC) !v in t1-dir
-  Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC) !v in t2-dir
+  ! VeloVecIC projected to inwards normal
+  projFak = DOT_PRODUCT(vec_nIn,VeloVecIC)
+  ! Thermal velocity
+  v_thermal = SQRT(2.*BoltzmannConst*T/Species(iSpec)%MassIC)
+  IF(ALMOSTEQUAL(v_thermal,0.)) v_thermal = 1.
+  ! Velocity ratio projected to inwards normal vector (can be negative!)
+  a = VeloIC * projFak / v_thermal
+  ! Velocity component in tangential direction
+  Velo_t1 = VeloIC * DOT_PRODUCT(vec_t1,VeloVecIC)
+  Velo_t2 = VeloIC * DOT_PRODUCT(vec_t2,VeloVecIC)
 END IF !Adaptive SurfaceFlux
 
 ! Set velocities
