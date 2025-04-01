@@ -1522,8 +1522,12 @@ DO iSpec = 1, nSpecies
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideArea)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%WeightingFactor)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeightSub)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide)
   END DO
   IF(ASSOCIATED(Species(iSpec)%Surfaceflux)) THEN

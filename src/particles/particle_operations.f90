@@ -254,7 +254,7 @@ IF(PRESENT(BCID)) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
         Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow - MPF
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + 1
+        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + MPF
       END IF
     END DO
   END IF ! UseAdaptiveBC.OR.CalcSurfFluxInfo
