@@ -54,12 +54,13 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
-CALL prms%CreateIntOption(      'IniExactFunc'     , 'Define exact function necessary for '//&
+CALL prms%CreateIntOption(      'IniExactFunc-FV'     , 'Define exact function necessary for '//&
                                                      'discrete velocity method', '-1')
 CALL prms%CreateRealOption(     'DVM-omegaVHS',      'Variable Hard Sphere parameter')
 CALL prms%CreateRealOption(     'DVM-T_Ref',         'VHS reference temperature')
 CALL prms%CreateRealOption(     'DVM-d_Ref',         'VHS reference diameter')
 CALL prms%CreateRealOption(     'DVM-Mass',          'Molecular mass')
+CALL prms%CreateRealOption(     'DVM-Charge',          'Electrical charge')
 CALL prms%CreateIntOption(      'DVM-Internal_DOF',  'Number of (non translational) internal degrees of freedom', '0')
 CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions for velocity discretization', '3')
 CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
@@ -77,8 +78,8 @@ CALL prms%CreateRealArrayOption('DVM-VeloMin',                 'Only for Newton-
 CALL prms%CreateRealArrayOption('DVM-VeloMax',                 'Only for Newton-Cotes velocity quadrature', '(/1.,1.,1./)')
 CALL prms%CreateIntOption(      'DVM-nVelo' ,                  'Number of velocity discretization points', '15')
 CALL prms%CreateIntArrayOption( 'DVM-NewtonCotesDegree',       'Degree of the subquadrature for composite quadrature', '(/1,1,1/)')
-CALL prms%CreateIntOption(      'IniRefState',  'Refstate required for initialization.')
-CALL prms%CreateRealArrayOption('RefState',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
+CALL prms%CreateIntOption(      'IniRefState-FV',  'Refstate required for initialization.')
+CALL prms%CreateRealArrayOption('RefState-FV',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
                                                  multiple=.TRUE., no=14 )
 CALL prms%CreateRealArrayOption('DVM-Accel',    'Acceleration vector for force term', '(/0., 0., 0./)')
 CALL prms%CreateLogicalOption(  'DVM-WriteMacroSurfaceValues',  'Surface output', '.FALSE.')
@@ -105,7 +106,7 @@ USE MOD_DVM_Boundary_Analyze,ONLY: InitDVMBoundaryAnalyze
 ! LOCAL VARIABLES
 INTEGER :: i, iGH, iDim
 !==================================================================================================================================
-IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone)THEN
+IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone_FV)THEN
   CALL CollectiveStop(__STAMP__,&
     "InitLinearScalarAdvection not ready to be called or already called.")
 END IF
@@ -113,13 +114,14 @@ SWRITE(UNIT_stdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT DVM...'
 
 Pi=ACOS(-1.)
-IniExactFunc_FV = GETINT('IniExactFunc')
+IniExactFunc_FV = GETINT('IniExactFunc-FV')
 
 DVMSpeciesData%omegaVHS = GETREAL('DVM-omegaVHS')
 DVMSpeciesData%T_Ref = GETREAL('DVM-T_Ref')
 DVMSpeciesData%d_Ref = GETREAL('DVM-d_Ref')
 DVMSpeciesData%Internal_DOF = GETINT('DVM-Internal_DOF')
 DVMSpeciesData%Mass = GETREAL('DVM-Mass')
+DVMSpeciesData%Charge = GETREAL('DVM-Charge')
 DVMBGKModel = GETINT('DVM-BGKCollModel')
 DVMMethod = GETINT('DVM-Method')
 DVMVeloDisc = GETINT('DVM-VeloDiscretization')
@@ -173,17 +175,17 @@ ELSE
 END IF ! DVMVeloDisc
 
 ! Read Boundary information / RefStates / perform sanity check
-IniRefState = GETINT('IniRefState')
-nRefState=CountOption('RefState')
-IF(IniRefState.GT.nRefState)THEN
+IniRefState_FV = GETINT('IniRefState-FV')
+nRefState_FV=CountOption('RefState-FV')
+IF(IniRefState_FV.GT.nRefState_FV)THEN
   CALL CollectiveStop(__STAMP__,&
-    'ERROR: Ini not defined! (Ini,nRefState):',IniRefState,REAL(nRefState))
+    'ERROR: Ini not defined! (Ini,nRefState_FV):',IniRefState_FV,REAL(nRefState_FV))
 END IF
 
-IF(nRefState .GT. 0)THEN
-  ALLOCATE(RefState(14,nRefState))
-  DO i=1,nRefState
-    RefState(1:14,i)  = GETREALARRAY('RefState',14)
+IF(nRefState_FV .GT. 0)THEN
+  ALLOCATE(RefState_FV(14,nRefState_FV))
+  DO i=1,nRefState_FV
+    RefState_FV(1:14,i)  = GETREALARRAY('RefState-FV',14)
   END DO
 END IF
 
@@ -206,7 +208,7 @@ END SELECT
 WriteDVMSurfaceValues = GETLOGICAL('DVM-WriteMacroSurfaceValues')
 IF (WriteDVMSurfaceValues) CALL InitDVMBoundaryAnalyze()
 
-EquationInitIsDone=.TRUE.
+EquationInitIsDone_FV=.TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT DVM DONE!'
 SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
@@ -221,7 +223,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
-USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState, DVMBGKModel
+USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState_FV, DVMBGKModel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -248,17 +250,17 @@ CASE(0)
   Resu=0.
 
 CASE(1) !Grad 13 uniform init
-  CALL GradDistribution(RefState(:,1),Resu(:))
+  CALL GradDistribution(RefState_FV(:,1),Resu(:))
 
-CASE(2) ! couette flow, L=1m between walls, RefState: 1 -> initial state, 2 -> y=-0.5 boundary, 3 -> y=0.5 boundary
-  CALL GradDistribution(RefState(:,1),Resu(:))
+CASE(2) ! couette flow, L=1m between walls, RefState_FV: 1 -> initial state, 2 -> y=-0.5 boundary, 3 -> y=0.5 boundary
+  CALL GradDistribution(RefState_FV(:,1),Resu(:))
   ! steady state
   IF (tIn.GT.0.) THEN
-    MacroVal(:) = RefState(:,1)
-    WallVelo1 = RefState(2,2)
-    WallTemp1 = RefState(5,2)
-    WallVelo2 = RefState(2,3)
-    WallTemp2 = RefState(5,3)
+    MacroVal(:) = RefState_FV(:,1)
+    WallVelo1 = RefState_FV(2,2)
+    WallTemp1 = RefState_FV(5,2)
+    WallVelo2 = RefState_FV(2,3)
+    WallTemp2 = RefState_FV(5,3)
     MacroVal(2) = WallVelo2 + (WallVelo1-WallVelo2)*(0.5-x(2))
     MacroVal(5) = WallTemp2 + (0.5-x(2))*(WallTemp1-WallTemp2+((WallVelo1-WallVelo2)**2)*(0.5+x(2))*4/15/DVMSpeciesData%R_S/2)
                                                                                                     ! cf Eucken's relation
@@ -270,14 +272,14 @@ CASE(3) !sod shock
 
   IF (tIn.EQ.0.) THEN ! initial state
     IF (x(1).LT.0.) THEN
-      CALL MaxwellDistribution(RefState(:,1),Resu(:))
+      CALL MaxwellDistribution(RefState_FV(:,1),Resu(:))
     ELSE
-      CALL MaxwellDistribution(RefState(:,2),Resu(:))
+      CALL MaxwellDistribution(RefState_FV(:,2),Resu(:))
     END IF
   ELSE ! analytical solution
     MacroVal = 0.
-    SodMacro_L=RefState(1:5,1)
-    SodMacro_R=RefState(1:5,2)
+    SodMacro_L=RefState_FV(1:5,1)
+    SodMacro_R=RefState_FV(1:5,2)
     SodMacro_LL = 0.         !     | L | LL | M | RR | R |
     SodMacro_M = 0.
     SodMacro_RR = 0.
@@ -316,9 +318,9 @@ CASE(3) !sod shock
   END IF
 
 CASE(4) !heat flux relaxation test case
-  CALL GradDistribution(RefState(:,1),Resu(:))
+  CALL GradDistribution(RefState_FV(:,1),Resu(:))
   IF (tIn.GT.0.) THEN ! relaxation
-    MacroVal(:) = RefState(:,1)
+    MacroVal(:) = RefState_FV(:,1)
     mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%omegaVHS+0.5)
     tau = mu/(DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5))
     MacroVal(12:14) = MacroVal(12:14)*EXP(-tIn*DVMSpeciesData%Prandtl/tau) !Heat flux relaxes with rate Pr/tau
@@ -326,23 +328,23 @@ CASE(4) !heat flux relaxation test case
   END IF
 
 CASE(5) !Taylor-Green vortex
-  MacroVal(:) = RefState(:,1)
-  MacroVal(2) = RefState(2,1)*SIN(x(1))*COS(x(2))*COS(x(3))
-  MacroVal(3) = -RefState(2,1)*COS(x(1))*SIN(x(2))*COS(x(3))
+  MacroVal(:) = RefState_FV(:,1)
+  MacroVal(2) = RefState_FV(2,1)*SIN(x(1))*COS(x(2))*COS(x(3))
+  MacroVal(3) = -RefState_FV(2,1)*COS(x(1))*SIN(x(2))*COS(x(3))
   MacroVal(4) = 0.
-  MacroVal(5) = MacroVal(5)+(RefState(2,1)**2)/(16.*DVMSpeciesData%R_S)*(COS(2.*x(1))+COS(2.*x(2)))*(COS(2.*x(3))+2.)
+  MacroVal(5) = MacroVal(5)+(RefState_FV(2,1)**2)/(16.*DVMSpeciesData%R_S)*(COS(2.*x(1))+COS(2.*x(2)))*(COS(2.*x(3))+2.)
   CALL MaxwellDistribution(MacroVal,Resu(:))
 
 CASE(6) !Sum of 2 distributions
-  CALL GradDistribution(RefState(:,1),Resu(:))
-  CALL GradDistribution(RefState(:,2),SecondDist(:))
+  CALL GradDistribution(RefState_FV(:,1),Resu(:))
+  CALL GradDistribution(RefState_FV(:,2),SecondDist(:))
   Resu(:) = Resu(:) + SecondDist(:)
 
 CASE(7) ! Poiseuille flow with force corresponding to 0.01 Pa/m
-  CALL GradDistribution(RefState(:,1),Resu(:))
+  CALL GradDistribution(RefState_FV(:,1),Resu(:))
   ! steady state in continuum limit
   IF (tIn.GT.0.) THEN
-    MacroVal(:) = RefState(:,1)
+    MacroVal(:) = RefState_FV(:,1)
     mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%omegaVHS+0.5)
     MacroVal(2) = 0.01*(1.*x(2)-x(2)*x(2))/mu/2.
     CALL MaxwellDistribution(MacroVal,Resu(:))
@@ -408,7 +410,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t,coeff
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 
@@ -423,15 +425,15 @@ END SUBROUTINE CalcSource
 !==================================================================================================================================
 SUBROUTINE FinalizeEquation()
 ! MODULES
-USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState, WriteDVMSurfaceValues
+USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone_FV, DVMVelos, DVMWeights, RefState_FV, WriteDVMSurfaceValues
 USE MOD_DVM_Boundary_Analyze,ONLY: FinalizeDVMBoundaryAnalyze
 IMPLICIT NONE
 !==================================================================================================================================
-EquationInitIsDone = .FALSE.
+EquationInitIsDone_FV = .FALSE.
 IF (WriteDVMSurfaceValues) CALL FinalizeDVMBoundaryAnalyze()
 SDEALLOCATE(DVMVelos)
 SDEALLOCATE(DVMWeights)
-SDEALLOCATE(RefState)
+SDEALLOCATE(RefState_FV)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation_FV

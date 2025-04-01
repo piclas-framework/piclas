@@ -158,9 +158,17 @@ ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "discrete_velocity")
-  ADD_DEFINITIONS(-DPP_nVar=0 -Ddiscrete_velocity)
-  SET(PICLAS_HDG OFF)
-  SET(PICLAS_FV ON)
+  OPTION(PICLAS_DVM_PLASMA "DVM_PLASMA" OFF)
+  IF(PICLAS_DVM_PLASMA)
+    ADD_DEFINITIONS(-Ddiscrete_velocity)
+    ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
+    SET(PICLAS_HDG ON)
+    SET(PICLAS_FV ON)
+  ELSE()
+    ADD_DEFINITIONS(-DPP_nVar=0 -Ddiscrete_velocity)
+    SET(PICLAS_HDG OFF)
+    SET(PICLAS_FV ON)
+  ENDIF()
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "drift_diffusion")
   ADD_DEFINITIONS(-DPP_nVar_FV=1 -Ddrift_diffusion)
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
@@ -350,6 +358,8 @@ IF(PICLAS_HDG)
      MESSAGE(STATUS "use HDG with ROS6")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
      MESSAGE(STATUS "use HDG in parallel to Explicit-FV")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
+     MESSAGE(STATUS "use HDG in parallel to ED-DVM")
   ELSE()
       MESSAGE(SEND_ERROR "Unknown time discretization method for HDG.")
   ENDIF()
@@ -533,13 +543,16 @@ FILE(GLOB_RECURSE hdgfvF90 ./src/hdg/*.f90
                          ./src/fv/*.f90
                         ./src/interpolation/prolongtoface.f90
                         ./src/gradients/*.f90
-                        ./src/equations/drift_diffusion/equation.f90
-                        ./src/equations/drift_diffusion/equation_vars.f90
-                        ./src/equations/drift_diffusion/transport_data.f90
-                        ./src/equations/drift_diffusion/riemann.f90
-                        ./src/equations/drift_diffusion/getboundaryflux.f90
-                        ./src/equations/drift_diffusion/getboundarygrad.f90
-                        ./src/equations/drift_diffusion/ionization.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/transport_data.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/riemann.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/getboundarygrad.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/ionization.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/dvm_boundary_analyze.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/distfunc.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/incbeta.f90
                         ./src/equations/poisson/equation.f90
                         ./src/equations/poisson/equation_tools.f90
                         ./src/equations/poisson/equation_vars.f90

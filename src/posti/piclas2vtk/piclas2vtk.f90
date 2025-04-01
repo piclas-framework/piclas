@@ -710,7 +710,7 @@ IF (nElems.NE.nElems_State) CALL abort(__STAMP__,'Number of elements in state fi
 
 IF (nVar.GT.0) THEN
   ALLOCATE(VarNames(1:nVar))
-  CALL ReadAttribute(File_ID,'VarNames',nVar,StrArray=VarNames(1:nVar))
+  CALL ReadAttribute(File_ID,'VarNamesFV',nVar,StrArray=VarNames(1:nVar))
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&

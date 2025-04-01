@@ -146,9 +146,12 @@ INTEGER                            :: NonUniqueGlobalSideID
 INTEGER                            :: PETScLocalID
 PetscErrorCode                     :: ierr
 #endif
-#if USE_FV && USE_LOADBALANCE
+#if (USE_FV && USE_LOADBALANCE) || defined(discrete_velocity)
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 #endif
+#ifdef discrete_velocity
+INTEGER                            :: iElem
+#endif /*discrete_velocity*/
 #else /*USE_HDG*/
 INTEGER                            :: iElem
 #if USE_LOADBALANCE || defined(discrete_velocity)

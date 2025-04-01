@@ -1029,7 +1029,8 @@ REAL                            :: MacroVal(14), tau, fTarget(PP_nVar_FV), prefa
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 DO iElem =1, nElems
-  DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+  ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+  DO k=0, 0; DO j=0, 0; DO i=0, 0
     SELECT CASE (tilde)
       CASE(1) ! f~  -----> f2^    (tDeriv=dt)
         CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),tDeriv,tau,tilde)
@@ -1100,7 +1101,8 @@ INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,*) 'INITIAL DISTRIBUTION FUNCTION RESCALE'
 DO iElem =1, nElems
-  DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+  ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+  DO k=0, 0; DO j=0, 0; DO i=0, 0
     CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),0.,tau,1) ! tDeriv=0 to get heatflux from original distribution
     SELECT CASE (DVMBGKModel)
       CASE(1)
@@ -1131,7 +1133,7 @@ DO iElem =1, nElems
 END DO
 END SUBROUTINE RescaleInit
 
-SUBROUTINE ForceStep(tDeriv)
+SUBROUTINE ForceStep(tDeriv,ElectricField)
 !===================================================================================================================================
 ! Calculates force term (to add in 2 parts (Strang splitting) for 2nd order accuracy)
 !===================================================================================================================================
@@ -1146,6 +1148,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)              :: tDeriv
+REAL, DIMENSION(1:3), INTENT(IN), OPTIONAL :: ElectricField
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1154,7 +1157,8 @@ REAL                            :: MacroVal(14), tau, fTarget(PP_nVar_FV), force
 INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos !,upos1,upos2
 !===================================================================================================================================
 DO iElem =1, nElems
-  DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+  ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+  DO k=0, 0; DO j=0, 0; DO i=0, 0
     CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),tDeriv,tau,1)
     ! SELECT CASE (DVMBGKModel)
     !   CASE(1)
@@ -1175,8 +1179,12 @@ DO iElem =1, nElems
       cVel(1) = DVMVelos(iVel,1) - MacroVal(2)
       cVel(2) = DVMVelos(jVel,2) - MacroVal(3)
       cVel(3) = DVMVelos(kVel,3) - MacroVal(4)
-      forceTerm = DOT_PRODUCT(DVMForce,cVel)/(DVMSpeciesData%R_S*MacroVal(5)) * fTarget(upos)
-
+      IF (PRESENT(ElectricField)) THEN
+        forceTerm = (DVMSpeciesData%Charge/DVMSpeciesData%Mass) &
+                  * DOT_PRODUCT(ElectricField,cVel)/(DVMSpeciesData%R_S*MacroVal(5)) * fTarget(upos)
+      ELSE
+        forceTerm = DOT_PRODUCT(DVMForce,cVel)/(DVMSpeciesData%R_S*MacroVal(5)) * fTarget(upos)
+      END IF
       ! non equilibrium version
       ! IF (iVel.EQ.1) THEN
       !   upos1=upos

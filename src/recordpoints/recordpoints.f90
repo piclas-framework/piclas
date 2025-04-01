@@ -313,13 +313,11 @@ SUBROUTINE RecordPoints(t,Output)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-#if USE_FV
-USE MOD_FV_Vars                ,ONLY: U_FV
 #ifdef discrete_velocity
+USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
 USE MOD_DistFunc               ,ONLY: MaxwellDistributionCons, SkewNormalDistribution, SkewtDistribution, GradDistributionPrandtl
-#endif
 #endif
 #if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
@@ -346,7 +344,7 @@ LOGICAL,INTENT(IN)             :: Output ! force sampling (e.g. first/last times
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i,j,k,iRP
-#if USE_HDG && !(USE_FV)
+#if USE_HDG && !(defined(discrete_velocity))
 #if PP_nVar==1
 INTEGER,PARAMETER       :: AddVar=3
 #endif /*PP_nVar==1*/
@@ -390,13 +388,6 @@ DO iRP=1,nRP
     DO j=0,PP_N
       l_eta_zeta_RP=l_eta_RP(j,iRP)*l_zeta_RP(k,iRP)
       DO i=0,PP_N
-#if USE_HDG
-#ifndef drift_diffusion
-#if PP_nVar==1
-        U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
-#endif /*PP_nVar==1*/
-#endif /*drift_diffusion*/
-#else
 #ifdef discrete_velocity
         IF (t.GT.0.) THEN
           CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1)
@@ -428,10 +419,13 @@ DO iRP=1,nRP
         ELSE
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
         END IF
+#elif USE_HDG
+#if PP_nVar==1
+        U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
+#endif /*PP_nVar==1*/
 #else
         U_RP(:,iRP)=U_RP(:,iRP) +    U(:,i,j,k,RP_ElemID(iRP))                                *l_xi_RP(i,iRP)*l_eta_zeta_RP
-#endif /*discrete_velocity*/
-#endif /*USE_HDG*/
+#endif /*DVM/HDG*/
       END DO !i
     END DO !j
   END DO !k
@@ -505,9 +499,6 @@ INTEGER,PARAMETER       :: AddVar=3
 #else
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
-#if USE_FV && USE_HDG
-CHARACTER(LEN=255)      :: StrVarNames_HDGFV(PP_nVar+AddVar+PP_nVar_FV)
-#endif /*USE_FV && USE_HDG*/
 
 ! #ifdef discrete_velocity
 ! REAL,DIMENSION(PP_nVar_FV) :: Weights, VeloX, VeloY, VeloZ
@@ -519,19 +510,15 @@ SWRITE(UNIT_stdOut,'(A)')' '//TRIM(hilf)
 GETTIME(startT)
 
 #if USE_FV
-#if USE_HDG
-StrVarNames_HDGFV(1:PP_nVar+AddVar) = StrVarNames
-StrVarNames_HDGFV(PP_nVar+AddVar+1:PP_nVar+AddVar+PP_nVar_FV) = StrVarNames_FV
-ASSOCIATE (StrVarNames_loc => StrVarNames_HDGFV, &
-           PP_nVar_loc     => PP_nVar+AddVar+PP_nVar_FV)
-#else
 #ifdef discrete_velocity
 ASSOCIATE (PP_nVar_loc     => PP_nVar_FV)
+#elif USE_HDG
+ASSOCIATE (StrVarNames_loc => StrVarNames, &
+  PP_nVar_loc     => PP_nVar+AddVar)
 #else
 ASSOCIATE (StrVarNames_loc => StrVarNames_FV, &
            PP_nVar_loc     => PP_nVar_FV)
 #endif /*discrete_velocity*/
-#endif
 #else
 ASSOCIATE (StrVarNames_loc => StrVarNames, &
            PP_nVar_loc     => PP_nVar+AddVar)

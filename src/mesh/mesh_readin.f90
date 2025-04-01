@@ -61,7 +61,7 @@ SUBROUTINE ReadBCs()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
-#if USE_FV && USE_HDG
+#if USE_FV
 USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
 #endif
 #if USE_HDG
@@ -83,7 +83,7 @@ LOGICAL,ALLOCATABLE            :: UserBCFound(:)
 LOGICAL                        :: NameCheck,LengthCheck
 CHARACTER(LEN=255),ALLOCATABLE :: BCNames(:)
 INTEGER, ALLOCATABLE           :: BCMapping(:),BCType(:,:)
-#if USE_FV && USE_HDG
+#if USE_FV
 INTEGER, ALLOCATABLE           :: BCType_FV(:,:)
 #endif
 INTEGER                        :: iBC,iUserBC,OriginalBC,NewBC
@@ -94,14 +94,18 @@ nUserBCs = CountOption('BoundaryName')
 IF(nUserBCs.GT.0)THEN
   ALLOCATE(BoundaryName(1:nUserBCs))
   ALLOCATE(BoundaryType(1:nUserBCs,2))
-#if USE_FV && USE_HDG
+#if USE_FV
   ALLOCATE(BoundaryType_FV(1:nUserBCs,2))
 #endif
   DO iBC=1,nUserBCs
     BoundaryName(iBC)   = GETSTR('BoundaryName')
-    BoundaryType(iBC,:) = GETINTARRAY('BoundaryType',2) !(/Type,State/)
-#if USE_FV && USE_HDG
+#if USE_FV
     BoundaryType_FV(iBC,:) = GETINTARRAY('BoundaryType-FV',2) !(/Type,State/)
+#endif
+#if USE_HDG || !(USE_FV)
+    BoundaryType(iBC,:) = GETINTARRAY('BoundaryType',2) !(/Type,State/)
+#else /*FV alone*/
+    BoundaryType(iBC,:) = BoundaryType_FV(iBC,:)
 #endif
   END DO
 END IF !nUserBCs>0
@@ -150,7 +154,7 @@ CALL GetDataSize(File_ID,'BCType',nDims,HSize)
 IF((HSize(1).NE.4).OR.(HSize(2).NE.nBCs)) STOP 'Problem in readBC'
 DEALLOCATE(HSize)
 ALLOCATE(BCType(4,nBCs))
-#if USE_FV && USE_HDG
+#if USE_FV
 ALLOCATE(BCType_FV(2,nBCs))
 #endif
 offset=0
@@ -186,7 +190,7 @@ IF(nUserBCs .GT. 0)THEN
                                       ' was ', NewBC,BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
-#if USE_FV && USE_HDG
+#if USE_FV
       LBWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
                                       ' was ', NewBC,BCType(3,iBC), ' is set for FV to ',BoundaryType_FV(BCMapping(iBC),1:2)
       BCType_FV(1,iBC) = BoundaryType_FV(BCMapping(iBC),BC_TYPE)
@@ -203,7 +207,7 @@ BoundaryName = BCNames
 BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
-#if USE_FV && USE_HDG
+#if USE_FV
 IF(ALLOCATED(BoundaryType_FV)) DEALLOCATE(BoundaryType_FV)
 ALLOCATE(BoundaryType_FV(nBCs,2))
 BoundaryType_FV(:,BC_TYPE)  = BCType_FV(1,:)

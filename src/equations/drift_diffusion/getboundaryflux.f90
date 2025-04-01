@@ -129,7 +129,6 @@ USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs
 USE MOD_Mesh_Vars_FV    ,ONLY: BoundaryType_FV
 #if USE_HDG
 USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID
-USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #else
 USE MOD_Equation_Vars_FV,ONLY: nBCByType,BCSideID
 #endif

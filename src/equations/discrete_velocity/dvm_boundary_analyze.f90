@@ -35,8 +35,8 @@ SUBROUTINE InitDVMBoundaryAnalyze()
 ! MODULES
 USE MOD_Globals
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSurfaceValues, nVarDVMSurf
-USE MOD_Mesh_Vars                ,ONLY: nBCSides,nBCs,BoundaryName,BoundaryType
-USE MOD_Mesh_Vars_FV             ,ONLY: nGlobalBCSides,offsetBCSide,FVSurfBCName,nFVSurfBC
+USE MOD_Mesh_Vars                ,ONLY: nBCSides,nBCs,BoundaryName
+USE MOD_Mesh_Vars_FV             ,ONLY: nGlobalBCSides,offsetBCSide,FVSurfBCName,nFVSurfBC,BoundaryType_FV
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -81,7 +81,7 @@ DO iBC=1,nBCs
   BCName=''
 END DO
 DO iBC=1,nBCs
-  IF (BoundaryType(iBC,BC_TYPE).EQ.1) CYCLE !periodic BC
+  IF (BoundaryType_FV(iBC,BC_TYPE).EQ.1) CYCLE !periodic BC
   nFVSurfBC         = nFVSurfBC + 1
   BCName(nFVSurfBC) = BoundaryName(iBC)
 END DO

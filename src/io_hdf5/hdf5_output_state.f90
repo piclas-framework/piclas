@@ -163,8 +163,6 @@ REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElem
 #endif
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
-#elif defined(discrete_velocity)
-REAL                           :: Utemp(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -179,6 +177,7 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
+REAL                           :: Udvm(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 REAL                           :: tau,dtMV
 INTEGER                        :: i,j,k,iElem
 #endif /*DVM*/
@@ -253,39 +252,33 @@ GETTIME(StartT)
 IF(InitialAutoRestart) THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
 #if USE_HDG
-#if PP_nVar==1
+#ifdef discrete_velocity
+  CALL GenerateFileSkeleton('State',19,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
+#elif PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #elif PP_nVar==3
   CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #else
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
-#elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution')
-  IF (time.EQ.0.) THEN
-    dtMV = 0.
-  ELSE
-    dtMV = dt
-  ENDIF
+#elif (defined(discrete_velocity))
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif /*USE_HDG*/
 ELSE
 #if USE_HDG
-#if PP_nVar==1
+#ifdef discrete_velocity
+  CALL GenerateFileSkeleton('State',19,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
+#elif PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #elif PP_nVar==3
   CALL GenerateFileSkeleton('State',3,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #else
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
-#elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution')
-  IF (time.EQ.0.) THEN
-    dtMV = 0.
-  ELSE
-    dtMV = dt
-  ENDIF
+#elif (defined(discrete_velocity))
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif /*USE_HDG*/
@@ -564,12 +557,17 @@ ASSOCIATE (&
   CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
   CALL ProlongToOutput(U_FV,Ureco)
 #ifdef discrete_velocity
+  IF (time.EQ.0.) THEN
+    dtMV = 0.
+  ELSE
+    dtMV = dt
+  ENDIF
   DO iElem=1,INT(PP_nElems)
     DO k=0,PP_1
       DO j=0,PP_1
         DO i=0,PP_1
-          CALL MacroValuesFromDistribution(Utemp(1:14,i,j,k,iElem),Ureco(:,i,j,k,iElem),dtMV,tau,1)
-          Utemp(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+          CALL MacroValuesFromDistribution(Udvm(1:14,i,j,k,iElem),Ureco(:,i,j,k,iElem),dtMV,tau,1)
+          Udvm(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
         END DO
       END DO
     END DO
@@ -579,7 +577,7 @@ ASSOCIATE (&
       nValGlobal=(/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
       nVal=      (/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Utemp)
+      collective=.TRUE.,RealArray=Udvm)
 #endif
 #ifdef drift_diffusion
   CALL GatheredWriteArray(FileName,create=.FALSE.,&

@@ -26,16 +26,19 @@ LOGICAL           :: doCalcSource             !< Swith to calculate a source ter
 REAL              :: AdvVel(3)                !< Advection velocity
 REAL              :: DiffC                    !< Diffusion constant
 INTEGER           :: IniExactFunc_FV             !< Number of exact function used for initialization
-INTEGER           :: IniRefState              !< RefState for initialization
-INTEGER           :: nRefState                !< number of refstates defined in parameter file
-REAL,ALLOCATABLE  :: RefState(:,:)        !< reference state
+INTEGER           :: IniRefState_FV              !< RefState for initialization
+INTEGER           :: nRefState_FV                !< number of refstates defined in parameter file
+REAL,ALLOCATABLE  :: RefState_FV(:,:)        !< reference state
 
 REAL              :: Pi
 
-! Boundary condition arrays
-REAL,ALLOCATABLE     :: BCData(:,:,:,:)       !< Buffer array for BC data
+#if !(USE_HDG)
+REAL                 :: c_corr
+REAL                 :: fDamping
+REAL                 :: WaveLength                             !> wave length
 INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each boundary
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
+#endif
 
 INTEGER              :: DVMnVelos(3)
 INTEGER              :: DVMBGKModel
@@ -50,10 +53,6 @@ REAL, ALLOCATABLE    :: DVMVelos(:,:)
 REAL, ALLOCATABLE    :: DVMWeights(:,:)
 REAL                 :: DVMForce(3)
 
-REAL                 :: c_corr
-REAL                 :: fDamping
-REAL                 :: WaveLength                             !> wave length
-
 REAL,ALLOCATABLE     :: DVMMomentSave(:,:)
 
 TYPE tSpeciesData
@@ -62,6 +61,7 @@ TYPE tSpeciesData
   REAL            :: d_Ref
   REAL            :: mu_Ref
   REAL            :: Mass
+  REAL            :: Charge
   REAL            :: R_S
   REAL            :: Prandtl
   INTEGER         :: Internal_DOF
@@ -89,7 +89,7 @@ LOGICAL              :: WriteDVMSurfaceValues
 REAL,ALLOCATABLE     :: DVMSurfaceValues(:,:,:,:)
 INTEGER              :: nVarDVMSurf=4
 
-LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
+LOGICAL              :: EquationInitIsDone_FV=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux
 LOGICAL,ALLOCATABLE  ::isExactFluxInterFace(:)
 !===================================================================================================================================

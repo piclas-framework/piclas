@@ -28,7 +28,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotatet: don't use it after this routine!!
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! PP_N
+USE MOD_PreProc ! 0
 USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
 USE MOD_DistFunc,        ONLY: ShakhovDistribution, ESBGKDistribution, GradDistributionPrandtl
 USE MOD_DistFunc,        ONLY: SkewNormalDistribution, SkewtDistribution
@@ -39,11 +39,11 @@ USE MOD_Globals,         ONLY: abort
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar_FV,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
+REAL,DIMENSION(PP_nVar_FV,0:0,0:0),INTENT(IN) :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3,0:0,0:0)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -55,8 +55,8 @@ REAL                                             :: gamma_R, gamma_L
 INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos
 !===================================================================================================================================
 ! Gauss point i,j
-  DO Count_2=0,PP_N
-    DO Count_1=0,PP_N
+  DO Count_2=0,0
+    DO Count_1=0,0
       n_loc(:)=nv(:,Count_1,Count_2)
       CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1)
       CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)

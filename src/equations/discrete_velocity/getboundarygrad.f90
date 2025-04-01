@@ -45,9 +45,10 @@ SUBROUTINE GetBoundaryGrad(SideID,gradU,gradUinside,UPrim_master,NormVec,Face_xG
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals          ,ONLY: Abort
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,BC
+USE MOD_Mesh_Vars        ,ONLY: BC
+USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
 USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
-USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState!, DVMBGKModel
+USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV!, DVMBGKModel
 USE MOD_Equation_Vars_FV ,ONLY: DVMVelos, DVMnVelos, DVMVeloDisc, DVMVeloMax, DVMVeloMin, DVMDim!, Pi, DVMWeights
 USE MOD_TimeDisc_Vars    ,ONLY: dt, time
 USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
@@ -68,8 +69,8 @@ REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
 REAL    :: MacroVal(14), tau, vnormal!, vwall, Sin, Sout, MovTerm, WallDensity, weight
 INTEGER :: iVel, jVel, kVel, upos, upos_sp
 !==================================================================================================================================
-BCType  = BoundaryType(BC(SideID),BC_TYPE)
-BCState = BoundaryType(BC(SideID),BC_STATE)
+BCType  = BoundaryType_FV(BC(SideID),BC_TYPE)
+BCState = BoundaryType_FV(BC(SideID),BC_STATE)
 
 SELECT CASE(BCType)
 CASE(1) !Periodic already filled!
@@ -78,7 +79,7 @@ CASE(2) ! exact BC = Dirichlet BC !!
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
     CALL ExactFunc_FV(IniExactFunc_FV,time,0,Face_xGP,UPrim_boundary)
   ELSE
-    CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary)
+    CALL MaxwellDistribution(RefState_FV(:,BCState),UPrim_boundary)
   END IF
   gradU = UPrim_master - UPrim_boundary
 
@@ -97,7 +98,7 @@ CASE(3) ! specular reflection
   !     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
   !     weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
   !     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
-  !     vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
+  !     vwall = DVMVelos(iVel,1)*RefState_FV(2,BCState) + DVMVelos(jVel,2)*RefState_FV(3,BCState) + DVMVelos(kVel,3)*RefState_FV(4,BCState)
   !     IF (vnormal.LT.0.) THEN !inflow
   !       Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpeciesData%R_S/MacroVal(5)/2.) &
   !       /DVMSpeciesData%R_S/MacroVal(5)/(2.*Pi*DVMSpeciesData%R_S*MacroVal(5))**(DVMDim/2.)
@@ -112,7 +113,7 @@ CASE(3) ! specular reflection
   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
-    ! vwall = DVMVelos(iVel,1)*RefState(2,BCState) + DVMVelos(jVel,2)*RefState(3,BCState) + DVMVelos(kVel,3)*RefState(4,BCState)
+    ! vwall = DVMVelos(iVel,1)*RefState_FV(2,BCState) + DVMVelos(jVel,2)*RefState_FV(3,BCState) + DVMVelos(kVel,3)*RefState_FV(4,BCState)
     IF (ABS(ABS(NormVec(1)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
       upos_sp=(DVMnVelos(1)+1-iVel)+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
     ELSE IF (ABS(ABS(NormVec(2)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
@@ -144,7 +145,7 @@ CASE(3) ! specular reflection
 
 CASE(4) ! diffusive
   fplus(:)=UPrim_master(:)-gradUinside(:)
-  MacroVal(:) = RefState(:,BCState)
+  MacroVal(:) = RefState_FV(:,BCState)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
   IF (output) THEN
     CALL MaxwellScattering(UPrim_boundary,fplus,NormVec,1,dt)
@@ -168,7 +169,7 @@ CASE(4) ! diffusive
   END DO; END DO; END DO
 
 CASE(14) ! diffusive order 1
-  MacroVal(:) = RefState(:,BCState)
+  MacroVal(:) = RefState_FV(:,BCState)
   CALL MaxwellDistribution(MacroVal,UPrim_boundary)
   IF (output) THEN
     CALL MaxwellScattering(UPrim_boundary,UPrim_master,NormVec,1,dt)
