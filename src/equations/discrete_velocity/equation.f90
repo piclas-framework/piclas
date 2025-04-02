@@ -60,7 +60,7 @@ CALL prms%CreateRealOption(     'DVM-omegaVHS',      'Variable Hard Sphere param
 CALL prms%CreateRealOption(     'DVM-T_Ref',         'VHS reference temperature')
 CALL prms%CreateRealOption(     'DVM-d_Ref',         'VHS reference diameter')
 CALL prms%CreateRealOption(     'DVM-Mass',          'Molecular mass')
-CALL prms%CreateRealOption(     'DVM-Charge',          'Electrical charge')
+CALL prms%CreateRealOption(     'DVM-Charge',          'Electrical charge', '0.')
 CALL prms%CreateIntOption(      'DVM-Internal_DOF',  'Number of (non translational) internal degrees of freedom', '0')
 CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions for velocity discretization', '3')
 CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
@@ -133,6 +133,7 @@ DVMDim = GETINT('DVM-Dimension')
 IF ((DVMDim.GT.3).OR.(DVMDim.LT.1)) CALL abort(__STAMP__,'DVM error: dimension must be between 1 and 3')
 DVMSpeciesData%Prandtl =2.*(DVMSpeciesData%Internal_DOF + 5.)/(2.*DVMSpeciesData%Internal_DOF + 15.)
 
+species
 DVMnVelos(1:3) = 1
 DVMnVelos(1:DVMDim) = GETINT('DVM-nVelo')
 PP_nVar_FV = (DVMnVelos(1)**DVMDim)

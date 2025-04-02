@@ -420,7 +420,7 @@ DO iRP=1,nRP
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
         END IF
 #elif USE_HDG
-#if PP_nVar==1
+#if PP_nVar==1 && !(defined(drift_diffusion))
         U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*PP_nVar==1*/
 #else
