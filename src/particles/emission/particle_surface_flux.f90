@@ -1218,7 +1218,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     ! Calculate the total volume flow rate
     DO iSub = 1, ParticleWeighting%nSubSides
       ! Calculate the volume flow rate per sub-side
-      SF%ConstMassflowWeightSub(iSide,iSub) = SF%nVFRSub(iSide,iSub) * vSF
+      SF%ConstMassflowWeightSub(iSide,iSub) = SF%SubSideArea(iSide,iSub) * vSF
       nVFRTotal = nVFRTotal + SF%ConstMassflowWeightSub(iSide,iSub)
     END DO
   ELSE
@@ -1280,7 +1280,7 @@ ELSE
   END IF
 END IF
 
-! TODO: Subdivision + circular inflow
+! TODO: Subdivision + circular inflow (abort in InitializeParticleSurfaceflux)
 IF(SF%CircularInflow) THEN
   ! Scaling up the number of particles to be inserted on the triaside
   DO iSide=1,BCdata_auxSF(currentBC)%SideNumber

@@ -1108,35 +1108,39 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
   IF(DoRadialWeighting) THEN
     nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
     Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide) = BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
-    IF(.NOT.ParticleWeighting%UseCellAverage) THEN
+    IF(ParticleWeighting%UseSubdivision) THEN
       DO iSub = 1, ParticleWeighting%nSubSides
         IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
           Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
                                                               * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+          Species(iSpec)%Surfaceflux(iSF)%SubSideWeight(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
         END IF
       END DO
     END IF
   ELSE IF(DoLinearWeighting.OR.DoCellLocalWeighting) THEN
     IF (BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide).GT.1) THEN
       nVFR = nVFR * Species(iSpec)%MacroParticleFactor / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+      ! Weighting factor must be relative to the MacroParticleFactor (as is the case for radial weighting)
       Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide) = BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide) / Species(iSpec)%MacroParticleFactor
     ELSE
       nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
     END IF
     ! Only for 2D axisymmetric
-    IF(Symmetry%Axisymmetric.AND..NOT.ParticleWeighting%UseCellAverage) THEN
+    IF(ParticleWeighting%UseSubdivision) THEN
       DO iSub = 1, ParticleWeighting%nSubSides
         IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
           Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) * vSF &
                                 * Species(iSpec)%MacroParticleFactor / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+          ! SubSideWeight expects a weighting relative to the global MacroParticleFactor (as is the case for radial weighting)
+          Species(iSpec)%Surfaceflux(iSF)%SubSideWeight(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub) &
+                                                                      / Species(iSpec)%MacroParticleFactor
         END IF
       END DO
     END IF
   END IF
-  ! Axisymmetric and particle weighting: store the weight of the subsides separately
+  ! Axisymmetric and particle weighting: store the area of the subsides separately
   IF(ParticleWeighting%UseSubdivision) THEN
     Species(iSpec)%Surfaceflux(iSF)%SubSideArea(iSide,:) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,:)
-    Species(iSpec)%Surfaceflux(iSF)%SubSideWeight(iSide,:) = BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,:)
   END IF
   IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
     ! Check whether cell is completely outside of the circular inflow region and set the volume flow rate to zero
