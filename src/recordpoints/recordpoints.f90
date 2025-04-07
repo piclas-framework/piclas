@@ -315,7 +315,7 @@ USE MOD_Globals
 USE MOD_Preproc
 #ifdef discrete_velocity
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel
+USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel, DVMnSpecies, DVMSpecData
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
 USE MOD_DistFunc               ,ONLY: MaxwellDistributionCons, SkewNormalDistribution, SkewtDistribution, GradDistributionPrandtl
 #endif
@@ -353,7 +353,8 @@ INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 INTEGER                 :: nVar
 #ifdef discrete_velocity
-REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(14), fTarget(PP_nVar_FV)
+REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(14,DVMnSpecies+1), fTarget(PP_nVar_FV)
+INTEGER                 :: iSpec, vFIrstID, vLastID
 #else
 REAL                    :: U_RP(PP_nVar+AddVar,nRP)
 #endif /*discrete_velocity*/
@@ -390,31 +391,38 @@ DO iRP=1,nRP
       DO i=0,PP_N
 #ifdef discrete_velocity
         IF (t.GT.0.) THEN
-          CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1)
+          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1)
           SELECT CASE(DVMMethod)
             CASE(1)
               prefac = tau*(1.-EXP(-dt/tau))/dt
             CASE(2)
               prefac = 2.*tau/(2.*tau+dt)
           END SELECT
-          SELECT CASE (DVMBGKModel)
-            CASE(1)
-              CALL ESBGKDistribution(MacroVal,fTarget)
-            CASE(2)
-              CALL ShakhovDistribution(MacroVal,fTarget)
-            CASE(3)
-              CALL MaxwellDistribution(MacroVal,fTarget)
-            CASE(4)
-              CALL MaxwellDistributionCons(MacroVal,fTarget)
-            CASE(5)
-              CALL SkewNormalDistribution(MacroVal,fTarget)
-            CASE(6)
-              CALL SkewtDistribution(MacroVal,fTarget)
-            CASE(7)
-              CALL GradDistributionPrandtl(MacroVal,fTarget)
-            CASE DEFAULT
-              CALL abort(__STAMP__,'DVM BGK Model not implemented')
-          END SELECT
+          vFirstID = 1
+          vLastID = 0
+          DO iSpec=1,DVMnSpecies
+            vLastID = vLastID + DVMSpecData(iSpec)%nVar
+            MacroVal(2:14,iSpec) = MacroVal(2:14,DVMnSpecies+1)
+            SELECT CASE (DVMBGKModel)
+              CASE(1)
+                CALL ESBGKDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+              CASE(2)
+                CALL ShakhovDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+              CASE(3)
+                CALL MaxwellDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+              CASE(4)
+                CALL MaxwellDistributionCons(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+              CASE(5)
+                CALL SkewNormalDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+              CASE(6)
+                CALL SkewtDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+              CASE(7)
+                CALL GradDistributionPrandtl(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+              CASE DEFAULT
+                CALL abort(__STAMP__,'DVM BGK Model not implemented')
+            END SELECT
+            vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+          END DO
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
         ELSE
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
@@ -480,7 +488,7 @@ USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists,ch
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM,nRP_Procs
 #endif
 #ifdef discrete_velocity
-USE MOD_Equation_Vars_FV  ,ONLY: DVMWeights, DVMnVelos, DVMVelos
+USE MOD_Equation_Vars_FV  ,ONLY: DVMSpecData, DVMnSpecies
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -490,7 +498,7 @@ LOGICAL,INTENT(IN)             :: finalizeFile
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)             :: FileString,hilf
+CHARACTER(LEN=255)             :: FileString,hilf,hilf2
 REAL                           :: startT,endT
 #if USE_HDG
 #if PP_nVar==1
@@ -500,10 +508,11 @@ INTEGER,PARAMETER       :: AddVar=3
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 
-! #ifdef discrete_velocity
+#ifdef discrete_velocity
 ! REAL,DIMENSION(PP_nVar_FV) :: Weights, VeloX, VeloY, VeloZ
 ! INTEGER                    :: iVel, jVel, kVel, upos
-! #endif
+INTEGER                      :: iSpec
+#endif
 !===================================================================================================================================
 WRITE(hilf,'(A)') ' WRITE RECORDPOINT DATA TO HDF5 FILE...'
 SWRITE(UNIT_stdOut,'(A)')' '//TRIM(hilf)
@@ -555,23 +564,26 @@ CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 
 #ifdef discrete_velocity
   ! Associate construct for integer KIND=8 possibility
-ASSOCIATE (nVel    => INT(DVMnVelos(1),IK))
+DO iSpec = 1,DVMnSpecies
+  ASSOCIATE (nVel    => INT(DVMSpecData(iSpec)%nVelos(1),IK))
+    WRITE(UNIT=hilf2,FMT='(I0.3)') iSpec
 
-  CALL WriteArrayToHDF5(DataSetName = 'Weights', rank= 2, &
-  nValGlobal  = (/nVel,3_IK/)     , &
-  nVal        = (/nVel,3_IK/)     , &
-  offset      = (/0_IK,0_IK/)          , &
-  RealArray   = DVMWeights             , &
-  collective  = .FALSE.)
+    CALL WriteArrayToHDF5(DataSetName = 'Weights'//TRIM(hilf2), rank= 2, &
+    nValGlobal  = (/nVel,3_IK/)     , &
+    nVal        = (/nVel,3_IK/)     , &
+    offset      = (/0_IK,0_IK/)          , &
+    RealArray   = DVMSpecData(iSpec)%Weights      , &
+    collective  = .FALSE.)
 
-  CALL WriteArrayToHDF5(DataSetName = 'Velos', rank= 2, &
-  nValGlobal  = (/nVel,3_IK/)     , &
-  nVal        = (/nVel,3_IK/)     , &
-  offset      = (/0_IK,0_IK/)          , &
-  RealArray   = DVMVelos               , &
-  collective  = .FALSE.)
+    CALL WriteArrayToHDF5(DataSetName = 'Velos'//TRIM(hilf2), rank= 2, &
+    nValGlobal  = (/nVel,3_IK/)     , &
+    nVal        = (/nVel,3_IK/)     , &
+    offset      = (/0_IK,0_IK/)          , &
+    RealArray   = DVMSpecData(iSpec)%Velos        , &
+    collective  = .FALSE.)
 
-END ASSOCIATE
+  END ASSOCIATE
+END DO
 #endif /*DVM*/
 
 IF(iSample.GT.0)THEN

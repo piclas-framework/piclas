@@ -42,7 +42,7 @@ USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
 #ifdef discrete_velocity
 USE MOD_TimeDisc_Vars,      ONLY: dt
-USE MOD_Equation_Vars_FV,   ONLY: DVMnVelos, DVMVelos, DVMDim
+USE MOD_Equation_Vars_FV,   ONLY: DVMSpecData, DVMnSpecies, DVMDim
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -66,6 +66,9 @@ REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV,0:0,0:0,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
+#ifdef discrete_velocity
+INTEGER                         :: iSpec, vFirstID
+#endif
 !===================================================================================================================================
 IF(doMPISides)THEN
   ! only YOUR MPI Sides are filled
@@ -83,19 +86,25 @@ DO SideID=firstSideID,lastSideID
   IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
 #ifdef discrete_velocity
   !DVM specific reconstruction
-  DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-    Uface_slave(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
-                                  + Gradient_elem(1,upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                  + Gradient_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                  + Gradient_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
-    IF (DVMDim.LT.3) THEN
-      Uface_slave(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
-                                  + Gradient_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                  + Gradient_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                  + Gradient_elem(3,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(3,SideID)-DVMVelos(kVel,3)*dt/2.)
-    END IF
-  END DO; END DO; END DO
+  vFirstID = 0
+  DO iSpec=1,DVMnSpecies
+    ASSOCIATE(Sp => DVMSpecData(iSpec))
+    DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+      upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+      Uface_slave(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+                                    + Gradient_elem(1,upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                    + Gradient_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                    + Gradient_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+      IF (DVMDim.LT.3) THEN
+        Uface_slave(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
+                                    + Gradient_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                    + Gradient_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                    + Gradient_elem(3,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+      END IF
+    END DO; END DO; END DO
+    vFirstID = vFirstID + Sp%nVar
+    END ASSOCIATE
+  END DO
 #else
   Uface_slave(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
                             + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_slave(1,SideID) &
@@ -124,19 +133,25 @@ DO SideID=firstSideID,lastSideID
   IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
 #ifdef discrete_velocity
   !DVM specific reconstruction
-  DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-    upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-    Uface_master(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
-                                  + Gradient_elem(1,upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                  + Gradient_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                  + Gradient_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
-    IF (DVMDim.LT.3) THEN
-      Uface_master(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
-                                  + Gradient_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(1,SideID)-DVMVelos(iVel,1)*dt/2.) &
-                                  + Gradient_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(2,SideID)-DVMVelos(jVel,2)*dt/2.) &
-                                  + Gradient_elem(3,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(3,SideID)-DVMVelos(kVel,3)*dt/2.)
-    END IF
-  END DO; END DO; END DO
+  vFirstID = 0
+  DO iSpec=1,DVMnSpecies
+    ASSOCIATE(Sp => DVMSpecData(iSpec))
+    DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+      upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+      Uface_master(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+                                    + Gradient_elem(1,upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                    + Gradient_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                    + Gradient_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+      IF (DVMDim.LT.3) THEN
+        Uface_master(PP_nVar_FV/2+upos,0,0,SideID) = Uvol(PP_nVar_FV/2+upos,0,0,0,ElemID) &
+                                    + Gradient_elem(1,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                    + Gradient_elem(2,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                    + Gradient_elem(3,PP_nVar_FV/2+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+      END IF
+    END DO; END DO; END DO
+    vFirstID = vFirstID + Sp%nVar
+    END ASSOCIATE
+  END DO
 #else
   Uface_master(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
                             + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_master(1,SideID) &

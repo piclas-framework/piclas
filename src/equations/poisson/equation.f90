@@ -987,6 +987,12 @@ USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
 USE MOD_FV_Vars            ,ONLY: U_FV
 USE MOD_Globals_Vars       ,ONLY: eps0, ElementaryCharge
 #endif
+#ifdef discrete_velocity
+USE MOD_FV_Vars            ,ONLY: U_FV
+USE MOD_Globals_Vars       ,ONLY: eps0
+USE MOD_DistFunc           ,ONLY: MacroValuesFromDistribution
+USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecies
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1011,6 +1017,9 @@ REAL                            :: dx
 REAL                            :: ElemCharLengthX
 #endif /*defined(CODE_ANALYZE)*/
 #endif /*PARTICLES*/
+#ifdef discrete_velocity
+REAL                            :: DVMtotalCharge, tau, MacroVal(14,DVMnSpecies+1)
+#endif
 !===================================================================================================================================
 ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))
 IF(PRESENT(warning_linear)) warning_linear=.FALSE. ! Initialize
@@ -1110,6 +1119,10 @@ resu(1) = - ((PartSource(4,i,j,k,iElem) - U_FV(1,0,0,0,iElem)*ElementaryCharge))
 !resu(1) = 0.!- ((1e20 - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
 #endif
 
+#ifdef discrete_velocity
+CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),0.,tau,1,Charge=DVMtotalCharge)
+resu(1) = 0. !DVMtotalCharge/eps0
+#endif
 
 END SUBROUTINE CalcSourceHDG
 

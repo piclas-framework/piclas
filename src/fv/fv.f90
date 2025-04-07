@@ -356,7 +356,7 @@ INTEGER                         :: iElem
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
 DO iElem=1,PP_nElems
-    CALL ExactFunc_FV(IniExactFunc_FV,0.,0,Elem_xGP_FV(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+  CALL ExactFunc_FV(IniExactFunc_FV,0.,0,Elem_xGP_FV(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 

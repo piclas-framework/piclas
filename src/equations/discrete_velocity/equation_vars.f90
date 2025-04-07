@@ -28,7 +28,7 @@ REAL              :: DiffC                    !< Diffusion constant
 INTEGER           :: IniExactFunc_FV             !< Number of exact function used for initialization
 INTEGER           :: IniRefState_FV              !< RefState for initialization
 INTEGER           :: nRefState_FV                !< number of refstates defined in parameter file
-REAL,ALLOCATABLE  :: RefState_FV(:,:)        !< reference state
+REAL,ALLOCATABLE  :: RefState_FV(:,:,:)        !< reference state
 
 REAL              :: Pi
 
@@ -40,20 +40,16 @@ INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each bounda
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 #endif
 
-INTEGER              :: DVMnVelos(3)
+INTEGER              :: DVMnSpecies
 INTEGER              :: DVMBGKModel
 INTEGER              :: DVMMethod
-INTEGER              :: DVMVeloDisc
-REAL                 :: DVMGHTemp(3)
-INTEGER              :: DVMNewtDeg(3)
-REAL                 :: DVMVeloMin(3)
-REAL                 :: DVMVeloMax(3)
 INTEGER              :: DVMDim
-REAL, ALLOCATABLE    :: DVMVelos(:,:)
-REAL, ALLOCATABLE    :: DVMWeights(:,:)
 REAL                 :: DVMForce(3)
+INTEGER,ALLOCATABLE  :: DVMVeloDisc(:)
+REAL,ALLOCATABLE     :: DVMGHTemp(:,:)
+INTEGER,ALLOCATABLE  :: DVMNewtDeg(:,:)
 
-REAL,ALLOCATABLE     :: DVMMomentSave(:,:)
+REAL,ALLOCATABLE     :: DVMMomentSave(:,:,:)
 
 TYPE tSpeciesData
   REAL            :: omegaVHS
@@ -65,9 +61,17 @@ TYPE tSpeciesData
   REAL            :: R_S
   REAL            :: Prandtl
   INTEGER         :: Internal_DOF
+  INTEGER         :: nVar
+  INTEGER         :: nVelos(3)
+  REAL            :: VeloMin(3)
+  REAL            :: VeloMax(3)
+  REAL,ALLOCATABLE:: Velos(:,:)
+  REAL,ALLOCATABLE:: Weights(:,:)
+  REAL            :: GHTemp(3)
+  INTEGER         :: NewtDeg(3)
 END TYPE tSpeciesData
 
-TYPE(tSpeciesData) :: DVMSpeciesData
+TYPE(tSpeciesData),ALLOCATABLE :: DVMSpecData(:)
 
 CHARACTER(LEN=255),DIMENSION(15),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=255) :: 'Density', &
                                                                                     'VelocityX', &

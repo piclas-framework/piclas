@@ -88,6 +88,7 @@ USE MOD_Equation_Vars          ,ONLY: E,Phi
 #ifdef discrete_velocity
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
+USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
@@ -177,6 +178,7 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
+REAL                           :: MacroVal(14,DVMnSpecies+1)
 REAL                           :: Udvm(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 REAL                           :: tau,dtMV
 INTEGER                        :: i,j,k,iElem
@@ -566,7 +568,8 @@ ASSOCIATE (&
     DO k=0,PP_1
       DO j=0,PP_1
         DO i=0,PP_1
-          CALL MacroValuesFromDistribution(Udvm(1:14,i,j,k,iElem),Ureco(:,i,j,k,iElem),dtMV,tau,1)
+          CALL MacroValuesFromDistribution(MacroVal,Ureco(:,i,j,k,iElem),dtMV,tau,1)
+          Udvm(1:14,i,j,k,iElem) = MacroVal(1:14,DVMnSpecies+1) ! only total values for now
           Udvm(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
         END DO
       END DO

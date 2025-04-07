@@ -56,12 +56,20 @@ IMPLICIT NONE
 CALL prms%SetSection("Equation")
 CALL prms%CreateIntOption(      'IniExactFunc-FV'     , 'Define exact function necessary for '//&
                                                      'discrete velocity method', '-1')
-CALL prms%CreateRealOption(     'DVM-omegaVHS',      'Variable Hard Sphere parameter')
-CALL prms%CreateRealOption(     'DVM-T_Ref',         'VHS reference temperature')
-CALL prms%CreateRealOption(     'DVM-d_Ref',         'VHS reference diameter')
-CALL prms%CreateRealOption(     'DVM-Mass',          'Molecular mass')
-CALL prms%CreateRealOption(     'DVM-Charge',          'Electrical charge', '0.')
-CALL prms%CreateIntOption(      'DVM-Internal_DOF',  'Number of (non translational) internal degrees of freedom', '0')
+CALL prms%CreateIntOption(      'DVM-nSpecies',      'Number of species for DVM', '1')
+CALL prms%CreateRealOption(     'DVM-Species[$]-omegaVHS',      'Variable Hard Sphere parameter', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-T_Ref',         'VHS reference temperature', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-d_Ref',         'VHS reference diameter', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-Mass',          'Molecular mass', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-Charge',          'Electrical charge', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-Internal_DOF',  'Number of (non translational) internal degrees of freedom', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-VeloDiscretization',      '1: do not use, 2: Gauss-Hermite, 3: Newton-Cotes', '2', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('DVM-Species[$]-GaussHermiteTemp',        'Reference temperature for GH quadrature (per direction)',&
+                                                               '(/273.,273.,273./)', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('DVM-Species[$]-VeloMin',                 'Only for Newton-Cotes velocity quadrature', '(/-1.,-1.,-1./)', numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('DVM-Species[$]-VeloMax',                 'Only for Newton-Cotes velocity quadrature', '(/1.,1.,1./)', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-nVelo' ,                  'Number of velocity discretization points', '15', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'DVM-Species[$]-NewtonCotesDegree',       'Degree of the subquadrature for composite quadrature', '(/1,1,1/)', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions for velocity discretization', '3')
 CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
                                                      '1: Ellipsoidal statistical (ESBGK)\n'//&
@@ -71,13 +79,6 @@ CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'/
 CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//&
                                                      '1: Exponential differencing (EDDVM)\n'//&
                                                      '2: DUGKS')
-CALL prms%CreateIntOption(      'DVM-VeloDiscretization',      '1: do not use, 2: Gauss-Hermite, 3: Newton-Cotes', '2')
-CALL prms%CreateRealArrayOption('DVM-GaussHermiteTemp',        'Reference temperature for GH quadrature (per direction)',&
-                                                               '(/273.,273.,273./)')
-CALL prms%CreateRealArrayOption('DVM-VeloMin',                 'Only for Newton-Cotes velocity quadrature', '(/-1.,-1.,-1./)')
-CALL prms%CreateRealArrayOption('DVM-VeloMax',                 'Only for Newton-Cotes velocity quadrature', '(/1.,1.,1./)')
-CALL prms%CreateIntOption(      'DVM-nVelo' ,                  'Number of velocity discretization points', '15')
-CALL prms%CreateIntArrayOption( 'DVM-NewtonCotesDegree',       'Degree of the subquadrature for composite quadrature', '(/1,1,1/)')
 CALL prms%CreateIntOption(      'IniRefState-FV',  'Refstate required for initialization.')
 CALL prms%CreateRealArrayOption('RefState-FV',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
                                                  multiple=.TRUE., no=14 )
@@ -99,119 +100,137 @@ USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights, GaussHermiteNodesAndWeights, NewtonCotesNodesAndWeights
 USE MOD_Equation_Vars_FV
 USE MOD_DVM_Boundary_Analyze,ONLY: InitDVMBoundaryAnalyze
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: i, iGH, iDim
+INTEGER               :: i, iGH, iDim, iSpec
+CHARACTER(32)         :: hilf
 !==================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone_FV)THEN
   CALL CollectiveStop(__STAMP__,&
     "InitLinearScalarAdvection not ready to be called or already called.")
 END IF
-SWRITE(UNIT_stdOut,'(132("-"))')
-SWRITE(UNIT_stdOut,'(A)') ' INIT DVM...'
+LBWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)') ' INIT DVM...'
 
 Pi=ACOS(-1.)
 IniExactFunc_FV = GETINT('IniExactFunc-FV')
 
-DVMSpeciesData%omegaVHS = GETREAL('DVM-omegaVHS')
-DVMSpeciesData%T_Ref = GETREAL('DVM-T_Ref')
-DVMSpeciesData%d_Ref = GETREAL('DVM-d_Ref')
-DVMSpeciesData%Internal_DOF = GETINT('DVM-Internal_DOF')
-DVMSpeciesData%Mass = GETREAL('DVM-Mass')
-DVMSpeciesData%Charge = GETREAL('DVM-Charge')
 DVMBGKModel = GETINT('DVM-BGKCollModel')
 DVMMethod = GETINT('DVM-Method')
-DVMVeloDisc = GETINT('DVM-VeloDiscretization')
-DVMSpeciesData%mu_Ref = 30.*SQRT(DVMSpeciesData%Mass*BoltzmannConst*DVMSpeciesData%T_Ref/Pi) &
-                      /(4.*(4.-2.*DVMSpeciesData%omegaVHS)*(6.-2.*DVMSpeciesData%omegaVHS) &
-                      * DVMSpeciesData%d_Ref**2.)
-DVMSpeciesData%R_S = BoltzmannConst / DVMSpeciesData%Mass
 DVMDim = GETINT('DVM-Dimension')
 IF ((DVMDim.GT.3).OR.(DVMDim.LT.1)) CALL abort(__STAMP__,'DVM error: dimension must be between 1 and 3')
-DVMSpeciesData%Prandtl =2.*(DVMSpeciesData%Internal_DOF + 5.)/(2.*DVMSpeciesData%Internal_DOF + 15.)
 
-species
-DVMnVelos(1:3) = 1
-DVMnVelos(1:DVMDim) = GETINT('DVM-nVelo')
-PP_nVar_FV = (DVMnVelos(1)**DVMDim)
-IF (DVMDim.LT.3) PP_nVar_FV = PP_nVar_FV*2 !double variables for reduced distributions
+DVMnSpecies = GETINT('DVM-nSpecies')
+ALLOCATE(DVMSpecData(DVMnSpecies))
+PP_nVar_FV = 0
 
-ALLOCATE(DVMVelos(MAXVAL(DVMnVelos),3), DVMWeights(MAXVAL(DVMnVelos),3))
-DVMVelos(:,:)=0.
-DVMWeights(:,:)=1.
-IF (DVMVeloDisc .EQ. 1) THEN ! Gauss-Legendre Nodes and Weights
-  DVMVeloMin(:) = GETREALARRAY('DVM-VeloMin',3)
-  DVMVeloMax(:) = GETREALARRAY('DVM-VeloMax',3)
-  DO iDim=1,DVMDim
-    CALL LegendreGaussNodesAndWeights(DVMnVelos(iDim)-1,DVMVelos(:,iDim),DVMWeights(:,iDim))
-    DVMVelos(:,iDim) = DVMVelos(:,iDim)*ABS(DVMVeloMax(iDim)-DVMVeloMin(iDim))/2. &
-                     + ABS(DVMVeloMax(iDim)-DVMVeloMin(iDim))/2. + DVMVeloMin(iDim)
-    DVMWeights(:,iDim) = DVMWeights(:,iDim)*ABS(DVMVeloMax(iDim)-DVMVeloMin(iDim))/2.
-  END DO
-ELSE IF (DVMVeloDisc .EQ. 2) THEN ! Newton-Cotes Nodes and Weights
-  DVMVeloMin(:) = GETREALARRAY('DVM-VeloMin',3)
-  DVMVeloMax(:) = GETREALARRAY('DVM-VeloMax',3)
-  DVMNewtDeg(:) = GETINTARRAY('DVM-NewtonCotesDegree',3)
-  DO iDim=1,DVMDim
-    CALL NewtonCotesNodesAndWeights(DVMnVelos(iDim)-1,DVMNewtDeg(iDim),DVMVelos(:,iDim),DVMWeights(:,iDim))
-    DVMVelos(:,iDim) = DVMVelos(:,iDim)*ABS(DVMVeloMax(iDim)-DVMVeloMin(iDim)) + DVMVeloMin(iDim)
-    DVMWeights(:,iDim) = DVMWeights(:,iDim)*ABS(DVMVeloMax(iDim)-DVMVeloMin(iDim))
-  END DO
-ELSE IF (DVMVeloDisc .EQ. 3) THEN ! Gauss-Hermite Nodes and Weights
-  DVMGHTemp(:) = GETREALARRAY('DVM-GaussHermiteTemp',3)
-  DO iDim=1,DVMDim
-    CALL GaussHermiteNodesAndWeights(DVMnVelos(iDim)-1,DVMVelos(:,iDim),DVMWeights(:,iDim))
-    DO iGH=1,DVMnVelos(iDim)
-      DVMWeights(iGH,iDim) = DVMWeights(iGH,iDim)/(EXP(-DVMVelos(iGH,iDim)**2.)) &
-                           * SQRT(2.*DVMSpeciesData%R_S*DVMGHTemp(iDim))
+ALLOCATE(DVMVeloDisc(DVMnSpecies))
+
+DO iSpec = 1, DVMnSpecies
+  LBWRITE (UNIT_stdOut,'(68(". "))')
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  ASSOCIATE(Sp => DVMSpecData(iSpec))
+  Sp%omegaVHS     = GETREAL('DVM-Species'//TRIM(hilf)//'-omegaVHS')
+  Sp%T_Ref        = GETREAL('DVM-Species'//TRIM(hilf)//'-T_Ref')
+  Sp%d_Ref        = GETREAL('DVM-Species'//TRIM(hilf)//'-d_Ref')
+  Sp%Internal_DOF = GETINT('DVM-Species'//TRIM(hilf)//'-Internal_DOF')
+  Sp%Mass         = GETREAL('DVM-Species'//TRIM(hilf)//'-Mass')
+  Sp%Charge       = GETREAL('DVM-Species'//TRIM(hilf)//'-Charge')
+  Sp%mu_Ref       = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
+  Sp%R_S          = BoltzmannConst / Sp%Mass
+  Sp%Prandtl      = 2.*(Sp%Internal_DOF + 5.)/(2.*Sp%Internal_DOF + 15.)
+
+  DVMVeloDisc(iSpec)  = GETINT('DVM-Species'//TRIM(hilf)//'-VeloDiscretization')
+  Sp%nVelos(1:3)      = 1
+  Sp%nVelos(1:DVMDim) = GETINT('DVM-Species'//TRIM(hilf)//'-nVelo')
+  Sp%nVar             = Sp%nVelos(1)**DVMDim !non reduced dimensions must have same nVelos for now
+  IF (DVMDim.LT.3) Sp%nVar = Sp%nVar*2 !double variables for reduced distributions
+  PP_nVar_FV          = PP_nVar_FV + Sp%nVar
+  LBWRITE(UNIT_stdOut,*)'DVM species '//TRIM(hilf)//':', Sp%nVelos(1), 'x', Sp%nVelos(2), 'x', Sp%nVelos(3),' velocities!'
+
+  ALLOCATE(Sp%Velos(MAXVAL(Sp%nVelos),3), Sp%Weights(MAXVAL(Sp%nVelos),3))
+  Sp%Velos(:,:)=0.
+  Sp%Weights(:,:)=1.
+  SELECT CASE(DVMVeloDisc(iSpec))
+  CASE(1) ! Gauss-Legendre Nodes and Weights
+    Sp%VeloMin(:) = GETREALARRAY('DVM-Species'//TRIM(hilf)//'-VeloMin',3)
+    Sp%VeloMax(:) = GETREALARRAY('DVM-Species'//TRIM(hilf)//'-VeloMax',3)
+    DO iDim=1,DVMDim
+      CALL LegendreGaussNodesAndWeights(Sp%nVelos(iDim)-1,Sp%Velos(:,iDim),Sp%Weights(:,iDim))
+      Sp%Velos(:,iDim) = Sp%Velos(:,iDim)*ABS(Sp%VeloMax(iDim)-Sp%VeloMin(iDim))/2. &
+                      + ABS(Sp%VeloMax(iDim)-Sp%VeloMin(iDim))/2. + Sp%VeloMin(iDim)
+      Sp%Weights(:,iDim) = Sp%Weights(:,iDim)*ABS(Sp%VeloMax(iDim)-Sp%VeloMin(iDim))/2.
     END DO
-    DVMVelos(:,iDim) = DVMVelos(:,iDim)*SQRT(2.*DVMSpeciesData%R_S*DVMGHTemp(iDim))
-  END DO
-ELSE
-  CALL abort(__STAMP__,&
-             'Undefined velocity space discretization')
-END IF ! DVMVeloDisc
+  CASE(2) ! Newton-Cotes Nodes and Weights
+    Sp%VeloMin(:) = GETREALARRAY('DVM-Species'//TRIM(hilf)//'-VeloMin',3)
+    Sp%VeloMax(:) = GETREALARRAY('DVM-Species'//TRIM(hilf)//'-VeloMax',3)
+    Sp%NewtDeg(:) = GETINTARRAY('DVM-Species'//TRIM(hilf)//'-NewtonCotesDegree',3)
+    DO iDim=1,DVMDim
+      CALL NewtonCotesNodesAndWeights(Sp%nVelos(iDim)-1,Sp%NewtDeg(iDim),Sp%Velos(:,iDim),Sp%Weights(:,iDim))
+      Sp%Velos(:,iDim) = Sp%Velos(:,iDim)*ABS(Sp%VeloMax(iDim)-Sp%VeloMin(iDim)) + Sp%VeloMin(iDim)
+      Sp%Weights(:,iDim) = Sp%Weights(:,iDim)*ABS(Sp%VeloMax(iDim)-Sp%VeloMin(iDim))
+    END DO
+  CASE(3) ! Gauss-Hermite Nodes and Weights
+    Sp%GHTemp(:) = GETREALARRAY('DVM-Species'//TRIM(hilf)//'-GaussHermiteTemp',3)
+    DO iDim=1,DVMDim
+      CALL GaussHermiteNodesAndWeights(Sp%nVelos(iDim)-1,Sp%Velos(:,iDim),Sp%Weights(:,iDim))
+      DO iGH=1,Sp%nVelos(iDim)
+        Sp%Weights(iGH,iDim) = Sp%Weights(iGH,iDim)/(EXP(-Sp%Velos(iGH,iDim)**2.)) &
+                            * SQRT(2.*Sp%R_S*Sp%GHTemp(iDim))
+      END DO
+      Sp%Velos(:,iDim) = Sp%Velos(:,iDim)*SQRT(2.*Sp%R_S*Sp%GHTemp(iDim))
+    END DO
+  CASE DEFAULT
+    CALL abort(__STAMP__,&
+              'Undefined velocity space discretization')
+  END SELECT ! DVMVeloDisc
+  END ASSOCIATE
+END DO
 
 ! Read Boundary information / RefStates / perform sanity check
 IniRefState_FV = GETINT('IniRefState-FV')
-nRefState_FV=CountOption('RefState-FV')
+nRefState_FV=CountOption('RefState-FV')/DVMnSpecies
 IF(IniRefState_FV.GT.nRefState_FV)THEN
   CALL CollectiveStop(__STAMP__,&
     'ERROR: Ini not defined! (Ini,nRefState_FV):',IniRefState_FV,REAL(nRefState_FV))
 END IF
 
 IF(nRefState_FV .GT. 0)THEN
-  ALLOCATE(RefState_FV(14,nRefState_FV))
+  ALLOCATE(RefState_FV(14,DVMnSpecies,nRefState_FV))
   DO i=1,nRefState_FV
-    RefState_FV(1:14,i)  = GETREALARRAY('RefState-FV',14)
+    DO iSpec=1,DVMnSpecies
+      RefState_FV(1:14,iSpec,i)  = GETREALARRAY('RefState-FV',14)
+    END DO
   END DO
 END IF
 
 DVMForce = GETREALARRAY('DVM-Accel',3)
 
-ALLOCATE(DVMMomentSave(15,nElems))
+ALLOCATE(DVMMomentSave(15,DVMnSpecies+1,nElems))
 DVMMomentSave = 0.
 
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
 doCalcSource=.TRUE.
 
-SWRITE(UNIT_stdOut,*)'DVM uses ', DVMnVelos(1), 'x', DVMnVelos(2), 'x', DVMnVelos(3),' velocities!'
 SELECT CASE (DVMMethod)
 CASE(1)
-  SWRITE(UNIT_stdOut,*)'Method: Exponential Differencing DVM'
+  LBWRITE(UNIT_stdOut,*)'Method: Exponential Differencing DVM'
 CASE(2)
-  SWRITE(UNIT_stdOut,*)'Method: DUGKS'
+  LBWRITE(UNIT_stdOut,*)'Method: DUGKS'
 END SELECT
 
 WriteDVMSurfaceValues = GETLOGICAL('DVM-WriteMacroSurfaceValues')
 IF (WriteDVMSurfaceValues) CALL InitDVMBoundaryAnalyze()
 
 EquationInitIsDone_FV=.TRUE.
-SWRITE(UNIT_stdOut,'(A)')' INIT DVM DONE!'
-SWRITE(UNIT_stdOut,'(132("-"))')
+LBWRITE(UNIT_stdOut,'(A)')' INIT DVM DONE!'
+LBWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
@@ -224,7 +243,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
-USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState_FV, DVMBGKModel
+USE MOD_Equation_Vars_FV, ONLY: DVMSpecData, RefState_FV, DVMBGKModel, DVMnSpecies
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -242,119 +261,125 @@ REAL                            :: SecondDist(PP_nVar_FV)
 REAL                            :: SodMacro_L(5), SodMacro_R(5), SodMacro_LL(5), SodMacro_M(5), SodMacro_RR(5)
 REAL                            :: gamma, Ggamma, beta, pL, pR, pM, cL, cR, cM, vs
 REAL                            :: mu, tau
+INTEGER                         :: iSpec,vFirstID,vLastID
 !==================================================================================================================================
+Resu=0.
 
-Resu   =0.
+vFirstID=1
+vLastID=0
+DO iSpec=1,DVMnSpecies
+  vLastID = vLastID + DVMSpecData(iSpec)%nVar
 
-SELECT CASE (ExactFunction)
-CASE(0)
-  Resu=0.
+  SELECT CASE (ExactFunction)
+  CASE(0)
+    Resu(vFirstID:vLastID)=0.
 
-CASE(1) !Grad 13 uniform init
-  CALL GradDistribution(RefState_FV(:,1),Resu(:))
+  CASE(1) !Grad 13 uniform init
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
 
-CASE(2) ! couette flow, L=1m between walls, RefState_FV: 1 -> initial state, 2 -> y=-0.5 boundary, 3 -> y=0.5 boundary
-  CALL GradDistribution(RefState_FV(:,1),Resu(:))
-  ! steady state
-  IF (tIn.GT.0.) THEN
-    MacroVal(:) = RefState_FV(:,1)
-    WallVelo1 = RefState_FV(2,2)
-    WallTemp1 = RefState_FV(5,2)
-    WallVelo2 = RefState_FV(2,3)
-    WallTemp2 = RefState_FV(5,3)
-    MacroVal(2) = WallVelo2 + (WallVelo1-WallVelo2)*(0.5-x(2))
-    MacroVal(5) = WallTemp2 + (0.5-x(2))*(WallTemp1-WallTemp2+((WallVelo1-WallVelo2)**2)*(0.5+x(2))*4/15/DVMSpeciesData%R_S/2)
-                                                                                                    ! cf Eucken's relation
-    CALL MaxwellDistribution(MacroVal,Resu(:))
-  END IF
-
-CASE(3) !sod shock
-  Resu=0.
-
-  IF (tIn.EQ.0.) THEN ! initial state
-    IF (x(1).LT.0.) THEN
-      CALL MaxwellDistribution(RefState_FV(:,1),Resu(:))
-    ELSE
-      CALL MaxwellDistribution(RefState_FV(:,2),Resu(:))
+  CASE(2) ! couette flow, L=1m between walls, RefState_FV: 1 -> initial state, 2 -> y=-0.5 boundary, 3 -> y=0.5 boundary
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
+    ! steady state
+    IF (tIn.GT.0.) THEN
+      MacroVal(:) = RefState_FV(:,iSpec,1)
+      WallVelo1 = RefState_FV(2,iSpec,2)
+      WallTemp1 = RefState_FV(5,iSpec,2)
+      WallVelo2 = RefState_FV(2,iSpec,3)
+      WallTemp2 = RefState_FV(5,iSpec,3)
+      MacroVal(2) = WallVelo2 + (WallVelo1-WallVelo2)*(0.5-x(2))
+      MacroVal(5) = WallTemp2 + (0.5-x(2))*(WallTemp1-WallTemp2+((WallVelo1-WallVelo2)**2)*(0.5+x(2))*4/15/DVMSpecData(iSpec)%R_S/2)
+                                                                                                      ! cf Eucken's relation
+      CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
     END IF
-  ELSE ! analytical solution
-    MacroVal = 0.
-    SodMacro_L=RefState_FV(1:5,1)
-    SodMacro_R=RefState_FV(1:5,2)
-    SodMacro_LL = 0.         !     | L | LL | M | RR | R |
-    SodMacro_M = 0.
-    SodMacro_RR = 0.
-    gamma = 5./3. !monatomic gas
-    Ggamma = (gamma-1)/(gamma+1)
-    beta = (gamma-1)/gamma/2.
-    pL = DVMSpeciesData%R_S*SodMacro_L(1)*SodMacro_L(5)
-    pR = DVMSpeciesData%R_S*SodMacro_R(1)*SodMacro_R(5)
-    pM=(pL+pR)/2.
-    CALL SecantSod(pM, pL, pR, SodMacro_L(1), SodMacro_R(1), gamma, Ggamma, beta, 1e-15, 100)
-    cL = sqrt(gamma*DVMSpeciesData%R_S*SodMacro_L(5))
-    cR = sqrt(gamma*DVMSpeciesData%R_S*SodMacro_R(5))
-    cM = cL * (pM/pL)**beta
-    SodMacro_M(1) = SodMacro_L(1)*(pM/pL)**(1./gamma)
-    SodMacro_M(2) = (cL-cM)*2/(gamma-1)
-    SodMacro_M(5) = pM/DVMSpeciesData%R_S/SodMacro_M(1)
-    SodMacro_RR(1) = SodMacro_R(1)*(pM+Ggamma*pR)/(pR+Ggamma*pM)
-    SodMacro_RR(2) = SodMacro_M(2)
-    SodMacro_RR(5) = pM/DVMSpeciesData%R_S/SodMacro_RR(1)
-    vs = cR*sqrt((beta/Ggamma)*(pM/pR + Ggamma))
-    IF (x(1).LT.(-tIn*cL)) THEN
-      MacroVal(1:5) = SodMacro_L
-    ELSE IF (x(1).LT.(tIn*(SodMacro_M(2)-cM))) THEN
-      SodMacro_LL(2) = 2./(gamma+1.) * (cL + x(1)/tIn)
-      SodMacro_LL(1) = SodMacro_L(1) * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2./(gamma-1.))
-      SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/DVMSpeciesData%R_S/SodMacro_LL(1)
-      MacroVal(1:5) = SodMacro_LL
-    ELSE IF (x(1).LT.(tIn*SodMacro_M(2))) THEN
-      MacroVal(1:5) = SodMacro_M
-    ELSE IF (x(1).LT.(tIn*vs)) THEN
-      MacroVal(1:5) = SodMacro_RR
-    ELSE
-      MacroVal(1:5) = SodMacro_R
+
+  CASE(3) !sod shock
+    IF (tIn.EQ.0.) THEN ! initial state
+      IF (x(1).LT.0.) THEN
+        CALL MaxwellDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
+      ELSE
+        CALL MaxwellDistribution(RefState_FV(:,iSpec,2),Resu(vFirstID:vLastID),iSpec)
+      END IF
+    ELSE ! analytical solution
+      MacroVal = 0.
+      SodMacro_L=RefState_FV(1:5,iSpec,1)
+      SodMacro_R=RefState_FV(1:5,iSpec,2)
+      SodMacro_LL = 0.         !     | L | LL | M | RR | R |
+      SodMacro_M = 0.
+      SodMacro_RR = 0.
+      gamma = 5./3. !monatomic gas
+      Ggamma = (gamma-1)/(gamma+1)
+      beta = (gamma-1)/gamma/2.
+      pL = DVMSpecData(iSpec)%R_S*SodMacro_L(1)*SodMacro_L(5)
+      pR = DVMSpecData(iSpec)%R_S*SodMacro_R(1)*SodMacro_R(5)
+      pM=(pL+pR)/2.
+      CALL SecantSod(pM, pL, pR, SodMacro_L(1), SodMacro_R(1), gamma, Ggamma, beta, 1e-15, 100)
+      cL = sqrt(gamma*DVMSpecData(iSpec)%R_S*SodMacro_L(5))
+      cR = sqrt(gamma*DVMSpecData(iSpec)%R_S*SodMacro_R(5))
+      cM = cL * (pM/pL)**beta
+      SodMacro_M(1) = SodMacro_L(1)*(pM/pL)**(1./gamma)
+      SodMacro_M(2) = (cL-cM)*2/(gamma-1)
+      SodMacro_M(5) = pM/DVMSpecData(iSpec)%R_S/SodMacro_M(1)
+      SodMacro_RR(1) = SodMacro_R(1)*(pM+Ggamma*pR)/(pR+Ggamma*pM)
+      SodMacro_RR(2) = SodMacro_M(2)
+      SodMacro_RR(5) = pM/DVMSpecData(iSpec)%R_S/SodMacro_RR(1)
+      vs = cR*sqrt((beta/Ggamma)*(pM/pR + Ggamma))
+      IF (x(1).LT.(-tIn*cL)) THEN
+        MacroVal(1:5) = SodMacro_L
+      ELSE IF (x(1).LT.(tIn*(SodMacro_M(2)-cM))) THEN
+        SodMacro_LL(2) = 2./(gamma+1.) * (cL + x(1)/tIn)
+        SodMacro_LL(1) = SodMacro_L(1) * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2./(gamma-1.))
+        SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/DVMSpecData(iSpec)%R_S/SodMacro_LL(1)
+        MacroVal(1:5) = SodMacro_LL
+      ELSE IF (x(1).LT.(tIn*SodMacro_M(2))) THEN
+        MacroVal(1:5) = SodMacro_M
+      ELSE IF (x(1).LT.(tIn*vs)) THEN
+        MacroVal(1:5) = SodMacro_RR
+      ELSE
+        MacroVal(1:5) = SodMacro_R
+      END IF
+      CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
     END IF
-    CALL MaxwellDistribution(MacroVal,Resu(:))
-  END IF
 
-CASE(4) !heat flux relaxation test case
-  CALL GradDistribution(RefState_FV(:,1),Resu(:))
-  IF (tIn.GT.0.) THEN ! relaxation
-    MacroVal(:) = RefState_FV(:,1)
-    mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%omegaVHS+0.5)
-    tau = mu/(DVMSpeciesData%R_S*MacroVal(1)*MacroVal(5))
-    MacroVal(12:14) = MacroVal(12:14)*EXP(-tIn*DVMSpeciesData%Prandtl/tau) !Heat flux relaxes with rate Pr/tau
-    CALL GradDistribution(MacroVal(:),Resu(:))
-  END IF
+  CASE(4) !heat flux relaxation test case
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
+    IF (tIn.GT.0.) THEN ! relaxation
+      MacroVal(:) = RefState_FV(:,iSpec,1)
+      mu = DVMSpecData(iSpec)%mu_Ref*(MacroVal(5)/DVMSpecData(iSpec)%T_Ref)**(DVMSpecData(iSpec)%omegaVHS+0.5)
+      tau = mu/(DVMSpecData(iSpec)%R_S*MacroVal(1)*MacroVal(5))
+      MacroVal(12:14) = MacroVal(12:14)*EXP(-tIn*DVMSpecData(iSpec)%Prandtl/tau) !Heat flux relaxes with rate Pr/tau
+      CALL GradDistribution(MacroVal(:),Resu(vFirstID:vLastID),iSpec)
+    END IF
 
-CASE(5) !Taylor-Green vortex
-  MacroVal(:) = RefState_FV(:,1)
-  MacroVal(2) = RefState_FV(2,1)*SIN(x(1))*COS(x(2))*COS(x(3))
-  MacroVal(3) = -RefState_FV(2,1)*COS(x(1))*SIN(x(2))*COS(x(3))
-  MacroVal(4) = 0.
-  MacroVal(5) = MacroVal(5)+(RefState_FV(2,1)**2)/(16.*DVMSpeciesData%R_S)*(COS(2.*x(1))+COS(2.*x(2)))*(COS(2.*x(3))+2.)
-  CALL MaxwellDistribution(MacroVal,Resu(:))
+  CASE(5) !Taylor-Green vortex
+    MacroVal(:) = RefState_FV(:,iSpec,1)
+    MacroVal(2) = RefState_FV(2,iSpec,1)*SIN(x(1))*COS(x(2))*COS(x(3))
+    MacroVal(3) = -RefState_FV(2,iSpec,1)*COS(x(1))*SIN(x(2))*COS(x(3))
+    MacroVal(4) = 0.
+    MacroVal(5) = MacroVal(5)+(RefState_FV(2,iSpec,1)**2)/(16.*DVMSpecData(iSpec)%R_S)*(COS(2.*x(1))+COS(2.*x(2)))*(COS(2.*x(3))+2.)
+    CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
 
-CASE(6) !Sum of 2 distributions
-  CALL GradDistribution(RefState_FV(:,1),Resu(:))
-  CALL GradDistribution(RefState_FV(:,2),SecondDist(:))
-  Resu(:) = Resu(:) + SecondDist(:)
+  CASE(6) !Sum of 2 distributions
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
+    CALL GradDistribution(RefState_FV(:,iSpec,2),SecondDist(vFirstID:vLastID),iSpec)
+    Resu(vFirstID:vLastID) = Resu(vFirstID:vLastID) + SecondDist(vFirstID:vLastID)
 
-CASE(7) ! Poiseuille flow with force corresponding to 0.01 Pa/m
-  CALL GradDistribution(RefState_FV(:,1),Resu(:))
-  ! steady state in continuum limit
-  IF (tIn.GT.0.) THEN
-    MacroVal(:) = RefState_FV(:,1)
-    mu = DVMSpeciesData%mu_Ref*(MacroVal(5)/DVMSpeciesData%T_Ref)**(DVMSpeciesData%omegaVHS+0.5)
-    MacroVal(2) = 0.01*(1.*x(2)-x(2)*x(2))/mu/2.
-    CALL MaxwellDistribution(MacroVal,Resu(:))
-  END IF
+  CASE(7) ! Poiseuille flow with force corresponding to 0.01 Pa/m
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
+    ! steady state in continuum limit
+    IF (tIn.GT.0.) THEN
+      MacroVal(:) = RefState_FV(:,iSpec,1)
+      mu = DVMSpecData(iSpec)%mu_Ref*(MacroVal(5)/DVMSpecData(iSpec)%T_Ref)**(DVMSpecData(iSpec)%omegaVHS+0.5)
+      MacroVal(2) = 0.01*(1.*x(2)-x(2)*x(2))/mu/2.
+      CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
+    END IF
 
-CASE DEFAULT
-  CALL abort(__STAMP__,&
-             'Specified exact function not implemented!')
-END SELECT ! ExactFunction
+  CASE DEFAULT
+    CALL abort(__STAMP__,&
+              'Specified exact function not implemented!')
+  END SELECT ! ExactFunction
+
+  vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+END DO !iSpec
 
 END SUBROUTINE ExactFunc
 
@@ -426,15 +451,21 @@ END SUBROUTINE CalcSource
 !==================================================================================================================================
 SUBROUTINE FinalizeEquation()
 ! MODULES
-USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone_FV, DVMVelos, DVMWeights, RefState_FV, WriteDVMSurfaceValues
+USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone_FV, RefState_FV, WriteDVMSurfaceValues, DVMSpecData, DVMnSpecies
 USE MOD_DVM_Boundary_Analyze,ONLY: FinalizeDVMBoundaryAnalyze
 IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iSpec
 !==================================================================================================================================
 EquationInitIsDone_FV = .FALSE.
 IF (WriteDVMSurfaceValues) CALL FinalizeDVMBoundaryAnalyze()
-SDEALLOCATE(DVMVelos)
-SDEALLOCATE(DVMWeights)
 SDEALLOCATE(RefState_FV)
+DO iSpec=1,DVMnSpecies
+  SDEALLOCATE(DVMSpecData(iSpec)%Velos)
+  SDEALLOCATE(DVMSpecData(iSpec)%Weights)
+END DO
+SDEALLOCATE(DVMSpecData)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation_FV
