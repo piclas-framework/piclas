@@ -651,21 +651,11 @@ IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
 ! ---------------------------------------------------------
 ! Output to separate files
 ! ---------------------------------------------------------
-! Boundary impacting particle data
-! ---------------------------------------------------------
-IF(DoBoundaryParticleOutputHDF5) THEN
-  IF (usePreviousTime_loc) THEN
-    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
-  ELSE
-    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
-  END IF
-END IF
-
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
 ! ---------------------------------------------------------
 ! Output for the virtual dielectric layer (VDL)
 ! ---------------------------------------------------------
@@ -677,6 +667,17 @@ IF(DoVirtualDielectricLayer) CALL WriteSurfVDLToHDF5(OutputTime_loc)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if defined(PARTICLES)
+! ---------------------------------------------------------
+! Boundary impacting particle data
+! ---------------------------------------------------------
+IF(DoBoundaryParticleOutputHDF5) THEN
+  IF (usePreviousTime_loc) THEN
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
+  ELSE
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
+  END IF
+END IF
+
 CALL DisplayNumberOfParticles(1)
 #endif /*defined(PARTICLES)*/
 
