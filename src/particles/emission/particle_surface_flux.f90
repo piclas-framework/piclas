@@ -145,10 +145,10 @@ DO iSpec=1,nSpecies
           PartInsSubSide=PartInsSubSides(iSample,jSample,iSide)
         CASE(1)
           ! Adaptive surface flux: Number of particles depends on velocity/temperature/mass flow (includes treatment for weighting)
-          CALL CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, minPos, RVec, PartInsSubSide)
+          CALL CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, PartInsSubSide)
         CASE(2)
           ! Radial or variable weighting: Number of particles depends on the modified area and includes insertion over subsides
-          CALL CalcPartInsVarWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide)
+          CALL CalcPartInsVarWeight(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
         CASE(3)
           ! DoPoissonRounding .AND. .NOT.DoTimeDepInflow
           CALL CalcPartInsPoissonDistr(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
@@ -733,8 +733,7 @@ SUBROUTINE CalcPartPosAxisym(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,particle
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DoRadialWeighting
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -851,19 +850,17 @@ END SUBROUTINE CalcPartPosAxisym
 !===================================================================================================================================
 !> Calculate the particle number per side for the case of particle weighting (2D axisymmetric, 3D)
 !===================================================================================================================================
-SUBROUTINE CalcPartInsVarWeight(iSpec, iSF, iSample, jSample, iSide, minPos, RVec, PartInsSubSide)
+SUBROUTINE CalcPartInsVarWeight(iSpec, iSF, iSample, jSample, iSide, PartInsSubSide)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_TimeDisc_Vars           ,ONLY: dt, RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)         :: iSpec, iSF, iSample, jSample, iSide
-REAL, INTENT(IN)            :: minPos(2), RVec(2)
 INTEGER, INTENT(OUT)        :: PartInsSubSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -942,7 +939,7 @@ END SUBROUTINE CalcPartInsPoissonDistr
 !===================================================================================================================================
 !> Calculate the particle number per side for the case of adaptive surface flux BCs
 !===================================================================================================================================
-SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, minPos, RVec, PartInsSubSide)
+SUBROUTINE CalcPartInsAdaptive(iSpec, iSF, BCSideID, iSide, iSample, jSample, PartInsSubSide)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
@@ -953,12 +950,10 @@ USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, 
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)         :: iSpec, iSF, BCSideID, iSide, jSample, iSample
-REAL, INTENT(IN)            :: minPos(2), RVec(2)
 INTEGER, INTENT(OUT)        :: PartInsSubSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1143,7 +1138,6 @@ USE MOD_Particle_Surfaces_Vars ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFlu
 USE MOD_Mesh_Vars              ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
-USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1340,6 +1334,7 @@ REAL                             :: VeloIC
 REAL                             :: VeloVec(1:3)
 REAL                             :: VeloVecIC(1:3),v_thermal, pressure
 TYPE(tSurfaceflux), POINTER      :: SF => NULL()
+REAL                             :: Phi, Theta
 !===================================================================================================================================
 
 IF(PartIns.LT.1) RETURN
@@ -1614,6 +1609,28 @@ CASE('maxwell','maxwell_lpn')
       PartState(4:6,PositionNbr) = Vec3D(1:3)
     END IF
   END DO !i = ...NbrOfParticle
+CASE('cosine')
+  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(i)
+    ! === Velocity vector
+    ! Equally-distributed angle Phi [0:2*PI] for tangential component
+    CALL RANDOM_NUMBER(RandVal1)
+    Phi = RandVal1 * 2.0 * PI
+    ! 2*sin(Theta)*cos(Theta) = sin(2*Theta) distribution of Theta [0:PI/2] for normal component using the inverse method according to Greenwood, J. (2002).
+    CALL RANDOM_NUMBER(RandVal1)
+    Theta = ASIN(SQRT(RandVal1))
+
+    ! Normalized velocity vector in surface-local orientation
+    Vec3D(1) = COS(Theta) * COS(Phi)
+    Vec3D(2) = COS(Theta) * SIN(Phi)
+    Vec3D(3) = SIN(Theta)
+
+    ! Multiply by velocity magnitude
+    Vec3D(1:3) = Vec3D(1:3) * VeloIC
+
+    ! Convert to global coordinate system
+    PartState(4:6,PositionNbr) = vec_t1(1:3) * Vec3D(1) + vec_t2(1:3) * Vec3D(2) + vec_nIn(1:3) * Vec3D(3)
+  END DO ! i = NbrOfParticle-PartIns+1,NbrOfParticle
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong velocity distribution!')
 END SELECT

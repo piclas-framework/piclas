@@ -472,10 +472,11 @@ DO iSpec=1,nSpecies
     ! Velocity distribution of granular species must be constant
     IF(Species(iSpec)%InterID.EQ.100) THEN
       SF%velocityDistribution  = 'constant'
+      CALL PrintOption('Velocity distribution for granular species set to constant.','INFO',StrOpt=TRIM(SF%velocityDistribution))
     END IF
     IF (TRIM(SF%velocityDistribution).NE.'constant' .AND. TRIM(SF%velocityDistribution).NE.'maxwell' .AND. &
-        TRIM(SF%velocityDistribution).NE.'maxwell_lpn') THEN
-      CALL abort(__STAMP__,'Only constant or maxwell-like velocity distributions implemented for surface flux!')
+        TRIM(SF%velocityDistribution).NE.'maxwell_lpn'.AND. TRIM(SF%velocityDistribution).NE.'cosine') THEN
+      CALL abort(__STAMP__,'Only constant, cosine or maxwell velocity distributions implemented for surface flux!')
     END IF
     SF%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
     SF%VeloIsNormal          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-VeloIsNormal')
@@ -623,6 +624,10 @@ DO iSpec=1,nSpecies
           CALL abort(__STAMP__&
             ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
         END IF
+      END IF
+      ! Cosine distribution not tested with adaptive
+      IF(TRIM(SF%velocityDistribution).EQ.'cosine') THEN
+        CALL abort(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
       END IF
     END IF
     ! === THERMIONIC EMISSION ======================================================================================================
@@ -1092,6 +1097,8 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       vSF = v_thermal / (2.0*SQRT(PI))  ! mean flux velocity through normal sub-face
     END IF
+  CASE('cosine')
+    vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC
   CASE DEFAULT
     CALL abort(__STAMP__, 'ERROR in SurfaceFlux: Wrong velocity distribution!')
   END SELECT
