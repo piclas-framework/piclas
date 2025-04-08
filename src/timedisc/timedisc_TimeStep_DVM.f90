@@ -42,7 +42,6 @@ USE MOD_Equation_Vars_FV      ,ONLY: IniExactFunc_FV, DVMForce, DVMColl
 #if USE_HDG
 USE MOD_DG_Vars               ,ONLY: U
 USE MOD_HDG                   ,ONLY: HDG
-USE MOD_Equation_Vars         ,ONLY: E
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -58,7 +57,7 @@ IF (DVMColl.AND.(IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.iter.EQ.0) CA
 
 #if USE_HDG
 CALL HDG(time,U,iter)
-CALL ForceStep(dt,ElectricField=E)
+CALL ForceStep(dt,ploesma=.TRUE.)
 #endif
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
@@ -71,7 +70,7 @@ U_FV = U_FV + Ut_FV*dt        ! fchapeau -> ftilde
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt) !two times for strang splitting -> second order
 
 #if USE_HDG
-CALL ForceStep(dt,ElectricField=E)
+CALL ForceStep(dt,ploesma=.TRUE.)
 #endif
 
 END SUBROUTINE TimeStep_DVM

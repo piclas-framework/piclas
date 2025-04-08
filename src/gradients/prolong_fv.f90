@@ -42,7 +42,7 @@ USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
 USE MOD_Mesh_Vars,          ONLY: firstMPISide_YOUR,lastMPISide_YOUR,lastMPISide_MINE,firstMortarMPISide,lastMortarMPISide
 #ifdef discrete_velocity
 USE MOD_TimeDisc_Vars,      ONLY: dt
-USE MOD_Equation_Vars_FV,   ONLY: DVMSpecData, DVMnSpecies, DVMDim
+USE MOD_Equation_Vars_FV,   ONLY: DVMSpecData, DVMnSpecies, DVMDim, DVMColl
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -132,31 +132,35 @@ DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
 #ifdef discrete_velocity
-  !DVM specific reconstruction
-  vFirstID = 0
-  DO iSpec=1,DVMnSpecies
-    ASSOCIATE(Sp => DVMSpecData(iSpec))
-    DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
-      upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-      Uface_master(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
-                                    + Gradient_elem(1,upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
-                                    + Gradient_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
-                                    + Gradient_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
-      IF (DVMDim.LT.3) THEN
-        Uface_master(Sp%nVar/2+upos,0,0,SideID) = Uvol(Sp%nVar/2+upos,0,0,0,ElemID) &
-                                    + Gradient_elem(1,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
-                                    + Gradient_elem(2,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
-                                    + Gradient_elem(3,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
-      END IF
-    END DO; END DO; END DO
-    vFirstID = vFirstID + Sp%nVar
-    END ASSOCIATE
-  END DO
-#else
-  Uface_master(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
-                            + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_master(1,SideID) &
-                            + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_master(2,SideID) &
-                            + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_master(3,SideID)
+  IF (DVMColl) THEN
+    !DVM specific reconstruction
+    vFirstID = 0
+    DO iSpec=1,DVMnSpecies
+      ASSOCIATE(Sp => DVMSpecData(iSpec))
+      DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+        upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+        Uface_master(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+                                      + Gradient_elem(1,upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                      + Gradient_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                      + Gradient_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+        IF (DVMDim.LT.3) THEN
+          Uface_master(Sp%nVar/2+upos,0,0,SideID) = Uvol(Sp%nVar/2+upos,0,0,0,ElemID) &
+                                      + Gradient_elem(1,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                      + Gradient_elem(2,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                      + Gradient_elem(3,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+        END IF
+      END DO; END DO; END DO
+      vFirstID = vFirstID + Sp%nVar
+      END ASSOCIATE
+    END DO
+  ELSE
+#endif /*discrete_velocity*/
+    Uface_master(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
+                              + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_master(1,SideID) &
+                              + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_master(2,SideID) &
+                              + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_master(3,SideID)
+#ifdef discrete_velocity
+  END IF !DVMColl
 #endif
 #ifdef drift_diffusion
   Uface_master(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID)

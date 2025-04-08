@@ -204,7 +204,7 @@ DO iSpec = 1, DVMnSpecies
   END ASSOCIATE
   ! Set output variable names
   WRITE(SpecID,'(I3.3)') iSpec
-  StrVarNames_FV(14*(iSpec-1)+1)  = 'Spec'//TRIM(SpecID)//'_Density'
+  StrVarNames_FV(14*(iSpec-1)+1)  = 'Spec'//TRIM(SpecID)//'_NumberDensity'
   StrVarNames_FV(14*(iSpec-1)+2)  = 'Spec'//TRIM(SpecID)//'_VelocityX'
   StrVarNames_FV(14*(iSpec-1)+3)  = 'Spec'//TRIM(SpecID)//'_VelocityY'
   StrVarNames_FV(14*(iSpec-1)+4)  = 'Spec'//TRIM(SpecID)//'_VelocityZ'
@@ -220,7 +220,7 @@ DO iSpec = 1, DVMnSpecies
   StrVarNames_FV(14*(iSpec-1)+14) = 'Spec'//TRIM(SpecID)//'_HeatfluxZ'
 END DO
 
-StrVarNames_FV(14*DVMnSpecies+1)  = 'Total_Density'
+StrVarNames_FV(14*DVMnSpecies+1)  = 'Total_NumberDensity'
 StrVarNames_FV(14*DVMnSpecies+2)  = 'Total_VelocityX'
 StrVarNames_FV(14*DVMnSpecies+3)  = 'Total_VelocityY'
 StrVarNames_FV(14*DVMnSpecies+4)  = 'Total_VelocityZ'
@@ -284,7 +284,7 @@ SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Globals_Vars,  ONLY: PI
+USE MOD_Globals_Vars,  ONLY: PI, BoltzmannConst
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
 USE MOD_Equation_Vars_FV, ONLY: DVMSpecData, RefState_FV, DVMBGKModel, DVMnSpecies
 IMPLICIT NONE
@@ -346,6 +346,8 @@ DO iSpec=1,DVMnSpecies
       MacroVal = 0.
       SodMacro_L=RefState_FV(1:5,iSpec,1)
       SodMacro_R=RefState_FV(1:5,iSpec,2)
+      SodMacro_L=SodMacro_L*DVMSpecData(iSpec)%Mass
+      SodMacro_R=SodMacro_R*DVMSpecData(iSpec)%Mass
       SodMacro_LL = 0.         !     | L | LL | M | RR | R |
       SodMacro_M = 0.
       SodMacro_RR = 0.
@@ -388,7 +390,7 @@ DO iSpec=1,DVMnSpecies
     IF (tIn.GT.0.) THEN ! relaxation
       MacroVal(:) = RefState_FV(:,iSpec,1)
       mu = DVMSpecData(iSpec)%mu_Ref*(MacroVal(5)/DVMSpecData(iSpec)%T_Ref)**(DVMSpecData(iSpec)%omegaVHS+0.5)
-      tau = mu/(DVMSpecData(iSpec)%R_S*MacroVal(1)*MacroVal(5))
+      tau = mu/(BoltzmannConst*MacroVal(1)*MacroVal(5))
       MacroVal(12:14) = MacroVal(12:14)*EXP(-tIn*DVMSpecData(iSpec)%Prandtl/tau) !Heat flux relaxes with rate Pr/tau
       CALL GradDistribution(MacroVal(:),Resu(vFirstID:vLastID),iSpec)
     END IF

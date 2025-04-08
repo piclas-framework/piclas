@@ -54,22 +54,22 @@ REAL, INTENT(OUT), OPTIONAL     :: charge
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho(DVMnSpecies+1), rhoU(3,DVMnSpecies+1), densE(DVMnSpecies+1), cV(DVMnSpecies+1)
+REAL                            :: rhoTotal, dens(DVMnSpecies+1), rhoU(3,DVMnSpecies+1), densE(DVMnSpecies+1), cV(DVMnSpecies+1)
 REAL                            :: uVelo(3,DVMnSpecies+1), cVel(3,DVMnSpecies+1), cMag2(DVMnSpecies+1)
-REAL                            :: dens(DVMnSpecies+1), mu(DVMnSpecies+1)
+REAL                            :: mu(DVMnSpecies+1)
 REAL                            :: PressTens(6,DVMnSpecies+1), Heatflux(3,DVMnSpecies+1)
 REAL                            :: weight, prefac, Prandtl, Phi
 INTEGER                         :: iVel,jVel,kVel,upos,iSpec,jSpec,vFirstID,total
 !===================================================================================================================================
+rhoTotal = 0.
 tau = 0.
-rho = 0.
+dens = 0.
 rhoU = 0.
 densE = 0.
 PressTens = 0.
 Heatflux = 0.
 cV = 0.
 MacroVal = 0.
-dens = 0.
 mu = 0.
 total = DVMnSpecies+1
 IF (PRESENT(charge)) charge = 0.
@@ -82,43 +82,42 @@ DO iSpec=1, DVMnSpecies
   DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
     upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
     weight = Sp%Weights(iVel,1)*Sp%Weights(jVel,2)*Sp%Weights(kVel,3)
-    rho(iSpec) = rho(iSpec) + weight*U(upos)
-    rhoU(1,iSpec) = rhoU(1,iSpec) + weight*Sp%Velos(iVel,1)*U(upos)
-    rhoU(2,iSpec) = rhoU(2,iSpec) + weight*Sp%Velos(jVel,2)*U(upos)
-    rhoU(3,iSpec) = rhoU(3,iSpec) + weight*Sp%Velos(kVel,3)*U(upos)
+    dens(iSpec) = dens(iSpec) + weight*U(upos)
+    rhoU(1,iSpec) = rhoU(1,iSpec) + weight*Sp%Mass*Sp%Velos(iVel,1)*U(upos)
+    rhoU(2,iSpec) = rhoU(2,iSpec) + weight*Sp%Mass*Sp%Velos(jVel,2)*U(upos)
+    rhoU(3,iSpec) = rhoU(3,iSpec) + weight*Sp%Mass*Sp%Velos(kVel,3)*U(upos)
     IF (DVMDim.LT.3) THEN
-      densE(iSpec) = densE(iSpec) + weight*0.5*((Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos) &
+      densE(iSpec) = densE(iSpec) + weight*0.5*Sp%Mass*((Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos) &
                                             +U(Sp%nVar/2+upos))
     ELSE
-      densE(iSpec) = densE(iSpec) + weight*0.5*(Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos)
+      densE(iSpec) = densE(iSpec) + weight*0.5*Sp%Mass*(Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos)
     END IF
   END DO; END DO; END DO
-  uVelo(1:3,iSpec) = rhoU(1:3,iSpec)/rho(iSpec)
-  cV(iSpec) = Sp%R_S*rho(iSpec)*(3.+Sp%Internal_DOF)/2.
-  dens(iSpec) = rho(iSpec)/Sp%Mass
+  uVelo(1:3,iSpec) = rhoU(1:3,iSpec)/dens(iSpec)/Sp%Mass
+  cV(iSpec) = BoltzmannConst*dens(iSpec)*(3.+Sp%Internal_DOF)/2.
 
-  MacroVal(1,iSpec) = rho(iSpec)
+  MacroVal(1,iSpec) = dens(iSpec)
   MacroVal(2:4,iSpec) = uVelo(1:3,iSpec)
-  MacroVal(5,iSpec) = (densE(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/rho(iSpec))/cV(iSpec)
+  MacroVal(5,iSpec) = (densE(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/dens(iSpec)/Sp%Mass)/cV(iSpec)
   IF (MacroVal(5,iSpec).LE.0) CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
   mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
 
+  rhoTotal = rhoTotal + Sp%Mass*dens(iSpec)
   dens(total) = dens(total) + dens(iSpec)
-  rho(total) = rho(total) + rho(iSpec)
   rhoU(1:3,total) = rhoU(1:3,total) + rhoU(1:3,iSpec)
   densE(total) = densE(total) + densE(iSpec)
   cV(total) = cV(total) + cV(iSpec)
-  IF (PRESENT(charge)) charge = charge + Sp%Charge*rho(iSpec)/Sp%Mass
+  IF (PRESENT(charge)) charge = charge + Sp%Charge*dens(iSpec)
 
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
 END DO
 IF (PRESENT(charge)) RETURN
 
-uVelo(1:3,total) = rhoU(1:3,total)/rho(total)
-MacroVal(1,total) = rho(total)
+uVelo(1:3,total) = rhoU(1:3,total)/rhoTotal
+MacroVal(1,total) = dens(total)
 MacroVal(2:4,total) = uVelo(1:3,total)
-MacroVal(5,total) = (densE(total) - 0.5*(DOT_PRODUCT(rhoU(:,total),rhoU(:,total)))/rho(total))/cV(total)
+MacroVal(5,total) = (densE(total) - 0.5*(DOT_PRODUCT(rhoU(:,total),rhoU(:,total)))/rhoTotal)/cV(total)
 IF (MacroVal(5,total).LE.0) CALL abort(__STAMP__,'DVM negative total temperature!')
 
 vFirstID = 0
@@ -127,7 +126,7 @@ DO iSpec=1, DVMnSpecies
 
   DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
     upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-    weight = Sp%Weights(iVel,1)*Sp%Weights(jVel,2)*Sp%Weights(kVel,3)
+    weight = Sp%Weights(iVel,1)*Sp%Weights(jVel,2)*Sp%Weights(kVel,3)*Sp%Mass
 
     cVel(1,iSpec) = Sp%Velos(iVel,1) - uVelo(1,iSpec)
     cVel(2,iSpec) = Sp%Velos(jVel,2) - uVelo(2,iSpec)
@@ -188,11 +187,11 @@ DO iSpec=1, DVMnSpecies
   ! Wilke's mixing rules
   Phi = 0.
   DO jSpec=1, DVMnSpecies
-      Phi = Phi + rho(jSpec) * (1.+SQRT(mu(iSpec)/mu(jSpec)) &
+      Phi = Phi + dens(jSpec) * (1.+SQRT(mu(iSpec)/mu(jSpec)) &
       * (DVMSpecData(jSpec)%Mass/Sp%Mass)**(0.25) )**(2.0) &
-      / ( SQRT(8.0 * (1.0 + Sp%Mass/DVMSpecData(jSpec)%Mass)) ) / DVMSpecData(jSpec)%Mass
+      / ( SQRT(8.0 * (1.0 + Sp%Mass/DVMSpecData(jSpec)%Mass)) )
   END DO
-  mu(total) = mu(total) + rho(iSpec)*mu(iSpec)/Phi/Sp%Mass
+  mu(total) = mu(total) + dens(iSpec)*mu(iSpec)/Phi
 
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
@@ -309,7 +308,7 @@ REAL,DIMENSION(2+DVMDim)        :: alpha, psi, rhovec
 REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim,1)
 INTEGER                         :: iVel,jVel,kVel, upos, countz, IPIV(2+DVMDim), info_dgesv
 !===================================================================================================================================
-rho = MacroVal(1)
+rho = MacroVal(1)*DVMSpecData(iSpec)%Mass
 uVelo(1:DVMDim) = MacroVal(2:1+DVMDim)
 Temp = MacroVal(5)
 rhovec(1) = rho
@@ -364,7 +363,7 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   IF (DVMDim.GT.1) psi(3)=DVMSpecData(iSpec)%Velos(jVel,2)
   IF (DVMDim.GT.2) psi(4)=DVMSpecData(iSpec)%Velos(kVel,3)
   psi(2+DVMDim) = vMag/2.
-  fMaxwell(upos) = EXP(DOT_PRODUCT(alpha,psi))
+  fMaxwell(upos) = EXP(DOT_PRODUCT(alpha,psi))/DVMSpecData(iSpec)%Mass
   IF (DVMDim.LT.3) THEN
     print*, 'I dont think MaxwellCons works with D < 3 :/'
     fMaxwell(DVMSpecData(iSpec)%nVar/2+upos) = fMaxwell(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
@@ -391,10 +390,10 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2
+REAL                            :: dens, Temp, uVelo(3), cVel(3), cMag2
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
-rho = MacroVal(1)
+dens = MacroVal(1)
 uVelo(1:3) = MacroVal(2:4)
 Temp = MacroVal(5)
 
@@ -404,7 +403,7 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   cVel(2) = DVMSpecData(iSpec)%Velos(jVel,2) - uVelo(2)
   cVel(3) = DVMSpecData(iSpec)%Velos(kVel,3) - uVelo(3)
   cMag2 = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
-  fMaxwell(upos) = rho/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
+  fMaxwell(upos) = dens/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
   IF (DVMDim.LT.3) THEN
     fMaxwell(DVMSpecData(iSpec)%nVar/2+upos) = fMaxwell(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
   END IF
@@ -419,6 +418,7 @@ SUBROUTINE ShakhovDistribution(MacroVal,fShakhov,iSpec)
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
 USE MOD_PreProc
+USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -430,10 +430,10 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, gM, q(3), ShakhFac1, ShakhFac2
+REAL                            :: dens, Temp, uVelo(3), cVel(3), cMag2, gM, q(3), ShakhFac1, ShakhFac2
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
-rho = MacroVal(1)
+dens = MacroVal(1)
 uVelo(1:3) = MacroVal(2:4)
 Temp = MacroVal(5)
 q(1:3) = MacroVal(12:14)
@@ -444,8 +444,8 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   cVel(2) = DVMSpecData(iSpec)%Velos(jVel,2) - uVelo(2)
   cVel(3) = DVMSpecData(iSpec)%Velos(kVel,3) - uVelo(3)
   cMag2 = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
-  gM = rho/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
-  ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*rho*DVMSpecData(iSpec)%R_S*DVMSpecData(iSpec)%R_S*Temp*Temp)
+  gM = dens/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
+  ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*dens*BoltzmannConst*DVMSpecData(iSpec)%R_S*Temp*Temp)
   ShakhFac2 = cMag2/(DVMSpecData(iSpec)%R_S*Temp)
   fShakhov(upos) = gM*(1.+(1.-DVMSpecData(iSpec)%Prandtl)*ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
@@ -477,10 +477,10 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho,Temp,uVelo(3),cVel(3),pressTens(3,3),pressProduct,ilambda(3,3),ldet,hfac
+REAL                            :: dens,Temp,uVelo(3),cVel(3),pressTens(3,3),pressProduct,ilambda(3,3),ldet,hfac
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
-rho              = MacroVal(1)
+dens              = MacroVal(1)
 uVelo(1:3)       = MacroVal(2:4)
 Temp             = MacroVal(5)
 pressTens(1,1)   = MacroVal(6)
@@ -491,7 +491,7 @@ pressTens(2:3,1) = MacroVal(9:10)
 pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
 
-pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens/rho
+pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens/dens/DVMSpecData(iSpec)%Mass
 pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
@@ -516,7 +516,7 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
                + cVel(2)*DOT_PRODUCT(ilambda(:,2),cVel) &
                + cVel(3)*DOT_PRODUCT(ilambda(:,3),cVel)
 
-  fESBGK(upos) = rho/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
+  fESBGK(upos) = dens/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
   IF ((DVMSpecData(iSpec)%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
     hfac = DVMSpecData(iSpec)%R_S*Temp*DVMSpecData(iSpec)%Internal_DOF
     IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
@@ -535,6 +535,7 @@ SUBROUTINE GradDistribution(MacroVal,fGrad,iSpec)
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -546,11 +547,11 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag2,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
+REAL                            :: dens,Temp,uVelo(3),cVel(3),cMag2,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
 REAL                            :: pressProduct2
 INTEGER                         :: iVel,jVel,kVel,upos
 !===================================================================================================================================
-rho              = MacroVal(1)
+dens              = MacroVal(1)
 uVelo(1:3)       = MacroVal(2:4)
 Temp             = MacroVal(5)
 pressTens(1,1)   = MacroVal(6)
@@ -563,7 +564,7 @@ pressTens(3,2)   = MacroVal(11)
 q(1:3)           = MacroVal(12:14)
 
 ! here the traceless pressure tensor is used (init with MacroVal(6:8)=0 for Tx=Ty=Tz)
-IF (ABS(SUM(MacroVal(6:8))).GT.1.e-12*(rho*DVMSpecData(iSpec)%R_S*Temp)) CALL abort(__STAMP__, &
+IF (ABS(SUM(MacroVal(6:8))).GT.1.e-12*(dens*BoltzmannConst*Temp)) CALL abort(__STAMP__, &
                                   'Diagonal entries of the pressure tensor should add up to zero',0,SUM(MacroVal(6:8)))
 
 DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
@@ -583,11 +584,11 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
     pressProduct = pressProduct + (3.-DVMDim)*DVMSpecData(iSpec)%R_S*Temp*pressTens(3,3)
   END IF
 
-  pressFac = rho*DVMSpecData(iSpec)%R_S*DVMSpecData(iSpec)%R_S*Temp*Temp
+  pressFac = dens*BoltzmannConst*DVMSpecData(iSpec)%R_S*Temp*Temp
   ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*pressFac)
   ShakhFac2 = cMag2/(DVMSpecData(iSpec)%R_S*Temp)
 
-  gM = rho/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
+  gM = dens/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
   fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
     fGrad(DVMSpecData(iSpec)%nVar/2+upos) = gM*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim) &
@@ -604,6 +605,7 @@ SUBROUTINE GradDistributionPrandtl(MacroVal,fGrad,iSpec)
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
 USE MOD_PreProc
+USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -615,11 +617,11 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho,Temp,uVelo(3),cVel(3),cMag2,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
+REAL                            :: dens,Temp,uVelo(3),cVel(3),cMag2,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
 REAL                            :: pressProduct2
 INTEGER                         :: iVel,jVel,kVel,upos
 !===================================================================================================================================
-rho              = MacroVal(1)
+dens              = MacroVal(1)
 uVelo(1:3)       = MacroVal(2:4)
 Temp             = MacroVal(5)
 pressTens(1,1)   = MacroVal(6)
@@ -630,9 +632,9 @@ pressTens(2:3,1) = MacroVal(9:10)
 pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
 
-pressTens(1,1) = pressTens(1,1)-rho*DVMSpecData(iSpec)%R_S*Temp
-pressTens(2,2) = pressTens(2,2)-rho*DVMSpecData(iSpec)%R_S*Temp
-pressTens(3,3) = pressTens(3,3)-rho*DVMSpecData(iSpec)%R_S*Temp
+pressTens(1,1) = pressTens(1,1)-dens*BoltzmannConst*Temp
+pressTens(2,2) = pressTens(2,2)-dens*BoltzmannConst*Temp
+pressTens(3,3) = pressTens(3,3)-dens*BoltzmannConst*Temp
 
 pressTens = pressTens/3.
 q(1:3)    = (1.-2.*DVMSpecData(iSpec)%Prandtl/3.)*MacroVal(12:14)
@@ -654,11 +656,11 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
     pressProduct = pressProduct + (3.-DVMDim)*DVMSpecData(iSpec)%R_S*Temp*pressTens(3,3)
   END IF
 
-  pressFac = rho*DVMSpecData(iSpec)%R_S*DVMSpecData(iSpec)%R_S*Temp*Temp
+  pressFac = dens*BoltzmannConst*DVMSpecData(iSpec)%R_S*Temp*Temp
   ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*pressFac)
   ShakhFac2 = cMag2/(DVMSpecData(iSpec)%R_S*Temp)
 
-  gM = rho/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
+  gM = dens/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
   fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
     fGrad(DVMSpecData(iSpec)%nVar/2+upos) = gM*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim) &
@@ -687,17 +689,17 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, q(3)
+REAL                            :: dens, Temp, uVelo(3), cVel(3), cMag2, q(3)
 INTEGER                         :: iVel,jVel,kVel, upos
 REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi(1:3), max_skew
 !===================================================================================================================================
-rho = MacroVal(1)
+dens = MacroVal(1)
 uVelo(1:3) = MacroVal(2:4)
 Temp = MacroVal(5)
 q(1:3) = MacroVal(12:14)
 
 max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
-skew = (1-DVMSpecData(iSpec)%Prandtl)*2.*(q/rho)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
+skew = (1-DVMSpecData(iSpec)%Prandtl)*2.*(q/dens/DVMSpecData(iSpec)%Mass)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
 ! skew = (1-DVMSpecData(iSpec)%Prandtl)*(skewness/rho)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
 
 skew = SIGN(1.,skew)*MIN(ABS(skew),0.9*max_skew)
@@ -715,7 +717,7 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   cMag2 = DOT_PRODUCT(cVel,cVel)
   Phi = 1.+ERF(alpha*cVel/sqrt(2.))
 
-  fSkew(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
+  fSkew(upos) = dens*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
 
   IF (DVMDim.LT.3) THEN
     fSkew(DVMSpecData(iSpec)%nVar/2+upos) = fSkew(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
@@ -913,18 +915,18 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, q(3), cCumu(3), cCumuMag, betalog(1:3), gamma1
+REAL                            :: dens, Temp, uVelo(3), cVel(3), cMag2, q(3), cCumu(3), cCumuMag, betalog(1:3), gamma1
 INTEGER                         :: iVel,jVel,kVel, upos, iLoop, ifault
 REAL                            :: skew(1:3), delta, alpha(1:3), ksi(1:3), omega(1:3), nu(1:3), max_skew, b1, Phi(1:3), stut(1:3)
 LOGICAL                         :: IsSN(1:3)
 !===================================================================================================================================
-rho = MacroVal(1)
+dens = MacroVal(1)
 uVelo(1:3) = MacroVal(2:4)
 Temp = MacroVal(5)
 q(1:3) = MacroVal(12:14)
 
 max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
-skew = (1-DVMSpecData(iSpec)%Prandtl)*2.*(q/rho)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
+skew = (1-DVMSpecData(iSpec)%Prandtl)*2.*(q/dens/DVMSpecData(iSpec)%Mass)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
 IsSN = .TRUE.
 nu = 100.
 DO iLoop = 1, 3
@@ -980,11 +982,11 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
         stut(iLoop) = stut(iLoop)*(1-0.5*betain((nu(iLoop)+1)/((nu(iLoop)+1)+cCumu(iLoop)**2),0.5*(nu(iLoop)+1),0.5,betalog(iLoop),ifault))
       END IF
     END DO
-    fSkewt(upos) = 2**DVMDim*rho*PRODUCT(stut(1:DVMDim))/PRODUCT(omega(1:DVMDim))
+    fSkewt(upos) = 2**DVMDim*dens*PRODUCT(stut(1:DVMDim))/PRODUCT(omega(1:DVMDim))
   ELSE
     cMag2 = DOT_PRODUCT(cVel,cVel)
     Phi = 1.+ERF(alpha*cVel/sqrt(2.))
-    fSkewt(upos) = rho*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
+    fSkewt(upos) = dens*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
   END IF
 
   IF (DVMDim.LT.3) THEN
@@ -1244,7 +1246,7 @@ DO iElem =1, nElems
 END DO
 END SUBROUTINE RescaleInit
 
-SUBROUTINE ForceStep(tDeriv,ElectricField)
+SUBROUTINE ForceStep(tDeriv,ploesma)
 !===================================================================================================================================
 ! Calculates force term (to add in 2 parts (Strang splitting) for 2nd order accuracy)
 !===================================================================================================================================
@@ -1254,12 +1256,16 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
 USE MOD_FV_Vars,        ONLY : U_FV
+#if USE_HDG
+USE MOD_Equation_Vars,  ONLY: E
+USE MOD_Interpolation_Vars,ONLY: wGP
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 REAL, INTENT(IN)              :: tDeriv
-REAL, DIMENSION(1:3), INTENT(IN), OPTIONAL :: ElectricField
+LOGICAL, OPTIONAL             :: ploesma
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1267,8 +1273,17 @@ REAL, DIMENSION(1:3), INTENT(IN), OPTIONAL :: ElectricField
 REAL                            :: MacroVal(14,DVMnSpecies+1), tau, forceTerm, cVel(3)!, velodiff, gamma
 INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstID !,upos1,upos2
 REAL, ALLOCATABLE               :: fTarget(:)
+#if USE_HDG
+REAL                            :: Eloc(3)
+#endif
 !===================================================================================================================================
 DO iElem =1, nElems
+  IF (PRESENT(ploesma)) THEN
+    Eloc = 0.
+    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+      Eloc(1:3) = Eloc(1:3) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,iElem)/((PP_N+1.)**3) !need jacobi here for noncartesian
+    END DO; END DO; END DO
+  END IF
   ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
   DO k=0, 0; DO j=0, 0; DO i=0, 0
     CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),tDeriv,tau,1)
@@ -1293,9 +1308,9 @@ DO iElem =1, nElems
         cVel(1) = Sp%Velos(iVel,1) - MacroVal(2,iSpec)
         cVel(2) = Sp%Velos(jVel,2) - MacroVal(3,iSpec)
         cVel(3) = Sp%Velos(kVel,3) - MacroVal(4,iSpec)
-        IF (PRESENT(ElectricField)) THEN
+        IF (PRESENT(ploesma)) THEN
           forceTerm = (Sp%Charge/Sp%Mass) &
-                    * DOT_PRODUCT(ElectricField,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
+                    * DOT_PRODUCT(Eloc,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
         ELSE
           forceTerm = DOT_PRODUCT(DVMForce,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
         END IF
@@ -1362,7 +1377,7 @@ DO iSpec=1, DVMnSpecies
   ASSOCIATE(Sp    => DVMSpecData(iSpec))
   DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
     upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-    weight = Sp%Weights(iVel,1)*Sp%Weights(jVel,2)*Sp%Weights(kVel,3)
+    weight = Sp%Weights(iVel,1)*Sp%Weights(jVel,2)*Sp%Weights(kVel,3)*Sp%Mass
     rho = rho + weight*U(upos)
     rhoU(1) = rhoU(1) + weight*Sp%Velos(iVel,1)*U(upos)
     rhoU(2) = rhoU(2) + weight*Sp%Velos(jVel,2)*U(upos)

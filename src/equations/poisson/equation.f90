@@ -1121,7 +1121,7 @@ resu(1) = - ((PartSource(4,i,j,k,iElem) - U_FV(1,0,0,0,iElem)*ElementaryCharge))
 
 #ifdef discrete_velocity
 CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),0.,tau,1,Charge=DVMtotalCharge)
-resu(1) = 0. !DVMtotalCharge/eps0
+resu(1) = DVMtotalCharge/eps0
 #endif
 
 END SUBROUTINE CalcSourceHDG
