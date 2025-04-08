@@ -177,7 +177,7 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut,ContainerName,FVState)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut,ContainerName,HDGFV)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -213,7 +213,7 @@ LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
 CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: ContainerName      ! Name of the container (default: DG_Solution)
-LOGICAL,INTENT(IN),OPTIONAL          :: FVState
+LOGICAL,INTENT(IN),OPTIONAL          :: HDGFV
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -225,7 +225,7 @@ CHARACTER(LEN=255)                           :: FileName
 CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  ', 'tracing     ', 'triatracking'/)
 #endif /*PARTICLES*/
 LOGICAL                                      :: WriteUserblock
-INTEGER                                      :: Nloc,nVarLoc
+INTEGER                                      :: Nloc,nVarHDG
 !===================================================================================================================================
 ! Create filename
 IF(PRESENT(FileNameIn))THEN
@@ -244,7 +244,7 @@ IF(PRESENT(NIn))THEN
 ELSE
   Nloc = PP_N
 END IF ! PRESENT(NIn)
-nVarLoc = 0
+nVarHDG = 0
 
 ! Create file
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
@@ -253,8 +253,14 @@ CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,us
 CALL WriteHDF5Header(TRIM(TypeString),File_ID)
 
 ! Preallocate the data space for the dataset.
-IF (PRESENT(FVState).AND.nVar.GE.15) THEN
-  Dimsf=(/15,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
+IF (PRESENT(HDGFV)) THEN
+  IF (HDGFV) THEN
+    ! 4 variables for the HDG solution
+    nVarHDG = 4
+    Dimsf=(/nVar-nVarHDG,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
+  ELSE
+    Dimsf=(/nVar,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
+  END IF
 ELSE
   Dimsf=(/nVar,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
 END IF
@@ -272,8 +278,8 @@ CALL H5DCLOSE_F(Dset_id, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
 
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-IF (PRESENT(FVState)) THEN
-  IF (nVar.GT.15) THEN
+IF (PRESENT(HDGFV)) THEN
+  IF (HDGFV) THEN
     CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=PP_N)
   END IF
   CALL WriteAttributeToHDF5(File_ID,'N_FV',1,IntegerScalar=Nloc)
@@ -287,12 +293,11 @@ IF(PRESENT(NodeType_in))THEN
 ELSE
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
 END IF ! PRESENT(NodeType_in)
-IF (PRESENT(FVState)) THEN
-  IF (nVar.GT.15) THEN
-    nVarLoc = nVar - 15
-    CALL WriteAttributeToHDF5(File_ID,'VarNames',nVarLoc,StrArray=StrVarNames(1:nVarLoc))
+IF (PRESENT(HDGFV)) THEN
+  IF (HDGFV) THEN
+    CALL WriteAttributeToHDF5(File_ID,'VarNames',nVarHDG,StrArray=StrVarNames(1:nVarHDG))
   END IF
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesFV',15,StrArray=StrVarNames(nVarLoc+1:nVarLoc+15))
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesFV',nVar-nVarHDG,StrArray=StrVarNames(nVarHDG+1:nVar))
 ELSE
   CALL WriteAttributeToHDF5(File_ID,'VarNames',nVar,StrArray=StrVarNames)
 END IF

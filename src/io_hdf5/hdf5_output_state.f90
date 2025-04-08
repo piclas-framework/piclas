@@ -179,9 +179,10 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
 REAL                           :: MacroVal(14,DVMnSpecies+1)
-REAL                           :: Udvm(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
+REAL                           :: Udvm(1:14*(DVMnSpecies+1)+1,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 REAL                           :: tau,dtMV
-INTEGER                        :: i,j,k,iElem
+INTEGER                        :: i,j,k,iElem,iSpec
+INTEGER(KIND=IK)               :: nValDVM
 #endif /*DVM*/
 REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
@@ -255,7 +256,7 @@ IF(InitialAutoRestart) THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
 #if USE_HDG
 #ifdef discrete_velocity
-  CALL GenerateFileSkeleton('State',19,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
+  CALL GenerateFileSkeleton('State',14*(DVMnSpecies+1)+5,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.TRUE.)
 #elif PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #elif PP_nVar==3
@@ -264,14 +265,14 @@ IF(InitialAutoRestart) THEN
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
 #elif (defined(discrete_velocity))
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
+  CALL GenerateFileSkeleton('State',14*(DVMnSpecies+1)+1,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.FALSE.)
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif /*USE_HDG*/
 ELSE
 #if USE_HDG
 #ifdef discrete_velocity
-  CALL GenerateFileSkeleton('State',19,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
+  CALL GenerateFileSkeleton('State',14*(DVMnSpecies+1)+5,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.TRUE.)
 #elif PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #elif PP_nVar==3
@@ -280,7 +281,7 @@ ELSE
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
 #elif (defined(discrete_velocity))
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',FVState=.TRUE.)
+  CALL GenerateFileSkeleton('State',14*(DVMnSpecies+1)+1,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.FALSE.)
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif /*USE_HDG*/
@@ -569,16 +570,19 @@ ASSOCIATE (&
       DO j=0,PP_1
         DO i=0,PP_1
           CALL MacroValuesFromDistribution(MacroVal,Ureco(:,i,j,k,iElem),dtMV,tau,1)
-          Udvm(1:14,i,j,k,iElem) = MacroVal(1:14,DVMnSpecies+1) ! only total values for now
-          Udvm(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+          DO iSpec=1,DVMnSpecies+1 !n species + total values
+            Udvm(14*(iSpec-1)+1:14*iSpec,i,j,k,iElem) = MacroVal(1:14,iSpec)
+          END DO
+          Udvm(14*(DVMnSpecies+1)+1,i,j,k,iElem) = dt_Min(DT_MIN)/tau
         END DO
       END DO
     END DO
   END DO
+  nValDVM = INT(14*(DVMnSpecies+1)+1,IK)
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DVM_Solution', rank=5,&
-      nValGlobal=(/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
-      nVal=      (/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
+      nValGlobal=(/nValDVM, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+      nVal=      (/nValDVM, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Udvm)
 #endif

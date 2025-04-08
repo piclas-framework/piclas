@@ -83,6 +83,7 @@ CALL prms%CreateIntOption(      'IniRefState-FV',  'Refstate required for initia
 CALL prms%CreateRealArrayOption('RefState-FV',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
                                                  multiple=.TRUE., no=14 )
 CALL prms%CreateRealArrayOption('DVM-Accel',    'Acceleration vector for force term', '(/0., 0., 0./)')
+CALL prms%CreateLogicalOption(  'DVM-Collisions',  'Activate collision (RHS BGK equation)', '.TRUE.')
 CALL prms%CreateLogicalOption(  'DVM-WriteMacroSurfaceValues',  'Surface output', '.FALSE.')
 END SUBROUTINE DefineParametersEquation
 
@@ -110,6 +111,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 ! LOCAL VARIABLES
 INTEGER               :: i, iGH, iDim, iSpec
 CHARACTER(32)         :: hilf
+CHARACTER(LEN=255)    :: SpecID
 !==================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.EquationInitIsDone_FV)THEN
   CALL CollectiveStop(__STAMP__,&
@@ -121,13 +123,22 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT DVM...'
 Pi=ACOS(-1.)
 IniExactFunc_FV = GETINT('IniExactFunc-FV')
 
-DVMBGKModel = GETINT('DVM-BGKCollModel')
-DVMMethod = GETINT('DVM-Method')
 DVMDim = GETINT('DVM-Dimension')
 IF ((DVMDim.GT.3).OR.(DVMDim.LT.1)) CALL abort(__STAMP__,'DVM error: dimension must be between 1 and 3')
+DVMColl = GETLOGICAL('DVM-Collisions')
+IF (DVMColl) THEN
+  LBWRITE(UNIT_stdOut,'(A)')'DVM: Collisions activated!'
+  DVMBGKModel = GETINT('DVM-BGKCollModel')
+  DVMMethod = GETINT('DVM-Method')
+ELSE
+  LBWRITE(UNIT_stdOut,'(A)')'DVM: Collisions deactivated!'
+  DVMBGKModel = 0
+  DVMMethod = 0
+END IF
 
 DVMnSpecies = GETINT('DVM-nSpecies')
 ALLOCATE(DVMSpecData(DVMnSpecies))
+ALLOCATE(StrVarNames_FV(14*(DVMnSpecies+1)+1))
 PP_nVar_FV = 0
 
 ALLOCATE(DVMVeloDisc(DVMnSpecies))
@@ -191,7 +202,39 @@ DO iSpec = 1, DVMnSpecies
               'Undefined velocity space discretization')
   END SELECT ! DVMVeloDisc
   END ASSOCIATE
+  ! Set output variable names
+  WRITE(SpecID,'(I3.3)') iSpec
+  StrVarNames_FV(14*(iSpec-1)+1)  = 'Spec'//TRIM(SpecID)//'_Density'
+  StrVarNames_FV(14*(iSpec-1)+2)  = 'Spec'//TRIM(SpecID)//'_VelocityX'
+  StrVarNames_FV(14*(iSpec-1)+3)  = 'Spec'//TRIM(SpecID)//'_VelocityY'
+  StrVarNames_FV(14*(iSpec-1)+4)  = 'Spec'//TRIM(SpecID)//'_VelocityZ'
+  StrVarNames_FV(14*(iSpec-1)+5)  = 'Spec'//TRIM(SpecID)//'_Temperature'
+  StrVarNames_FV(14*(iSpec-1)+6)  = 'Spec'//TRIM(SpecID)//'_PressureXX'
+  StrVarNames_FV(14*(iSpec-1)+7)  = 'Spec'//TRIM(SpecID)//'_PressureYY'
+  StrVarNames_FV(14*(iSpec-1)+8)  = 'Spec'//TRIM(SpecID)//'_PressureZZ'
+  StrVarNames_FV(14*(iSpec-1)+9)  = 'Spec'//TRIM(SpecID)//'_PressureXY'
+  StrVarNames_FV(14*(iSpec-1)+10) = 'Spec'//TRIM(SpecID)//'_PressureXZ'
+  StrVarNames_FV(14*(iSpec-1)+11) = 'Spec'//TRIM(SpecID)//'_PressureYZ'
+  StrVarNames_FV(14*(iSpec-1)+12) = 'Spec'//TRIM(SpecID)//'_HeatfluxX'
+  StrVarNames_FV(14*(iSpec-1)+13) = 'Spec'//TRIM(SpecID)//'_HeatfluxY'
+  StrVarNames_FV(14*(iSpec-1)+14) = 'Spec'//TRIM(SpecID)//'_HeatfluxZ'
 END DO
+
+StrVarNames_FV(14*DVMnSpecies+1)  = 'Total_Density'
+StrVarNames_FV(14*DVMnSpecies+2)  = 'Total_VelocityX'
+StrVarNames_FV(14*DVMnSpecies+3)  = 'Total_VelocityY'
+StrVarNames_FV(14*DVMnSpecies+4)  = 'Total_VelocityZ'
+StrVarNames_FV(14*DVMnSpecies+5)  = 'Total_Temperature'
+StrVarNames_FV(14*DVMnSpecies+6)  = 'Total_PressureXX'
+StrVarNames_FV(14*DVMnSpecies+7)  = 'Total_PressureYY'
+StrVarNames_FV(14*DVMnSpecies+8)  = 'Total_PressureZZ'
+StrVarNames_FV(14*DVMnSpecies+9)  = 'Total_PressureXY'
+StrVarNames_FV(14*DVMnSpecies+10) = 'Total_PressureXZ'
+StrVarNames_FV(14*DVMnSpecies+11) = 'Total_PressureYZ'
+StrVarNames_FV(14*DVMnSpecies+12) = 'Total_HeatfluxX'
+StrVarNames_FV(14*DVMnSpecies+13) = 'Total_HeatfluxY'
+StrVarNames_FV(14*DVMnSpecies+14) = 'Total_HeatfluxZ'
+StrVarNames_FV(14*DVMnSpecies+15) = 'RelaxationFactor'
 
 ! Read Boundary information / RefStates / perform sanity check
 IniRefState_FV = GETINT('IniRefState-FV')
@@ -452,6 +495,7 @@ END SUBROUTINE CalcSource
 SUBROUTINE FinalizeEquation()
 ! MODULES
 USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone_FV, RefState_FV, WriteDVMSurfaceValues, DVMSpecData, DVMnSpecies
+USE MOD_Equation_Vars_FV,ONLY: DVMMomentSave, DVMVeloDisc, StrVarNames_FV
 USE MOD_DVM_Boundary_Analyze,ONLY: FinalizeDVMBoundaryAnalyze
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -460,6 +504,9 @@ INTEGER :: iSpec
 !==================================================================================================================================
 EquationInitIsDone_FV = .FALSE.
 IF (WriteDVMSurfaceValues) CALL FinalizeDVMBoundaryAnalyze()
+SDEALLOCATE(DVMMomentSave)
+SDEALLOCATE(DVMVeloDisc)
+SDEALLOCATE(StrVarNames_FV)
 SDEALLOCATE(RefState_FV)
 DO iSpec=1,DVMnSpecies
   SDEALLOCATE(DVMSpecData(iSpec)%Velos)

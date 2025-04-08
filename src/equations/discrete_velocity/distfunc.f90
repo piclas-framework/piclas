@@ -37,7 +37,7 @@ SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde,charge)
 ! Calculates the moments of the distribution function
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMMethod, DVMBGKModel, DVMDim, DVMnSpecies
+USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMMethod, DVMBGKModel, DVMDim, DVMnSpecies, DVMColl
 USE MOD_PreProc
 USE MOD_Globals                  ,ONLY: abort
 USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
@@ -56,9 +56,9 @@ REAL, INTENT(OUT), OPTIONAL     :: charge
 ! LOCAL VARIABLES
 REAL                            :: rho(DVMnSpecies+1), rhoU(3,DVMnSpecies+1), densE(DVMnSpecies+1), cV(DVMnSpecies+1)
 REAL                            :: uVelo(3,DVMnSpecies+1), cVel(3,DVMnSpecies+1), cMag2(DVMnSpecies+1)
-REAL                            :: densTot, Phi, muTot, mu(DVMnSpecies)
+REAL                            :: dens(DVMnSpecies+1), mu(DVMnSpecies+1)
 REAL                            :: PressTens(6,DVMnSpecies+1), Heatflux(3,DVMnSpecies+1)
-REAL                            :: weight, prefac
+REAL                            :: weight, prefac, Prandtl, Phi
 INTEGER                         :: iVel,jVel,kVel,upos,iSpec,jSpec,vFirstID,total
 !===================================================================================================================================
 tau = 0.
@@ -69,8 +69,8 @@ PressTens = 0.
 Heatflux = 0.
 cV = 0.
 MacroVal = 0.
-densTot = 0.
-muTot = 0.
+dens = 0.
+mu = 0.
 total = DVMnSpecies+1
 IF (PRESENT(charge)) charge = 0.
 
@@ -95,14 +95,15 @@ DO iSpec=1, DVMnSpecies
   END DO; END DO; END DO
   uVelo(1:3,iSpec) = rhoU(1:3,iSpec)/rho(iSpec)
   cV(iSpec) = Sp%R_S*rho(iSpec)*(3.+Sp%Internal_DOF)/2.
+  dens(iSpec) = rho(iSpec)/Sp%Mass
 
   MacroVal(1,iSpec) = rho(iSpec)
   MacroVal(2:4,iSpec) = uVelo(1:3,iSpec)
   MacroVal(5,iSpec) = (densE(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/rho(iSpec))/cV(iSpec)
   IF (MacroVal(5,iSpec).LE.0) CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
-  mu(iSPec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
+  mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
 
-  densTot = densTot + rho(iSpec)/Sp%Mass
+  dens(total) = dens(total) + dens(iSpec)
   rho(total) = rho(total) + rho(iSpec)
   rhoU(1:3,total) = rhoU(1:3,total) + rhoU(1:3,iSpec)
   densE(total) = densE(total) + densE(iSpec)
@@ -191,7 +192,7 @@ DO iSpec=1, DVMnSpecies
       * (DVMSpecData(jSpec)%Mass/Sp%Mass)**(0.25) )**(2.0) &
       / ( SQRT(8.0 * (1.0 + Sp%Mass/DVMSpecData(jSpec)%Mass)) ) / DVMSpecData(jSpec)%Mass
   END DO
-  muTot = muTot + rho(iSpec)*mu(iSpec)/Phi/Sp%Mass
+  mu(total) = mu(total) + rho(iSpec)*mu(iSpec)/Phi/Sp%Mass
 
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
@@ -200,65 +201,87 @@ END DO
 Macroval(6:11,total)  = PressTens(1:6,total)
 MacroVal(12:14,total) = Heatflux(1:3,total)
 
-tau = muTot/(BoltzmannConst*densTot*MacroVal(5,total))
-IF (DVMBGKModel.EQ.1) CALL abort(__STAMP__,'DVM mixture ESBGK not implemented!') !tau = tau/DVMSpecData%Prandtl !ESBGK
+Prandtl = DVMSpecData(1)%Prandtl !temporary
+
+tau = mu(total)/(BoltzmannConst*dens(total)*MacroVal(5,total))
+IF (DVMBGKModel.EQ.1) tau = tau/Prandtl !ESBGK
 IF (DVMBGKModel.EQ.7) tau = tau*2./3.
 
-! IF (tDeriv.GT.0.) THEN
-!   SELECT CASE (tilde)
-!   CASE(1) ! higher moments from f~
-!     SELECT CASE(DVMMethod)
-!     CASE(1) !EDDVM
-!       prefac = (1.-EXP(-tDeriv/tau))/(tDeriv/tau)
-!       SELECT CASE(DVMBGKModel)
-!       CASE(1) !ESBGK
-!         Macroval(6:8)   = (Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpecData%R_S*rho/DVMSpecData%Prandtl) &
-!                           /(1./DVMSpecData%Prandtl+prefac*(1.-1./DVMSpecData%Prandtl))
-!         MacroVal(9:11)  = Macroval(9:11)*prefac/(1./DVMSpecData%Prandtl+prefac*(1.-1./DVMSpecData%Prandtl))
-!         MacroVal(12:14) = MacroVal(12:14)*prefac
+IF (DVMColl.AND.tDeriv.GT.0.) THEN
+  SELECT CASE (tilde)
+  CASE(1) ! higher moments from f~
+    SELECT CASE(DVMMethod)
+    CASE(1) !EDDVM
+      prefac = (1.-EXP(-tDeriv/tau))/(tDeriv/tau)
+      SELECT CASE(DVMBGKModel)
+      CASE(1) !ESBGK
+        Macroval(6,:)   = (Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
+                          /(1./Prandtl+prefac*(1.-1./Prandtl))
+        Macroval(7,:)   = (Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
+                          /(1./Prandtl+prefac*(1.-1./Prandtl))
+        Macroval(8,:)   = (Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
+                          /(1./Prandtl+prefac*(1.-1./Prandtl))
+        MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(1./Prandtl+prefac*(1.-1./Prandtl))
+        MacroVal(12:14,:) = MacroVal(12:14,:)*prefac
 
-!       CASE(2,5,6) !Shakhov/SN
-!         MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpecData%R_S*rho
-!         MacroVal(9:11)  = MacroVal(9:11)*prefac
-!         MacroVal(12:14) = MacroVal(12:14)*prefac/(DVMSpecData%Prandtl+prefac*(1-DVMSpecData%Prandtl))
+      CASE(2,5,6) !Shakhov/SN
+        MacroVal(6,:)   = Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        MacroVal(7,:)   = Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        MacroVal(8,:)   = Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        MacroVal(9:11,:)  = MacroVal(9:11,:)*prefac
+        MacroVal(12:14,:) = MacroVal(12:14,:)*prefac/(Prandtl+prefac*(1-Prandtl))
 
-!       CASE(7) !Double moment distributions
-!         Macroval(6:8)   = (Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpecData%R_S*rho*2./3.) &
-!         /(2./3.+prefac/3.)
-!         MacroVal(9:11)  = Macroval(9:11)*prefac/(2./3.+prefac/3.)
-!         MacroVal(12:14) = MacroVal(12:14)*prefac/(2.*DVMSpecData%Prandtl/3.+prefac*(1.-2.*DVMSpecData%Prandtl/3.))
+      CASE(7) !Double moment distributions
+        Macroval(6,:)   = (Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst*2./3.) &
+        /(2./3.+prefac/3.)
+        Macroval(7,:)   = (Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst*2./3.) &
+        /(2./3.+prefac/3.)
+        Macroval(8,:)   = (Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst*2./3.) &
+        /(2./3.+prefac/3.)
+        MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(2./3.+prefac/3.)
+        MacroVal(12:14,:) = MacroVal(12:14,:)*prefac/(2.*Prandtl/3.+prefac*(1.-2.*Prandtl/3.))
 
-!       CASE(3,4) !Maxwell
-!         MacroVal(6:8)   = Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpecData%R_S*rho
-!         Macroval(9:14)  = prefac*Macroval(9:14) ! non-eq moments should be zero anyway
-!       CASE DEFAULT
-!         CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
-!       END SELECT
-!     CASE(2) !DUGKS
-!       SELECT CASE(DVMBGKModel)
-!       CASE(1) !ESBGK
-!         prefac = (2.*tau)/(2.*tau+tDeriv)
-!         Macroval(6:8)   = (Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpecData%R_S*rho/DVMSpecData%Prandtl) &
-!                           /(1./DVMSpecData%Prandtl+prefac*(1.-1./DVMSpecData%Prandtl))
-!         MacroVal(9:11)  = Macroval(9:11)*prefac/(1./DVMSpecData%Prandtl+prefac*(1.-1./DVMSpecData%Prandtl))
-!         MacroVal(12:14) = MacroVal(12:14)*prefac
-!       CASE(2,5,6) !Shakhov/SN
-!         Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpecData%R_S*rho*tDeriv/(2.*tau+tDeriv)
-!         Macroval(9:11)  = Macroval(9:11)*2.*tau/(2.*tau+tDeriv)
-!         MacroVal(12:14) = MacroVal(12:14)*2.*tau/(2.*tau+tDeriv*DVMSpecData%Prandtl)
-!       CASE(3,4) !Maxwell
-!         Macroval(6:8)   = Macroval(6:8)*2.*tau/(2.*tau+tDeriv) + MacroVal(5)*DVMSpecData%R_S*rho*tDeriv/(2.*tau+tDeriv)
-!         Macroval(9:14)  = Macroval(9:14)*2.*tau/(2.*tau+tDeriv) ! non-eq moments should be zero anyway
-!       CASE DEFAULT
-!         CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
-!       END SELECT
-!     END SELECT
-!   CASE(2) ! higher moments from f^
-!     MacroVal(6:14) = 0. ! will get copied from earlier f~ macroval
-!   CASE DEFAULT
-!     CALL abort(__STAMP__,'DVM-Method does not exist')
-!   END SELECT
-! END IF
+      CASE(3,4) !Maxwell
+        MacroVal(6,:)   = Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        MacroVal(7,:)   = Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        MacroVal(8,:)   = Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        Macroval(9:14,:)  = prefac*Macroval(9:14,:) ! non-eq moments should be zero anyway
+      CASE DEFAULT
+        CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
+      END SELECT
+    CASE(2) !DUGKS
+      SELECT CASE(DVMBGKModel)
+      CASE(1) !ESBGK
+        prefac = (2.*tau)/(2.*tau+tDeriv)
+        Macroval(6,:)   = (Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
+                          /(1./Prandtl+prefac*(1.-1./Prandtl))
+        Macroval(7,:)   = (Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
+                          /(1./Prandtl+prefac*(1.-1./Prandtl))
+        Macroval(8,:)   = (Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
+                          /(1./Prandtl+prefac*(1.-1./Prandtl))
+        MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(1./Prandtl+prefac*(1.-1./Prandtl))
+        MacroVal(12:14,:) = MacroVal(12:14,:)*prefac
+      CASE(2,5,6) !Shakhov/SN
+        Macroval(6,:)   = Macroval(6,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
+        Macroval(7,:)   = Macroval(7,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
+        Macroval(8,:)   = Macroval(8,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
+        Macroval(9:11,:)  = Macroval(9:11,:)*2.*tau/(2.*tau+tDeriv)
+        MacroVal(12:14,:) = MacroVal(12:14,:)*2.*tau/(2.*tau+tDeriv*Prandtl)
+      CASE(3,4) !Maxwell
+        Macroval(6,:)   = Macroval(6,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
+        Macroval(7,:)   = Macroval(7,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
+        Macroval(8,:)   = Macroval(8,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
+        Macroval(9:14,:)  = Macroval(9:14,:)*2.*tau/(2.*tau+tDeriv) ! non-eq moments should be zero anyway
+      CASE DEFAULT
+        CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
+      END SELECT
+    END SELECT
+  CASE(2) ! higher moments from f^
+    MacroVal(6:14,:) = 0. ! will get copied from earlier f~ macroval
+  CASE DEFAULT
+    CALL abort(__STAMP__,'DVM-Method does not exist')
+  END SELECT
+END IF
 
 END SUBROUTINE MacroValuesFromDistribution
 
@@ -1293,7 +1316,7 @@ DO iElem =1, nElems
         ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,i,j,k,iElem)-U(upos1,i,j,k,iElem)) &
         !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
 
-        U_FV(upos+vFirstID,i,j,k,iElem) = U_FV(upos,i,j,k,iElem) + forceTerm*tDeriv/2 !t/2 for strang splitting
+        U_FV(upos+vFirstID,i,j,k,iElem) = U_FV(upos+vFirstID,i,j,k,iElem) + forceTerm*tDeriv/2 !t/2 for strang splitting
         IF (DVMDim.LT.3) THEN
           U_FV(Sp%nVar/2+upos+vFirstID,i,j,k,iElem) = U_FV(Sp%nVar/2+upos+vFirstID,i,j,k,iElem) &
                                         + Sp%R_S*MacroVal(5,iSpec)*forceTerm*tDeriv/2 !vraiment sur de ca ?????

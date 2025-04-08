@@ -41,7 +41,7 @@ USE MOD_PreProc
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars_FV      ,ONLY: NormVec_FV, SurfElem_FV
 USE MOD_Mesh_Vars         ,ONLY: ElemToSide
-USE MOD_Equation_Vars_FV  ,ONLY: DVMVelos, DVMnVelos
+USE MOD_Equation_Vars_FV  ,ONLY: DVMSpecData, DVMnSpecies
 USE MOD_TimeDisc_Vars     ,ONLY: CFLScale
 #ifdef PARTICLES
 USE MOD_Mesh_Vars         ,ONLY: offsetElem
@@ -57,7 +57,7 @@ REAL                         :: CalcTimeStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: iElem,CNELemID,locSideID,SideID,flip
-INTEGER                      :: iVel,jVel,kVel,upos
+INTEGER                      :: iVel,jVel,kVel,upos,iSpec,vFirstID
 REAL                         :: FluxFac(PP_nVar_FV), SideFac
 REAL                         :: TimeStepConv,locTimeStepConv
 REAL                         :: n_loc(3)
@@ -83,10 +83,16 @@ DO iElem=1,PP_nElems
       n_loc = -NormVec_FV(:,0,0,SideID)
     END IF
     SideFac = SurfElem_FV(0,0,SideID)/ElemVolume_Shared(CNElemID)
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      FluxFac(upos) = FluxFac(upos) + SideFac*MAX(0.,n_loc(1)*DVMVelos(iVel,1)+n_loc(2)*DVMVelos(jVel,2)+n_loc(3)*DVMVelos(kVel,3))
-    END DO; END DO; END DO
+    vFirstID = 0
+    DO iSpec =1,DVMnSpecies
+      DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
+        upos=iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)+vFirstID
+        FluxFac(upos) = FluxFac(upos) + SideFac*MAX(0.,n_loc(1)*DVMSpecData(iSpec)%Velos(iVel,1) &
+                                                      +n_loc(2)*DVMSpecData(iSpec)%Velos(jVel,2) &
+                                                      +n_loc(3)*DVMSpecData(iSpec)%Velos(kVel,3))
+      END DO; END DO; END DO
+      vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+    END DO
   END DO
   locTimeStepConv = MIN(locTimeStepConv,CFLScale/MAXVAL(FluxFac))
 

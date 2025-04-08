@@ -458,6 +458,7 @@ USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 #ifdef discrete_velocity
 USE MOD_TimeDisc_Vars      ,ONLY: dt
 USE MOD_DistFunc,           ONLY: MacroValuesFromDistribution
+USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecies
 #endif /*discrete_velocity*/
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -483,7 +484,7 @@ INTEGER                       :: iElem
 REAL                          :: U_exact(1:PP_nVar_FV)
 INTEGER                       :: offsetElemCNProc,CNElemID
 #ifdef discrete_velocity
-REAL                          :: MacroVal(14), MacroVal_exact(14), tau, real_dt
+REAL                          :: MacroVal(14,DVMnSpecies+1), MacroVal_exact(14,DVMnSpecies+1), tau, real_dt
 #endif /*discrete_velocity*/
 !===================================================================================================================================
 IF (OutputErrorNormsToH5) CALL abort(__STAMP__,'OutputErrorNormsToH5 not implemented for FV')
@@ -511,10 +512,10 @@ DO iElem=1,PP_nElems
   ! DVM: calculate errors for the macroscopic values
   CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),real_dt,tau,1)
   CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:),real_dt,tau,1)
-  L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:14) - MacroVal_exact(1:14)))
+  L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:14,DVMnSpecies+1) - MacroVal_exact(1:14,DVMnSpecies+1)))
   ! To sum over the elements, We compute here the square of the L_2 error
-  L_2_Error = L_2_Error+(MacroVal(1:14) - MacroVal_exact(1:14))*&
-                        (MacroVal(1:14) - MacroVal_exact(1:14))*ElemVolume_Shared(CNElemID)
+  L_2_Error = L_2_Error+(MacroVal(1:14,DVMnSpecies+1) - MacroVal_exact(1:14,DVMnSpecies+1))*&
+                        (MacroVal(1:14,DVMnSpecies+1) - MacroVal_exact(1:14,DVMnSpecies+1))*ElemVolume_Shared(CNElemID)
 #else
   L_Inf_Error = MAX(L_Inf_Error,abs(U_FV(:,0,0,0,iElem) - U_exact(1:PP_nVar_FV)))
   ! To sum over the elements, We compute here the square of the L_2 error

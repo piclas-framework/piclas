@@ -315,7 +315,7 @@ USE MOD_Globals
 USE MOD_Preproc
 #ifdef discrete_velocity
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel, DVMnSpecies, DVMSpecData
+USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel, DVMnSpecies, DVMSpecData, DVMColl
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
 USE MOD_DistFunc               ,ONLY: MaxwellDistributionCons, SkewNormalDistribution, SkewtDistribution, GradDistributionPrandtl
 #endif
@@ -390,7 +390,7 @@ DO iRP=1,nRP
       l_eta_zeta_RP=l_eta_RP(j,iRP)*l_zeta_RP(k,iRP)
       DO i=0,PP_N
 #ifdef discrete_velocity
-        IF (t.GT.0.) THEN
+        IF (t.GT.0..AND.DVMColl) THEN
           CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1)
           SELECT CASE(DVMMethod)
             CASE(1)

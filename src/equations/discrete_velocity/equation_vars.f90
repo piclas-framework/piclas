@@ -40,6 +40,7 @@ INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each bounda
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 #endif
 
+LOGICAL              :: DVMColl
 INTEGER              :: DVMnSpecies
 INTEGER              :: DVMBGKModel
 INTEGER              :: DVMMethod
@@ -73,21 +74,7 @@ END TYPE tSpeciesData
 
 TYPE(tSpeciesData),ALLOCATABLE :: DVMSpecData(:)
 
-CHARACTER(LEN=255),DIMENSION(15),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=255) :: 'Density', &
-                                                                                    'VelocityX', &
-                                                                                    'VelocityY', &
-                                                                                    'VelocityZ', &
-                                                                                    'Temperature', &
-                                                                                    'PressureXX', &
-                                                                                    'PressureYY', &
-                                                                                    'PressureZZ', &
-                                                                                    'PressureXY', &
-                                                                                    'PressureXZ', &
-                                                                                    'PressureYZ', &
-                                                                                    'HeatfluxX', &
-                                                                                    'HeatfluxY', &
-                                                                                    'HeatfluxZ', &
-                                                                                    'RelaxationFactor'/)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames_FV(:)
 
 LOGICAL              :: WriteDVMSurfaceValues
 REAL,ALLOCATABLE     :: DVMSurfaceValues(:,:,:,:)
