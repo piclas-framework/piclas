@@ -486,12 +486,9 @@ DO iPair = 1, nPair
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
   CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
-  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                            + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                            + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
+  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(5,Coll_pData(iPair)%iPart_p1) -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(6,Coll_pData(iPair)%iPart_p1) -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
@@ -505,7 +502,7 @@ DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL DSMC_prob_calc(iElem, iPair)
     CALL RANDOM_NUMBER(iRan)
-    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+    IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
       CALL DSMC_perform_collision(iPair,iElem)
     END IF
   END IF
@@ -527,7 +524,7 @@ IF(DSMC%CalcQualityFactors) THEN
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
-    ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+    ! In case of a reservoir simulation, MeanCollProb is the output in PartAnalyze
     ! Otherwise it is the ResolvedTimestep
     DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
   END IF

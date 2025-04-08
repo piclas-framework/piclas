@@ -1621,9 +1621,9 @@ CASE('cosine')
     Theta = ASIN(SQRT(RandVal1))
 
     ! Normalized velocity vector in surface-local orientation
-    Vec3D(1) = COS(Theta) * COS(Phi)
-    Vec3D(2) = COS(Theta) * SIN(Phi)
-    Vec3D(3) = SIN(Theta)
+    Vec3D(1) = SIN(Theta) * COS(Phi)
+    Vec3D(2) = SIN(Theta) * SIN(Phi)
+    Vec3D(3) = COS(Theta)
 
     ! Multiply by velocity magnitude
     Vec3D(1:3) = Vec3D(1:3) * VeloIC
