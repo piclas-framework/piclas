@@ -361,7 +361,7 @@ SUBROUTINE MatVec(iVar,DoVZ)
 ! MODULES
 USE MOD_Globals
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
-USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,SetZeroPotentialDOF
+USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,ZeroPotentialSide
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N,HDG_Vol_N
 USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR,N_SurfMesh, offSetElem
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
@@ -614,13 +614,13 @@ IF (iVar.EQ.4) THEN
   END IF ! DoVZ
 
   ! Set potential to zero
-  IF(SetZeroPotentialDOF)THEN
+  IF(ZeroPotentialSide>0)THEN
     IF(DoVZ)THEN
-      HDG_Surf_N(1)%Z(iVar,1)  = 0.
-    ELSe
-      HDG_Surf_N(1)%mv(iVar,1) = 0.
+      HDG_Surf_N(ZeroPotentialSide)%Z(iVar,1)  = 0.
+    ELSE
+      HDG_Surf_N(ZeroPotentialSide)%mv(iVar,1) = 0.
     END IF ! DoVZ
-  END IF ! SetZeroPotentialDOF
+  END IF ! ZeroPotentialSide>0
 
 #if (PP_nVar!=1)
 END IF
@@ -645,7 +645,7 @@ END SUBROUTINE MatVec
 SUBROUTINE EvalResidual(iVar)
 ! MODULES
 USE MOD_Globals
-USE MOD_HDG_Vars  ,ONLY: nDirichletBCSides,DirichletBC,SetZeroPotentialDOF
+USE MOD_HDG_Vars  ,ONLY: nDirichletBCSides,DirichletBC,ZeroPotentialSide
 USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
 USE MOD_Mesh_Vars ,ONLY: nSides
 IMPLICIT NONE
@@ -684,7 +684,7 @@ IF (iVar.EQ.4) THEN
   END DO ! SideID=1,nSides
 
   ! Set residual to zero
-  IF(SetZeroPotentialDOF) HDG_Surf_N(1)%R(iVar,1) = 0.
+  IF(ZeroPotentialSide>0) HDG_Surf_N(ZeroPotentialSide)%R(iVar,1) = 0.
 #if (PP_nVar!=1)
 END IF
 #endif
