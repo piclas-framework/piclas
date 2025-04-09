@@ -589,9 +589,9 @@ CASE('Chung-Everhart-cosine')
   CALL RANDOM_NUMBER(RandVal)
   Theta = ASIN(SQRT(RandVal))
 
-  VeloFromDistribution(1) = COS(Theta) * COS(Phi)
-  VeloFromDistribution(2) = COS(Theta) * SIN(Phi)
-  VeloFromDistribution(3) = SIN(Theta)
+  VeloFromDistribution(1) = SIN(Theta) * COS(Phi)
+  VeloFromDistribution(2) = SIN(Theta) * SIN(Phi)
+  VeloFromDistribution(3) = COS(Theta)
 
   VeloFromDistribution = VeloFromDistribution * VeloABS
 
