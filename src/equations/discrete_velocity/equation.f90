@@ -418,6 +418,17 @@ DO iSpec=1,DVMnSpecies
       CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
     END IF
 
+  CASE(11) !Grad 13 uniform init with perturbation (two stream instability)
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
+    IF (iSpec.GE.2.AND.tIn.EQ.0..AND.x(1).GT.0.49) THEN
+      print*, 'perturbation at x = ',x(1)
+      Resu(vFirstID:vLastID)=1.1*Resu(vFirstID:vLastID)
+    END IF
+    IF (iSpec.GE.2.AND.tIn.EQ.0..AND.x(1).LT.-0.49) THEN
+      print*, 'perturbation at x = ',x(1)
+      Resu(vFirstID:vLastID)=0.9*Resu(vFirstID:vLastID)
+    END IF
+
   CASE DEFAULT
     CALL abort(__STAMP__,&
               'Specified exact function not implemented!')

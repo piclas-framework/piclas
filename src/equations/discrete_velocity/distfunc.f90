@@ -1270,19 +1270,19 @@ LOGICAL, OPTIONAL             :: ploesma
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(14,DVMnSpecies+1), tau, forceTerm, cVel(3)!, velodiff, gamma
-INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstID !,upos1,upos2
+REAL                            :: MacroVal(14,DVMnSpecies+1), tau, forceTerm, cVel(3), velodiff, gamma
+INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstID ,upos1,upos2
 REAL, ALLOCATABLE               :: fTarget(:)
-#if USE_HDG
 REAL                            :: Eloc(3)
-#endif
 !===================================================================================================================================
 DO iElem =1, nElems
+#if USE_HDG
   IF (PRESENT(ploesma)) THEN
     Eloc = 0.
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       Eloc(1:3) = Eloc(1:3) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,iElem)/((PP_N+1.)**3) !need jacobi here for noncartesian
     END DO; END DO; END DO
+#endif
   END IF
   ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
   DO k=0, 0; DO j=0, 0; DO i=0, 0
@@ -1300,34 +1300,39 @@ DO iElem =1, nElems
     DO iSpec=1,DVMnSpecies
       ASSOCIATE(Sp => DVMSpecData(iSpec))
       ALLOCATE(fTarget(Sp%nVar))
-      CALL MaxwellDistribution(MacroVal(1:14,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
+      ! CALL MaxwellDistribution(MacroVal(1:14,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
 
       DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
         upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
         !equilibrium approximation
-        cVel(1) = Sp%Velos(iVel,1) - MacroVal(2,iSpec)
-        cVel(2) = Sp%Velos(jVel,2) - MacroVal(3,iSpec)
-        cVel(3) = Sp%Velos(kVel,3) - MacroVal(4,iSpec)
-        IF (PRESENT(ploesma)) THEN
-          forceTerm = (Sp%Charge/Sp%Mass) &
-                    * DOT_PRODUCT(Eloc,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
-        ELSE
-          forceTerm = DOT_PRODUCT(DVMForce,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
-        END IF
-        ! non equilibrium version
-        ! IF (iVel.EQ.1) THEN
-        !   upos1=upos
-        !   upos2 = iVel+1+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-        !   velodiff=DVMVelos(iVel+1,1)-DVMVelos(iVel,1)
-        ! ELSE IF (iVel.EQ.DVMnVelos(1)) THEN
-        !   upos1 = iVel-1+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-        !   upos2=upos
-        !   velodiff=DVMVelos(iVel,1)-DVMVelos(iVel-1,1)
+        ! cVel(1) = Sp%Velos(iVel,1) - MacroVal(2,iSpec)
+        ! cVel(2) = Sp%Velos(jVel,2) - MacroVal(3,iSpec)
+        ! cVel(3) = Sp%Velos(kVel,3) - MacroVal(4,iSpec)
+        ! IF (PRESENT(ploesma)) THEN
+        !   forceTerm = (Sp%Charge/Sp%Mass) &
+        !             * DOT_PRODUCT(Eloc,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
         ! ELSE
-        !   upos1 = iVel-1+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-        !   upos2 = iVel+1+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-        !   velodiff=DVMVelos(iVel+1,1)-DVMVelos(iVel-1,1)
+        !   forceTerm = DOT_PRODUCT(DVMForce,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
         ! END IF
+        ! non equilibrium version
+        IF (iVel.EQ.1) THEN
+          upos1=upos
+          upos2 = iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel,1)
+        ELSE IF (iVel.EQ.Sp%nVelos(1)) THEN
+          upos1 = iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          upos2=upos
+          velodiff=Sp%Velos(iVel,1)-Sp%Velos(iVel-1,1)
+        ELSE
+          upos1 = iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          upos2 = iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel-1,1)
+        END IF
+        IF (PRESENT(ploesma)) THEN
+          forceTerm = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(upos2+vFirstID,i,j,k,iElem)-U_FV(upos1+vFirstID,i,j,k,iElem))/velodiff
+        ELSE
+          forceTerm = - DVMForce(1)*(U_FV(upos2+vFirstID,i,j,k,iElem)-U_FV(upos1+vFirstID,i,j,k,iElem))/velodiff
+        END IF
         ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,i,j,k,iElem)-U(upos1,i,j,k,iElem)) &
         !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
 
