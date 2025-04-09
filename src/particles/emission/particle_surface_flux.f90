@@ -1631,6 +1631,28 @@ CASE('cosine')
     ! Convert to global coordinate system
     PartState(4:6,PositionNbr) = vec_t1(1:3) * Vec3D(1) + vec_t2(1:3) * Vec3D(2) + vec_nIn(1:3) * Vec3D(3)
   END DO ! i = NbrOfParticle-PartIns+1,NbrOfParticle
+CASE('cosine2')
+  DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    PositionNbr = GetNextFreePosition(i)
+    ! === Velocity vector
+    ! Equally-distributed angle Phi [0:2*PI] for tangential component
+    CALL RANDOM_NUMBER(RandVal1)
+    Phi = RandVal1 * 2.0 * PI
+    ! 2*sin(Theta)*cos(Theta)**2 distribution of Theta [0:PI/2] for normal component using the inverse method according
+    CALL RANDOM_NUMBER(RandVal1)
+    Theta = ACOS((1-RandVal1)**(1./3.))
+
+    ! Normalized velocity vector in surface-local orientation
+    Vec3D(1) = SIN(Theta) * COS(Phi)
+    Vec3D(2) = SIN(Theta) * SIN(Phi)
+    Vec3D(3) = COS(Theta)
+
+    ! Multiply by velocity magnitude
+    Vec3D(1:3) = Vec3D(1:3) * VeloIC
+
+    ! Convert to global coordinate system
+    PartState(4:6,PositionNbr) = vec_t1(1:3) * Vec3D(1) + vec_t2(1:3) * Vec3D(2) + vec_nIn(1:3) * Vec3D(3)
+  END DO ! i = NbrOfParticle-PartIns+1,NbrOfParticle
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in SetSurfacefluxVelocities: Wrong velocity distribution!')
 END SELECT

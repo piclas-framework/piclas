@@ -474,10 +474,11 @@ DO iSpec=1,nSpecies
       SF%velocityDistribution  = 'constant'
       CALL PrintOption('Velocity distribution for granular species set to constant.','INFO',StrOpt=TRIM(SF%velocityDistribution))
     END IF
-    IF (TRIM(SF%velocityDistribution).NE.'constant' .AND. TRIM(SF%velocityDistribution).NE.'maxwell' .AND. &
-        TRIM(SF%velocityDistribution).NE.'maxwell_lpn'.AND. TRIM(SF%velocityDistribution).NE.'cosine') THEN
-      CALL abort(__STAMP__,'Only constant, cosine or maxwell velocity distributions implemented for surface flux!')
-    END IF
+    SELECT CASE(TRIM(SF%velocityDistribution))
+    CASE('constant','maxwell','maxwell_lpn','cosine','cosine2')
+    CASE DEFAULT
+      CALL abort(__STAMP__,'Selected velocity distribution not implemented for surface flux!')
+    END SELECT
     SF%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
     SF%VeloIsNormal          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-VeloIsNormal')
     IF (SF%VeloIsNormal) THEN
@@ -626,7 +627,7 @@ DO iSpec=1,nSpecies
         END IF
       END IF
       ! Cosine distribution not tested with adaptive
-      IF(TRIM(SF%velocityDistribution).EQ.'cosine') THEN
+      IF(TRIM(SF%velocityDistribution).EQ.'cosine'.OR.TRIM(SF%velocityDistribution).EQ.'cosine2') THEN
         CALL abort(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
       END IF
     END IF
@@ -743,7 +744,6 @@ USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCe
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1054,7 +1054,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tBCdata_auxSFRadWeight, BCdata_auxSF
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -1097,7 +1096,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       vSF = v_thermal / (2.0*SQRT(PI))  ! mean flux velocity through normal sub-face
     END IF
-  CASE('cosine')
+  CASE('cosine','cosine2')
     vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC
   CASE DEFAULT
     CALL abort(__STAMP__, 'ERROR in SurfaceFlux: Wrong velocity distribution!')
@@ -1302,9 +1301,8 @@ SUBROUTINE CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize
 USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
