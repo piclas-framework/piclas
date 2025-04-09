@@ -654,6 +654,21 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 ! ---------------------------------------------------------
 ! Output to separate files
 ! ---------------------------------------------------------
+! ---------------------------------------------------------
+! Boundary impacting particle data (output first to reduce the required memory)
+! ---------------------------------------------------------
+#if defined(PARTICLES)
+IF(DoBoundaryParticleOutputHDF5) THEN
+  IF (usePreviousTime_loc) THEN
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
+  ELSE
+    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
+  END IF
+END IF
+#endif /*defined(PARTICLES)*/
+! ---------------------------------------------------------
+! Output of error norms
+! ---------------------------------------------------------
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
 ! ---------------------------------------------------------
@@ -667,17 +682,6 @@ IF(DoVirtualDielectricLayer) CALL WriteSurfVDLToHDF5(OutputTime_loc)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if defined(PARTICLES)
-! ---------------------------------------------------------
-! Boundary impacting particle data
-! ---------------------------------------------------------
-IF(DoBoundaryParticleOutputHDF5) THEN
-  IF (usePreviousTime_loc) THEN
-    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc,PreviousTime_loc)
-  ELSE
-    CALL WriteBoundaryParticleToHDF5(MeshFileName,OutputTime_loc)
-  END IF
-END IF
-
 CALL DisplayNumberOfParticles(1)
 #endif /*defined(PARTICLES)*/
 

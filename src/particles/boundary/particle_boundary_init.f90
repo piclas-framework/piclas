@@ -812,8 +812,10 @@ DO BCSideID=1,nBCSides
     END DO
 
     ElementThicknessVDLPerSide(BCSideID) = MAXVAL(distances) - MINVAL(distances)
+    ! Store the value in the element-wise output, might overwrite values when an element has more than 1 side
+    ElementThicknessVDL(iElem) = ElementThicknessVDLPerSide(BCSideID)
     ! Sanity check
-    IF(ElementThicknessVDLPerSide(BCSideID).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDLPerSide(BCSideID) is negative for iElem=',IntInfoOpt=iElem)
+    IF(ElementThicknessVDLPerSide(BCSideID).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDLPerSide(BCSideID) is negative for BCSideID=',IntInfoOpt=BCSideID)
   END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 
 END DO ! BCSideID=1,nBCSides
@@ -822,17 +824,17 @@ END DO ! BCSideID=1,nBCSides
 ALLOCATE(StretchingFactorVDL(1:nElems))
 StretchingFactorVDL = 0.
 CALL AddToElemData(ElementOut,'StretchingFactorVDL',RealArray=StretchingFactorVDL(1:nElems))
-DO SideID=1,nBCSides
+DO BCSideID=1,nBCSides
   ! Get the local element index
-  iElem = SideToElem(S2E_ELEM_ID,SideID)
+  iElem = SideToElem(S2E_ELEM_ID,BCSideID)
   ! Get particle boundary index
-  iPartBound = PartBound%MapToPartBC(BC(SideID))
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
   ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
   IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
     ! Calculate the ratio
-    StretchingFactorVDL(iElem) = ElementThicknessVDL(iElem) / PartBound%ThicknessVDL(iPartBound)
+    StretchingFactorVDL(iElem) = ElementThicknessVDLPerSide(BCSideID) / PartBound%ThicknessVDL(iPartBound)
   END IF
-END DO ! SideID=1,nBCSides
+END DO ! BCSideID=1,nBCSides
 
 ! 3) Initialize surface container for the corrected electric field
 ALLOCATE(N_SurfVDL(1:nBCSides))
