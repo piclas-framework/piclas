@@ -82,9 +82,12 @@ CASE(3) ! von Neumann
   gradU = 0.
 
 CASE DEFAULT ! unknown BCType
-  CALL abort(__STAMP__,&
-        'no BC defined in DVM/getboundarygrad.f90!')
+  CALL abort(__STAMP__,'no BC defined in DVM/getboundarygrad.f90!')
 END SELECT ! BCType
+
+! Suppress compiler warnings
+RETURN
+UPrim_boundary(1)=NormVec(1)
 
 END SUBROUTINE GetBoundaryGrad
 

@@ -171,7 +171,7 @@ LOGICAL,INTENT(IN)              :: doSource
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: CNElemID, iElem,i,j,k,ElemID,SideID
+INTEGER                         :: CNElemID, iElem,i,j,k,ElemID
 #ifdef drift_diffusion
 REAL                            :: U_DD(1:PP_nVar_FV+3,0:0,0:0,0:0,PP_nElems) ! U_FV(1:PP_nVar_FV) + E(1:3)
 #endif

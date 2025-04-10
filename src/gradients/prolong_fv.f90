@@ -65,7 +65,10 @@ REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV,0:0,0:0,1:nSides)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
+INTEGER                         :: ElemID,SideID,firstSideID,lastSideID
+#ifdef discrete_velocity
+INTEGER                         :: iVel,jVel,kVel,upos
+#endif
 !===================================================================================================================================
 IF(doMPISides)THEN
   ! only YOUR MPI Sides are filled

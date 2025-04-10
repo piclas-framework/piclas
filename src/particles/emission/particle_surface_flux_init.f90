@@ -733,7 +733,6 @@ USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCe
 USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared, ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

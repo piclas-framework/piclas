@@ -314,27 +314,21 @@ SUBROUTINE RecordPoints(t,Output)
 USE MOD_Globals
 USE MOD_Preproc
 #if USE_FV
-USE MOD_FV_Vars                ,ONLY: U_FV
 #ifdef discrete_velocity
+USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
 USE MOD_DistFunc               ,ONLY: MaxwellDistributionCons, SkewNormalDistribution, SkewtDistribution, GradDistributionPrandtl
-#endif
-#endif
-#if !(USE_FV) || (USE_HDG)
-USE MOD_DG_Vars                ,ONLY: U
-#endif
+#endif /*discrete_velocity*/
+#endif /*USE_FV*/
 USE MOD_Timedisc_Vars     ,ONLY: dt
 USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze
 USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
-USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
-USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
-USE MOD_RecordPoints_Vars ,ONLY: l_xi_RP,l_eta_RP,l_zeta_RP,nRP
-#if USE_HDG && !(USE_FV)
-#if PP_nVar==1
-USE MOD_Equation_Vars      ,ONLY: E
-#endif /*PP_nVar==1*/
-#endif /*USE_HDG*/
+USE MOD_RecordPoints_Vars
+#if ! defined(discrete_velocity)
+USE MOD_Equation_Vars
+USE MOD_DG_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -395,8 +389,8 @@ DO iRP=1,nRP
 #if PP_nVar==1
         U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*PP_nVar==1*/
-#endif /*drift_diffusion*/
-#else
+#endif /*NOT drift_diffusion*/
+#else /*NOT USE_HDG*/
 #ifdef discrete_velocity
         IF (t.GT.0.) THEN
           CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1)
@@ -428,7 +422,7 @@ DO iRP=1,nRP
         ELSE
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
         END IF
-#else
+#else /*NOT discrete_velocity*/
         U_RP(:,iRP)=U_RP(:,iRP) +    U(:,i,j,k,RP_ElemID(iRP))                                *l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*discrete_velocity*/
 #endif /*USE_HDG*/

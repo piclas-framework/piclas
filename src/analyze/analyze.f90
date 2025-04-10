@@ -461,7 +461,7 @@ USE MOD_DistFunc,           ONLY: MacroValuesFromDistribution
 #endif /*discrete_velocity*/
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
-USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems,offsetComputeNodeElem
+USE MOD_Particle_Mesh_Vars ,ONLY: offsetComputeNodeElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

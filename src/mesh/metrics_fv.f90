@@ -41,12 +41,11 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems,xyzMinMax,GetMeshMinMaxBoundariesIsDone,sJ,crossProductMetrics
 USE MOD_Mesh_Vars_FV       ,ONLY: Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV,JaCL_N_PP_1
-USE MOD_Mesh_Vars_FV       ,ONLY: Face_xGP_FV,normVec_FV,surfElem_FV,TangVec1_FV,TangVec2_FV
-USE MOD_Mesh_Vars_FV       ,ONLY: dXCL_N_PP_1,Ja_Face_FV
+USE MOD_Mesh_Vars_FV       ,ONLY: dXCL_N_PP_1
 USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref
 USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
 USE MOD_Mesh_Vars          ,ONLY: NodeCoords,Elem_xGP
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nSides
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Mesh_Vars_FV       ,ONLY: XCL_N_PP_1,Vdm_CLN_N_PP_1
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
@@ -365,7 +364,7 @@ SUBROUTINE CalcSurfMetrics_PP_1(JaCL_N_PP_1,iElem)
 USE MOD_PreProc
 USE MOD_Globals,        ONLY:CROSS
 USE MOD_Mesh_Vars,      ONLY:ElemToSide,MortarType,xyzMinMax,GetMeshMinMaxBoundariesIsDone
-USE MOD_Mesh_Vars,      ONLY:NormalDirs,TangDirs,NormalSigns,nSides
+USE MOD_Mesh_Vars,      ONLY:NormalDirs,TangDirs,NormalSigns
 USE MOD_Mesh_Vars_FV,   ONLY:XCL_N_PP_1,Vdm_CLN_N_PP_1
 USE MOD_Mesh_Vars_FV,   ONLY:NormVec_PP_1,TangVec1_PP_1,TangVec2_PP_1,SurfElem_PP_1,Face_xGP_PP_1,Ja_Face_PP_1
 USE MOD_Mappings,       ONLY:CGNS_SideToVol2

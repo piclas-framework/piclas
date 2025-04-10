@@ -161,8 +161,7 @@ CASE(3) !1D streamer (Markosyan et al. - 2013)
   Resu(1) = RefState_FV(1,1)*EXP(-((x(1)-0.8e-3)/2.9e-5)**2)
 
 CASE DEFAULT
-  CALL abort(__STAMP__,&
-             'Specified exact function not implemented!')
+  CALL abort(__STAMP__,'Specified exact function not implemented!')
 END SELECT ! ExactFunction
 
 END SUBROUTINE ExactFunc
@@ -172,13 +171,13 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals           ,ONLY: abort, vecnorm
 USE MOD_PreProc
+USE MOD_Globals           ,ONLY: vecnorm
 USE MOD_FV_Vars           ,ONLY: U_FV
 USE MOD_Equation_Vars     ,ONLY: E
 USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars         ,ONLY: BGGas
-USE MOD_Particle_Vars     ,ONLY: nSpecies, Species
+USE MOD_Particle_Vars     ,ONLY: nSpecies
 USE MOD_Interpolation_Vars,ONLY: wGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -54,8 +54,6 @@ USE MOD_DistFunc        ,ONLY: IntegrateFluxValues
 #endif
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -129,7 +129,6 @@ USE MOD_Mesh_Vars       ,ONLY: nBCSides,nBCs
 USE MOD_Mesh_Vars_FV    ,ONLY: BoundaryType_FV
 #if USE_HDG
 USE MOD_Equation_Vars   ,ONLY: nBCByType,BCSideID
-USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #else
 USE MOD_Equation_Vars_FV,ONLY: nBCByType,BCSideID
 #endif
@@ -137,7 +136,6 @@ USE MOD_Equation_Vars_FV,ONLY: IniExactFunc_FV,RefState_FV
 USE MOD_Gradient_Vars   ,ONLY: Grad_dx_master
 USE MOD_Riemann
 USE MOD_Equation_FV     ,ONLY: ExactFunc_FV
-USE MOD_Interpolation_Vars ,ONLY: wGP
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -146,16 +144,15 @@ REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV+3,0:0,0:0,1
 REAL,INTENT(IN)                      :: NormVec(           3,0:0,0:0,1:nBCSides)
 REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:0,0:0,1:nBCSides)
 REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN)                      :: Face_xGP(        3,0:0,0:0,1:nBCSides)
+REAL,INTENT(IN)                      :: Face_xGP(          3,0:0,0:0,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iBC,iSide,SideID,ElemID
+INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV+3,0:0,0:0), GradSide
-INTEGER                              :: p,q, i, j, k
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -193,10 +190,15 @@ DO iBC=1,nBCs
     END DO
 
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,&
-         'no BC defined in DVM/getboundaryflux.f90!')
+    CALL abort(__STAMP__,'no BC defined in DVM/getboundaryflux.f90!')
   END SELECT ! BCType
 END DO
+
+! Suppress compiler warnings
+RETURN
+iBC = tDeriv
+UPrim_boundary(1,0,0) = TangVec1(1,0,0,1)
+UPrim_boundary(1,0,0) = TangVec2(1,0,0,1)
 
 END SUBROUTINE GetBoundaryFlux
 

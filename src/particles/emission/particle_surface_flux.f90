@@ -733,7 +733,7 @@ SUBROUTINE CalcPartPosAxisym(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,particle
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DoRadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

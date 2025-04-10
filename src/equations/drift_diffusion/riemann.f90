@@ -29,11 +29,10 @@ SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! 0
-USE MOD_TimeDisc_Vars  ,ONLY : dt
 USE MOD_Globals        ,ONLY :abort, vecnorm
 USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars      ,ONLY: BGGas
-USE MOD_Particle_Vars  ,ONLY: nSpecies, Species
+USE MOD_Particle_Vars  ,ONLY: nSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
