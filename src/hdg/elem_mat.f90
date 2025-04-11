@@ -428,10 +428,10 @@ DO iElem=1,PP_nElems
       jNloc=N_SurfMesh(jSideID)%NSide
       IF(MaskedSide(jSideID).GT.0) CYCLE
       IF(OffsetGlobalPETScDOF(iSideID).GT.OffsetGlobalPETScDOF(jSideID)) CYCLE ! Only fill upper triangle
-      IF(SetZeroPotentialDOF.AND.(OffsetGlobalPETScDOF(iSideID).EQ.0)) THEN
+      IF(iSideID==ZeroPotentialSide) THEN
         ! The first DOF is set to constant 0 -> lambda_{1,1} = 0
         HDG_Vol_N(iElem)%Smat(:,1,jLocSide,iLocSide) = 0 ! TODO PETSC P-Adaption: why ji and not ij?
-        IF(OffsetGlobalPETScDOF(jSideID).EQ.0) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
+        IF(jSideID==ZeroPotentialSide) HDG_Vol_N(iElem)%Smat(1,1,jLocSide,iLocSide) = 1
       END IF
 
       iNdof=nGP_face(iNloc)

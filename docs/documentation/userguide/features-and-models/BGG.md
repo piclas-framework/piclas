@@ -103,9 +103,15 @@ model is required
     Part-Species2-UseCollXSec = T
 
 The read-in of the cross-section data is based on the provided species name and the species name of the background gas (e.g. if the
-background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). Finally, the
-cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral
-collisions) can be utilized within a simulation for different species.
+background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). It should contain either an
+`ELASTIC` or `EFFECTIVE` dataset, where the latter must include the other provided cross-sections. The default collision type is
+referred to as *elastic* and corresponds to a momentum exchange, identical to the regular DSMC treatment. If an additional dataset labelled
+`BACKSCATTER` is provided next to the elastic cross-section dataset, a 180° back-scattering in the centre of mass frame collision
+type can be included {cite}`Phelps1994`. If the dataset is found, it will be automatically enabled, as long as the `UseCollXSec` is true.
+
+Finally, the cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral
+collisions) can be utilized within a simulation for different species. Examples can be found in the regression tests
+`regressioncheck/NIG_DSMC/MCC_BGG_Backscatter` and `regressioncheck/NIG_Reservoir/CHEM_RATES_XSec_Chem_Elec-He-e`.
 
 ## Cross-section based vibrational relaxation probability
 

@@ -45,7 +45,7 @@ PUBLIC :: CalcRelaxProbRotVib
 #endif
 PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==4)
-PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
+PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates,CollRatesBackScatter
 #endif /*(PP_TimeDiscMethod==4)*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 PUBLIC :: CalcPowerDensity
@@ -279,7 +279,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: CalcNumPlasmaParameter
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCyclotronFrequency
 #if USE_MPI
 USE MOD_Globals
-USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum
+USE MOD_Particle_Analyze_Vars ,ONLY: PPDCellResolved,PICTimeCellResolved,PICValidPlasmaCellSum,NbrOfElemsWithElectrons
 #endif /*USE_MPI*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -290,7 +290,8 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER :: tmpArray(1:6)
+INTEGER, PARAMETER :: lenArray=8
+INTEGER :: tmpArray(1:lenArray)
 #endif /*USE_MPI*/
 !===================================================================================================================================
 
@@ -299,12 +300,18 @@ IF(CalcElectronIonDensity) CALL CalculateElectronIonDensityCell()
 
 ! Ionization degree: n_i / (n_i + n_n)
 ! ion density versus sum of ion and neutral density
+#if USE_MPI
+PICValidPlasmaCellSum = 0 ! nullify in case CalcIonizationDegree=F
+#endif /*USE_MPI*/
 IF(CalcIonizationDegree) CALL CalculateIonizationCell()
 
 ! electron temperature
 IF(CalcElectronTemperature) CALL CalculateElectronTemperatureCell()
 
 ! electron energies
+#if USE_MPI
+NbrOfElemsWithElectrons(:) = 0 ! nullify in case CalcElectronEnergy=F
+#endif /*USE_MPI*/
 IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 
 ! plasma frequency
@@ -340,7 +347,7 @@ IF(CalcMaxPartDisplacement) CALL CalculateMaxPartDisplacement()
 
 ! Communicate data
 #if USE_MPI
-IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
+IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy)THEN
   tmpArray = 0
   IF(CalcPointsPerDebyeLength)THEN
     tmpArray(1) = PPDCellResolved(1)
@@ -348,26 +355,26 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
     tmpArray(3) = PPDCellResolved(3)
     tmpArray(4) = PPDCellResolved(4)
   END IF ! CalcPointsPerDebyeLength
-  IF(CalcPICTimeStep)THEN
-    tmpArray(5) = PICTimeCellResolved
-  END IF ! CalcPICTimeStep
+  IF(CalcPICTimeStep) tmpArray(5) = PICTimeCellResolved
   tmpArray(6) = PICValidPlasmaCellSum
+  tmpArray(7) = NbrOfElemsWithElectrons(1)
+  tmpArray(8) = NbrOfElemsWithElectrons(2)
 
   ! Collect sum on MPIRoot
   IF(MPIRoot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , tmpArray , 6 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE , tmpArray , lenArray , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
     IF(CalcPointsPerDebyeLength)THEN
        PPDCellResolved(1) = tmpArray(1)
        PPDCellResolved(2) = tmpArray(2)
        PPDCellResolved(3) = tmpArray(3)
        PPDCellResolved(4) = tmpArray(4)
     END IF ! CalcPointsPerDebyeLength
-    IF(CalcPICTimeStep)THEN
-      PICTimeCellResolved = tmpArray(5)
-    END IF ! CalcPICTimeStep
-    PICValidPlasmaCellSum = tmpArray(6)
+    IF(CalcPICTimeStep) PICTimeCellResolved = tmpArray(5)
+    PICValidPlasmaCellSum   = tmpArray(6)
+    NbrOfElemsWithElectrons(1) = tmpArray(7)
+    NbrOfElemsWithElectrons(2) = tmpArray(8)
   ELSE
-    CALL MPI_REDUCE(tmpArray     , 0        , 6 , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
+    CALL MPI_REDUCE(tmpArray     , 0        , lenArray , MPI_INTEGER , MPI_SUM , 0 , MPI_COMM_PICLAS , IERROR)
   END IF ! MPIRoot
 END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
 
@@ -589,7 +596,7 @@ USE MOD_Globals
 USE MOD_Globals               ,ONLY: PARTISELECTRON
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,Joule2eV
 USE MOD_Preproc
-USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
+USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell,NbrOfElemsWithElectrons
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
@@ -612,9 +619,10 @@ REAL    :: WeightingFactor
 INTEGER :: RegionID
 #endif /*USE_HDG*/
 !===================================================================================================================================
-ElectronMinEnergyCell     = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
-ElectronMaxEnergyCell     = 0.
-ElectronAverageEnergyCell = 0.
+ElectronMinEnergyCell      = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
+ElectronMaxEnergyCell      = 0.
+ElectronAverageEnergyCell  = 0.
+NbrOfElemsWithElectrons(:) = 0
 #if USE_HDG
 IF (UseBRElectronFluid) THEN ! check for BR electrons
   DO iElem=1,PP_nElems
@@ -657,6 +665,8 @@ ELSE
       ElectronAverageEnergyCell(iElem) = ElectronAverageEnergyCell(iElem)/nElectronsPerCell(iElem)*Joule2eV
       ElectronMinEnergyCell(iElem)     = ElectronMinEnergyCell(iElem)*Joule2eV
       ElectronMaxEnergyCell(iElem)     = ElectronMaxEnergyCell(iElem)*Joule2eV
+      NbrOfElemsWithElectrons(1)       = NbrOfElemsWithElectrons(1) + 1 ! Count number of elements with electrons
+      IF(ElectronMaxEnergyCell(iElem).LT.2700.) NbrOfElemsWithElectrons(2) = NbrOfElemsWithElectrons(2) + 1 ! less than 10% of c
     ELSE
       ElectronMinEnergyCell(iElem) = 0. ! Set from HUGE(1.) to zero for output to .h5
     END IF ! nElectronsPerCell(iElem).GT.0.
@@ -1926,7 +1936,7 @@ END SUBROUTINE CalcVelocities
 #if (PP_TimeDiscMethod==4)
 SUBROUTINE CollRates(CRate)
 !===================================================================================================================================
-!> Calculate the collision rate per species pairing by diving the summed up variables by the current timestep
+!> Calculate the collision rate [1/s] per species pairing by averaging over the particle analyze interval
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -1973,6 +1983,56 @@ END IF
 DSMC%NumColl = 0.
 
 END SUBROUTINE CollRates
+
+
+!===================================================================================================================================
+!> Calculates the backscatter collision rate [1/s] per species pairing by averaging over the particle analyze interval
+!===================================================================================================================================
+SUBROUTINE CollRatesBackScatter(BackScatterRate)
+! MODULES
+USE MOD_Globals
+USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
+USE MOD_DSMC_Vars             ,ONLY: CollInf
+USE MOD_MCC_Vars              ,ONLY: SpecXSec
+USE MOD_Particle_Vars         ,ONLY: VarTimeStep
+USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)              :: BackScatterRate(:)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                       :: iCase
+REAL                          :: dtVar
+!===================================================================================================================================
+
+#if USE_MPI
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,SpecXSec(:)%BackNumColl,CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+ELSE
+  CALL MPI_REDUCE(SpecXSec(:)%BackNumColl,SpecXSec(:)%BackNumColl,CollInf%NumCase,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(MPIRoot)THEN
+  DO iCase=1, CollInf%NumCase
+    IF(.NOT.SpecXSec(iCase)%UseBackScatterXSec) CYCLE
+    ! Species-specific time step
+    IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
+      dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
+    ELSE
+      dtVar = ParticleAnalyzeSampleTime
+    END IF
+    BackScatterRate(iCase) =  SpecXSec(iCase)%BackNumColl / dtVar
+  END DO
+END IF
+
+SpecXSec(:)%BackNumColl = 0.
+
+END SUBROUTINE CollRatesBackScatter
 
 
 SUBROUTINE CalcRelaxRates(NumSpec,VibRelaxProbCase)

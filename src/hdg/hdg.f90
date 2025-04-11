@@ -118,7 +118,7 @@ USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
 USE MOD_Mesh_Vars             ,ONLY: BoundaryType,nSides,BC
 USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides,N_VolMesh
-USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Mesh_Vars             ,ONLY: offSetElem,ElemToSide
 USE MOD_Basis                 ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG        ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
@@ -437,16 +437,9 @@ CALL InitBV()
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
-! TODO Do we really need to handle PETSc separately here?
-#if USE_PETSC
-IF(nDirichletBCsidesGlobal.EQ.0) THEN
-#else
-IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
-#endif /*USE_PETSC*/
-  SetZeroPotentialDOF = .TRUE.
-ELSE
-  SetZeroPotentialDOF = .FALSE.
-END IF
+ZeroPotentialSide = -1
+! TODO is the LocSide=1 of GlobElemID=1 always the master side?
+IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN

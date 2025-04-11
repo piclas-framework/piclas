@@ -146,6 +146,10 @@ USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY: ReadAttribute, DatasetExists, AttributeExists
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst,Joule2eV
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -439,7 +443,14 @@ DO iReac = 1, ChemReac%NumOfReact
       IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) CALL abort(&
         __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
-  END DO
+
+  END DO ! iSpec=1, nSpecies
+
+  ! Display info
+  WRITE(UNIT=hilf,FMT='(I0)') iReac
+  LBWRITE(UNIT_stdOut,'(A)')' | Automatically determined Enthalpy of reaction for reaction '//TRIM(hilf)//':'
+  CALL PrintOption('ChemReac%EForm(iReac)  [K]','CALCUL.',RealOpt=ChemReac%EForm(iReac)/BoltzmannConst)
+  CALL PrintOption('converted to [eV]'         ,'CALCUL.',RealOpt=ChemReac%EForm(iReac)*Joule2eV)
 END DO ! iReac = 1, ChemReac%NumOfReact
 
 ! Photoionization

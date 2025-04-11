@@ -219,7 +219,7 @@ DO iVar = 1, PP_nVar
 #endif /*USE_PETSC*/
 
   ! Set potential to zero (only one process does this)
-  IF(SetZeroPotentialDOF) HDG_Surf_N(1)%lambda(iVar,1) = 0.
+  IF(ZeroPotentialSide>0) HDG_Surf_N(ZeroPotentialSide)%lambda(iVar,1) = 0.
 END DO
 
 !volume source (volume RHS of u system)
@@ -370,8 +370,8 @@ IF(UseFPC) THEN
 END IF
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
-IF(MPIroot .AND. SetZeroPotentialDOF) THEN
-  PetscCallA(VecSetValue(PETScRHS,0,0,INSERT_VALUES,ierr))
+IF(ZeroPotentialSide>0) THEN
+  PetscCallA(VecSetValue(PETScRHS,OffsetGlobalPETScDOF(ZeroPotentialSide),0,INSERT_VALUES,ierr))
 END IF
 
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
