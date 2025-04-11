@@ -22,3 +22,31 @@
 - Test both load balances schemes. Load balance via hdf5 I/O and via direct MPI communication without I/O
 
         UseH5IOLoadBalance = T,F
+
+- Test record point analysis over line with defined in recordpoints.ini
+
+        Line_nRP              = 50                  ! Number of RPs on line
+        Line_xstart           = (/0.0    , 1.71E-05 , 1.71E-05/) ! Coordinates of start of line
+        Line_xend             = (/6.7e-2 , 1.71E-05 , 1.71E-05/) ! Coordinates of end of line
+
+  and parameter.ini
+
+        RP_SamplingOffset        = 1 ! only each x time step
+        RP_DefFile               = Line_RPSet.h5
+        RP_inUse                 = T
+
+- Test PIC temporal averaging for sampling the field data on Nloc
+
+        CalcTimeAverage = T
+        VarNameAvg      = Phi
+        VarNameAvg      = ElectricFieldX
+        VarNameAvg      = ElectricFieldY
+        VarNameAvg      = ElectricFieldZ
+        VarNameAvg      = ElectricFieldMagnitude
+        VarNameAvg      = ChargeDensity-Spec01
+        VarNameFluc     = Phi
+        VarNameFluc     = ElectricFieldX
+        VarNameFluc     = ElectricFieldY
+        VarNameFluc     = ElectricFieldZ
+        VarNameFluc     = ElectricFieldMagnitude
+        VarNameFluc     = ChargeDensity-Spec01

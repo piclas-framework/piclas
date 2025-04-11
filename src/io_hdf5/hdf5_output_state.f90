@@ -29,6 +29,7 @@ PUBLIC :: WriteStateToHDF5
 #if defined(PARTICLES)
 PUBLIC :: WriteElemDataToSeparateContainer
 #endif /*PARTICLES*/
+PUBLIC :: WriteTimeAverage
 !===================================================================================================================================
 
 CONTAINS
@@ -142,11 +143,9 @@ INTEGER                        :: nVar
 #ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
-REAL,ALLOCATABLE               :: PartSource(:,:,:,:,:)
 #endif /*PARTICLES*/
 INTEGER                        :: i,j,k
 #if USE_HDG
-REAL,ALLOCATABLE               :: Dt(:,:,:,:,:)
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #if defined(PARTICLES)
@@ -351,48 +350,51 @@ SDEALLOCATE(U_N_2D_local)
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 IF(OutputSource) THEN
-  nVar = 4
-  ALLOCATE(PartSource(1:nVar,0:Nmax,0:Nmax,0:Nmax,PP_nElems))
+  nVarOut = 4
 #if USE_HDG
   ! Add BR electron fluid density to PartSource for output to state.h5
   IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
 #endif /*USE_HDG*/
   ! output of pure current and density
   ! not scaled with epsilon0 and c_corr
-  ALLOCATE(LocalStrVarNames(1:nVar))
+  ALLOCATE(LocalStrVarNames(1:nVarOut))
   LocalStrVarNames(1)='CurrentDensityX'
   LocalStrVarNames(2)='CurrentDensityY'
   LocalStrVarNames(3)='CurrentDensityZ'
   LocalStrVarNames(4)='ChargeDensity'
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',nVar,StrArray=LocalStrVarnames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',nVarOut,StrArray=LocalStrVarnames)
     CALL CloseDataFile()
   END IF
-  DO iElem = 1, INT(PP_nElems)
-    Nloc = N_DG_Mapping(2,iElem+offSetElem)
-    IF(Nloc.Eq.Nmax)THEN
-      PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
-    ELSE
-      CALL ChangeBasis3D(4,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm,&
-          PS_N(iElem)%PartSource(1:4 , 0:Nloc , 0:Nloc , 0:Nloc) , &
-                      PartSource(1:4 , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
-    END IF ! Nloc.Eq.Nmax
-  END DO ! iElem = 1, nElems
-  ASSOCIATE(nVar              => INT(nVar,IK)               ,&
-            NOut              => INT(Nmax,IK)               ,&
-            nGlobalElems      => INT(nGlobalElems,IK)       ,&
-            PP_nElems         => INT(PP_nElems,IK)          ,&
-            offsetElem        => INT(offsetElem,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName='DG_Source', rank=5,  &
-        nValGlobal=(/nVar , NOut+1_IK  , NOut+1_IK  , NOut+1_IK , nGlobalElems/) , &
-        nVal=      (/nVar , NOut+1_IK  , NOut+1_IK  , NOut+1_IK , PP_nElems/)    , &
-        offset=    (/0_IK , 0_IK       , 0_IK       , 0_IK      , offsetElem/)   , &
-        collective=.TRUE.,RealArray=PartSource)
+
+  ! Allocate local 2D array
+  ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+
+  iDOF = 0
+  DO iElem = 1, PP_nElems
+    Nloc = N_DG_Mapping(2,iElem+offsetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1:nVarOut,iDOF) = PS_N(iElem)%PartSource(1:nVarOut,i,j,k)
+    END DO; END DO; END DO
+  END DO
+
+  ! Output of DG_Source
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE(nVarOut         => INT(nVarOut,IK)      , &
+            nDofsMapping    => INT(nDofsMapping,IK) , &
+            nDOFOutput      => INT(nDOFOutput,IK)   , &
+            offsetDOF       => INT(offsetDOF,IK)    )
+  CALL GatheredWriteArray(FileName,create = .FALSE.                           , &
+                          DataSetName = 'DG_Source' , rank = 2                , &
+                          nValGlobal  = (/nVarOut   , nDofsMapping/)          , &
+                          nVal        = (/nVarOut   , nDOFOutput/)            , &
+                          offset      = (/0_IK      , offsetDOF/)             , &
+                          collective  = .TRUE.      , RealArray = U_N_2D_local)
   END ASSOCIATE
+  DEALLOCATE(U_N_2D_local)
   DEALLOCATE(LocalStrVarNames)
-  DEALLOCATE(PartSource)
 END IF
 #endif /*PARTICLES*/
 
@@ -401,41 +403,44 @@ END IF
 ! ---------------------------------------------------------
 #if USE_HDG
 IF(CalcElectricTimeDerivative) THEN
-  nVar = 3
-  ALLOCATE(Dt(1:nVar,0:Nmax,0:Nmax,0:Nmax,nElems))
-  Dt=0.0
-  DO iElem=1,nElems
-    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
-    IF(Nloc.EQ.Nmax)THEN
-      Dt(:,:,:,:,iElem) = U_N(iElem)%Dt(:,:,:,:)
-    ELSE
-      CALL ChangeBasis3D(nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%Dt(1:nVar , 0:Nloc , 0:Nloc , 0:Nloc) , &
-                                                                            Dt(1:nVar , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
-    END IF ! Nloc.Eq.Nmax
-  END DO ! iElem = 1, nElems
-  ALLOCATE(LocalStrVarNames(1:nVar))
+  nVarOut = 3
+  ALLOCATE(LocalStrVarNames(1:nVarOut))
   LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
   LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
   LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',nVar,StrArray=LocalStrVarnames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',nVarOut,StrArray=LocalStrVarnames)
     CALL CloseDataFile()
   END IF
+
+
+  ! Allocate local 2D array
+  ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+
+  iDOF = 0
+  DO iElem = 1, PP_nElems
+    Nloc = N_DG_Mapping(2,iElem+offsetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1:nVarOut,iDOF) = U_N(iElem)%Dt(1:nVarOut,i,j,k)
+    END DO; END DO; END DO
+  END DO
+
+  ! Output of DG_TimeDerivative
   ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE(nVar          => INT(nVar,IK)               ,&
-            NOut          => INT(Nmax,IK)               ,&
-            nGlobalElems  => INT(nGlobalElems,IK)       ,&
-            PP_nElems     => INT(PP_nElems,IK)          ,&
-            offsetElem    => INT(offsetElem,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName='DG_TimeDerivative', rank=5,  &
-        nValGlobal=(/nVar  , NOut+1_IK  , NOut+1_IK  , NOut+1_IK  , nGlobalElems/) , &
-        nVal=      (/nVar  , NOut+1_IK  , NOut+1_IK  , NOut+1_IK  , PP_nElems/)    , &
-        offset=    (/0_IK  , 0_IK       , 0_IK       , 0_IK       , offsetElem/)   , &
-        collective=.TRUE.,RealArray=Dt(:,:,:,:,:))
+  ASSOCIATE(nVarOut         => INT(nVarOut,IK)      , &
+            nDofsMapping    => INT(nDofsMapping,IK) , &
+            nDOFOutput      => INT(nDOFOutput,IK)   , &
+            offsetDOF       => INT(offsetDOF,IK)    )
+  CALL GatheredWriteArray(FileName,create = .FALSE.                           , &
+                          DataSetName = 'DG_TimeDerivative' , rank = 2        , &
+                          nValGlobal  = (/nVarOut   , nDofsMapping/)          , &
+                          nVal        = (/nVarOut   , nDOFOutput/)            , &
+                          offset      = (/0_IK      , offsetDOF/)             , &
+                          collective  = .TRUE.      , RealArray = U_N_2D_local)
   END ASSOCIATE
-  DEALLOCATE(Dt)
+  DEALLOCATE(U_N_2D_local)
   DEALLOCATE(LocalStrVarNames)
 END IF
 ! ---------------------------------------------------------
@@ -1016,6 +1021,152 @@ DEALLOCATE(SortedLambda)
 
 END SUBROUTINE WriteLambdaSolutionSorted
 #endif /*USE_HDG*/
+
+
+SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,VarNamesFluc,UAvg,UFluc,dtAvg,nVar_Avg,nVar_Fluc)
+!==================================================================================================================================
+!> Subroutine to write time averaged data and fluctuations HDF5 format
+!==================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems,nElems
+USE MOD_DG_vars              ,ONLY: N_DG_Mapping,nDofsMapping
+USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)             :: nVar_Avg                                     !< Number of averaged variables
+INTEGER,INTENT(IN)             :: nVar_Fluc                                    !< Number of fluctuations
+CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName                                 !< Name of mesh file
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesAvg(nVar_Avg)                        !< Average variable names
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesFluc(nVar_Fluc)                      !< Fluctuations variable names
+REAL,INTENT(IN)                :: OutputTime                                   !< Time of output
+REAL,INTENT(IN),OPTIONAL       :: PreviousTime                                 !< Time of previous output
+REAL,INTENT(IN),TARGET         :: UAvg(nVar_Avg,0:PP_N,0:PP_N,0:PP_N,nElems)   !< Averaged Solution
+REAL,INTENT(IN),TARGET         :: UFluc(nVar_Fluc,0:PP_N,0:PP_N,0:PP_N,nElems) !< Fluctuations
+REAL,INTENT(IN)                :: dtAvg                                        !< Timestep of averaging
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+REAL                           :: StartT,EndT
+INTEGER                        :: nDOFOutput,offsetDOF,iDOF,i,j,k,Nloc,iElem
+REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
+!==================================================================================================================================
+IF((nVar_Avg.EQ.0).AND.(nVar_Fluc.EQ.0)) RETURN ! no time averaging
+
+GETTIME(StartT)
+SWRITE (UNIT_stdOut,'(A)',ADVANCE='NO') ' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
+
+! generate nextfile info in previous output file
+IF(PRESENT(PreviousTime))THEN
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('TimeAvg',OutputTime,PreviousTime)
+END IF
+
+! Get number of output DOFs per processor as the difference between first/last offset and add the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+
+! Write timeaverages ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Avg.GT.0)THEN
+  ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+  CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FileNameOut=FileName)
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif /*USE_MPI*/
+
+  ! Allocate local 2D array
+  ALLOCATE(U_N_2D_local(1:nVar_Avg,1:nDOFOutput))
+
+  ! Write into 2D array
+  iDOF = 0
+  DO iElem = 1, PP_nElems
+    Nloc = N_DG_Mapping(2,iElem+offsetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      ! U_N_2D_local(1:nVar_Avg,iDOF)   = UAvg_N(iElem)%U(1:nVar_Avg,i,j,k)
+      U_N_2D_local(1:nVar_Avg,iDOF)   = UAvg(1:nVar_Avg,i,j,k,iElem)
+    END DO; END DO; END DO
+  END DO
+
+  ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+  CALL WriteAdditionalElemData(FileName,ElementOutNloc)
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE(nVar_Avg        => INT(nVar_Avg,IK)          ,&
+            nDofsMapping    => INT(nDofsMapping,IK)      ,&
+            nDOFOutput      => INT(nDOFOutput,IK)        ,&
+            offsetDOF       => INT(offsetDOF,IK)         )
+  CALL GatheredWriteArray(FileName,create = .FALSE.                    , &
+                          DataSetName = 'DG_Solution' , rank = 2       , &
+                          nValGlobal  = (/nVar_Avg    , nDofsMapping/) , &
+                          nVal        = (/nVar_Avg    , nDOFOutput/)   , &
+                          offset      = (/0_IK        , offsetDOF/)    , &
+                          collective  = .TRUE.        , RealArray = U_N_2D_local)
+  END ASSOCIATE
+  SDEALLOCATE(U_N_2D_local)
+END IF
+
+! Write fluctuations ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Fluc.GT.0)THEN
+  CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FileNameOut=FileName)
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif /*USE_MPI*/
+
+  ! Allocate local 2D array
+  ALLOCATE(U_N_2D_local(1:nVar_Fluc,1:nDOFOutput))
+
+  ! Write into 2D array
+  iDOF = 0
+  DO iElem = 1, PP_nElems
+    Nloc = N_DG_Mapping(2,iElem+offsetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      ! U_N_2D_local(1:nVar_Fluc,iDOF)   = UFluc_N(iElem)%U(1:nVar_Fluc,i,j,k)
+      U_N_2D_local(1:nVar_Fluc,iDOF)   = UFluc(1:nVar_Fluc,i,j,k,iElem)
+    END DO; END DO; END DO
+  END DO
+
+  ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+  CALL WriteAdditionalElemData(FileName,ElementOutNloc)
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE(nVar_Fluc       => INT(nVar_Fluc,IK)         ,&
+            nDofsMapping    => INT(nDofsMapping,IK)      ,&
+            nDOFOutput      => INT(nDOFOutput,IK)        ,&
+            offsetDOF       => INT(offsetDOF,IK)         )
+  CALL GatheredWriteArray(FileName,create = .FALSE.                    , &
+                          DataSetName = 'DG_Solution' , rank = 2       , &
+                          nValGlobal  = (/nVar_Fluc   , nDofsMapping/) , &
+                          nVal        = (/nVar_Fluc   , nDOFOutput/)   , &
+                          offset      = (/0_IK        , offsetDOF/)    , &
+                          collective  = .TRUE.        , RealArray = U_N_2D_local)
+  END ASSOCIATE
+  SDEALLOCATE(U_N_2D_local)
+END IF
+
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
+
+GETTIME(endT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+END SUBROUTINE WriteTimeAverage
 
 
 END MODULE MOD_HDF5_Output_State

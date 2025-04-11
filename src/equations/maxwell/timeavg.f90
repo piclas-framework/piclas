@@ -334,7 +334,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
-USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
+USE MOD_HDF5_Output_State      ,ONLY: WriteTimeAverage
 USE MOD_Globals_Vars           ,ONLY: smu0
 USE MOD_Timeaverage_Vars       ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
                                ,VarnamesAvgOut,VarNamesFlucOut,DoPoyntingVectorAvg

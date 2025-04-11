@@ -525,7 +525,7 @@ SUBROUTINE WriteDmdStateFile()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_IO_HDF5
-USE MOD_HDF5_Output       ,ONLY: WriteTimeAverage,WriteAttributeToHDF5,WriteArrayToHDF5,GenerateFileSkeleton
+USE MOD_HDF5_Output       ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,GenerateFileSkeleton
 USE MOD_HDF5_Output_State ,ONLY: WriteStateToHDF5
 USE MOD_Output            ,ONLY: InitOutput
 USE MOD_Output_Vars

@@ -849,7 +849,7 @@ CALL CloseDataFile()
 ! Check for 2D array (nVar,nDOF)
 IF(nDims.EQ.2) THEN
   IF(.NOT.NlocFound) CALL abort(__STAMP__,'ERROR: Missing Nloc array for read-in of 2D DG_Solution!')
-  IF(DGSourceExists.OR.DGTimeDerivativeExists.OR.DGSourceExtExists) CALL abort(__STAMP__,'ERROR: DGSource or DGTimeDerivative or DGSourceExt output with 2D DG_Solution is not supported!')
+  IF(DGSourceExtExists) CALL abort(__STAMP__,'ERROR: DGSourceExt output with 2D DG_Solution is not supported!')
   nDOF = SUM((Nloc_HDF5(1:nElems)+1)**3)
   ! Allocate local 2D array
   ALLOCATE(U_N_2D(1:nVar_State,1:nDOF))
@@ -939,6 +939,12 @@ ASSOCIATE (&
       ! Read 1:nVar_Solution
       IF(nDims.EQ.2) THEN
         CALL ReadArray(TRIM(DGSolutionDataset),2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(1:nVar_Solution,1:nDOF))
+        ! Read nVar_Solution+1:nVar_Source
+        IF(DGSourceExists) &
+          CALL ReadArray('DG_Source',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Solution+1:nVar_Source,1:nDOF))
+        ! Read nVar_Source+1:nVar_TD
+        IF(DGTimeDerivativeExists) &
+          CALL ReadArray('DG_TimeDerivative',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Source+1:nVar_TD,1:nDOF))
       ELSEIF(nDims.EQ.5) THEN
         SDEALLOCATE(U)
         ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
