@@ -68,11 +68,10 @@ USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5,WriteEmissionVariablesToHDF5
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #endif /*PARTICLES*/
+USE MOD_Mesh_Vars              ,ONLY: nElems
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
-!USE MOD_Equation_Vars          ,ONLY: E,Et
-USE MOD_Mesh_Vars              ,ONLY: nElems
 #elif PP_nVar==3
 USE MOD_Equation_Vars          ,ONLY: B
 #else
@@ -1023,7 +1022,7 @@ END SUBROUTINE WriteLambdaSolutionSorted
 #endif /*USE_HDG*/
 
 
-SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,VarNamesFluc,UAvg,UFluc,dtAvg,nVar_Avg,nVar_Fluc)
+SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,VarNamesFluc,nVar_Avg,nVar_Fluc)
 !==================================================================================================================================
 !> Subroutine to write time averaged data and fluctuations HDF5 format
 !==================================================================================================================================
@@ -1033,6 +1032,7 @@ USE MOD_Globals
 USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems,nElems
 USE MOD_DG_vars              ,ONLY: N_DG_Mapping,nDofsMapping
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
+USE MOD_Timeaverage_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1044,9 +1044,6 @@ CHARACTER(LEN=*),INTENT(IN)    :: VarNamesAvg(nVar_Avg)                        !
 CHARACTER(LEN=*),INTENT(IN)    :: VarNamesFluc(nVar_Fluc)                      !< Fluctuations variable names
 REAL,INTENT(IN)                :: OutputTime                                   !< Time of output
 REAL,INTENT(IN),OPTIONAL       :: PreviousTime                                 !< Time of previous output
-REAL,INTENT(IN),TARGET         :: UAvg(nVar_Avg,0:PP_N,0:PP_N,0:PP_N,nElems)   !< Averaged Solution
-REAL,INTENT(IN),TARGET         :: UFluc(nVar_Fluc,0:PP_N,0:PP_N,0:PP_N,nElems) !< Fluctuations
-REAL,INTENT(IN)                :: dtAvg                                        !< Timestep of averaging
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
@@ -1095,8 +1092,7 @@ IF(nVar_Avg.GT.0)THEN
     Nloc = N_DG_Mapping(2,iElem+offsetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       iDOF = iDOF + 1
-      ! U_N_2D_local(1:nVar_Avg,iDOF)   = UAvg_N(iElem)%U(1:nVar_Avg,i,j,k)
-      U_N_2D_local(1:nVar_Avg,iDOF)   = UAvg(1:nVar_Avg,i,j,k,iElem)
+      U_N_2D_local(1:nVar_Avg,iDOF)   = UAvg_N(iElem)%U(1:nVar_Avg,i,j,k)
     END DO; END DO; END DO
   END DO
 
@@ -1139,8 +1135,7 @@ IF(nVar_Fluc.GT.0)THEN
     Nloc = N_DG_Mapping(2,iElem+offsetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       iDOF = iDOF + 1
-      ! U_N_2D_local(1:nVar_Fluc,iDOF)   = UFluc_N(iElem)%U(1:nVar_Fluc,i,j,k)
-      U_N_2D_local(1:nVar_Fluc,iDOF)   = UFluc(1:nVar_Fluc,i,j,k,iElem)
+      U_N_2D_local(1:nVar_Fluc,iDOF)   = UFluc_N(iElem)%U(1:nVar_Fluc,i,j,k)
     END DO; END DO; END DO
   END DO
 

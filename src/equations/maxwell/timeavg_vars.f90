@@ -23,13 +23,24 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
-INTEGER                        :: nMaxVarAvg              !< max number of variables for averaging
-INTEGER                        :: nMaxVarFluc             !< max number of variables for RMS
+INTEGER              :: nMaxVarAvg                        !< max number of variables for averaging
+INTEGER              :: nMaxVarFluc                       !< max number of variables for RMS
 ! Time averaging and fluctuation variables
 LOGICAL              :: doCalcTimeAverage   =.FALSE.      !< marks if time averaging should be performed
 LOGICAL              :: doCalcFluctuations  =.FALSE.      !< marks if time fluctuations should be computed
-REAL   ,ALLOCATABLE  :: UAvg(:,:,:,:,:)                   !< time averaged solution U
-REAL   ,ALLOCATABLE  :: UFluc(:,:,:,:,:)                  !< time averaged solution squared (U^2)
+! DG solution volume for time averageing
+TYPE N_U_Vol
+  REAL,ALLOCATABLE  :: U(:,:,:,:)
+  REAL,ALLOCATABLE  :: Tmp(:,:,:,:)
+END TYPE N_U_Vol
+! DG solution volume for time averageing
+TYPE(N_U_Vol),ALLOCATABLE :: UAvg_N(:)                    !< Solution variable for time averageing
+! DG solution volume for time fluctuations
+TYPE N_U_Vol2
+  REAL,ALLOCATABLE  :: U(:,:,:,:)
+  REAL,ALLOCATABLE  :: Tmp(:,:,:,:)
+END TYPE N_U_Vol2
+TYPE(N_U_Vol2),ALLOCATABLE :: UFluc_N(:)                  !< Solution squared (U^2) variable for time fluctuations
 LOGICAL,ALLOCATABLE  :: CalcAvg(:)                        !< variables for which time averages should be computed (global indexing)
 LOGICAL,ALLOCATABLE  :: CalcFluc(:)                       !< variables for which fluctuations should be computed (global indexing)
 INTEGER,ALLOCATABLE  :: iAvg(:)                           !< map from (global) VariableList to index in UAvg array
@@ -45,8 +56,11 @@ REAL                 :: dtAvg                             !< sum of timesteps
 REAL                 :: dtOld                             !< dt from previous iteration
 LOGICAL              :: DoPoyntingVectorAvg               !< logical if PoyntingVector is sampled
 #ifdef PARTICLES
-LOGICAL,ALLOCATABLE  :: DoPowerDensity(:)                 !> Sample Power-Density of species
-REAL,ALLOCATABLE     :: PowerDensity(:,:,:,:,:,:)         !> Power-Density of species
+LOGICAL,ALLOCATABLE  :: DoPowerDensity(:)                 !< Sample Power-Density of species
+TYPE N_U_Vol3
+  REAL,ALLOCATABLE  :: U(:,:,:,:,:)
+END TYPE N_U_Vol3
+TYPE(N_U_Vol3),ALLOCATABLE :: PowerDensity_N(:)           !< Power-Density of species
 INTEGER              :: nSpecPowerDensity
 #endif /*PARTICLES*/
 
