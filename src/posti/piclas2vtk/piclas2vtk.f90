@@ -849,7 +849,6 @@ CALL CloseDataFile()
 ! Check for 2D array (nVar,nDOF)
 IF(nDims.EQ.2) THEN
   IF(.NOT.NlocFound) CALL abort(__STAMP__,'ERROR: Missing Nloc array for read-in of 2D DG_Solution!')
-  IF(DGSourceExtExists) CALL abort(__STAMP__,'ERROR: DGSourceExt output with 2D DG_Solution is not supported!')
   nDOF = SUM((Nloc_HDF5(1:nElems)+1)**3)
   ! Allocate local 2D array
   ALLOCATE(U_N_2D(1:nVar_State,1:nDOF))
@@ -936,7 +935,7 @@ ASSOCIATE (&
   ELSE
     IF(nFields.EQ.1)THEN
       ! Default: DGSolutionDataset = 'DG_Solution'
-      ! Read 1:nVar_Solution
+      ! Check whether old (nDims=5) or new p-adaption data shape (nDim=2) is used
       IF(nDims.EQ.2) THEN
         CALL ReadArray(TRIM(DGSolutionDataset),2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(1:nVar_Solution,1:nDOF))
         ! Read nVar_Solution+1:nVar_Source
@@ -945,6 +944,9 @@ ASSOCIATE (&
         ! Read nVar_Source+1:nVar_TD
         IF(DGTimeDerivativeExists) &
           CALL ReadArray('DG_TimeDerivative',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Source+1:nVar_TD,1:nDOF))
+        ! Read nVar_TD+1:nVar_State
+        IF(DGSourceExtExists) &
+          CALL ReadArray('DG_SourceExt',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_TD+1:nVar_State,1:nDOF))
       ELSEIF(nDims.EQ.5) THEN
         SDEALLOCATE(U)
         ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))

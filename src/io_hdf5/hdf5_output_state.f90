@@ -319,7 +319,7 @@ DO iElem = 1, PP_nElems
   Nloc = N_DG_Mapping(2,iElem+offsetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     iDOF = iDOF + 1
-    U_N_2D_local(1:nVarOut,iDOF)   = U_N(iElem)%U(1:nVarOut,i,j,k)
+    U_N_2D_local(1:nVarOut,iDOF) = U_N(iElem)%U(1:nVarOut,i,j,k)
   END DO; END DO; END DO
 END DO
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -333,12 +333,12 @@ ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
           nDofsMapping    => INT(nDofsMapping,IK)      ,&
           nDOFOutput      => INT(nDOFOutput,IK)        ,&
           offsetDOF       => INT(offsetDOF,IK)         )
-CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                        DataSetName='DG_Solution', rank=2,&
-                        nValGlobal=(/nVarOut, nDofsMapping/) , &
-                        nVal=      (/nVarOut, nDOFOutput/)    , &
-                        offset=    (/0_IK   , offsetDOF/)   , &
-                        collective=.TRUE., RealArray=U_N_2D_local)
+CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
+                        DataSetName = 'DG_Solution' , rank = 2                , &
+                        nValGlobal  = (/nVarOut     , nDofsMapping/)          , &
+                        nVal        = (/nVarOut     , nDOFOutput/)            , &
+                        offset      = (/0_IK        , offsetDOF/)             , &
+                        collective  = .TRUE.        , RealArray = U_N_2D_local)
 END ASSOCIATE
 SDEALLOCATE(U_N_2D_local)
 ! ---------------------------------------------------------
@@ -1135,7 +1135,7 @@ IF(nVar_Fluc.GT.0)THEN
     Nloc = N_DG_Mapping(2,iElem+offsetElem)
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       iDOF = iDOF + 1
-      U_N_2D_local(1:nVar_Fluc,iDOF)   = UFluc_N(iElem)%U(1:nVar_Fluc,i,j,k)
+      U_N_2D_local(1:nVar_Fluc,iDOF) = UFluc_N(iElem)%U(1:nVar_Fluc,i,j,k)
     END DO; END DO; END DO
   END DO
 

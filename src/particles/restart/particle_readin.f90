@@ -483,57 +483,63 @@ ELSE
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
+! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
   IF(.NOT.RestartNullifySolution)THEN ! Use the solution in the restart file
     !-- read PartSource if relaxation is performed (might be needed for RecomputeEFieldHDG)
     IF (DoDeposition .AND. RelaxDeposition) THEN
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
       IF(DGSourceExists)THEN
+        CALL GetDataSize(File_ID,'DG_Source',nDims,HSize)
+        DEALLOCATE(HSize)
         IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
 
           IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
 
-          ! Associate construct for integer KIND=8 possibility
-          ASSOCIATE (&
-                    Nres          => INT(N_Restart,IK)       ,&
-                    OffsetElemTmp => INT(OffsetElem,IK) ,&
-                    PP_nElemsTmp  => INT(PP_nElems,IK))
-            ALLOCATE(PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,PP_nElems))
-            CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
+          IF(nDims.EQ.2)THEN
+            CALL abort(__STAMP__,'Read-in not implemented for 2D DG_Source')
+          ELSE ! nDims.EQ.5
+            ! Associate construct for integer KIND=8 possibility
+            ASSOCIATE (&
+                      Nres          => INT(N_Restart,IK)       ,&
+                      OffsetElemTmp => INT(OffsetElem,IK) ,&
+                      PP_nElemsTmp  => INT(PP_nElems,IK))
+              ALLOCATE(PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,PP_nElems))
+              CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
 
-            DO iElem =1,PP_nElems
-              Nloc = N_DG_Mapping(2,iElem+offSetElem)
-              ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+              DO iElem =1,PP_nElems
+                Nloc = N_DG_Mapping(2,iElem+offSetElem)
+                ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
 
-              IF(Nloc.EQ.N_Restart)THEN
-                PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc) = PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem)
-              ELSEIF(Nloc.GT.N_Restart)THEN
-                ! N_Restart -> Nloc (e.g. 1 -> 5)
-                CALL ChangeBasis3D(4, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
-              ELSE
-                ! N_Restart -> Nloc (e.g. 5 -> 1)
-                ALLOCATE(Uloc(1:4,0:Nres,0:Nres,0:Nres))
-                !transform the slave side to the same degree as the master: switch to Legendre basis
-                CALL ChangeBasis3D(4, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:4,0:Nres,0:Nres,0:Nres))
-                ! switch back to nodal basis
-                CALL ChangeBasis3D(4, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:4,0:Nloc,0:Nloc,0:Nloc), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
-                DEALLOCATE(Uloc)
-              END IF ! Nloc.EQ.N_Restart
+                IF(Nloc.EQ.N_Restart)THEN
+                  PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc) = PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem)
+                ELSEIF(Nloc.GT.N_Restart)THEN
+                  ! N_Restart -> Nloc (e.g. 1 -> 5)
+                  CALL ChangeBasis3D(4, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+                ELSE
+                  ! N_Restart -> Nloc (e.g. 5 -> 1)
+                  ALLOCATE(Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                  !transform the slave side to the same degree as the master: switch to Legendre basis
+                  CALL ChangeBasis3D(4, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                  ! switch back to nodal basis
+                  CALL ChangeBasis3D(4, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:4,0:Nloc,0:Nloc,0:Nloc), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+                  DEALLOCATE(Uloc)
+                END IF ! Nloc.EQ.N_Restart
 
-              DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
+                DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
 #if ((USE_HDG) && (PP_nVar==1))
-                PS_N(iElem)%PartSourceOld(1  ,1,i,j,k) = PartSourceloc(  4,i,j,k)
-                PS_N(iElem)%PartSourceOld(1  ,2,i,j,k) = PartSourceloc(  4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1  ,1,i,j,k) = PartSourceloc(  4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1  ,2,i,j,k) = PartSourceloc(  4,i,j,k)
 #else
-                PS_N(iElem)%PartSourceOld(1:4,1,i,j,k) = PartSourceloc(1:4,i,j,k)
-                PS_N(iElem)%PartSourceOld(1:4,2,i,j,k) = PartSourceloc(1:4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1:4,1,i,j,k) = PartSourceloc(1:4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1:4,2,i,j,k) = PartSourceloc(1:4,i,j,k)
 #endif
-              END DO; END DO; END DO
+                END DO; END DO; END DO
 
-              DEALLOCATE(PartSourceloc)
-            END DO
-          END ASSOCIATE
-
+                DEALLOCATE(PartSourceloc)
+              END DO
+            END ASSOCIATE
+          END IF ! nDims.EQ.2
           DEALLOCATE(PartSource_HDF5)
         ELSE ! We need to interpolate the solution to the new computational grid
           CALL abort(__STAMP__,' Restart with changed polynomial degree not implemented for DG_Source!')
