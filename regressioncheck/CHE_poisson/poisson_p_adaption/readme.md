@@ -1,4 +1,5 @@
 # PIC (Poisson) Discharge
+- Test the following functionalities in combination with p-adaption
 - RF discharge between two electrodes with Helium
     - Ionization of background gas
 - Secondary electron emission at x-direction boundaries
