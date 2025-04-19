@@ -531,7 +531,8 @@ open boundary and accounts for particles leaving the domain through that boundar
 to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large
 sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method,
 the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly,
-thus the correct mass flow can be reproduced.
+thus the correct mass flow can be reproduced. Analogously, the conditions of the type 1, 2, and 3 might overpredict/underpredict
+the pressure/massflow in proximity of diffuse walls (e.g. a rough channel flow).
 
 Additionally, the `Type=4` method can be utilized in combination with a reflective boundary condition to model diffusion and
 leakage (e.g. in vacuum tanks) based on a diffusion rate $Q$ [Pa m$^3$ s$^{-1}$]. The input mass flow [kg s$^{-1}$] for the

@@ -76,10 +76,10 @@ required to fulfil the maximal collision probability criteria will be utilized a
 ### Linear scaling
 
 The second option is to use a linearly increasing time step along a given direction. This option does not require a restart or a
-previous simulation result. Currently, only the increase of the time step along the **x-direction** is implemented. With the start
-point and end point, the region in which the linear increase should be performed can be defined. To define the domain border as
-the end point in maximal x-direction, the vector `(/-99999.,0.0,0.0/)` should be supplied. Finally, the `ScaleFactor` defines the
-maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f \Delta t$.
+previous simulation result. Currently, only a scaling along the three axis is implemented, where the sign additionally defines
+the direction of the scaling. With the start point and end point, the region in which the linear increase should be performed can
+be defined. To define the domain border as the end point in maximal x-direction, the vector `(/-99999.,0.0,0.0/)` should be supplied.
+Finally, the `ScaleFactor` defines the maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f \Delta t$.
 
     Part-VariableTimeStep-LinearScaling = T
     Part-VariableTimeStep-ScaleFactor   = 2
@@ -88,7 +88,7 @@ maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f 
     Part-VariableTimeStep-EndPoint      =  (/-99999.,0.0,0.0/)
 
 Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations
-are discussed in Section {ref}`sec:2D-axisymmetric`
+are discussed in Section {ref}`sec:2D-axisymmetric`.
 
 ### Species-specific time step
 

@@ -36,7 +36,7 @@ SUBROUTINE ParticleSurfaceflux()
 USE MOD_Globals
 USE MOD_Particle_Vars
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, IncreaseMaxParticleNumber
-USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC
+USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, ParticleWeighting
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
@@ -80,6 +80,9 @@ INTEGER,ALLOCATABLE         :: PartInsSubSides(:,:,:)
 REAL                        :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+
+IF(ParticleWeighting%UseSubdivision) ParticleWeighting%PartInsSide = 0
+
 DO iSpec=1,nSpecies
   IF(useDSMC) THEN
     IF (DSMC%DoAmbipolarDiff) THEN
