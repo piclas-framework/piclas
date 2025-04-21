@@ -149,7 +149,6 @@ REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
 INTEGER                        :: nVarFPC,nVarEPC
 #if defined(PARTICLES)
 REAL,ALLOCATABLE               :: BVDataHDF5(:,:)
-REAL,ALLOCATABLE               :: PhiF(:,:,:,:,:)
 REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
@@ -413,7 +412,6 @@ IF(CalcElectricTimeDerivative) THEN
     CALL CloseDataFile()
   END IF
 
-
   ! Allocate local 2D array
   ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
 
@@ -447,41 +445,43 @@ END IF
 ! ---------------------------------------------------------
 #if defined(PARTICLES)
 IF(DoVirtualDielectricLayer)THEN
-  nVar = 3
-  ALLOCATE(PhiF(1:nVar,0:Nmax,0:Nmax,0:Nmax,nElems))
-  PhiF=0.0
-  DO iElem=1,nElems
-    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
-    IF(Nloc.EQ.Nmax)THEN
-      PhiF(:,:,:,:,iElem) = U_N(iElem)%PhiF(:,:,:,:)
-    ELSE
-      CALL ChangeBasis3D(nVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, U_N(iElem)%PhiF(1:nVar , 0:Nloc , 0:Nloc , 0:Nloc) , &
-                                                                            PhiF(1:nVar , 0:Nmax , 0:Nmax , 0:Nmax  , iElem))
-    END IF ! Nloc.Eq.Nmax
-  END DO ! iElem = 1, nElems
-  ALLOCATE(LocalStrVarNames(1:nVar))
+  nVarOut = 3
+  ALLOCATE(LocalStrVarNames(1:nVarOut))
   LocalStrVarNames(1)='PhiFx'
   LocalStrVarNames(2)='PhiFy'
   LocalStrVarNames(3)='PhiFz'
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesPhiF',nVar,StrArray=LocalStrVarnames)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesPhiF',nVarOut,StrArray=LocalStrVarnames)
     CALL CloseDataFile()
   END IF
+
+  ! Allocate local 2D array
+  ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+
+  iDOF = 0
+  DO iElem = 1, PP_nElems
+    Nloc = N_DG_Mapping(2,iElem+offsetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1:nVarOut,iDOF) = U_N(iElem)%PhiF(1:nVarOut,i,j,k)
+    END DO; END DO; END DO
+  END DO
+
+  ! Output of DG_PhiF
   ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE(nVar          => INT(nVar,IK)               ,&
-            NOut          => INT(Nmax,IK)               ,&
-            nGlobalElems  => INT(nGlobalElems,IK)       ,&
-            PP_nElems     => INT(PP_nElems,IK)          ,&
-            offsetElem    => INT(offsetElem,IK)         )
-    CALL GatheredWriteArray(FileName,create=.FALSE.,&
-        DataSetName='DG_PhiF', rank=5,  &
-        nValGlobal=(/nVar  , NOut+1_IK  , NOut+1_IK  , NOut+1_IK  , nGlobalElems/) , &
-        nVal=      (/nVar  , NOut+1_IK  , NOut+1_IK  , NOut+1_IK  , PP_nElems/)    , &
-        offset=    (/0_IK  , 0_IK       , 0_IK       , 0_IK       , offsetElem/)   , &
-        collective=.TRUE.,RealArray=PhiF(:,:,:,:,:))
+  ASSOCIATE(nVarOut         => INT(nVarOut,IK)      , &
+            nDofsMapping    => INT(nDofsMapping,IK) , &
+            nDOFOutput      => INT(nDOFOutput,IK)   , &
+            offsetDOF       => INT(offsetDOF,IK)    )
+  CALL GatheredWriteArray(FileName,create = .FALSE.                           , &
+                          DataSetName = 'DG_PhiF'   , rank = 2                , &
+                          nValGlobal  = (/nVarOut   , nDofsMapping/)          , &
+                          nVal        = (/nVarOut   , nDOFOutput/)            , &
+                          offset      = (/0_IK      , offsetDOF/)             , &
+                          collective  = .TRUE.      , RealArray = U_N_2D_local)
   END ASSOCIATE
-  DEALLOCATE(PhiF)
+  DEALLOCATE(U_N_2D_local)
   DEALLOCATE(LocalStrVarNames)
 END IF ! DoVirtualDielectricLayer
 #endif /*defined(PARTICLES)*/

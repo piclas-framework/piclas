@@ -731,7 +731,30 @@ ELSE ! Normal restart
       DEALLOCATE(HSize)
 
       IF(nDims.EQ.2)THEN
-        CALL abort(__STAMP__,'Read-in not implemented for 2D DG_PhiF')
+        ! Preparing U_N_2D_local array for output as DG_Solution
+        ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+        nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+        ! Get the offset based on the element-local polynomial degree
+        IF(offsetElem.GT.0) THEN
+          offsetDOF = N_DG_Mapping(1,1+offsetElem)
+        ELSE
+          offsetDOF = 0
+        END IF
+
+        ! Allocate local 2D array
+        ALLOCATE(U_N_2D_local(1:nVar,1:nDOF))
+        CALL ReadArray('DG_PhiF',2,(/INT(nVar,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+
+        ! Read data from 2D array
+        iDOF = 0
+        DO iElem = 1, nElems
+          Nloc = N_DG_Mapping(2,iElem+offsetElem)
+          DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+            iDOF = iDOF + 1
+            U_N(iElem)%PhiF(1:nVar,i,j,k) = U_N_2D_local(1:nVar,iDOF)
+          END DO; END DO; END DO
+        END DO
+
       ELSE ! nDims.EQ.5
         ASSOCIATE( nVarPhiF => 3 )
           ALLOCATE(U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
