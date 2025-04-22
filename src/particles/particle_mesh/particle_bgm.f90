@@ -312,7 +312,8 @@ ELSE
   ! FIBGM needed in every emmision except cell_local
   DO iSpec=1,nSpecies
     DO iInit=1,Species(iSpec)%NumberOfInits
-      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
+      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
+         TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background') THEN
         GEO%InitFIBGM = .TRUE.
       END IF
     END DO
