@@ -215,6 +215,7 @@ INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 REAL                           :: StartT,EndT ! Timer
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
+INTEGER                        :: nFIBGMElems, nFIBGMElems_target
 !===================================================================================================================================
 
 #if USE_MPI
@@ -356,7 +357,6 @@ IF(GEO%InitFIBGM) THEN
 #endif
     ! FIBGMdeltas1    = FIBGMdeltas1/REAL(nGlobalElems)
     FIBGMdeltas1    = FIBGMdeltas1/ElemWeights
-    ElemWeights     = ElemWeights/REAL(nGlobalElems)
 
     ! Min
     ! Determine a maximum FIBGMdeltas size by the smallest element in such a way that not to many elemems are in this FIBGM element
@@ -377,24 +377,18 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMdeltas(2) = MIN(FIBGMdeltas1(2),FIBGMdeltas2(2))
     GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
 
-    IF((GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1) &
-      *(GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2) &
-      *(GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3) &
-      .GT.nGlobalElems*10**(Symmetry%Order/2.)) THEN
+    nFIBGMElems_target = nGlobalElems*10**(Symmetry%Order/2.)
+    nFIBGMElems = (GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)*(GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)*(GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3)
+
+    IF(nFIBGMElems.GT.nFIBGMElems_target) THEN
       ! Fallback to prevent too small FIBGM cells
 
-      ! Calculate mean number of elements in every direction
-      GEO%FIBGMdeltas(1) = (GEO%xmaxglob-GEO%xminglob)/ElemWeights(1)
-      GEO%FIBGMdeltas(2) = (GEO%ymaxglob-GEO%yminglob)/ElemWeights(2)
-      GEO%FIBGMdeltas(3) = (GEO%zmaxglob-GEO%zminglob)/ElemWeights(3)
+      ! Scale GEO%FIBGMdeltas1 to have about sqrt(1000) * nglobalElems in total in 3D
+      a = (REAL(nFIBGMElems)/REAL(nFIBGMElems_target))**(1./Symmetry%Order)
 
-      ! Set GEO%FIBGMdeltas to have about sqrt(1000) * nglobalElems in total in 3D
-      a = (nGlobalElems*10**(Symmetry%Order/2.)/(GEO%FIBGMdeltas(1)*GEO%FIBGMdeltas(2)*GEO%FIBGMdeltas(3)))**(1./3.)
-      GEO%FIBGMdeltas = GEO%FIBGMdeltas * a
-
-      GEO%FIBGMdeltas(1) = (GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)
-      GEO%FIBGMdeltas(2) = (GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)
-      GEO%FIBGMdeltas(3) = (GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3)
+      GEO%FIBGMdeltas(1) = FIBGMdeltas1(1)*a
+      GEO%FIBGMdeltas(2) = FIBGMdeltas1(2)*a
+      GEO%FIBGMdeltas(3) = FIBGMdeltas1(3)*a
 
     END IF
 
