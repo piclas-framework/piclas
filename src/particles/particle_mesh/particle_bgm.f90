@@ -215,7 +215,7 @@ INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 REAL                           :: StartT,EndT ! Timer
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
-INTEGER                        :: nFIBGMElems, nFIBGMElems_target
+INTEGER                        :: nFIBGMElems, nFIBGMElems_target, PseudoSymmetryOrder
 !===================================================================================================================================
 
 #if USE_MPI
@@ -430,6 +430,17 @@ IF(GEO%InitFIBGM) THEN
                                             , BGMimaxglob - BGMiminglob + 1                                 ,', '&
                                             , BGMjmaxglob - BGMjminglob + 1                                 ,', '&
                                             , BGMkmaxglob - BGMkminglob + 1
+  ! Check if the calculation of the FIBGM can be simplified to a lower Symmetry Order
+  IF(BGMkmaxglob - BGMkminglob + 1.EQ.1) THEN
+    IF(BGMjmaxglob - BGMjminglob + 1.EQ.1) THEN
+      PseudoSymmetryOrder = 1
+    ELSE
+      PseudoSymmetryOrder = 2
+    END IF
+  ELSE
+    PseudoSymmetryOrder = 3
+  END IF
+  PseudoSymmetryOrder = MIN(PseudoSymmetryOrder,Symmetry%Order) ! Shouldn't be needed, but better safe than sorry
 #if USE_MPI
   CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
@@ -447,7 +458,7 @@ IF(GEO%InitFIBGM) THEN
                      SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
                      SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
     ! Calculate halo element outer radius
-    SELECT CASE(Symmetry%Order)
+    SELECT CASE(PseudoSymmetryOrder)
     CASE(3)
       radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
                               BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
@@ -579,7 +590,7 @@ ELSE
   END IF
 
   ! limit halo_eps to diagonal of bounding box
-  SELECT CASE(Symmetry%Order)
+  SELECT CASE(PseudoSymmetryOrder)
   CASE(3)
     globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
                      + (GEO%ymaxglob-GEO%yminglob)**2 &
@@ -606,7 +617,7 @@ END IF
 ! global largest cell radius and use it to keep all cells that are in this range.
 ! >> Find radius of largest cell
 maxCellRadius = 0
-SELECT CASE(Symmetry%Order)
+SELECT CASE(PseudoSymmetryOrder)
 CASE(3)
   DO iElem = firstElem, lastElem
     maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
@@ -818,7 +829,7 @@ ELSE
       MPISideElem(ElemID) = .TRUE.
       nBorderElems= nBorderElems + 1
 
-      SELECT CASE(Symmetry%Order)
+      SELECT CASE(PseudoSymmetryOrder)
       CASE(3)
         ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
         MPISideBoundsOfElemCenter_Shared(1:3,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
@@ -869,7 +880,7 @@ ELSE
   DO iHaloElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
-    SELECT CASE(Symmetry%Order)
+    SELECT CASE(PseudoSymmetryOrder)
     CASE(3)
       BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
                                   SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
