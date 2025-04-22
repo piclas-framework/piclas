@@ -447,9 +447,17 @@ IF(GEO%InitFIBGM) THEN
                      SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
                      SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
     ! Calculate halo element outer radius
-    radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                            BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                            BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+    SELECT CASE(Symmetry%Order)
+    CASE(3)
+      radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                              BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                              BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+    CASE(2)
+      radius    = VECNORM2D ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                              BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem) /) / 2.)
+    CASE(1)
+      radius    = ABS ( BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem)) / 2.
+    END SELECT
 
     xmin = origin(1) - radius
     xmax = origin(1) + radius
@@ -571,9 +579,17 @@ ELSE
   END IF
 
   ! limit halo_eps to diagonal of bounding box
-  globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
-                   + (GEO%ymaxglob-GEO%yminglob)**2 &
-                   + (GEO%zmaxglob-GEO%zminglob)**2 )
+  SELECT CASE(Symmetry%Order)
+  CASE(3)
+    globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
+                     + (GEO%ymaxglob-GEO%yminglob)**2 &
+                     + (GEO%zmaxglob-GEO%zminglob)**2 )
+  CASE(2)
+    globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
+                     + (GEO%ymaxglob-GEO%yminglob)**2 )
+  CASE(1)
+    globalDiag = (GEO%xmaxglob-GEO%xminglob)
+  END SELECT
   IF(halo_eps.GT.globalDiag)THEN
     CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
     LBWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
@@ -590,11 +606,23 @@ END IF
 ! global largest cell radius and use it to keep all cells that are in this range.
 ! >> Find radius of largest cell
 maxCellRadius = 0
-DO iElem = firstElem, lastElem
-  maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                               BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                                               BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2.))
-END DO
+SELECT CASE(Symmetry%Order)
+CASE(3)
+  DO iElem = firstElem, lastElem
+    maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2.))
+  END DO
+CASE(2)
+  DO iElem = firstElem, lastElem
+    maxCellRadius = MAX(maxCellRadius,VECNORM2D((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem)/)/2.))
+  END DO
+CASE(1)
+  DO iElem = firstElem, lastElem
+    maxCellRadius = MAX(maxCellRadius,ABS(BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem))/2.)
+  END DO
+END SELECT
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
 WRITE(hilf,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
@@ -824,13 +852,28 @@ ELSE
   DO iHaloElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
-    BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                 SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                 SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-    ! Calculate halo element outer radius
-    BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                        BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                        BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+    SELECT CASE(Symmetry%Order)
+    CASE(3)
+      BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                  SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                  SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+      ! Calculate halo element outer radius
+      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                          BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                          BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+    CASE(2)
+      BoundsOfElemCenter(1:2) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                  SUM(   BoundsOfElem_Shared(1:2,2,ElemID)) /) / 2.
+      BoundsOfElemCenter(3) = 0.0
+      ! Calculate halo element outer radius
+      BoundsOfElemCenter(4) = VECNORM2D ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                          BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID) /) / 2.)
+    CASE(1)
+      BoundsOfElemCenter(1) = SUM(   BoundsOfElem_Shared(1:2,1,ElemID))/ 2.
+      BoundsOfElemCenter(2:3) = 0.0
+      ! Calculate halo element outer radius
+      BoundsOfElemCenter(4) = ABS (BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID)) / 2.
+    END SELECT
     DO iElem = 1, nComputeNodeBorderElems
       ! compare distance of bounding boxes along each direction
       ! CartBox(1) = BoundsOfElem_Shared(1,1,ElemID)
