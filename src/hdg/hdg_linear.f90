@@ -370,8 +370,8 @@ IF(UseFPC) THEN
 END IF
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
-IF(ZeroPotentialSide>0) THEN
-  PetscCallA(VecSetValue(PETScRHS,OffsetGlobalPETScDOF(ZeroPotentialSide),0,INSERT_VALUES,ierr))
+IF(MPIRoot) THEN
+  PetscCallA(VecSetValue(PETScRHS,ZeroPotentialDOF,0,INSERT_VALUES,ierr))
 END IF
 
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))

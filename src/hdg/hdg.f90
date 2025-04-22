@@ -437,8 +437,8 @@ CALL InitBV()
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
+
 ZeroPotentialSide = -1
-! TODO is the LocSide=1 of GlobElemID=1 always the master side?
 IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
@@ -634,6 +634,14 @@ END DO !MortarSideID
 CALL StartReceiveMPIDataInt(1,OffsetGlobalPETScDOF,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
+
+! 4.2.4.3) ZeroPotential
+IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) THEN
+  ZeroPotentialDOF = OffsetGlobalPETScDOF(ZeroPotentialSide)
+END IF
+#if USE_MPI
+  CALL MPI_BCAST(ZeroPotentialDOF,1,MPI_INTEGER,0,MPI_COMM_PICLAS,IERROR)
 #endif
 
 ! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
