@@ -818,14 +818,31 @@ ELSE
       MPISideElem(ElemID) = .TRUE.
       nBorderElems= nBorderElems + 1
 
-      ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-      MPISideBoundsOfElemCenter_Shared(1:3,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                                              SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                                              SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-      ! Calculate outer radius of the element on my compute node
-      MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                                     BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                                     BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+      SELECT CASE(Symmetry%Order)
+      CASE(3)
+        ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
+        MPISideBoundsOfElemCenter_Shared(1:3,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                                                SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
+                                                                SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+        ! Calculate outer radius of the element on my compute node
+        MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+      CASE(2)
+        ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
+        MPISideBoundsOfElemCenter_Shared(1:2,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
+                                                                SUM(   BoundsOfElem_Shared(1:2,2,ElemID)) /) / 2.
+        MPISideBoundsOfElemCenter_Shared(3,nBorderElems) =      0.0
+        ! Calculate outer radius of the element on my compute node
+        MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = VECNORM2D ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID)/) / 2.)
+      CASE(1)
+        ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
+        MPISideBoundsOfElemCenter_Shared(1,nBorderElems)   =    SUM(   BoundsOfElem_Shared(1:2,1,ElemID))/ 2.
+        MPISideBoundsOfElemCenter_Shared(2:3,nBorderElems) =    0.0
+        ! Calculate outer radius of the element on my compute node
+        MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = ABS ( BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID))/ 2.
+      END SELECT
     END IF
   END DO
 
