@@ -99,8 +99,11 @@ DO iSpec=1, DVMnSpecies
   MacroVal(1,iSpec) = dens(iSpec)
   MacroVal(2:4,iSpec) = uVelo(1:3,iSpec)
   MacroVal(5,iSpec) = (densE(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/dens(iSpec)/Sp%Mass)/cV(iSpec)
-  IF (MacroVal(5,iSpec).LE.0) CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
-  mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
+  IF (.NOT.(PRESENT(charge)).AND.MacroVal(5,iSpec).LE.0) THEN
+    CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
+  ELSE IF (.NOT.(PRESENT(charge))) THEN
+    mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
+  END IF
 
   rhoTotal = rhoTotal + Sp%Mass*dens(iSpec)
   dens(total) = dens(total) + dens(iSpec)
@@ -1270,7 +1273,7 @@ LOGICAL, OPTIONAL             :: ploesma
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(14,DVMnSpecies+1), tau, forceTerm, cVel(3), velodiff, gamma
+REAL                            :: MacroVal(14,DVMnSpecies+1), tau, forceTerm, forceTerm2, cVel(3), velodiff, gamma
 INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstID ,upos1,upos2
 REAL, ALLOCATABLE               :: fTarget(:)
 REAL                            :: Eloc(3)
@@ -1282,11 +1285,11 @@ DO iElem =1, nElems
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       Eloc(1:3) = Eloc(1:3) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,iElem)/((PP_N+1.)**3) !need jacobi here for noncartesian
     END DO; END DO; END DO
-#endif
   END IF
+#endif
   ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
   DO k=0, 0; DO j=0, 0; DO i=0, 0
-    CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),tDeriv,tau,1)
+    ! CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),tDeriv,tau,1)
     ! SELECT CASE (DVMBGKModel)
     !   CASE(1)
     !     CALL MaxwellDistribution(MacroVal,fTarget)
@@ -1299,7 +1302,7 @@ DO iElem =1, nElems
     vFirstID = 0
     DO iSpec=1,DVMnSpecies
       ASSOCIATE(Sp => DVMSpecData(iSpec))
-      ALLOCATE(fTarget(Sp%nVar))
+      ! ALLOCATE(fTarget(Sp%nVar))
       ! CALL MaxwellDistribution(MacroVal(1:14,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
 
       DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
@@ -1317,15 +1320,15 @@ DO iElem =1, nElems
         ! non equilibrium version
         IF (iVel.EQ.1) THEN
           upos1=upos
-          upos2 = iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
           velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel,1)
         ELSE IF (iVel.EQ.Sp%nVelos(1)) THEN
-          upos1 = iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
           upos2=upos
           velodiff=Sp%Velos(iVel,1)-Sp%Velos(iVel-1,1)
         ELSE
-          upos1 = iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-          upos2 = iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+          upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
           velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel-1,1)
         END IF
         IF (PRESENT(ploesma)) THEN
@@ -1336,14 +1339,18 @@ DO iElem =1, nElems
         ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,i,j,k,iElem)-U(upos1,i,j,k,iElem)) &
         !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
 
-        U_FV(upos+vFirstID,i,j,k,iElem) = U_FV(upos+vFirstID,i,j,k,iElem) + forceTerm*tDeriv/2 !t/2 for strang splitting
+        U_FV(upos+vFirstID,i,j,k,iElem) = U_FV(upos+vFirstID,i,j,k,iElem) + forceTerm*tDeriv/2. !t/2 for strang splitting
         IF (DVMDim.LT.3) THEN
-          U_FV(Sp%nVar/2+upos+vFirstID,i,j,k,iElem) = U_FV(Sp%nVar/2+upos+vFirstID,i,j,k,iElem) &
-                                        + Sp%R_S*MacroVal(5,iSpec)*forceTerm*tDeriv/2 !vraiment sur de ca ?????
+          IF (PRESENT(ploesma)) THEN
+            forceTerm2 = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(Sp%nVar/2+upos2+vFirstID,i,j,k,iElem)-U_FV(Sp%nVar/2+upos1+vFirstID,i,j,k,iElem))/velodiff
+          ELSE
+            forceTerm2 = - DVMForce(1)*(U_FV(Sp%nVar/2+upos2+vFirstID,i,j,k,iElem)-U_FV(Sp%nVar/2+upos1+vFirstID,i,j,k,iElem))/velodiff
+          END IF
+          U_FV(Sp%nVar/2+upos+vFirstID,i,j,k,iElem) = U_FV(Sp%nVar/2+upos+vFirstID,i,j,k,iElem) + forceTerm2*tDeriv/2.
         END IF
       END DO; END DO; END DO
       vFirstID = vFirstID + Sp%nVar
-      DEALLOCATE(fTarget)
+      ! DEALLOCATE(fTarget)
       END ASSOCIATE
     END DO
   END DO; END DO; END DO

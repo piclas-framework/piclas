@@ -56,8 +56,10 @@ IMPLICIT NONE
 IF (DVMColl.AND.(IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.iter.EQ.0) CALL RescaleInit(dt)
 
 #if USE_HDG
-IF (iter.EQ.0) CALL HDG(time,U,iter)
-CALL ForceStep(dt,ploesma=.TRUE.)
+IF (iter.EQ.0) THEN
+  CALL HDG(time,U,iter)
+  CALL ForceStep(dt,ploesma=.TRUE.)
+END IF
 #endif
 
 IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
@@ -71,7 +73,7 @@ IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt) !two times for strang splitting -> s
 
 #if USE_HDG
 CALL HDG(time,U,iter)
-CALL ForceStep(dt,ploesma=.TRUE.)
+CALL ForceStep(2.*dt,ploesma=.TRUE.)
 #endif
 
 END SUBROUTINE TimeStep_DVM

@@ -314,6 +314,7 @@ SUBROUTINE RecordPoints(t,Output)
 USE MOD_Globals
 USE MOD_Preproc
 #ifdef discrete_velocity
+! USE MOD_Mesh_Vars             ,ONLY: Elem_xGP
 USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel, DVMnSpecies, DVMSpecData, DVMColl
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
@@ -426,6 +427,7 @@ DO iRP=1,nRP
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
         ELSE
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
+          ! U_RP(1,iRP)=Elem_xGP(1,0,0,0,RP_ElemID(iRP)) !when RP position is needed
         END IF
 #elif USE_HDG
 #if PP_nVar==1 && !(defined(drift_diffusion))

@@ -58,9 +58,9 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
   DO Count_2=0,0
     DO Count_1=0,0
       n_loc(:)=nv(:,Count_1,Count_2)
-      CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1)
-      CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)
       IF (DVMColl) THEN
+        CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1)
+        CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)
         SELECT CASE (DVMMethod)
         CASE(1)
           gamma_L = 2.*tau_L*(1.-EXP(-dt/2./tau_L))/dt

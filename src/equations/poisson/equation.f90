@@ -949,7 +949,7 @@ END DO
 END SUBROUTINE DivCleaningDamping
 
 
-#if defined(CODE_ANALYZE)
+#if defined(CODE_ANALYZE) || defined(discrete_velocity)
       SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
 #else
 PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
@@ -1121,7 +1121,7 @@ resu(1) = - ((PartSource(4,i,j,k,iElem) - U_FV(1,0,0,0,iElem)*ElementaryCharge))
 
 #ifdef discrete_velocity
 CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),0.,tau,1,Charge=DVMtotalCharge)
-resu(1) = DVMtotalCharge/eps0
+resu(1) = - DVMtotalCharge/eps0
 #endif
 
 END SUBROUTINE CalcSourceHDG
