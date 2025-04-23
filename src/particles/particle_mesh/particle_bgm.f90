@@ -821,7 +821,7 @@ ELSE
       ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
       DO iDim=1,3
         IF(SymmetryVec(iDim)) THEN
-          MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.5*(BoundsOfElem_Shared(1,iDim,iElem)+BoundsOfElem_Shared(2,iDim,iElem))
+          MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
         ELSE
           MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.0
         END IF
@@ -860,7 +860,7 @@ ELSE
 
     DO iDim=1,3
       IF(SymmetryVec(iDim)) THEN
-        BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,iElem)+BoundsOfElem_Shared(2,iDim,iElem))
+        BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
       ELSE
         BoundsOfElemCenter(iDim) = 0.0
       END IF
