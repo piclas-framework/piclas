@@ -484,7 +484,7 @@ INTEGER                       :: iElem
 REAL                          :: U_exact(1:PP_nVar_FV)
 INTEGER                       :: offsetElemCNProc,CNElemID
 #ifdef discrete_velocity
-REAL                          :: MacroVal(14,DVMnSpecies+1), MacroVal_exact(14,DVMnSpecies+1), tau, real_dt
+REAL                          :: MacroVal(14,DVMnSpecies+1), MacroVal_exact(14,DVMnSpecies+1), tau, real_dt, rho, rho_exact
 #endif /*discrete_velocity*/
 !===================================================================================================================================
 IF (OutputErrorNormsToH5) CALL abort(__STAMP__,'OutputErrorNormsToH5 not implemented for FV')
@@ -510,8 +510,10 @@ DO iElem=1,PP_nElems
   CALL ExactFunc_FV(IniExactFunc_FV,time,0,Elem_xGP_FV(1:3,0,0,0,iElem),U_exact(1:PP_nVar_FV))
 #ifdef discrete_velocity
   ! DVM: calculate errors for the macroscopic values
-  CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),real_dt,tau,1,MassDensity=.TRUE.)
-  CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:),real_dt,tau,1,MassDensity=.TRUE.)
+  CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),real_dt,tau,1,MassDensity=rho)
+  CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:),real_dt,tau,1,MassDensity=rho_exact)
+  MacroVal(1,DVMnSpecies+1) = rho
+  MacroVal_exact(1,DVMnSpecies+1) = rho_exact
   L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:14,DVMnSpecies+1) - MacroVal_exact(1:14,DVMnSpecies+1)))
   ! To sum over the elements, We compute here the square of the L_2 error
   L_2_Error = L_2_Error+(MacroVal(1:14,DVMnSpecies+1) - MacroVal_exact(1:14,DVMnSpecies+1))*&

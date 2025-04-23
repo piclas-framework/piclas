@@ -48,8 +48,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: U(PP_nVar_FV), tDeriv
 INTEGER,INTENT(IN)              :: tilde
 REAL, INTENT(OUT)               :: MacroVal(14,DVMnSpecies+1), tau
-REAL, INTENT(OUT), OPTIONAL     :: charge
-LOGICAL,INTENT(IN), OPTIONAL    :: MassDensity !output of rho instead of number density
+REAL, INTENT(OUT), OPTIONAL     :: charge, MassDensity
 ! REAL, INTENT(OUT), OPTIONAL     :: skewness(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -57,9 +56,9 @@ LOGICAL,INTENT(IN), OPTIONAL    :: MassDensity !output of rho instead of number 
 ! LOCAL VARIABLES
 REAL                            :: rhoTotal, dens(DVMnSpecies+1), rhoU(3,DVMnSpecies+1), densE(DVMnSpecies+1), cV(DVMnSpecies+1)
 REAL                            :: uVelo(3,DVMnSpecies+1), cVel(3,DVMnSpecies+1), cMag2(DVMnSpecies+1)
-REAL                            :: mu(DVMnSpecies+1)
+REAL                            :: mu(DVMnSpecies+1), thermalcond(DVMnSpecies+1), cP
 REAL                            :: PressTens(6,DVMnSpecies+1), Heatflux(3,DVMnSpecies+1)
-REAL                            :: weight, prefac, Prandtl, Phi
+REAL                            :: weight, prefac, Prandtl, Phi, PrandtlCorrection
 INTEGER                         :: iVel,jVel,kVel,upos,iSpec,jSpec,vFirstID,total
 !===================================================================================================================================
 rhoTotal = 0.
@@ -72,6 +71,8 @@ Heatflux = 0.
 cV = 0.
 MacroVal = 0.
 mu = 0.
+thermalcond = 0.
+PrandtlCorrection = 0.
 total = DVMnSpecies+1
 IF (PRESENT(charge)) charge = 0.
 
@@ -98,13 +99,13 @@ DO iSpec=1, DVMnSpecies
   cV(iSpec) = BoltzmannConst*dens(iSpec)*(3.+Sp%Internal_DOF)/2.
 
   MacroVal(1,iSpec) = dens(iSpec)
-  IF (PRESENT(MassDensity)) MacroVal(1,iSpec) = MacroVal(1,iSpec)*Sp%Mass
   MacroVal(2:4,iSpec) = uVelo(1:3,iSpec)
   MacroVal(5,iSpec) = (densE(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/dens(iSpec)/Sp%Mass)/cV(iSpec)
   IF (.NOT.(PRESENT(charge)).AND.MacroVal(5,iSpec).LE.0) THEN
     CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
   ELSE IF (.NOT.(PRESENT(charge))) THEN
     mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
+    thermalcond(iSpec) = (15./4.)*mu(iSpec)*Sp%R_S
   END IF
 
   rhoTotal = rhoTotal + Sp%Mass*dens(iSpec)
@@ -121,7 +122,7 @@ IF (PRESENT(charge)) RETURN
 
 uVelo(1:3,total) = rhoU(1:3,total)/rhoTotal
 MacroVal(1,total) = dens(total)
-IF (PRESENT(MassDensity)) MacroVal(1,total) = rhoTotal
+IF (PRESENT(MassDensity)) MassDensity = rhoTotal
 MacroVal(2:4,total) = uVelo(1:3,total)
 MacroVal(5,total) = (densE(total) - 0.5*(DOT_PRODUCT(rhoU(:,total),rhoU(:,total)))/rhoTotal)/cV(total)
 IF (MacroVal(5,total).LE.0) CALL abort(__STAMP__,'DVM negative total temperature!')
@@ -198,15 +199,20 @@ DO iSpec=1, DVMnSpecies
       / ( SQRT(8.0 * (1.0 + Sp%Mass/DVMSpecData(jSpec)%Mass)) )
   END DO
   mu(total) = mu(total) + dens(iSpec)*mu(iSpec)/Phi
+  thermalcond(total) = thermalcond(total) + dens(iSpec)*thermalcond(iSpec)/Phi
 
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
+
+  PrandtlCorrection = PrandtlCorrection + dens(iSpec)*rhoTotal/DVMSpecData(iSpec)%Mass/dens(total)/dens(total)
 END DO
 
 Macroval(6:11,total)  = PressTens(1:6,total)
 MacroVal(12:14,total) = Heatflux(1:3,total)
 
-Prandtl = DVMSpecData(1)%Prandtl !temporary
+cP = (5./2.) * BoltzmannConst * dens(total)/rhoTotal
+Prandtl = cP*mu(total)/thermalcond(total)*PrandtlCorrection
+DVMSpecData(:)%Prandtl = Prandtl
 
 tau = mu(total)/(BoltzmannConst*dens(total)*MacroVal(5,total))
 IF (DVMBGKModel.EQ.1) tau = tau/Prandtl !ESBGK
@@ -287,6 +293,8 @@ IF (DVMColl.AND.tDeriv.GT.0.) THEN
     CALL abort(__STAMP__,'DVM-Method does not exist')
   END SELECT
 END IF
+
+MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal ! for ESBGK
 
 END SUBROUTINE MacroValuesFromDistribution
 
@@ -497,7 +505,7 @@ pressTens(2:3,1) = MacroVal(9:10)
 pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
 
-pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens/dens/DVMSpecData(iSpec)%Mass
+pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens !/dens/DVMSpecData(iSpec)%Mass
 pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
