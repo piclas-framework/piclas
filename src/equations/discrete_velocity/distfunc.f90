@@ -32,7 +32,7 @@ PUBLIC:: MaxwellScattering, RescaleU, RescaleInit, ForceStep, IntegrateFluxValue
 
 CONTAINS
 
-SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde,charge)
+SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde,charge,MassDensity)
 !===================================================================================================================================
 ! Calculates the moments of the distribution function
 !===================================================================================================================================
@@ -49,6 +49,7 @@ REAL,INTENT(IN)                 :: U(PP_nVar_FV), tDeriv
 INTEGER,INTENT(IN)              :: tilde
 REAL, INTENT(OUT)               :: MacroVal(14,DVMnSpecies+1), tau
 REAL, INTENT(OUT), OPTIONAL     :: charge
+LOGICAL,INTENT(IN), OPTIONAL    :: MassDensity !output of rho instead of number density
 ! REAL, INTENT(OUT), OPTIONAL     :: skewness(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -97,6 +98,7 @@ DO iSpec=1, DVMnSpecies
   cV(iSpec) = BoltzmannConst*dens(iSpec)*(3.+Sp%Internal_DOF)/2.
 
   MacroVal(1,iSpec) = dens(iSpec)
+  IF (PRESENT(MassDensity)) MacroVal(1,iSpec) = MacroVal(1,iSpec)*Sp%Mass
   MacroVal(2:4,iSpec) = uVelo(1:3,iSpec)
   MacroVal(5,iSpec) = (densE(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/dens(iSpec)/Sp%Mass)/cV(iSpec)
   IF (.NOT.(PRESENT(charge)).AND.MacroVal(5,iSpec).LE.0) THEN
@@ -119,6 +121,7 @@ IF (PRESENT(charge)) RETURN
 
 uVelo(1:3,total) = rhoU(1:3,total)/rhoTotal
 MacroVal(1,total) = dens(total)
+IF (PRESENT(MassDensity)) MacroVal(1,total) = rhoTotal
 MacroVal(2:4,total) = uVelo(1:3,total)
 MacroVal(5,total) = (densE(total) - 0.5*(DOT_PRODUCT(rhoU(:,total),rhoU(:,total)))/rhoTotal)/cV(total)
 IF (MacroVal(5,total).LE.0) CALL abort(__STAMP__,'DVM negative total temperature!')

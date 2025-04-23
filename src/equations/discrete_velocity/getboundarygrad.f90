@@ -182,7 +182,7 @@ CASE(4) ! diffusive
     MacroValInside(2:14,iSpec)=MacroValInside(2:14,DVMnSpecies+1) ! relaxation uses total temperature etc.
     CALL MaxwellScattering(iSpec,UPrim_boundary(vFirstID:vLastID),fplus(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,iSpec))
     DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
-      upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2) + vFirstID
+      upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2) + vFirstID-1
       vnormal = DVMSpecData(iSpec)%Velos(iVel,1)*NormVec(1) &
               + DVMSpecData(iSpec)%Velos(jVel,2)*NormVec(2) &
               + DVMSpecData(iSpec)%Velos(kVel,3)*NormVec(3)

@@ -115,7 +115,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 #endif /*USE_HDG*/
 #ifdef discrete_velocity /*DVM*/
 USE MOD_DistFunc               ,ONLY: GradDistribution
-USE MOD_Equation_Vars_FV       ,ONLY: DVMSpecData
+USE MOD_Equation_Vars_FV       ,ONLY: DVMSpecData, DVMnSpecies
 #endif
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem,nElems
 
@@ -171,6 +171,9 @@ TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
+#ifdef discrete_velocity
+INTEGER                            :: vFirstID, vLastID, iSpec, offsetMV
+#endif /*discrete_velocity*/
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -566,15 +569,23 @@ ELSE ! normal restart
 
 #ifdef discrete_velocity
     SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
-    CALL abort(__STAMP__,' DVM multispecies restart not implemented yet!')
-    ! ALLOCATE(UTmp(15,0:0,0:0,0:0,nElems))
-    ! UTmp=0.
-    ! CALL ReadArray('DVM_Solution',5,(/15,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
-    ! DO iElem=1,nElems
-    !   Utmp(6:8,0,0,0,iElem)=Utmp(6:8,0,0,0,iElem)-SUM(Utmp(6:8,0,0,0,iElem))/3. ! traceless pressure tensor for Grad dist
-    !   CALL GradDistribution(Utmp(1:14,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
-    ! END DO
-    ! DEALLOCATE(UTmp)
+    ALLOCATE(UTmp(14*(DVMnSpecies+1)+1,0:0,0:0,0:0,nElems))
+    UTmp=0.
+    CALL ReadArray('DVM_Solution',5,(/INT(14*(DVMnSpecies+1)+1,IK),1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
+    DO iElem=1,nElems
+      vFirstID=1
+      vLastID=0
+      offsetMV=0
+      DO iSpec=1,DVMnSpecies
+        vLastID = vLastID + DVMSpecData(iSpec)%nVar
+        Utmp(offsetMV+6:offsetMV+8,0,0,0,iElem)=Utmp(offsetMV+6:offsetMV+8,0,0,0,iElem) &
+                                                -SUM(Utmp(offsetMV+6:offsetMV+8,0,0,0,iElem))/3. ! traceless pressure tensor for Grad dist
+        CALL GradDistribution(Utmp(offsetMV+1:offsetMV+14,0,0,0,iElem),U_FV(vFirstID:vLastID,0,0,0,iElem),iSpec)
+        offsetMV = offsetMV + 14
+        vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+      END DO
+    END DO
+    DEALLOCATE(UTmp)
 #endif
 #ifdef drift_diffusion
     SWRITE(UNIT_stdOut,*)'Performing Drift Diffusion restart'

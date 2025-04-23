@@ -346,34 +346,32 @@ DO iSpec=1,DVMnSpecies
       MacroVal = 0.
       SodMacro_L=RefState_FV(1:5,iSpec,1)
       SodMacro_R=RefState_FV(1:5,iSpec,2)
-      SodMacro_L=SodMacro_L*DVMSpecData(iSpec)%Mass
-      SodMacro_R=SodMacro_R*DVMSpecData(iSpec)%Mass
       SodMacro_LL = 0.         !     | L | LL | M | RR | R |
       SodMacro_M = 0.
       SodMacro_RR = 0.
       gamma = 5./3. !monatomic gas
       Ggamma = (gamma-1)/(gamma+1)
       beta = (gamma-1)/gamma/2.
-      pL = DVMSpecData(iSpec)%R_S*SodMacro_L(1)*SodMacro_L(5)
-      pR = DVMSpecData(iSpec)%R_S*SodMacro_R(1)*SodMacro_R(5)
+      pL = BoltzmannConst*SodMacro_L(1)*SodMacro_L(5)
+      pR = BoltzmannConst*SodMacro_R(1)*SodMacro_R(5)
       pM=(pL+pR)/2.
-      CALL SecantSod(pM, pL, pR, SodMacro_L(1), SodMacro_R(1), gamma, Ggamma, beta, 1e-15, 100)
+      CALL SecantSod(pM, pL, pR, SodMacro_L(1)*DVMSpecData(iSpec)%Mass, SodMacro_R(1)*DVMSpecData(iSpec)%Mass, gamma, Ggamma, beta, 1e-15, 100)
       cL = sqrt(gamma*DVMSpecData(iSpec)%R_S*SodMacro_L(5))
       cR = sqrt(gamma*DVMSpecData(iSpec)%R_S*SodMacro_R(5))
       cM = cL * (pM/pL)**beta
       SodMacro_M(1) = SodMacro_L(1)*(pM/pL)**(1./gamma)
       SodMacro_M(2) = (cL-cM)*2/(gamma-1)
-      SodMacro_M(5) = pM/DVMSpecData(iSpec)%R_S/SodMacro_M(1)
+      SodMacro_M(5) = pM/BoltzmannConst/SodMacro_M(1)
       SodMacro_RR(1) = SodMacro_R(1)*(pM+Ggamma*pR)/(pR+Ggamma*pM)
       SodMacro_RR(2) = SodMacro_M(2)
-      SodMacro_RR(5) = pM/DVMSpecData(iSpec)%R_S/SodMacro_RR(1)
+      SodMacro_RR(5) = pM/BoltzmannConst/SodMacro_RR(1)
       vs = cR*sqrt((beta/Ggamma)*(pM/pR + Ggamma))
       IF (x(1).LT.(-tIn*cL)) THEN
         MacroVal(1:5) = SodMacro_L
       ELSE IF (x(1).LT.(tIn*(SodMacro_M(2)-cM))) THEN
         SodMacro_LL(2) = 2./(gamma+1.) * (cL + x(1)/tIn)
         SodMacro_LL(1) = SodMacro_L(1) * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2./(gamma-1.))
-        SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/DVMSpecData(iSpec)%R_S/SodMacro_LL(1)
+        SodMacro_LL(5) = pL * (1.-(gamma-1.)*SodMacro_LL(2)/cL/2.)**(2*gamma/(gamma-1))/BoltzmannConst/SodMacro_LL(1)
         MacroVal(1:5) = SodMacro_LL
       ELSE IF (x(1).LT.(tIn*SodMacro_M(2))) THEN
         MacroVal(1:5) = SodMacro_M
