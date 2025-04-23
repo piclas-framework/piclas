@@ -599,7 +599,7 @@ ELSE
   ! limit halo_eps to diagonal of bounding box
   globalDiag    = CONDVECNORM ((/ GEO%xmaxglob-GEO%xminglob, &
                                   GEO%ymaxglob-GEO%yminglob, &
-                                  GEO%zmaxglob-GEO%zminglob /) / 2. &
+                                  GEO%zmaxglob-GEO%zminglob /) &
                                   ,SymmetryVec)
   IF(halo_eps.GT.globalDiag)THEN
     CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
