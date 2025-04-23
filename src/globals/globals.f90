@@ -979,6 +979,34 @@ VECNORM2D=SQRT(v1(1)*v1(1)+v1(2)*v1(2))
 END FUNCTION VECNORM2D
 
 
+PPURE FUNCTION CONDVECNORM(v1,cond)
+!===================================================================================================================================
+! Computes the Euclidean norm (length) of a vector with a condition
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: v1(3)    ! Vector
+LOGICAL,INTENT(IN) :: cond(3)  ! Use this direction if true
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL            :: CONDVECNORM  ! Euclidean norm (length) of the vector v1
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER         :: i
+!===================================================================================================================================
+CONDVECNORM=0
+DO i=1,3
+  IF(cond(i))THEN
+    CONDVECNORM=CONDVECNORM+v1(i)*v1(i)
+  END IF
+END DO
+CONDVECNORM=SQRT(CONDVECNORM)
+END FUNCTION CONDVECNORM
+
+
 PPURE SUBROUTINE OrthoNormVec(v1,v2,v3)
 !===================================================================================================================================
 !> computes orthonormal basis from a given vector v1 (v1 must be normalized)

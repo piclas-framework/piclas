@@ -215,7 +215,8 @@ INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 REAL                           :: StartT,EndT ! Timer
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
-INTEGER                        :: nFIBGMElems, nFIBGMElems_target, PseudoSymmetryOrder
+INTEGER                        :: nFIBGMElems, nFIBGMElems_target, iDim
+LOGICAL                        :: SymmetryVec(3)
 !===================================================================================================================================
 
 #if USE_MPI
@@ -430,17 +431,26 @@ IF(GEO%InitFIBGM) THEN
                                             , BGMimaxglob - BGMiminglob + 1                                 ,', '&
                                             , BGMjmaxglob - BGMjminglob + 1                                 ,', '&
                                             , BGMkmaxglob - BGMkminglob + 1
-  ! Check if the calculation of the FIBGM can be simplified to a lower Symmetry Order
-  IF(BGMkmaxglob - BGMkminglob + 1.EQ.1) THEN
-    IF(BGMjmaxglob - BGMjminglob + 1.EQ.1) THEN
-      PseudoSymmetryOrder = 1
-    ELSE
-      PseudoSymmetryOrder = 2
-    END IF
-  ELSE
-    PseudoSymmetryOrder = 3
+  ! Check if the calculation of the FIBGM can be simplified by symmetry
+  ! Determined by Symmetry%Order and if only 1 FIBGM-Element in one spatial direction
+  SELECT CASE(Symmetry%Order)
+  CASE(3)
+    SymmetryVec = .TRUE.
+  CASE(2)
+    SymmetryVec = (/ .TRUE., .TRUE., .FALSE. /)
+  CASE(1)
+    SymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
+  END SELECT
+  IF(BGMimaxglob - BGMiminglob + 1.EQ.1) THEN
+    SymmetryVec(1) = .FALSE.
   END IF
-  PseudoSymmetryOrder = MIN(PseudoSymmetryOrder,Symmetry%Order) ! Shouldn't be needed, but better safe than sorry
+  IF(BGMjmaxglob - BGMjminglob + 1.EQ.1) THEN
+    SymmetryVec(2) = .FALSE.
+  END IF
+  IF(BGMkmaxglob - BGMkminglob + 1.EQ.1) THEN
+    SymmetryVec(3) = .FALSE.
+  END IF
+
 #if USE_MPI
   CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
@@ -454,21 +464,18 @@ IF(GEO%InitFIBGM) THEN
   ! convex hull
   DO iElem = firstElem, lastElem
     ! Flag elements depending on radius
-    origin(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
-                     SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
-                     SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+    DO iDim=1,3
+      IF(SymmetryVec(iDim)) THEN
+        origin(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,iElem)+BoundsOfElem_Shared(2,iDim,iElem))
+      ELSE
+        origin(iDim) = 0.0
+      END IF
+    END DO
     ! Calculate halo element outer radius
-    SELECT CASE(PseudoSymmetryOrder)
-    CASE(3)
-      radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                              BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                              BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
-    CASE(2)
-      radius    = VECNORM2D ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                              BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem) /) / 2.)
-    CASE(1)
-      radius    = ABS ( BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem)) / 2.
-    END SELECT
+    radius    = CONDVECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                                BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2. &
+                                ,SymmetryVec)
 
     xmin = origin(1) - radius
     xmax = origin(1) + radius
@@ -590,17 +597,10 @@ ELSE
   END IF
 
   ! limit halo_eps to diagonal of bounding box
-  SELECT CASE(PseudoSymmetryOrder)
-  CASE(3)
-    globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
-                     + (GEO%ymaxglob-GEO%yminglob)**2 &
-                     + (GEO%zmaxglob-GEO%zminglob)**2 )
-  CASE(2)
-    globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
-                     + (GEO%ymaxglob-GEO%yminglob)**2 )
-  CASE(1)
-    globalDiag = (GEO%xmaxglob-GEO%xminglob)
-  END SELECT
+  globalDiag    = CONDVECNORM ((/ GEO%xmaxglob-GEO%xminglob, &
+                                  GEO%ymaxglob-GEO%yminglob, &
+                                  GEO%zmaxglob-GEO%zminglob /) / 2. &
+                                  ,SymmetryVec)
   IF(halo_eps.GT.globalDiag)THEN
     CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
     LBWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
@@ -617,23 +617,12 @@ END IF
 ! global largest cell radius and use it to keep all cells that are in this range.
 ! >> Find radius of largest cell
 maxCellRadius = 0
-SELECT CASE(PseudoSymmetryOrder)
-CASE(3)
-  DO iElem = firstElem, lastElem
-    maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2.))
-  END DO
-CASE(2)
-  DO iElem = firstElem, lastElem
-    maxCellRadius = MAX(maxCellRadius,VECNORM2D((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem)/)/2.))
-  END DO
-CASE(1)
-  DO iElem = firstElem, lastElem
-    maxCellRadius = MAX(maxCellRadius,ABS(BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem))/2.)
-  END DO
-END SELECT
+DO iElem = firstElem, lastElem
+  maxCellRadius = MAX(maxCellRadius,CONDVECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                                   BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                                                   BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2., &
+                                                   SymmetryVec))
+END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
 WRITE(hilf,'(A,E15.7,A)') ' | Found max. cell radius as', maxCellRadius, ', for building halo BGM ...'
@@ -829,31 +818,19 @@ ELSE
       MPISideElem(ElemID) = .TRUE.
       nBorderElems= nBorderElems + 1
 
-      SELECT CASE(PseudoSymmetryOrder)
-      CASE(3)
-        ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-        MPISideBoundsOfElemCenter_Shared(1:3,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                                                SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                                                SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-        ! Calculate outer radius of the element on my compute node
-        MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                                      BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-      CASE(2)
-        ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-        MPISideBoundsOfElemCenter_Shared(1:2,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                                                SUM(   BoundsOfElem_Shared(1:2,2,ElemID)) /) / 2.
-        MPISideBoundsOfElemCenter_Shared(3,nBorderElems) =      0.0
-        ! Calculate outer radius of the element on my compute node
-        MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = VECNORM2D ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                                      BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID)/) / 2.)
-      CASE(1)
-        ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-        MPISideBoundsOfElemCenter_Shared(1,nBorderElems)   =    SUM(   BoundsOfElem_Shared(1:2,1,ElemID))/ 2.
-        MPISideBoundsOfElemCenter_Shared(2:3,nBorderElems) =    0.0
-        ! Calculate outer radius of the element on my compute node
-        MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = ABS ( BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID))/ 2.
-      END SELECT
+      ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
+      DO iDim=1,3
+        IF(SymmetryVec(iDim)) THEN
+          MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.5*(BoundsOfElem_Shared(1,iDim,iElem)+BoundsOfElem_Shared(2,iDim,iElem))
+        ELSE
+          MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.0
+        END IF
+      END DO
+      ! Calculate outer radius of the element on my compute node
+      MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                                         BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                                         BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                                                         SymmetryVec)
     END IF
   END DO
 
@@ -880,28 +857,19 @@ ELSE
   DO iHaloElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
-    SELECT CASE(PseudoSymmetryOrder)
-    CASE(3)
-      BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                  SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                  SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-      ! Calculate halo element outer radius
-      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                          BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                          BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
-    CASE(2)
-      BoundsOfElemCenter(1:2) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                  SUM(   BoundsOfElem_Shared(1:2,2,ElemID)) /) / 2.
-      BoundsOfElemCenter(3) = 0.0
-      ! Calculate halo element outer radius
-      BoundsOfElemCenter(4) = VECNORM2D ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                          BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID) /) / 2.)
-    CASE(1)
-      BoundsOfElemCenter(1) = SUM(   BoundsOfElem_Shared(1:2,1,ElemID))/ 2.
-      BoundsOfElemCenter(2:3) = 0.0
-      ! Calculate halo element outer radius
-      BoundsOfElemCenter(4) = ABS (BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID)) / 2.
-    END SELECT
+
+    DO iDim=1,3
+      IF(SymmetryVec(iDim)) THEN
+        BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,iElem)+BoundsOfElem_Shared(2,iDim,iElem))
+      ELSE
+        BoundsOfElemCenter(iDim) = 0.0
+      END IF
+    END DO
+    ! Calculate halo element outer radius
+    BoundsOfElemCenter(4) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                            BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                            BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                            SymmetryVec)
     DO iElem = 1, nComputeNodeBorderElems
       ! compare distance of bounding boxes along each direction
       ! CartBox(1) = BoundsOfElem_Shared(1,1,ElemID)
