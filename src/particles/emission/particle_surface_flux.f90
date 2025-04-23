@@ -74,7 +74,7 @@ REAL                        :: Particle_pos(3), RandVal1,  xyzNod(3), RVec(2), m
 REAL                        :: ndist(3), midpoint(3)
 REAL                        :: MPF
 LOGICAL                     :: AcceptPos
-REAL,ALLOCATABLE            :: particle_positions(:), particle_xis(:)
+REAL,ALLOCATABLE            :: particle_xis(:)!, particle_positions(:)
 INTEGER,ALLOCATABLE         :: PartInsSubSides(:,:,:)
 #if USE_LOADBALANCE
 REAL                        :: tLBStart
@@ -726,14 +726,15 @@ END FUNCTION CalcPartPosTriaSurface
 
 
 !===================================================================================================================================
-!> Calculate a random particle position for the case of radial weighting (2D axisymmetric)
+!> Calculate random particle positions for the case of radial weighting (2D axisymmetric) per species per surface flux and per side
 !===================================================================================================================================
 SUBROUTINE CalcPartPosAxisym(iSpec,iSF,iSide,minPos,RVec,PartInsSubSide,particle_positions,allowedRejections)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, DoRadialWeighting
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -748,11 +749,31 @@ REAL, INTENT(OUT)           :: particle_positions(:)
 ! LOCAL VARIABLES
 REAL                        :: RandVal1, PminTemp, PmaxTemp, Particle_pos(2)
 INTEGER                     :: iSub, iPart, iPartSub, allowedRejectionsSub
+LOGICAL                     :: PerpToYDir       !> Perpendicular to y-axis (and parallel to x-axis)
 !===================================================================================================================================
 iPart=1
 allowedRejections = 0
-IF (ParticleWeighting%PerformCloning.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))))) THEN
+! 1) Determine whether the side is perpendicular to y-axis (and parallel to x-axis)
+IF(Symmetry%Axisymmetric.AND.ParticleWeighting%PerformCloning) THEN
+  ! nVFRSub has been calculated in InitVolumeFlowRate
+  IF(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).GT.0.) THEN
+    PerpToYDir = .FALSE.
+  ELSE
+    PerpToYDir = .TRUE.
+  END IF
+ELSE
+  ! Check whether the y-coordinates of the side are equal
+  IF(ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+    PerpToYDir = .TRUE.
+  ELSE
+    PerpToYDir = .FALSE.
+  END IF
+END IF
+! 2) Calculate the particles positions and track the number of rejected partciles in case of a circular inflow
+IF (ParticleWeighting%PerformCloning.AND..NOT.PerpToYDir) THEN
+  ! Case: weighting is used and side is not perpendicular to y-axis
   IF(ParticleWeighting%UseCellAverage) THEN
+    ! Cell-average weighting factor
     DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
       CALL RANDOM_NUMBER(RandVal1)
       Particle_pos(2) = minPos(2) + RandVal1 * RVec(2)
@@ -761,6 +782,7 @@ IF (ParticleWeighting%PerformCloning.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+
       particle_positions(iPart*3-2) = Particle_pos(1)
       particle_positions(iPart*3-1) = Particle_pos(2)
       particle_positions(iPart*3  ) = 0.
+      ! Circular inflow: particle outside the defined region are accepted
       IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
         IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
           allowedRejections = allowedRejections + 1
@@ -770,6 +792,7 @@ IF (ParticleWeighting%PerformCloning.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+
       iPart = iPart + 1
     END DO
   ELSE
+    ! Sub-division of side into nSubSides for a better resolution
     DO iSub = 1, ParticleWeighting%nSubSides
       iPartSub = 1
       allowedRejectionsSub = 0
@@ -783,6 +806,7 @@ IF (ParticleWeighting%PerformCloning.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+
         particle_positions(iPart*3-2) = Particle_pos(1)
         particle_positions(iPart*3-1) = Particle_pos(2)
         particle_positions(iPart*3  ) = 0.
+        ! Circular inflow: particle outside the defined region are accepted
         IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
           IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
             allowedRejectionsSub = allowedRejectionsSub + 1
@@ -796,19 +820,21 @@ IF (ParticleWeighting%PerformCloning.AND.(.NOT.(ALMOSTEQUAL(minPos(2),minPos(2)+
     END DO
   END IF
 ELSE
+  ! Case: no weighting, or side parallel to x-axis
   DO WHILE (iPart+allowedRejections.LE.PartInsSubSide)
     CALL RANDOM_NUMBER(RandVal1)
-    IF (ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+    IF (PerpToYDir) THEN
       ! y_min = y_max, faces parallel to x-direction, constant distribution
       Particle_pos(1:2) = minPos(1:2) + RVec(1:2) * RandVal1
     ELSE
-    ! No ParticleWeighting, regular linear distribution of particle positions
+      ! No weighting, regular linear distribution of particle positions
       Particle_pos(1:2) = minPos(1:2) + RVec(1:2) &
           * ( SQRT(RandVal1*((minPos(2) + RVec(2))**2-minPos(2)**2)+minPos(2)**2) - minPos(2) ) / (RVec(2))
     END IF
     particle_positions(iPart*3-2) = Particle_pos(1)
     particle_positions(iPart*3-1) = Particle_pos(2)
     particle_positions(iPart*3  ) = 0.
+    ! Circular inflow: particle outside the defined region are accepted
     IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
       IF (.NOT.InSideCircularInflow(iSpec, iSF, iSide, (/Particle_pos(1),Particle_pos(2),0.0/))) THEN
         allowedRejections = allowedRejections + 1
@@ -860,7 +886,7 @@ PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec
 
 IF (Symmetry%Axisymmetric) THEN
   IF(.NOT.ParticleWeighting%UseCellAverage) THEN
-    IF(.NOT.ALMOSTEQUAL(minPos(2),minPos(2)+RVec(2))) THEN
+    IF(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,1).GT.0.) THEN
       PartInsSubSide = 0
       DO iSub = 1, ParticleWeighting%nSubSides
         CALL RANDOM_NUMBER(RandVal)

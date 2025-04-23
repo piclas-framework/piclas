@@ -40,10 +40,8 @@ USE MOD_ReadInTools ,ONLY: prms
 IMPLICIT NONE
 
 CALL prms%SetSection("Particle Symmetry")
-CALL prms%CreateIntOption(    'Particles-Symmetry-Order',  &
-                              'Order of the Simulation 1, 2 or 3 D', '3')
-CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh '//&
-                              'requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%CreateIntOption(    'Particles-Symmetry-Order'        , 'Order of the Simulation 1, 2 or 3 D', '3')
+CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
 
 END SUBROUTINE DefineParametersSymmetry
 
@@ -85,8 +83,11 @@ IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
 #endif /*defined(PARTICLES)*/
 
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+#if defined(PARTICLES)
+! Only abort when particles are active
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.NE.2)) CALL ABORT(__STAMP__&
   ,'ERROR: Axisymmetric simulations are only implemented for Particles-Symmetry-Order=2 !')
+#endif /*defined(PARTICLES)*/
 
 END SUBROUTINE InitSymmetry
 

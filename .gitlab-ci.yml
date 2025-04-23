@@ -66,6 +66,7 @@ before_script:
       export NCORES=0;
     else
       echo " Using default generator [Unix Makefiles] and [make] for compiling.";
+      export CMAKE_GENERATOR=;
       export GENERATOR=make;
       export NCORES=;
     fi
@@ -103,7 +104,13 @@ before_script:
       module purge || true;
       module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2 || true;
     fi
-  - module list || true
+  - if [ -n "${DO_RUN_LOCAL}" ]; then
+      source $(ls /opt/modules/*/init/bash | tail -n1);
+      for LOCALMODULE in ${DO_RUN_LOCAL}; do module load ${LOCALMODULE}; done;
+      module list;
+    else
+      module list || true ;
+    fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -117,9 +124,7 @@ stages:
   - reggie_tools_nightly
   - reggie_nightly_special
   - reggie_nightly
-  - reggie_weekly_build_all
   - reggie_weekly
-  - documentation
   - deploy
   - appimage
 
@@ -381,7 +386,11 @@ build_maxwell:
   stage: build
   script:
     - mkdir -p build_maxwell ; cd build_maxwell
-    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
+    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
 
 build_poisson:
   extends: .default_build_param
@@ -407,13 +416,28 @@ build_poisson:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_RK3 ; cd build_poisson_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    # Check greater than 10, see https://regex101.com/ for details
+    # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
+    # Check greater than 9, see https://regex101.com/ for details
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - cd ..
     - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_Leapfrog ; cd build_poisson_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [ -n "$WARN" ]; then echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; fi
+    # Check greater than 10, see https://regex101.com/ for details
+    # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
+    # Check greater than 9, see https://regex101.com/ for details
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - cd ..
 
 build_poisson_petsc:
@@ -440,7 +464,11 @@ build_poisson_petsc:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
@@ -473,7 +501,11 @@ build_DSMC:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_DSMC_debug ; cd build_DSMC_debug
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - if [ -n "${DO_WEEKLY}" ]; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
@@ -1001,7 +1033,7 @@ NIG_Radiation:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
   <<: *defaults_weekly
-  stage: reggie_weekly_build_all
+  stage: build
   script:
     - cd build ;  reggie ../regressioncheck/run_basic
 
@@ -1085,11 +1117,11 @@ WEK_BGKFlow:
     - cd build ;  reggie ../regressioncheck/WEK_BGKFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "documentation": Compile the userguide and developer guide
+# Stage "build": Compile the userguide and developer guide
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 documentation:
   extends: .default_build_param
-  stage: documentation
+  stage: build
   script:
     - cd docs/documentation
     - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages

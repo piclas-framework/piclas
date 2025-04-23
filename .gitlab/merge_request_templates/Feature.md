@@ -4,23 +4,25 @@
 
 ## Merge Request Checklist
 
-* [ ] Style Guide
-* [ ] Maximum of 10 compile warnings via *./tools/test_max_warnings.sh*. How many warning were found?
-* [ ] No large files via *./tools/test_max_file_size.sh*. What is the largest file?
-* [ ] Descriptions for new/changed routines
-  * [ ] Short header description (do not just spell out the name of the subroutine, units for important variables if applicable)
+* [ ] Make sure the [Style Guide](https://piclas.readthedocs.io/en/latest/developerguide/styleguide.html) is respected
+* Maximum number of 10 compiler warnings
+  * [ ] Check with specific compiler settings for the feature branch via *./tools/test_max_warnings.sh*. Number of found warnings:
+  * [ ] Run [pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) for the feature branch and supply the variables `DO_CHECKIN=T` and `CHECK_WARNINGS=T` for automatic compiler warning tests for other compiler flag combinations
+* [ ] Check file size via *./tools/test_max_file_size.sh*. Largest file size:
+* Descriptions for new/changed routines
+  * [ ] Short header description: Do not just spell out the name of the subroutine and add units for important variables if applicable
   * [ ] Workflow
     * [ ] Short summary in the header
     * [ ] Inside the routine at the appropriate positions
-* [ ] Reggie: The new feature must be tested with at least one new or old regression test(s)
+* Reggie: The new feature must be tested with at least one new or old regression test(s)
   * [ ] Add small test setup if the new feature is not covered by any old regression tests
   * [ ] Add entry in REGGIE.md table by running the reggie table script within the reggie folder where the builds.ini file is via `./../../tools/reggietable.sh` and adjusting the output
-  * [ ] Check correct allocation and deallocation for the test case
+  * Check correct allocation and deallocation for the test case
     * [ ] Either check automatic restart functionality of reggie example via Load Balance
     * [ ] And/or compile PICLas with Sanitizer and MPI=OFF as well as MPI=ON and run with one process to find possible memory
           leaks. When using MPICH, the test should also be performed with multiple processes. Leaks can be identified using
           [this approach](https://piclas.readthedocs.io/en/latest/developerguide/troubleshooting.html#possible-memory-leak-detection-when-using-mpich).
-  * [ ] Test the three shared memory modes
+  * Test the three shared memory modes for the reggie by hand
     * [ ] `PICLAS_SHARED_MEMORY = MPI_COMM_TYPE_SHARED` (default) for splitting shared memory domains on the physical node
     * [ ] `PICLAS_SHARED_MEMORY = OMPI_COMM_TYPE_CORE` for splitting at process level, .i.e, each process yields a logical node
     * [ ] `PICLAS_SHARED_MEMORY = PICLAS_COMM_TYPE_NODE` for splitting at 2 processes per logical node
