@@ -40,7 +40,7 @@ USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, ParticleWeight
 USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
-USE MOD_Part_Tools              ,ONLY: GetParticleWeight, GetNextFreePosition
+USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcSurfFluxInfo, nPartIn, PartEkinIn
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart

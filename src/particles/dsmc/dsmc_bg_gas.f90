@@ -86,8 +86,8 @@ IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRe
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
 IF(UseVarTimeStep) THEN
-  IF(.NOT.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__, &
-    'ERROR: Variable timestep (except species-specific) are not implemented with a background gas yet!')
+  IF(.NOT.VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%UseLinearScaling) CALL abort(__STAMP__, &
+    'ERROR: Variable timestep (except species-specific and linear scaling in 3D) is not implemented with a background gas yet!')
 END IF
 
 DO iSpec = 1, nSpecies

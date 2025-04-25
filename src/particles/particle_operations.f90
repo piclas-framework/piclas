@@ -166,7 +166,6 @@ USE MOD_Particle_Vars             ,ONLY: PartIsImplicit,DoPartInNewton, PEM, Par
 USE MOD_Particle_Vars             ,ONLY: Pt_temp
 #endif
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalcEkinPart
-USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars                 ,ONLY: CollInf, AmbipolElecVelo, ElectronicDistriPart, VibQuantsPar
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 #if USE_HDG
