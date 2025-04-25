@@ -378,18 +378,30 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMdeltas(2) = MIN(FIBGMdeltas1(2),FIBGMdeltas2(2))
     GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
 
-    nFIBGMElems_target = nGlobalElems*10**(Symmetry%Order/2.)
-    nFIBGMElems = (GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)*(GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)*(GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3)
+    nFIBGMElems_target = CEILING(nGlobalElems*10**(Symmetry%Order/2.))
+    nFIBGMElems = CEILING((GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)*(GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)*(GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3))
 
     IF(nFIBGMElems.GT.nFIBGMElems_target) THEN
       ! Fallback to prevent too small FIBGM cells
 
       ! Scale GEO%FIBGMdeltas1 to have about sqrt(1000) * nglobalElems in total in 3D
+      ! Use the values of FIBGMdeltas1 because they do not have the minimum size of the elements included
+      nFIBGMElems = CEILING((GEO%xmaxglob-GEO%xminglob)/FIBGMdeltas1(1)*(GEO%ymaxglob-GEO%yminglob)/FIBGMdeltas1(2)*(GEO%zmaxglob-GEO%zminglob)/FIBGMdeltas1(3))
       a = (REAL(nFIBGMElems)/REAL(nFIBGMElems_target))**(1./Symmetry%Order)
 
       GEO%FIBGMdeltas(1) = FIBGMdeltas1(1)*a
-      GEO%FIBGMdeltas(2) = FIBGMdeltas1(2)*a
-      GEO%FIBGMdeltas(3) = FIBGMdeltas1(3)*a
+      IF(Symmetry%Order.GT.1) THEN
+        ! Otherwise the FIBGMdeltas should be the size of the domain
+        GEO%FIBGMdeltas(2) = FIBGMdeltas1(2)*a
+      END IF
+      IF(Symmetry%Order.EQ.3) THEN
+        GEO%FIBGMdeltas(3) = FIBGMdeltas1(3)*a
+      END IF
+
+      ! Needed for periodic vectors
+      GEO%FIBGMdeltas(1) = MIN(GEO%FIBGMdeltas(1),GEO%xmaxglob-GEO%xminglob)
+      GEO%FIBGMdeltas(2) = MIN(GEO%FIBGMdeltas(2),GEO%ymaxglob-GEO%yminglob)
+      GEO%FIBGMdeltas(3) = MIN(GEO%FIBGMdeltas(3),GEO%zmaxglob-GEO%zminglob)
 
     END IF
 
