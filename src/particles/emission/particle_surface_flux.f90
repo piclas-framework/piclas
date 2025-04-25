@@ -256,10 +256,11 @@ DO iSpec=1,nSpecies
             PartMPF(ParticleIndexNbr) = CalcVarWeightMPF(PartState(:,ParticleIndexNbr),ElemID,ParticleIndexNbr)
           END IF
           IF(CalcSurfFluxInfo) THEN
+            ! Get the weight without using the GetParticleWeight function, which includes the time step
             IF(usevMPF) THEN
-              MPF = GetParticleWeight(ParticleIndexNbr)
+              MPF = PartMPF(ParticleIndexNbr)
             ELSE
-              MPF = GetParticleWeight(ParticleIndexNbr) * Species(iSpec)%MacroParticleFactor
+              MPF = Species(iSpec)%MacroParticleFactor
             END IF
             SF%SampledMassflow = SF%SampledMassflow + MPF
           END IF
