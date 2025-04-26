@@ -28,30 +28,15 @@ weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), 
 Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be
 defined with these parameters.
 
-Due to the often repetitive definitions, the default value for a given parameter can be set using the wildcard `$`. Different
-values for individual parameters can be specified by explicitly specifying the numbered parameter, irrespective of the ordering
-in the parameter file.
-
-    Part-Species1-Init1-VeloIC = 1.
-    Part-Species$-Init$-VeloIC = 2.
-
-Due to runtime considerations, the evaluation of the wildcard character is performed from left to right. Thus, a parameter like
-`Part-Species1-Init$-VeloIC` will not work.
-
 Different velocity distributions are available for the initialization/emission of particles.
 
-| Distribution | Description                                             |
-| ------------ | ------------------------------------------------------- |
-| maxwell      | Maxwell-Boltzmann distribution                          |
-| maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers |
-| WIP          | **WORK IN PROGRESS**                                    |
-
-Some emission types allow the usage of an emission-specific particle weighting factor.
-The default weighting factor given by `Part-Species1-MacroParticleFactor` can be overwritten by supplying a different one for each
-initialization, for which the variable weighting factor (or variable macro-particle factor `vMPF`)  model must be activated
-
-    Part-vMPF = T
-    Part-Species1-Init1-MacroParticleFactor = 1e4
+| Distribution | Description                                                   |
+| ------------ | ------------------------------------------------------------- |
+| constant     | No distribution, constant velocity vector                     |
+| maxwell      | Maxwell-Boltzmann distribution                                |
+| maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers       |
+| cosine       | Cosine distribution {cite}`Greenwood2002` (surface flux only) |
+| cosine2      | Squared cosine distribution (surface flux only)               |
 
 (sec:particle-insertion)=
 ## Initialization
@@ -248,6 +233,12 @@ actual computational domain corresponds only to a quarter of the cylinder:
 
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
+
+The default weighting factor given by `Part-Species1-MacroParticleFactor` can be overwritten by supplying a different one for each
+initialization, for which the variable weighting factor (or variable macro-particle factor `vMPF`)  model must be activated
+
+    Part-vMPF = T
+    Part-Species1-Init1-MacroParticleFactor = 1e4
 
 (sec:particle-emission-distri)=
 ### Emission Distribution
