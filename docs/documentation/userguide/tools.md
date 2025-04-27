@@ -10,15 +10,14 @@ An overview of the tools is given in [TOOLS.md](https://github.com/piclas-framew
 The unified species database was created for a more convenient alternative input for the simulations of species data, electronic states, cross-sections, and chemistry models.
 For the general structure and using the unified species database, please refer to Chapter {ref}`sec:unified-species-database` for instructions.
 
-
 (ssec:tools-maintain-database)=
 ### Maintain and edit database
 
-A tool to modify or maintain the database it is recommended to use the `maintain_database.py` which can be found in the *tools* directory: `piclas/tools/species_database/`. Simply run
+To modify or maintain the database, it is recommended to use the `maintain_database.py` which can be found in the *tools* directory: `piclas/tools/species_database/`. Simply run
 
     python3 maintain_database.py
 
-, note that the SpeciesDatabase cannot be used by another program at the same time.
+and note that the SpeciesDatabase.h5 cannot be used by another program at the same time.
 
 The script shows 5 options to choose from:
 
@@ -32,11 +31,6 @@ The script shows 5 options to choose from:
 (sssec:tools-maintain-database-species)=
 #### Species parameters
 
-
-The first option loops over all atom species in the database and compares the electronic excitation states (datasets in the .h5 file) to the electronic excitation states from the [NIST database](https://physics.nist.gov/PhysRefData/ASD/levels_form.html). This option is currently only available for atom species due to the lack of data in other databases for molecules. Afterwards, the attribute values including the mass and heat of formation are compared with data obtained from the [Active Thermochemical Tables](https://atct.anl.gov/) for all species.
-Currently the verification of electronic excitation states for molecules is not implemented yet due to the lack of data in other databases.
-
-
 After selecting to edit/maintain species the script offers the following options
 
     1 check existing species  or
@@ -44,9 +38,7 @@ After selecting to edit/maintain species the script offers the following options
     3 add new species  or
     4 to exit program
 
-The first option loops over all existing species and compares the data to different references. Generally the excitation states (electronic excitation states for all species and additionally rotational/vibrational excitation states for molecules) and a few species attributes, specifically the `HeatOfFormation_K`, the atomic mass `MassIC`, the charge `ChargeIC` and the internal species identifier `InteractionID`, are compared.
-
-The electronic excitation states are compared to the data from the [NIST database](https://physics.nist.gov/PhysRefData/ASD/levels_form.html), which only offers this data for atomic species. Due to the lack of data in other databases for the electronic excitation states of molecules, an automated verification of the electronic excitation states is therefore currently not possible.
+The first option loops over all existing species and compares the data to different references. Generally the excitation states (electronic excitation states for all species and additionally rotational/vibrational excitation states for molecules) and a few species attributes, specifically the `HeatOfFormation_K`, the atomic mass `MassIC`, the charge `ChargeIC` and the internal species identifier `InteractionID`, are compared. The electronic excitation states are compared to the data from the [NIST database](https://physics.nist.gov/PhysRefData/ASD/levels_form.html), which only offers this data for atomic species. Due to the lack of data in other databases for the electronic excitation states of molecules, an automated verification of the electronic excitation states is therefore currently not possible. Afterwards, the attribute values including the mass and heat of formation are compared with data obtained from the [Active Thermochemical Tables](https://atct.anl.gov/) for all species.
 
 Alternatively there is the option to add electronic excitation states by providing the data as comma-separated values (csv) in a separate file. For activating this feature the electronic excitation states need to be stored in a .csv file in the `piclas/tools/species_database/` directory. The name and format should follow the template `custom_electronic_levels_SPECIES.csv`, where SPECIES is replaced with the actual name of the species, e.g. 'H2'. The format should look like this
 
@@ -64,7 +56,7 @@ The electronic excitation states are kept, if the data is within a relative tole
     2 to save only electronic level data from https://physics.nist.gov/cgi-bin/ASD/energy1.pl  or
     3 to exit program
 
-Similar to the electronic energy levels, it is possible to store the vibrational energy levels for molecules in the database, which is needed for the Anharmonic Oscillator model ({ref}`sec:DSMC-species`). The vibrational excitation states are provided with as comma-separated values (csv) in a separate file aswell. The template `custom_vibrational_levels_SPECIES.csv` can be used in this case. The format differs here sightly, because each vibrational state is exactly degenerated once, so this column is unnecessary, which leads to
+Similar to the electronic energy levels, it is possible to store the vibrational energy levels for molecules in the database, which is needed for the Anharmonic Oscillator model ({ref}`sec:DSMC-species`). The vibrational excitation states are provided with as comma-separated values (csv) in a separate file as well. The template `custom_vibrational_levels_SPECIES.csv` can be used in this case. The format differs here sightly, because each vibrational state is exactly degenerated once, so this column is unnecessary, which leads to
 
 | VibLevelJ |
 |-----------|
@@ -88,10 +80,9 @@ Otherwise the differences are displayed and it is possible to select which data 
     2 to save attributes from https://atct.anl.gov/Thermochemical%20Data/version%201.130 or
     3 to exit program here
 
+The second mode `2 add new data to existing species` can be used to add new attributes to a species in the database. This can be useful when additional parameters are needed for a newly implemented model. The species can be provided by a comma-separated string, e.g. Fe,H2. The excitation states are read in as well and new data can be added here, if no vibrational or rotational states were found. Afterwards all existing attributes are displayed and the name of the new attribute(s) can be entered. If the attribute already exists, it can be overwritten with the new value. To keep consistency with newly added parameters, the datatype (e.g. integer, float, str, ...) of the given parameter needs to be added to the specified as well and is then saved to the config.py file.
 
-The second mode can be used to add new attributes to a species in the database. This can be useful when additional parameters are needed for a new implemented model. The species can be provided by a comma-separated string, e.g. Fe,H2. The excitation states are read in aswell and new data can be added here, if no vibrational or rotational states were found. Afterwards all existing attributes are displayed and the name of the new attribute(s) can be entered. If the attribute already exists, it can be overwritten with the new value. To keep consistancy with newly added parameters, the datatype (e.g. integer, float, str, ...) of the given parameter needs to be added to the specified aswell and is then saved to the config.py file.
-
-The third mode is used to add new species to the database. Which attributes are needed is decided by the name of the species, which needs to be given as input. All attributes which cannot be used from other databases or references, but are needed for the new species (e.g. characteristic temperature(s) for polyatomic species) have to be provided as user input.
+The third mode `3 add new species` is used to add new species to the database. The attributes that are needed is decided by the name of the species, which needs to be given as input. All attributes which cannot be used from other databases or references, but are needed for the new species (e.g. characteristic temperature(s) for polyatomic species) have to be provided as user input.
 
 The script can be executed by providing the species as arguments
 
@@ -99,7 +90,7 @@ The script can be executed by providing the species as arguments
 
 to limit the check to these species.
 
-The other options follow the same logic. If no species is given with the --species argument, the species to add should be input comma seperated string, e.g. `Fe,Ar,H,CIon1,CIon2,C`.
+The other options follow the same logic. If no species is given with the --species argument, the species to add should be input comma separated string, e.g. `Fe,Ar,H,CIon1,CIon2,C`.
 
 
 (sssec:tools-maintain-database-reaction)=
@@ -132,7 +123,7 @@ Currently there are the following options to choose from
     3 to skip this reaction  or
     4 to exit program
 
-When adding a new reaction some parameters such as the reaction model and chemistry model need to be set per user input. Other parameters such as the reactants and products are constructed from the reaction name or if the non reactive species need to be set as well.
+When adding a new reaction some parameters such as the reaction model and chemistry model need to be set per user input. Other parameters such as the reactants and products are constructed from the reaction name or if the non-reactive species need to be set as well.
 
 The 'delete reactions' option will expect a list of reactions as comma separated string, e.g. `C+N_CNIon1+electron,C2+M_C+M+C`. If there is only one reaction in the database the reaction will be deleted and if there is more than one reaction stored in the database all reactions will be displayed like shown above. To choose which of the listed reactions should be deleted the number(s) of the reaction(s) to delete have to be entered as comma separated string, e.g. `1,2,3`.
 

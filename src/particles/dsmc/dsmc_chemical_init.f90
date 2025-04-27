@@ -141,7 +141,6 @@ USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcPartitionFunction
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcXiVib
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions

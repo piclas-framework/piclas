@@ -23,8 +23,6 @@ exchange (by default including the rotational and vibrational energy treatment).
 the parameters for the internal energy exchange (Section {ref}`sec:DSMC-relaxation`) and chemical reactions (Section
 {ref}`sec:DSMC-chemistry`).
 
-
-
 A fixed ("manual") simulation time step $\Delta t$ is defined by
 
     ManualTimeStep = 1.00E-7
@@ -116,14 +114,14 @@ The AHO model can be enabled using
 
     Particles-DSMC-Vib-Anharmonic = TRUE
 
-It is only implemented for diatomic molecular species until now and cannot be combined with chemical reactions. PICLas utilizes a species database, which contains the AHO vibrational energy levels and spectroscopy constants $\omega_\mathrm{E}$ and $\chi_\mathrm{E}$ of the species and is located in the top folder `SpeciesDatabase.h5`. Details regarding the database can be found in Section {ref}`sec:unified-species-database`. To start the simulation without the species database, the following parameters are required
+It is only implemented for diatomic molecular species until now and cannot be combined with chemical reactions. PICLas utilizes a species database, which contains the AHO vibrational energy levels and spectroscopy constants $\omega_\mathrm{E}$ and $\chi_\mathrm{E}$ of the species and is located in the top folder `SpeciesDatabase.h5`. Details regarding the database can be found in Section {ref}`sec:unified-species-database`. Although not recommended, to start the simulation without the species database, the following parameters are required
 
     Part-Species1-Vib-Anharmonic-omegaE = 167174.0
     Part-Species1-Vib-Anharmonic-chiE = 0.009825092
 
-A list of the anharmonic energy levels (in Joule), including the zero-point energy as first level, can be included via
+A comma-separated list of the anharmonic energy levels (in Joule), including the zero-point energy as first level, can be included via
 
-    Particles-DSMC-Vib-Anharmonic-Species1-Data = DSMCSpecies_AHO_vibrational_data.h5
+    Particles-DSMC-Vib-Anharmonic-Species1-Data = DSMCSpecies_AHO_vibrational_data.csv
 
 (sec:DSMC-collision)=
 ## Pairing & Collision Modelling
@@ -226,9 +224,9 @@ It is not recommended to use this model with the prohibiting double-relaxation s
 If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used, which is currently only implemented for nitrogen. A relaxation probability of 4 enables the model of Boyd, which is specifically constructed for hydrogen {cite}`Boyd1994`.
 However, both of these models are not tested yet and not recommended for use.
 
-For simulations involving low temperatures relative to the characteristic rotational temperatures of the species, it is possible to activate a quantized treatment of rotational degrees of freedom with DSMC. This feature is enables with 
+For simulations involving low temperatures relative to the characteristic rotational temperatures of the species, it is possible to activate a quantized treatment of rotational degrees of freedom with DSMC. This feature is enables with
 
-    Particles-DSMC-RotationalRelaxModel = 1 
+    Particles-DSMC-RotationalRelaxModel = 1
 
 This model requires the moments of inertia ($kgm^{2}$) for each species, which can be provided either through the unified species database or defined with
 
@@ -239,8 +237,8 @@ for linear and spherical molecules since all moments of inertia are equal. For s
     Part-Species1-MomentOfInertia1 = 2.939e-47
     Part-Species1-MomentOfInertia2 = 5.878e-47
 
-Moment of ineratia data can be retrieved from the [Nist database](https://cccbdb.nist.gov) {cite}`CCCBDB-web-page`.
-Please note that the quantized model has not yet been implemented for asymmetric top molecules. Additionally, it is not currently available for coupled simulations using BGK or Fokker-Planck models.
+Moment of inertia data can be retrieved from the [NIST database](https://cccbdb.nist.gov) {cite}`CCCBDB-web-page`.
+Please note that the quantized model has not yet been implemented for asymmetric top molecules. Additionally, it is currently not available for coupled simulations using BGK or Fokker-Planck models.
 
 ### Vibrational Relaxation
 
@@ -287,7 +285,7 @@ This model is extended to more species by calculating a separate probability for
 probability is set by calculating $\mathrm{INT}(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell by
 using an instantaneous translational cell temperature.
 
-The relaxation model of Bird {cite}`Bird1994` can be activated with `VibRelaxProb = 3`. With this, the relaxation probabilities are calculated from a collision temperature and the dissociation temperature, which also sets a limit for the quantum number. For each species pair containing a diatomic molecule, the following parameters are required for each diatomic species, which can also be found in {cite}`Carlson1994`. The parameters for N$_2$-N are shown as an example:
+The relaxation model of Bird {cite}`Bird1994` can be activated with `VibRelaxProb = 3`. With this, the relaxation probabilities are calculated from a collision temperature and the dissociation temperature, which sets a limit for the quantum number. For each species pair containing a diatomic molecule, the following parameters are required for each diatomic species, which can be found in {cite}`Carlson1994`. The parameters for N$_2$-N are shown as an example:
 
     Part-Species1-1-VibConstant-C1 = 9.1
     Part-Species1-2-VibConstant-C1 = 1800.0

@@ -2166,7 +2166,7 @@ SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
-USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC
+USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC, AHO, DSMC
 USE MOD_Particle_Vars       ,ONLY: Species
 
 ! IMPLICIT VARIABLE HANDLING
@@ -2180,8 +2180,8 @@ REAL, INTENT(IN)            :: Temp
 REAL, INTENT(OUT)           :: Qtra, Qrot, Qvib, Qelec
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                     :: iPolyatMole, iDOF
-REAL                        :: TempRatio
+INTEGER                     :: iPolyatMole, iDOF, iQuant
+REAL                        :: TempRatio, VibPartition
 !===================================================================================================================================
 
 Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
@@ -2205,9 +2205,17 @@ IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     END DO
   ELSE
     Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
-    TempRatio = SpecDSMC(iSpec)%CharaTVib/Temp
-    IF(CHECKEXP(TempRatio)) THEN
-      Qvib = 1. / (1. - EXP(-TempRatio))
+    IF(DSMC%VibAHO) THEN ! AHO
+      VibPartition = 0.
+      DO iQuant = 1, AHO%NumVibLevels(iSpec)
+        VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * Temp))
+      END DO
+      Qvib = VibPartition
+    ELSE ! SHO
+      TempRatio = SpecDSMC(iSpec)%CharaTVib/Temp
+      IF(CHECKEXP(TempRatio)) THEN
+        Qvib = 1. / (1. - EXP(-TempRatio))
+      END IF
     END IF
   END IF
 END IF
