@@ -197,7 +197,7 @@ INTEGER                          :: n, NodeID
 REAL                             :: Px, Py, Pz
 REAL                             :: Vx, Vy, Vz
 REAL                             :: xNode(3), yNode(3), zNode(3), Ax(3), Ay(3), Az(3)
-REAL                             :: det(3), minComp(3)
+REAL                             :: det(3), minComp(3), detComp(3,3)
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(Element)
@@ -254,16 +254,23 @@ ELSE
 END IF
 !--- check whether v and the vectors from the particle to the two edge nodes build
 !--- a right-hand-system. If yes for all edges: vector goes potentially through side
-det(1) = (Ay(1) * Vz - Az(1) * Vy) * Ax(3)  + (Az(1) * Vx - Ax(1) * Vz) * Ay(3)  + (Ax(1) * Vy - Ay(1) * Vx) * Az(3)
-det(2) = (Ay(2) * Vz - Az(2) * Vy) * Ax(1)  + (Az(2) * Vx - Ax(2) * Vz) * Ay(1)  + (Ax(2) * Vy - Ay(2) * Vx) * Az(1)
-det(3) = (Ay(3) * Vz - Az(3) * Vy) * Ax(2)  + (Az(3) * Vx - Ax(3) * Vz) * Ay(2)  + (Ax(3) * Vy - Ay(3) * Vx) * Az(2)
 
-! calculating the "relative" zero
-minComp(1) = -epsMach*MINVAL((/ABS((Ay(1) * Vz - Az(1) * Vy) * Ax(3)),ABS((Az(1) * Vx - Ax(1) * Vz) * Ay(3)),ABS((Ax(1) * Vy - Ay(1) * Vx) * Az(3))/),MASK=(/ABS((Ay(1) * Vz - Az(1) * Vy) * Ax(3)),ABS((Az(1) * Vx - Ax(1) * Vz) * Ay(3)),ABS((Ax(1) * Vy - Ay(1) * Vx) * Az(3))/).GT.0.0)
-minComp(2) = -epsMach*MINVAL((/ABS((Ay(2) * Vz - Az(2) * Vy) * Ax(1)),ABS((Az(2) * Vx - Ax(2) * Vz) * Ay(1)),ABS((Ax(2) * Vy - Ay(2) * Vx) * Az(1))/),MASK=(/ABS((Ay(2) * Vz - Az(2) * Vy) * Ax(1)),ABS((Az(2) * Vx - Ax(2) * Vz) * Ay(1)),ABS((Ax(2) * Vy - Ay(2) * Vx) * Az(1))/).GT.0.0)
-minComp(3) = -epsMach*MINVAL((/ABS((Ay(3) * Vz - Az(3) * Vy) * Ax(2)),ABS((Az(3) * Vx - Ax(3) * Vz) * Ay(2)),ABS((Ax(3) * Vy - Ay(3) * Vx) * Az(2))/),MASK=(/ABS((Ay(3) * Vz - Az(3) * Vy) * Ax(2)),ABS((Az(3) * Vx - Ax(3) * Vz) * Ay(2)),ABS((Ax(3) * Vy - Ay(3) * Vx) * Az(2))/).GT.0.0)
+! storing components of the determinant calculation as vectors for later calculation of the minimum value
+detComp(1,1:3) = (/(Ay(1) * Vz - Az(1) * Vy) * Ax(3),(Az(1) * Vx - Ax(1) * Vz) * Ay(3),(Ax(1) * Vy - Ay(1) * Vx) * Az(3)/)
+detComp(2,1:3) = (/(Ay(2) * Vz - Az(2) * Vy) * Ax(1),(Az(2) * Vx - Ax(2) * Vz) * Ay(1),(Ax(2) * Vy - Ay(2) * Vx) * Az(1)/)
+detComp(3,1:3) = (/(Ay(3) * Vz - Az(3) * Vy) * Ax(2),(Az(3) * Vx - Ax(3) * Vz) * Ay(2),(Ax(3) * Vy - Ay(3) * Vx) * Az(2)/)
 
-! Comparison of the determinants with eps due to machine precision
+! calculation of the determinant
+det(1) = SUM(detComp(1,:))
+det(2) = SUM(detComp(2,:))
+det(3) = SUM(detComp(3,:))
+
+! calculating the "relative" zero by determining the smallest non-zero value of the components and multiplying by machine precision
+minComp(1) = -epsMach*MINVAL(ABS(detComp(1,1:3)),MASK=ABS(detComp(1,1:3)).GT.0.0)
+minComp(2) = -epsMach*MINVAL(ABS(detComp(2,1:3)),MASK=ABS(detComp(2,1:3)).GT.0.0)
+minComp(3) = -epsMach*MINVAL(ABS(detComp(3,1:3)),MASK=ABS(detComp(3,1:3)).GT.0.0)
+
+! comparison of the determinants with previously determined relative zero
 IF ((det(1).GE.minComp(1)).AND.(det(2).GE.minComp(2)).AND.(det(3).GE.minComp(3))) THEN
   ThroughSide = .TRUE.
 END IF
