@@ -393,13 +393,13 @@ IF(GEO%InitFIBGM) THEN
       CASE(1)
         SymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
       END SELECT
-      IF(GEO%FIBGMdeltas(1).GE.GEO%xmaxglob-GEO%xminglob) THEN
+      IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(1),GEO%xmaxglob-GEO%xminglob)) THEN
         SymmetryVec(1) = .FALSE.
       END IF
-      IF(GEO%FIBGMdeltas(2).GE.GEO%ymaxglob-GEO%yminglob) THEN
+      IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(2),GEO%ymaxglob-GEO%yminglob)) THEN
         SymmetryVec(2) = .FALSE.
       END IF
-      IF(GEO%FIBGMdeltas(3).GE.GEO%zmaxglob-GEO%zminglob) THEN
+      IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(3),GEO%zmaxglob-GEO%zminglob)) THEN
         SymmetryVec(3) = .FALSE.
       END IF
       PseudoSymmetryOrder = COUNT(SymmetryVec)
