@@ -637,12 +637,13 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
 
 ! 4.2.4.3) ZeroPotential
-IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) THEN
-  ZeroPotentialDOF = OffsetGlobalPETScDOF(ZeroPotentialSide)
-END IF
+ZeroPotentialDOF = -1
+IF(nDirichletBCsidesGlobal==0) THEN
+  IF(mpiRoot) ZeroPotentialDOF = OffsetGlobalPETScDOF(ZeroPotentialSide)
 #if USE_MPI
   CALL MPI_BCAST(ZeroPotentialDOF,1,MPI_INTEGER,0,MPI_COMM_PICLAS,IERROR)
 #endif
+END IF
 
 ! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
 DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
