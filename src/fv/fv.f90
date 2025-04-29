@@ -50,7 +50,8 @@ CONTAINS
 
 SUBROUTINE InitFV()
 !===================================================================================================================================
-! Allocate global variable U_FV (solution) and Ut_FV (FV time derivative).
+! Allocate global variable U_FV (finite volume solution) and Ut_FV (FV time derivative).
+! Call gradient initialization
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -126,8 +127,16 @@ END SUBROUTINE InitFV
 
 SUBROUTINE FV_main(t,tStage,doSource)
 !===================================================================================================================================
-! Computes the FV time derivative
-! U_FV and Ut_FV are allocated
+! Computes the time derivative Ut_FV using Finite Volumes with linear reconstruction
+!> 1.) Gradient computation (MPI communications included)
+!> 1.b) (drift-diffusion only) Add averaged E field to the solution vector
+!> 2.) Prolongation to the faces and communication
+!>>  A.) Particle communication
+!> 3.) Side-based fluxes computation and communication
+!> 4.) Sum up fluxes per element, add to Ut and communication
+!> 5.) Swap to right sign and divide by element volume
+!> 6.) Add potential source term
+!>>  B.) Particle communication
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -180,7 +189,7 @@ REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-! Compute the FV solution gradients (LB times are measured inside GetGradients)
+!> 1.) Compute the FV solution gradients (LB times are measured inside GetGradients)
 CALL GetGradients(U_FV(:,0,0,0,:),output=.FALSE.) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
 
 #if USE_LOADBALANCE
@@ -188,6 +197,7 @@ CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 #ifdef drift_diffusion
+!> 1.b) Add averaged E field to the solution vector
 U_DD(:,:,:,:,:) = 0.
 DO ElemID = 1, PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
@@ -204,7 +214,7 @@ ASSOCIATE(  PP_nVar_tmp => PP_nVar_FV, &
             U_tmp => U_FV)
 #endif
 
-! prolong the solution to the faces by applying reconstruction gradients
+!> 2.) prolong the solution to the faces by applying reconstruction gradients
 #if USE_MPI
 ! Prolong to face for MPI sides - send direction
 #if USE_LOADBALANCE
@@ -231,6 +241,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
 CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.FALSE.) !not working
 
+!> A.) Send particles
 #if USE_MPI
 #if defined(PARTICLES) && defined(LSERK)
 IF (time.GE.DelayTime) THEN
@@ -259,7 +270,7 @@ CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 
 END ASSOCIATE
 
-! Initialization of the time derivative
+!> 3.) Compute the fluxes
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
 CALL StartReceiveMPIDataFV(PP_nVar_FV,Flux_Slave_FV(:,0,0,:),1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
 #if USE_LOADBALANCE
@@ -280,7 +291,8 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 ! fill the all surface fluxes on this proc
 CALL FillFlux(t,Flux_Master_FV,Flux_Slave_FV,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
 CALL Flux_Mortar(Flux_Master_FV,Flux_Slave_FV,doMPISides=.FALSE.)
-! compute surface integral contribution and add to ut
+
+!> 4.) Compute surface integral contribution and add to ut
 CALL SurfInt(Flux_Master_FV,Flux_Slave_FV,Ut_FV,doMPISides=.FALSE.)
 
 #if USE_MPI
@@ -301,7 +313,7 @@ CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 #endif
 
-! Swap to right sign and divide by element volume (1/sJ)
+!> 5.) Swap to right sign and divide by element volume (1/sJ)
 ! CALL ApplyJacobian(Ut_FV,toPhysical=.TRUE.,toSwap=.TRUE.)
 DO iElem=1,PP_nElems
 #if USE_MPI && defined(PARTICLES)
@@ -312,13 +324,14 @@ DO iElem=1,PP_nElems
   Ut_FV(:,:,:,:,iElem)=-Ut_FV(:,:,:,:,iElem)/ElemVolume_Shared(CNElemID)
 END DO
 
-! Add Source Terms
+!> 6.) Add Source Terms
 IF(doSource) CALL CalcSource_FV(tStage,1.0,Ut_FV)
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
+!> B.) Receive particles
 #if defined(PARTICLES) && defined(LSERK)
 #if USE_MPI
 IF (time.GE.DelayTime) THEN
@@ -335,7 +348,7 @@ END SUBROUTINE FV_main
 
 SUBROUTINE FillIni()
 !===================================================================================================================================
-! Add comments please!
+! Fills the initial solution U_FV with the initial condition
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -364,7 +377,7 @@ END SUBROUTINE FillIni
 
 SUBROUTINE FinalizeFV()
 !===================================================================================================================================
-! Deallocate global variable U_FV (solution) and Ut_FV (dg time derivative).
+! Deallocate global variable U_FV (solution) and Ut_FV (fv time derivative).
 !===================================================================================================================================
 ! MODULES
 USE MOD_FV_Vars

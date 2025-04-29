@@ -13,9 +13,6 @@
 #include "piclas.h"
 
 MODULE MOD_Equation_FV
-!===================================================================================================================================
-! Add comments please!
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -63,7 +60,7 @@ CALL prms%CreateRealArrayOption('RefState-FV',     "State(s) in primitive variab
 END SUBROUTINE DefineParametersEquation
 
 !==================================================================================================================================
-!> Read equation parameters (advection velocity, diffusion coeff, exact function)  from the ini file
+!> Read equation parameters from the ini file
 !==================================================================================================================================
 SUBROUTINE InitEquation()
 ! MODULES
@@ -168,7 +165,7 @@ END SUBROUTINE ExactFunc
 
 SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Source term for the FV solver: ionization
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc

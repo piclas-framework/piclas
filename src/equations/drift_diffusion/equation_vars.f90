@@ -12,7 +12,7 @@
 !==================================================================================================================================
 MODULE MOD_Equation_Vars_FV
 !===================================================================================================================================
-! Contains the constant Advection Velocity Vector used for the linear scalar advection equation
+! Contains the variables for the drift-diffusion equation
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

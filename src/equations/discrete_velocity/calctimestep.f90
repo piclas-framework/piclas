@@ -33,7 +33,7 @@ CONTAINS
 
 FUNCTION CALCTIMESTEP()
 !===================================================================================================================================
-! Calculate the time step for the current update of U for the Euler-Equations
+! Calculate the time step for the current update of U for DVM
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals

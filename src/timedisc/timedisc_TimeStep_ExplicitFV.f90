@@ -31,7 +31,7 @@ CONTAINS
 
 SUBROUTINE TimeStep_ExplicitFV()
 !===================================================================================================================================
-! Second-order explicit timestep with finite volumes
+! Explicit timestep with finite volumes
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -92,6 +92,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
 IF ((IniExactFunc_FV.EQ.3).AND.(iter.EQ.0)) CALL InsertNewIons(init=IniExactFunc_FV)
 #endif /*PARTICLES*/
 
+! Electric field calculation
 #if USE_HDG
 CALL HDG(time,U,iter)
 #endif
@@ -181,6 +182,7 @@ END IF
 
 #endif /*PARTICLES*/
 
+! Calculation of the electron density time derivative
 CALL FV_main(time,time,doSource=.TRUE.)
 
 #ifdef PARTICLES
@@ -192,6 +194,7 @@ IF (time.GE.DelayTime) THEN
     CALL DSMC_main()
   END IF
 
+  ! Particle emission for ionization
   CALL InsertNewIons()
 
   ! Split & Merge: Variable particle weighting
@@ -199,8 +202,10 @@ IF (time.GE.DelayTime) THEN
 END IF
 #endif /*PARTICLES*/
 
+! Electron density update
 U_FV = U_FV + Ut_FV*dt
 
+! Prevent negative densities
 DO iElem=1,PP_nElems
   U_FV(1,0,0,0,iElem) = MAX(U_FV(1,0,0,0,iElem),0.)
 END DO

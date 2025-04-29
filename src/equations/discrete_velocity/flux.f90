@@ -15,6 +15,7 @@
 MODULE MOD_Flux
 !===================================================================================================================================
 ! Contains the routine EvalFlux3D which computes the complete flux f,g,h for all DOFs in one Element: used in volume integral
+! Only useful for DVM with DG
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

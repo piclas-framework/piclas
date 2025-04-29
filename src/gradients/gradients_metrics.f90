@@ -14,8 +14,7 @@
 
 MODULE MOD_Gradient_Metrics
 !===================================================================================================================================
-! Contains the initialization of the DG global variables
-! Computes the different DG spatial operators/residuals(Ut) using U
+! Contains the computation of metrics for least-squares gradient calculation
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -186,7 +185,7 @@ DO ElemID = 1, nElems
     END IF
   END DO
 
-
+! Boundary elements
   IF (BCelem) THEN
     singleDir = 0
     dblDir1 = 0
