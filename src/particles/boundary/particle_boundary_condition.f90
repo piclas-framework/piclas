@@ -488,7 +488,6 @@ USE MOD_DSMC_Vars               ,ONLY: CollisMode, useDSMC, PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: PDM,InterPlanePartNumber, InterPlanePartIndx
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, LastPartVeloRotRef
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
-USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/
