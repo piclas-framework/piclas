@@ -83,6 +83,7 @@ TYPE tParticleWeighting
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
   LOGICAL                     :: UseCellAverage
+  LOGICAL                     :: UseSubdivision
   INTEGER                     :: nSubSides
   INTEGER, ALLOCATABLE        :: PartInsSide(:)
   INTEGER                     :: CloneVecLength

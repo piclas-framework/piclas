@@ -209,6 +209,8 @@ SELECT CASE(iPType)
     CALL Abort(__STAMP__,'ERROR in DSMC_collis: Wrong iPType case! = ',iPType)
 END SELECT
 
+! Check for NaN values only in Debug mode
+#if USE_DEBUG
 IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)iPair,'in',iElem,'is NaN!'
   IPWRITE(UNIT_errOut,*) '-----1.PartState--of--',iPart_p1,'-----------'
@@ -217,6 +219,8 @@ IF (ISNAN(Coll_pData(iPair)%Prob)) THEN
   IPWRITE(UNIT_errOut,*)PartState(1:6,iPart_p2)
   CALL Abort(__STAMP__,'Collision probability is NaN! CRela:',RealInfoOpt=SQRT(Coll_pData(iPair)%CRela2))
 END IF
+#endif /*USE_DEBUG*/
+
 IF(DSMC%CalcQualityFactors) THEN
   CollProb = Coll_pData(iPair)%Prob
   DSMC%CollProbMax = MAX(CollProb, DSMC%CollProbMax)
