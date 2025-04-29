@@ -216,7 +216,6 @@ REAL                           :: StartT,EndT ! Timer
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
 INTEGER                        :: nFIBGMElems, nFIBGMElems_target, iDim, PseudoSymmetryOrder
-LOGICAL                        :: SymmetryVec(3)
 !===================================================================================================================================
 
 #if USE_MPI
@@ -387,22 +386,22 @@ IF(GEO%InitFIBGM) THEN
 
       SELECT CASE(Symmetry%Order)
       CASE(3)
-        SymmetryVec = .TRUE.
+        GEO%FIBGMSymmetryVec = .TRUE.
       CASE(2)
-        SymmetryVec = (/ .TRUE., .TRUE., .FALSE. /)
+        GEO%FIBGMSymmetryVec = (/ .TRUE., .TRUE., .FALSE. /)
       CASE(1)
-        SymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
+        GEO%FIBGMSymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
       END SELECT
       IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(1),GEO%xmaxglob-GEO%xminglob)) THEN
-        SymmetryVec(1) = .FALSE.
+        GEO%FIBGMSymmetryVec(1) = .FALSE.
       END IF
       IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(2),GEO%ymaxglob-GEO%yminglob)) THEN
-        SymmetryVec(2) = .FALSE.
+        GEO%FIBGMSymmetryVec(2) = .FALSE.
       END IF
       IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(3),GEO%zmaxglob-GEO%zminglob)) THEN
-        SymmetryVec(3) = .FALSE.
+        GEO%FIBGMSymmetryVec(3) = .FALSE.
       END IF
-      PseudoSymmetryOrder = COUNT(SymmetryVec)
+      PseudoSymmetryOrder = COUNT(GEO%FIBGMSymmetryVec)
 
       ! Scale GEO%FIBGMdeltas1 to have about sqrt(1000) * nglobalElems in total in 3D
       ! Use the values of FIBGMdeltas1 because they do not have the minimum size of the elements included
@@ -410,9 +409,9 @@ IF(GEO%InitFIBGM) THEN
       nFIBGMElems = CEILING((GEO%xmaxglob-GEO%xminglob)/FIBGMdeltas1(1)*(GEO%ymaxglob-GEO%yminglob)/FIBGMdeltas1(2)*(GEO%zmaxglob-GEO%zminglob)/FIBGMdeltas1(3))
       a = (REAL(nFIBGMElems)/REAL(nFIBGMElems_target))**(1./Symmetry%Order)
 
-      IF(SymmetryVec(1)) GEO%FIBGMdeltas(1) = FIBGMdeltas1(1)*a
-      IF(SymmetryVec(2)) GEO%FIBGMdeltas(2) = FIBGMdeltas1(2)*a
-      IF(SymmetryVec(3)) GEO%FIBGMdeltas(3) = FIBGMdeltas1(3)*a
+      IF(GEO%FIBGMSymmetryVec(1)) GEO%FIBGMdeltas(1) = FIBGMdeltas1(1)*a
+      IF(GEO%FIBGMSymmetryVec(2)) GEO%FIBGMdeltas(2) = FIBGMdeltas1(2)*a
+      IF(GEO%FIBGMSymmetryVec(3)) GEO%FIBGMdeltas(3) = FIBGMdeltas1(3)*a
 
       ! Needed for periodic vectors
       GEO%FIBGMdeltas(1) = MIN(GEO%FIBGMdeltas(1),GEO%xmaxglob-GEO%xminglob)
@@ -427,6 +426,7 @@ IF(GEO%InitFIBGM) THEN
 ELSE
   LBWRITE(UNIT_stdOut,'(A)') ' | FIBGM not built, if you want to force the build set "Part-ForceFIBGM" to true'
   GEO%AutomaticFIBGM=.FALSE.
+  GEO%FIBGMSymmetryVec = .TRUE. ! Prevent maybe future errors in setting this variable
 END IF
 ! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
 CALL InitPeriodicBC()
@@ -463,21 +463,23 @@ IF(GEO%InitFIBGM) THEN
   ! Determined by Symmetry%Order and if only 1 FIBGM-Element in one spatial direction
   SELECT CASE(Symmetry%Order)
   CASE(3)
-    SymmetryVec = .TRUE.
+    GEO%FIBGMSymmetryVec = .TRUE.
   CASE(2)
-    SymmetryVec = (/ .TRUE., .TRUE., .FALSE. /)
+    GEO%FIBGMSymmetryVec = (/ .TRUE., .TRUE., .FALSE. /)
   CASE(1)
-    SymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
+    GEO%FIBGMSymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
   END SELECT
   IF(BGMimaxglob - BGMiminglob + 1.EQ.1) THEN
-    SymmetryVec(1) = .FALSE.
+    GEO%FIBGMSymmetryVec(1) = .FALSE.
   END IF
   IF(BGMjmaxglob - BGMjminglob + 1.EQ.1) THEN
-    SymmetryVec(2) = .FALSE.
+    GEO%FIBGMSymmetryVec(2) = .FALSE.
   END IF
   IF(BGMkmaxglob - BGMkminglob + 1.EQ.1) THEN
-    SymmetryVec(3) = .FALSE.
+    GEO%FIBGMSymmetryVec(3) = .FALSE.
   END IF
+
+  SWRITE(*,*) "GEO%FIBGMSymmetryVec: ",GEO%FIBGMSymmetryVec
 
 #if USE_MPI
   CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
@@ -493,7 +495,7 @@ IF(GEO%InitFIBGM) THEN
   DO iElem = firstElem, lastElem
     ! Flag elements depending on radius
     DO iDim=1,3
-      IF(SymmetryVec(iDim)) THEN
+      IF(GEO%FIBGMSymmetryVec(iDim)) THEN
         origin(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,iElem)+BoundsOfElem_Shared(2,iDim,iElem))
       ELSE
         origin(iDim) = 0.0
@@ -503,7 +505,7 @@ IF(GEO%InitFIBGM) THEN
     radius    = CONDVECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
                                 BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
                                 BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2. &
-                                ,SymmetryVec)
+                                ,GEO%FIBGMSymmetryVec)
 
     xmin = origin(1) - radius
     xmax = origin(1) + radius
@@ -628,7 +630,7 @@ ELSE
   globalDiag    = CONDVECNORM ((/ GEO%xmaxglob-GEO%xminglob, &
                                   GEO%ymaxglob-GEO%yminglob, &
                                   GEO%zmaxglob-GEO%zminglob /) &
-                                  ,SymmetryVec)
+                                  ,GEO%FIBGMSymmetryVec)
   IF(halo_eps.GT.globalDiag)THEN
     CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
     LBWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
@@ -649,7 +651,7 @@ DO iElem = firstElem, lastElem
   maxCellRadius = MAX(maxCellRadius,CONDVECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
                                                    BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
                                                    BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2., &
-                                                   SymmetryVec))
+                                                   GEO%FIBGMSymmetryVec))
 END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
@@ -848,7 +850,7 @@ ELSE
 
       ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
       DO iDim=1,3
-        IF(SymmetryVec(iDim)) THEN
+        IF(GEO%FIBGMSymmetryVec(iDim)) THEN
           MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
         ELSE
           MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.0
@@ -858,7 +860,7 @@ ELSE
       MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                                                          BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                                                          BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
-                                                                         SymmetryVec)
+                                                                         GEO%FIBGMSymmetryVec)
     END IF
   END DO
 
@@ -887,7 +889,7 @@ ELSE
     ElemInsideHalo = .FALSE.
 
     DO iDim=1,3
-      IF(SymmetryVec(iDim)) THEN
+      IF(GEO%FIBGMSymmetryVec(iDim)) THEN
         BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
       ELSE
         BoundsOfElemCenter(iDim) = 0.0
@@ -897,7 +899,7 @@ ELSE
     BoundsOfElemCenter(4) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
                                             BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
                                             BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
-                                            SymmetryVec)
+                                            GEO%FIBGMSymmetryVec)
     DO iElem = 1, nComputeNodeBorderElems
       ! compare distance of bounding boxes along each direction
       ! CartBox(1) = BoundsOfElem_Shared(1,1,ElemID)
