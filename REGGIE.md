@@ -296,18 +296,17 @@ Testing more complex DSMC routines with reservoir (heat bath) simulations: [Link
 
 Testing of different tracking routines with DSMC: [Link to build](regressioncheck/NIG_tracking_DSMC/builds.ini).
 
-| **No.** |      **Case**       | **CMAKE-CONFIG** | **Feature**                                                  |                 **Execution**                  |          **Comparing**           |                               **Readme**                                |
-| :-----: | :-----------------: | :--------------: | :----------------------------------------------------------- | :--------------------------------------------: | :------------------------------: | :---------------------------------------------------------------------: |
-|    1    |      ANSA box       |                  |                                                              | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |                                                                         |
-|    2    |       curved        |                  |                                                              |          DoRefMapping=T  , nProcs=1,2          | PartInt with relative tolerance  |                                                                         |
-|    3    |       mortar        |                  |                                                              | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |                                                                         |
-|    4    |   mortar_hexpress   |                  | Mortar mesh built with HEXPRESS                              |           TriaTracking=T; nProcs=2,4           |             PartInt              |                                                                         |
-|    5    |      periodic       |                  |                                                              |       DoRefMapping=T,F, nProcs=1,2,5,10        | PartInt, PartPos in bounding box |                                                                         |
-|    6    |   periodic_2cells   |                  |                                                              |  DoRefMapping=T,F;TriaTracking=T,F, nProcs=1   |     PartPos in bounding box      |                                                                         |
-|    7    |     semicircle      |                  |                                                              |          DoRefMapping=T,F, nProcs=1,2          |     PartPos in bounding box      |                                                                         |
-|    8    |     sphere_soft     |                  |                                                              | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2  |     PartPos in bounding box      |                                                                         |
-|   11    | 2D_VTS_Distribution |                  | Restart with a DSMCState to calculate the variable time step |                                                |            PartState             | [Link](regressioncheck/NIG_tracking_DSMC/2D_VTS_Distribution/readme.md) |
-|   12    | Macroscopic_Restart |                  | Restart with a DSMCState with an increased weighting factor  |                                                |      Total particle number       | [Link](regressioncheck/NIG_tracking_DSMC/Macroscopic_Restart/readme.md) |
+|    **Case**     | **CMAKE-CONFIG** | **Feature**                     |                 **Execution**                  |          **Comparing**           | **Readme** |
+| :-------------: | :--------------: | :------------------------------ | :--------------------------------------------: | :------------------------------: | :--------: |
+|    ANSA box     |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
+|     curved      |                  |                                 |          DoRefMapping=T  , nProcs=1,2          | PartInt with relative tolerance  |            |
+|     mortar      |                  |                                 | DoRefMapping=T,F; TriaTracking=F,T; nProcs=1,2 | PartInt, PartPos in bounding box |            |
+| mortar_hexpress |                  | Mortar mesh built with HEXPRESS |           TriaTracking=T; nProcs=2,4           |             PartInt              |            |
+|    periodic     |                  |                                 |       DoRefMapping=T,F, nProcs=1,2,5,10        | PartInt, PartPos in bounding box |            |
+| periodic_2cells |                  |                                 |  DoRefMapping=T,F;TriaTracking=T,F, nProcs=1   |     PartPos in bounding box      |            |
+|   semicircle    |                  |                                 |          DoRefMapping=T,F, nProcs=1,2          |     PartPos in bounding box      |            |
+|   sphere_soft   |                  |                                 | DoRefMapping=T;RefMappingGuess=1,3,nProcs=1,2  |     PartPos in bounding box      |            |
+|  tiny_channel   |                  | TriaTracking, nano channel      |                nProcs=1,2,5,10                 |       Number of particles        |            |
 
 ### NIG_SuperB
 
