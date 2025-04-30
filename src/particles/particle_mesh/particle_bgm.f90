@@ -120,7 +120,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2, halo_eps_woshape
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
-USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf
+USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf,dim_sf_dir
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
@@ -622,7 +622,29 @@ ELSE
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet (less than zero)! r_sf=',RealInfoOpt=r_sf)
-    halo_eps = halo_eps + r_sf
+    SELECT CASE(dim_sf)
+      ! Ensure that all elements in the symmetry direction(s) are in the FIBGM and halo region for lower dimensional shape functions
+    CASE(3)
+      halo_eps = halo_eps + r_sf
+    CASE(2)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,GEO%xmaxglob-GEO%xminglob)
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,GEO%ymaxglob-GEO%yminglob)
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,GEO%zmaxglob-GEO%zminglob)
+      END SELECT
+    CASE(1)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob))
+      END SELECT
+    END SELECT
     CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
   END IF
 
