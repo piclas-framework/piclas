@@ -137,6 +137,8 @@ DoLinearWeighting = .FALSE.
 DoCellLocalWeighting = .FALSE.
 ParticleWeighting%PerformCloning = .FALSE.
 ParticleWeighting%EnableOutput = .FALSE.
+ParticleWeighting%UseCellAverage = .FALSE.
+ParticleWeighting%UseSubdivision = .FALSE.
 
 ParticleWeightType = GETINTFROMSTR('Part-Weight-Type')
 
@@ -173,7 +175,8 @@ END IF
 ! Number of subsides to split the surface flux sides into, otherwise a wrong distribution of particles across large cells will be
 ! inserted, visible in the number density as an increase in the number density closer the axis (e.g. resulting in a heat flux peak)
 ! (especially when using mortar meshes)
-IF(Symmetry%Axisymmetric) THEN
+IF(Symmetry%Axisymmetric.AND.ParticleWeighting%PerformCloning.AND..NOT.ParticleWeighting%UseCellAverage) THEN
+  ParticleWeighting%UseSubdivision = .TRUE.
   ParticleWeighting%nSubSides=GETINT('Part-Weight-SurfFluxSubSides')
   ALLOCATE(ParticleWeighting%PartInsSide(ParticleWeighting%nSubSides))
   ParticleWeighting%PartInsSide = 0

@@ -155,6 +155,7 @@ SUBROUTINE RemoveParticle(PartID,BCID,alpha,crossedBC)
 USE MOD_Globals_Vars              ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, usevMPF, PartState, PartPosRef, Pt
 USE MOD_Particle_Vars             ,ONLY: UseRotRefFrame, InRotRefFrame
+USE MOD_Particle_Vars             ,ONLY: PDM, PartSpecies, Species, usevMPF, PartState, PartPosRef, Pt, PartMPF
 USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
@@ -235,18 +236,18 @@ Pt_temp(1:6,PartID)   = 0.
 !   - the mass flow through the boundary shall be calculated or
 !   - the charges impinging on the boundary are to be summed (thruster neutralization)
 IF(PRESENT(BCID)) THEN
-  ! Determine the particle weight
+  ! Determine the particle weight without using the GetParticleWeight function, which includes the time step
   IF(usevMPF) THEN
-    MPF = GetParticleWeight(PartID)
+    MPF = PartMPF(PartID)
   ELSE
-    MPF = GetParticleWeight(PartID) * Species(iSpec)%MacroParticleFactor
+    MPF = Species(iSpec)%MacroParticleFactor
   END IF
   ! Check if adaptive BC or surface flux info
   IF(UseAdaptiveBC.OR.CalcSurfFluxInfo) THEN
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF(Species(iSpec)%Surfaceflux(iSF)%BC.EQ.BCID) THEN
         Species(iSpec)%Surfaceflux(iSF)%SampledMassflow = Species(iSpec)%Surfaceflux(iSF)%SampledMassflow - MPF
-        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + 1
+        IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4)  AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + MPF
       END IF
     END DO
   END IF ! UseAdaptiveBC.OR.CalcSurfFluxInfo
