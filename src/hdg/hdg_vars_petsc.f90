@@ -46,6 +46,7 @@ REAL                :: PETScFieldTime
 INTEGER,ALLOCATABLE :: SmallMortarType(:,:)   !< Type of Mortar side ([1] Type, [2] Side, nSides)
                                               !< [1] Type: mortar type this small side belongs to (1-3)
                                               !< [2] Side: Small side number (1-4)
+INTEGER             :: ZeroPotentialDOF
 #endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 END MODULE MOD_HDG_Vars_PETSc

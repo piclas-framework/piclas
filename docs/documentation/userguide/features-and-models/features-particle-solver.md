@@ -76,10 +76,10 @@ required to fulfil the maximal collision probability criteria will be utilized a
 ### Linear scaling
 
 The second option is to use a linearly increasing time step along a given direction. This option does not require a restart or a
-previous simulation result. Currently, only the increase of the time step along the **x-direction** is implemented. With the start
-point and end point, the region in which the linear increase should be performed can be defined. To define the domain border as
-the end point in maximal x-direction, the vector `(/-99999.,0.0,0.0/)` should be supplied. Finally, the `ScaleFactor` defines the
-maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f \Delta t$.
+previous simulation result. Currently, only a scaling along the three axis is implemented, where the sign additionally defines
+the direction of the scaling. With the start point and end point, the region in which the linear increase should be performed can
+be defined. To define the domain border as the end point in maximal x-direction, the vector `(/-99999.,0.0,0.0/)` should be supplied.
+Finally, the `ScaleFactor` defines the maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f \Delta t$.
 
     Part-VariableTimeStep-LinearScaling = T
     Part-VariableTimeStep-ScaleFactor   = 2
@@ -88,7 +88,7 @@ maximum time step increase towards the end point $\Delta t (x_{\mathrm{end}})=f 
     Part-VariableTimeStep-EndPoint      =  (/-99999.,0.0,0.0/)
 
 Besides DSMC, the linear scaling is available for the BGK and FP method. Finally, specific options for 2D/axisymmetric simulations
-are discussed in Section {ref}`sec:2D-axisymmetric`
+are discussed in Section {ref}`sec:2D-axisymmetric`.
 
 ### Species-specific time step
 
@@ -359,12 +359,6 @@ $$ v^{\mathrm{new}}_{i} = v_{\mathrm{bulk}} + \alpha (v_{i} - v^{\mathrm{new}}_{
 
 Internal degrees of freedom are conserved analogously. In the case of quantized energy treatment (for vibrational and electronic excitation), energy is only conserved over time, where the energy difference (per species and energy type) in each time step due to quantized energy levels is stored and accounted for in the next merge process.
 
-It is important to note that the variable `Part-SpeciesX-vMPFMergeThreshold` is ignored when using cell-local particle emission as
-described in Section {ref}`sec:particle-cell-local` and `Part-SpeciesX-vMPFSplitThreshold` is set. In this case, the splitting
-threshold variable are created in each element.
-will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
-given number density and cell volume.
-
     Part-Species2-vMPFSplitThreshold    = 10
 
 The split routine clones particles until the desired number of particles is reached.
@@ -375,6 +369,8 @@ If the resulting weighting factor would drop below a specific limit that is defi
 
 the split is stopped and the desired number of particles will not be reached.
 The basic functionality of both routines is verified during the nightly regression testing in `piclas/regressioncheck/NIG_code_analyze/vMPF_SplitAndMerge_Reservoir`.
+It is important to note that the variable `Part-SpeciesX-vMPFMergeThreshold` might be initially ignored, when using cell-local particle emission and `Part-SpeciesX-vMPFSplitThreshold` is set, as
+described in Section {ref}`sec:particle-cell-local`. In this case, the split threshold variable will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the given number density and cell volume.
 
 ## Virtual Cell Merge
 
