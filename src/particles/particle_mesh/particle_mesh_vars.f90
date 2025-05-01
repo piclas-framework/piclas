@@ -387,6 +387,7 @@ TYPE tGeometry
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
   REAL, ALLOCATABLE                      :: XMinMax(:,:)                      ! Minimum (1) and maximum (2) xValue of the Element
                                                                               ! Used for 1D (2,nELems)
+  LOGICAL                                :: FIBGMSymmetryVec(3)               ! Symmetry vector for FIBGM
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
