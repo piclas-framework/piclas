@@ -58,28 +58,27 @@ CALL prms%CreateIntOption(      'Particles-DSMC-CollisMode'      &
                                             '2: Relaxation + elastic collisions \n'//&
                                             '3: Mode 2 + chemical reactions.', '1')
 CALL prms%CreateIntOption(      'Particles-DSMC-SelectionProcedure'     &
-                                        , 'Mode of Selection Procedure\n'//&
-                                          '1: Laux\n'//&
-                                          '2: Gimelsheim.', '1')
+                                        , 'Selection procedure for relaxation process\n'//&
+                                          '1: Laux, multiple relaxation processes possible\n'//&
+                                          '2: Gimelshein, prohibiting double/multiple relaxation', '1')
 CALL prms%CreateRealOption(     'Particles-DSMC-RotRelaxProb'&
                                           , 'Define the rotational relaxation probability upon collision of molecules\n'//&
-                                          '0-1: constant\n'//&
+                                          '0-1: constant probability\n'//&
                                           '2: variable, Boyd)', '0.2')
 CALL prms%CreateIntOption(  'Particles-DSMC-RotationalRelaxModel' &
                                         , 'Define model of rotational relaxation handling in DSMC \n'//&
-                                          '0: Continous treatment \n'//&
+                                          '0: Continuous treatment \n'//&
                                           '1: Analytic model + rotational energy levels from unified'//&
                                               'species database only for asymmetric top molecules \n'//&
-                                          '2: rotational energy levels for all species from unified species database\n','0')
+                                          '2: rotational energy levels for all species from unified species database','0')
+CALL prms%CreateIntOption(  'Particles-DSMC-VibrationalRelaxModel' &
+                                        , 'Define model of vibrational relaxation handling in DSMC \n'//&
+                                          '0: Simple harmonic oscillator (SHO) \n'//&
+                                          '1: Anharmonic oscillator (AHO, Morse potential)','0')
 CALL prms%CreateRealOption(     'Particles-DSMC-VibRelaxProb'&
                                           , 'Define the vibrational relaxation probability upon collision of molecules', '0.004')
 CALL prms%CreateRealOption(     'Part-Species[$]-ElecRelaxProb'  &
                                            ,'Define the electronic relaxation probability per species','0.01',numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Particles-DSMC-GammaQuant'&
-                                          , 'Set the GammaQuant for zero point energy in Evib (perhaps also Erot) should be'//&
-                                          ' 0.5 or 0.', '0.5')
-CALL prms%CreateLogicalOption(  'Particles-DSMC-Vib-Anharmonic', &
-                                          'Use anharmonic oscillator model (Morse potential) for vibration' , '.FALSE.')
 CALL prms%CreateStringOption(   'Particles-DSMC-Vib-Anharmonic-Species[$]-Data'&
                                           , 'If vibrational AHO model is used give (relative) path to .csv of database for each'//&
                                           'species', 'none', numberedmulti=.TRUE.)
@@ -357,6 +356,8 @@ LBWRITE(UNIT_stdOut,'(A)') ' DSMC INIT ...'
 ReactionProbGTUnityCounter = 0
 DSMC%NumPolyatomMolecs = 0
 SamplingActive = .FALSE.
+DSMC%VibAHO = .FALSE.
+DSMC%GammaQuant = 0.5
 
 !-----------------------------------------------------------------------------------
 DSMC%ReservoirSimu = GETLOGICAL('Particles-DSMCReservoirSim')
@@ -371,7 +372,8 @@ IF(CollisMode.GE.2) THEN
   DSMC%RotRelaxProb = GETREAL('Particles-DSMC-RotRelaxProb')
   DSMC%VibRelaxProb = GETREAL('Particles-DSMC-VibRelaxProb')
   DSMC%RotRelaxModel = GETINT('Particles-DSMC-RotationalRelaxModel')
-  ! set function pointer for rotational internal energy calculation (no pointer for initial diatomic particle insertion)
+  DSMC%VibRelaxModel = GETINT('Particles-DSMC-VibrationalRelaxModel')
+  ! Rotational relaxation: set function pointer for rotational energy calculation (no pointer for initial diatomic particle insertion)
   IF(DSMC%RotRelaxModel.EQ.1)THEN
     RotRelaxPolyRoutineFuncPTR => DSMC_RotRelaxQuantPoly
     RotInitPolyRoutineFuncPTR  => CalcERotQuant_particle
@@ -386,8 +388,9 @@ IF(CollisMode.GE.2) THEN
     RotInitPolyRoutineFuncPTR  => CalcERot_particle
     RotRelaxDiaRoutineFuncPTR  => DSMC_RotRelaxDiaContinuous
   END IF
-  DSMC%VibAHO = GETLOGICAL('Particles-DSMC-Vib-Anharmonic')
-  IF (DSMC%VibAHO) THEN
+  ! Vibrational relaxation
+  IF (DSMC%VibRelaxModel.EQ.1) THEN
+    DSMC%VibAHO = .TRUE.
     ALLOCATE(AHO%NumVibLevels(nSpecies))
     ALLOCATE(AHO%omegaE(nSpecies))
     ALLOCATE(AHO%chiE(nSpecies))
@@ -409,7 +412,6 @@ END IF
 IF((CollisMode.LT.2).AND.ANY(Species(:)%InterID.EQ.100)) THEN
   CollisMode = 2
 END IF
-DSMC%GammaQuant   = GETREAL('Particles-DSMC-GammaQuant')
 DSMC%ElectronicModel         = GETINT('Particles-DSMC-ElectronicModel')
 IF(SampleElecExcitation.AND.(DSMC%ElectronicModel.NE.3)) CALL CollectiveStop(__STAMP__,&
     'Part-SampleElectronicExcitation = T requires Particles-DSMC-ElectronicModel = 3')
@@ -506,27 +508,27 @@ IF(DoFieldIonization.OR.CollisMode.NE.0) THEN
         CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
         dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
         ! Reference temperature
-        CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Tref,ReadFromSpeciesDatabase=.True.)
+        CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Tref,ReadFromGroup=.TRUE.)
         CALL PrintOption('Tref','DB',RealOpt=SpecDSMC(iSpec)%Tref)
         ! Reference diameter
-        CALL ReadAttribute(file_id_specdb,'dref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%dref,ReadFromSpeciesDatabase=.True.)
+        CALL ReadAttribute(file_id_specdb,'dref',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%dref,ReadFromGroup=.TRUE.)
         CALL PrintOption('dref','DB',RealOpt=SpecDSMC(iSpec)%dref)
         ! Viscosity exponent
-        CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%omega,ReadFromSpeciesDatabase=.True.)
+        CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%omega,ReadFromGroup=.TRUE.)
         CALL PrintOption('omega','DB',RealOpt=SpecDSMC(iSpec)%omega)
         ! Alpha parameter (VSS only)
-        CALL AttributeExists(file_id_specdb,'alphaVSS',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+        CALL AttributeExists(file_id_specdb,'alphaVSS',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
         IF (AttrExists) THEN
-          CALL ReadAttribute(file_id_specdb,'alphaVSS',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%alphaVSS,ReadFromSpeciesDatabase=.True.)
+          CALL ReadAttribute(file_id_specdb,'alphaVSS',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%alphaVSS,ReadFromGroup=.TRUE.)
         ELSE
           SpecDSMC(iSpec)%alphaVSS = 1.0
         END IF
         CALL PrintOption('alphaVSS','DB',RealOpt=SpecDSMC(iSpec)%alphaVSS)
       END IF ! averagedCollisionParameters
       ! Flag to identify fully ionized species
-      CALL AttributeExists(file_id_specdb,'FullyIonized',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+      CALL AttributeExists(file_id_specdb,'FullyIonized',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
       IF (AttrExists) THEN
-        CALL ReadAttribute(file_id_specdb,'FullyIonized',1,DatasetName = dsetname,LogicalScalar=SpecDSMC(iSpec)%FullyIonized,ReadFromSpeciesDatabase=.True.)
+        CALL ReadAttribute(file_id_specdb,'FullyIonized',1,DatasetName = dsetname,LogicalScalar=SpecDSMC(iSpec)%FullyIonized,ReadFromGroup=.TRUE.)
       ELSE
         SpecDSMC(iSpec)%FullyIonized = .FALSE.
       END IF
@@ -802,10 +804,10 @@ ELSE !CollisMode.GT.0
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
             dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-            CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+            CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=AttrExists,ReadFromGroup=.TRUE.)
             IF (AttrExists) THEN
               CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=IntToLog, &
-                ReadFromSpeciesDatabase=.True.)
+                ReadFromGroup=.TRUE.)
               IF(IntToLog.EQ.1) SpecDSMC(iSpec)%PolyatomicMol = .TRUE.
               CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
               CALL PrintOption('PolyatomicMol','DB',LogOpt=SpecDSMC(iSpec)%PolyatomicMol)
@@ -824,14 +826,14 @@ ELSE !CollisMode.GT.0
             ELSE IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
               SpecDSMC(iSpec)%Xi_Rot     = 2
               CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname, &
-                RealScalar=SpecDSMC(iSpec)%CharaTVib,ReadFromSpeciesDatabase=.True.)
+                RealScalar=SpecDSMC(iSpec)%CharaTVib,ReadFromGroup=.TRUE.)
               CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
               IF(DSMC%RotRelaxModel.EQ.1)THEN
                 CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
-                  ReadFromSpeciesDatabase=.True.)
+                  ReadFromGroup=.TRUE.)
                 IF (AttrExists) THEN
                   CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
-                    RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+                    RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromGroup=.TRUE.)
                   SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
                   CALL PrintOption('MomentOfInertia','DB',RealOpt=SpecDSMC(iSpec)%MomentOfInertia)
                 ELSE
@@ -840,16 +842,16 @@ ELSE !CollisMode.GT.0
                 END IF
               ELSE
                 CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists, &
-                  ReadFromSpeciesDatabase=.True.)
+                  ReadFromGroup=.TRUE.)
                 IF(AttrExists)THEN  ! check if CharaTempRot is set without Moment of Inertia
                   CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname, &
-                    RealScalar=SpecDSMC(iSpec)%CharaTRot,ReadFromSpeciesDatabase=.True.)
+                    RealScalar=SpecDSMC(iSpec)%CharaTRot,ReadFromGroup=.TRUE.)
                 ELSE
                   CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
-                    ReadFromSpeciesDatabase=.True.)
+                    ReadFromGroup=.TRUE.)
                   IF (AttrExists) THEN
                     CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
-                      RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+                      RealScalar=SpecDSMC(iSpec)%MomentOfInertia,ReadFromGroup=.TRUE.)
                     SpecDSMC(iSpec)%CharaTRot = PlanckConst**2 / (8 * PI**2 * SpecDSMC(iSpec)%MomentOfInertia * BoltzmannConst)
                   ELSE
                     SpecDSMC(iSpec)%CharaTRot = 0.0
@@ -858,20 +860,20 @@ ELSE !CollisMode.GT.0
               END IF
               CALL PrintOption('CharaTempRot','DB',RealOpt=SpecDSMC(iSpec)%CharaTRot)
               CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV, &
-                ReadFromSpeciesDatabase=.True.)
+                ReadFromGroup=.TRUE.)
               CALL PrintOption('Ediss_eV','DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
               ! Anharmonic Oscillator Model
               IF(DSMC%VibAHO) THEN
                 CALL ReadAttribute(file_id_specdb,'Vib-OmegaE',1,DatasetName = dsetname,RealScalar=AHO%omegaE(iSpec), &
-                  ReadFromSpeciesDatabase=.True.)
+                  ReadFromGroup=.TRUE.)
                 CALL PrintOption('Vib-OmegaE','DB',RealOpt=AHO%omegaE(iSpec))
-                CALL AttributeExists(file_id_specdb,'Vib-ChiE ',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+                CALL AttributeExists(file_id_specdb,'Vib-ChiE ',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
                 CALL ReadAttribute(file_id_specdb,'Vib-ChiE',1,DatasetName = dsetname,RealScalar=AHO%chiE(iSpec), &
-                  ReadFromSpeciesDatabase=.True.)
+                  ReadFromGroup=.TRUE.)
                 CALL PrintOption('Vib-ChiE','DB',RealOpt=AHO%chiE(iSpec))
               ELSE ! SHO model
                 CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%CharaTVib, &
-                  ReadFromSpeciesDatabase=.True.)
+                  ReadFromGroup=.TRUE.)
                 CALL PrintOption('CharaTempVib','DB',RealOpt=SpecDSMC(iSpec)%CharaTVib)
                 SpecDSMC(iSpec)%MaxVibQuant = 200
                 ! Calculation of the dissociation quantum number (used for QK chemistry)
@@ -1188,7 +1190,7 @@ ELSE !CollisMode.GT.0
         IF((Species(iSpec)%InterID.EQ.10).OR.(Species(iSpec)%InterID.EQ.20).OR.(Species(iSpec)%InterID.EQ.4)) THEN
           SpecDSMC(iSpec)%HeatOfFormation = 0.0
         ELSE
-          CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation,ReadFromSpeciesDatabase=.True.)
+          CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation,ReadFromGroup=.TRUE.)
           SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
         ENDIF
         CALL PrintOption('HeatOfFormation [J], '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%HeatOfFormation)
@@ -1220,9 +1222,9 @@ ELSE !CollisMode.GT.0
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
       DO iSpec=1,nSpecies
         dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-        CALL AttributeExists(file_id_specdb,'PreviousState',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+        CALL AttributeExists(file_id_specdb,'PreviousState',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
         IF (AttrExists) THEN
-          CALL ReadAttribute(file_id_specdb,'PreviousState',1,DatasetName = dsetname,StrScalar=hilfname,ReadFromSpeciesDatabase=.True.)
+          CALL ReadAttribute(file_id_specdb,'PreviousState',1,DatasetName = dsetname,StrScalar=hilfname,ReadFromGroup=.TRUE.)
           DO jSpec=1,nSpecies
             IF(TRIM(hilfname).EQ.TRIM(Species(jSpec)%Name)) THEN
               SpecDSMC(iSpec)%PreviousState=jSpec
@@ -1613,7 +1615,7 @@ DO iSpec = 1, nSpecies
         CALL H5OPEN_F(err)
         CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
         dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-        CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation,ReadFromSpeciesDatabase=.True.)
+        CALL ReadAttribute(file_id_specdb,'HeatOfFormation_K',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%HeatOfFormation,ReadFromGroup=.TRUE.)
         SpecDSMC(iSpec)%HeatOfFormation = SpecDSMC(iSpec)%HeatOfFormation * BoltzmannConst
         CALL PrintOption('HeatOfFormation [J], '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%HeatOfFormation)
         ! Close the file.
@@ -1982,7 +1984,7 @@ CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
 ! get size
 CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
 ! Set number of vibrational levels
-AHO%NumVibLevels(iSpec) = dims(2)
+AHO%NumVibLevels(iSpec) = INT(dims(2),4)
 IF(.NOT.ALLOCATED(AHO%VibEnergy))THEN
   ALLOCATE(AHO%VibEnergy(nSpecies,MAXVAL(AHO%NumVibLevels)))
   AHO%VibEnergy = 0.

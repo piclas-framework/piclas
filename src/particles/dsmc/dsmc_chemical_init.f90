@@ -700,7 +700,7 @@ DO iSpec = 1, nSpecies
       CALL H5OPEN_F(err)
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
       dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-      CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor,ReadFromSpeciesDatabase=.True.)
+      CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor,ReadFromGroup=.TRUE.)
       CALL PrintOption('SymmetryFactor '//TRIM(Species(iSpec)%Name),'DB',IntOpt=SpecDSMC(iSpec)%SymmetryFactor)
       ! Close the file.
       CALL H5FCLOSE_F(file_id_specdb, err)

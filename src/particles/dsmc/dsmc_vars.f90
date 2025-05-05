@@ -295,13 +295,16 @@ TYPE tDSMC
                                                             !    2: Boyd's model
                                                             !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
   INTEGER                       :: RotRelaxModel            ! Model for rotational relaxation
-                                                            !    0 Continous treatment
+                                                            !    0 Continuous treatment
                                                             !    1 Analytic model + rotational energy levels from unified species database
                                                             !       only for asymmetric top molecules
                                                             !    2 rotational energy levels for all species from unified species database
   REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
                                                             !    0-1: constant probability (0: no relaxation)
                                                             !    2: Boyd's model, with correction from Abe
+  INTEGER                       :: VibRelaxModel            ! Model for vibrational relaxation
+                                                            !    0: Simple harmonic oscillator
+                                                            !    1: Anharmonic oscillator (Morse potential)
   REAL                          :: ElecRelaxProb            ! electronic relaxation probability
   LOGICAL                       :: PolySingleMode           ! Separate relaxation of each vibrational mode of a polyatomic in a
                                                             ! loop over all vibrational modes (every mode has its own corrected

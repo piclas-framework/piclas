@@ -92,7 +92,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
   dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   ! Linear molecule
-  CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog,ReadFromSpeciesDatabase=.True.)
+  CALL ReadAttribute(file_id_specdb,'LinearMolec',1,DatasetName = dsetname,IntScalar=IntToLog,ReadFromGroup=.TRUE.)
   IF(IntToLog.EQ.1) THEN
     PolyatomMolDSMC(iPolyatMole)%LinearMolec = .TRUE.
   ELSE
@@ -101,12 +101,12 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL PrintOption('LinearMolec, '//TRIM(Species(iSpec)%Name),'DB',LogOpt=PolyatomMolDSMC(iPolyatMole)%LinearMolec)
   ! Number of atoms
   CALL ReadAttribute(file_id_specdb,'NumOfAtoms',1,DatasetName = dsetname,  &
-    IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms,ReadFromSpeciesDatabase=.True.)
+    IntScalar=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms,ReadFromGroup=.TRUE.)
   CALL PrintOption('NumOfAtoms, '//TRIM(Species(iSpec)%Name),'DB',IntOpt=PolyatomMolDSMC(iPolyatMole)%NumOfAtoms)
   ! Dissociation energy
   ! TSHO not implemented with polyatomic molecules, but Ediss_eV required for the calculation of polyatomic temp. (upper bound)
   CALL ReadAttribute(file_id_specdb,'Ediss_eV',1,DatasetName = dsetname,RealScalar=SpecDSMC(iSpec)%Ediss_eV, &
-    ReadFromSpeciesDatabase=.True.)
+    ReadFromGroup=.TRUE.)
   CALL PrintOption('Ediss_eV, '//TRIM(Species(iSpec)%Name),'DB',RealOpt=SpecDSMC(iSpec)%Ediss_eV)
   ! Close the file.
   CALL H5FCLOSE_F(file_id_specdb, err)
@@ -148,25 +148,25 @@ IF(SpeciesDatabase.NE.'none') THEN
   dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
   IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
     IF(DSMC%RotRelaxModel.EQ.1)THEN
-      CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+      CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
       IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
-          RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ReadFromSpeciesDatabase=.True.)
+          RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ReadFromGroup=.TRUE.)
         PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = PlanckConst**2 / &
           (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) * BoltzmannConst)
         CALL PrintOption('MomentOfInertia, '//TRIM(Species(iSpec)%Name),'DB', &
           RealOpt=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))
       END IF
     ELSE  ! DSMC RotRelaxModel NE 1
-      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+      CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
       IF(AttrExists)THEN
         CALL ReadAttribute(file_id_specdb,'CharaTempRot',1,DatasetName = dsetname, &
-          RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1),ReadFromSpeciesDatabase=.True.)
+          RealScalar=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1),ReadFromGroup=.TRUE.)
       ELSE  ! CharaTempRot not found
-        CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ReadFromSpeciesDatabase=.True.)
+        CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
         IF (AttrExists) THEN
           CALL ReadAttribute(file_id_specdb,'MomentOfInertia',1,DatasetName = dsetname, &
-            RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ReadFromSpeciesDatabase=.True.)
+            RealScalar=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1),ReadFromGroup=.TRUE.)
           PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) = PlanckConst**2 / &
             (8 * PI**2 * PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) * BoltzmannConst)
         ELSE
@@ -181,10 +181,10 @@ IF(SpeciesDatabase.NE.'none') THEN
   ELSE
     IF(DSMC%RotRelaxModel.EQ.1)THEN
       CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
-        ReadFromSpeciesDatabase=.True.)
+        ReadFromGroup=.TRUE.)
       IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
-          RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+          RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ReadFromGroup=.TRUE.)
       ELSE
         CALL abort(__STAMP__,'Moment of inertia necessary for quantized rotational energy and is not set for species '&
           //TRIM(Species(iSpec)%Name))
@@ -209,10 +209,10 @@ IF(SpeciesDatabase.NE.'none') THEN
       END IF
     ELSE  ! DSMC RotRelaxModel NE 1
       CALL AttributeExists(file_id_specdb,'CharaTempRot',TRIM(dsetname), AttrExists=AttrExists, &
-      ReadFromSpeciesDatabase=.True.)
+      ReadFromGroup=.TRUE.)
       IF (AttrExists) THEN
         CALL ReadAttribute(file_id_specdb,'CharaTempRot',3,DatasetName = dsetname,  &
-          RealArray=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF,ReadFromSpeciesDatabase=.True.)
+          RealArray=PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF,ReadFromGroup=.TRUE.)
         DO iVibDOF = 1,3
           WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
           CALL PrintOption('CharaTempRot'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB', &
@@ -220,10 +220,10 @@ IF(SpeciesDatabase.NE.'none') THEN
         END DO
       ELSE  ! CharaTempRot not found
         CALL AttributeExists(file_id_specdb,'MomentOfInertia',TRIM(dsetname), AttrExists=AttrExists, &
-          ReadFromSpeciesDatabase=.True.)
+          ReadFromGroup=.TRUE.)
         IF (AttrExists) THEN
           CALL ReadAttribute(file_id_specdb,'MomentOfInertia',3,DatasetName = dsetname,  &
-            RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ReadFromSpeciesDatabase=.True.)
+            RealArray=PolyatomMolDSMC(iPolyatMole)%MomentOfInertia,ReadFromGroup=.TRUE.)
           DO iVibDOF = 1,3
             WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
             PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(iVibDOF) = PlanckConst**2 / &
@@ -239,7 +239,7 @@ IF(SpeciesDatabase.NE.'none') THEN
   END IF
   ! Read-in of characteristic vibrational temperature
   CALL ReadAttribute(file_id_specdb,'CharaTempVib',PolyatomMolDSMC(iPolyatMole)%VibDOF,DatasetName = dsetname,  &
-    RealArray=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF,ReadFromSpeciesDatabase=.True.)
+    RealArray=PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF,ReadFromGroup=.TRUE.)
   DO iVibDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
     WRITE(UNIT=hilf2,FMT='(I0)') iVibDOF
     CALL PrintOption('CharaTempVib'//TRIM(hilf2)//' '//TRIM(Species(iSpec)%Name),'DB',  &
