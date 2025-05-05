@@ -590,6 +590,33 @@ IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 #endif /*USE_MPI*/
   halo_eps  = 0.
 #if USE_MPI
+  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+    IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet (less than zero)! r_sf=',RealInfoOpt=r_sf)
+    SELECT CASE(dim_sf)
+      ! Ensure that all elements in the symmetry direction(s) are in the FIBGM and halo region for lower dimensional shape functions
+    CASE(3)
+      halo_eps = halo_eps + r_sf
+    CASE(2)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,GEO%xmaxglob-GEO%xminglob)
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,GEO%ymaxglob-GEO%yminglob)
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,GEO%zmaxglob-GEO%zminglob)
+      END SELECT
+    CASE(1)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob))
+      END SELECT
+    END SELECT
+    CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
+  END IF
   halo_eps2 = 0.
 ELSE
   IF (ManualTimeStep.LE.0.0) THEN
