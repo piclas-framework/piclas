@@ -145,7 +145,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -303,7 +303,12 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
 #if USE_MPI
   .OR. nComputeNodeProcessors.NE.nProcessors_Global & ! FIBGM needed to build the halo region
 #endif  /*USE_MPI*/
+#if USE_LOADBALANCE
+  ! FIBGM needed to find lost particles, not needed for loadbalance
+  .OR. (DoRestart.AND..NOT.PerformLoadBalance).OR. (DoRestart.AND.UseH5IOLoadBalance) &
+#else
   .OR. DoRestart & ! FIBGM needed to find lost particles
+#endif /*USE_LOADBALANCE*/
   .OR. GEO%ForceFIBGM ) THEN
     GEO%InitFIBGM = .TRUE.
 ELSE
