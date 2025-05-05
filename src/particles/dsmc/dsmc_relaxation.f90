@@ -163,6 +163,10 @@ REAL, INTENT(IN)              :: FakXi
 REAL                          :: MaxColQua, iRan, Ec, ProbAccept
 INTEGER                       :: iQuaMax, iQua, iSpec
 !===================================================================================================================================
+
+iRan = 1.
+ProbAccept = 0.
+
 IF (usevMPF.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
 ELSE
@@ -182,27 +186,23 @@ IF(DSMC%VibAHO) THEN ! AHO
   END DO
   ! accept iQuaMax - 1 as quantum number
   iQuaMax = iQuaMax - 1
-  ! vibrational energy
-  ! choose random quantum number
-  CALL RANDOM_NUMBER(iRan)
-  iQua = INT(iRan * iQuaMax + 1)
   ! Ec without zero-point energy for calc of ProbAccept
   Ec = Ec - AHO%VibEnergy(iSpec,1)
-  ! calculate probability of acceptance of the chosen quantum number
-  ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%chiE(iSpec) * iQua)) &
-    / Ec) **FakXi
   ! compare to random number and repeat until accepted
-  CALL RANDOM_NUMBER(iRan)
   DO WHILE (iRan.GT.ProbAccept)
     CALL RANDOM_NUMBER(iRan)
     iQua = INT(iRan * iQuaMax + 1)
-    ProbAccept = (1. - (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%chiE(iSpec) * iQua)) &
-      / Ec) **FakXi
-    CALL RANDOM_NUMBER(iRan)
+    ProbAccept = (PlanckConst * c * AHO%omegaE(iSpec) * (iQua-1) * (1. - AHO%chiE(iSpec) * iQua)) / Ec
+    ! Avoid negative values in following probability calculation
+    IF(ProbAccept.GT.1.) THEN
+      ProbAccept = 0.
+    ELSE
+      ProbAccept = (1. - ProbAccept)**FakXi
+      CALL RANDOM_NUMBER(iRan)
+    END IF
   END DO
   ! vibrational energy is table value of the accepted quantum number
   PartStateIntEn(1,iPart) = AHO%VibEnergy(iSpec,iQua)
-
 ELSE ! SHO
   MaxColQua = Ec/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
   iQuaMax = MIN(INT(MaxColQua) + 1, SpecDSMC(iSpec)%MaxVibQuant)
