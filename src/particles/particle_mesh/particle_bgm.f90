@@ -479,8 +479,6 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMSymmetryVec(3) = .FALSE.
   END IF
 
-  SWRITE(*,*) "GEO%FIBGMSymmetryVec: ",GEO%FIBGMSymmetryVec
-
 #if USE_MPI
   CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
