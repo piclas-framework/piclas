@@ -142,9 +142,9 @@ IF(VarTimeStep%UseLinearScaling) THEN
     VarTimeStep%StartPoint = GETREALARRAY('Part-VariableTimeStep-StartPoint',3)
     VarTimeStep%EndPoint = GETREALARRAY('Part-VariableTimeStep-EndPoint',3)
     VarTimeStep%Direction = GETREALARRAY('Part-VariableTimeStep-Direction',3)
-    IF(ABS(VarTimeStep%Direction(1)).NE.1.0) CALL abort(&
-      __STAMP__&
-      ,'ERROR: Currently direction of linear time step scaling must be defined with (/1.0,0.0,0.0/)!')
+    IF(ABS(VarTimeStep%Direction(1)).NE.1.0.AND.ABS(VarTimeStep%Direction(2)).NE.1.0.AND.ABS(VarTimeStep%Direction(3)).NE.1.0) THEN
+      CALL abort(__STAMP__,'ERROR in InitPartTimeStep: Direction of linear time step scaling must be the x-, y- or z-axis, e.g. (1,0,0)!')
+    END IF
   END IF
 END IF
 IF(VarTimeStep%UseDistribution) THEN
@@ -525,42 +525,57 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER                   :: iElem,CNElemID
+INTEGER                   :: iElem,CNElemID,dir
+REAL                      :: MeshMax, MeshMin, StartPoint, EndPoint
 !===================================================================================================================================
 
 ALLOCATE(VarTimeStep%ElemFac(nElems))
 VarTimeStep%ElemFac = 1.0
-IF (VarTimeStep%Direction(1).GT.0.0) THEN
+
+IF(VarTimeStep%Direction(1).NE.0.0) THEN
+  MeshMax = GEO%xmaxglob
+  MeshMin = GEO%xminglob
+  dir = 1
+ELSE IF(VarTimeStep%Direction(2).NE.0.0) THEN
+  MeshMax = GEO%ymaxglob
+  MeshMin = GEO%yminglob
+  dir = 2
+ELSE IF(VarTimeStep%Direction(3).NE.0.0) THEN
+  MeshMax = GEO%zmaxglob
+  MeshMin = GEO%zminglob
+  dir = 3
+END IF
+
+StartPoint = VarTimeStep%StartPoint(dir)
+EndPoint = VarTimeStep%EndPoint(dir)
+
+IF (VarTimeStep%Direction(dir).GT.0.0) THEN
   DO iElem = 1, nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
-    IF (ElemMidPoint_Shared(1,CNElemID).LT.VarTimeStep%StartPoint(1)) THEN
+    IF (ElemMidPoint_Shared(dir,CNElemID).LT.StartPoint) THEN
       VarTimeStep%ElemFac(iElem)=1.0
-    ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
-      VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(GEO%xmaxglob-VarTimeStep%StartPoint(1)) &
-          * (ElemMidPoint_Shared(1,CNElemID)-VarTimeStep%StartPoint(1))
+    ELSE IF (EndPoint.EQ.-99999.) THEN
+      VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(MeshMax-StartPoint) * (ElemMidPoint_Shared(dir,CNElemID)-StartPoint)
     ELSE
-      IF (ElemMidPoint_Shared(1,CNElemID).GT.VarTimeStep%EndPoint(1)) THEN
+      IF (ElemMidPoint_Shared(dir,CNElemID).GT.EndPoint) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
-        VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%EndPoint(1)-VarTimeStep%StartPoint(1)) &
-            * (ElemMidPoint_Shared(1,CNElemID)-VarTimeStep%StartPoint(1))
+        VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(EndPoint-StartPoint) * (ElemMidPoint_Shared(dir,CNElemID)-StartPoint)
       END IF
     END IF
   END DO
 ELSE
   DO iElem = 1, nElems
     CNElemID = GetCNElemID(iElem + offsetElem)
-    IF (ElemMidPoint_Shared(1,CNElemID).GT.VarTimeStep%StartPoint(1)) THEN
+    IF (ElemMidPoint_Shared(dir,CNElemID).GT.StartPoint) THEN
       VarTimeStep%ElemFac(iElem)=1.0
-    ELSE IF (VarTimeStep%EndPoint(1).EQ.-99999.) THEN
-      VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-GEO%xminglob) &
-          * (VarTimeStep%StartPoint(1)-ElemMidPoint_Shared(1,CNElemID))
+    ELSE IF (EndPoint.EQ.-99999.) THEN
+      VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(StartPoint-MeshMin) * (StartPoint-ElemMidPoint_Shared(dir,CNElemID))
     ELSE
-      IF (ElemMidPoint_Shared(1,CNElemID).LT.VarTimeStep%EndPoint(1)) THEN
+      IF (ElemMidPoint_Shared(dir,CNElemID).LT.EndPoint) THEN
         VarTimeStep%ElemFac(iElem)=VarTimeStep%ScaleFac
       ELSE
-        VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(VarTimeStep%StartPoint(1)-VarTimeStep%EndPoint(1)) &
-            * (VarTimeStep%StartPoint(1)-ElemMidPoint_Shared(1,CNElemID))
+        VarTimeStep%ElemFac(iElem)= 1.0 + (VarTimeStep%ScaleFac-1.0)/(StartPoint-EndPoint) * (StartPoint-ElemMidPoint_Shared(dir,CNElemID))
       END IF
     END IF
   END DO
