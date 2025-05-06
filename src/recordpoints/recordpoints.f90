@@ -316,9 +316,8 @@ USE MOD_Preproc
 #if USE_FV
 #ifdef discrete_velocity
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel
-USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
-USE MOD_DistFunc               ,ONLY: MaxwellDistributionCons, SkewNormalDistribution, SkewtDistribution, GradDistributionPrandtl
+USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution
 #endif /*discrete_velocity*/
 #endif /*USE_FV*/
 USE MOD_Timedisc_Vars     ,ONLY: dt
@@ -400,24 +399,7 @@ DO iRP=1,nRP
             CASE(2)
               prefac = 2.*tau/(2.*tau+dt)
           END SELECT
-          SELECT CASE (DVMBGKModel)
-            CASE(1)
-              CALL ESBGKDistribution(MacroVal,fTarget)
-            CASE(2)
-              CALL ShakhovDistribution(MacroVal,fTarget)
-            CASE(3)
-              CALL MaxwellDistribution(MacroVal,fTarget)
-            CASE(4)
-              CALL MaxwellDistributionCons(MacroVal,fTarget)
-            CASE(5)
-              CALL SkewNormalDistribution(MacroVal,fTarget)
-            CASE(6)
-              CALL SkewtDistribution(MacroVal,fTarget)
-            CASE(7)
-              CALL GradDistributionPrandtl(MacroVal,fTarget)
-            CASE DEFAULT
-              CALL abort(__STAMP__,'DVM BGK Model not implemented')
-          END SELECT
+          CALL TargetDistribution(MacroVal, fTarget)
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
         ELSE
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
