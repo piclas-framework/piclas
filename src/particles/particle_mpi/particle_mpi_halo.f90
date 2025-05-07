@@ -126,6 +126,7 @@ CHARACTER(LEN=255)             :: hilf
 INTEGER                        :: k,iLocElem, Nloc, nRecvDofs, nSendDofs, globElem
 LOGICAL                        :: InInterPlaneRegion
 REAL                           :: InterPlaneDistance
+INTEGER                        :: iDim
 !=================================================================================================================================
 
 WRITE(hilf,'(A)') 'IDENTIFYING Particle Exchange Processors ...'
@@ -306,12 +307,17 @@ ALLOCATE(MPISideBoundsOfElemCenter(  1:4,1:nExchangeSides))
 DO iSide = 1, nExchangeSides
   SideID = ExchangeSides(iSide)
   ElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
-  MPISideBoundsOfElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                            SUM(  BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                            SUM(  BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-  MPISideBoundsOfElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                  BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                  BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+  DO iDim=1,3
+    IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+      MPISideBoundsOfElemCenter(iDim,iSide) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
+    ELSE
+      MPISideBoundsOfElemCenter(iDim,iSide) = 0.0
+    END IF
+  END DO
+  MPISideBoundsOfElemCenter(4,iSide) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                       BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                       BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                                       GEO%FIBGMSymmetryVec)
 
   IF(DoParticleLatencyHiding)THEN
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,SideID)
@@ -350,22 +356,32 @@ DO iSide = 1, nExchangeSides
           NbElemBounds(2,:) = MAX(NbElemBounds(2,:),BoundsOfElem_Shared(2,:,NbElemID))
         END IF
       END DO ! iMortar = 1, nMortarElems
-      MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  NbElemBounds(1:2,1)), &
-                                                  SUM(  NbElemBounds(1:2,2)), &
-                                                  SUM(  NbElemBounds(1:2,3)) /) / 2.
-      MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/NbElemBounds(2  ,1)-NbElemBounds(1,1), &
-                                                        NbElemBounds(2  ,2)-NbElemBounds(1,2), &
-                                                        NbElemBounds(2  ,3)-NbElemBounds(1,3) /) / 2.)
+      DO iDim=1,3
+        IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+          MPISideBoundsOfNbElemCenter(iDim,iSide) = 0.5*(NbElemBounds(1,iDim)+NbElemBounds(2,iDim))
+        ELSE
+          MPISideBoundsOfNbElemCenter(iDim,iSide) = 0.0
+        END IF
+      END DO
+      MPISideBoundsOfNbElemCenter(4,iSide) = CONDVECNORM ((/ NbElemBounds(2,1)-NbElemBounds(1,1), &
+                                                             NbElemBounds(2,2)-NbElemBounds(1,2), &
+                                                             NbElemBounds(2,3)-NbElemBounds(1,3) /) / 2., &
+                                                             GEO%FIBGMSymmetryVec)
     END IF
 
     IF (NbElemID.LT.firstElem .OR. NbElemID.GT.lastElem) THEN
       ! Non-mortar (MPI interfaces) sides and rotperiodic sides (BC sides)
-      MPISideBoundsOfNbElemCenter(1:3,iSide) = (/ SUM(  BoundsOfElem_Shared(1:2,1,NbElemID)), &
-                                                  SUM(  BoundsOfElem_Shared(1:2,2,NbElemID)), &
-                                                  SUM(  BoundsOfElem_Shared(1:2,3,NbElemID)) /) / 2.
-      MPISideBoundsOfNbElemCenter(4,iSide) = VECNORM ((/BoundsOfElem_Shared(2  ,1,NbElemID)-BoundsOfElem_Shared(1,1,NbElemID), &
-                                                        BoundsOfElem_Shared(2  ,2,NbElemID)-BoundsOfElem_Shared(1,2,NbElemID), &
-                                                        BoundsOfElem_Shared(2  ,3,NbElemID)-BoundsOfElem_Shared(1,3,NbElemID) /) / 2.)
+      DO iDim=1,3
+        IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+          MPISideBoundsOfNbElemCenter(iDim,iSide) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
+        ELSE
+          MPISideBoundsOfNbElemCenter(iDim,iSide) = 0.0
+        END IF
+      END DO
+      MPISideBoundsOfNbElemCenter(4,iSide) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                             BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                             BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                                             GEO%FIBGMSymmetryVec)
       CYCLE
     END IF
   END IF ! DoParticleLatencyHiding
@@ -409,7 +425,7 @@ IF (halo_eps.LE.0.) THEN
   vec(1)   = GEO%xmaxglob-GEO%xminglob
   vec(2)   = GEO%ymaxglob-GEO%yminglob
   vec(3)   = GEO%zmaxglob-GEO%zminglob
-  MPI_halo_diag = VECNORM(vec)
+  MPI_halo_diag = CONDVECNORM(vec,GEO%FIBGMSymmetryVec)
 
   MPI_halo_eps_woshape = MPI_halo_eps
   ! Check whether MPI_halo_eps is smaller than shape function radius e.g. 'shape_function'
@@ -435,7 +451,7 @@ ELSE ! Multi-node
   vec(1)   = GEO%xmaxglob-GEO%xminglob
   vec(2)   = GEO%ymaxglob-GEO%yminglob
   vec(3)   = GEO%zmaxglob-GEO%zminglob
-  MPI_halo_diag = VECNORM(vec)
+  MPI_halo_diag = CONDVECNORM(vec,GEO%FIBGMSymmetryVec)
 
   MPI_halo_eps = halo_eps
   MPI_halo_eps_woshape = halo_eps_woshape
@@ -458,13 +474,18 @@ xCoordsProc(6) =  HUGE(1.)
 DO iElem = 1, nElems
   ElemID    = iElem + offsetElem
   ! Flag elements depending on radius
-  origin(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                   SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                   SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+  DO iDim=1,3
+    IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+      origin(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
+    ELSE
+      origin(iDim) = 0.0
+    END IF
+  END DO
   ! Calculate halo element outer radius
-  radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                          BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                          BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+  radius = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                           BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                           BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                           GEO%FIBGMSymmetryVec)
 
   xCoordsProc(1) = MIN(xCoordsProc(1), origin(1) - radius)
   xCoordsProc(2) = MAX(xCoordsProc(2), origin(1) + radius)
@@ -480,12 +501,17 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   localElem = ElemID - offSetElem
   HaloProc  = ElemInfo_Shared(ELEM_RANK,ElemID)
 
-  BoundsOfElemCenter(1:3) = (/SUM(      BoundsOfElem_Shared(1:2,1,ElemID)), &
-                              SUM(      BoundsOfElem_Shared(1:2,2,ElemID)), &
-                              SUM(      BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-  BoundsOfElemCenter(4)   = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                        BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                        BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+  DO iDim=1,3
+    IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+      BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
+    ELSE
+      BoundsOfElemCenter(iDim) = 0.0
+    END IF
+  END DO
+  BoundsOfElemCenter(4) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                          BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                          BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                          GEO%FIBGMSymmetryVec)
 
   ! BoundsOfElem(1) = BoundsOfElem_Shared(1,1,ElemID)
   ! BoundsOfElem(2) = BoundsOfElem_Shared(2,1,ElemID)
@@ -519,11 +545,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             ! One periodic vector
             CASE(1)
               DO iDir = -1, 1, 2
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                  &
-                           + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                  &
-                           - MPISideBoundsOfNbElemCenter(1:3,iSide))                  &
-                        .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)               & !-BoundsOfElemCenter(5) &
-                           + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
+                IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                  &
+                               + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                  &
+                               - MPISideBoundsOfNbElemCenter(1:3,iSide)                   &
+                               , GEO%FIBGMSymmetryVec)                                    &
+                            .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)               & !-BoundsOfElemCenter(5) &
+                               + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
                   ! flag the proc as exchange proc (in halo region)
                   IsExchangeElem(localElem) = .TRUE.
                   CYCLE ElemLoop
@@ -535,11 +562,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               DO iPeriodicVector = 1,2
                 DO iDir = -1,1,2
                   ! check if element is within halo_eps of periodically displaced element
-                  IF (VECNORM( BoundsOfElemCenter(1:3)                                &
-                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)  &
-                             - MPISideBoundsOfNbElemCenter(1:3,iSide))                &
-                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)             & !-BoundsOfElemCenter(5) &
-                             + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                  IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                &
+                                 + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)  &
+                                 - MPISideBoundsOfNbElemCenter(1:3,iSide)                 &
+                                 , GEO%FIBGMSymmetryVec)                                  &
+                              .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)             & !-BoundsOfElemCenter(5) &
+                                 + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                     ! flag the proc as exchange proc (in halo region)
                     IsExchangeElem(localElem) = .TRUE.
                     CYCLE ElemLoop
@@ -550,12 +578,13 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               DO iDir = -1,1,2
                 DO jDir = -1,1,2
                     ! check if element is within halo_eps of periodically displaced element
-                    IF (VECNORM( BoundsOfElemCenter(1:3)                              &
-                               + GEO%PeriodicVectors(1:3,1) * REAL(iDir)              &
-                               + GEO%PeriodicVectors(1:3,2) * REAL(jDir)              &
-                               - MPISideBoundsOfNbElemCenter(1:3,iSide))              &
-                            .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)           & !-BoundsOfElemCenter(5) &
-                               + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                    IF (CONDVECNORM( BoundsOfElemCenter(1:3)                              &
+                                   + GEO%PeriodicVectors(1:3,1) * REAL(iDir)              &
+                                   + GEO%PeriodicVectors(1:3,2) * REAL(jDir)              &
+                                   - MPISideBoundsOfNbElemCenter(1:3,iSide)               &
+                                   , GEO%FIBGMSymmetryVec)                                &
+                                .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)           & !-BoundsOfElemCenter(5) &
+                                   + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                       ! flag the proc as exchange proc (in halo region)
                       IsExchangeElem(localElem) = .TRUE.
                       CYCLE ElemLoop
@@ -571,11 +600,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                 DO iDir = -1,1,2
                   ! element might be already added back
                   ! check if element is within halo_eps of periodically displaced element
-                  IF (VECNORM( BoundsOfElemCenter(1:3)                                &
-                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)  &
-                             - MPISideBoundsOfNbElemCenter(1:3,iSide))                &
-                          .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)             & !-BoundsOfElemCenter(5) &
-                             + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                  IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                &
+                                 + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)  &
+                                 - MPISideBoundsOfNbElemCenter(1:3,iSide)                 &
+                                 , GEO%FIBGMSymmetryVec)                                  &
+                              .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)             & !-BoundsOfElemCenter(5) &
+                                 + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                     ! flag the proc as exchange proc (in halo region)
                     IsExchangeElem(localElem) = .TRUE.
                     CYCLE ElemLoop
@@ -586,12 +616,13 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                       IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
 
                       ! check if element is within halo_eps of periodically displaced element
-                      IF (VECNORM( BoundsOfElemCenter(1:3)                                 &
-                                 + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)   &
-                                 + GEO%PeriodicVectors(1:3,jPeriodicVector) * REAL(jDir)   &
-                                 - MPISideBoundsOfNbElemCenter(1:3,iSide))                 &
-                              .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)              & !-BoundsOfElemCenter(5) &
-                                 + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
+                      IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                 &
+                                     + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)   &
+                                     + GEO%PeriodicVectors(1:3,jPeriodicVector) * REAL(jDir)   &
+                                     - MPISideBoundsOfNbElemCenter(1:3,iSide)                  &
+                                     , GEO%FIBGMSymmetryVec)                                   &
+                                  .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)              & !-BoundsOfElemCenter(5) &
+                                     + MPISideBoundsOfNbElemCenter(4,iSide)) THEN
                         ! flag the proc as exchange proc (in halo region)
                         IsExchangeElem(localElem) = .TRUE.
                         CYCLE ElemLoop
@@ -605,13 +636,14 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               DO iDir = -1,1,2
                 DO jDir = -1,1,2
                   DO kDir = -1,1,2
-                    IF (VECNORM( BoundsOfElemCenter(1:3)                              &
-                               + GEO%PeriodicVectors(1:3,1) * REAL(iDir)              &
-                               + GEO%PeriodicVectors(1:3,2) * REAL(jDir)              &
-                               + GEO%PeriodicVectors(1:3,3) * REAL(kDir)              &
-                               - MPISideBoundsOfNbElemCenter(1:3,iSide))              &
-                            .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)           & !-BoundsOfElemCenter(5) &
-                               + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
+                    IF (CONDVECNORM( BoundsOfElemCenter(1:3)                              &
+                                   + GEO%PeriodicVectors(1:3,1) * REAL(iDir)              &
+                                   + GEO%PeriodicVectors(1:3,2) * REAL(jDir)              &
+                                   + GEO%PeriodicVectors(1:3,3) * REAL(kDir)              &
+                                   - MPISideBoundsOfNbElemCenter(1:3,iSide)               &
+                                   , GEO%FIBGMSymmetryVec)                                &
+                                .LE. MPI_halo_eps_woshape+BoundsOfElemCenter(4)           & !-BoundsOfElemCenter(5) &
+                                   + MPISideBoundsOfNbElemCenter(4,iSide) ) THEN
                       ! flag the proc as exchange proc (in halo region)
                       IsExchangeElem(localElem) = .TRUE.
                       CYCLE ElemLoop
@@ -699,13 +731,18 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
             DO HaloElem = firstElem, lastElem
               ! Flag elements depending on radius
-              origin(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,HaloElem)), &
-                               SUM(   BoundsOfElem_Shared(1:2,2,HaloElem)), &
-                               SUM(   BoundsOfElem_Shared(1:2,3,HaloElem)) /) / 2.
+              DO iDim=1,3
+                IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+                  origin(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,HaloElem)+BoundsOfElem_Shared(2,iDim,HaloElem))
+                ELSE
+                  origin(iDim) = 0.0
+                END IF
+              END DO
               ! Calculate halo element outer radius
-              radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,HaloElem)-BoundsOfElem_Shared(1,1,HaloElem), &
-                                      BoundsOfElem_Shared(2  ,2,HaloElem)-BoundsOfElem_Shared(1,2,HaloElem), &
-                                      BoundsOfElem_Shared(2  ,3,HaloElem)-BoundsOfElem_Shared(1,3,HaloElem) /) / 2.)
+              radius    = CONDVECNORM ((/ BoundsOfElem_Shared(2  ,1,HaloElem)-BoundsOfElem_Shared(1,1,HaloElem), &
+                                          BoundsOfElem_Shared(2  ,2,HaloElem)-BoundsOfElem_Shared(1,2,HaloElem), &
+                                          BoundsOfElem_Shared(2  ,3,HaloElem)-BoundsOfElem_Shared(1,3,HaloElem) /) / 2. &
+                                          ,GEO%FIBGMSymmetryVec)
 
               xCoordsOrigin(1) = MIN(xCoordsOrigin(1), origin(1) - radius)
               xCoordsOrigin(2) = MAX(xCoordsOrigin(2), origin(1) + radius)
@@ -736,13 +773,18 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
 
             DO HaloElem = firstElem, lastElem
               ! Flag elements depending on radius
-              origin(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,HaloElem)), &
-                               SUM(   BoundsOfElem_Shared(1:2,2,HaloElem)), &
-                               SUM(   BoundsOfElem_Shared(1:2,3,HaloElem)) /) / 2.
+              DO iDim=1,3
+                IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+                  origin(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,HaloElem)+BoundsOfElem_Shared(2,iDim,HaloElem))
+                ELSE
+                  origin(iDim) = 0.0
+                END IF
+              END DO
               ! Calculate halo element outer radius
-              radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,HaloElem)-BoundsOfElem_Shared(1,1,HaloElem), &
-                                      BoundsOfElem_Shared(2  ,2,HaloElem)-BoundsOfElem_Shared(1,2,HaloElem), &
-                                      BoundsOfElem_Shared(2  ,3,HaloElem)-BoundsOfElem_Shared(1,3,HaloElem) /) / 2.)
+              radius    = CONDVECNORM ((/ BoundsOfElem_Shared(2  ,1,HaloElem)-BoundsOfElem_Shared(1,1,HaloElem), &
+                                          BoundsOfElem_Shared(2  ,2,HaloElem)-BoundsOfElem_Shared(1,2,HaloElem), &
+                                          BoundsOfElem_Shared(2  ,3,HaloElem)-BoundsOfElem_Shared(1,3,HaloElem) /) / 2. &
+                                          ,GEO%FIBGMSymmetryVec)
 
               xCoordsOrigin(1) = MIN(xCoordsOrigin(1), origin(1) - radius)
               xCoordsOrigin(2) = MAX(xCoordsOrigin(2), origin(1) + radius)
@@ -795,11 +837,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
         ! One periodic vector
         CASE(1)
           DO iDir = -1,1,2
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                       &
-                       + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                                       &
-                       - MPISideBoundsOfElemCenter(1:3,iSide))                                         &
-                    .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                            & !-BoundsOfElemCenter(5) &
-                       + MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
+            IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                                       &
+                           + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                                       &
+                           - MPISideBoundsOfElemCenter(1:3,iSide)                                          &
+                           , GEO%FIBGMSymmetryVec)                                                         &
+                        .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                            & !-BoundsOfElemCenter(5) &
+                           + MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
 
             ! flag the proc as exchange proc (in halo region)
             IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -818,11 +861,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           DO iPeriodicVector = 1,2
             DO iDir = -1,1,2
               ! check if element is within halo_eps of periodically displaced element
-              IF (VECNORM( BoundsOfElemCenter(1:3)                                                    &
-                         + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)                      &
-                         - MPISideBoundsOfElemCenter(1:3,iSide))                                      &
-                      .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5) &
-                         + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
+              IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                                    &
+                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)                      &
+                             - MPISideBoundsOfElemCenter(1:3,iSide)                                       &
+                             , GEO%FIBGMSymmetryVec)                                                      &
+                          .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                         & !-BoundsOfElemCenter(5) &
+                             + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
               ! flag the proc as exchange proc (in halo region)
               IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -839,12 +883,13 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           DO iDir = -1,1,2
             DO jDir = -1,1,2
                 ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                  &
-                           + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                                  &
-                           + GEO%PeriodicVectors(1:3,2) * REAL(jDir)                                  &
-                           - MPISideBoundsOfElemCenter(1:3,iSide))                                    &
-                        .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                       & !-BoundsOfElemCenter(5) &
-                           + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
+                IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                                  &
+                               + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                                  &
+                               + GEO%PeriodicVectors(1:3,2) * REAL(jDir)                                  &
+                               - MPISideBoundsOfElemCenter(1:3,iSide)                                     &
+                               , GEO%FIBGMSymmetryVec)                                                    &
+                            .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                       & !-BoundsOfElemCenter(5) &
+                               + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -866,11 +911,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             DO iDir = -1,1,2
               ! element might be already added back
               ! check if element is within halo_eps of periodically displaced element
-              IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
-                         + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)                        &
-                         - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
-                      .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5) &
-                         + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
+              IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                                      &
+                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)                        &
+                             - MPISideBoundsOfElemCenter(1:3,iSide)                                         &
+                             , GEO%FIBGMSymmetryVec)                                                        &
+                          .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5) &
+                             + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
               ! flag the proc as exchange proc (in halo region)
               IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -891,12 +937,13 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
                   IF (iPeriodicVector.GE.jPeriodicVector) CYCLE
 
                   ! check if element is within halo_eps of periodically displaced element
-                  IF (VECNORM( BoundsOfElemCenter(1:3)                                                      &
-                             + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)                        &
-                             + GEO%PeriodicVectors(1:3,jPeriodicVector) * REAL(jDir)                        &
-                             - MPISideBoundsOfElemCenter(1:3,iSide))                                        &
-                          .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5) &
-                             + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
+                  IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                                      &
+                                 + GEO%PeriodicVectors(1:3,iPeriodicVector) * REAL(iDir)                        &
+                                 + GEO%PeriodicVectors(1:3,jPeriodicVector) * REAL(jDir)                        &
+                                 - MPISideBoundsOfElemCenter(1:3,iSide)                                         &
+                                 , GEO%FIBGMSymmetryVec)                                                        &
+                              .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                           & !-BoundsOfElemCenter(5) &
+                                 + MPISideBoundsOfElemCenter(4,iSide)) CYCLE
 
                   ! flag the proc as exchange proc (in halo region)
                   IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -916,13 +963,14 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           DO iDir = -1,1,2
             DO jDir = -1,1,2
               DO kDir = -1,1,2
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                        &
-                           + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                                        &
-                           + GEO%PeriodicVectors(1:3,2) * REAL(jDir)                                        &
-                           + GEO%PeriodicVectors(1:3,3) * REAL(kDir)                                        &
-                           - MPISideBoundsOfElemCenter(1:3,iSide))                                          &
-                        .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                             & !-BoundsOfElemCenter(5) &
-                           + MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
+                IF (CONDVECNORM( BoundsOfElemCenter(1:3)                                                        &
+                               + GEO%PeriodicVectors(1:3,1) * REAL(iDir)                                        &
+                               + GEO%PeriodicVectors(1:3,2) * REAL(jDir)                                        &
+                               + GEO%PeriodicVectors(1:3,3) * REAL(kDir)                                        &
+                               - MPISideBoundsOfElemCenter(1:3,iSide)                                           &
+                               , GEO%FIBGMSymmetryVec)                                                          &
+                            .GT. MPI_halo_eps+BoundsOfElemCenter(4)                                             & !-BoundsOfElemCenter(5) &
+                               + MPISideBoundsOfElemCenter(4,iSide) ) CYCLE
 
                 ! flag the proc as exchange proc (in halo region)
                 IF(StringBeginsWith(DepositionType,'shape_function').OR.(TRIM(DepositionType).EQ.'cell_volweight_mean'))THEN
@@ -1067,12 +1115,17 @@ IF(PartBound%UseInterPlaneBC) THEN
     InInterPlaneRegion = .FALSE.
 ! (1) Loop over all proc local elements in order to identify if any of own element is within halo_eps of the inter plane
     DO iLocElem = offsetElem+1,offsetElem+nElems
-      BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iLocElem)),                                     &
-                                      SUM(BoundsOfElem_Shared(1:2,2,iLocElem)),                                     &
-                                      SUM(BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
-      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),      &
-                                          BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
-                                          BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+      DO iDim=1,3
+        IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+          BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,iLocElem)+BoundsOfElem_Shared(2,iDim,iLocElem))
+        ELSE
+          BoundsOfElemCenter(iDim) = 0.0
+        END IF
+      END DO
+      BoundsOfElemCenter(4) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
+                                              BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem), &
+                                              BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2., &
+                                              GEO%FIBGMSymmetryVec)
       InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
       IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
         InInterPlaneRegion = .TRUE.
@@ -1089,12 +1142,17 @@ IF(PartBound%UseInterPlaneBC) THEN
         IF (HaloProc.EQ.myRank) CYCLE
         ! Ignore procs that are already flagged or not requesting communication
         IF (GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc).GT.0) CYCLE
-        BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,ElemID)),                                     &
-                                        SUM(BoundsOfElem_Shared(1:2,2,ElemID)),                                     &
-                                        SUM(BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
-        BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID),        &
-                                            BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID),        &
-                                            BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+        DO iDim=1,3
+          IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+            BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
+          ELSE
+            BoundsOfElemCenter(iDim) = 0.0
+          END IF
+        END DO
+        BoundsOfElemCenter(4) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                                GEO%FIBGMSymmetryVec)
         InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
         IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
           ! flag the proc as exchange proc (in halo region)
