@@ -144,7 +144,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -302,7 +302,12 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
 #if USE_MPI
   .OR. nComputeNodeProcessors.NE.nProcessors_Global & ! FIBGM needed to build the halo region
 #endif  /*USE_MPI*/
+#if USE_LOADBALANCE
+  ! FIBGM needed to find lost particles, not needed for loadbalance
+  .OR. (DoRestart.AND..NOT.PerformLoadBalance).OR. (DoRestart.AND.UseH5IOLoadBalance) &
+#else
   .OR. DoRestart & ! FIBGM needed to find lost particles
+#endif /*USE_LOADBALANCE*/
   .OR. GEO%ForceFIBGM ) THEN
     GEO%InitFIBGM = .TRUE.
 ELSE
@@ -478,8 +483,6 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMSymmetryVec(3) = .FALSE.
   END IF
 
-  SWRITE(*,*) "GEO%FIBGMSymmetryVec: ",GEO%FIBGMSymmetryVec
-
 #if USE_MPI
   CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
@@ -591,6 +594,33 @@ IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 #endif /*USE_MPI*/
   halo_eps  = 0.
 #if USE_MPI
+  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+    IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet (less than zero)! r_sf=',RealInfoOpt=r_sf)
+    SELECT CASE(dim_sf)
+      ! Ensure that all elements in the symmetry direction(s) are in the FIBGM and halo region for lower dimensional shape functions
+    CASE(3)
+      halo_eps = halo_eps + r_sf
+    CASE(2)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,GEO%xmaxglob-GEO%xminglob)
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,GEO%ymaxglob-GEO%yminglob)
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,GEO%zmaxglob-GEO%zminglob)
+      END SELECT
+    CASE(1)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob))
+      END SELECT
+    END SELECT
+    CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
+  END IF
   halo_eps2 = 0.
 ELSE
   IF (ManualTimeStep.LE.0.0) THEN
