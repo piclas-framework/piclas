@@ -27,71 +27,12 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: CalcTVib, CalcGammaVib
+PUBLIC :: CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 !===================================================================================================================================
 
 CONTAINS
-
-REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
-!===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals       ,ONLY: abort
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: DSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1
-REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search
-REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
-REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
-!===================================================================================================================================
-
-IF (MeanEVib.GT.0) THEN
-  !.... Initial limits for a: lower limit = very small value
-  !                           upper limit = max. value allowed by system
-  !     zero point = CharaTVib / TVib
-  LowerVal  = 1.0/(2.0*nMax)                                    ! Tvib is max for nMax => lower limit = 1.0/nMax
-  UpperVal  = LOG(HUGE(MiddleVal*nMax))/nMax-1.0/(2.0 * nMax)   ! upper limit = for max possible EXP(nMax*MiddleVal)-value
-  MaxPosiVal = LOG(HUGE(MaxPosiVal))  ! maximum value possible in system
-  DO WHILE (ABS(LowerVal-UpperVal).GT.eps_prec)                      !  Let's search the zero point by bisection
-    MiddleVal = 0.5*(LowerVal+UpperVal)
-
-    IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
-       CALL Abort(&
-__STAMP__&
-,'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
-    END IF
-
-    ! Calc of actual function values
-    ZeroVal1 = DSMC%GammaQuant + 1/(EXP(LowerVal)-1) - nMax/(EXP(nMax*LowerVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-    ZeroVal2 = DSMC%GammaQuant + 1/(EXP(MiddleVal)-1) - nMax/(EXP(nMax*MiddleVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-    ! decision of direction of bisection
-    IF (ZeroVal1*ZeroVal2.LT.0) THEN
-      UpperVal = MiddleVal
-    ELSE
-      LowerVal = MiddleVal
-    END IF
-  END DO
-  CalcTVib = ChaTVib/LowerVal ! LowerVal = CharaTVib / TVib
-ELSE
-  CalcTVib = 0
-END IF
-
-RETURN
-
-END FUNCTION CalcTVib
-
 
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
 !===================================================================================================================================
@@ -565,7 +506,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly,CalcTVibAHO,CalcTRotQuant
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -678,14 +619,22 @@ DO iElem = 1, nElems ! element/cell main loop
                     Macro_TempVib = 0.0
                   END IF
                 ELSE
-                  TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
-                  IF ((PartEvib /PartNum).LE.0.0) THEN
-                    Macro_TempVib = 0.0
-                  ELSE
-                    Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
+                  IF (DSMC%VibAHO) THEN ! AHO
+                    CALL CalcTVibAHO(iSpec, PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, Macro_TempVib)
+                  ELSE ! SHO
+                    TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
+                    IF ((PartEvib /PartNum).LE.0.0) THEN
+                      Macro_TempVib = 0.0
+                    ELSE
+                      Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
+                    END IF
                   END IF
                 END IF
-                Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
+                IF(DSMC%RotRelaxModel.EQ.1)THEN ! quantized rotational relaxation
+                  Macro_TempRot = CalcTRotQuant(PartErot/PartNum, iSpec)
+                ELSE ! continuous rotational relaxation
+                  Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
+                END IF
                 MolecPartNum = MolecPartNum + Macro_PartNum
                 IF(nSpecies.GT.1) THEN
                   Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum

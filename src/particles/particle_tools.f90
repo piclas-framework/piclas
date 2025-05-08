@@ -61,6 +61,17 @@ INTERFACE CalcPartSymmetryPos
   MODULE PROCEDURE CalcPartSymmetryPos
 END INTERFACE
 
+ABSTRACT INTERFACE
+  FUNCTION RotInitPolyRoutine(iSpec,TRot,iPart)
+    INTEGER,INTENT(IN)          :: iSpec, iPart               ! index of collision pair
+    REAL,INTENT(IN)             :: TRot
+  END FUNCTION
+END INTERFACE
+
+PROCEDURE(RotInitPolyRoutine),POINTER :: RotInitPolyRoutineFuncPTR !< pointer defining the function called for initial particle
+                                                                !  insertion depending on the RotRelaxModel (continous or quantized)
+                                                                !  for polyatomic molecules
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,7 +79,9 @@ END INTERFACE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: UpdateNextFreePosition, DiceUnitVector, VeloFromDistribution, GetParticleWeight, CalcRadWeightMPF, isChargedParticle
 PUBLIC :: isPushParticle, isDepositParticle, isInterpolateParticle, StoreLostParticleProperties, BuildTransGaussNums, BuildTransGaussNums2
-PUBLIC :: CalcXiElec,ParticleOnProc,  CalcERot_particle, CalcEVib_particle, CalcEElec_particle, CalcVelocity_maxwell_particle
+PUBLIC :: CalcXiElec,ParticleOnProc, CalcVelocity_maxwell_particle
+PUBLIC :: CalcERotDataset_particle, CalcERot_particle, CalcERotQuant_particle, CalcEVib_particle, CalcEElec_particle
+PUBLIC :: RotInitPolyRoutineFuncPTR
 PUBLIC :: InitializeParticleMaxwell
 PUBLIC :: InterpolateEmissionDistribution2D
 PUBLIC :: MergeCells,InRotRefFrameCheck
@@ -1269,7 +1282,7 @@ REAL FUNCTION CalcEVib_particle(iSpec,TempVib,iPart)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar, DSMC
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar, DSMC, AHO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1279,7 +1292,7 @@ REAL, INTENT(IN)              :: TempVib
 INTEGER, INTENT(IN),OPTIONAL  :: iPart
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                      :: iRan
+REAL                      :: iRan, temp, GroundLevel, VibPartitionTemp
 INTEGER                   :: iQuant, iDOF, iPolyatMole
 LOGICAL                   :: SetVibQuant
 !===================================================================================================================================
@@ -1309,14 +1322,58 @@ IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                                 + (iQuant + DSMC%GammaQuant)*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*BoltzmannConst
     IF(SetVibQuant) VibQuantsPar(iPart)%Quants(iDOF)=iQuant
   END DO
-ELSE
-  CALL RANDOM_NUMBER(iRan)
-  iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
-  DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+
+ELSE ! diatomic
+  IF(DSMC%VibAHO) THEN
+    ! Other possible variants (not tested):
+    ! V1: calculate sum over all energy levels = complete partition function for vibration
+    !   VibPartition = 0.
+    !   DO iQuant = 1, AHO%NumVibLevels(iSpec)
+    !     VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib))
+    !   END DO
+    !   then: calculate single levels (EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * TempVib)))
+    !   Sum up until random number is reached
+    ! V2: calculate partition function for each level (sums up to 1) --> contribution of each level
+    !   Sum up contribution * energy of each level
+
+    temp = TempVib
+
+    IF (CHECKEXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))) THEN
+      ! Calculation of ground state partition
+      GroundLevel = EXP(- AHO%VibEnergy(iSpec,1) / (BoltzmannConst * temp))
+      ! Select a quantum number randomly (from 1 to AHO%NumVibLevels(iSpec))
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
+      ! Calculate vibrational partition for this quantum number
+      VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
+      ! decide if quantum number is accepted
+      ! acceptance is higher for lower levels
+      CALL RANDOM_NUMBER(iRan)
+      DO WHILE (iRan .GE. (VibPartitionTemp / GroundLevel))
+        ! select random quantum number and calculate partition function again
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT(AHO%NumVibLevels(iSpec) * iRan + 1.)
+        VibPartitionTemp = EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * temp))
+        CALL RANDOM_NUMBER(iRan)
+      END DO
+      ! vibrational energy is table value of the accepted quantum number
+      CalcEVib_particle = AHO%VibEnergy(iSpec,iQuant)
+
+    ! Utilization of ground state energy if CHECKEXP = F
+    ELSE
+      CalcEVib_particle = AHO%VibEnergy(iSpec,1)
+    END IF
+
+  ELSE ! SHO
     CALL RANDOM_NUMBER(iRan)
     iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
-  END DO
-  CalcEVib_particle = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+    DO WHILE (iQuant.GE.SpecDSMC(iSpec)%MaxVibQuant)
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT(-LOG(iRan)*TempVib/SpecDSMC(iSpec)%CharaTVib)
+    END DO
+    CalcEVib_particle = (iQuant + DSMC%GammaQuant)*SpecDSMC(iSpec)%CharaTVib*BoltzmannConst
+
+  END IF
 END IF
 
 RETURN
@@ -1324,7 +1381,7 @@ RETURN
 END FUNCTION CalcEVib_particle
 
 
-REAL FUNCTION CalcERot_particle(iSpec,TempRot)
+REAL FUNCTION CalcERot_particle(iSpec,TempRot,iPart)
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -1336,13 +1393,14 @@ USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)       :: iSpec
-REAL, INTENT(IN)          :: TempRot
+INTEGER, INTENT(IN)            :: iSpec
+REAL, INTENT(IN)               :: TempRot
+INTEGER, INTENT(IN)            :: iPart  ! dummy for func pointer to work (needed for quantized approach)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                      :: PartStateTempVar, NormProb, iRan2
+INTEGER                   :: dummy
 !===================================================================================================================================
-
 CalcERot_particle = 0.
 
 IF (SpecDSMC(iSpec)%Xi_Rot.EQ.2) THEN
@@ -1363,8 +1421,323 @@ ELSE IF (SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
 END IF
 
 RETURN
-
+! Suppress compiler warning
+dummy = iPart
 END FUNCTION CalcERot_particle
+
+
+REAL FUNCTION CalcERotQuant_particle(iSpec,TRot,iPart)
+!===================================================================================================================================
+! Calculate rotational quantized energies for inital particle insertion at given rotational temperature
+! split up for different rotational groups are sampled: diatomic, linear, spherical top, symmetric top, asymmetric top
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals           ,ONLY: Abort
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst, PlanckConst, PI
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC, PolyatomMolDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iSpec
+REAL, INTENT(IN)              :: TRot
+INTEGER, INTENT(IN)           :: iPart    ! not necessary for BGGas internal energy in MCC
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: iRan, fNorm, MaxValue
+INTEGER                       :: iPolyatMole, J, iQuant
+LOGICAL                       :: ARM
+! symmetric top variables
+REAL                          :: C, D
+INTEGER                       :: kQuant, kIter, delta
+! jMax Calculation
+INTEGER                       :: jMax, jIter
+REAL                          :: SumOne, SumTwo
+REAL,PARAMETER                :: eps_prec=1E-12
+
+!===================================================================================================================================
+CalcERotQuant_particle = 0.
+! if Trot is zero function would lead to endless loop due to diving by zero
+IF(TRot.EQ.0) RETURN
+iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+ARM = .TRUE.
+IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN            ! diatomic case
+  ! Quantized treatment of rotational energy
+  J = NINT(0.5 * (SQRT(2.*TRot/SpecDSMC(iSpec)%CharaTRot) - 1.))
+  MaxValue = (2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot)
+  ! calculate cutoff value for distribution function if not already calculated for current temperature
+  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+    SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
+    SumOne = 0
+    SumTwo = (2.*REAL(0) + 1.) *EXP(-REAL(0)*(REAL(0) + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot) &
+              / MaxValue
+    jIter = 1
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+      SumOne = SumTwo
+      SumTwo = SumOne + (2.*REAL(jIter) + 1.) *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* &
+                SpecDSMC(iSpec)%CharaTRot/TRot) / ((2.*J + 1.)*EXP(-J*(J + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot))
+      jIter = jIter + 1
+    END DO
+    SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
+  END IF
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT((1+jMax)*iRan)
+  DO WHILE (ARM)
+    fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*SpecDSMC(iSpec)%CharaTRot/TRot) &
+    / MaxValue
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT((1+jMax)*iRan)
+    ELSE
+      ARM = .FALSE.
+    END IF
+  END DO
+  CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * SpecDSMC(iSpec)%CharaTRot
+
+ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN        ! check if molecule is linear
+  ! calculate quantum number where f has maximum
+  J = NINT(0.5 * (SQRT(2.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
+  MaxValue = (2.*J + 1.)*EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot)
+  ! calculate cutoff value for distribution function if not already calculated for current temperature
+  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+    SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
+    SumOne = 0
+    SumTwo = (2.*REAL(0) + 1.) *EXP(-REAL(0)*(REAL(0) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
+             / ((2.*J + 1.) *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot))
+    jIter = 1
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+      SumOne = SumTwo
+      SumTwo = SumOne + (2.*REAL(jIter) + 1.) *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* &
+               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / MaxValue
+      jIter = jIter + 1
+    END DO
+    SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
+  END IF
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  ! ARM
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT((1+jMax)*iRan)
+  DO WHILE (ARM)
+    fNorm = (2.*REAL(iQuant) + 1.)*EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
+    / MaxValue
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT((1+jMax)*iRan)
+    ELSE
+      ARM = .FALSE.
+    END IF
+  END DO
+  CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
+
+ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN
+  ! molecule is non-linear -> spherical top molecule with all moments of inertia are the same
+  ! calculate quantum number where f has maximum
+  J = NINT(0.5 * (SQRT(4.*TRot/PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)) - 1.))
+  MaxValue = (2.*J + 1.)**2 *EXP(-J*(J + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot)
+  ! calculate cutoff value for distribution function if not already calculated for current temperature
+  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+    SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
+    SumOne = 0
+    SumTwo = (2.*REAL(0) + 1.)**2 *EXP(-REAL(0)*(REAL(0) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
+             / MaxValue
+    jIter = 1
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+      SumOne = SumTwo
+      SumTwo = SumOne + (2.*REAL(jIter) + 1.)**2 *EXP(-REAL(jIter)*(REAL(jIter) + 1.)* &
+               PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) / MaxValue
+      jIter = jIter + 1
+    END DO
+    SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
+  END IF
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  ! ARM
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT((1+jMax)*iRan)
+  DO WHILE (ARM)
+    fNorm = (2.*REAL(iQuant) + 1.)**2 *EXP(-REAL(iQuant)*(REAL(iQuant) + 1.)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/TRot) &
+    / MaxValue
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT((1+jMax)*iRan)
+    ELSE
+      ARM = .FALSE.
+    END IF
+  END DO
+  CalcERotQuant_particle = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)
+
+ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11)THEN
+  IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10)THEN
+    ! molecule is non-linear -> symmetric top molecule where two are equal and third is different -> oblate top
+    ! constants for easier formula for J
+    C = PlanckConst**2./(8.*PI**2.*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*BoltzmannConst*TRot)
+    D = PlanckConst**2.*(1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))/&
+        (8.*PI**2.*BoltzmannConst*TRot)
+    ! calculate quantum number where f has maximum with k=j
+    J = NINT((SQRT(D**2.+8.*(C+D)) - (2.*C+D)) / (4.*(C+D)))
+    ! maxValue has degeneracy with k!=0 is 2*(2j+1)
+    MaxValue = (2.) * (2. * REAL(J) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * &
+      (REAL(J) * (REAL(J) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + &
+      (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+      REAL(J)**2.))
+  ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11)THEN
+    ! molecule is non-linear -> symmetric top molecule where two are equal and third is different -> prolate top
+    ! function identical to oblate tops other than J calculation but for clarity and less if statements separate
+    ! calculate quantum number where f has maximum with k=0
+    J = NINT(0.5 * (SQRT(16.*PI**2.*PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)*BoltzmannConst*TRot/PlanckConst**2.)-1.))
+    ! maxValue has degeneracy with k=0 is (2j+1)
+    IF((1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)).GT.&
+    log(2.)*PlanckConst**2./(8.*PI**2.*BoltzmannConst*TRot))THEN
+      ! maximum for k=0
+      MaxValue = (2. * REAL(J) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * &
+      (REAL(J) * (REAL(J) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
+    ELSE
+      ! maximum for k=1
+      MaxValue = (2.) * (2. * REAL(J) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * &
+      (REAL(J) * (REAL(J) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + &
+      (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+      REAL(1)**2.))
+    END IF
+  END IF
+
+  IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%jMaxAtTemp)) ALLOCATE(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  IF(TRot.NE.SpecDSMC(iSpec)%jMaxAtTemp(1))THEN
+    ! calculate cutoff value for distribution function if not already calculated for current temperature
+    SpecDSMC(iSpec)%jMaxAtTemp(1) = TRot
+    ! sumone not zero to enter loop, get a new value each loop
+    SumOne = 100
+    SumTwo = 0
+    jIter = 0
+    DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+      ! for k=0 not double degenerate
+      SumTwo = SumTwo + (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * (REAL(jIter) * &
+                    (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))) / MaxValue
+      DO kIter=1, jIter
+        SumOne = SumTwo
+        SumTwo = SumTwo + (2.) * (2. * REAL(jIter) + 1.) * EXP(-PlanckConst**2 / (8 * PI**2 * BoltzmannConst * TRot) * &
+            (REAL(jIter) * (REAL(jIter) + 1) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + &
+            (1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1. / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+            REAL(kIter)**2.)) / MaxValue
+      END DO
+      jIter = jIter + 1
+    END DO
+    SpecDSMC(iSpec)%jMaxAtTemp(2) = jIter
+  END IF
+  jMax = INT(SpecDSMC(iSpec)%jMaxAtTemp(2))
+  ! roll quantum numbers
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = INT((1+jMax)*iRan)
+  CALL RANDOM_NUMBER(iRan)
+  kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+  ! reroll quantum numbers untill condition |k| < j is true
+  DO WHILE(kQuant**2.GT.iQuant**2)
+    CALL RANDOM_NUMBER(iRan)
+    iQuant = INT((1+jMax)*iRan)
+    CALL RANDOM_NUMBER(iRan)
+    kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+  END DO
+  ! acceptance rejection sampling
+  DO WHILE (ARM)
+    ! set delta for degeneracy in fNorm
+    delta=0
+    IF(kQuant.EQ.0) delta=1
+    fNorm = ((2.-REAL(delta))*(2.*REAL(iQuant) + 1.)*EXP(-PlanckConst**2 / (8*PI**2*BoltzmannConst*TRot)*(REAL(iQuant)*(REAL(iQuant)+1.)/&
+            PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
+            1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.))) &
+            / MaxValue
+    CALL RANDOM_NUMBER(iRan)
+    IF(fNorm .LT. iRan) THEN
+      CALL RANDOM_NUMBER(iRan)
+      iQuant = INT((1+jMax)*iRan)
+      CALL RANDOM_NUMBER(iRan)
+      kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+      DO WHILE(kQuant**2.GT.iQuant**2)
+        CALL RANDOM_NUMBER(iRan)
+        iQuant = INT((1+jMax)*iRan)
+        CALL RANDOM_NUMBER(iRan)
+        kQuant = INT((2. * jMax + 1.) * iRan) - jMax
+      END DO
+    ELSE
+      ARM = .FALSE.
+    END IF
+  END DO
+  CalcERotQuant_particle = PlanckConst**2. / (8.*PI**2.) * (REAL(iQuant)*(REAL(iQuant)+1.) / &
+                          PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
+                          1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kQuant)**2.)
+
+ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN
+  ! asymmetric top molecule, no analytic formula for energy levels -> always use database!
+  CalcERotQuant_particle = CalcERotDataset_particle(iSpec,TRot,iPart)
+
+ELSE
+  CALL abort(__STAMP__,'Unexpected dimensions of moments of inertia of species iSpec!')
+END IF
+RETURN
+
+END FUNCTION CalcERotQuant_particle
+
+
+REAL FUNCTION CalcERotDataset_particle(iSpec,TRot,iPart)
+!===================================================================================================================================
+! Subroutine to calculate the rotational levels from SpeciesDatabase.h5
+! Calculate rotational quantized energies for inital particle insertion with given rotational levels from SpeciesDatabase.h5 at
+! given rotational temperature
+! NOT TESTED YET!
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars      ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars         ,ONLY: SpecDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iSpec
+REAL, INTENT(IN)              :: TRot
+INTEGER, INTENT(IN)           :: iPart  ! dummy for func pointer to work (needed for quantized approach)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                   :: iQuant, dummy
+REAL                      :: iRan, RotationalPartition, RotationalPartitionTemp
+!===================================================================================================================================
+! switch to continous calculatation if temperature is above the highest level in database - not tested!
+IF(TRot.GT.SpecDSMC(iSpec)%RotationalState(2,SpecDSMC(iSpec)%MaxRotQuant-1)) THEN
+  CALL ABORT(__STAMP__,&
+    'Please use continous calculation for rotational energy levels, since temperature is above the highest level - Not tested yet!')
+  CalcERotDataset_particle = CalcERot_particle(iSpec,TRot,iPart)
+  RETURN
+END IF
+
+RotationalPartition  = 0.
+CalcERotDataset_particle = 0.
+RotationalPartitionTemp = 0.
+! calculate maximum over all energy levels for temperature TRot
+DO iQuant = 0, SpecDSMC(iSpec)%MaxRotQuant - 1
+  RotationalPartitionTemp = SpecDSMC(iSpec)%RotationalState(1,iQuant) * EXP(-SpecDSMC(iSpec)%RotationalState(2,iQuant)/TRot)
+  IF ( RotationalPartitionTemp .GT. RotationalPartition ) THEN
+    RotationalPartition = RotationalPartitionTemp
+  END IF
+END DO
+RotationalPartitionTemp = 0.
+! select level
+CALL RANDOM_NUMBER(iRan)
+DO WHILE ( iRan .GE. RotationalPartitionTemp / RotationalPartition )
+  CALL RANDOM_NUMBER(iRan)
+  iQuant = int( ( SpecDSMC(iSpec)%MaxRotQuant) * iRan)
+  RotationalPartitionTemp = SpecDSMC(iSpec)%RotationalState(1,iQuant) * EXP(-SpecDSMC(iSpec)%RotationalState(2,iQuant)/TRot)
+  CALL RANDOM_NUMBER(iRan)
+END DO
+CalcERotDataset_particle = BoltzmannConst * SpecDSMC(iSpec)%RotationalState(2,iQuant)
+RETURN
+! Suppress compiler warning
+dummy = iPart
+END FUNCTION CalcERotDataset_particle
 
 
 REAL FUNCTION CalcEElec_particle(iSpec,TempElec,iPart)
@@ -1713,7 +2086,7 @@ END IF
 IF(CollisMode.GT.1) THEN
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     PartStateIntEn(1,iPart) = CalcEVib_particle(iSpec,Tvib,iPart)
-    PartStateIntEn(2,iPart) = CalcERot_particle(iSpec,Trot)
+    PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpec,TRot,iPart)
   ELSE
     PartStateIntEn(1:2,iPart) = 0.0
   END IF
