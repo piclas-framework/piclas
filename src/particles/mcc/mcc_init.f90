@@ -133,6 +133,10 @@ IF(ANY(SpecDSMC(:)%UseCollXSec).OR.ANY(SpecDSMC(:)%UseVibXSec).OR.ANY(SpecDSMC(:
   UseMCC = .TRUE.
 END IF
 
+IF(DSMC%VibAHO.AND.ANY(SpecDSMC(:)%UseVibXSec)) THEN
+  SWRITE(*,*) 'NOTE: AHO is enabled but will not be used!'
+END IF
+
 ! Ambipolar diffusion is not implemented with the regular background gas, only with MCC
 IF(DSMC%DoAmbipolarDiff) THEN
   IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.UseMCC)) CALL abort(__STAMP__,&
