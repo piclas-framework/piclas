@@ -187,7 +187,7 @@ END SUBROUTINE MacroValuesFromDistribution
 
 SUBROUTINE MaxwellDistributionCons(MacroVal,fMaxwell)
 !===================================================================================================================================
-! conservative maxwell distribution
+! conservative maxwell distribution (cf Mieussens 2000)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi, DVMWeights
@@ -205,21 +205,26 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! LOCAL VARIABLES
 REAL                            :: rho, Temp, uVelo(DVMDim), vMag, weight, gM
 REAL,DIMENSION(2+DVMDim)        :: alpha, psi, rhovec
-REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim,1)
+REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim)
 INTEGER                         :: iVel,jVel,kVel, upos, countz, IPIV(2+DVMDim), info_dgesv
 !===================================================================================================================================
 rho = MacroVal(1)
 uVelo(1:DVMDim) = MacroVal(2:1+DVMDim)
 Temp = MacroVal(5)
+
+! vector of conservative variables
 rhovec(1) = rho
 rhovec(2:1+DVMDim)=rho*uVelo(:)
-rhovec(2+DVMDim)=rho*(3*DVMSpeciesData%R_S*Temp+DOT_PRODUCT(uVelo,uVelo))/2.
-countz=0
+rhovec(2+DVMDim)=rho*(FLOAT(DVMDim)*DVMSpeciesData%R_S*Temp+DOT_PRODUCT(uVelo,uVelo))/2.
 
 alpha(1) = LOG(rho/(2.*Pi*DVMSpeciesData%R_S*Temp)**(DVMDim/2.))-DOT_PRODUCT(uVelo,uVelo)/2./DVMSpeciesData%R_S/Temp
 alpha(2:1+DVMDim) = uVelo(1:DVMDim)/DVMSpeciesData%R_S/Temp
 alpha(2+DVMDim) = -1/DVMSpeciesData%R_S/Temp
 
+! init counter
+countz=0
+
+!Newton algorithm to find alpha so that <psi exp(alpha.psi)> = rhovec
 DO WHILE (countz.LT.1000)
   countz=countz+1
   J = 0.
@@ -233,6 +238,9 @@ DO WHILE (countz.LT.1000)
     IF (DVMDim.GT.2) psi(4)=DVMVelos(kVel,3)
     psi(2+DVMDim) = vMag/2.
     gM = EXP(DOT_PRODUCT(alpha,psi))
+
+    ! J: derivative of -B = <psi exp(alpha.psi)> - rhovec
+    ! J = <psi x psi exp(alpha.psi)>
     J(:,1) = J(:,1)+weight*gM*psi(:)
     J(:,2) = J(:,2)+weight*gM*psi(2)*psi(:)
     IF (DVMDim.GT.1) J(:,3) = J(:,3)+weight*gM*psi(3)*psi(:)
@@ -240,20 +248,21 @@ DO WHILE (countz.LT.1000)
     J(:,2+DVMDim) = J(:,2+DVMDim)+weight*gM*psi(2+DVMDim)*psi(:)
   END DO; END DO; END DO
 
-  B(:,1) = rhovec(:) - J(:,1)
+  B(:) = rhovec(:) - J(:,1)
 
+  ! solve JX = B
   CALL DGESV(2+DVMDim,1,J,2+DVMDim,IPIV,B,2+DVMDim,info_dgesv)
 
   IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Newton DGESV fail')
-  IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-5*ABS(alpha)+1e-12)))) EXIT
+  IF (.NOT.(ANY(ABS(B(:)).GT.(1e-5*ABS(alpha)+1e-12)))) EXIT
   ! IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-6*ABS(alpha)+1e-16)))) EXIT
-  alpha = alpha + B(:,1)
+
+  ! update alpha with Newton increment X (stored in B)
+  alpha = alpha + B
 END DO
 IF (countz.GE.1000) print*, 'Newton max iter reached'
 
-J=0.
-
-alpha = alpha + B(:,1)
+alpha = alpha + B
 DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
   upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
@@ -265,7 +274,6 @@ DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
   psi(2+DVMDim) = vMag/2.
   fMaxwell(upos) = EXP(DOT_PRODUCT(alpha,psi))
   IF (DVMDim.LT.3) THEN
-    print*, 'I dont think MaxwellCons works with D < 3 :/'
     fMaxwell(PP_nVar_FV/2+upos) = fMaxwell(upos)*DVMSpeciesData%R_S*Temp*(DVMSpeciesData%Internal_DOF+3.-DVMDim)
   END IF
 END DO; END DO; END DO
@@ -425,10 +433,10 @@ END SUBROUTINE ESBGKDistribution
 
 SUBROUTINE ESBGKDistributionCons(MacroVal,fESBGK)
 !===================================================================================================================================
-! ESBGK distribution from macro values
+! Conservative ESBGK distribution from macro values (cf Andries et al. 2000)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi
+USE MOD_Equation_Vars_FV         ,ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMDim, Pi, DVMWeights
 USE MOD_Basis                    ,ONLY: INV33
 USE MOD_PreProc
 USE MOD_Globals
@@ -442,10 +450,147 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho,Temp,uVelo(3),cVel(3),pressTens(3,3),pressProduct,ilambda(3,3),ldet,hfac
-INTEGER                         :: iVel,jVel,kVel, upos
+REAL                                              :: rho,Temp,uVelo(DVMDim),pressTens(3,3),pressVec(2*DVMDim),weight,gM,hfac
+REAL                                              :: iLambda(3,3),ldet, pressProduct(DVMDim)
+REAL,DIMENSION(1+2*DVMDim+DVMDim*(DVMDim-1)/2)    :: rhovec,alpha,psi,B
+REAL                                              :: J(1+2*DVMDim+DVMDim*(DVMDim-1)/2,1+2*DVMDim+DVMDim*(DVMDim-1)/2)
+INTEGER                                           :: iVel,jVel,kVel,upos,countz,IPIV(1+2*DVMDim+DVMDim*(DVMDim-1)/2),info_dgesv
+INTEGER                                           :: iMat,jMat
 !===================================================================================================================================
-CALL abort(__STAMP__,'ESBGKDistributionCons not implemented yet')
+rho = MacroVal(1)
+uVelo(1:DVMDim) = MacroVal(2:1+DVMDim)
+Temp = MacroVal(5)
+pressTens(1,1)   = MacroVal(6)
+pressTens(2,2)   = MacroVal(7)
+pressTens(3,3)   = MacroVal(8)
+pressTens(1,2:3) = MacroVal(9:10)
+pressTens(2:3,1) = MacroVal(9:10)
+pressTens(2,3)   = MacroVal(11)
+pressTens(3,2)   = MacroVal(11)
+
+pressTens = (1.-1./DVMSpeciesData%Prandtl)*pressTens/rho
+pressTens(1,1) = pressTens(1,1)+DVMSpeciesData%R_S*Temp/DVMSpeciesData%Prandtl
+pressTens(2,2) = pressTens(2,2)+DVMSpeciesData%R_S*Temp/DVMSpeciesData%Prandtl
+pressTens(3,3) = pressTens(3,3)+DVMSpeciesData%R_S*Temp/DVMSpeciesData%Prandtl
+
+CALL INV33(pressTens,ilambda,ldet)
+IF (ldet.LE.0.) THEN
+  CALL abort(__STAMP__,'ESBGK matrix not positive-definite')
+ELSE
+  ! determinant from reduced pressure tensor (size D*D)
+  IF (DVMDim.LE.2) ldet = ldet/pressTens(3,3)
+  IF (DVMDim.LE.1) ldet = ldet/pressTens(2,2)
+END IF
+
+! pressure tensor to vector
+pressVec = 0.
+pressVec(1:DVMDim)   = MacroVal(6:6+DVMDim-1)
+pressVec(DVMDim+1:DVMDim+DVMDim*(DVMDim-1)/2) = MacroVal(9:9+DVMDim*(DVMDim-1)/2-1)
+
+pressVec = (1.-1./DVMSpeciesData%Prandtl)*pressVec/rho
+pressVec(1:DVMDim) = pressVec(1:DVMDim)+DVMSpeciesData%R_S*Temp/DVMSpeciesData%Prandtl
+
+! vector of conservative variables + cross terms
+rhovec(1) = rho
+rhovec(2:1+DVMDim)=rho*uVelo(:)
+rhovec(DVMDim+2:2*DVMDim+1)=rho*(uVelo(1:DVMDim)*uVelo(1:DVMDim) + pressVec(1:DVMDim))
+IF (DVMDim.GT.1) rhovec(2*DVMDim+2) = rho*(uVelo(1)*uVelo(2) + pressVec(DVMDim+1))
+IF (DVMDim.GT.2) THEN
+  rhovec(2*DVMDim+3) = rho*(uVelo(1)*uVelo(3) + pressVec(DVMDim+2))
+  rhovec(2*DVMDim+4) = rho*(uVelo(2)*uVelo(3) + pressVec(DVMDim+3))
+END IF
+
+pressProduct(1:DVMDim) = MATMUL(iLambda(1:DVMDim,1:DVMDim),uVelo)
+
+alpha = 0.
+alpha(1) = LOG(rho/sqrt(ldet*(2*Pi)**DVMDim))-DOT_PRODUCT(pressProduct,uVelo)/2.
+alpha(2:1+DVMDim) = pressProduct(1:DVMDim)
+alpha(2+DVMDim) = -iLambda(1,1)/2.
+IF (DVMDim.GT.1) THEN
+  alpha(3+DVMDim)= -iLambda(2,2)/2.
+  alpha(2+2*DVMDim) = -iLambda(1,2)/2.
+  IF (DVMDim.GT.2) THEN
+    alpha(4+DVMDim) = -iLambda(3,3)/2.
+    alpha(3+2*DVMDim) = -iLambda(1,3)/2.
+    alpha(4+2*DVMDim) = -iLambda(2,3)/2.
+  END IF
+END IF
+
+! init counter
+countz=0
+
+!Newton algorithm to find alpha so that <psi exp(alpha.psi)> = rhovec
+DO WHILE (countz.LT.1000)
+  countz=countz+1
+  J = 0.
+
+  DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+    weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+    psi(1)=1
+    psi(2)=DVMVelos(iVel,1)
+    psi(2+DVMDim) = DVMVelos(iVel,1)**2
+    IF (DVMDim.GT.1) THEN
+      psi(3)=DVMVelos(jVel,2)
+      psi(3+DVMDim)=DVMVelos(jVel,2)**2
+      psi(2+2*DVMDim) = DVMVelos(iVel,1)*DVMVelos(jVel,2)
+      IF (DVMDim.GT.2) THEN
+        psi(4)=DVMVelos(kVel,3)
+        psi(4+DVMDim)=DVMVelos(kVel,3)**2
+        psi(3+2*DVMDim) = DVMVelos(iVel,1)*DVMVelos(kVel,3)
+        psi(4+2*DVMDim) = DVMVelos(jVel,2)*DVMVelos(kVel,3)
+      END IF
+    END IF
+    gM = EXP(DOT_PRODUCT(alpha,psi))
+
+    ! J: derivative of -B = <psi exp(alpha.psi)> - rhovec
+    ! J = <psi x psi exp(alpha.psi)>
+    DO iMat=1,1+2*DVMDim+DVMDim*(DVMDim-1)/2
+      DO jMat=1,1+2*DVMDim+DVMDim*(DVMDim-1)/2
+        J(iMat,jMat) = J(iMat,jMat) + weight*gM*psi(iMat)*psi(jMat)
+      END DO
+    END DO
+  END DO; END DO; END DO
+
+  B(:) = rhovec(:) - J(:,1)
+
+  ! solve JX = B
+  CALL DGESV(1+2*DVMDim+DVMDim*(DVMDim-1)/2,1,J,1+2*DVMDim+DVMDim*(DVMDim-1)/2,IPIV,B,1+2*DVMDim+DVMDim*(DVMDim-1)/2,info_dgesv)
+
+  IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Newton DGESV fail')
+  IF (.NOT.(ANY(ABS(B(:)).GT.(1e-5*ABS(alpha)+1e-12)))) EXIT
+  ! IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-6*ABS(alpha)+1e-16)))) EXIT
+
+  ! update alpha with Newton increment X (stored in B)
+  alpha = alpha + B
+END DO
+IF (countz.GE.1000) print*, 'Newton max iter reached'
+
+alpha = alpha + B
+DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+  weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+  upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+  psi(1)=1
+  psi(2)=DVMVelos(iVel,1)
+  psi(2+DVMDim) = DVMVelos(iVel,1)**2
+  IF (DVMDim.GT.1) THEN
+    psi(3)=DVMVelos(jVel,2)
+    psi(3+DVMDim)=DVMVelos(jVel,2)**2
+    psi(2+2*DVMDim) = DVMVelos(iVel,1)*DVMVelos(jVel,2)
+    IF (DVMDim.GT.2) THEN
+      psi(4)=DVMVelos(kVel,3)
+      psi(4+DVMDim)=DVMVelos(kVel,3)**2
+      psi(3+2*DVMDim) = DVMVelos(iVel,1)*DVMVelos(kVel,3)
+      psi(4+2*DVMDim) = DVMVelos(jVel,2)*DVMVelos(kVel,3)
+    END IF
+  END IF
+  fESBGK(upos) = EXP(DOT_PRODUCT(alpha,psi))
+  IF ((DVMSpeciesData%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
+    hfac = DVMSpeciesData%R_S*Temp*DVMSpeciesData%Internal_DOF
+    IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
+    IF (DVMDim.LE.1) hfac = hfac + pressTens(2,2)
+    fESBGK(PP_nVar_FV/2+upos) = fESBGK(upos)*hfac
+  END IF
+END DO; END DO; END DO
 
 END SUBROUTINE ESBGKDistributionCons
 
