@@ -18,12 +18,10 @@ Additionally, the number of simulated physical models depending on the applicati
 
 `CollisMode = 1` can be utilized for the simulation of a non-reactive, cold atomic gas, where no chemical reactions or electronic
 excitation is expected. `CollisMode = 2` should be chosen for non-reactive diatomic gas flows to include the internal energy
-exchange (by default including the rotational and vibrational energy treatment). Finally, reactive gas flows can be simulated with
+exchange (by default including the continuous rotational and quantized vibrational energy treatment). Finally, reactive gas flows can be simulated with
 `CollisMode = 3`. The following sections describe the required definition of species parameter (Section {ref}`sec:DSMC-species`),
 the parameters for the internal energy exchange (Section {ref}`sec:DSMC-relaxation`) and chemical reactions (Section
 {ref}`sec:DSMC-chemistry`).
-
-
 
 A fixed ("manual") simulation time step $\Delta t$ is defined by
 
@@ -82,7 +80,9 @@ If the previous state of the ionized species is not part of the simulation (e.g.
 state of N$_2^+$ can be set to zero, however, in that case a heat/enthalpy of formation has to be provided, which includes the
 ionization energy (as given in ATcT).
 
-Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV]
+For the vibrational energy, two different models are available, the Simple Harmonic Oscillator (SHO) and the Anharmonic Oscillator (AHO). The default model is SHO.
+
+Here, diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV]
 (which is at the moment utilized as a first guess for the upper bound of the temperature calculation as well as the threshold
 energy for the dissociation by the Quantum-Kinetic chemistry model)
 
@@ -191,11 +191,28 @@ To achieve consistency between continuum and particle-based relaxation modelling
 
 ### Rotational Relaxation
 
-To adjust the rotational relaxation this variable has to be changed:
+The default rotational relaxation model uses a continuous treatment. For simulations involving low temperatures relative to the characteristic rotational temperatures of the species, it is possible to activate a quantized treatment of rotational degrees of freedom with DSMC. This feature is enabled with
+
+    Particles-DSMC-RotationalRelaxModel = 1     ! Default: 0 (continuous)
+
+This model requires the moments of inertia ($kgm^{2}$) for each species, which can be provided either through the unified species database or defined with
+
+    Part-Species1-MomentOfInertia = 7.198e-46
+
+for linear and spherical molecules since all moments of inertia are equal. For symmetric molecules one moment of inertia is different so two have to be defined with
+
+    Part-Species1-MomentOfInertia1 = 2.939e-47
+    Part-Species1-MomentOfInertia2 = 5.878e-47
+
+Moment of inertia data can be retrieved from the [NIST database](https://cccbdb.nist.gov) {cite}`CCCBDB-web-page`.
+Please note that the quantized model has not yet been implemented for asymmetric top molecules and it is currently not available for coupled simulations using BGK or Fokker-Planck models.
+
+To adjust the rotational relaxation probability, several options are available:
 
     Particles-DSMC-RotRelaxProb = 0.2   ! Value between 0 and 1 as a constant probability
-                                    2   ! Model by Boyd
+                                    2   ! Model by Boyd (general model)
                                     3   ! Model by Zhang
+                                    4   ! Model by Boyd (only for Hydrogen)
 
 If `RotRelaxProb` is between 0 and 1, it is set as a constant rotational relaxation probability (default = 0.2). `RotRelaxProb = 2`
 activates the variable rotational relaxation model according to Boyd {cite}`Boyd1990a`. Consequently, for each molecular species
@@ -207,16 +224,30 @@ example, nitrogen is used {cite}`Boyd1990b`.
 
 It is not recommended to use this model with the prohibiting double-relaxation selection procedure (`Particles-DSMC-SelectionProcedure = 2`). Low collision energies result in high relaxation probabilities, which can lead to cumulative collision probabilities greater than 1.
 
-If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used. However, it is only
-implemented for nitrogen and not tested. It is not recommended for use.
+If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used, which is currently only implemented for nitrogen. A relaxation probability of 4 enables the model of Boyd, which is specifically constructed for hydrogen {cite}`Boyd1994`.
+However, both of these models are not tested yet and not recommended for use.
 
 ### Vibrational Relaxation
+
+The default vibrational relaxation model is the simple harmonic osciallator (SHO) model, which is enabled per default. The anharmonic oscillator (AHO) model, using the Morse potential, can be enabled with
+
+    Particles-DSMC-VibrationalRelaxModel = 1    ! Default: 0 (SHO)
+
+It is only implemented for diatomic molecular species until now and cannot be combined with chemical reactions. PICLas utilizes a species database, which contains the AHO vibrational energy levels and spectroscopy constants $\omega_\mathrm{E}$ and $\chi_\mathrm{E}$ of the species and is located in the top folder `SpeciesDatabase.h5`. Details regarding the database can be found in Section {ref}`sec:unified-species-database`. Although not recommended, to start the simulation without the species database, the following parameters are required
+
+    Part-Species1-Vib-Anharmonic-omegaE = 167174.0
+    Part-Species1-Vib-Anharmonic-chiE = 0.009825092
+
+A comma-separated list of the anharmonic energy levels (in Joule), including the zero-point energy as first level, can be included via
+
+    Particles-DSMC-Vib-Anharmonic-Species1-Data = DSMCSpecies_AHO_vibrational_data.csv
 
 Analogous to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be
 changed, if the vibrational relaxation probability should be adjusted:
 
     Particles-DSMC-VibRelaxProb = 0.004 ! Value between 0 and 1 as a constant probability
                                       2 ! Model by Boyd
+                                      3 ! Model by Bird
 
 If `VibRelaxProb` is between 0 and 1, it is used as a constant vibrational relaxation probability (default = 0.004). The variable
 vibrational relaxation model of Boyd {cite}`Boyd1990b` can be activated with `VibRelaxProb = 2`. For each molecular species pair,
@@ -253,6 +284,15 @@ $$P^{n+1}_{\mathrm{v}}= P^{n}_{\mathrm{v}}  \cdot  \alpha^{2  \cdot  n_{\mathrm{
 This model is extended to more species by calculating a separate probability for each species. An initial vibrational relaxation
 probability is set by calculating $\mathrm{INT}(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell by
 using an instantaneous translational cell temperature.
+
+The relaxation model of Bird {cite}`Bird1994` can be activated with `VibRelaxProb = 3`. With this, the relaxation probabilities are calculated from a collision temperature and the dissociation temperature, which sets a limit for the quantum number. For each species pair containing a diatomic molecule, the following parameters are required for each diatomic species, which can be found in {cite}`Carlson1994`. The parameters for N$_2$-N are shown as an example:
+
+    Part-Species1-1-VibConstant-C1 = 9.1
+    Part-Species1-2-VibConstant-C1 = 1800.0
+
+    Part-Species1-1-VibConstant-C2 = 220.0
+    Part-Species1-2-VibConstant-C2 = 73.5
+
 
 (sec:DSMC-electronic-relaxation)=
 ### Electronic Relaxation

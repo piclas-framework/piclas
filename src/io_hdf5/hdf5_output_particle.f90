@@ -1284,7 +1284,7 @@ CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: iSpec
 !===================================================================================================================================
 IF(CollisMode.GT.1) THEN
-  IF(DSMC%VibRelaxProb.GE.2.0) THEN
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
     ALLOCATE(StrVarNames(nSpecies))
     DO iSpec=1,nSpecies
       WRITE(SpecID,'(I3.3)') iSpec

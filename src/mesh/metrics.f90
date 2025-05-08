@@ -140,6 +140,7 @@ USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+USE MOD_Globals_Vars       ,ONLY: PI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
