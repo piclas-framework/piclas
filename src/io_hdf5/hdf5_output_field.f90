@@ -56,15 +56,15 @@ SUBROUTINE WriteDielectricGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars ,ONLY: DielectricGlobal
-USE MOD_Dielectric_Vars ,ONLY: DielectricVol,isDielectricElem,ElemToDielectric
-USE MOD_Mesh_Vars       ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_Dielectric_Vars      ,ONLY: DielectricVol,isDielectricElem,ElemToDielectric
+USE MOD_Mesh_Vars            ,ONLY: MeshFile,nGlobalElems,offsetElem,nElems
 USE MOD_io_HDF5
-USE MOD_ChangeBasis     ,ONLY: ChangeBasis3D
-USE MOD_DG_vars                ,ONLY: N_DG_Mapping
-USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
+USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
+USE MOD_DG_vars              ,ONLY: N_DG_Mapping,nDofsMapping
+USE MOD_Interpolation_Vars   ,ONLY: PREF_VDM,Nmax
+USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -74,72 +74,88 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER   :: N_variables=2
+INTEGER,PARAMETER   :: nVarOut=2
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 REAL                :: OutputTime
 INTEGER             :: iElem, Nloc
-REAL, ALLOCATABLE   :: DielectricVolTmp(:,:,:,:)
+! p-adaption output
+REAL,ALLOCATABLE    :: U_N_2D_local(:,:)
+INTEGER             :: i,j,k,iDOF,nDOFOutput,offsetDOF
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
-! create global Eps field for parallel output of Eps distribution
-ALLOCATE(DielectricGlobal(1:N_variables,0:Nmax,0:Nmax,0:Nmax,1:PP_nElems))
-ALLOCATE(StrVarNames(1:N_variables))
+! ---------------------------------------------------------
+! Prepare U_N_2D_local array for output as DG_Solution
+! ---------------------------------------------------------
+! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+! Allocate local 2D array: create global Eps field for parallel output of Eps distribution
+ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+ALLOCATE(StrVarNames(1:nVarOut))
 StrVarNames(1)='DielectricEpsGlobal'
 StrVarNames(2)='DielectricMuGlobal'
-DielectricGlobal=0.
 
+! Write into 2D array
+iDOF = 0
 DO iElem=1,PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   IF(isDielectricElem(iElem))THEN
-    Nloc = N_DG_Mapping(2,iElem+offSetElem)
-    IF (Nloc.EQ.Nmax) THEN
-      DielectricGlobal(1,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
-      DielectricGlobal(2,:,:,:,iElem)=DielectricVol(ElemToDielectric(iElem))%DielectricMu( :,:,:)
-    ELSE
-      ALLOCATE(DielectricVolTmp(2,0:Nloc,0:Nloc,0:Nloc))
-      DielectricVolTmp(1,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)
-      DielectricVolTmp(2,0:Nloc,0:Nloc,0:Nloc)= DielectricVol(ElemToDielectric(iElem))%DielectricMu(:,:,:)
-      CALL ChangeBasis3D(2,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
-          DielectricVolTmp(1:2 , 0:Nloc , 0:Nloc , 0:Nloc) , &
-          DielectricGlobal(1:2 , 0:NMax , 0:NMax , 0:NMax  , iElem))
-      DEALLOCATE(DielectricVolTmp)
-    END IF
-  END IF
-END DO!iElem
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1,iDOF) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(i,j,k)
+      U_N_2D_local(2,iDOF) = DielectricVol(ElemToDielectric(iElem))%DielectricMu( i,j,k)
+    END DO; END DO; END DO
+  ELSE
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1:nVarOut,iDOF) = 0.0
+    END DO; END DO; END DO
+  END IF ! isDielectricElem(iElem)
+END DO ! iElem
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE DielectricGlobal TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-CALL GenerateFileSkeleton('DielectricGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax,FileNameOut=FileName)
+CALL GenerateFileSkeleton('DielectricGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesDielectricGlobal',N_variables,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesDielectricGlobal',nVarOut,StrArray=StrVarNames)
   CALL CloseDataFile()
 END IF ! MPIRoot
 
+! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+CALL WriteAdditionalElemData(FileName,ElementOutNloc)
+
+! ---------------------------------------------------------
+! Output of DG_Solution
+! ---------------------------------------------------------
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-        nGlobalElems    => INT(nGlobalElems,IK)    ,&
-        PP_nElems       => INT(PP_nElems,IK)       ,&
-        N_variables     => INT(N_variables,IK)     ,&
-        N               => INT(Nmax,IK)            ,&
-        offsetElem      => INT(offsetElem,IK)      )
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution' , rank=5 , &
-                          nValGlobal =(/N_variables , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                          nVal       =(/N_variables , N+1_IK , N+1_IK , N+1_IK , PP_nElems   /) , &
-                          offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
-                          collective =.TRUE.        , RealArray=DielectricGlobal)
+ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
+          nDofsMapping    => INT(nDofsMapping,IK)      ,&
+          nDOFOutput      => INT(nDOFOutput,IK)        ,&
+          offsetDOF       => INT(offsetDOF,IK)         )
+CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
+                        DataSetName = 'DG_Solution' , rank = 2                , &
+                        nValGlobal  = (/nVarOut     , nDofsMapping/)          , &
+                        nVal        = (/nVarOut     , nDOFOutput/)            , &
+                        offset      = (/0_IK        , offsetDOF/)             , &
+                        collective  = .TRUE.        , RealArray = U_N_2D_local)
 END ASSOCIATE
+SDEALLOCATE(U_N_2D_local)
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
-SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
 
