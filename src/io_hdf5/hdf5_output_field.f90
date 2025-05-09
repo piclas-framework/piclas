@@ -578,7 +578,7 @@ IF(.NOT.ALMOSTZERO(PMLzeta0))THEN
         U_N_2D_local(1:nVarOut,iDOF) = 0.0
       END DO; END DO; END DO
     END IF ! isDielectricElem(iElem)
-  END DO
+  END DO ! iElem=1,nElems
 ELSE
   U_N_2D_local = 0.0
 END IF
@@ -632,8 +632,8 @@ SUBROUTINE WritePMLDataToHDF5(FileName)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems,nElems
-USE MOD_PML_Vars           ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar
-USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLnVar,isPMLElem
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping,nDofsMapping
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,Nmax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
@@ -646,82 +646,91 @@ CHARACTER(LEN=255),INTENT(IN)  :: FileName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-REAL,ALLOCATABLE               :: UPML(:,:,:,:,:)
-INTEGER                        :: iPML,iElem,Nloc
+INTEGER                        :: iElem,Nloc
+! p-adaption output
+REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
+INTEGER                        :: i,j,k,iDOF,nDOFOutput,offsetDOF
 !===================================================================================================================================
 
-IF(DoPML)THEN
-  ALLOCATE(StrVarNames(PMLnVar))
-  StrVarNames( 1)='PML-ElectricFieldX-P1'
-  StrVarNames( 2)='PML-ElectricFieldX-P2'
-  StrVarNames( 3)='PML-ElectricFieldX-P3'
-  StrVarNames( 4)='PML-ElectricFieldY-P4'
-  StrVarNames( 5)='PML-ElectricFieldY-P5'
-  StrVarNames( 6)='PML-ElectricFieldY-P6'
-  StrVarNames( 7)='PML-ElectricFieldZ-P7'
-  StrVarNames( 8)='PML-ElectricFieldZ-P8'
-  StrVarNames( 9)='PML-ElectricFieldZ-P9'
-  StrVarNames(10)='PML-MagneticFieldX-P10'
-  StrVarNames(11)='PML-MagneticFieldX-P11'
-  StrVarNames(12)='PML-MagneticFieldX-P12'
-  StrVarNames(13)='PML-MagneticFieldY-P13'
-  StrVarNames(14)='PML-MagneticFieldY-P14'
-  StrVarNames(15)='PML-MagneticFieldY-P15'
-  StrVarNames(16)='PML-MagneticFieldZ-P16'
-  StrVarNames(17)='PML-MagneticFieldZ-P17'
-  StrVarNames(18)='PML-MagneticFieldZ-P18'
-  StrVarNames(19)='PML-PhiB-P19'
-  StrVarNames(20)='PML-PhiB-P20'
-  StrVarNames(21)='PML-PhiB-P21'
-  StrVarNames(22)='PML-PsiE-P22'
-  StrVarNames(23)='PML-PsiE-P23'
-  StrVarNames(24)='PML-PsiE-P24'
+IF(.NOT.DoPML) RETURN
 
-  ALLOCATE(UPML(PMLnVar,0:Nmax,0:Nmax,0:Nmax,nElems))
-  UPML=0.0
-  DO iPML=1,nPMLElems
-    iElem = PMLToElem(iPML)
-    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
-    IF(Nloc.EQ.Nmax)THEN
-      UPML(:,:,:,:,iElem) = U_N(iElem)%U2(:,:,:,:)
-    ELSE
-      CALL ChangeBasis3D(PMLnVar,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
-          U_N(iElem)%U2(1:PMLnVar , 0:Nloc , 0:Nloc , 0:Nloc) , &
-                   UPML(1:PMLnVar , 0:NMax , 0:NMax , 0:NMax  , iElem))
-    END IF ! Nloc.Eq.Nmax
-  END DO ! iElem = 1, nElems
+! ---------------------------------------------------------
+! Prepare U_N_2D_local array for output as DG_Solution
+! ---------------------------------------------------------
+! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+! Allocate local 2D array: create global Eps field for parallel output of Eps distribution
+ALLOCATE(U_N_2D_local(1:PMLnVar,1:nDOFOutput))
+ALLOCATE(StrVarNames(PMLnVar))
+StrVarNames( 1)='PML-ElectricFieldX-P1'
+StrVarNames( 2)='PML-ElectricFieldX-P2'
+StrVarNames( 3)='PML-ElectricFieldX-P3'
+StrVarNames( 4)='PML-ElectricFieldY-P4'
+StrVarNames( 5)='PML-ElectricFieldY-P5'
+StrVarNames( 6)='PML-ElectricFieldY-P6'
+StrVarNames( 7)='PML-ElectricFieldZ-P7'
+StrVarNames( 8)='PML-ElectricFieldZ-P8'
+StrVarNames( 9)='PML-ElectricFieldZ-P9'
+StrVarNames(10)='PML-MagneticFieldX-P10'
+StrVarNames(11)='PML-MagneticFieldX-P11'
+StrVarNames(12)='PML-MagneticFieldX-P12'
+StrVarNames(13)='PML-MagneticFieldY-P13'
+StrVarNames(14)='PML-MagneticFieldY-P14'
+StrVarNames(15)='PML-MagneticFieldY-P15'
+StrVarNames(16)='PML-MagneticFieldZ-P16'
+StrVarNames(17)='PML-MagneticFieldZ-P17'
+StrVarNames(18)='PML-MagneticFieldZ-P18'
+StrVarNames(19)='PML-PhiB-P19'
+StrVarNames(20)='PML-PhiB-P20'
+StrVarNames(21)='PML-PhiB-P21'
+StrVarNames(22)='PML-PsiE-P22'
+StrVarNames(23)='PML-PsiE-P23'
+StrVarNames(24)='PML-PsiE-P24'
 
-  IF(MPIRoot)THEN
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',PMLnVar,StrArray=StrVarNames)
-    CALL CloseDataFile()
-  END IF
+DO iElem=1,nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  IF(isPMLElem(iElem))THEN
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1:PMLnVar,iDOF) = U_N(iElem)%U2(1:PMLnVar,i,j,k)
+    END DO; END DO; END DO
+  ELSE
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1:PMLnVar,iDOF) = 0.0
+    END DO; END DO; END DO
+  END IF ! isDielectricElem(iElem)
+END DO ! iElem=1,nElems
 
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesPML',PMLnVar,StrArray=StrVarNames)
+  CALL CloseDataFile()
+END IF
+
+! ---------------------------------------------------------
+! Output of PML_Solution
+! ---------------------------------------------------------
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-      nGlobalElems    => INT(nGlobalElems,IK)    ,&
-      N               => INT(NMax,IK)            ,&
-      PMLnVar         => INT(PMLnVar,IK)         ,&
-      PP_nElems       => INT(PP_nElems,IK)       ,&
-      offsetElem      => INT(offsetElem,IK)      )
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName = 'PML_Solution', rank = 5,&
-                          nValGlobal  = (/PMLnVar , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                          nVal        = (/PMLnVar , N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-                          offset      = (/0_IK    , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-                          collective  = .TRUE.,RealArray = UPML)
+ASSOCIATE(PMLnVar         => INT(PMLnVar,IK)           ,&
+          nDofsMapping    => INT(nDofsMapping,IK)      ,&
+          nDOFOutput      => INT(nDOFOutput,IK)        ,&
+          offsetDOF       => INT(offsetDOF,IK)         )
+CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
+                        DataSetName = 'PML_Solution' , rank = 2                , &
+                        nValGlobal  = (/PMLnVar      , nDofsMapping/)          , &
+                        nVal        = (/PMLnVar      , nDOFOutput/)            , &
+                        offset      = (/0_IK         , offsetDOF/)             , &
+                        collective  = .TRUE.         , RealArray = U_N_2D_local)
 END ASSOCIATE
-
-!  CALL WriteArrayToHDF5(DataSetName='PML_Solution', rank=5,&
-!                      nValGlobal=(/5,N+1,N+1,N+1,nGlobalElems/),&
-!                      nVal=      (/5,N+1,N+1,N+1,PP_nElems/),&
-!                      offset=    (/0,      0,     0,     0,     offsetElem/),&
-!                      collective=.TRUE., existing=.FALSE., RealArray=UPML)
-!
-!  CALL CloseDataFile()
-  DEALLOCATE(UPML)
-  DEALLOCATE(StrVarNames)
-END IF ! DoPML
+SDEALLOCATE(U_N_2D_local)
+DEALLOCATE(StrVarNames)
 
 
 END SUBROUTINE WritePMLDataToHDF5

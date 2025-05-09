@@ -754,7 +754,7 @@ ELSE ! Normal restart
             U_N(iElem)%PhiF(1:nVar,i,j,k) = U_N_2D_local(1:nVar,iDOF)
           END DO; END DO; END DO
         END DO
-
+        SDEALLOCATE(U_N_2D_local)
       ELSE ! nDims.EQ.5
         ASSOCIATE( nVarPhiF => 3 )
           ALLOCATE(U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
@@ -809,38 +809,62 @@ ELSE ! Normal restart
       DEALLOCATE(U)
       DEALLOCATE(Uloc)
       IF(DoPML)THEN
-        ALLOCATE(U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
-        ALLOCATE(   Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
-        CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
-            OffsetElemTmp,5,RealArray=U_local)
-        DO iPML=1,nPMLElems
-          iElem = PMLToElem(iPML)
-          Nloc  = N_DG_Mapping(2,iElem+offSetElem)
-          IF(Nloc.EQ.N_Restart)THEN ! N is equal
-            U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
-          ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-            CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
-                     U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                     &
-               U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
-          ELSE ! N reduces
-            !transform the slave side to the same degree as the master: switch to Legendre basis
-            CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
-                     U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                        &
-                        Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
-            ! switch back to nodal basis
-            CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
-                        Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc),              &
-               U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
-          END IF ! Nloc.EQ.N_Restart
-        END DO ! iPML
-        DEALLOCATE(U_local)
-        DEALLOCATE(Uloc)
+        IF(nDims.EQ.2)THEN
+          ! Preparing U_N_2D_local array for output as DG_Solution
+          ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+          nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+          ! Get the offset based on the element-local polynomial degree
+          IF(offsetElem.GT.0) THEN
+            offsetDOF = N_DG_Mapping(1,1+offsetElem)
+          ELSE
+            offsetDOF = 0
+          END IF
+
+          ! Allocate local 2D array
+          ALLOCATE(U_N_2D_local(1:PMLnVar,1:nDOF))
+          CALL ReadArray('PML_Solution',2,(/INT(PMLnVar,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+
+          ! Read data from 2D array
+          iDOF = 0
+          DO iElem = 1, nElems
+            Nloc = N_DG_Mapping(2,iElem+offsetElem)
+            DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+              iDOF = iDOF + 1
+              U_N(iElem)%U2(1:PMLnVar,i,j,k) = U_N_2D_local(1:PMLnVar,iDOF)
+            END DO; END DO; END DO
+          END DO
+          SDEALLOCATE(U_N_2D_local)
+        ELSE ! nDims.EQ.5
+          ALLOCATE(U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
+          ALLOCATE(   Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+          CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
+              OffsetElemTmp,5,RealArray=U_local)
+          DO iPML=1,nPMLElems
+            iElem = PMLToElem(iPML)
+            Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+            IF(Nloc.EQ.N_Restart)THEN ! N is equal
+              U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
+            ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
+              CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
+                       U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                     &
+                 U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+            ELSE ! N reduces
+              !transform the slave side to the same degree as the master: switch to Legendre basis
+              CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
+                       U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                        &
+                          Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+              ! switch back to nodal basis
+              CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
+                          Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc),              &
+                 U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+            END IF ! Nloc.EQ.N_Restart
+          END DO ! iPML
+          DEALLOCATE(U_local)
+          DEALLOCATE(Uloc)
+        END IF ! nDims.EQ.2
       END IF ! DoPML
     END IF ! nDims.EQ.2
 
-    IF((nDims.EQ.2).AND.DoPML)THEN
-      CALL abort(__STAMP__,'Read-in not implemented for 2D PML_Solution')
-    END IF ! (nDims.EQ.2).AND.DoPML
 #endif /*USE_HDG*/
     !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
 
