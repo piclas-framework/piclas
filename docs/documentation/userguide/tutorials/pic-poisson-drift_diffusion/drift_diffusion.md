@@ -398,7 +398,7 @@ Run the command
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electron and ion densities (streamer_N2_Solution_ElemData_000.00000000070000.vtu) and electric field in x-direction (streamer_N2_Solution_000.00000000070000.vtu) at t=0.7 ns (end of simulation) are shown in the plots.
+The electron and ion densities (streamer_N2_Solution_ElemData_000.00* at t=0 s, t=0.35 ns and t=0.7 ns) and electric field in x-direction (streamer_N2_Solution_000.00000000070000.vtu) at t=0.7 ns (end of simulation) are shown in the plots.
 
 
 ```{figure} results/fluid_density.png
@@ -808,7 +808,7 @@ Run the command
 
 to generate the corresponding *vtk*-files, which can then be loaded into the visualisation tool.
 
-The electron and ion densities and electric field at t=0.7 ns is shown in the plots.
+The electron and ion densities (streamer_N2_Solution_ElemData_000.00* at t=0 s, t=0.35 ns and t=0.7 ns) and electric field in x-direction (streamer_N2_Solution_000.00000000070000.vtu) at t=0.7 ns (end of simulation) are shown in the plots.
 
 
 ```{figure} results/stream.png
