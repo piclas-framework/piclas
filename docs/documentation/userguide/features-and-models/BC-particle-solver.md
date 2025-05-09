@@ -233,6 +233,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |      9      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                                 |
 |     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                          |
 |     11      | Secondary electron emission due to electron impact (SEE-E with $e^{-}$ on quartz (SiO$_{2}$)) as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003`                   |
+|     12      | Secondary electron emission due to electron impact as described in Ref. {cite}`Seiler1983`                                                                                                   |
 |     20      | Finite-rate catalysis model, Section {ref}`sec:catalytic-surface`                                                                                                                            |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
@@ -303,6 +304,7 @@ Optionally, a reaction-specific accommodation coefficient for the products can b
 
 In the case that the defined event does not occur, a regular interaction using the surface-specific accommodation coefficients is performed. Examples are provided as part of the regression tests: `regressioncheck/NIG_DSMC/SURF_PROB_DifferentProbs` and `regressioncheck/NIG_DSMC/SURF_PROB_MultiReac`.
 
+(sec:BC-see)=
 ### Secondary Electron Emission (SEE)
 
 Different models are implemented for secondary electron emission that are based on either electron or ion bombardment, depending on
@@ -312,14 +314,18 @@ the surface material. All models require the specification of the electron speci
 
 where electrons of species `C` are emitted from boundary `B` on the impact of species `A`. Some of the models allow the choice of an angle and energy distribution function to define the velocity vector of the secondary. The available options are:
 
-|                  Name | Description                                                                                                                                                                                         |      Source       |
-| --------------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------: |
-|     deltadistribution | Random velocity vector and complete remaining impact energy                                                                                                           |         -         |
-|        uniform-energy | Random velocity vector and random uniform distribution of the remaining impact energy                                                                                                               |         -         |
+|                  Name | Description                                                                                                                                                                                     |                  Source                  |
+| --------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------: |
+|     deltadistribution | Random velocity vector and complete remaining impact energy                                                                                                                                     |                    -                     |
+|        uniform-energy | Random velocity vector and random uniform distribution of the remaining impact energy                                                                                                           |                    -                     |
 | Chung-Everhart-cosine | Angle distribution according to $\sin2\theta$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$ | {cite}`Chung1974`, {cite}`Greenwood2002` |
 
 For the `Chung-Everhart-cosine` distribution, in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
 addition and thus energy conservation violation. An output to monitor the percentage of violations and energy addition as a percentage of the impact energy per SEE event can be enabled through `CalcEnergyViolationSEE = T`.
+
+For a simulation using variable particle weights (`Part-vMPF = T`) as described in Section {ref}`sec:split-merge`, the models 3, 4 and 12 support the emission of only a single secondary, weighted according to the calculated yield. This feature can be enabled per boundary:
+
+    Part-Boundary1-SurfMod-vMPF = T
 
 #### Model 3/4
 
@@ -397,7 +403,7 @@ activated via `Part-BoundaryX-SurfaceModel=11`. For more details, see the origin
 
 #### Model 12
 
-This model relies on a semi-empirical formulation from {cite}`Seiler1983`. It is assumed that the impacting particle is absorbed.
+This model relies on a semi-empirical formulation by Seiler {cite}`Seiler1983`. It is assumed that the impacting particle is absorbed.
 
 $$\gamma = a \cdot 1.11 \cdot \left(\frac{E}{b}\right)^{-0.35}\left(1-e^{-2.3\left(\frac{E}{b}\right)^{1.35}}\right)$$
 

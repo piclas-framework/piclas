@@ -738,10 +738,10 @@ SUBROUTINE PETScSetSolver()
 !> Set the solver and/or preconditioner combination in PETSc
 !> Iterative solvers
 !>    1: CG + Block Jacobi
-!>    2: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
+!>    2: Pipelined CG + Block Jacobi
+!>    3: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
 !> Direct solvers
 !>    10: CHOLESKY (requires the MUMPS package to support the matrix type)
-!>    PCLU: Does not support the matrix type "sbaij" (MATSBAIJ)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -847,7 +847,7 @@ CASE(10)
   ! ! Enable BLR compression of the contribution blocks, reducing the memory consumption at the cost of some additional operations
   ! ! during factorization
   ! PetscCallA(MatMumpsSetIcntl(F, 37, 1, ierr))
-  ! === Parallel ordering (select one): first tests showed increased memory consumption and reduced performance (single node)
+  ! === Parallel ordering: select one of the following or let PETSc decide (recommended)
   ! PetscCallA(MatMumpsSetIcntl(F, 28, 2, ierr))
   ! ! Use PT-SCOTCH for ordering
   ! PetscCallA(MatMumpsSetIcntl(F, 29, 1, ierr))
@@ -868,7 +868,7 @@ END SELECT
 PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
 PetscCallA(PCGetType(pc, pc_type, ierr))
 
-! Reuse preconditioner
+! Reuse preconditioner (might be unneccessary since the system matrix remains the same during the simulation)
 PetscCallA(KSPSetReusePreconditioner(PETScSolver, PETSC_TRUE, ierr))
 
 ! If using direct solver, print factorization type
