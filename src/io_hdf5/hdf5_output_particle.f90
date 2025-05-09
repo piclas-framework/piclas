@@ -1073,7 +1073,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: FileName
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: nSurfacefluxBCs
-INTEGER, ALLOCATABLE            :: AdaptBCPartNumOutTemp(:,:)
+REAL, ALLOCATABLE               :: AdaptBCPartNumOutTemp(:,:)
 !===================================================================================================================================
 
 IF(.NOT.DoRestart.AND.iter.EQ.0) RETURN
@@ -1084,9 +1084,9 @@ nSurfacefluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 #if USE_MPI
 IF(MPIRoot)THEN
   ALLOCATE(AdaptBCPartNumOutTemp(1:nSpecies,1:nSurfacefluxBCs))
-  CALL MPI_REDUCE(AdaptBCPartNumOut,AdaptBCPartNumOutTemp,nSpecies*nSurfacefluxBCs,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+  CALL MPI_REDUCE(AdaptBCPartNumOut,AdaptBCPartNumOutTemp,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 ELSE
-  CALL MPI_REDUCE(AdaptBCPartNumOut,MPI_IN_PLACE         ,nSpecies*nSurfacefluxBCs,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
+  CALL MPI_REDUCE(AdaptBCPartNumOut,MPI_IN_PLACE         ,nSpecies*nSurfacefluxBCs,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS,IERROR)
 END IF
 #endif
 
@@ -1099,7 +1099,7 @@ IF(MPIRoot)THEN
                           nValGlobal  = (/nSpecies,nSurfacefluxBCs/),   &
                           nVal        = (/nSpecies,nSurfacefluxBCs/),   &
                           offset      = (/0_IK,0_IK/), &
-                          collective  = .FALSE. , IntegerArray_i4 = AdaptBCPartNumOutTemp)
+                          collective  = .FALSE. , RealArray = AdaptBCPartNumOutTemp)
   END ASSOCIATE
   CALL CloseDataFile()
 END IF
@@ -1199,7 +1199,7 @@ CHARACTER(LEN=255)             :: SpecID
 INTEGER                        :: iSpec
 !===================================================================================================================================
 IF(CollisMode.GT.1) THEN
-  IF(DSMC%VibRelaxProb.GE.2.0) THEN
+  IF(DSMC%VibRelaxProb.EQ.2.0) THEN
     ALLOCATE(StrVarNames(nSpecies))
     DO iSpec=1,nSpecies
       WRITE(SpecID,'(I3.3)') iSpec

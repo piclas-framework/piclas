@@ -58,7 +58,7 @@ REAL, ALLOCATABLE                       :: AdaptBCAreaSurfaceFlux(:,:)    ! UseC
 REAL, ALLOCATABLE                       :: AdaptBCVolSurfaceFlux(:,:)     ! AdaptiveBC: Volume of adjacent cells
 REAL, ALLOCATABLE                       :: AdaptBCBackupVelocity(:,:,:)   ! Velocity is stored as backup for iterations without particles
                                                                           ! in the cell [1:3,1:AdaptBCSampleElemNum,1:nSpecies]
-INTEGER, ALLOCATABLE                    :: AdaptBCPartNumOut(:,:)         ! SurfaceFlux, Type 4: Number of particles exiting through
+REAL, ALLOCATABLE                       :: AdaptBCPartNumOut(:,:)         ! SurfaceFlux, Type 4: Number of particles exiting through
                                                                           ! the adaptive boundary condition
 INTEGER                                 :: offSetElemAdaptBCSample
 INTEGER                                 :: AdaptBCSampleElemNumGlobal

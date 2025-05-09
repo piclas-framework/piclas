@@ -644,8 +644,9 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species
 USE MOD_Particle_Boundary_Vars,ONLY: PartBound
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, PolyatomMolDSMC, useDSMC
-USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC, VibQuantsPar, AHO
 USE MOD_DSMC_ElectronicModel  ,ONLY: RelaxElectronicShellWall
+USE MOD_part_tools            ,ONLY: RotInitPolyRoutineFuncPTR
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Vars              ,ONLY: BGKDoVibRelaxation
 #elif (PP_TimeDiscMethod==300)
@@ -665,8 +666,9 @@ INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
 REAL                  :: RanNum
 REAL                  :: VibACC, RotACC, ElecACC
 REAL                  :: ErotNew, ErotWall, EVibNew
+REAL                  :: GroundLevel, VibPartitionTemp
 ! Polyatomic Molecules
-REAL                  :: NormProb, VibQuantNewR
+REAL                  :: VibQuantNewR
 REAL, ALLOCATABLE     :: RanNumPoly(:), VibQuantNewRPoly(:)
 INTEGER               :: iPolyatMole, iDOF, VibDOF
 INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
@@ -683,22 +685,8 @@ ElecACC   = PartBound%ElecACC(locBCID)
 
 IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
   !---- Rotational energy accommodation
-  IF (SpecDSMC(SpecID)%Xi_Rot.EQ.2) THEN
-    CALL RANDOM_NUMBER(RanNum)
-    ErotWall = - BoltzmannConst * WallTemp * LOG(RanNum)
-  ELSE IF (SpecDSMC(SpecID)%Xi_Rot.EQ.3) THEN
-    CALL RANDOM_NUMBER(RanNum)
-    ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
-    NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
-    CALL RANDOM_NUMBER(RanNum)
-    DO WHILE (RanNum.GE.NormProb)
-      CALL RANDOM_NUMBER(RanNum)
-      ErotWall = RanNum*10. !the distribution function has only non-negligible  values betwenn 0 and 10
-      NormProb = SQRT(ErotWall)*EXP(-ErotWall)/(SQRT(0.5)*EXP(-0.5))
-      CALL RANDOM_NUMBER(RanNum)
-    END DO
-    ErotWall = ErotWall*BoltzmannConst*WallTemp
-  END IF
+  ! model identical to the one used for initial rotational energy sampling
+  ErotWall = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
   ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
 
   PartStateIntEn(2,PartID) = ErotNew
@@ -733,20 +721,63 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
         END IF
       END DO
     ELSE
-      VibQuant     = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
-      CALL RANDOM_NUMBER(RanNum)
-      VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-      DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+      IF(DSMC%VibAHO) THEN ! AHO
+        ! calculate vib quant number matching PartStateIntEn(1,PartID)
+        VibQuant = 2
+        DO WHILE (PartStateIntEn(1,PartID).GE.AHO%VibEnergy(SpecID,VibQuant))
+          ! energy is larger than vib energy for this quantum number --> increase quantum number and try again
+          VibQuant = VibQuant + 1
+          ! exit if this quantum number is larger as the table length (dissociation level is reached)
+          IF (VibQuant.GT.AHO%NumVibLevels(SpecID)) EXIT
+        END DO
+        ! accept VibQuant - 1 as quantum number
+        VibQuant = VibQuant - 1
+        ! calculate vib quant number of wall based on wall temperature
+        IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
+          GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
+          VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
+          CALL RANDOM_NUMBER(RanNum)
+          ! acceptance is higher for lower levels
+          DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
+            ! select random quantum number and calculate partition function
+            CALL RANDOM_NUMBER(RanNum)
+            VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
+            VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
+            CALL RANDOM_NUMBER(RanNum)
+          END DO
+        ! use ground state quantum number
+        ELSE
+          VibQuantWall = 1
+        END IF
+        ! calculate new quantum number based on vibrational accommodation coefficient
+        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
+        VibQuantNew = INT(VibQuantNewR)
+        ! calculate new energy with this quantum number
+        CALL RANDOM_NUMBER(RanNum)
+        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew+1)
+        ELSE
+          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew)
+        END IF
+
+      ELSE ! SHO
+        VibQuant = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)
         VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-      END DO
-      VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-      VibQuantNew = INT(VibQuantNewR)
-      CALL RANDOM_NUMBER(RanNum)
-      IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-        EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-      ELSE
-        EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+        DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+          CALL RANDOM_NUMBER(RanNum)
+          VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
+        END DO
+        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
+        VibQuantNew = INT(VibQuantNewR)
+        CALL RANDOM_NUMBER(RanNum)
+        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
+          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+        ELSE
+          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+        END IF
       END IF
     END IF
 

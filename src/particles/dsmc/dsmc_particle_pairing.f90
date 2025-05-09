@@ -596,7 +596,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
   ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_NodeTotal,TotalPartNum)
   IF ((DSMC%ElectronicModel.EQ.2).OR.useRelaxProbCorrFactor) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
-  IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
+  IF(((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)).AND..NOT.(DSMC%VibAHO)) CALL CalcGammaVib()
   IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) CALL CalcProbCorrFactorElec()
 END IF
 

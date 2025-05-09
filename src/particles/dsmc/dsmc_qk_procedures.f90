@@ -102,7 +102,7 @@ SUBROUTINE QK_TestReaction(iPair,iReac,PerformReaction)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, SpecDSMC, PartStateIntEn, ChemReac, DSMC, AHO
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
@@ -163,11 +163,20 @@ CASE('D')
   IF ((Species(PartSpecies(React2Inx))%InterID.EQ.2).OR.(Species(PartSpecies(React2Inx))%InterID.EQ.20)) THEN
     Ec = Ec - SpecDSMC(PartSpecies(React2Inx))%EZeroPoint*Weight2
   END IF
-  ! Determination of the quantum number corresponding to the collision energy
-  MaxQua = INT(Ec / ((Weight1 + Weight2)/2.*BoltzmannConst * SpecDSMC(PartSpecies(React1Inx))%CharaTVib ) - DSMC%GammaQuant)
-  ! Comparing the collision quantum number with the dissociation quantum number
-  IF (MaxQua.GT.SpecDSMC(PartSpecies(React1Inx))%DissQuant) THEN
-    PerformReaction = .TRUE.
+  IF(DSMC%VibAHO) THEN ! AHO
+    Ec = Ec / ((Weight1 + Weight2)/2.)
+    ! dissociation occurs when collision energy exceeds the vibrational energy of the highest quantum level
+    ! AHO%VibEnergy contains zero-point energy, thus it is also not substracted from Ec
+    IF (Ec.GE.AHO%VibEnergy(PartSpecies(React1Inx),AHO%NumVibLevels(PartSpecies(React1Inx)))) THEN
+      PerformReaction = .TRUE.
+    END IF
+  ELSE ! SHO
+    ! Determination of the quantum number corresponding to the collision energy
+    MaxQua = INT(Ec / ((Weight1 + Weight2)/2.*BoltzmannConst * SpecDSMC(PartSpecies(React1Inx))%CharaTVib ) - DSMC%GammaQuant)
+    ! Comparing the collision quantum number with the dissociation quantum number
+    IF (MaxQua.GT.SpecDSMC(PartSpecies(React1Inx))%DissQuant) THEN
+      PerformReaction = .TRUE.
+    END IF
   END IF
 CASE DEFAULT
   CALL Abort(__STAMP__,&
@@ -182,7 +191,8 @@ REAL FUNCTION QK_CalcAnalyticRate(iReac,Temp)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals        ,ONLY: abort
-USE MOD_DSMC_Vars      ,ONLY: SpecDSMC, ChemReac, CollInf
+USE MOD_Globals_Vars   ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars      ,ONLY: SpecDSMC, ChemReac, CollInf, DSMC, AHO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -220,19 +230,36 @@ CASE('I')
   QK_CalcAnalyticRate = QK_CalcAnalyticRate*(Temp / Tref)**(0.5 - omega)*ChemReac%QKRColl(iCase) &
                         / (z * SQRT(CollInf%MassRed(iCase)))
 CASE('D')
-  MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
-  TempRatio = SpecDSMC(iSpec1)%CharaTVib / Temp
-  DO iQua = 0, MaxVibQuant - 1
-    Q = gammainc([2.-omega,((MaxVibQuant-iQua)*SpecDSMC(iSpec1)%CharaTVib)/Temp])
-    IF(CHECKEXP(iQua*TempRatio)) THEN
-      QK_CalcAnalyticRate= QK_CalcAnalyticRate + Q * EXP(-iQua*TempRatio)
+! see Bird, "The Q-K model for gas-phase chemical reaction rates", Phys. Fluids 23, 106101 (2011)
+  IF(DSMC%VibAHO) THEN ! AHO
+    MaxVibQuant = AHO%NumVibLevels(iSpec1)
+    DO iQua = 1, MaxVibQuant
+      Q = gammainc([2.-omega, (AHO%VibEnergy(iSpec1,AHO%NumVibLevels(iSpec1))-AHO%VibEnergy(iSpec1,iQua)) / (BoltzmannConst*Temp)])
+      IF(CHECKEXP(iQua*TempRatio)) THEN
+        QK_CalcAnalyticRate = QK_CalcAnalyticRate + Q * EXP(-AHO%VibEnergy(iSpec1,iQua) / (BoltzmannConst*Temp))
+      END IF
+    END DO
+    z = 0.
+    DO iQua = 1, AHO%NumVibLevels(iSpec1)
+      z = z + EXP(- AHO%VibEnergy(iSpec1,iQua) / (BoltzmannConst * Temp))
+    END DO
+
+  ELSE ! SHO
+    MaxVibQuant = SpecDSMC(iSpec1)%DissQuant
+    TempRatio = SpecDSMC(iSpec1)%CharaTVib / Temp
+    DO iQua = 0, MaxVibQuant - 1
+      Q = gammainc([2.-omega,(MaxVibQuant-iQua)*TempRatio])
+      IF(CHECKEXP(iQua*TempRatio)) THEN
+        QK_CalcAnalyticRate= QK_CalcAnalyticRate + Q * EXP(-iQua*TempRatio)
+      END IF
+    END DO
+    IF(CHECKEXP(TempRatio)) THEN
+      z = 1. / (1. - EXP(-TempRatio))
+    ELSE
+      z = 1.
     END IF
-  END DO
-  IF(CHECKEXP(TempRatio)) THEN
-    z = 1. / (1. - EXP(-TempRatio))
-  ELSE
-    z = 1.
   END IF
+
   QK_CalcAnalyticRate = QK_CalcAnalyticRate*(Temp / Tref)**(0.5 - omega)*ChemReac%QKRColl(iCase) &
                         / (z * SQRT(CollInf%MassRed(iCase)))
 END SELECT

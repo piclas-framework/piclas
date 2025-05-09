@@ -449,9 +449,15 @@ IF (useDSMC) THEN
   CALL InitMCC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
+  IF(DSMC%VibAHO) THEN
+    CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is only available for DSMC!')
+  END IF
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
+  IF(DSMC%VibAHO) THEN
+    CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is only available for DSMC!')
+  END IF
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
@@ -1276,8 +1282,12 @@ DO iSpec = 1, nSpecies
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideArea)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%WeightingFactor)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeightSub)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide)
   END DO
   IF(ASSOCIATED(Species(iSpec)%Surfaceflux)) THEN
@@ -1434,7 +1444,7 @@ INTEGER               :: iSpec,err
 CHARACTER(32)         :: hilf
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
-LOGICAL               :: DataSetFound, AttrExists
+LOGICAL               :: GroupFound, AttrExists
 !===================================================================================================================================
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('Particles-Species-Database')
@@ -1472,19 +1482,20 @@ IF(SpeciesDatabase.NE.'none') THEN
     LBWRITE (UNIT_stdOut,'(68(". "))')
     CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
     dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-    CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
+    ! use DatasetExists() to check if group exists because it only check for a link with H5LEXISTS()
+    CALL DatasetExists(file_id_specdb,TRIM(dsetname),GroupFound)
     ! Read-in if dataset is there, otherwise set the overwrite parameter
-    IF(DataSetFound) THEN
-      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists)
+    IF(GroupFound) THEN
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
       IF (AttrExists) THEN
-        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC,ReadFromGroup=.TRUE.)
       ELSE
         Species(iSpec)%ChargeIC = 0.0
       END IF
       CALL PrintOption('ChargeIC','DB',RealOpt=Species(iSpec)%ChargeIC)
-      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC,ReadFromGroup=.TRUE.)
       CALL PrintOption('MassIC','DB',RealOpt=Species(iSpec)%MassIC)
-      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID)
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID,ReadFromGroup=.TRUE.)
       CALL PrintOption('InteractionID','DB',IntOpt=Species(iSpec)%InterID)
     ELSE
       Species(iSpec)%DoOverwriteParameters = .TRUE.

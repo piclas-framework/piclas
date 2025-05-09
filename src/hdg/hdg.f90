@@ -118,7 +118,7 @@ USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
 USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
 USE MOD_Mesh_Vars             ,ONLY: BoundaryType,nSides,BC
 USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides,N_VolMesh
-USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Mesh_Vars             ,ONLY: offSetElem,ElemToSide
 USE MOD_Basis                 ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG        ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
@@ -437,16 +437,9 @@ CALL InitBV()
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
-! TODO Do we really need to handle PETSc separately here?
-#if USE_PETSC
-IF(nDirichletBCsidesGlobal.EQ.0) THEN
-#else
-IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
-#endif /*USE_PETSC*/
-  SetZeroPotentialDOF = .TRUE.
-ELSE
-  SetZeroPotentialDOF = .FALSE.
-END IF
+
+ZeroPotentialSide = -1
+IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN
@@ -642,6 +635,15 @@ CALL StartReceiveMPIDataInt(1,OffsetGlobalPETScDOF,1,nSides, RecRequest_U,SendID
 CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 #endif
+
+! 4.2.4.3) ZeroPotential
+ZeroPotentialDOF = -1
+IF(nDirichletBCsidesGlobal==0) THEN
+  IF(mpiRoot) ZeroPotentialDOF = OffsetGlobalPETScDOF(ZeroPotentialSide)
+#if USE_MPI
+  CALL MPI_BCAST(ZeroPotentialDOF,1,MPI_INTEGER,0,MPI_COMM_PICLAS,IERROR)
+#endif
+END IF
 
 ! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
 DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide

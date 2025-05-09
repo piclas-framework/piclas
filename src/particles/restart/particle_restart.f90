@@ -1130,7 +1130,7 @@ USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                           :: AdaptiveDataExists, RunningAverageExists, UseAdaptiveType4, AdaptBCPartNumOutExists
-REAL                              :: TimeStepOverWeight, v_thermal, dtVar, WeightingFactor(1:nSpecies)
+REAL                              :: v_thermal, dtVar, WeightingFactor(1:nSpecies)
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalElemID, currentBC
 INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar, nVarArrayStart, nVarArrayEnd
@@ -1282,7 +1282,7 @@ IF(UseAdaptiveType4) THEN
         ASSOCIATE (&
               nSpecies     => INT(nSpecies,IK) ,&
               nSurfFluxBCs => INT(nSurfacefluxBCs,IK)  )
-          CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,IntegerArray_i4=AdaptBCPartNumOut(:,:))
+          CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,RealArray=AdaptBCPartNumOut(:,:))
         END ASSOCIATE
         LBWRITE(*,*) '| Surface Flux, Type=4: Number of particles leaving the domain successfully read-in from restart file.'
       END IF
@@ -1334,7 +1334,6 @@ IF(UseAdaptiveType4.AND..NOT.AdaptBCPartNumOutExists) THEN
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
       ! Calculate the velocity for the particles leaving the domain with the thermal velocity assuming a zero bulk velocity
       v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
-      TimeStepOverWeight = dtVar / Species(iSpec)%MacroParticleFactor
       ! Loop over sides on the surface flux
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
         BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
@@ -1343,7 +1342,7 @@ IF(UseAdaptiveType4.AND..NOT.AdaptBCPartNumOutExists) THEN
         IF(SampleElemID.GT.0) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + INT(AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              * TimeStepOverWeight * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal)
+              * dtVar * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal)
           END DO; END DO
         END IF  ! SampleElemID.GT.0
       END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber

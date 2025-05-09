@@ -209,9 +209,9 @@ DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/
 gitlab-ci-local --shell-isolation --needs WEK_Radiation --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable DO_WEEKLY=T
 ```
 where the arguments are listed and explained in the following table
-```{table} Gitlab pipeline variables example
+```{table} gitlab-ci-local variables example
 ---
-name: tab:pipeline_vars
+name: tab:gitlab_ci_local_vars
 ---
   | Parameter                             | Description                                                                         |
   | ------------------------------------- | ----------------------------------------------------------------------------------- |

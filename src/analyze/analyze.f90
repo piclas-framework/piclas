@@ -70,16 +70,6 @@ CALL prms%CreateIntOption(    'nSkipAnalyzeSwitch'   , 'Skip Analyze_dt with a d
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateLogicalOption('DoMeasureAnalyzeTime' , 'Measure time that is spent in analyze routines and count the number of '//&
                                                        'analysis calls (to std out stream)','.FALSE.')
-!CALL prms%CreateLogicalOption('AnalyzeToFile',   "Set true to output result of error norms to a file (DoCalcErrorNorms=T)",&
-                                                 !'.FALSE.')
-!CALL prms%CreateIntOption(    'nWriteData' ,     "Interval as multiple of Analyze_dt at which HDF5 files "//&
-                                                 !"(e.g. State,TimeAvg,Fluc) are written.",&
-                                                 !'1')
-!CALL prms%CreateIntOption(    'AnalyzeExactFunc',"Define exact function used for analyze (e.g. for computing L2 errors). "//&
-                                                 !"Default: Same as IniExactFunc")
-!CALL prms%CreateIntOption(    'AnalyzeRefState' ,"Define state used for analyze (e.g. for computing L2 errors). "//&
-                                                 !"Default: Same as IniRefState")
-!CALL DefineParametersAnalyzeEquation()
 
 ! -------------------------
 CALL prms%SetSection("Analyzefield")
@@ -512,65 +502,6 @@ END SUBROUTINE CalcErrorPartSource
 #endif /*PARTICLES*/
 
 
-SUBROUTINE AnalyzeToFile(time,CalcTime,L_2_Error)
-!===================================================================================================================================
-! Writes the L2-error norms to file.
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_TimeDisc_Vars ,ONLY:iter
-USE MOD_Globals_Vars  ,ONLY:ProjectName
-USE MOD_Mesh_Vars    ,ONLY:nGlobalElems
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)                :: time                         ! physical time
-REAL,INTENT(IN)                :: CalcTime                     ! computational time
-REAL,INTENT(IN)                :: L_2_Error(PP_nVar)           ! L2 error norms
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!REAL                           :: Dummyreal(PP_nVar+1),Dummytime  ! Dummy values for file handling
-INTEGER                        :: openStat! File IO status
-CHARACTER(LEN=50)              :: formatStr                    ! format string for the output and Tecplot header
-CHARACTER(LEN=30)              :: L2name(PP_nVar)              ! variable name for the Tecplot header
-CHARACTER(LEN=300)             :: Filename                     ! Output filename,
-!LOGICAL                        :: fileExists                   ! Error handler for file
-INTEGER                        :: ioUnit
-!===================================================================================================================================
-Filename = 'out.'//TRIM(ProjectName)//'.dat'
-! Check for file
-! INQUIRE(FILE = Filename, EXIST = fileExists) ! now -> FILEEXISTS(Filename)
-! FILEEXISTS(Filename)
-!! File processing starts here open old and extract information or create new file.
-ioUnit=1746 ! This number must be fixed?
-  OPEN(UNIT   = ioUnit       ,&
-       FILE   = Filename     ,&
-       STATUS = 'Unknown'    ,&
-       ACCESS = 'SEQUENTIAL' ,&
-       IOSTAT = openStat                 )
-  IF (openStat.NE.0) THEN
-     WRITE(*,*)'ERROR: cannot open Outfile'
-  END IF
-  ! Create a new file with the Tecplot (ASCII file, not binary) header etc.
-  WRITE(ioUnit,*)'TITLE="Analysis,'//TRIM(ProjectName)//'"'
-  WRITE(ioUnit,'(A12)')'VARIABLES ='
-  ! Fill the formatStr and L2name strings
-  CALL getVARformatStr(formatStr,L2name)
-  WRITE(ioUnit,formatStr)'"timesteps"',L2name,' "t_sim" "t_CPU" "DOF" "Ncells" "nProcs"'
-  WRITE(ioUnit,*) 'ZONE T="Analysis,'//TRIM(ProjectName)//'"'
-
-! Create format string for the variable output
-WRITE(formatStr,'(A10,I1,A37)')'(E23.14E5,',PP_nVar,'(1X,E23.14E5),4(1X,E23.14E5),2X,I6.6)'
-WRITE(ioUnit,formatstr) REAL(iter),L_2_Error(:),TIME,CalcTime-StartTime, &
-                 REAL(nGlobalElems*(PP_N+1)**3),REAL(nGlobalElems),nProcessors
-
-CLOSE(ioUnit) ! outputfile
-END SUBROUTINE AnalyzeToFile
-
 SUBROUTINE getVARformatStr(VARformatStr,L2name)
 !===================================================================================================================================
 ! This creates the format string for writeAnalyse2file
@@ -790,7 +721,6 @@ REAL                          :: L_2_PartSource(1:4)
 REAL                          :: L_Inf_PartSource(1:4)
 #endif
 #endif /* PARTICLES */
-REAL                          :: CurrentTime
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(6))
@@ -903,10 +833,6 @@ IF(DoCalcErrorNorms) THEN
 #else
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
 #endif
-    IF (OutputTime.GE.tEnd)THEN
-      CurrentTime=PICLASTIME()
-      CALL AnalyzeToFile(OutputTime,CurrentTime,L_2_Error)
-    END IF
 #ifdef PARTICLES
     IF (DoDeposition.AND.RelaxDeposition) CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 #endif /*PARTICLES*/

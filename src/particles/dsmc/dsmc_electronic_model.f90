@@ -38,7 +38,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec, SortEnergies
 PUBLIC :: RelaxElectronicShellWall, LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
 !===================================================================================================================================
 CONTAINS
@@ -1203,7 +1203,7 @@ IF (Species(iSpec)%DoOverwriteParameters) THEN
   datasetname = dsetname
   ElLevelDatabase = TRIM(DSMC%ElectronicModelDatabase)
 ELSE
-  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))//'/ElectronicLevel'
   ElLevelDatabase = TRIM(SpeciesDatabase)
 END IF
 LBWRITE(UNIT_StdOut,'(A)') ' | Read electronic level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)

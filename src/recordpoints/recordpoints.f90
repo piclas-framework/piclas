@@ -247,9 +247,11 @@ END SUBROUTINE ReadRPList
 SUBROUTINE InitRPBasis(xi_RP)
 ! MODULES
 USE MOD_PreProc
-USE MOD_RecordPoints_Vars     ,ONLY: nRP,L_xi_RP,L_eta_RP,L_zeta_RP
-USE MOD_Interpolation_Vars    ,ONLY: N_Inter
+USE MOD_RecordPoints_Vars     ,ONLY: nRP,L_xi_RP,L_eta_RP,L_zeta_RP,RP_ElemID
+USE MOD_Interpolation_Vars    ,ONLY: N_Inter,NMax
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -257,14 +259,19 @@ IMPLICIT NONE
 REAL,INTENT(IN)               :: xi_RP(3,nRP)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iRP
+INTEGER                       :: iRP,Nloc,ElemID
 !==================================================================================================================================
-! build local basis for Recordpoints
-ALLOCATE(L_xi_RP(0:PP_N,nRP), L_eta_RP(0:PP_N,nRP), L_zeta_RP(0:PP_N,nRP))
+! build local basis for Recordpoints. Allocate with NMax and fill with zeros where Nloc<NMax
+ALLOCATE(L_xi_RP(0:NMax,nRP), L_eta_RP(0:NMax,nRP), L_zeta_RP(0:NMax,nRP))
+L_xi_RP   = 0.0
+L_eta_RP  = 0.0
+L_zeta_RP = 0.0
 DO iRP=1,nRP
-  CALL LagrangeInterpolationPolys(xi_RP(1,iRP),PP_N,N_Inter(PP_N)%xGP,N_Inter(PP_N)%wBary,L_xi_RP(:,iRP))
-  CALL LagrangeInterpolationPolys(xi_RP(2,iRP),PP_N,N_Inter(PP_N)%xGP,N_Inter(PP_N)%wBary,L_eta_RP(:,iRP))
-  CALL LagrangeInterpolationPolys(xi_RP(3,iRP),PP_N,N_Inter(PP_N)%xGP,N_Inter(PP_N)%wBary,L_zeta_RP(:,iRP))
+  ElemID = RP_ElemID(iRP)
+  Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
+  CALL LagrangeInterpolationPolys(xi_RP(1,iRP),Nloc,N_Inter(Nloc)%xGP,N_Inter(Nloc)%wBary,L_xi_RP(:,iRP))
+  CALL LagrangeInterpolationPolys(xi_RP(2,iRP),Nloc,N_Inter(Nloc)%xGP,N_Inter(Nloc)%wBary,L_eta_RP(:,iRP))
+  CALL LagrangeInterpolationPolys(xi_RP(3,iRP),Nloc,N_Inter(Nloc)%xGP,N_Inter(Nloc)%wBary,L_zeta_RP(:,iRP))
 END DO
 
 END SUBROUTINE InitRPBasis
@@ -332,10 +339,11 @@ SUBROUTINE EvalRecordPoints(U_RP)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_DG_Vars           ,ONLY: U_N
+USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
 USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
 USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
-USE MOD_RecordPoints_Vars ,ONLY: l_xi_RP,l_eta_RP,l_zeta_RP,nRP
+USE MOD_RecordPoints_Vars ,ONLY: L_xi_RP,L_eta_RP,L_zeta_RP,nRP
+USE MOD_Mesh_Vars         ,ONLY: offSetElem
 #if USE_HDG
 #if PP_nVar==1
 !USE MOD_Equation_Vars      ,ONLY: E
@@ -355,21 +363,23 @@ INTEGER,PARAMETER       :: AddVar=0
 REAL,INTENT(INOUT)      :: U_RP(PP_nVar+AddVar,nRP)          !< State at recordpoints
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i,j,k,iRP
-REAL                    :: l_eta_zeta_RP
+INTEGER                 :: i,j,k,iRP,ElemID,Nloc
+REAL                    :: L_eta_zeta_RP
 !----------------------------------------------------------------------------------------------------------------------------------
 U_RP=0.
 DO iRP=1,nRP
-  DO k = 0,PP_N
-    DO j = 0,PP_N
-      l_eta_zeta_RP=l_eta_RP(j,iRP)*l_zeta_RP(k,iRP)
-      DO i=0,PP_N
+  ElemID = RP_ElemID(iRP)
+  Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
+  DO k = 0,Nloc
+    DO j = 0,Nloc
+      L_eta_zeta_RP=L_eta_RP(j,iRP)*L_zeta_RP(k,iRP)
+      DO i=0,Nloc
 #if USE_HDG
 #if PP_nVar==1
-        U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(RP_ElemID(iRP))%U(:,i,j,k), U_N(RP_ElemID(iRP))%E(1:3,i,j,k) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
+        U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(ElemID)%U(:,i,j,k), U_N(ElemID)%E(1:3,i,j,k) /)*L_xi_RP(i,iRP)*L_eta_zeta_RP
 #endif /*PP_nVar==1*/
 #else
-        U_RP(:,iRP)=U_RP(:,iRP) +    U_N(RP_ElemID(iRP))%U(:,i,j,k)                                     *l_xi_RP(i,iRP)*l_eta_zeta_RP
+        U_RP(:,iRP)=U_RP(:,iRP) +    U_N(ElemID)%U(:,i,j,k)                             *L_xi_RP(i,iRP)*L_eta_zeta_RP
 #endif /*USE_HDG*/
       END DO !i
     END DO !j

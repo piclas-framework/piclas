@@ -144,6 +144,7 @@ USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmin,Nmax,NInfo
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
+USE MOD_Globals_Vars       ,ONLY: PI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
