@@ -513,16 +513,16 @@ SUBROUTINE WritePMLzetaGlobalToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PML_Vars           ,ONLY: PMLzetaGlobal,PMLzeta0,PML
-USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem
+USE MOD_PML_Vars             ,ONLY: PMLzeta0,PML,ElemToPML,isPMLElem
+USE MOD_Mesh_Vars            ,ONLY: MeshFile,nGlobalElems,offsetElem,nElems
 USE MOD_io_HDF5
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_PML_Vars           ,ONLY: nPMLElems,PMLToElem
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,Nmax
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_PML_Vars             ,ONLY: nPMLElems,PMLToElem
+USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
+USE MOD_DG_vars              ,ONLY: N_DG_Mapping,nDofsMapping
+USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -531,66 +531,93 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER,PARAMETER   :: N_variables=3
+INTEGER,PARAMETER   :: nVarOut=3
 CHARACTER(LEN=255),ALLOCATABLE  :: StrVarNames(:)
 CHARACTER(LEN=255)  :: FileName
 REAL                :: StartT,EndT
 REAL                :: OutputTime
-INTEGER             :: iElem,iPMLElem,Nloc
+INTEGER             :: iElem,Nloc
+! p-adaption output
+REAL,ALLOCATABLE    :: U_N_2D_local(:,:)
+INTEGER             :: i,j,k,iDOF,nDOFOutput,offsetDOF
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
 #endif /*USE_LOADBALANCE*/
-! create global zeta field for parallel output of zeta distribution
-ALLOCATE(PMLzetaGlobal(1:N_variables,0:NMax,0:NMax,0:NMax,1:PP_nElems))
-ALLOCATE(StrVarNames(1:N_variables))
+! ---------------------------------------------------------
+! Prepare U_N_2D_local array for output as DG_Solution
+! ---------------------------------------------------------
+! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+! Allocate local 2D array: create global Eps field for parallel output of Eps distribution
+ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+ALLOCATE(StrVarNames(1:nVarOut))
 StrVarNames(1)='PMLzetaGlobalX'
 StrVarNames(2)='PMLzetaGlobalY'
 StrVarNames(3)='PMLzetaGlobalZ'
-PMLzetaGlobal=0.
+
+! Write into 2D array
+iDOF = 0
 IF(.NOT.ALMOSTZERO(PMLzeta0))THEN
-  DO iPMLElem=1,nPMLElems
-    iElem = PMLToElem(iPMLElem)
-    Nloc  = N_DG_Mapping(2,iElem+offSetElem)
-    IF(Nloc.EQ.Nmax)THEN
-      PMLzetaGlobal(:,:,:,:,iElem) = PML(iPMLElem)%zeta(:,:,:,:)/PMLzeta0
+  DO iElem=1,nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    IF(isPMLElem(iElem))THEN
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        iDOF = iDOF + 1
+        U_N_2D_local(1:nVarOut,iDOF) = PML(ElemToPML(iElem))%zeta(1:nVarOut,i,j,k)/PMLzeta0
+      END DO; END DO; END DO
     ELSE
-      CALL ChangeBasis3D(3,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
-          PML(iPMLElem)%zeta(1:3 , 0:Nloc , 0:Nloc , 0:Nloc)/PMLzeta0 , &
-               PMLzetaGlobal(1:3 , 0:NMax , 0:NMax , 0:NMax           , iElem))
-    END IF ! Nloc.Eq.Nmax
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        iDOF = iDOF + 1
+        U_N_2D_local(1:nVarOut,iDOF) = 0.0
+      END DO; END DO; END DO
+    END IF ! isDielectricElem(iElem)
   END DO
+ELSE
+  U_N_2D_local = 0.0
 END IF
 
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 GETTIME(StartT)
 OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-CALL GenerateFileSkeleton('PMLZetaGlobal',N_variables,StrVarNames,TRIM(MeshFile),OutputTime,NIn=NMax,FileNameOut=FileName)
+CALL GenerateFileSkeleton('PMLZetaGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
-  CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
-CALL WriteAttributeToHDF5(File_ID,'VarNamesPMLzetaGlobal',N_variables,StrArray=StrVarNames)
-CALL CloseDataFile()
+IF(MPIRoot)THEN
+  CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesPMLzetaGlobal',nVarOut,StrArray=StrVarNames)
+  CALL CloseDataFile()
+END IF ! MPIRoot
 
+! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+CALL WriteAdditionalElemData(FileName,ElementOutNloc)
+
+! ---------------------------------------------------------
+! Output of DG_Solution
+! ---------------------------------------------------------
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-        nGlobalElems    => INT(nGlobalElems,IK)    ,&
-        PP_nElems       => INT(PP_nElems,IK)       ,&
-        N_variables     => INT(N_variables,IK)     ,&
-        N               => INT(NMax,IK)            ,&
-        offsetElem      => INT(offsetElem,IK)      )
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                          DataSetName='DG_Solution' , rank=5 , &
-                          nValGlobal =(/N_variables , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                          nVal       =(/N_variables , N+1_IK , N+1_IK , N+1_IK , PP_nElems   /) , &
-                          offset     =(/       0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem  /) , &
-                          collective =.TRUE.        , RealArray=PMLzetaGlobal)
+ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
+          nDofsMapping    => INT(nDofsMapping,IK)      ,&
+          nDOFOutput      => INT(nDOFOutput,IK)        ,&
+          offsetDOF       => INT(offsetDOF,IK)         )
+CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
+                        DataSetName = 'DG_Solution' , rank = 2                , &
+                        nValGlobal  = (/nVarOut     , nDofsMapping/)          , &
+                        nVal        = (/nVarOut     , nDOFOutput/)            , &
+                        offset      = (/0_IK        , offsetDOF/)             , &
+                        collective  = .TRUE.        , RealArray = U_N_2D_local)
 END ASSOCIATE
+SDEALLOCATE(U_N_2D_local)
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
-SDEALLOCATE(PMLzetaGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WritePMLzetaGlobalToHDF5
 #endif /*USE_HDG*/
