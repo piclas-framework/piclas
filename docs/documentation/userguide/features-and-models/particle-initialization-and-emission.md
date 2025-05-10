@@ -550,7 +550,10 @@ To verify the resulting current [A], mass flow rate [kg s$^{-1}$] or the pressur
 
 This will output a species-specific rate and/or the average pressure in the adjacent cells (in case of an adaptive/subsonic BC)
 for each surface flux condition in the `PartAnalyze.csv`. It gives the current values for the time step. For the former, positive values
-correspond to a net flux into the domain and negative values vice versa.
+correspond to a net flux into the domain and negative values vice versa. Additionally, the State file contains an `AdaptiveInfo` dataset, where the sampled macroscopic values,
+utilized for the emission have been stored. It can be visualized by converting the State file with piclas2vtk and the additional flag as described in Sec {ref}`sec:visu-output`:
+
+    VisuAdaptiveInfo = T
 
 ### Missing descriptions
 

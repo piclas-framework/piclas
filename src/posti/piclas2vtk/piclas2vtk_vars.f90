@@ -33,6 +33,7 @@ REAL,ALLOCATABLE            :: NodeCoords_Connect(:,:)
 INTEGER,ALLOCATABLE         :: ElemUniqueNodeID(:,:)
 INTEGER                     :: nUniqueNodes
 INTEGER                     :: PointToCellSwitch
+INTEGER                     :: NVisuAdd
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Mapping of nodes and surface sides, required for connectivity of elements
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -47,22 +48,14 @@ TYPE (tSurfaceConnect)            :: SurfConnect
 
 ! p-Adaption
 TYPE tElemLocal
-  REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:)        !< Coordinates of visualization nodes [1:3,0:Nloc,0:Nloc,0:Nloc]
-  REAL,ALLOCATABLE                :: U(:,:,:,:)                   !< Read-in solution for visualization [1:nVar,0:Nloc,0:Nloc,0:Nloc]
-  REAL,ALLOCATABLE                :: U_Visu(:,:,:,:)              !< Interpolated solution for visualization [1:nVar,0:Nloc,0:Nloc,0:Nloc]
+  REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:)        !< Coordinates of visualization nodes [1:3,0:NlocOut,0:NlocOut,0:NlocOut]
+  REAL,ALLOCATABLE                :: U(:,:,:,:)                   !< Read-in solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut]
+  REAL,ALLOCATABLE                :: U_Visu(:,:,:,:)              !< Interpolated solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut]
 END TYPE tElemLocal
 
 TYPE(tElemLocal),ALLOCATABLE      :: ElemLocal(:)                 !< Container for element-specific variables [1:nElems]
 
-! p-Adaption
-TYPE tNVisu
-  REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)        !< Vandermonde from equidistant mesh to visualization nodes
-  REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)             !< Vandermonde from state to visualization nodes
-END TYPE tNVisu
-
-TYPE(tNVisu),ALLOCATABLE          :: NVisuLocal(:)                !< Container for polynomial degree specific variables [1:NlocMax]
-
-INTEGER, ALLOCATABLE              :: Nloc_HDF5(:)                 !< Element-local polynomial degree from read-in [1:nElems]
+INTEGER, ALLOCATABLE              :: Nloc_Visu(:)                 !< Element-local polynomial degree for visualization [1:nElems]
 
 
 END MODULE MOD_piclas2vtk_Vars
