@@ -126,8 +126,7 @@ IF (DVMBGKModel.EQ.7) tau = tau*2./3.
 Macroval(6:11)  = PressTens(1:6)
 MacroVal(12:14) = Heatflux(1:3)
 IF (tDeriv.GT.0.) THEN
-  SELECT CASE (tilde)
-  CASE(1) ! higher moments from f~
+  IF(tilde.EQ.1) THEN ! higher moments from f~
     SELECT CASE(DVMMethod)
     CASE(1) !EDDVM
       prefac = (1.-EXP(-tDeriv/tau))/(tDeriv/tau)
@@ -175,12 +174,11 @@ IF (tDeriv.GT.0.) THEN
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
       END SELECT
+    CASE DEFAULT
+      CALL abort(__STAMP__,'DVM-Method does not exist')
     END SELECT
-  CASE(2) ! higher moments from f^
-    MacroVal(6:14) = 0. ! will get copied from earlier f~ macroval
-  CASE DEFAULT
-    CALL abort(__STAMP__,'DVM-Method does not exist')
-  END SELECT
+  END IF
+  !ELSE: higher moments from f^ will get copied from earlier f~ macroval
 END IF
 
 END SUBROUTINE MacroValuesFromDistribution
@@ -826,7 +824,7 @@ SELECT CASE(tilde)
   CASE(2)
     SELECT CASE(DVMMethod)
     CASE(1)
-      prefac = 1 !tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^ (currently f=f2^: no relaxation to f in the boundary grad calculation)
+      prefac = 1. !tau*(EXP(tDeriv/tau)-1.)/tDeriv ! f from f2^ (currently f=f2^: no relaxation to f in the boundary grad calculation)
     CASE(2)
       prefac = 2.*tau/(2.*tau-tDeriv)
     END SELECT
@@ -953,7 +951,7 @@ SUBROUTINE ForceStep(tDeriv)
 ! Calculates force term (to add in 2 parts (Strang splitting) for 2nd order accuracy)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMForce !, DVMBGKModel
+USE MOD_Equation_Vars_FV,  ONLY: DVMnVelos, DVMVelos, DVMSpeciesData, DVMForce, DVMBGKModel
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -970,6 +968,7 @@ REAL, INTENT(IN)              :: tDeriv
 REAL                            :: MacroVal(14), tau, fTarget(PP_nVar_FV), forceTerm, cVel(3)!, velodiff, gamma
 INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos !,upos1,upos2
 !===================================================================================================================================
+IF (DVMBGKModel.EQ.4) CALL abort(__STAMP__,'ForceStep does not seem to work with ESBGKCons')
 DO iElem =1, nElems
   DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
     CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,iElem),tDeriv,tau,1)

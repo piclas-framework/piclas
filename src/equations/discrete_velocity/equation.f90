@@ -223,7 +223,7 @@ SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI
-USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
+USE MOD_DistFunc,      ONLY: MaxwellDistribution, GradDistribution
 USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState, DVMBGKModel
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
