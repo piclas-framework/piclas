@@ -135,7 +135,7 @@ INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact
 REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-
+REAL :: exponent
 !==================================================================================================================================
 
 Resu   =0.
@@ -155,7 +155,12 @@ CASE(2) !shock
   END IF
 
 CASE(3) !1D streamer (Markosyan et al. - 2013)
-  Resu(1) = RefState_FV(1,1)*EXP(-((x(1)-0.8e-3)/2.9e-5)**2)
+  exponent = ((x(1)-0.8e-3)/2.9e-5)**2
+  IF (CHECKEXP(exponent)) THEN
+    Resu(1) = RefState_FV(1,1)*EXP(-exponent)
+  ELSE
+    Resu(1) = 0.0
+  END IF
 
 CASE DEFAULT
   CALL abort(__STAMP__,'Specified exact function not implemented!')

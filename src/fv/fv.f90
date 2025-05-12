@@ -172,7 +172,9 @@ USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_MPI*/
 #ifdef drift_diffusion
 USE MOD_Equation_Vars     ,ONLY: E
+#if USE_MPI
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData
+#endif /*USE_MPI*/
 #endif
 REAL,INTENT(IN)                 :: t,tStage
 LOGICAL,INTENT(IN)              :: doSource
@@ -268,7 +270,9 @@ CALL LBSplitTime(LB_FV,tLBStart)
 ! Complete send / receive of prolongtoface results
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 
+#endif /*USE_MPI*/
 END ASSOCIATE
+#if USE_MPI
 
 !> 3.) Compute the fluxes
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
