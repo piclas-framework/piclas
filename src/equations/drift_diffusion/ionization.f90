@@ -49,6 +49,7 @@ USE MOD_part_emission_tools,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Mesh_Vars_FV       ,ONLY:Elem_xGP_FV
 USE MOD_Equation_FV        ,ONLY:ExactFunc_FV
 USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Part_Tools         ,ONLY: UpdateNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -128,6 +129,8 @@ DO ElemID=1,PP_nElems
     END DO ! nPart
   END ASSOCIATE
 END DO
+
+CALL UpdateNextFreePosition()
 
 END SUBROUTINE InsertNewIons
 
