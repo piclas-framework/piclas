@@ -257,7 +257,7 @@ AdaptBCSampIter = GETINT('AdaptiveBC-SamplingIteration')
 IF(.NOT.PerformLoadBalance) THEN
   IF(UseAdaptiveType4) THEN
     ALLOCATE(AdaptBCPartNumOut(1:nSpecies,1:nSurfacefluxBCs))
-    AdaptBCPartNumOut = 0
+    AdaptBCPartNumOut = 0.
   END IF
   IF(AdaptBCAverageValBC) THEN
     ALLOCATE(AdaptBCAverageMacroVal(1:3,1:nSpecies,1:nSurfacefluxBCs))

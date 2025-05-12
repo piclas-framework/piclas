@@ -66,7 +66,10 @@ CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'/
                                                      '1: Ellipsoidal statistical (ESBGK)\n'//&
                                                      '2: Shakov (SBGK)\n'//&
                                                      '3: Standard BGK (Maxwell)'//&
-                                                     '4: Conservative Maxwell)')
+                                                     '4: Conservative ESBGK'//&
+                                                     '5: Conservative Maxwell'//&
+                                                     '6: SkewNormal BGK (SNBGK)'//&
+                                                     '7: Grad 13 BGK')
 CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//&
                                                      '1: Exponential differencing (EDDVM)\n'//&
                                                      '2: DUGKS')

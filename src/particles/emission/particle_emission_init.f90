@@ -493,7 +493,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
-REAL                :: TimeStepOverWeight, v_thermal, dtVar
+REAL                :: v_thermal, dtVar
 REAL                :: StartT,EndT
 !===================================================================================================================================
 
@@ -602,7 +602,6 @@ IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
       ! Skip other regular surface flux and other types
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
       ! Calculate the velocity for the surface flux with the thermal velocity assuming a zero bulk velocity
-      TimeStepOverWeight = dtVar / Species(iSpec)%MacroParticleFactor
       v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
       ! Loop over sides on the surface flux
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -611,8 +610,8 @@ IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
         SampleElemID = AdaptBCMapElemToSample(ElemID)
         IF(SampleElemID.GT.0) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + INT(AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              * TimeStepOverWeight * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal)
+            AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + AdaptBCMacroVal(4,SampleElemID,iSpec) &
+              * dtVar * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal
           END DO; END DO
         END IF  ! SampleElemID.GT.0
       END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber
