@@ -833,7 +833,6 @@ Electric Field across the domain.
 
 ### Cross-section Database
 
-
 In this simulation setup, we have integrated a cross-section database that focuses solely on the effective and ionization cross sections from the LXCat database. These two categories of cross-sections are important because they dictate the formation rates and types of species that result from electron collision reactions with nitrogen gas. The effective cross-section represents the probability of any electron-induced reaction occurring, while the ionization cross-section specifically addresses the formation of electrons and N₂+ ions.
 
 For our application in PICLas, we particularly need cross-section data for electron interactions with nitrogen gas molecules. This data was extracted from the LXCat database and converted into an accessible HDF5 format using a Python script located in the tools folder: piclas/tools/crosssection_database.
@@ -851,6 +850,18 @@ Cross-section data for electron interactions with nitrogen (N₂) relevant to ne
 
 
 ## Comparison of Electron Fluid and PIC-MCC
+
+In this tutorial, the negative streamer discharge was simulated using two different approaches.
+
+In the first case, a hybrid Drift-Diffusion (DD) method was employed, in which electrons were modeled as a fluid, while ions were treated kinetically as particles. The fluid model for the electrons is a classical first-order model, which considers only the first moment of the distribution function (i.e., the density). In other words, this first-order approach accounts solely for changes in electron density based on drift and diffusion processes. No additional energy transport or equation is included.
+
+In the second case, a fully kinetic PIC-MCC (Particle-in-Cell with Monte Carlo Collisions) simulation was performed, where both ions and electrons were treated kinetically as particles. This approach is naturally much more computationally demanding, as the total effort scales not only with the number of cells but also with the number of particles. Consequently, the DD simulation is approximately 12 times faster than the PIC-MCC simulation.
+
+The following figures compare the results from both simulation methods. It is clearly visible that the streamer front propagates faster in the PIC-MCC simulation, as it is closer to the left boundary at time t=0.7ns. A similar behavior was also observed by Markosyan et al. {cite}`Markosyan2015`, whose work this tutorial is based on. Markosyan et al. additionally simulated a second-order DD method, in which not only the first moment (density) but also the electron energy equation was taken into account.
+
+In their second-order DD case, the streamer front also propagated significantly faster and was in better agreement with the PIC-MCC results. It is important to note that, in contrast to the hybrid approach used in this tutorial, Markosyan et al. applied a pure fluid model, in which ions were also treated as a fluid.
+
+For future work, the DD implementation in PICLas should be extended to a second-order model. This would enable fast yet accurate streamer simulations compared to the fully kinetic PIC-MCC approach.
 
 ```{figure} results/comparison_elec.png
 ---
