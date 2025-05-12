@@ -126,7 +126,7 @@ CHARACTER(LEN=255)                  :: FileName,FileString,Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255)                  :: NodeTypeTemp
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: SurfOutputSize, nVarCount
+INTEGER                             :: nVarCount
 REAL                                :: StartT,EndT
 !===================================================================================================================================
 

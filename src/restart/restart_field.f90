@@ -115,7 +115,6 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 #endif /*USE_HDG*/
 #ifdef discrete_velocity /*DVM*/
 USE MOD_DistFunc               ,ONLY: GradDistribution
-USE MOD_Equation_Vars_FV       ,ONLY: DVMSpeciesData
 #endif
 USE MOD_Mesh_Vars              ,ONLY: OffsetElem,nElems
 

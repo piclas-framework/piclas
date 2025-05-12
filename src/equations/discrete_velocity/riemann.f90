@@ -30,7 +30,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 ! MODULES
 USE MOD_PreProc ! PP_N
 USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, TargetDistribution
-USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMnVelos, DVMVelos, DVMMethod, DVMBGKModel
+USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMnVelos, DVMVelos, DVMMethod
 USE MOD_TimeDisc_Vars,   ONLY: dt
 USE MOD_Globals,         ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
@@ -49,7 +49,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:PP_N,0:PP_N)
 REAL                                             :: n_loc(3),MacroVal_L(14), MacroVal_R(14), tau_L, tau_R
 REAL                                             :: Velo
 REAL,DIMENSION(PP_nVar_FV)                       :: fTarget_L, fTarget_R, UTemp_L, UTemp_R
-REAL                                             :: gamma_R, gamma_L
+REAL                                             :: gamma_R, gamma_L, relaxFac
 INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos
 !===================================================================================================================================
 ! Gauss point i,j
@@ -66,8 +66,18 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
       ELSE
         SELECT CASE (DVMMethod)
         CASE(1)
-          gamma_L = 2.*tau_L*(1.-EXP(-dt/2./tau_L))/dt
-          gamma_R = 2.*tau_R*(1.-EXP(-dt/2./tau_R))/dt
+          relaxFac = dt/2./tau_L
+          IF(CHECKEXP(relaxFac)) THEN
+            gamma_L = 2.*tau_L*(1.-EXP(-relaxFac))/dt
+          ELSE
+            gamma_L = 0.
+          END IF
+          relaxFac = dt/2./tau_R
+          IF(CHECKEXP(relaxFac)) THEN
+            gamma_R = 2.*tau_R*(1.-EXP(-relaxFac))/dt
+          ELSE
+            gamma_R = 0.
+          END IF
         CASE(2)
           gamma_L = 2.*tau_L/(2.*tau_L+dt/2.)
           gamma_R = 2.*tau_R/(2.*tau_R+dt/2.)

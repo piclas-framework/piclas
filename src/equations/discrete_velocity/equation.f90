@@ -215,7 +215,7 @@ SWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
+SUBROUTINE ExactFunc(ExactFunction,tIn,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -224,13 +224,12 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, GradDistribution
-USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState, DVMBGKModel
+USE MOD_Equation_Vars_FV, ONLY: DVMSpeciesData, RefState
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 REAL,INTENT(IN)                 :: tIn                    !< input time (either time at RK stage or time at the beginning of
                                                           !< timestep if full boundary order is used (only with RK3)
-INTEGER, INTENT(IN)                :: tDeriv
 REAL,INTENT(IN)                 :: x(3)                   !< coordinates to evaluate exact function
 INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact function to be used
 REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables

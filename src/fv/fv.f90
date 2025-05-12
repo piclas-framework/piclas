@@ -152,7 +152,6 @@ USE MOD_Equation_FV       ,ONLY: CalcSource_FV
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
 USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
-USE MOD_Interpolation_Vars,ONLY: wGP
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
@@ -171,6 +170,7 @@ USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #ifdef drift_diffusion
+USE MOD_Interpolation_Vars,ONLY: wGP
 USE MOD_Equation_Vars     ,ONLY: E
 #if USE_MPI
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData
@@ -182,8 +182,9 @@ LOGICAL,INTENT(IN)              :: doSource
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: CNElemID, iElem,i,j,k,ElemID
+INTEGER                         :: CNElemID, iElem
 #ifdef drift_diffusion
+INTEGER                         :: i,j,k
 REAL                            :: U_DD(1:PP_nVar_FV+3,0:0,0:0,0:0,PP_nElems) ! U_FV(1:PP_nVar_FV) + E(1:3)
 #endif
 #if USE_LOADBALANCE
@@ -201,12 +202,12 @@ CALL LBStartTime(tLBStart)
 #ifdef drift_diffusion
 !> 1.b) Add averaged E field to the solution vector
 U_DD(:,:,:,:,:) = 0.
-DO ElemID = 1, PP_nElems
+DO iElem = 1, PP_nElems
   DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID) = U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID) &
-                                                 + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3) !need jacobi here for noncartesian
+    U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,iElem) = U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,iElem) &
+                                                 + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,iElem)/((PP_N+1.)**3) !need jacobi here for noncartesian
   END DO; END DO; END DO
-  U_DD(1:PP_nVar_FV,0,0,0,ElemID) = U_FV(1:PP_nVar_FV,0,0,0,ElemID)
+  U_DD(1:PP_nVar_FV,0,0,0,iElem) = U_FV(1:PP_nVar_FV,0,0,0,iElem)
 END DO
 
 ASSOCIATE(  PP_nVar_tmp => PP_nVar_FV+3 , &
@@ -373,7 +374,7 @@ INTEGER                         :: iElem
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
 DO iElem=1,PP_nElems
-    CALL ExactFunc_FV(IniExactFunc_FV,0.,0,Elem_xGP_FV(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+    CALL ExactFunc_FV(IniExactFunc_FV,0.,Elem_xGP_FV(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 

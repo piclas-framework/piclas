@@ -55,10 +55,10 @@ SUBROUTINE InitGradients(ini_dim)
 USE MOD_Globals
 USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
 USE MOD_Mesh_Vars             ,ONLY: nElems, nSides
-USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
 #if USE_MPI
+USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_MPI_Vars
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
 #if USE_LOADBALANCE
@@ -145,8 +145,9 @@ SUBROUTINE GetGradients(VarForGradients,output)
 USE MOD_Globals
 USE MOD_Gradient_Vars
 USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
-USE MOD_Mesh_Vars           ,ONLY: nElems,nSides,ElemToSide
+USE MOD_Mesh_Vars           ,ONLY: nElems,ElemToSide
 #if USE_MPI
+USE MOD_Mesh_Vars           ,ONLY: nSides
 USE MOD_MPI                 ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #if USE_LOADBALANCE

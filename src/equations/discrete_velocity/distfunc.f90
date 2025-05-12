@@ -51,8 +51,8 @@ REAL, INTENT(OUT)               :: MacroVal(14), tau
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rho, rhoU(3), rhoE, PressTens(6), Heatflux(3), uVelo(3), cV, cVel(3),cMag2, mu, weight, prefac
-INTEGER                         :: iVel,jVel,kVel, upos
+REAL                            :: rho,rhoU(3),rhoE,PressTens(6),Heatflux(3),uVelo(3),cV,cVel(3),cMag2,mu,weight,prefac,relaxFac
+INTEGER                         :: iVel,jVel,kVel,upos
 !===================================================================================================================================
 rho = 0.
 rhoU = 0.
@@ -129,7 +129,12 @@ IF (tDeriv.GT.0.) THEN
   IF(tilde.EQ.1) THEN ! higher moments from f~
     SELECT CASE(DVMMethod)
     CASE(1) !EDDVM
-      prefac = (1.-EXP(-tDeriv/tau))/(tDeriv/tau)
+      relaxFac = tDeriv/tau
+      IF (CHECKEXP(relaxFac)) THEN
+        prefac = (1.-EXP(-relaxFac))/relaxFac
+      ELSE
+        prefac = 0.
+      END IF
       SELECT CASE(DVMBGKModel)
       CASE(1,4) !ESBGK
         Macroval(6:8)   = (Macroval(6:8)*prefac+(1.-prefac)*MacroVal(5)*DVMSpeciesData%R_S*rho/DVMSpeciesData%Prandtl) &
@@ -859,7 +864,7 @@ SUBROUTINE RescaleU(tilde,tDeriv)
 ! Rescales distribution function for EDDVM/DUGKS
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY : DVMMomentSave, DVMMethod, DVMSpeciesData
+USE MOD_Equation_Vars_FV,  ONLY : DVMMomentSave, DVMMethod
 USE MOD_Globals,        ONLY :abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -874,7 +879,7 @@ INTEGER, INTENT(IN)           :: tilde
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(14), tau, fTarget(PP_nVar_FV), prefac
+REAL                            :: MacroVal(14), tau, fTarget(PP_nVar_FV), prefac, relaxFac
 INTEGER                         :: i,j,k,iElem
 !===================================================================================================================================
 DO iElem =1, nElems
@@ -886,7 +891,12 @@ DO iElem =1, nElems
         DVMMomentSave(15,iElem) = tau
         SELECT CASE(DVMMethod)
         CASE(1)
-          prefac = (EXP(-tDeriv/tau/2.)-EXP(-3.*tDeriv/tau/2.))/(1.-EXP(-tDeriv/tau/2.))/2.
+          relaxFac = tDeriv/tau/2.
+          IF (CHECKEXP(3.*relaxFac)) THEN
+            prefac = (EXP(-relaxFac)-EXP(-3.*relaxFac))/(1.-EXP(-relaxFac))/2.
+          ELSE
+            prefac = 0.
+          END IF
         CASE(2)
           prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
         END SELECT
@@ -895,7 +905,12 @@ DO iElem =1, nElems
         tau = DVMMomentSave(15,iElem)
         SELECT CASE(DVMMethod)
         CASE(1)
-          prefac = 2.*(EXP(-tDeriv/tau)-EXP(-2.*tDeriv/tau))/(1.-EXP(-2.*tDeriv/tau))
+          relaxFac = tDeriv/tau
+          IF (CHECKEXP(2.*relaxFac)) THEN
+            prefac = 2.*(EXP(-relaxFac)-EXP(-2.*relaxFac))/(1.-EXP(-2.*relaxFac))
+          ELSE
+            prefac = 0.
+          END IF
         CASE(2)
           prefac = (4./3.)-(1./3.)*(2.*tau+2.*tDeriv)/(2.*tau-tDeriv)
         END SELECT

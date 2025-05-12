@@ -60,7 +60,7 @@ LOGICAL,INTENT(IN):: output
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
-REAL    :: MacroVal(14), tau, vnormal!, vwall, Sin, Sout, MovTerm, WallDensity, weight
+REAL    :: MacroVal(14), vnormal!, vwall, Sin, Sout, MovTerm, WallDensity, weight
 INTEGER :: iVel, jVel, kVel, upos, upos_sp
 !==================================================================================================================================
 BCType  = BoundaryType(BC(SideID),BC_TYPE)
@@ -71,7 +71,7 @@ CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
-    CALL ExactFunc_FV(IniExactFunc_FV,time,0,Face_xGP,UPrim_boundary)
+    CALL ExactFunc_FV(IniExactFunc_FV,time,Face_xGP,UPrim_boundary)
   ELSE
     CALL MaxwellDistribution(RefState(:,BCState),UPrim_boundary)
   END IF

@@ -121,7 +121,7 @@ END SUBROUTINE InitBC
 !> Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
 !> BCType: 1...periodic, 2...exact BC
 !==================================================================================================================================
-SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,Face_xGP)
+SUBROUTINE GetBoundaryFlux(t,Flux,UPrim_master,NormVec,Face_xGP)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals         ,ONLY: Abort
@@ -139,11 +139,8 @@ USE MOD_Equation_FV     ,ONLY: ExactFunc_FV
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
-INTEGER,INTENT(IN)                   :: tDeriv      ! deriv
 REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV+3,0:0,0:0,1:nBCSides)
 REAL,INTENT(IN)                      :: NormVec(           3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:0,0:0,1:nBCSides)
 REAL,INTENT(IN)                      :: Face_xGP(          3,0:0,0:0,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -167,7 +164,7 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       IF(BCState.EQ.0) THEN
-        CALL ExactFunc_FV(IniExactFunc_FV,t,0,Face_xGP(:,0,0,SideID),UPrim_boundary(1:PP_nVar_FV,0,0))
+        CALL ExactFunc_FV(IniExactFunc_FV,t,Face_xGP(:,0,0,SideID),UPrim_boundary(1:PP_nVar_FV,0,0))
       ELSE
         UPrim_boundary(1,0,0)=RefState_FV(1,BCState)
       END IF
@@ -193,12 +190,6 @@ DO iBC=1,nBCs
     CALL abort(__STAMP__,'no BC defined in DVM/getboundaryflux.f90!')
   END SELECT ! BCType
 END DO
-
-! Suppress compiler warnings
-RETURN
-iBC = tDeriv
-UPrim_boundary(1,0,0) = TangVec1(1,0,0,1)
-UPrim_boundary(1,0,0) = TangVec2(1,0,0,1)
 
 END SUBROUTINE GetBoundaryFlux
 

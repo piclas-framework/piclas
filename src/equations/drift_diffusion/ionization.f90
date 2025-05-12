@@ -77,7 +77,7 @@ END DO
 DO ElemID=1,PP_nElems
   IF (PRESENT(init)) THEN
     !initial insertion according to electron density
-    CALL ExactFunc_FV(init,0.,0,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
+    CALL ExactFunc_FV(init,0.,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
     DeltaPartDens = resu(1)
   ELSE
 

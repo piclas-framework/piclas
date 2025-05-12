@@ -506,7 +506,7 @@ DO iElem=1,PP_nElems
   offsetElemCNProc = 0
 #endif  /*USE_MPI && defined(PARTICLES)*/
   CNElemID=iElem+offsetElemCNProc
-  CALL ExactFunc_FV(IniExactFunc_FV,time,0,Elem_xGP_FV(1:3,0,0,0,iElem),U_exact(1:PP_nVar_FV))
+  CALL ExactFunc_FV(IniExactFunc_FV,time,Elem_xGP_FV(1:3,0,0,0,iElem),U_exact(1:PP_nVar_FV))
 #ifdef discrete_velocity
   ! DVM: calculate errors for the macroscopic values
   CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),real_dt,tau,1)
@@ -970,7 +970,6 @@ USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
 #if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
-USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
 #endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
 #if USE_LOADBALANCE
@@ -983,6 +982,8 @@ USE MOD_TimeDisc_Vars             ,ONLY: time
 #ifdef discrete_velocity
 USE MOD_Equation_Vars_FV          ,ONLY: WriteDVMSurfaceValues
 USE MOD_DVM_Boundary_Analyze      ,ONLY: WriteDVMSurfToHDF5
+#else
+USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 #endif /*discrete_velocity*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
