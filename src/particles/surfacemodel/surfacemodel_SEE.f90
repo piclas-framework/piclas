@@ -93,9 +93,10 @@ END IF
 
 ! Select particle surface modeling
 SELECT CASE(PartBound%SurfaceModel(locBCID))
-CASE(3,4,12) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
-             ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
-             ! 12: SEE-E by Seiler, H. (1983). Journal of Applied Physics, 54(11). https://doi.org/10.1063/1.332840
+CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
+                ! 4: SEE-E by power-law: (a*T[eV]^b + c)*H(T[eV]-W)
+                ! 12: SEE-E by Seiler, H. (1983). Journal of Applied Physics, 54(11). https://doi.org/10.1063/1.332840
+                ! 13: SEE model by M. Villemant et al 2019 EPL 127 23001. https://doi.org/10.1209/0295-5075/127/23001 - Vaughan formula
   ! Bombarding electron
   IF(PARTISELECTRON(PartID_IN))THEN
     ! Material work function as the energy threshold: Calculate yield only when energy is sufficient
@@ -109,6 +110,8 @@ CASE(3,4,12) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
       CASE(12)  ! Yield function
         SEEYield = SurfModSEEFitCoeff(1,locBCID)*1.11*(eps_e/SurfModSEEFitCoeff(2,locBCID))**(-0.35) &
                    * (1 - EXP(-2.3 * (eps_e/SurfModSEEFitCoeff(2,locBCID))**(1.35)))
+      CASE(13)  ! Yield function
+        SEEYield = SurfModSEEFitCoeff(1,locBCID)*(eps_e/SurfModSEEFitCoeff(2,locBCID)*EXP(1-eps_e/SurfModSEEFitCoeff(2,locBCID)))**SurfModSEEFitCoeff(3,locBCID)
       END SELECT
       ! Determine the number of secondaries to be emitted
       IF(SurfModSEEvMPF(locBCID)) THEN

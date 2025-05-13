@@ -191,6 +191,7 @@ CASE (SEE_MODELS_ID)
   !10: SEE-I (bombarding electrons are removed, Ar+ on copper is considered for SEE)
   !11: SEE-E by e- on quartz (SiO2) is considered
   !12: SEE-E Seiler, H. (1983). Secondary electron emission in the scanning electron microscope.
+  !13: SEE-E Villemant (2019) - Vaughan formula
 !-----------------------------------------------------------------------------------------------------------------------------------
   ! Determine the yield and consequently the number of secondaries to be emitted
   CALL SecondaryElectronEmissionYield(PartID,locBCID,ProductSpec,ProductSpecNbr,TempErgy)

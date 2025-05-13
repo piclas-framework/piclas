@@ -418,6 +418,23 @@ Additionally, the energy distribution can be selected with
 
 It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_12/`.
 
+#### Model 13
+
+This model relies on the Vaughan formula given by Villeman {cite}`Villemant2019`. It is assumed that the impaction particle is absorbed.
+
+$$\gamma = a \left( \frac{E}{b} \cdot e^{1-\frac{E}{b}} \right)^c$$
+
+where $a$, $b$, and $c$ are material-specific coefficients and $W$ is the work function [eV] above which the yield is calculated.
+The parameters are read-in through:
+
+    Part-BoundaryB-SurfModSEEFitCoeff   = (/2.016,299,0.563,0/)      ! (/a,b,c,W/)
+
+Additionally, the energy distribution can be selected with
+
+    Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
+
+It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_13/`.
+
 (sec:catalytic-surface)=
 ## Catalytic Surfaces
 
