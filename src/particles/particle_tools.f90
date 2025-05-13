@@ -469,6 +469,7 @@ REAL            :: PDF,PDF_max               !< Probability density function
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 REAL            :: E_temp, E_max, W          !< Energy values [eV]
 REAL            :: Theta, Phi                !< Angles between surface normal/tangent to velocity
+REAL            :: TempErgyTemp              !< Temporary variable for energy [eV]
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
@@ -594,6 +595,24 @@ CASE('Chung-Everhart-cosine')
   !     VeloABS = BackupVeloABSArray(iNewPart)
   !     IF(iNewPart.EQ.ProductSpecNbr) DEALLOCATE(BackupVeloABSArray)
   !   END IF
+
+  ! === Velocity vector
+  ! Equally-distributed angle Phi [0:2*PI] for tangential component
+  CALL RANDOM_NUMBER(RandVal)
+  Phi = RandVal * 2.0 * PI
+  ! 2*sin(Theta)*cos(Theta) = sin(2*Theta) distribution of Theta [0:PI/2] for normal component using the inverse method according to Greenwood, J. (2002).
+  CALL RANDOM_NUMBER(RandVal)
+  Theta = ASIN(SQRT(RandVal))
+
+  VeloFromDistribution(1) = SIN(Theta) * COS(Phi)
+  VeloFromDistribution(2) = SIN(Theta) * SIN(Phi)
+  VeloFromDistribution(3) = COS(Theta)
+
+  VeloFromDistribution = VeloFromDistribution * VeloABS
+
+CASE('cosine')
+  TempErgyTemp = 2.0 !Energy in [eV], set according to Taccogna et al. (2022)
+  VeloABS = SQRT(2.0 * TempErgyTemp * ElementaryCharge / ElectronMass)
 
   ! === Velocity vector
   ! Equally-distributed angle Phi [0:2*PI] for tangential component

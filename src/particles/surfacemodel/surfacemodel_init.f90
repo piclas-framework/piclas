@@ -155,6 +155,11 @@ DO iPartBound=1,nPartBound
   CASE(3,4,12,13)
     SurfModSEEFitCoeff(1:4,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEFitCoeff',4)
     SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','Chung-Everhart-cosine'))
+    IF(SurfModEnergyDistribution(iPartBound).EQ.'Chung-Everhart-cosine') THEN
+      ! Check if the work function is set
+      IF(SurfModSEEFitCoeff(4,iPartBound).LE.0.) CALL abort(__STAMP__,&
+        'ERROR: SEE energy distribution model by Chung-Everhart requires a work function (SurfModSEEFitCoeff(4)) to be set!')
+    END IF
     ! Loop all species
     DO iSpec = 1,nSpecies
       IF(SPECIESISELECTRON(iSpec)) THEN

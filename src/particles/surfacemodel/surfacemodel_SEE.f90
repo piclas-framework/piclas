@@ -138,7 +138,7 @@ CASE(3,4,12,13) ! 3: SEE-E by square fit: a*e[eV] + b*e^2[eV] + c
       SELECT CASE(SurfModEnergyDistribution(locBCID))
       CASE('deltadistribution') ! Energy in [m/s]
         TempErgy = SQRT(2.*eps_e*eV2Joule/ElectronMass)
-      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004') ! Energy in [eV]
+      CASE('Chung-Everhart-cosine','uniform-energy','Morozov2004','cosine') ! Energy in [eV]
         TempErgy = eps_e
       CASE DEFAULT
         CALL abort(__STAMP__,'Unknown velocity distribution for power-fit SEE model: ['//TRIM(SurfModEnergyDistribution(locBCID))//']')
