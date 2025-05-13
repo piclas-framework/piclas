@@ -44,6 +44,7 @@ USE MOD_Particle_Vars           ,ONLY: PDM, PEM, PartState, LastPartPos, PartSpe
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, PartVeloRotRef, RotRefFrameOmega, UseRotRefFrame, InRotRefFrame
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, CollisMode, DSMC, PartStateIntEn, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
@@ -66,7 +67,7 @@ REAL, INTENT(IN),OPTIONAL     :: NewMPF           !< MPF of newly created partic
 REAL, INTENT(IN),OPTIONAL     :: NewTimestep      !< Timestep of the newly created particle
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-INTEGER :: newParticleID, iElem
+INTEGER :: newParticleID, iElem, iPolyatMole
 !===================================================================================================================================
 
 newParticleID = GetNextFreePosition()
@@ -83,6 +84,15 @@ END IF ! TrackingMethod.EQ.REFMAPPING
 
 IF (useDSMC.AND.(CollisMode.GT.1)) THEN
   PartStateIntEn(1,newParticleID) = VibEnergy
+  IF(DSMC%NumPolyatomMolecs.GT.0) THEN
+    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+      iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
+      IF(ALLOCATED(VibQuantsPar(newParticleID)%Quants)) DEALLOCATE(VibQuantsPar(newParticleID)%Quants)
+      ALLOCATE(VibQuantsPar(newParticleID)%Quants(1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+      ! TODO: Initialize quants to actually correspond to the vibrational energy
+      VibQuantsPar(newParticleID)%Quants = 0
+    END IF
+  END IF
   PartStateIntEn(2,newParticleID) = RotEnergy
   IF (DSMC%ElectronicModel.GT.0) THEN
     PartStateIntEn(3,newParticleID) = ElecEnergy

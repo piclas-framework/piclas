@@ -89,7 +89,7 @@ REAL                                 :: v1(3),v2(3)
 crossedBC    =.FALSE.
 
 #if USE_HDG
-! Check particle index for VDL particles and kill them here
+! Check particle index for VDL particles, which should NOT be here and kill them (regular treatment is in DepositVirtualDielectricLayerParticles)
 IF(IsVDLSpecID(iPart))THEN
   IF(PDM%ParticleInside(iPart))THEN
     IF(CountNbrOfLostParts)THEN
@@ -169,7 +169,7 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-    IF(Species(PartSpecies(iPart))%InterID.NE.100) THEN
+    IF(Species(PartSpecies(iPart))%InterID.NE.100.AND..NOT.PRESENT(IsInterPlanePart)) THEN
       ! Regular species
       ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
       CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)

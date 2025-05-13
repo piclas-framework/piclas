@@ -437,7 +437,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Interpolation_Vars ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_PICDepo_Vars       ,ONLY: PS_N

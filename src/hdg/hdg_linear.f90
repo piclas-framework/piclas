@@ -396,12 +396,13 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
 ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
 IF(reason.LT.0)THEN
+  ! Output used memory
   CALL WarningMemusage(Mode=1,Threshold=5.0)
   !  View solver converged reason
   PetscCallA(KSPConvergedReasonView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
   !  View solver info
   PetscCallA(KSPView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
-  CALL abort(__STAMP__,'ERROR: PETSc not converged!')
+  CALL Abort(__STAMP__,'ERROR: PETSc not converged! Reason: ',IntInfoOpt=reason)
 END IF
 
 IF(MPIroot) THEN

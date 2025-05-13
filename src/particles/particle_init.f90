@@ -159,7 +159,7 @@ CALL prms%CreateIntOption(      'Part-Species[$]-vMPFMergeThreshold', 'Particle 
 CALL prms%CreateIntOption(      'Part-Species[$]-vMPFSplitThreshold', 'Particle number threshold for split routines' //&
                                                                       'per cell and species.', '0',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-vMPFSplitLimit'         , 'Do not split particles below this MPF threshold', '1.0')
-
+CALL prms%CreateIntOption(      'Part-vMPFSplitAndMergeStep'  , 'Perform split and merge every N steps','1')
 
 ! Output of macroscopic values
 CALL prms%SetSection("Particle Sampling")
@@ -1033,6 +1033,7 @@ IF (usevMPF) THEN
       CALL abort(__STAMP__,'ERROR: Given merge threshold is lower than the split threshold!')
     END IF
   END DO
+  vMPFSplitAndMergeStep = GETINT('Part-vMPFSplitAndMergeStep')
   ALLOCATE(CellEelec_vMPF(nSpecies,nElems))
   CellEelec_vMPF = 0.0
   ALLOCATE(CellEvib_vMPF(nSpecies,nElems))

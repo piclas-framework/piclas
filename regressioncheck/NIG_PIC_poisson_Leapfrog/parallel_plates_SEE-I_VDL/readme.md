@@ -38,4 +38,4 @@
 - Count the number of emitted electrons from SEE surfaces
     - parameter.ini for activating this output:
 
-              CalcElectronSEE = T
+              CalcCurrentSEE = T

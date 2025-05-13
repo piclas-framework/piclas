@@ -35,7 +35,11 @@ PetscReal       :: norm, tol
 n = 3  ! Size of the linear system
 
 ! Initialize PETSc
+PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, '-log_view', PETSC_NULL_CHARACTER, ierr));
+
 PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER, ierr))
+PetscCallA(PetscLogDefaultBegin(ierr))
+
 one     = 1.0
 neg_one = -1.0
 

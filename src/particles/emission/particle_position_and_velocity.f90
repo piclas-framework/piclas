@@ -495,10 +495,10 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition, BuildTransGaussNums2
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -609,7 +609,7 @@ CASE('photon_SEE_energy')
         ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
 
           ! 1. Store the particle information in PartStateBoundary.h5
-          IF(DoBoundaryParticleOutputHDF5) THEN
+          IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputEmission(PartBCIndex)) THEN
             IF(usevMPF)THEN
               MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
             ELSE
@@ -699,15 +699,12 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
-USE MOD_Basis                  ,ONLY: BarycentricWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Equation               ,ONLY: ExactFunc
 USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
 !----------------------------------------------------------------------------------------------------------------------------------

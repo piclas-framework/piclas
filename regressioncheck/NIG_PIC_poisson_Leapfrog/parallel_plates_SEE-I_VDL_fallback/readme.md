@@ -21,7 +21,7 @@
 - Count the number of emitted electrons from SEE surfaces
     - parameter.ini for activating this output:
 
-              CalcElectronSEE = T
+              CalcCurrentSEE = T
 
 - Due to the VDL model and the slope of the right BC, some particles are shifted outside of the domain and are stored in
   parallel_plates_PartStateLost_000.00000050000000000.h5
