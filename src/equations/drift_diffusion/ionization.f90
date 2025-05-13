@@ -117,8 +117,8 @@ DO ElemID=1,PP_nElems
       ElecEnergy = 0.
 
       IF (CollisMode.GT.1) THEN
-        RotEnergy = CalcERot_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TRot)
-        VibEnergy = CalcEVib_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TVib)
+        RotEnergy = CalcERot_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TRot,iPart)
+        VibEnergy = CalcEVib_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TVib,iPart)
         IF (DSMC%ElectronicModel.GT.0) THEN
           ElecEnergy = CalcEElec_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TElec)
         END IF
