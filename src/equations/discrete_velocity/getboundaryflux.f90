@@ -64,28 +64,11 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: i,iSide
-INTEGER :: locType,locState
-INTEGER :: MaxBCState,MaxBCStateGlobal
 !==================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone))THEN
   CALL CollectiveStop(__STAMP__,&
     "InitBC not ready to be called or already called.")
 END IF
-! determine globally max MaxBCState
-MaxBCState = 0
-DO iSide=1,nBCSides
-  locType =BoundaryType(BC(iSide),BC_TYPE)
-  locState=BoundaryType(BC(iSide),BC_STATE)
-END DO
-MaxBCStateGLobal=MaxBCState
-#if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_PICLAS,iError)
-#endif /*USE_MPI*/
-
-! Initialize State File Boundary condition
-DO i=1,nBCs
-  locType =BoundaryType(i,BC_TYPE)
-END DO
 
 ! Count number of sides of each boundary
 ALLOCATE(nBCByType(nBCs))

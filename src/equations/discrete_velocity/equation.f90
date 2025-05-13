@@ -425,7 +425,7 @@ END SUBROUTINE CalcSource
 !==================================================================================================================================
 SUBROUTINE FinalizeEquation()
 ! MODULES
-USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState, WriteDVMSurfaceValues
+USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone, DVMVelos, DVMWeights, RefState, WriteDVMSurfaceValues, DVMMomentSave
 USE MOD_DVM_Boundary_Analyze,ONLY: FinalizeDVMBoundaryAnalyze
 IMPLICIT NONE
 !==================================================================================================================================
@@ -434,6 +434,7 @@ IF (WriteDVMSurfaceValues) CALL FinalizeDVMBoundaryAnalyze()
 SDEALLOCATE(DVMVelos)
 SDEALLOCATE(DVMWeights)
 SDEALLOCATE(RefState)
+SDEALLOCATE(DVMMomentSave)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation_FV
