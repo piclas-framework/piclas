@@ -451,6 +451,7 @@ FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr,iPar
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
 USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c,ElementaryCharge,PI
 USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, SurfModSEEFitCoeff
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -469,7 +470,7 @@ REAL            :: PDF,PDF_max               !< Probability density function
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 REAL            :: E_temp, E_max, W          !< Energy values [eV]
 REAL            :: Theta, Phi                !< Angles between surface normal/tangent to velocity
-REAL            :: TempErgyTemp              !< Temporary variable for energy [eV]
+REAL            :: TempErgy_temp             !< Temporary variable for energy [eV]
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
@@ -611,8 +612,13 @@ CASE('Chung-Everhart-cosine')
   VeloFromDistribution = VeloFromDistribution * VeloABS
 
 CASE('cosine')
-  TempErgyTemp = 2.0 !Energy in [eV], set according to Taccogna et al. (2022)
-  VeloABS = SQRT(2.0 * TempErgyTemp * ElementaryCharge / ElectronMass)
+  IF(PartBound%SurfaceModel(iPartBound).EQ.13) THEN
+      TempErgy_temp = 2.0 !Energy in [eV], set according to Taccogna et al. (2022)
+  ELSE
+      TempErgy_temp = Tempergy !Energy in [eV]
+  END IF
+  
+  VeloABS = SQRT(2.0 * TempErgy_temp * ElementaryCharge / ElectronMass)
 
   ! === Velocity vector
   ! Equally-distributed angle Phi [0:2*PI] for tangential component
