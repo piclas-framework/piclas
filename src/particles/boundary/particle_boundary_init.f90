@@ -80,9 +80,10 @@ CALL prms%CreateRealOption(   'Part-Boundary[$]-PermittivityVDL', 'Permittivity 
 CALL prms%CreateRealOption(   'Part-Boundary[$]-ThicknessVDL'   , 'Thickness of the real dielectric layer in the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
-                              'or not [.FALSE.].'&
-                              , '.FALSE.', numberedmulti=.TRUE.)
-
+                              'or not [.FALSE.].', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput-Emission' , 'Define if the emitted particles on '//&
+                              'boundary [$] are to be stored in the same .h5 file with a negative species index for post-processing analysis [.TRUE.] '//&
+                              'or not [.FALSE.].', '.FALSE.', numberedmulti=.TRUE.)
 ! Radiative equilibrium temperature
 CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
@@ -215,6 +216,7 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species, usevMPF
+USE MOD_Particle_Vars          ,ONLY: InterPlanePartIndx, PDM
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,DoVirtualDielectricLayer
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
@@ -248,8 +250,9 @@ REAL                  :: omegaTemp, RotFreq
 CHARACTER(32)         :: hilf,hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE,AnyBoundaryUsesSEE
 INTEGER               :: iInit,iSpec
+INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -382,11 +385,14 @@ DoVirtualDielectricLayer  = .FALSE.
 ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
 PartBound%BoundaryParticleOutputHDF5=.FALSE.
 DoBoundaryParticleOutputHDF5=.FALSE.
+ALLOCATE(PartBound%BoundaryParticleOutputEmission(1:nPartBound))
+PartBound%BoundaryParticleOutputEmission=.FALSE.
 
 PartMeshHasPeriodicBCs= .FALSE.
 PartBound%UseRotPeriodicBC     = .FALSE.
 nRotPeriodicBCs       = 0
 PartBound%UseInterPlaneBC      = .FALSE.
+AnyBoundaryUsesSEE    = .FALSE.
 
 ! Read-in flag for output of boundary-related data in a csv for regression testing
 PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
@@ -517,6 +523,7 @@ DO iPartBound=1,nPartBound
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
         BoundaryUsesSEE = .TRUE.
+        AnyBoundaryUsesSEE = .TRUE.
       CASE (VDL_MODEL_ID) ! VDL - cannot be actively selected! See ./src/piclas.h for numbers
         CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = VDL_MODEL_ID,SEE_VDL_MODEL_ID cannot be selected!')
       CASE DEFAULT
@@ -623,7 +630,10 @@ DO iPartBound=1,nPartBound
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
+  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) THEN
+    DoBoundaryParticleOutputHDF5=.TRUE.
+    PartBound%BoundaryParticleOutputEmission(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput-Emission')
+  END IF
 END DO
 
 ! Check if there is an particle init with photon SEE
@@ -706,6 +716,12 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   CALL CloseDataFile()
 END IF
 
+IF(AnyBoundaryUsesSEE) THEN
+  ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: Cannot allocate InterPlanePartIndx array!')
+  InterPlanePartIndx = 0
+END IF
+
 !-- Sanity check: Mesh requires specific boundary conditions for 1D/2D/axisymmetric simulations
 IF(Symmetry%Order.LT.3) THEN
   IF(.NOT.ANY(PartBound%TargetBoundCond.EQ.PartBound%SymmetryDim)) THEN
@@ -731,6 +747,7 @@ USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL,nVarSurfData
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDLPerSide
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
@@ -758,6 +775,8 @@ REAL,DIMENSION(4,6) :: distances
 ! 1) Determine volume container ElementThicknessVDL that holds the approximate thickness of the element with respect to the boundary
 ALLOCATE(ElementThicknessVDL(1:nElems))
 ElementThicknessVDL = 0.
+ALLOCATE(ElementThicknessVDLPerSide(1:nBCSides))
+ElementThicknessVDLPerSide = 0.
 CALL AddToElemData(ElementOut,'ElementThicknessVDL',RealArray=ElementThicknessVDL(1:nElems))
 
 ! Loop over all local boundary sides
@@ -792,9 +811,11 @@ DO BCSideID=1,nBCSides
       END DO ! iNode = 1, 4
     END DO
 
-    ElementThicknessVDL(iElem) = MAXVAL(distances) - MINVAL(distances)
+    ElementThicknessVDLPerSide(BCSideID) = MAXVAL(distances) - MINVAL(distances)
+    ! Store the value in the element-wise output, might overwrite values when an element has more than 1 side
+    ElementThicknessVDL(iElem) = ElementThicknessVDLPerSide(BCSideID)
     ! Sanity check
-    IF(ElementThicknessVDL(iElem).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDL(iElem) is negative for iElem=',IntInfoOpt=iElem)
+    IF(ElementThicknessVDLPerSide(BCSideID).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDLPerSide(BCSideID) is negative for BCSideID=',IntInfoOpt=BCSideID)
   END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
 
 END DO ! BCSideID=1,nBCSides
@@ -803,17 +824,17 @@ END DO ! BCSideID=1,nBCSides
 ALLOCATE(StretchingFactorVDL(1:nElems))
 StretchingFactorVDL = 0.
 CALL AddToElemData(ElementOut,'StretchingFactorVDL',RealArray=StretchingFactorVDL(1:nElems))
-DO SideID=1,nBCSides
+DO BCSideID=1,nBCSides
   ! Get the local element index
-  iElem = SideToElem(S2E_ELEM_ID,SideID)
+  iElem = SideToElem(S2E_ELEM_ID,BCSideID)
   ! Get particle boundary index
-  iPartBound = PartBound%MapToPartBC(BC(SideID))
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
   ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
   IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
     ! Calculate the ratio
-    StretchingFactorVDL(iElem) = ElementThicknessVDL(iElem) / PartBound%ThicknessVDL(iPartBound)
+    StretchingFactorVDL(iElem) = ElementThicknessVDLPerSide(BCSideID) / PartBound%ThicknessVDL(iPartBound)
   END IF
-END DO ! SideID=1,nBCSides
+END DO ! BCSideID=1,nBCSides
 
 ! 3) Initialize surface container for the corrected electric field
 ALLOCATE(N_SurfVDL(1:nBCSides))
@@ -2151,9 +2172,11 @@ INTEGER                           :: ALLOCSTAT
 LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
 !===================================================================================================================================
 
-ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
-InterPlanePartIndx = 0
+IF(.NOT.ALLOCATED(InterPlanePartIndx)) THEN
+  ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+  InterPlanePartIndx = 0
+END IF
 
 HasInterPlaneOnProc = .FALSE.
 
@@ -2423,6 +2446,7 @@ SDEALLOCATE(PartBound%MolPerUnitCell)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
+SDEALLOCATE(PartBound%BoundaryParticleOutputEmission)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
 SDEALLOCATE(PartBound%PermittivityVDL)
 SDEALLOCATE(PartBound%ThicknessVDL)
@@ -2480,6 +2504,7 @@ END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
 SDEALLOCATE(ElementThicknessVDL)
+SDEALLOCATE(ElementThicknessVDLPerSide)
 SDEALLOCATE(StretchingFactorVDL)
 SDEALLOCATE(N_SurfVDL)
 

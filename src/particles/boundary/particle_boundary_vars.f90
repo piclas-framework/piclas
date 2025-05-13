@@ -293,6 +293,8 @@ TYPE tPartBoundary
   ! Boundary particle output
   LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
                                                                           ! PartDataBoundary container for writing to .h5 later
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputEmission(:) ! Include emitted particles in the PartDataBoundary container
+                                                                              ! with a negative species index
 END TYPE
 
 INTEGER                                  :: nPartBound                    ! number of particle boundaries
@@ -302,14 +304,15 @@ TYPE(tPartBoundary)                      :: PartBound                     ! Boun
 ! Boundary particle output
 LOGICAL              :: DoBoundaryParticleOutputHDF5 ! Flag set automatically if particles crossing specific  boundaries are to be saved to .h5 (position of intersection, velocity, species, internal energies)
 LOGICAL              :: DoBoundaryParticleOutputRay ! User-defined flag to output surface SEE or volume ionization emission particles to .h5 based on the ray tracing model
-REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:12,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
-INTEGER, PARAMETER   :: nVarPartStateBoundary=11
+INTEGER, PARAMETER   :: nVarPartStateBoundary=12
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
 ! Virtual dielectric layer (VDL)
-LOGICAL              :: DoVirtualDielectricLayer ! Flag set automatically if a VDL permittivity is set >= 0.0
-REAL, ALLOCATABLE    :: ElementThicknessVDL(:)   ! Thickness of first element layer at a VDL boundary
-REAL, ALLOCATABLE    :: StretchingFactorVDL(:)   ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
+LOGICAL              :: DoVirtualDielectricLayer      ! Flag set automatically if a VDL permittivity is set >= 0.0
+REAL, ALLOCATABLE    :: ElementThicknessVDL(:)        ! Thickness of first element layer at a VDL boundary
+REAL, ALLOCATABLE    :: ElementThicknessVDLPerSide(:) ! Thickness of first element layer at a VDL boundary per side to account for multiple VDLs within a single element
+REAL, ALLOCATABLE    :: StretchingFactorVDL(:)        ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
 
 TYPE, PUBLIC :: VDLSurfMesh
   REAL,ALLOCATABLE :: U(:,:,:) !<  1: PhiF_From_E      - PhiF calculated from E (2-4)

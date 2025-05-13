@@ -192,6 +192,7 @@ REAL                                     :: vMPFSplitLimit                    ! 
 LOGICAL                                  :: UseSplitAndMerge                  ! Flag for particle merge
 REAL, ALLOCATABLE                        :: CellEelec_vMPF(:,:)
 REAL, ALLOCATABLE                        :: CellEvib_vMPF(:,:)
+INTEGER                                  :: vMPFSplitAndMergeStep             ! Perform split and merge every N iteration
 
 ! Surface flux flags
 LOGICAL                                  :: DoSurfaceFlux                     ! Flag for emitting by SurfaceFluxBCs

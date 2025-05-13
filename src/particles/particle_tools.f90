@@ -21,46 +21,6 @@ MODULE MOD_part_tools
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE UpdateNextFreePosition
-  MODULE PROCEDURE UpdateNextFreePosition
-END INTERFACE
-
-INTERFACE DiceUnitVector
-  MODULE PROCEDURE DiceUnitVector
-END INTERFACE
-
-INTERFACE isChargedParticle
-  MODULE PROCEDURE isChargedParticle
-END INTERFACE
-
-INTERFACE isPushParticle
-  MODULE PROCEDURE isPushParticle
-END INTERFACE
-
-INTERFACE InRotRefFrameCheck
-  MODULE PROCEDURE InRotRefFrameCheck
-END INTERFACE
-
-INTERFACE isDepositParticle
-  MODULE PROCEDURE isDepositParticle
-END INTERFACE
-
-INTERFACE isInterpolateParticle
-  MODULE PROCEDURE isInterpolateParticle
-END INTERFACE
-
-INTERFACE StoreLostParticleProperties
-  MODULE PROCEDURE StoreLostParticleProperties
-END INTERFACE
-
-INTERFACE InterpolateEmissionDistribution2D
-  MODULE PROCEDURE InterpolateEmissionDistribution2D
-END INTERFACE
-
-INTERFACE CalcPartSymmetryPos
-  MODULE PROCEDURE CalcPartSymmetryPos
-END INTERFACE
-
 ABSTRACT INTERFACE
   FUNCTION RotInitPolyRoutine(iSpec,TRot,iPart)
     INTEGER,INTENT(IN)          :: iSpec, iPart               ! index of collision pair
@@ -69,8 +29,8 @@ ABSTRACT INTERFACE
 END INTERFACE
 
 PROCEDURE(RotInitPolyRoutine),POINTER :: RotInitPolyRoutineFuncPTR !< pointer defining the function called for initial particle
-                                                                !  insertion depending on the RotRelaxModel (continous or quantized)
-                                                                !  for polyatomic molecules
+                                                                   !< insertion depending on the RotRelaxModel (continuous or quantized)
+                                                                   !< for polyatomic molecules
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
@@ -490,7 +450,7 @@ FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr,iPar
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
 USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c,ElementaryCharge,PI
-USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, BackupVeloABSArray, SurfModSEEPowerFit
+USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, SurfModSEEFitCoeff
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -506,11 +466,9 @@ REAL            :: VeloABS                   !< Absolute velocity of the velocit
 REAL            :: RandVal                   !< Pseudo random number
 LOGICAL         :: ARM                       !< Acceptance rejection method
 REAL            :: PDF,PDF_max               !< Probability density function
-REAL, PARAMETER :: PDF_max2=4./PI            !< Maximum of PDF for cosine2 distribution
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
 REAL            :: E_temp, E_max, W          !< Energy values [eV]
-REAL            :: Theta, Chi                !< Angles between surface normal/tangent to velocity
-REAL            :: PDFArray(ProductSpecNbr), E_tempArray(ProductSpecNbr), RandValArray(ProductSpecNbr)  !< Array version of the same variables
+REAL            :: Theta, Phi                !< Angles between surface normal/tangent to velocity
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
@@ -593,63 +551,61 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
   ! Set magnitude
   VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
-CASE('cosine')
+CASE('Chung-Everhart-cosine')
+  ! === Energy distribution, according to Chung, M. S., & Everhart, T. E. (1974). Journal of Applied Physics, 45(2), 707–709. https://doi.org/10.1063/1.1663306
+  ! Note that in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
+  ! addition and thus energy conservation violation. An output to monitor the count and energy addition per SEE event can be enabled through CalcEnergyViolationSEE = T
+  W = SurfModSEEFitCoeff(4,iPartBound)  ! [eV] Material-dependent work function
+  E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
+  PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+  ! ARM for energy distribution
+  ARM=.TRUE.
+  DO WHILE(ARM)
+    CALL RANDOM_NUMBER(RandVal)
+    E_temp = RandVal * E_max
+    PDF = 6 * W**2 * E_temp / (E_temp + W)**4
+    CALL RANDOM_NUMBER(RandVal)
+    IF ((PDF/PDF_max).GT.RandVal) ARM = .FALSE.
+  END DO
+  ! Non-relativistic calculation of the velocity magnitude
+  VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / ElectronMass)
 
-  ! === Energy distribution
-  IF(ProductSpecNbr.EQ.1) THEN
-    ! Only 1 SEE
-    W = SurfModSEEPowerFit(4,iPartBound)  ! [eV] Material-dependent work function
-    E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
-    PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
-    ! ARM for energy distribution
-    ARM=.TRUE.
-    DO WHILE(ARM)
-      CALL RANDOM_NUMBER(RandVal)
-      E_temp = RandVal * E_max
-      PDF = 6 * W**2 * E_temp / (E_temp + W)**4
-      CALL RANDOM_NUMBER(RandVal)
-      IF ((PDF/PDF_max).GT.RandVal) ARM = .FALSE.
-    END DO
-    ! Non-relativistic electron energy (conversion from eV to Joule)
-    VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / ElectronMass)
-  ELSE
-    ! 2 or more SEEs
-    IF(iNewPart.EQ.1)THEN
-      ALLOCATE(BackupVeloABSArray(ProductSpecNbr))
-      W = SurfModSEEPowerFit(4,iPartBound)  ! [eV] Material-dependent work function
-      E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
-      PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
-      ! ARM for energy distribution
-      ARM=.TRUE.
-      DO WHILE(ARM)
-        CALL RANDOM_NUMBER(RandValArray)
-        IF(SUM(RandValArray).GT.1.0) CYCLE
-        E_tempArray = RandValArray * E_max
-        PDFArray = 6 * W**2 * E_tempArray / (E_tempArray + W)**4
-        CALL RANDOM_NUMBER(RandValArray)
-        IF (ALL((PDFArray/PDF_max).GT.RandValArray)) ARM = .FALSE.
-      END DO
-      ! Non-relativistic electron energy (conversion from eV to Joule)
-      BackupVeloABSArray = SQRT(2.0 * E_tempArray * ElementaryCharge / ElectronMass)
-      VeloABS = BackupVeloABSArray(iNewPart)
-    ELSE
-      VeloABS = BackupVeloABSArray(iNewPart)
-      IF(iNewPart.EQ.ProductSpecNbr) DEALLOCATE(BackupVeloABSArray)
-    END IF
-  END IF
+  !   ! ARM for 2 or more secondary electrons, note that this is prohibitively slow for more than 3/4 electrons
+  !   IF(iNewPart.EQ.1)THEN
+  !     ! Determine all velocities for each secondary here and store them, follow-up calls only acccess BackupVeloABSArray
+  !     ALLOCATE(BackupVeloABSArray(ProductSpecNbr))
+  !     W = SurfModSEEFitCoeff(4,iPartBound)  ! [eV] Material-dependent work function
+  !     E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
+  !     PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+  !     ! ARM for energy distribution
+  !     ARM=.TRUE.
+  !     DO WHILE(ARM)
+  !       CALL RANDOM_NUMBER(RandValArray)
+  !       IF(SUM(RandValArray).GT.1.0) CYCLE
+  !       E_tempArray = RandValArray * E_max
+  !       PDFArray = 6 * W**2 * E_tempArray / (E_tempArray + W)**4
+  !       CALL RANDOM_NUMBER(RandValArray)
+  !       IF (ALL((PDFArray/PDF_max).GT.RandValArray)) ARM = .FALSE.
+  !     END DO
+  !     ! Non-relativistic calculation of the velocity magnitude
+  !     BackupVeloABSArray = SQRT(2.0 * E_tempArray * ElementaryCharge / ElectronMass)
+  !     VeloABS = BackupVeloABSArray(iNewPart)
+  !   ELSE
+  !     VeloABS = BackupVeloABSArray(iNewPart)
+  !     IF(iNewPart.EQ.ProductSpecNbr) DEALLOCATE(BackupVeloABSArray)
+  !   END IF
 
   ! === Velocity vector
-  ! Equally-distributed angle Chi [0:2*PI] for tangential component
+  ! Equally-distributed angle Phi [0:2*PI] for tangential component
   CALL RANDOM_NUMBER(RandVal)
-  Chi = RandVal * 2.0 * PI
-  ! Distribution of Theta [0:PI/2] for normal component
-  ! Inverse method for cosine distribution
+  Phi = RandVal * 2.0 * PI
+  ! 2*sin(Theta)*cos(Theta) = sin(2*Theta) distribution of Theta [0:PI/2] for normal component using the inverse method according to Greenwood, J. (2002).
   CALL RANDOM_NUMBER(RandVal)
   Theta = ASIN(SQRT(RandVal))
 
-  VeloFromDistribution(1) = COS(Theta) * COS(Chi)
-  VeloFromDistribution(2) = COS(Theta) * SIN(Chi)
-  VeloFromDistribution(3) = SIN(Theta)
+  VeloFromDistribution(1) = SIN(Theta) * COS(Phi)
+  VeloFromDistribution(2) = SIN(Theta) * SIN(Phi)
+  VeloFromDistribution(3) = COS(Theta)
 
   VeloFromDistribution = VeloFromDistribution * VeloABS
 

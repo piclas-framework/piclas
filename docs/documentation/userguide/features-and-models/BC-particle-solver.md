@@ -225,13 +225,15 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 | 0 (default) | Standard extended Maxwellian scattering                                                                                                                                                      |
 |      1      | Empirical modelling of sticking coefficient/probability                                                                                                                                      |
 |      2      | Fixed probability surface chemistry                                                                                                                                                          |
-|      4      | Secondary electron emission as a power-fit ($a E^b + c$) above the work function W                                                                                                           |
+|      3      | Secondary electron emission as a square-fit ($a + b*E + c*E^2$) for electron energies above the work function W                                                                              |
+|      4      | Secondary electron emission as a power-fit ($a E^b + c$) for electron energies above the work function W                                                                                     |
 |      5      | Secondary electron emission as given by Ref. {cite}`Levko2015`.                                                                                                                              |
 |      7      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on different metals) as used in Ref. {cite}`Pflug2014` and given by Ref. {cite}`Depla2009` with a default yield of 13 \%. |
 |      8      | Secondary electron emission due to ion impact (SEE-E with $e^{-}$ on dielectric surfaces) as used in Ref. {cite}`Liu2010` and given by Ref. {cite}`Morozov2004`.                             |
 |      9      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$) with a constant yield of 1 \%. Emitted electrons have an energy of 6.8 eV upon emission.                                 |
 |     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                          |
 |     11      | Secondary electron emission due to electron impact (SEE-E with $e^{-}$ on quartz (SiO$_{2}$)) as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003`                   |
+|     12      | Secondary electron emission due to electron impact as described in Ref. {cite}`Seiler1983`                                                                                                   |
 |     20      | Finite-rate catalysis model, Section {ref}`sec:catalytic-surface`                                                                                                                            |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
@@ -302,6 +304,7 @@ Optionally, a reaction-specific accommodation coefficient for the products can b
 
 In the case that the defined event does not occur, a regular interaction using the surface-specific accommodation coefficients is performed. Examples are provided as part of the regression tests: `regressioncheck/NIG_DSMC/SURF_PROB_DifferentProbs` and `regressioncheck/NIG_DSMC/SURF_PROB_MultiReac`.
 
+(sec:BC-see)=
 ### Secondary Electron Emission (SEE)
 
 Different models are implemented for secondary electron emission that are based on either electron or ion bombardment, depending on
@@ -309,25 +312,39 @@ the surface material. All models require the specification of the electron speci
 
     Part-SpeciesA-PartBoundB-ResultSpec = C
 
-where electrons of species `C` are emitted from boundary `B` on the impact of species `A`.
+where electrons of species `C` are emitted from boundary `B` on the impact of species `A`. Some of the models allow the choice of an angle and energy distribution function to define the velocity vector of the secondary. The available options are:
 
-#### Model 4
+|                  Name | Description                                                                                                                                                                                     |                  Source                  |
+| --------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------: |
+|     deltadistribution | Random velocity vector and complete remaining impact energy                                                                                                                                     |                    -                     |
+|        uniform-energy | Random velocity vector and random uniform distribution of the remaining impact energy                                                                                                           |                    -                     |
+| Chung-Everhart-cosine | Angle distribution according to $\sin2\theta$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$ | {cite}`Chung1974`, {cite}`Greenwood2002` |
 
-The model is based on {cite}`Goebel2008` and uses a power-fit and an additional threshold to model the secondary electron emission yield.
+For the `Chung-Everhart-cosine` distribution, in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
+addition and thus energy conservation violation. An output to monitor the percentage of violations and energy addition as a percentage of the impact energy per SEE event can be enabled through `CalcEnergyViolationSEE = T`.
+
+For a simulation using variable particle weights (`Part-vMPF = T`) as described in Section {ref}`sec:split-merge`, the models 3, 4 and 12 support the emission of only a single secondary, weighted according to the calculated yield. This feature can be enabled per boundary:
+
+    Part-Boundary1-SurfMod-vMPF = T
+
+#### Model 3/4
+
+These models use a square- (= 3) or power-fit (= 4) and an additional threshold to model the secondary electron emission yield.
 It is assumed that the impacting particle is absorbed.
 
-$$\gamma = (a E^b + c)H(E-W),$$
+$$\text{Square-fit: }\gamma = (a E + b E^2 + c)H(E-W),$$
+$$\text{Power-fit: }\gamma = (a E^b + c)H(E-W),$$
 
-where $a$, $b$, $c$ are the fitting coefficients and $W$ is the material-dependent work function above which the yield is calculated.
+where $a$, $b$, $c$ are the fitting coefficients and $W$ is the material-dependent work function [eV] above which the yield is calculated.
 The parameters are read-in through:
 
-    Part-BoundaryB-SurfModSEEPowerFit   = (/0.1,0.5,0.25,9/)      ! (/a,b,c,W/)
+    Part-BoundaryB-SurfModSEEFitCoeff   = (/0.1,0.5,0.25,9/)      ! (/a,b,c,W/)
 
 Additionally, the energy distribution can be selected with
 
-    Part-BoundaryB-SurfModEnergyDistribution = cosine2
+    Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
 
-An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`.
+It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_PowerFit/`. Fit coefficients can be found for example in {cite}`Goebel2008`.
 
 #### Model 5
 
@@ -383,6 +400,23 @@ activated via `Part-BoundaryX-SurfaceModel=10`. For more details, see the origin
 An energy-dependent model (linear and power fit of measured SEE yields) of secondary electron emission due to $e^{-}$ impact on a
 quartz (SiO$_{2}$) surface as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003` is
 activated via `Part-BoundaryX-SurfaceModel=11`. For more details, see the original publications.
+
+#### Model 12
+
+This model relies on a semi-empirical formulation by Seiler {cite}`Seiler1983`. It is assumed that the impacting particle is absorbed.
+
+$$\gamma = a \cdot 1.11 \cdot \left(\frac{E}{b}\right)^{-0.35}\left(1-e^{-2.3\left(\frac{E}{b}\right)^{1.35}}\right)$$
+
+where $a$ and $b$ [eV] are material-specific coefficients and $W$ is the work function [eV] above which the yield is calculated.
+The parameters are read-in through:
+
+    Part-BoundaryB-SurfModSEEFitCoeff   = (/1.0,700,0.0,9/)      ! (/a,b,c,W/)
+
+Additionally, the energy distribution can be selected with
+
+    Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
+
+It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_12/`.
 
 (sec:catalytic-surface)=
 ## Catalytic Surfaces

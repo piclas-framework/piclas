@@ -578,13 +578,10 @@ SUBROUTINE WriteBoundaryParticleToHDF5(MeshFileName,OutputTime,PreviousTime)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_PreProc
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
-USE MOD_Particle_Analyze_Pure  ,ONLY: CalcEkinPart2
 USE MOD_TimeDisc_Vars          ,ONLY: iter
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -598,23 +595,21 @@ REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames2(:)
-INTEGER                        :: nVar
-LOGICAL                        :: reSwitch
-INTEGER                        :: pcount
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,globnPart(6)
-REAL,ALLOCATABLE               :: PartData(:,:)
-INTEGER                        :: PartDataSizeLoc     !> Number of entries in PartData, not to be confused with the global variable
 CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
-INTEGER                        :: ALLOCSTAT,SpecID
+REAL                           :: StartT,EndT
 !===================================================================================================================================
 ! Do not write to file on restart or fresh computation
 IF(iter.EQ.0) RETURN
 ! set local variables for output and previous times
 IF(PRESENT(PreviousTime))PreviousTime_loc = PreviousTime
-! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE PartStateBoundary TO HDF5 FILE '
+GETTIME(StartT)
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_HDG
 #if PP_nVar==1
 CALL GenerateFileSkeleton('PartStateBoundary',4,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
@@ -639,139 +634,68 @@ END IF
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 
-! 3xPos [m], 3xvelo [m/s], species [-]
-PartDataSizeLoc = 7
-! Kinetic energy [eV]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! MPF [-]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! time [s]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! Impact obliqueness angle [degree]
-PartDataSizeLoc = PartDataSizeLoc + 1
-! iBC [-]
-PartDataSizeLoc = PartDataSizeLoc + 1
-
 ! Set number of local particles
 locnPart = INT(PartStateBoundaryVecLength,IK)
 
 ! Communicate the total number and offset
 CALL GetOffsetAndGlobalNumberOfParts('WriteBoundaryParticleToHDF5',offsetnPart,globnPart,locnPart,.FALSE.)
 
-ALLOCATE(PartData(INT(PartDataSizeLoc,IK),offsetnPart+1_IK:offsetnPart+locnPart), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__&
-    ,'Error in WriteBoundaryParticleToHDF5: Cannot allocate PartData array for writing boundary particle data to .h5!')
-
-pcount=1
-DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
-  ! Position and Velocity
-  PartData(1,iPart)=PartStateBoundary(1,pcount)
-  PartData(2,iPart)=PartStateBoundary(2,pcount)
-  PartData(3,iPart)=PartStateBoundary(3,pcount)
-  PartData(4,iPart)=PartStateBoundary(4,pcount)
-  PartData(5,iPart)=PartStateBoundary(5,pcount)
-  PartData(6,iPart)=PartStateBoundary(6,pcount)
-
-  ! SpeciesID
-  PartData(7,iPart)=PartStateBoundary(7,pcount)
-
-  ! Kinetic energy [J->eV] (do not consider the MPF here! Call CalcEkinPart2 with MPF=1.0)
-  ! Take ABS() from SpecID as is might be negative (for storing particles that are emitted from a surface)
-  SpecID = INT(ABS(PartStateBoundary(7,pcount)))
-  IF(SpecID.EQ.0) CALL abort(__STAMP__,'Error in WriteBoundaryParticleToHDF5: SpecID = PartStateBoundary(7,pcount) = 0')
-  ! Check if photon is emitted during ray tracing
-  IF(SpecID.EQ.999)THEN
-    PartData(8,iPart)=0 ! insert photon energy here
-  ELSE
-    PartData(8,iPart)=CalcEkinPart2(PartStateBoundary(4:6,pcount),SpecID,1.0) / ElementaryCharge
-  END IF ! SpecID.EQ.999
-
-  ! MPF: Macro particle factor
-  PartData(9,iPart)=PartStateBoundary(8,pcount)
-
-  ! Simulation time [s]
-  PartData(10,iPart)=PartStateBoundary(9,pcount)
-
-  ! Impact obliqueness angle [degree]
-  PartData(11,iPart)=PartStateBoundary(10,pcount)
-
-  ! iBC [-]
-  PartData(12,iPart)=PartStateBoundary(11,pcount)
-
-  pcount = pcount +1
-END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
-
-reSwitch=.FALSE.
-IF(gatheredWrite)THEN
-  ! gatheredwrite not working with distributed particles
-  ! particles require own routine for which the communicator has to be build each time
-  reSwitch=.TRUE.
-  gatheredWrite=.FALSE.
-END IF
+ALLOCATE(StrVarNames2(nVarPartStateBoundary))
+StrVarNames2(1)  = 'ParticlePositionX'
+StrVarNames2(2)  = 'ParticlePositionY'
+StrVarNames2(3)  = 'ParticlePositionZ'
+StrVarNames2(4)  = 'VelocityX'
+StrVarNames2(5)  = 'VelocityY'
+StrVarNames2(6)  = 'VelocityZ'
+StrVarNames2(7)  = 'Species'
+StrVarNames2(8)  = 'KineticEnergy_eV'
+StrVarNames2(9)  = 'MacroParticleFactor'
+StrVarNames2(10) = 'Time'
+StrVarNames2(11) = 'ImpactObliquenessAngle'
+StrVarNames2(12) = 'iBC'
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nGlobalElems => INT(nGlobalElems,IK) ,&
-      nVar         => INT(nVar,IK)         ,&
-      PP_nElems    => INT(PP_nElems,IK)    ,&
-      offsetElem   => INT(offsetElem,IK)   ,&
-      PartDataSizeLoc => INT(PartDataSizeLoc,IK) )
-
-  ALLOCATE(StrVarNames2(PartDataSizeLoc))
-  StrVarNames2(1)  = 'ParticlePositionX'
-  StrVarNames2(2)  = 'ParticlePositionY'
-  StrVarNames2(3)  = 'ParticlePositionZ'
-  StrVarNames2(4)  = 'VelocityX'
-  StrVarNames2(5)  = 'VelocityY'
-  StrVarNames2(6)  = 'VelocityZ'
-  StrVarNames2(7)  = 'Species'
-  StrVarNames2(8)  = 'KineticEnergy_eV'
-  StrVarNames2(9)  = 'MacroParticleFactor'
-  StrVarNames2(10) = 'Time'
-  StrVarNames2(11) = 'ImpactObliquenessAngle'
-  StrVarNames2(12) = 'iBC'
+  nVarPartStateBoundary => INT(nVarPartStateBoundary,IK) )
 
   IF(MPIRoot)THEN
     CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',INT(PartDataSizeLoc,4),StrArray=StrVarNames2)
+    CALL WriteAttributeToHDF5(File_ID,'VarNamesParticles',INT(nVarPartStateBoundary,4),StrArray=StrVarNames2)
     CALL CloseDataFile()
   END IF
 
   IF(globnPart(3).EQ.0_IK)THEN ! zero particles present: write empty dummy container to .h5 file (required for subsequent file access)
     IF(MPIRoot)THEN ! only root writes the container
       CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-      CALL WriteArrayToHDF5(DataSetName = 'PartData'        , rank = 2       , &
-                            nValGlobal  = (/ PartDataSizeLoc, globnPart(3)/) , &
-                            nVal        = (/ PartDataSizeLoc, locnPart    /) , &
-                            offset      = (/ 0_IK           , offsetnPart /) , &
-                            collective  = .FALSE.           , RealArray = PartData)
+      CALL WriteArrayToHDF5(DataSetName = 'PartData'              , rank = 2       , &
+                            nValGlobal  = (/ nVarPartStateBoundary, globnPart(3)/) , &
+                            nVal        = (/ nVarPartStateBoundary, locnPart    /) , &
+                            offset      = (/ 0_IK                 , offsetnPart /) , &
+                            collective  = .FALSE.                 , RealArray = PartStateBoundary)
       CALL CloseDataFile()
     END IF !MPIRoot
   END IF !globnPart(3) .EQ.0_IK
 #if USE_MPI
   CALL DistributedWriteArray(FileName                                                 , &
-                             DataSetName  = 'PartData'        , rank = 2              , &
-                             nValGlobal   = (/ PartDataSizeLoc, globnPart(3)/)        , &
-                             nVal         = (/ PartDataSizeLoc, locnPart    /)        , &
-                             offset       = (/ 0_IK           , offsetnPart /)        , &
-                             collective   = UseCollectiveIO   , offSetDim = 2         , &
-                             communicator = MPI_COMM_PICLAS      , RealArray = PartData)
+                             DataSetName  = 'PartData'              , rank = 2              , &
+                             nValGlobal   = (/ nVarPartStateBoundary, globnPart(3)/)        , &
+                             nVal         = (/ nVarPartStateBoundary, locnPart    /)        , &
+                             offset       = (/ 0_IK                 , offsetnPart /)        , &
+                             collective   = UseCollectiveIO         , offSetDim = 2         , &
+                             communicator = MPI_COMM_PICLAS         , RealArray = PartStateBoundary)
 #else
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
-  CALL WriteArrayToHDF5(DataSetName = 'PartData'        , rank = 2              , &
-                        nValGlobal  = (/ PartDataSizeLoc, globnPart(3)/)        , &
-                        nVal        = (/ PartDataSizeLoc, locnPart    /)        , &
-                        offset      = (/ 0_IK           , offsetnPart /)        , &
-                        collective  = .FALSE.           , RealArray = PartData)
+  CALL WriteArrayToHDF5(DataSetName = 'PartData'              , rank = 2              , &
+                        nValGlobal  = (/ nVarPartStateBoundary, globnPart(3)/)        , &
+                        nVal        = (/ nVarPartStateBoundary, locnPart    /)        , &
+                        offset      = (/ 0_IK                 , offsetnPart /)        , &
+                        collective  = .FALSE.                 , RealArray = PartStateBoundary)
   CALL CloseDataFile()
 #endif /*USE_MPI*/
 
 END ASSOCIATE
-! reswitch
-IF(reSwitch) gatheredWrite=.TRUE.
 
 DEALLOCATE(StrVarNames2)
-DEALLOCATE(PartData)
 
 ! Nullify and reset boundary parts container after write out
 PartStateBoundaryVecLength = 0
@@ -782,6 +706,8 @@ DEALLOCATE(PartStateBoundary)
 ALLOCATE(PartStateBoundary(1:nVarPartStateBoundary,1:10))
 PartStateBoundary=0.
 
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteBoundaryParticleToHDF5
 
 
@@ -792,7 +718,6 @@ SUBROUTINE WriteLostParticlesToHDF5(MeshFileName,OutputTime)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
@@ -807,8 +732,6 @@ REAL,INTENT(IN)                :: OutputTime
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames2(:)
-INTEGER                        :: nVar
-LOGICAL                        :: reSwitch
 INTEGER                        :: pcount
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
 INTEGER(KIND=IK)               :: iPart,globnPart(6)
@@ -885,20 +808,8 @@ DO iPart=offsetnPart+1_IK,offsetnPart+locnPart
   pcount = pcount +1
 END DO ! iPart=offsetnPart+1_IK,offsetnPart+locnPart
 
-reSwitch=.FALSE.
-IF(gatheredWrite)THEN
-  ! gatheredwrite not working with distributed particles
-  ! particles require own routine for which the communicator has to be build each time
-  reSwitch=.TRUE.
-  gatheredWrite=.FALSE.
-END IF
-
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-      nGlobalElems     => INT(nGlobalElems,IK) ,&
-      nVar             => INT(nVar,IK)         ,&
-      PP_nElems        => INT(PP_nElems,IK)    ,&
-      offsetElem       => INT(offsetElem,IK)   ,&
       PartLostDataSize => INT(PartLostDataSize,IK) )
 
   ALLOCATE(StrVarNames2(PartLostDataSize))
@@ -955,8 +866,6 @@ ASSOCIATE (&
 #endif /*USE_MPI*/
 
 END ASSOCIATE
-! reswitch
-IF(reSwitch) gatheredWrite=.TRUE.
 
 DEALLOCATE(StrVarNames2)
 DEALLOCATE(PartData)

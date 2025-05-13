@@ -1757,7 +1757,7 @@ USE MOD_Globals
 USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC
 USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
-USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDL
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDLPerSide
 USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1820,7 +1820,7 @@ DO SideID=1,nBCSides
     END DO ! q
 
     ! Calculate the corrected E-field
-    N_SurfVDL(SideID)%U(2:4,:,:) = N_SurfVDL(SideID)%U(2:4,:,:) * (ElementThicknessVDL(ElemID)/PartBound%ThicknessVDL(iPartBound))
+    N_SurfVDL(SideID)%U(2:4,:,:) = N_SurfVDL(SideID)%U(2:4,:,:) * (ElementThicknessVDLPerSide(SideID)/PartBound%ThicknessVDL(iPartBound))
 
     ! Get Phi_F
     MinOfElem = MINVAL(U_N(ElemID)%U(1,:,:,:))

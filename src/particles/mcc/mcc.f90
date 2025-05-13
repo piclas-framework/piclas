@@ -585,6 +585,14 @@ DO iSpec = 1, nSpecies
     SDEALLOCATE(PartIndexCase)
   END DO      ! bgSpec = 1, BGGas%NumberOfSpecies
 END DO        ! iSpec = 1, nSpecies
+! Delete background gas particles created during chemical reactions
+iPart = PEM%pStart(iElem)
+DO iLoop = 1, PEM%pNumber(iElem)
+  IF (PDM%ParticleInside(iPart)) THEN
+    IF(BGGas%BackgroundSpecies(PartSpecies(iPart))) PDM%ParticleInside(iPart) = .FALSE.
+  END IF
+  iPart = PEM%pNext(iPart)
+END DO
 ! Delete the dummy particle
 IF(bggPartIndex.NE.0) THEN
   PDM%ParticleInside(bggPartIndex) = .FALSE.
