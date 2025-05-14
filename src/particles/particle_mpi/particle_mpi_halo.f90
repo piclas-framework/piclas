@@ -463,12 +463,12 @@ END IF
 ! xCoordsProc(4) = GEO%ymax
 ! xCoordsProc(5) = GEO%zmin
 ! xCoordsProc(6) = GEO%zmax
-xCoordsProc(1) = -HUGE(1.)
-xCoordsProc(2) =  HUGE(1.)
-xCoordsProc(3) = -HUGE(1.)
-xCoordsProc(4) =  HUGE(1.)
-xCoordsProc(5) = -HUGE(1.)
-xCoordsProc(6) =  HUGE(1.)
+xCoordsProc(1) =  HUGE(1.)
+xCoordsProc(2) = -HUGE(1.)
+xCoordsProc(3) =  HUGE(1.)
+xCoordsProc(4) = -HUGE(1.)
+xCoordsProc(5) =  HUGE(1.)
+xCoordsProc(6) = -HUGE(1.)
 
 DO iElem = 1, nElems
   ElemID    = iElem + offsetElem
@@ -721,12 +721,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             ! xCoordsOrigin(6) = MAXVAL(NodeCoords_Shared(3,ElemInfo_Shared(ELEM_FIRSTNODEIND,firstElem) + 1 &
             !                                              :ElemInfo_Shared(ELEM_LASTNODEIND ,lastElem)))
 
-            xCoordsOrigin(1) = -HUGE(1.)
-            xCoordsOrigin(2) =  HUGE(1.)
-            xCoordsOrigin(3) = -HUGE(1.)
-            xCoordsOrigin(4) =  HUGE(1.)
-            xCoordsOrigin(5) = -HUGE(1.)
-            xCoordsOrigin(6) =  HUGE(1.)
+            xCoordsOrigin(1) =  HUGE(1.)
+            xCoordsOrigin(2) = -HUGE(1.)
+            xCoordsOrigin(3) =  HUGE(1.)
+            xCoordsOrigin(4) = -HUGE(1.)
+            xCoordsOrigin(5) =  HUGE(1.)
+            xCoordsOrigin(6) = -HUGE(1.)
 
             DO HaloElem = firstElem, lastElem
               ! Flag elements depending on radius
@@ -763,12 +763,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             ! xCoordsOrigin(5) = MINVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
             ! xCoordsOrigin(6) = MAXVAL(BezierControlPoints3D(3,:,:,firstSide:lastSide))
 
-            xCoordsOrigin(1) = -HUGE(1.)
-            xCoordsOrigin(2) =  HUGE(1.)
-            xCoordsOrigin(3) = -HUGE(1.)
-            xCoordsOrigin(4) =  HUGE(1.)
-            xCoordsOrigin(5) = -HUGE(1.)
-            xCoordsOrigin(6) =  HUGE(1.)
+            xCoordsOrigin(1) =  HUGE(1.)
+            xCoordsOrigin(2) = -HUGE(1.)
+            xCoordsOrigin(3) =  HUGE(1.)
+            xCoordsOrigin(4) = -HUGE(1.)
+            xCoordsOrigin(5) =  HUGE(1.)
+            xCoordsOrigin(6) = -HUGE(1.)
 
             DO HaloElem = firstElem, lastElem
               ! Flag elements depending on radius
