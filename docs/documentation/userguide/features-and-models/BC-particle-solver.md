@@ -234,6 +234,7 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |     10      | Secondary electron emission due to ion impact (SEE-I with $Ar^{+}$ on copper) as used in Ref. {cite}`Theis2021` originating from {cite}`Phelps1999`                                          |
 |     11      | Secondary electron emission due to electron impact (SEE-E with $e^{-}$ on quartz (SiO$_{2}$)) as described in Ref. {cite}`Zeng2020` originating from {cite}`Dunaevsky2003`                   |
 |     12      | Secondary electron emission due to electron impact as described in Ref. {cite}`Seiler1983`                                                                                                   |
+|     13      | Secondary electron emission due to electron impact according to the Vaughan formula described in Ref. {cite}`Villemant2019`                                                                                                   |
 |     20      | Finite-rate catalysis model, Section {ref}`sec:catalytic-surface`                                                                                                                            |
 
 For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
@@ -318,8 +319,9 @@ where electrons of species `C` are emitted from boundary `B` on the impact of sp
 | --------------------: | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :--------------------------------------: |
 |     deltadistribution | Random velocity vector and complete remaining impact energy                                                                                                                                     |                    -                     |
 |        uniform-energy | Random velocity vector and random uniform distribution of the remaining impact energy                                                                                                           |                    -                     |
-| Chung-Everhart-cosine | Angle distribution according to $\sin2\theta$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$ | {cite}`Chung1974`, {cite}`Greenwood2002` |
-
+| Chung-Everhart-cosine | Angle distribution according to $\cos$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$        | {cite}`Chung1974`, {cite}`Greenwood2002` |
+|                cosine | Angle distribution according to $\cos$ in the normal direction, equally distributed in the tangential direction                                                                                 |                                          |
+     
 For the `Chung-Everhart-cosine` distribution, in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
 addition and thus energy conservation violation. An output to monitor the percentage of violations and energy addition as a percentage of the impact energy per SEE event can be enabled through `CalcEnergyViolationSEE = T`.
 
@@ -424,16 +426,18 @@ This model relies on the Vaughan formula given by Villeman {cite}`Villemant2019`
 
 $$\gamma = a \left( \frac{E}{b} \cdot e^{1-\frac{E}{b}} \right)^c$$
 
-where $a$, $b$, and $c$ are material-specific coefficients and $W$ is the work function [eV] above which the yield is calculated.
+where $a$, $b$ [eV], and $c$ are material-specific coefficients and $W$ is the work function [eV] above which the yield is calculated.
 The parameters are read-in through:
 
     Part-BoundaryB-SurfModSEEFitCoeff   = (/2.016,299,0.563,0/)      ! (/a,b,c,W/)
 
 Additionally, the energy distribution can be selected with
 
-    Part-BoundaryB-SurfModEnergyDistribution = Chung-Everhart-cosine
+    Part-BoundaryB-SurfModEnergyDistribution = cosine
 
-It should be noted that the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_13/`.
+Using the cosine energy distribution, the angle distribution is according to $\cos$ in the normal direction and equally distributed in the tangential direction. Using the SEE model 13 (and the cosine energy distribution), the energy of all secondary emitted electrons is set to 2 eV.
+
+If a work function greater than zero is set, the impact energy is reduced by the work function before the energy distribution. An example of the model usage is given in the regression test: `piclas/regressioncheck/NIG_DSMC/BC_SEE_Model_13/`.
 
 (sec:catalytic-surface)=
 ## Catalytic Surfaces
