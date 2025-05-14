@@ -49,7 +49,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${FLEXI_INSTRUCTION}] instruction")
+MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
 
 # =========================================================================
 # CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
