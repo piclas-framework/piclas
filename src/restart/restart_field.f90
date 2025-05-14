@@ -529,7 +529,7 @@ ELSE ! Normal restart
     IF(nDims.EQ.2)THEN
       SWRITE(UNIT_stdOut,'(A)')' Reading DG solution from restart grid with variable N (p-adaption)'
 
-      ! Preparing U_N_2D_local array for output as DG_Solution
+      ! Preparing U_N_2D_local array for reading DG_Solution
       ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
       nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
       ! Get the offset based on the element-local polynomial degree

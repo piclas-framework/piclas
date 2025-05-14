@@ -57,11 +57,10 @@ SUBROUTINE WriteDielectricGlobalToHDF5()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars      ,ONLY: DielectricVol,isDielectricElem,ElemToDielectric
-USE MOD_Mesh_Vars            ,ONLY: MeshFile,nGlobalElems,offsetElem,nElems
+USE MOD_Mesh_Vars            ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_io_HDF5
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
 USE MOD_DG_vars              ,ONLY: N_DG_Mapping,nDofsMapping
-USE MOD_Interpolation_Vars   ,ONLY: PREF_VDM,Nmax
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance
@@ -842,13 +841,14 @@ USE MOD_io_HDF5
 USE MOD_HDF5_output        ,ONLY: copy_userblock
 USE MOD_HDF5_Output        ,ONLY: WriteArrayToHDF5
 USE MOD_Output_Vars        ,ONLY: UserBlockTmpFile,userblock_total_len
-USE MOD_Interpolation_Vars ,ONLY: NodeType, N_BG, BGDataSize, BGType, NMax,PREF_VDM
+USE MOD_Interpolation_Vars ,ONLY: NodeType, N_BG, BGDataSize, BGType
 USE MOD_SuperB_Vars        ,ONLY: UseTimeDepCoil,nTimePoints,BGFieldFrequency,BGFieldCurrent
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_DG_vars            ,ONLY: N_DG_Mapping,nDofsMapping
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -858,12 +858,14 @@ REAL,INTENT(IN),OPTIONAL         :: OutputTime
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER                        :: nVarOut
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal, iTimePoint, iElem, Nloc
 REAL                           :: StartT,EndT
-REAL                           :: BGTemp(BGDataSize,0:NMax,0:NMax,0:NMax, PP_nElems)
-REAL, ALLOCATABLE              :: BGTDepTemp(:,:,:,:,:,:)
+! p-adaption output
+REAL,ALLOCATABLE    :: U_N_2D_local(:,:)
+INTEGER             :: i,j,k,iDOF,nDOFOutput,offsetDOF
 !===================================================================================================================================
 #if USE_LOADBALANCE
 IF(PerformLoadBalance) RETURN
@@ -878,7 +880,20 @@ END IF ! PRESENT(OutputTime)
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD ['//TRIM(FileName)//'] TO HDF5 FILE...'
 GETTIME(StartT)
 
-IF(UseTimeDepCoil) ALLOCATE(BGTDepTemp(BGDataSize,0:NMax,0:NMax,0:NMax, PP_nElems,nTimePoints))
+! ---------------------------------------------------------
+! Prepare U_N_2D_local array for output as DG_Solution
+! ---------------------------------------------------------
+! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = N_DG_Mapping(1,1+offsetElem)
+ELSE
+  offsetDOF = 0
+END IF
+nVarOut = BGDataSize
+! Allocate local 2D array: create global Eps field for parallel output of Eps distribution
+ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
 
 ! Create dataset attribute "VarNames"
 ALLOCATE(StrVarNames(1:BGDataSize))
@@ -904,7 +919,7 @@ IF(MPIRoot) THEN
   ! Write file header
   CALL WriteHDF5Header('BGField',File_ID) ! File_Type='BGField'
   ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
-  CALL WriteAttributeToHDF5(File_ID   , 'N'                    , 1          , IntegerScalar=NMax)
+  CALL WriteAttributeToHDF5(File_ID   , 'N'                    , 1          , IntegerScalar=PP_N)
   CALL WriteAttributeToHDF5(File_ID   , 'MeshFile'             , 1          , StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID   , 'NodeType'             , 1          , StrScalar=(/NodeType/))
   CALL WriteAttributeToHDF5(File_ID   , 'VarNames'             , BGDataSize , StrArray=StrVarNames)
@@ -923,57 +938,38 @@ END IF
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
-CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
-nVal=nGlobalElems  ! For the MPI case this must be replaced by the global number of elements (sum over all procs)
+! Write into 2D array
+iDOF = 0
+DO iElem = 1, INT(PP_nElems)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    iDOF = iDOF + 1
+    U_N_2D_local(1:BGDataSize,iDOF) = N_BG(iElem)%BGField(1:BGDataSize,i,j,k)
+  END DO; END DO; END DO
+END DO ! iElem = 1, nElems
 
+IF(UseTimeDepCoil)CALL abort(__STAMP__,'ERROR - not implemented UseTimeDepCoil.')
+
+! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
+CALL WriteAdditionalElemData(FileName,ElementOutNloc)
+
+! ---------------------------------------------------------
+! Output of DG_Solution
+! ---------------------------------------------------------
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-  BGDataSize8  => INT(BGDataSize,IK)    ,&
-  N            => INT(NMax,IK)          ,&
-  PP_nElems    => INT(PP_nElems,IK)     ,&
-  offsetElem   => INT(offsetElem,IK)    ,&
-  nGlobalElems => INT(nGlobalElems,IK)  ,&
-  nTimePoints8 => INT(nTimePoints,IK)    )
-
-  DO iElem = 1, INT(PP_nElems)
-    Nloc = N_DG_Mapping(2,iElem+offSetElem)
-    IF(Nloc.EQ.Nmax)THEN
-      BGTemp(:,:,:,:,iElem)   = N_BG(iElem)%BGField(:,:,:,:)
-      IF(UseTimeDepCoil) THEN
-        DO iTimePoint = 1, nTimePoints
-          BGTDepTemp(:,:,:,:,iElem, iTimePoint)   = N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint)
-        END DO
-      END IF
-    ELSE
-      CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
-          N_BG(iElem)%BGField(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc) , &
-                       BGTemp(1:BGDataSize , 0:NMax , 0:NMax , 0:NMax  , iElem))
-      IF(UseTimeDepCoil) THEN
-        DO iTimePoint = 1, nTimePoints
-          CALL ChangeBasis3D(BGDataSize,Nloc,NMax,PREF_VDM(Nloc,NMax)%Vdm, &
-              N_BG(iElem)%BGFieldTDep(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc ,         iTimePoint) , &
-                           BGTDepTemp(1:BGDataSize , 0:NMax , 0:NMax , 0:NMax , iElem , iTimePoint))
-        END DO
-      END IF
-    END IF ! Nloc.Eq.Nmax
-  END DO ! iElem = 1, nElems
-
-  IF(UseTimeDepCoil)THEN
-    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=6 , &
-                          nValGlobal=(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , nGlobalElems, nTimePoints8/) , &
-                          nVal      =(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , PP_nElems   , nTimePoints8/) , &
-                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem  , 0_IK       /) , &
-                          collective=.false., RealArray=BGTDepTemp(1:BGDataSize,0:N,0:N,0:N,1:nElems,1:nTimePoints))
-  ELSE
-    CALL WriteArrayToHDF5(DataSetName='DG_Solution'   , rank=5 , &
-                          nValGlobal=(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
-                          nVal      =(/BGDataSize8, N+1_IK , N+1_IK , N+1_IK , PP_nElems/)    , &
-                          offset    =(/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
-                          collective=.false., RealArray=BGTemp(1:BGDataSize,0:N,0:N,0:N,1:nElems))
-  END IF ! UseTimeDepCoil
-
+ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
+          nDofsMapping    => INT(nDofsMapping,IK)      ,&
+          nDOFOutput      => INT(nDOFOutput,IK)        ,&
+          offsetDOF       => INT(offsetDOF,IK)         )
+CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
+                        DataSetName = 'DG_Solution' , rank = 2                , &
+                        nValGlobal  = (/nVarOut     , nDofsMapping/)          , &
+                        nVal        = (/nVarOut     , nDOFOutput/)            , &
+                        offset      = (/0_IK        , offsetDOF/)             , &
+                        collective  = .TRUE.        , RealArray = U_N_2D_local)
 END ASSOCIATE
+SDEALLOCATE(U_N_2D_local)
 
 CALL CloseDataFile()
 

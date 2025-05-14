@@ -751,6 +751,7 @@ IF(ElemDataExists) THEN
   ! Get size of the ElemData array
   CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
   nVarAdd=INT(HSize(1),4)
+  DEALLOCATE(HSize)
   ! Read-in the variable names
   ALLOCATE(VarNamesAdd(1:nVarAdd))
   CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
