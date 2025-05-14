@@ -1,90 +1,5 @@
-# =========================================================================
-# Detect machine environments
-# =========================================================================
-CMAKE_HOST_SYSTEM_INFORMATION(RESULT CMAKE_FQDN_HOST QUERY FQDN)
-MARK_AS_ADVANCED(FORCE CMAKE_FQDN_HOST)
-MARK_AS_ADVANCED(FORCE CMAKE_HOSTNAME)
-SITE_NAME(CMAKE_HOSTNAME)
+# TODO: Is this still required? Where does it need to go?
 SET(FORCE_VDM_ANALYTICAL OFF)
-
-# =========================================================================
-# CMake generator settings
-# =========================================================================
-SET(USED_CMAKE_GENERATOR "${CMAKE_GENERATOR}" CACHE STRING "Expose CMAKE_GENERATOR (cannot be changed here)" FORCE)
-MESSAGE(STATUS "Using cmake generator: ${CMAKE_GENERATOR}")
-IF("${CMAKE_GENERATOR}" MATCHES "Ninja")
-  # CMake introduced the CMAKE_COLOR_DIAGNOSTICS flag with 3.24.0, https://gitlab.kitware.com/cmake/cmake/-/merge_requests/6990
-  IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.24.0"))
-    SET(CMAKE_COLOR_DIAGNOSTICS ON CACHE INTERNAL "Flag if CMake should attempt to color output")
-  ELSE()
-    SET(NINJA_COLOR_DIAGNOSTICS "-fdiagnostics-color=always" CACHE INTERNAL "Flag if Ninja should attempt to color output")
-  ENDIF()
-ENDIF()
-MESSAGE(STATUS "Generating for [${CMAKE_GENERATOR}] build system")
-
-# =========================================================================
-# Some clusters requires setting the compilers by hand and invoking
-# ENABLE_LANGUAGE afterwards, which is required for
-# CMAKE_Fortran_COMPILER_ID that is used below
-# > This block must be called before ENABLE_LANGUAGE
-# =========================================================================
-# HLRS HAWK
-IF (CMAKE_FQDN_HOST MATCHES "hawk\.hww\.hlrs\.de$")
-  SET(CMAKE_C_COMPILER       mpicc)
-  SET(CMAKE_CXX_COMPILER     mpicxx)
-  SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issue
-# HLRS Vulcan
-ELSEIF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
-  SET(CMAKE_C_COMPILER       mpicc)
-  SET(CMAKE_CXX_COMPILER     mpicxx)
-  SET(CMAKE_Fortran_COMPILER mpif90)
-# SuperMUC
-# ELSEIF(CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$"
-# LUMI
-ELSEIF(CMAKE_FQDN_HOST MATCHES "\.can$")
-  SET(CMAKE_C_COMPILER       cc)
-  SET(CMAKE_CXX_COMPILER     CC)
-  SET(CMAKE_Fortran_COMPILER ftn)
-# IAG Prandtl
-ELSEIF(CMAKE_FQDN_HOST MATCHES "^(prandtl|grafik.*)\.iag\.uni\-stuttgart\.de")
-  SET(CMAKE_C_COMPILER       gcc)
-  SET(CMAKE_CXX_COMPILER     c++)
-  SET(CMAKE_Fortran_COMPILER gfortran)
-# IAG Grafik01/Grafik02
-ELSEIF (CMAKE_FQDN_HOST MATCHES "^ila(head.*|cfd.*)\.ila.uni\-stuttgart\.de")
-  SET(CMAKE_C_COMPILER       mpicc)
-  SET(CMAKE_CXX_COMPILER     mpicxx)
-  SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issue
-ELSEIF (CMAKE_FQDN_HOST MATCHES "^(xenon.*|argon.*)\.ila.uni\-stuttgart\.de")
-  SET(CMAKE_C_COMPILER       mpicc)
-  SET(CMAKE_CXX_COMPILER     mpicxx)
-  SET(CMAKE_Fortran_COMPILER mpif90) # mpif08 wrapper seems to have issue
-ENDIF()
-
-# =========================================================================
-# Score-P instrumentation infrastructure
-# > This option must be called before ENABLE_LANGUAGE, thus is only available
-# > through -DMACHINE_USE_SCOREP=ON
-# =========================================================================
-IF (MACHINE_USE_SCOREP)
-  FIND_PROGRAM(SCOREP_C_COMPILER scorep-${CMAKE_C_COMPILER})
-  MARK_AS_ADVANCED(FORCE SCOREP_C_COMPILER )
-  IF (SCOREP_C_COMPILER MATCHES "NOTFOUND")
-    MESSAGE (FATAL_ERROR "Score-P not available in PATH. Did you load the module?")
-  ENDIF()
-
-  # Set default build type to profile
-  IF (NOT CMAKE_BUILD_TYPE)
-    SET (CMAKE_BUILD_TYPE Profile CACHE STRING "Choose the type of build, options are: Debug Release Profile Sanitize." FORCE)
-  ENDIF (NOT CMAKE_BUILD_TYPE)
-  IF (CMAKE_BUILD_TYPE MATCHES "Release")
-    MESSAGE (WARNING "Score-P requires debug compile flags which are not available with BUILD_TYPE='Release'")
-  ENDIF()
-
-  SET(CMAKE_C_COMPILER       "scorep-${CMAKE_C_COMPILER}")
-  SET(CMAKE_CXX_COMPILER     "scorep-${CMAKE_CXX_COMPILER}")
-  SET(CMAKE_Fortran_COMPILER "scorep-${CMAKE_Fortran_COMPILER}")
-ENDIF()
 
 # =========================================================================
 # After settings specific compilers, enable named languages for cmake
@@ -96,49 +11,37 @@ MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
 # =========================================================================
 # Set machine-specific definitions and settings
 # =========================================================================
-# HLRS HAWK
-IF (CMAKE_FQDN_HOST MATCHES "hawk\.hww\.hlrs\.de$")
-  MESSAGE(STATUS "Compiling on Hawk")
-  # Overwrite compiler target architecture
-  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    SET(PICLAS_INSTRUCTION "-march=znver2 -mtune=znver2")
-  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
-  ENDIF()
-  # Use AMD Optimized Lapack/BLAS
-  # SET(BLA_VENDOR "FLAME")
-  # Set LUSTRE definition to account for filesystem and MPI implementation
-  ADD_DEFINITIONS(-DLUSTRE)
 # HLRS Vulcan
-ELSEIF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
+IF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
   MESSAGE(STATUS "Compiling on Vulcan for AMD EPYC Genoa")
   # Overwrite compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    SET(PICLAS_INSTRUCTION "-march=znver4 -mtune=znver4")
+    SET(PICLAS_INSTRUCTION "-march=znver4 -mtune=znver4" CACHE STRING "Compiler optimization options")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
+    SET(PICLAS_INSTRUCTION "-xCORE-AVX2" CACHE STRING "Compiler optimization options")
   ENDIF()
   # Set LUSTRE definition to account for filesystem and MPI implementation
-  ADD_DEFINITIONS(-DLUSTRE)
+  ADD_COMPILE_DEFINITIONS(LUSTRE)
+
 # SuperMUC
 ELSEIF (CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$")
   MESSAGE(STATUS "Compiling on SuperMUC")
   # Overwrite compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    SET(PICLAS_INSTRUCTION "-march=skylake-avx512 -mtune=skylake-avx512")
+    SET(PICLAS_INSTRUCTION "-march=skylake-avx512 -mtune=skylake-avx512" CACHE STRING "Compiler optimization options")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    SET(PICLAS_INSTRUCTION "-xSKYLAKE-AVX512")
+    SET(PICLAS_INSTRUCTION "-xSKYLAKE-AVX512" CACHE STRING "Compiler optimization options")
     # Explicitely enable usage of AVX512 registers
     SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -qopt-zmm-usage=high")
   ENDIF()
   # Set LUSTRE definition to account for filesystem and MPI implementation
-  ADD_DEFINITIONS(-DLUSTRE)
+  ADD_COMPILE_DEFINITIONS(LUSTRE)
 
 # LUMI
 ELSEIF(CMAKE_FQDN_HOST MATCHES "\.can$")
   MESSAGE(STATUS "Compiling on LUMI")
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-    SET(FLEXI_INSTRUCTION "-march=znver3 -mtune=znver3")
+    SET(PICLAS_INSTRUCTION "-march=znver3 -mtune=znver3" CACHE STRING "Compiler optimization options")
   ELSE()
     MESSAGE(FATAL_ERROR "LUMI currently only supported using the GNU Compiler Collection (GCC). Please load/swap the following modules: LUMI PrgEnv-gnu cray-hdf5-parallel")
   ENDIF()
@@ -146,40 +49,17 @@ ELSEIF(CMAKE_FQDN_HOST MATCHES "\.can$")
 # IAG Prandtl
 ELSEIF(CMAKE_FQDN_HOST MATCHES "^(prandtl|grafik.*)\.iag\.uni\-stuttgart\.de")
   MESSAGE(STATUS "Compiling on ${CMAKE_HOSTNAME}")
-  SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
+  SET(PICLAS_INSTRUCTION "-march=native -mtune=native" CACHE STRING "Compiler optimization options")
   # Set LUSTRE definition to account for filesystem
-  ADD_DEFINITIONS(-DLUSTRE)
-
-ELSEIF (CMAKE_FQDN_HOST MATCHES "^ila(head.*|cfd.*)\.ila.uni\-stuttgart\.de")
-  MESSAGE(STATUS "Compiling on ILA cluster")
-  # Overwrite compiler target architecture
-  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
-    SET(PICLAS_INSTRUCTION "-march=core-avx2 -mtune=core-avx2")
-  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    SET(PICLAS_INSTRUCTION "-xCORE-AVX2")
-  ENDIF()
-  # Work around MPI-IO issue 4446 on machines mounting storage via NFS
-  ADD_DEFINITIONS(-DNFS)
-
-ELSEIF (CMAKE_FQDN_HOST MATCHES "^(xenon.*|argon.*)\.ila.uni\-stuttgart\.de")
-  MESSAGE(STATUS "Compiling on ILA student cluster")
-  SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
-  # Work around MPI-IO issue 4446 on machines mountng storage via NFS
-  ADD_DEFINITIONS(-DNFS)
-
-ELSEIF ("${CMAKE_FQDN_HOST}" MATCHES "gitlab\.ila\.uni\-stuttgart\.de")
-  MESSAGE(STATUS "Compiling on ILA Gitlab")
-  ADD_DEFINITIONS(-DVDM_ANALYTICAL)
-  SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
+  ADD_COMPILE_DEFINITIONS(LUSTRE)
 
 ELSE()
   MESSAGE(STATUS "Compiling on a generic machine [${CMAKE_HOSTNAME}]")
   # Set compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang" OR CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
-    SET(PICLAS_INSTRUCTION "-march=native -mtune=native")
-    # SET(PICLAS_INSTRUCTION "-mtune=generic")
+    SET(PICLAS_INSTRUCTION "-march=native -mtune=native" CACHE STRING "Compiler optimization options")
   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-    SET(PICLAS_INSTRUCTION "-xHost")
+    SET(PICLAS_INSTRUCTION "-xHost" CACHE STRING "Compiler optimization options")
   ENDIF()
 ENDIF()
 
@@ -269,8 +149,8 @@ IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
   SET (CMAKE_Fortran_FLAGS_RELEASE     "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays")
   SET (CMAKE_Fortran_FLAGS_PROFILE     "${CMAKE_Fortran_FLAGS} -pg -O3 ${PICLAS_INSTRUCTION} -finline-functions -fstack-arrays")
   SET (CMAKE_Fortran_FLAGS_NOGPROFILE  "${CMAKE_Fortran_FLAGS} -g1 -O3 ${PICLAS_INSTRUCTION} -fno-inline -fno-optimize-sibling-calls -fstack-arrays")
-  SET (CMAKE_Fortran_FLAGS_DEBUG       "${CMAKE_Fortran_FLAGS} -g  -Og -ggdb3 -ffpe-trap=invalid -fcheck=bounds -fbacktrace -Wall")
-  SET (CMAKE_Fortran_FLAGS_SANITIZE    "${CMAKE_Fortran_FLAGS} -g  -Og -ggdb3 -ffpe-trap=invalid,zero,overflow,denorm -fcheck=bounds -fbacktrace  -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized -pedantic")
+  SET (CMAKE_Fortran_FLAGS_DEBUG       "${CMAKE_Fortran_FLAGS} -g  -Og -ggdb3 -ffpe-trap=invalid,zero,overflow -fbounds-check -fbacktrace -Wall")
+  SET (CMAKE_Fortran_FLAGS_SANITIZE    "${CMAKE_Fortran_FLAGS} -g  -Og -ggdb3 -ffpe-trap=invalid,zero,overflow,denorm -fbounds-check -fbacktrace -Wall -fsanitize=address,undefined,leak -fno-omit-frame-pointer -Wc-binding-type -Wuninitialized -pedantic")
   # Compile flags depend on the generator
   IF(NOT "${CMAKE_GENERATOR}" MATCHES "Ninja")
     # add flags only for compiling not linking!
@@ -289,7 +169,7 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
   ENDIF()
   SET (CMAKE_Fortran_FLAGS_RELEASE   "${CMAKE_Fortran_FLAGS}     -O3 ${PICLAS_INSTRUCTION} -finline-functions ")
   SET (CMAKE_Fortran_FLAGS_PROFILE   "${CMAKE_Fortran_FLAGS} -pg -O3 ${PICLAS_INSTRUCTION} -finline-functions ")
-  SET (CMAKE_Fortran_FLAGS_DEBUG     "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -ffpe-trap=invalid -fcheck=bounds -finit-real=snan -fbacktrace -Wall")
+  SET (CMAKE_Fortran_FLAGS_DEBUG     "${CMAKE_Fortran_FLAGS} -g  -O0 -ggdb3 -ffpe-trap=invalid,zero,overflow -fbounds-check -finit-real=snan -fbacktrace -Wall")
   # Compile flags depend on the generator
   IF(NOT "${CMAKE_GENERATOR}" MATCHES "Ninja")
     # add flags only for compiling not linking!
@@ -324,9 +204,9 @@ ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
     SET (C_FLAGS_INITIALIZED "yes" CACHE INTERNAL "Flag if compiler flags are already initialized" )
     SET (CMAKE_Fortran_FLAGS         "${CMAKE_Fortran_FLAGS} -ffree -s real64 -s integer64 -em -lstdc++ -hfp0 -DCRAY")
   ENDIF()
-  SET (CMAKE_Fortran_FLAGS_RELEASE   "${CMAKE_Fortran_FLAGS}    -O2 -hfp3 -p . -rm")
-  SET (CMAKE_Fortran_FLAGS_PROFILE   "${CMAKE_Fortran_FLAGS}    -O2 -hfp3 -h profile_generate -p . -rm")
-  SET (CMAKE_Fortran_FLAGS_DEBUG     "${CMAKE_Fortran_FLAGS} -g -O0 -eD -rm")
+  SET (CMAKE_Fortran_FLAGS_RELEASE   "${CMAKE_Fortran_FLAGS} -s integer32  -O2 -hfp3 -p . -rm")
+  SET (CMAKE_Fortran_FLAGS_PROFILE   "${CMAKE_Fortran_FLAGS} -s integer32  -O2 -hfp3 -h profile_generate -p . -rm")
+  SET (CMAKE_Fortran_FLAGS_DEBUG     "${CMAKE_Fortran_FLAGS} -s integer32 -g -O0 -eD -rm")
   # add flags only for compiling not linking!
   SET (PICLAS_COMPILE_FLAGS "${NINJA_COLOR_DIAGNOSTICS} -F")
 ELSE()
@@ -347,7 +227,9 @@ IF (USE_PGO)
   ENDIF()
 ENDIF()
 
-# Save the current compiler flags to the cache every time cmake configures the project.
+# =========================================================================
+# SAVE CURRENT COMPILER FLAGS TO THE CACHE
+# =========================================================================
 MARK_AS_ADVANCED(FORCE CMAKE_Fortran_FLAGS)
 MARK_AS_ADVANCED(FORCE CMAKE_Fortran_FLAGS_RELEASE)
 MARK_AS_ADVANCED(FORCE CMAKE_Fortran_FLAGS_PROFILE)
