@@ -34,7 +34,7 @@ MESSAGE(STATUS "Generating for [${CMAKE_GENERATOR}] build system")
 # > This block must be called before ENABLE_LANGUAGE
 # =========================================================================
 # HLRS Vulcan
-ELSEIF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
+IF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
   SET(CMAKE_C_COMPILER       mpicc)
   SET(CMAKE_CXX_COMPILER     mpicxx)
   SET(CMAKE_Fortran_COMPILER mpif90)
