@@ -222,7 +222,7 @@ IF(NOT LIBS_BUILD_HDF5)
   ENDIF()
 
   SET(HDF5_BUILD_STATUS "system")
-# Build HDF5 in FLEXI
+# Build HDF5 in PICLAS
 ELSE()
   # Origin pointing to Github
   IF("${GIT_ORIGIN}" STREQUAL "")
@@ -429,7 +429,7 @@ IF(NOT LIBS_BUILD_MATH_LIB)
     ADD_COMPILE_DEFINITIONS(VDM_ANALYTICAL)
   ENDIF()
 
-# Build LAPACK/OpenBLAS in FLEXI
+# Build LAPACK/OpenBLAS in PICLAS
 ELSE()
   # Offer LAPACK and OpenBLAS
   SET (LIBS_BUILD_MATH_LIB_VENDOR OpenBLAS CACHE STRING "Choose the type of math lib vendor, options are: LAPACK, OpenBLAS.")
