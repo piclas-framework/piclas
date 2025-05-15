@@ -864,7 +864,7 @@ CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 INTEGER                        :: nVal, iTimePoint, iElem, Nloc
 REAL                           :: StartT,EndT
 ! p-adaption output
-REAL,ALLOCATABLE    :: U_N_2D_local(:,:)
+REAL,ALLOCATABLE    :: U_N_2D_local(:,:),U_N_3D_local(:,:,:)
 INTEGER             :: i,j,k,iDOF,nDOFOutput,offsetDOF
 !===================================================================================================================================
 #if USE_LOADBALANCE
@@ -881,7 +881,7 @@ SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE BG-FIELD ['//TRIM(FileName)//'] TO
 GETTIME(StartT)
 
 ! ---------------------------------------------------------
-! Prepare U_N_2D_local array for output as DG_Solution
+! Prepare U_N_2D_local or U_N_3D_local (time-dependent) array for output as DG_Solution
 ! ---------------------------------------------------------
 ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
 nDOFOutput = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
@@ -892,8 +892,13 @@ ELSE
   offsetDOF = 0
 END IF
 nVarOut = BGDataSize
+
 ! Allocate local 2D array: create global Eps field for parallel output of Eps distribution
-ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+IF(UseTimeDepCoil)THEN
+  ALLOCATE(U_N_3D_local(1:nVarOut,1:nDOFOutput,1:nTimePoints))
+ELSE
+  ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+END IF
 
 ! Create dataset attribute "VarNames"
 ALLOCATE(StrVarNames(1:BGDataSize))
@@ -923,6 +928,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID   , 'MeshFile'             , 1          , StrScalar=(/TRIM(MeshFile)/))
   CALL WriteAttributeToHDF5(File_ID   , 'NodeType'             , 1          , StrScalar=(/NodeType/))
   CALL WriteAttributeToHDF5(File_ID   , 'VarNames'             , BGDataSize , StrArray=StrVarNames)
+  DEALLOCATE(StrVarNames)
   CALL WriteAttributeToHDF5(File_ID   , 'Time'                 , 1          , RealScalar=0.)
   IF(UseTimeDepCoil)THEN
     CALL WriteAttributeToHDF5(File_ID , 'BGFieldFrequency'     , 1          , RealScalar=BGFieldFrequency)
@@ -941,15 +947,23 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 ! Write into 2D array
 iDOF = 0
-DO iElem = 1, INT(PP_nElems)
-  Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-    iDOF = iDOF + 1
-    U_N_2D_local(1:BGDataSize,iDOF) = N_BG(iElem)%BGField(1:BGDataSize,i,j,k)
-  END DO; END DO; END DO
-END DO ! iElem = 1, nElems
-
-IF(UseTimeDepCoil)CALL abort(__STAMP__,'ERROR - not implemented UseTimeDepCoil.')
+IF (UseTimeDepCoil) THEN
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_3D_local(1:BGDataSize,iDOF,1:nTimePoints) = N_BG(iElem)%BGFieldTDep(1:BGDataSize,i,j,k,1:nTimePoints)
+    END DO; END DO; END DO
+  END DO ! iElem = 1, nElems
+ELSE
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      iDOF = iDOF + 1
+      U_N_2D_local(1:BGDataSize,iDOF) = N_BG(iElem)%BGField(1:BGDataSize,i,j,k)
+    END DO; END DO; END DO
+  END DO ! iElem = 1, nElems
+END IF ! UseTimeDepCoil
 
 ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
 CALL WriteAdditionalElemData(FileName,ElementOutNloc)
@@ -962,18 +976,24 @@ ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
           nDofsMapping    => INT(nDofsMapping,IK)      ,&
           nDOFOutput      => INT(nDOFOutput,IK)        ,&
           offsetDOF       => INT(offsetDOF,IK)         )
-CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
-                        DataSetName = 'DG_Solution' , rank = 2                , &
-                        nValGlobal  = (/nVarOut     , nDofsMapping/)          , &
-                        nVal        = (/nVarOut     , nDOFOutput/)            , &
-                        offset      = (/0_IK        , offsetDOF/)             , &
-                        collective  = .TRUE.        , RealArray = U_N_2D_local)
+  IF (UseTimeDepCoil) THEN
+    CALL GatheredWriteArray(FileName, create = .FALSE.                         , &
+                            DataSetName = 'DG_Solution' , rank = 3             , &
+                            nValGlobal  = (/nVarOut     , nDofsMapping     /)  , &
+                            nVal        = (/nVarOut     , nDOFOutput       /)  , &
+                            offset      = (/0_IK        , offsetDOF , 0_IK /)  , &
+                            collective  = .TRUE.        , RealArray = U_N_3D_local)
+  ELSE
+    CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
+                            DataSetName = 'DG_Solution' , rank = 2                , &
+                            nValGlobal  = (/nVarOut     , nDofsMapping/)          , &
+                            nVal        = (/nVarOut     , nDOFOutput/)            , &
+                            offset      = (/0_IK        , offsetDOF/)             , &
+                            collective  = .TRUE.        , RealArray = U_N_2D_local)
+  END IF ! UseTimeDepCoil
+  SDEALLOCATE(U_N_2D_local)
+  SDEALLOCATE(U_N_3D_local)
 END ASSOCIATE
-SDEALLOCATE(U_N_2D_local)
-
-CALL CloseDataFile()
-
-DEALLOCATE(StrVarNames)
 
 GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)

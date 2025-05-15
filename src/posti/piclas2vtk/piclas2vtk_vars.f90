@@ -50,6 +50,7 @@ TYPE (tSurfaceConnect)            :: SurfConnect
 TYPE tElemLocal
   REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:)        !< Coordinates of visualization nodes [1:3,0:NlocOut,0:NlocOut,0:NlocOut]
   REAL,ALLOCATABLE                :: U(:,:,:,:)                   !< Read-in solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut]
+  REAL,ALLOCATABLE                :: U2(:,:,:,:,:)                !< Read-in solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut,1:nFields]
   REAL,ALLOCATABLE                :: U_Visu(:,:,:,:)              !< Interpolated solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut]
 END TYPE tElemLocal
 
