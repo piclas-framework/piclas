@@ -372,7 +372,7 @@ The basic functionality of both routines is verified during the nightly regressi
 It is important to note that the variable `Part-SpeciesX-vMPFMergeThreshold` might be initially ignored, when using cell-local particle emission and `Part-SpeciesX-vMPFSplitThreshold` is set, as
 described in Section {ref}`sec:particle-cell-local`. In this case, the split threshold variable will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the given number density and cell volume.
 
-An additional option is available for simulations utilizing a secondary electron emission (SEE) model, as described in Section {ref}`sec:BC-see`. The SEE models 3, 4 and 12 support the emission of only a single secondary, weighted according to the calculated yield. This feature can be enabled per boundary:
+An additional option is available for simulations utilizing a secondary electron emission (SEE) model, as described in Section {ref}`sec:BC-see`. The SEE models 3, 4, 12, and 13 support the emission of only a single secondary, weighted according to the calculated yield. This feature can be enabled per boundary:
 
     Part-Boundary1-SurfMod-vMPF = T
 
