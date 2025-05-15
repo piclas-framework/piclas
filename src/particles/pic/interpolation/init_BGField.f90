@@ -93,7 +93,7 @@ INTEGER                                 :: nVar_BField,N_In,nElems_BGField, nDOF
 CHARACTER(LEN=255)                      :: BGFileName,NodeType_BGField,BGFieldName
 CHARACTER(LEN=255),ALLOCATABLE          :: VarNames(:)
 REAL,ALLOCATABLE                        :: BGField_tmp(:,:,:,:,:), BGFieldTDep_tmp(:,:,:,:,:,:)
-INTEGER                                 :: iElem,i,j,k,iField,nFields,nDimsOffset
+INTEGER                                 :: iElem,i,j,k,iTimePoint,nFields,nDimsOffset
 REAL                                    :: BGFieldScaling
 LOGICAL                                 :: BGFieldExists,DG_SolutionExists
 TYPE tVdm_BGFieldIn_BGField
@@ -106,8 +106,8 @@ TYPE tweights
 END TYPE tweights
 TYPE(tweights),ALLOCATABLE    :: weights(:)
 ! p-adaption
-INTEGER                            :: iDOF, nDOF, offsetDOF
-REAL,ALLOCATABLE                   :: U_N_2D_local(:,:)
+INTEGER                         :: iDOF, nDOF, offsetDOF
+REAL,ALLOCATABLE                :: U_N_2D_local(:,:),U_N_3D_local(:,:,:)
 LOGICAL                         :: ElemDataExists, NlocFound
 INTEGER                         :: iVar, nVarAdd
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
@@ -200,8 +200,20 @@ ELSE
     nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
     CALL GetDataProps(TRIM(BGFieldName) , nVar_BField , N_In , nElems_BGField , NodeType_BGField, nDimsOffset)
   ELSE
-    nFields     = 1
-    nDimsOffset = 0
+    ! p-adaption data format
+    IF (nDims.EQ.2) THEN
+      ! For nDims=2, assume shape [1:nVar, 1:nDOF]
+      nFields     = 1
+      nDimsOffset = 0
+    ELSEIF (nDims.EQ.3) THEN
+      ! For nDims=3, assume shape [1:nVar, 1:nDOF, 1:nFields] - the nFields e.g. could be 1:nTimePoints for time-dependent data
+      nFields = INT(HSize(nDims))
+      nDimsOffset = 1
+    ELSE
+      ! Unknown - abort
+      IPWRITE(*,*) 'HSize:', HSize
+      CALL abort(__STAMP__,'ERROR: Unknown array shape (HSize) for '//TRIM(BGFieldName)//' encountered.')
+    END IF ! nDims.EQ.2
     CALL GetDataProps(TRIM(BGFieldName) , nVar_BField , N_In , nDOF_BGField   , NodeType_BGField, nDimsOffset)
   END IF ! nDims.GE.5
   DEALLOCATE(HSize)
@@ -213,7 +225,6 @@ ELSE
     CALL ReadAttribute(File_ID,'BGFieldFrequency',1,RealScalar=BGFieldFrequency)
   END IF ! nFields.GT.1
 END IF
-
 
 ! 4) Read-in or calculation of background field
 IF (CalcBField) THEN
@@ -269,9 +280,10 @@ ELSE
       IF(UseTimeDepCoil) ALLOCATE(N_BG(iElem)%BGFieldTDep(1:BGDataSize,0:Nloc,0:Nloc,0:Nloc,1:nTimePoints))
     END DO
 
-    IF(nDims.EQ.2)THEN
+    IF((nDims.EQ.2).OR.(nDims.EQ.3))THEN
       ! Preparing U_N_2D_local array for reading DG_Solution
-      ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+      ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of
+      ! DOFs of the last element
       nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
       ! Get the offset based on the element-local polynomial degree
       IF(offsetElem.GT.0) THEN
@@ -281,8 +293,17 @@ ELSE
       END IF
 
       ! Allocate local 2D array
-      ALLOCATE(U_N_2D_local(1:BGDataSize,1:nDOF))
-      CALL ReadArray('DG_Solution',2,(/INT(BGDataSize,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+      IF (UseTimeDepCoil) THEN
+        ALLOCATE(U_N_3D_local(1:BGDataSize,1:nDOF,1:nTimePoints))
+        CALL ReadArray('DG_Solution',3,(/INT(BGDataSize,IK),INT(nDOF,IK),nTimePoints/),INT(offsetDOF,IK),2,RealArray=U_N_3D_local)
+      ELSE
+        IF (nDims.NE.2) THEN
+          IPWRITE(*,*) 'nDims:', nDims
+          CALL abort(__STAMP__,' nDims.NE.2 for reading U_N_2D_local(1:BGDataSize,1:nDOF) is not possible')
+        END IF ! nDims.NE.2
+        ALLOCATE(U_N_2D_local(1:BGDataSize,1:nDOF))
+        CALL ReadArray('DG_Solution',2,(/INT(BGDataSize,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+      END IF ! UseTimeDepCoil
 
       ! Read data from 2D array
       iDOF = 0
@@ -297,10 +318,17 @@ ELSE
             CALL abort(__STAMP__,' Nloc = N_DG_Mapping(2,iElem+offsetElem) must be equal to Nloc_HDF5(iElem)')
           END IF ! Nloc.NE.Nloc_HDF5(iElem)
         END IF ! NlocFound
-        DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-          iDOF = iDOF + 1
-          N_BG(iElem)%BGField(1:BGDataSize,i,j,k) = U_N_2D_local(1:BGDataSize,iDOF)
-        END DO; END DO; END DO
+        IF (UseTimeDepCoil) THEN
+          DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+            iDOF = iDOF + 1
+            N_BG(iElem)%BGFieldTDep(1:BGDataSize,i,j,k,1:nTimePoints) = U_N_3D_local(1:BGDataSize,iDOF,1:nTimePoints)
+          END DO; END DO; END DO
+        ELSE
+          DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+            iDOF = iDOF + 1
+            N_BG(iElem)%BGField(1:BGDataSize,i,j,k) = U_N_2D_local(1:BGDataSize,iDOF)
+          END DO; END DO; END DO
+        END IF ! UseTimeDepCoil
       END DO
     ELSE
       IF(UseTimeDepCoil)THEN
@@ -352,26 +380,32 @@ ELSE
   ! ChangeBasis3D to lower or higher polynomial degree
   Nin = N_In ! Old data format: Use constant N_In (NMax from previous write-to-hdf5)
   IF(UseTimeDepCoil)THEN
-    DO iField = 1, nFields
+    DO iTimePoint = 1, nTimePoints
       DO iElem=1,PP_nElems
         Nloc = N_DG_Mapping(2,iElem+offSetElem)
-        IF (nDims.EQ.2) Nin = Nloc
-        CALL ChangeBasis3D(BGDataSize,Nin,Nloc,Vdm_BGFieldIn_BGField(Nin,Nloc)%Vdm,&
-                           BGFieldTDep_tmp(1:BGDataSize , 0:Nin  , 0:Nin  , 0:Nin , iElem    , iField) , &
-                   N_BG(iElem)%BGFieldTDep(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc , iField))
-        N_BG(iElem)%BGFieldTDep(:,:,:,:,iField)=BGFieldScaling*N_BG(iElem)%BGFieldTDep(:,:,:,:,iField)
+        IF (nDims.EQ.3) THEN
+          Nin = Nloc
+          CALL ChangeBasis3D(BGDataSize,Nin,Nloc,Vdm_BGFieldIn_BGField(Nin,Nloc)%Vdm                , &
+                     N_BG(iElem)%BGFieldTDep(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc, iTimePoint)   , &
+                     N_BG(iElem)%BGFieldTDep(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc, iTimePoint))
+        ELSE
+          CALL ChangeBasis3D(BGDataSize,Nin,Nloc,Vdm_BGFieldIn_BGField(Nin,Nloc)%Vdm                         , &
+                             BGFieldTDep_tmp(1:BGDataSize , 0:Nin  , 0:Nin  , 0:Nin , iElem    , iTimePoint) , &
+                     N_BG(iElem)%BGFieldTDep(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc , iTimePoint))
+          N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint)=BGFieldScaling*N_BG(iElem)%BGFieldTDep(:,:,:,:,iTimePoint)
+        END IF
       END DO ! iElem
-    END DO ! iField = 1, nFields
+    END DO ! iTimePoint = 1, nTimePoints
   ELSE
     DO iElem=1,PP_nElems
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
       IF (nDims.EQ.2) THEN
         Nin = Nloc
-        CALL ChangeBasis3D(BGDataSize,Nin,Nloc,Vdm_BGFieldIn_BGField(Nin,Nloc)%Vdm,&
-                   N_BG(iElem)%BGField(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc)   ,&
+        CALL ChangeBasis3D(BGDataSize,Nin,Nloc,Vdm_BGFieldIn_BGField(Nin,Nloc)%Vdm , &
+                   N_BG(iElem)%BGField(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc)    , &
                    N_BG(iElem)%BGField(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc))
       ELSE
-        CALL ChangeBasis3D(BGDataSize,Nin,Nloc,Vdm_BGFieldIn_BGField(Nin,Nloc)%Vdm,&
+        CALL ChangeBasis3D(BGDataSize,Nin,Nloc,Vdm_BGFieldIn_BGField(Nin,Nloc)%Vdm       , &
                            BGField_tmp(1:BGDataSize , 0:Nin  , 0:Nin  , 0:Nin   , iElem) , &
                    N_BG(iElem)%BGField(1:BGDataSize , 0:Nloc , 0:Nloc , 0:Nloc))
       END IF
