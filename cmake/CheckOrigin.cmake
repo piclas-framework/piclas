@@ -10,8 +10,8 @@ IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
   SET(PRECOMMIT_FILE ".githooks/pre-commit")
 ENDIF()
 
-# Perform checks only if origin points to IAG, other origins can't commit
-IF("${GIT_ORIGIN}" MATCHES ".iag.uni-stuttgart.de")
+# Perform checks only if origin points to boltzplatz.eu, other origins can't commit
+IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu")
   # Check if the pre-commit hooks exits
   IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
     # Create otherwise
