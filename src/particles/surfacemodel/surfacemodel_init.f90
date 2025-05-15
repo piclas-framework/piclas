@@ -151,14 +151,20 @@ DO iPartBound=1,nPartBound
   !  3: SEE Square-fit model
   !  4: SEE Power-fit model based on Goebel & Katz „Fundamentals of Electric Propulsion - Ion and Hall Thrusters“
   ! 12: SEE semi-empirical model by Seiler, H. (1983). Journal of Applied Physics, 54(11). https://doi.org/10.1063/1.332840
-  CASE(3,4,12)
+  ! 13: SEE model by M. Villemant et al 2019 EPL 127 23001. https://doi.org/10.1209/0295-5075/127/23001 - Vaughan formula
+  CASE(3,4,12,13)
     SurfModSEEFitCoeff(1:4,iPartBound) = GETREALARRAY('Part-Boundary'//TRIM(hilf2)//'-SurfModSEEFitCoeff',4)
     SurfModEnergyDistribution(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf2)//'-SurfModEnergyDistribution','Chung-Everhart-cosine'))
+    IF(SurfModEnergyDistribution(iPartBound).EQ.'Chung-Everhart-cosine') THEN
+      ! Check if the work function is set
+      IF(SurfModSEEFitCoeff(4,iPartBound).LE.0.) CALL abort(__STAMP__,&
+        'ERROR: SEE energy distribution model by Chung-Everhart requires a work function (SurfModSEEFitCoeff(4)) to be set!')
+    END IF
     ! Loop all species
     DO iSpec = 1,nSpecies
       IF(SPECIESISELECTRON(iSpec)) THEN
         IF(SurfModResultSpec(iPartBound,iSpec).EQ.-1) CALL abort(__STAMP__,&
-          'SEE models (3,4,12): Electron species has no resulting secondary electron species (can be the same) defined through Part-Species'//TRIM(int2strf(iSpec))// &
+          'SEE models (3,4,12,13): Electron species has no resulting secondary electron species (can be the same) defined through Part-Species'//TRIM(int2strf(iSpec))// &
           '-PartBound'//TRIM(int2strf(iPartBound))//'-ResultSpec!')
       END IF
     END DO
