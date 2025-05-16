@@ -255,6 +255,7 @@ END IF
 
 ! Allocate local 2D array
 ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
+U_N_2D_local = 0. ! Important: Initialize with zero to get the null-container output in the .h5 file if no actual data is written
 
 #if USE_HDG
 #if (PP_nVar==1)
