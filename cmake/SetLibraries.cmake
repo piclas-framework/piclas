@@ -6,6 +6,7 @@ SET(LIBS_DLPATH "https://piclas.boltzplatz.eu/piclas/")
 IF("${GIT_ORIGIN}" MATCHES "piclas.boltzplatz.eu" AND "${GIT_ORIGIN}" MATCHES "^git@")
   SET(LIBS_DLPATH "git@piclas.boltzplatz.eu:piclas/")
 ENDIF()
+MESSAGE (STATUS "Setting download locations depending on git origin [LIBS_DLPATH] ${LIBS_DLPATH}")
 
 
 # =========================================================================
