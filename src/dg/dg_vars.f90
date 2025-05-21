@@ -103,5 +103,9 @@ LOGICAL             :: DGInitIsDone=.FALSE.
 TYPE(MPI_Win)       :: N_DG_Mapping_Shared_Win
 #endif
 
+!----------------------------------------------------------------------------------------------------------------------------------
+! HDF5 dependent variables
+INTEGER,ALLOCATABLE :: Nloc_HDF5(:) !< Array for read-in of Nloc container
+
 !===================================================================================================================================
 END MODULE MOD_DG_Vars

@@ -60,7 +60,7 @@ USE MOD_HDF5_Input         ,ONLY: DatasetExists
 USE MOD_HDF5_Output        ,ONLY: FlushHDF5
 USE MOD_Interpolation_Vars ,ONLY: NMax,N_Inter,PREF_VDM
 USE MOD_DG_Vars            ,ONLY: U_N
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,Nloc_HDF5
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 #if defined(PARTICLES)
 USE MOD_Particle_Restart   ,ONLY: ParticleRestart
@@ -529,6 +529,22 @@ ELSE ! Normal restart
     IF(nDims.EQ.2)THEN
       SWRITE(UNIT_stdOut,'(A)')' Reading DG solution from restart grid with variable N (p-adaption)'
 
+      ! Check Nloc in .h5 file and compare with current polynomial degree distribution
+      CALL GetNlocFromElemDataFromHDF5() ! Builds Nloc_HDF5(1:nElems) = NINT(ElemData(iVarNloc,1:nElems))
+
+      ! Sanity check
+      DO iElem = 1, nElems
+        Nloc = N_DG_Mapping(2,iElem+offSetElem)
+        IF (Nloc.NE.Nloc_HDF5(iElem)) THEN
+          IPWRITE(*,*) 'iElem           :', iElem
+          IPWRITE(*,*) 'Nloc            :', Nloc
+          IPWRITE(*,*) 'Nloc_HDF5(iElem):', Nloc_HDF5(iElem)
+          CALL abort(__STAMP__,'Nloc has changed during restart and dynamic p-adaption is not implemented yet.')
+        END IF ! Nloc.NE.Nloc_HDF5(iElem)
+      END DO
+
+      DEALLOCATE(Nloc_HDF5)
+
       ! Preparing U_N_2D_local array for reading DG_Solution
       ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
       nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
@@ -554,7 +570,8 @@ ELSE ! Normal restart
       END DO
 
     ELSE ! nDims.EQ.5
-      SWRITE(UNIT_stdOut,'(A,I0,A,I0)')' Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
+      SWRITE(UNIT_stdOut,'(A,I0,A,I0)')' Interpolating solution from restart grid with N=',N_restart,&
+                                                          ' to computational grid with N=',PP_N
 #if USE_HDG
       ALLOCATE(U(PP_nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
       CALL ReadArray('DG_Solution' ,5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
@@ -876,6 +893,78 @@ END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE FieldRestart
+
+!===================================================================================================================================
+!> Builds Nloc_HDF5(1:nElems) = NINT(ElemData(iVarNloc,1:nElems)) by reading the ElemData from the .h5 file.
+!> The .h5 file must already be opened via "CALL OpenDataFile(...)" setting the correct File_ID when calling this subroutine.
+!===================================================================================================================================
+SUBROUTINE GetNlocFromElemDataFromHDF5()
+! MODULES
+USE MOD_Globals
+USE MOD_HDF5_Input            ,ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_DG_Vars               ,ONLY: Nloc_HDF5
+USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem,nGlobalElems
+USE MOD_IO_HDF5               ,ONLY: HSize
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                         :: ElemDataExists, NlocFound
+INTEGER                         :: nDims, iVar, nVarAdd, nElems_HDF5
+REAL,ALLOCATABLE                :: ElemData(:,:)  !< Array for temporary read-in of ElemData container in the .h5 file
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:) !< Container with additional variables names in the .h5 file
+!===================================================================================================================================
+
+! Allocate the container only once
+IF(ALLOCATED(Nloc_HDF5)) RETURN
+
+! Check for ElemData container
+CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
+! Stop here if ElemData is not found
+IF(.NOT.ElemDataExists) CALL abort(__STAMP__,'ElemData not found in .h5 file. Either it does not exist or the file is not open.')
+
+! Get size of the ElemData array
+CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
+nVarAdd     = INT(HSize(1),4)
+nElems_HDF5 = INT(HSize(2),4)
+IF(nGlobalElems.NE.nElems_HDF5)THEN
+  IPWRITE(*,*) 'nGlobalElems:', nGlobalElems
+  IPWRITE(*,*) 'nElems_HDF5 :', nElems_HDF5
+  IPWRITE(*,*) 'nElems      :', nElems
+  CALL abort(__STAMP__,'ElemData does not have the same number of elements as the nGlobalElems.')
+END IF
+DEALLOCATE(HSize)
+
+! Read-in the variable names
+ALLOCATE(VarNamesAdd(1:nVarAdd))
+CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+
+! Loop over the number of variables and find Nloc (or NlocRay, in case of a RadiationVolState), exit the loop and use the last iVar
+NlocFound = .FALSE.
+DO iVar=1,nVarAdd
+  IF(TRIM(VarNamesAdd(iVar)).EQ.'Nloc'.OR.TRIM(VarNamesAdd(iVar)).EQ.'NlocRay') THEN
+    NlocFound = .TRUE.
+    EXIT
+  END IF
+END DO
+IF(.NOT.NlocFound) CALL abort(__STAMP__,'Nloc or NlocRay not found in .h5 file')
+
+ALLOCATE(Nloc_HDF5(1:nElems))
+ALLOCATE(ElemData(1:nVarAdd,1:nElems))
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+    nVarAdd     => INT(nVarAdd,IK)    ,&
+    offsetElem  => INT(offsetElem,IK) ,&
+    nElems      => INT(nElems,IK)     )
+  CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
+END ASSOCIATE
+Nloc_HDF5(1:nElems) = NINT(ElemData(iVar,1:nElems))
+DEALLOCATE(ElemData)
+
+END SUBROUTINE GetNlocFromElemDataFromHDF5
 !#endif /*USE_LOADBALANCE*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
