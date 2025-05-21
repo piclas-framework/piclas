@@ -443,12 +443,12 @@ END DO ! iElem
 IF(Finalize)THEN
   DO iElem=1,nElems
     UAvg_N( iElem)%U = UAvg_N( iElem)%U/dtAvg
-    UFluc_N(iElem)%U = UFluc_N(iElem)%U/dtAvg
+    IF(nVarFluc.GT.0) UFluc_N(iElem)%U = UFluc_N(iElem)%U/dtAvg
   END DO ! iElem
   CALL WriteTimeAverage(TRIM(MeshFile),t,tPrevious,VarNamesAvgOut,VarNamesFlucOut,nVarAvg,nVarFluc)
   DO iElem=1,nElems
     UAvg_N( iElem)%U = 0.0
-    UFluc_N(iElem)%U = 0.0
+    IF(nVarFluc.GT.0) UFluc_N(iElem)%U = 0.0
   END DO ! iElem
   dtAvg=0.
   dtOld=0.
