@@ -90,26 +90,35 @@ USE MOD_DMD_Vars              ,ONLY: K,nFiles,nVar_State,N_State,nElems_State,No
 USE MOD_DMD_Vars              ,ONLY: dt,nModes,SvdThreshold,VarNameDMD,VarNames_State,Time_State,TimeEnd_State,sortFreq
 USE MOD_DMD_Vars              ,ONLY: ModeFreq,PlotSingleMode,useBaseflow,Baseflow,VarNames_TimeAvg,nVarDMD,use2D,N_StateZ
 USE MOD_DMD_Vars              ,ONLY: N_StateZ,N_StateZ_out
-USE MOD_IO_HDF5               ,ONLY: File_ID,HSize!,output2D
-!USE MOD_Output_Vars           ,ONLY: NOut
+USE MOD_IO_HDF5               ,ONLY: File_ID,HSize
 USE MOD_Globals_Vars          ,ONLY: ProjectName
 USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,ReadArray,GetDataSize
-USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems,MeshFile
+USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems,MeshFile,nElems
 USE MOD_EquationDMD           ,ONLY: InitEquationDMD,CalcEquationDMD
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
-USE MOD_Globals_Vars ,ONLY: TimeStampLenStr,TimeStampLenStr2
+USE MOD_Globals_Vars          ,ONLY: TimeStampLenStr,TimeStampLenStr2
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping,N_DG
+USE MOD_Mesh                  ,ONLY: Set_N_DG_Mapping
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: iFile,iVar,offset,nDim,i,j
+INTEGER                          :: iFile,iVar,offset,nDim,i,j,nDims,OffsetCounter,nDOF_State,l,iElem
 REAL,ALLOCATABLE                 :: Utmp(:,:,:,:,:)
 REAL                             :: time
 DOUBLE PRECISION,ALLOCATABLE     :: Ktmp(:)
 CHARACTER(LEN=255)               :: FileType
 INTEGER,ALLOCATABLE              :: VarSortTimeAvg(:)
 INTEGER,PARAMETER :: TimeStampLength=21
+INTEGER                            :: Nloc, iDOF, nDOF, offsetDOF
+REAL,ALLOCATABLE                   :: U_N_2D_local(:,:)
+INTEGER                         :: nVarAdd
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:)
+REAL,ALLOCATABLE                :: ElemData(:,:)                     !< Array for temporary read-in of ElemData container
+INTEGER,ALLOCATABLE             :: Nloc_HDF5(:)                      !< Array for temporary read-in of Nloc container
+LOGICAL                         :: ElemDataExists, NlocFound
 !===================================================================================================================================
 IF(nArgs.LT.3) CALL CollectiveStop(__STAMP__,'At least two files required for dmd!')
 nFiles=nArgs-1
@@ -151,7 +160,63 @@ CALL OpenDataFile(Args(2),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communic
 CALL ReadAttribute(File_ID,'MeshFile',    1,StrScalar=MeshFile_state)
 CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
 CALL ReadAttribute(File_ID,'Time',    1,RealScalar=starttime)
-CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
+CALL GetDataSize(File_ID,'DG_Solution',nDim,HSize)
+IF (nDim.GE.4) THEN
+  IF (HSize(4) .EQ. 1) THEN
+    use2D=.TRUE.
+    N_StateZ=0
+    WRITE(UNIT_stdOut,'(A)') 'Provided states contain 2D-data, continue with two dimensional DMD'
+  END IF
+END IF ! nDim.GE.4
+DEALLOCATE(HSize)
+IF (nDim.EQ.2) THEN
+  CALL GetDataProps('DG_Solution',nVar_State,N_State,nDOF_State,NodeType_State)
+  CALL ReadAttribute(File_ID,'N',1,IntScalar=N_State)
+  CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
+  IF(.NOT.ElemDataExists) CALL abort(__STAMP__,'ElemData not found in file')
+  ! Get size of the ElemData array
+  CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
+  nVarAdd=INT(HSize(1),4)
+  nElems_State=INT(HSize(2),4)
+  DEALLOCATE(HSize)
+  nElems = nElems_State
+
+  NlocFound = .FALSE.
+
+  ! Read-in the variable names
+  ALLOCATE(VarNamesAdd(1:nVarAdd))
+  CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+  ! Loop over the number of variables and find Nloc (or NlocRay, in case of a RadiationVolState), exit the loop and use the last iVar
+  DO iVar=1,nVarAdd
+    IF(TRIM(VarNamesAdd(iVar)).EQ.'Nloc'.OR.TRIM(VarNamesAdd(iVar)).EQ.'NlocRay') THEN
+      NlocFound = .TRUE.
+      EXIT
+    END IF
+  END DO
+  IF(.NOT.NlocFound) CALL abort(__STAMP__,'Nloc not found in file')
+  SDEALLOCATE(Nloc_HDF5)
+  ALLOCATE(Nloc_HDF5(1:nElems))
+  ALLOCATE(ElemData(1:nVarAdd,1:nElems))
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+      nVarAdd     => INT(nVarAdd,IK)    ,&
+      offsetElem  => INT(offsetElem,IK) ,&
+      nElems      => INT(nElems,IK)     )
+    CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
+  END ASSOCIATE
+  Nloc_HDF5(1:nElems) = NINT(ElemData(iVar,1:nElems))
+  ALLOCATE(N_DG(1:nElems))
+  N_DG(1:nElems) = Nloc_HDF5(1:nElems)
+
+
+  ALLOCATE(N_DG_Mapping(3,nElems))
+  N_DG_Mapping = 0
+
+  ! Set Nloc in N_DG_Mapping
+  CALL Set_N_DG_Mapping(OffsetCounter)
+ELSE
+  CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
+END IF
 IF ( NodeType .NE. NodeType_State  ) THEN
   CALL CollectiveStop(__STAMP__,'Node Type of given state File is not applicable to compiled version')
 END IF
@@ -169,19 +234,19 @@ END IF
 
 ALLOCATE(VarNames_State(nVar_State))
 CALL ReadAttribute(File_ID,'VarNames',nVar_State,StrArray=VarNames_State)
-CALL GetDataSize(File_ID,'DG_Solution',nDim,HSize)
-IF (HSize(4) .EQ. 1) THEN
-  use2D=.TRUE.
-  N_StateZ=0
-  WRITE(UNIT_stdOut,'(A)') 'Provided states contain 2D-data, continue with two dimensional DMD'
-END IF
 CALL CloseDataFile()
 ! Set everything for output
 Time_State = starttime
 MeshFile = MeshFile_state
 !NOut = N_State
 nGlobalElems = nElems_State
-OffsetElem   = 0 ! OffsetElem is 0 since the tool only works on singel
+offsetElem   = 0 ! OffsetElem is 0 since the tool only works on single
+
+
+IF (nDim.EQ.2) THEN
+
+
+END IF ! nDim.EQ.2
 
 IF (.NOT. use2D) THEN
   nDoFs = (N_State+1)**3 * nElems_State
@@ -205,8 +270,37 @@ DO iFile = 2, nFiles+1
   CALL OpenDataFile(Args(iFile),create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
   offset=0
   CALL ReadAttribute(File_ID,'Time',    1,RealScalar=time)
-  CALL ReadArray('DG_Solution',5,&
-                (/nVar_State,N_State+1,N_State+1,N_StateZ+1,nElems_State/),0,5,RealArray=Utmp)
+  ! Get dimension of dataset
+  CALL GetDataSize(File_ID,'DG_Solution',nDims,HSize)
+  DEALLOCATE(HSize)
+  IF (nDims.EQ.2) THEN
+    ! Preparing U_N_2D_local array for reading DG_Solution
+    ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+    nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+    ! Get the offset based on the element-local polynomial degree
+    IF(offsetElem.GT.0) THEN
+      offsetDOF = N_DG_Mapping(1,1+offsetElem)
+    ELSE
+      offsetDOF = 0
+    END IF
+    ! Allocate local 2D array
+    ALLOCATE(U_N_2D_local(1:nVar_State,1:nDOF))
+    CALL ReadArray('DG_Solution',2,(/INT(nVar_State,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+
+    ! Read data from 2D array
+    iDOF = 0
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offsetElem)
+      IF(Nloc.NE.N_State) CALL abort(__STAMP__,'Nloc is not equal to N_State')
+      DO l=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        iDOF = iDOF + 1
+        Utmp(1:nVar_State,i,j,l,iElem) = U_N_2D_local(1:nVar_State,iDOF)
+      END DO; END DO; END DO
+    END DO
+    DEALLOCATE(U_N_2D_local)
+  ELSE
+    CALL ReadArray('DG_Solution',5,(/nVar_State,N_State+1,N_State+1,N_StateZ+1,nElems_State/),0,5,RealArray=Utmp)
+  END IF ! nDims.EQ.2
 
   CALL CloseDataFile()
 
@@ -277,6 +371,8 @@ TimeEnd_State = time
 !          END IF
 
 DEALLOCATE(Utmp)
+SDEALLOCATE(N_DG)
+ADEALLOCATE(N_DG_Mapping)
 
 END SUBROUTINE InitDMD
 
@@ -683,7 +779,6 @@ ELSE
   END DO ! i = 1, nModes
 END IF ! PlotSingleMode
 CALL CloseDataFile()
-
 
 !Write DMD spectrum to file
 FileUnit_DMD=155

@@ -28,6 +28,7 @@ PUBLIC::InitMesh
 PUBLIC::FinalizeMesh
 PUBLIC::GetMeshMinMaxBoundaries
 PUBLIC::DefineParametersMesh
+PUBLIC::Set_N_DG_Mapping
 
 INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
