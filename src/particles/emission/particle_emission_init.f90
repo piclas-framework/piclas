@@ -447,6 +447,12 @@ IF(UseEmissionDistribution.AND.(.NOT.DoRestart)) THEN
   CALL ReadUseEmissionDistribution()
 END IF
 
+#if drift_diffusion
+!-- Sanity check for drift-diffusion electron fluid model
+IF(.NOT.ANY(BGGas%BackgroundSpecies)) CALL CollectiveStop(__STAMP__,&
+  'ERROR: The drift-diffusion electron fluid model requires at least one species to be of type SpaceIC=background')
+#endif /*drift_diffusion*/
+
 END SUBROUTINE InitializeVariablesSpeciesInits
 
 

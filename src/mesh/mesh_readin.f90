@@ -61,6 +61,9 @@ SUBROUTINE ReadBCs()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: BoundaryName,BoundaryType,nBCs,nUserBCs
+#if USE_FV && USE_HDG
+USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
+#endif
 #if USE_HDG
 USE MOD_Mesh_Vars        ,ONLY: ChangedPeriodicBC
 #endif /*USE_HDG*/
@@ -80,6 +83,9 @@ LOGICAL,ALLOCATABLE            :: UserBCFound(:)
 LOGICAL                        :: NameCheck,LengthCheck
 CHARACTER(LEN=255),ALLOCATABLE :: BCNames(:)
 INTEGER, ALLOCATABLE           :: BCMapping(:),BCType(:,:)
+#if USE_FV && USE_HDG
+INTEGER, ALLOCATABLE           :: BCType_FV(:,:)
+#endif
 INTEGER                        :: iBC,iUserBC,OriginalBC,NewBC
 INTEGER                        :: Offset=0 ! Every process reads all BCs
 !===================================================================================================================================
@@ -88,9 +94,15 @@ nUserBCs = CountOption('BoundaryName')
 IF(nUserBCs.GT.0)THEN
   ALLOCATE(BoundaryName(1:nUserBCs))
   ALLOCATE(BoundaryType(1:nUserBCs,2))
+#if USE_FV && USE_HDG
+  ALLOCATE(BoundaryType_FV(1:nUserBCs,2))
+#endif
   DO iBC=1,nUserBCs
     BoundaryName(iBC)   = GETSTR('BoundaryName')
     BoundaryType(iBC,:) = GETINTARRAY('BoundaryType',2) !(/Type,State/)
+#if USE_FV && USE_HDG
+    BoundaryType_FV(iBC,:) = GETINTARRAY('BoundaryType-FV',2) !(/Type,State/)
+#endif
   END DO
 END IF !nUserBCs>0
 
@@ -138,6 +150,9 @@ CALL GetDataSize(File_ID,'BCType',nDims,HSize)
 IF((HSize(1).NE.4).OR.(HSize(2).NE.nBCs)) STOP 'Problem in readBC'
 DEALLOCATE(HSize)
 ALLOCATE(BCType(4,nBCs))
+#if USE_FV && USE_HDG
+ALLOCATE(BCType_FV(2,nBCs))
+#endif
 offset=0
 
 ! Associate construct for integer KIND=8 possibility
@@ -171,6 +186,12 @@ IF(nUserBCs .GT. 0)THEN
                                       ' was ', NewBC,BCType(3,iBC), ' is set to ',BoundaryType(BCMapping(iBC),1:2)
       BCType(1,iBC) = BoundaryType(BCMapping(iBC),BC_TYPE)
       BCType(3,iBC) = BoundaryType(BCMapping(iBC),BC_STATE)
+#if USE_FV && USE_HDG
+      LBWRITE(Unit_StdOut,'(A,A50,A,I4,I4,A,I4,I4)') ' |     Boundary in HDF file found |  ',TRIM(BCNames(iBC)), &
+                                      ' was ', NewBC,BCType(3,iBC), ' is set for FV to ',BoundaryType_FV(BCMapping(iBC),1:2)
+      BCType_FV(1,iBC) = BoundaryType_FV(BCMapping(iBC),BC_TYPE)
+      BCType_FV(2,iBC) = BoundaryType_FV(BCMapping(iBC),BC_STATE)
+#endif
     END IF
   END DO
 END IF
@@ -182,6 +203,13 @@ BoundaryName = BCNames
 BoundaryType(:,BC_TYPE)  = BCType(1,:)
 BoundaryType(:,BC_STATE) = BCType(3,:)
 BoundaryType(:,BC_ALPHA) = BCType(4,:)
+#if USE_FV && USE_HDG
+IF(ALLOCATED(BoundaryType_FV)) DEALLOCATE(BoundaryType_FV)
+ALLOCATE(BoundaryType_FV(nBCs,2))
+BoundaryType_FV(:,BC_TYPE)  = BCType_FV(1,:)
+BoundaryType_FV(:,BC_STATE) = BCType_FV(2,:)
+DEALLOCATE(BCType_FV)
+#endif
 LBWRITE(UNIT_StdOut,'(132("."))')
 LBWRITE(Unit_StdOut,'(A,A15,A20,A10,A10,A10)')' BOUNDARY CONDITIONS','|','Name','Type','State','Alpha'
 DO iBC=1,nBCs
@@ -499,7 +527,6 @@ DO iElem=FirstElemInd,LastElemInd
     ! ALLOCATE MORTAR
     ElemID=SideInfo(SIDE_NBELEMID,iSide) !IF nbElemID <0, this marks a mortar master side.
                                          ! The number (-1,-2,-3) is the Type of mortar
-
 #if USE_HDG
     ! AXISYMMETRIC HDG
     IF(Symmetry%Axisymmetric) THEN
@@ -516,6 +543,10 @@ DO iElem=FirstElemInd,LastElemInd
 #endif /*USE_HDG*/
 
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
+#if USE_FV
+      CALL Abort(__STAMP__, &
+        "Mortars not implemented for finite volumes")
+#endif /*USE_FV*/
       aSide%MortarType=ABS(ElemID)
       SELECT CASE(aSide%MortarType)
       CASE(1)
@@ -733,7 +764,11 @@ DO iElem=FirstElemInd,LastElemInd
 END DO !iElem
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+#if PP_dim == 3
   DO iLocSide=1,6
+#else
+  DO iLocSide=2,5
+#endif
     aSide=>aElem%Side(iLocSide)%sp
     nMortars=aSide%nMortars
     DO iMortar=0,nMortars

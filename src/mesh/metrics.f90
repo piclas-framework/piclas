@@ -55,14 +55,6 @@ INTERFACE BuildCoords
   MODULE PROCEDURE BuildCoords
 END INTERFACE
 
-INTERFACE CalcMetrics
-  MODULE PROCEDURE CalcMetrics
-END INTERFACE
-
-INTERFACE CalcSurfMetrics
-  MODULE PROCEDURE CalcSurfMetrics
-END INTERFACE
-
 INTERFACE SurfMetricsFromJa
   MODULE PROCEDURE SurfMetricsFromJa
 END INTERFACE
@@ -116,7 +108,6 @@ DO iElem=1,nElems
 END DO
 
 END SUBROUTINE BuildCoords
-
 
 SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
 !===================================================================================================================================
@@ -204,6 +195,7 @@ Metrics_hTilde=0.
 ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
 meshCheckRef=GETLOGICAL('meshCheckRef','.TRUE.')
 
+SDEALLOCATE(DetJac_Ref)
 ALLOCATE(    DetJac_Ref(1,0:NGeoRef,0:NGeoRef,0:NGeoRef,nElems))
 
 ! Initialize min/max coordinates on faces (but not during load balance restart)
@@ -426,7 +418,7 @@ LBWRITE (*,'(A,ES18.10E3,A,I0,A,ES13.5E3)') " Smallest scaled Jacobian in refere
     " (",nGlobalElems," global elements). Abort threshold is set to:", scaledJacRefTol
 
 GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, 'Calculation of metrics took!', DisplayLine=.FALSE.)
+CALL DisplayMessageAndTime(EndT-StartT, 'Calculation of PP_N metrics took ', DisplayLine=.FALSE.)
 
 END SUBROUTINE CalcMetrics
 
@@ -463,7 +455,11 @@ REAL               :: tmp(        3,0:PP_N,0:PP_N)
 REAL               :: tmp2(       3,0:PP_N,0:PP_N)
 !==================================================================================================================================
 
+#if PP_dim == 3
 DO iLocSide=1,6
+#else
+DO iLocSide=2,5
+#endif
   IF(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) CYCLE ! only master sides with flip=0
   SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
 
@@ -580,11 +576,13 @@ REAL,INTENT(OUT)   ::  SurfElem(  0:Nloc,0:Nloc) !< element face surface area
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: p,q
+CHARACTER(32)      :: hilf
 !==================================================================================================================================
+WRITE(UNIT=hilf,FMT='(I0)') Nloc
 DO q=0,Nloc; DO p=0,Nloc
   SurfElem(p,q) = SUM(Ja_Face(NormalDir,:,p,q)**2)
   IF(SurfElem(p,q).LT.0.)THEN
-    CALL abort(__STAMP__,'SurfElem(p,q).LT.0.',RealInfoOpt=SurfElem(p,q))
+    CALL abort(__STAMP__,'Nloc='//TRIM(hilf)//': SurfElem(p,q).LT.0.',RealInfoOpt=SurfElem(p,q))
 #if USE_HDG
   ELSEIF(Symmetry%Axisymmetric.AND.(SurfElem(p,q).EQ.0.))THEN
     NormVec( :,p,q) = (/0.,-1., 0./)
@@ -592,7 +590,8 @@ DO q=0,Nloc; DO p=0,Nloc
     TangVec2(:,p,q) = (/0., 0., 1./)
 #endif /*USE_HDG*/
   ELSE
-    IF(ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
+    IF(Nloc.GT.0.AND.ABS(SurfElem(p,q)).LE.0.0) CALL abort(__STAMP__,'Nloc='//TRIM(hilf)//&
+      ': SUM(Ja_Face(NormalDir,:,p,q)**2) <= 0',RealInfoOpt=SurfElem(p,q))
     SurfElem(  p,q) = SQRT(SurfElem(p,q))
     NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
     TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) * NormVec(:,p,q)

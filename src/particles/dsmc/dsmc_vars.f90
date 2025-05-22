@@ -370,9 +370,18 @@ TYPE tBGGas
   LOGICAL                       :: UseRegions               ! Flag for the definition of different background gas regions (set after read-in)
   INTEGER, ALLOCATABLE          :: RegionElemType(:)        ! 0: outside, positive integers: inside region number
   TYPE(tRegion), ALLOCATABLE    :: Region(:)                ! Type for the geometry definition of the different regions [1:nRegions]
+  CHARACTER(LEN=64)                         :: DatabaseName                     ! Database name from which to coefficients where calculated
+                                                                                ! , required for SpeciesDatabase
+  REAL, ALLOCATABLE                         :: ElectronMobility(:,:) ! first column: Reduced electric field (Td) 
+                                                                    ! second column: Electron Mobility mu (UNIT)
+  REAL, ALLOCATABLE                         :: DriftDiffusionCoefficient(:,:) ! first column: Reduced electric field (Td)
+                                                                              ! second column: drift diffusion coefficient D (UNIT)
+  REAL, ALLOCATABLE                         :: ReducedTownsendCoefficient(:,:) ! first column: Reduced electric field (Td)
+                                                                              ! second column: Reduced Townsend coefficient (alpha/N) in m^2
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
+
 
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair

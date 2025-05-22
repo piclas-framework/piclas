@@ -76,7 +76,7 @@ SUBROUTINE InitInterfaces
 ! MODULES
 USE MOD_globals
 USE MOD_Mesh_Vars        ,ONLY: nSides,Face_xGP,NGeo,MortarType
-#if ! (USE_HDG)
+#if ! (USE_HDG) && !(USE_FV)
 USE MOD_PML_vars         ,ONLY: DoPML,isPMLFace
 #endif /*NOT HDG*/
 USE MOD_Dielectric_vars  ,ONLY: DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
@@ -105,7 +105,7 @@ ALLOCATE(InterfaceRiemann(1:nSides))
 DO SideID=1,nSides
   InterfaceRiemann(SideID)=-2 ! set default to invalid number: check later
   ! 0.) Sanity: It is forbidden to connect a PML to a dielectric region because it is not implemented!
-#if !(USE_HDG) /*pure Maxwell simulations*/
+#if !(USE_HDG) && !(USE_FV) /*pure Maxwell simulations*/
   IF(DoPML.AND.DoDielectric)THEN
     IF(isPMLFace(SideID).AND.isDielectricFace(SideID)) CALL abort(__STAMP__,&
         'It is forbidden to connect a PML to a dielectric region! (Not implemented)')
@@ -195,9 +195,9 @@ END DO ! SideID
 ! Check if all sides have correctly been set
 DO SideID=1,nSides
   IF(InterfaceRiemann(SideID).EQ.-2)THEN ! check if the default value remains unchanged
-#if !(USE_HDG) /*pure Maxwell simulations*/
+#if !(USE_HDG) && !(USE_FV) /*pure Maxwell simulations*/
     IPWRITE(UNIT_StdOut,*) "DoPML                          = ", DoPML
-#endif /*NOT HDG*/
+#endif /*NOT HDG or FV*/
     IPWRITE(UNIT_StdOut,*) "DoDielectric                   = ", DoDielectric
     IPWRITE(UNIT_StdOut,*) "SideID                         = ", SideID
     IPWRITE(UNIT_StdOut,*) "MortarType(1,SideID)           = ", MortarType(1,SideID)

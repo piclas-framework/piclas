@@ -70,7 +70,9 @@ PUBLIC :: WriteAdaptiveInfoToHDF5
 PUBLIC :: WriteAdaptiveWallTempToHDF5
 PUBLIC :: WriteVibProbInfoToHDF5
 PUBLIC :: WriteClonesToHDF5
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: WriteElectroMagneticPICFieldToHDF5
+#endif
 PUBLIC :: WriteEmissionVariablesToHDF5
 PUBLIC :: FillParticleData
 !===================================================================================================================================
@@ -574,7 +576,14 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_PreProc
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Boundary_Vars ,ONLY: PartStateBoundary,PartStateBoundaryVecLength,nVarPartStateBoundary
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
@@ -616,9 +625,14 @@ CALL GenerateFileSkeleton('PartStateBoundary',3,StrVarNames,MeshFileName,OutputT
 #else
 CALL GenerateFileSkeleton('PartStateBoundary',7,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif
+#elif defined(discrete_velocity)
+CALL GenerateFileSkeleton('PartStateBoundary',15,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
+#elif USE_FV
+CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
 #else
 CALL GenerateFileSkeleton('PartStateBoundary',PP_nVar,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif /*USE_HDG*/
+
 ! generate nextfile info in previous output file
 IF(PRESENT(PreviousTime))THEN
   PreviousFileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_PartStateBoundary',PreviousTime))//'.h5'
@@ -788,7 +802,14 @@ USE MOD_Globals
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems, offsetElem
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength,NbrOfLostParticles
 USE MOD_Particle_Tracking_Vars ,ONLY: TotalNbrOfMissingParticlesSum
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart2
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -820,6 +841,10 @@ CALL GenerateFileSkeleton('PartStateLost',3,StrVarNames,MeshFileName,OutputTime,
 #else
 CALL GenerateFileSkeleton('PartStateLost',7,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif
+#elif defined(discrete_velocity)
+CALL GenerateFileSkeleton('PartStateLost',15,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
+#elif USE_FV
+CALL GenerateFileSkeleton('PartStateLost',PP_nVar_FV,StrVarNames_FV,MeshFileName,OutputTime,FileNameOut=FileName)
 #else
 CALL GenerateFileSkeleton('PartStateLost',PP_nVar,StrVarNames,MeshFileName,OutputTime,FileNameOut=FileName)
 #endif /*USE_HDG*/
@@ -1570,7 +1595,7 @@ DEALLOCATE(PartData)
 
 END SUBROUTINE WriteClonesToHDF5
 
-
+#if !(USE_FV) || (USE_HDG)
 !===================================================================================================================================
 !> Store the magnetic filed acting on particles at each DOF for all elements to .h5
 !===================================================================================================================================
@@ -1676,7 +1701,7 @@ GETTIME(EndT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
-
+#endif
 
 !===================================================================================================================================
 !> Write particle emission variables from state.h5

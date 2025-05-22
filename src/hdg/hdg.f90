@@ -250,7 +250,7 @@ DO SideID=1,nBCSides
   SELECT CASE(BCType)
   CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
-  CASE(10,11) ! Neumann
+  CASE(10,11,12) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
@@ -309,7 +309,7 @@ DO SideID=1,nBCSides
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=1
-  CASE(10,11) !Neumann,
+  CASE(10,11,12) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
@@ -1614,7 +1614,7 @@ INTEGER :: iUniqueEPCBC
 #if (USE_HDG && (PP_nVar==1))
 INTEGER           :: iDir,iElem
 #endif /*(USE_HDG && (PP_nVar==1))*/
-REAL              :: maxphi
+! REAL              :: maxphi
 #if USE_MPI
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -1900,6 +1900,12 @@ DO iVar = 1, PP_nVar
       DO q=0,PP_N; DO p=0,PP_N
         r=q*(PP_N+1) + p+1
         qn_face(iVar,r,BCSideID)=SUM((/1.,1.,1./)  &
+                            *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
+      END DO; END DO !p,q
+    CASE(12) !neumann q*n=1 !test
+      DO q=0,PP_N; DO p=0,PP_N
+        r=q*(PP_N+1) + p+1
+        qn_face(iVar,r,BCSideID)=SUM((/-1.45e7,1.,1./)  &
                             *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
       END DO; END DO !p,q
     END SELECT ! BCType
@@ -2332,6 +2338,12 @@ DO BCsideID=1,nNeumannBCSides
     DO q=0,PP_N; DO p=0,PP_N
       r=q*(PP_N+1) + p+1
       qn_face(PP_nVar,r,BCSideID)=SUM((/1.,1.,1./)  &
+                          *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
+    END DO; END DO !p,q
+  CASE(12) !neumann q*n=1 !test
+    DO q=0,PP_N; DO p=0,PP_N
+      r=q*(PP_N+1) + p+1
+      qn_face(PP_nVar,r,BCSideID)=SUM((/-1.45e7,1.,1./)  &
                           *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
     END DO; END DO !p,q
   END SELECT ! BCType

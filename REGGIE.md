@@ -19,6 +19,7 @@ Overview of the test cases performed after a commit.
 |    6    |            CHE_PIC_maxwell_implicitBC            |               maxwell,PIC,ImplicitO4               |                                                                                     Implicit reflective particle BC                                                                                      |    nProcs=1    | Particle Position |                                                                                     |
 |    7    |            [CHE_BGK](#che_bgkfpflow)             |                      BGK-Flow                      |                                                                                                                                                                                                          |                |                   |                                                                                     |
 |    8    |           [CHE_FPFlow](#che_bgkfpflow)           |                      FP-Flow                       |                                                                                                                                                                                                          |                |                   |                                                                                     |
+| 9    | [CHE_DVM](#che_dvm) |  discrete_velocity   |   |  |  |  |
 
 
 #### CHE_PIC_maxwell_RK4
@@ -92,6 +93,13 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 |         |         RELAX_CH4         |                  |                               CH4: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_CH4/readme.md)         |
 |         |         RELAX_N2          |                  |                                N2: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_N2/readme.md)          |
 
+#### CHE_DVM
+
+| **No.** |         **Case**          | **CMAKE-CONFIG** |                                                       **Feature**                                                       | **Execution** |       **Comparing**        |                             **Readme**                              |
+| :-----: | :-----------------------: | :--------------: | :---------------------------------------------------------------------------------------------------------------------: | :-----------: | :------------------------: | :-----------------------------------------------------------------: |
+| 1    | heatflux_relax |     |  nDim=1,2,3, EDDVM/DUGKS, (cons)ESBGK/Shakhov/G13BGK | nProcs=1 | final L2 error norm | [Link](regressioncheck/CHE_DVM/heatflux_relax/readme.md) |
+| 2    | Sod_shock |     |  EDDVM/DUGKS, (cons)ESBGK/Shakhov/SNBGK/G13BGK, minmax/Venkatakrishnan limiter | nProcs=1,2,7 | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock/readme.md) |
+| 3    | Sod_shock_restart |     |  DVM macro restart | nProcs=1,3 | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock_restart/readme.md) |
 
 
 ## Nightly
@@ -114,6 +122,8 @@ Overview of the test cases performed during the nightly regression testing.
 |    -    |                 [NIG_poisson](#nig_poisson)                  |     Poisson, Code Analyze=ON, PARTICLES=OFF     |                               Poisson solver without particles                               |                                             |                                |                                                                                                |
 |    -    |           [NIG_poisson_PETSC](#NIG_poisson_PETSC)            | Poisson, PETSC, Code Analyze=ON, PARTICLES=OFF  |                     Poisson solver without particles, with PETSC library                     |                                             |                                |                                                                                                |
 |    -    |         [NIG_Photoionization](#nig_photoionization)          |            Poisson, Code Analyze=ON             |        Photoionization of H2 and secondary electron emission and initial load balance        |                                             |                                |                                                                                                |
+|    -    |               [NIG_DVM](#nig_dvm)                |                    discrete_velocity                    |      DVM      |                                             |                                |                                                                                                |
+|    -    |               [NIG_convtest_DVM](#nig_convtest_dvm)                |                    discrete_velocity                    |      Spatio-temporal order of convergence for DVM      |                                             |                                |                                                                                                |
 |    -    |               [NIG_Radiation](#nig_radiation)                |                    Radiation                    |      Radiation timedisc, cell-local emission and radiative transfer (2D rot sym and 3D)      |                                             |                                |                                                                                                |
 |    1    |                   NIG_PIC_maxwell_bgfield                    |                 maxwell,PIC,RK4                 |                                 External Background-field,h5                                 |                  nProcs=2                   |          DG_Solution           |                                                                                                |
 |    2    |                 NIG_PIC_poisson_powerdensity                 |             Poisson, Crank-Nicolson             |                                    Implicit, CalcTimeAvg                                     |         DoRefMapping=T/F, nProcs=2          |     Final TimeAvg, h5diff      |                                                                                                |
@@ -467,6 +477,21 @@ Test all features of radiation timedisc (cell-local emission using the radiation
 |    3    |   RadTrans_Cylinder_2D    |                  | Radiation: two-dimensional rotationally symmetric radiative transfer (semi-infinite cylinder with with a homogeneous medium emitting blackbody radiation) | nProcs= 1,2,3,6 | divergence of the heatflux |   [Link](regressioncheck/NIG_Radiation/RadTrans_Cylinder_2D/readme.md)    |
 |    4    |   RadTrans_Cylinder_3D    |                  |           Radiation: three-dimensional radiative transfer (semi-infinite cylinder with with a homogeneous medium emitting blackbody radiation)            | nProcs= 1,2,3,6 | divergence of the heatflux |   [Link](regressioncheck/NIG_Radiation/RadTrans_Cylinder_3D/readme.md)    |
 
+### NIG_DVM
+
+Test discrete velocity method: [Link to build](regressioncheck/NIG_DVM/builds.ini).
+
+| **No.** |         **Case**          | **CMAKE-CONFIG** |                                                                        **Feature**                                                                        |  **Execution**  |       **Comparing**        |                                **Readme**                                 |
+| :-----: | :-----------------------: | :--------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------: | :------------------------: | :-----------------------------------------------------------------------: |
+| 1    | Poiseuille_flow_force |     |  Force-driven Poiseuille flow | nProcs=10 | L2 error | [Link](regressioncheck/NIG_DVM/Poiseuille_flow_force/readme.md) |
+
+### NIG_convtest_DVM
+
+Test discrete velocity method: [Link to build](regressioncheck/NIG_convtest_DVM/builds.ini).
+
+| **No.** |         **Case**          | **CMAKE-CONFIG** |                                                                        **Feature**                                                                        |  **Execution**  |       **Comparing**        |                                **Readme**                                 |
+| :-----: | :-----------------------: | :--------------: | :-------------------------------------------------------------------------------------------------------------------------------------------------------: | :-------------: | :------------------------: | :-----------------------------------------------------------------------: |
+| 1    | Poiseuille_flow_force |     |  Force-driven Poiseuille flow | nProcs=4 | Spatio-temporal convergence order | [Link](regressioncheck/NIG_convtest_DVM/Poiseuille_flow_force/readme.md) |
 
 ## Weekly
 
@@ -510,3 +535,4 @@ Overview of the test cases performed every week.
 |                    Flow_N2_70degCone                    |        [FP](regressioncheck/WEK_FPFlow/builds.ini)        | 2D axisymmetric 70 degree cone                                                                                                                                                               |           nProcs=6            | Surface Sampling, includes CalcSurfaceImpact                                       |                    [Link](regressioncheck/WEK_DSMC/Flow_N2_70degCone/readme.md)                    |
 |                 Flow_N2-N_70degConeHot                  |        [DSMC](regressioncheck/WEK_DSMC/builds.ini)        | 2D axisymmetric 70 degree cone (hotter and with N to get some radiation in the next step)                                                                                                    |           nProcs=6            | Surface Sampling                                                                   |                 [Link](regressioncheck/WEK_DSMC/Flow_N2-N_70degConeHot/readme.md)                  |
 |                 Flow_N2-N_70degConeHot                  |   [Radiation](regressioncheck/WEK_Radiation/builds.ini)   | using previously simulated WEK_DSMC/Flow_N2_70degCone results to check radiation tool chain (write out DSMC results, readin those results, radiation solver, radiative transfer, piclas2vtk) |           nProcs=6            | Surface heat flux                                                                  |               [Link](regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/readme.md)               |
+|                 lid_driven_cavity                       |   [DVM](regressioncheck/WEK_DVM/builds.ini)               |  Discrete velocity on 2D mesh                                                                                                                                                                |           nProcs=10           |                                                                                    |                      [Link](regressioncheck/WEK_DVMlid_driven_cavity/readme.md)                    |

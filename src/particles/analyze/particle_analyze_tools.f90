@@ -63,7 +63,9 @@ PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==4)
 PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==4)*/
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: CalcPowerDensity
+#endif /*FV*/
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
@@ -419,8 +421,10 @@ IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 ! plasma frequency
 IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
 
+#if !(USE_FV) || (USE_HDG)
 ! Cyclotron frequency
 IF(CalcCyclotronFrequency) CALL CalculateCyclotronFrequencyAndRadiusCell()
+#endif
 
 ! PIC time step for gyro motion (cyclotron frequency)
 IF(CalcPICTimeStepCyclotron) CALL CalculatePICTimeStepCyclotron()
@@ -500,6 +504,9 @@ USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid
 USE MOD_PIC_Analyze           ,ONLY: CalculateBRElectronsPerCell
 #endif /*USE_HDG*/
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+#if drift_diffusion
+USE MOD_FV_Vars               ,ONLY: U_FV
+#endif /*drift_diffusion*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -566,7 +573,13 @@ END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
+#if drift_diffusion
+  ElectronDensityCell(iElem)=U_FV(1,0,0,0,iElem)
+  ! Sort out crazy small numbers (they crash piclas2vtk later when trying to convert .h5 to .vtu)
+  IF(ElectronDensityCell(iElem).LT.1e-10) ElectronDensityCell(iElem) = 0.
+#else
   ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+#endif /*drift_diffusion*/
        IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
    NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 END DO ! iElem=1,PP_nElems
@@ -941,7 +954,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
@@ -963,7 +976,7 @@ IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -1005,7 +1018,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -1053,7 +1066,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpec
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
@@ -1079,7 +1092,7 @@ IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -1124,7 +1137,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -2896,7 +2909,7 @@ ChemReac%ReacCollMean = 0.0
 END SUBROUTINE ReacRates
 #endif
 
-
+#if !(USE_FV) || (USE_HDG)
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! Used to average the source terms per species
@@ -2992,7 +3005,7 @@ DO iSpec=1,nSpecies
 END DO
 
 END SUBROUTINE CalcPowerDensity
-
+#endif
 
 SUBROUTINE CalculatePlasmaFrequencyCell()
 !===================================================================================================================================
@@ -3027,7 +3040,7 @@ END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePlasmaFrequencyCell
 
-
+#if !(USE_FV) || (USE_HDG)
 SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !===================================================================================================================================
 ! Determine the (relativistic) electron cyclotron frequency in each cell, which can be calculate without electrons present in the
@@ -3177,7 +3190,7 @@ ASSOCIATE( e   => ElementaryCharge,&
 END ASSOCIATE
 
 END SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell
-
+#endif
 
 SUBROUTINE CalculatePICTimeStepCyclotron()
 !===================================================================================================================================

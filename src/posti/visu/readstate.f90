@@ -27,14 +27,17 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
+#if !(USE_FV) || (USE_HDG)
 INTERFACE ReadState
   MODULE PROCEDURE ReadState
 END INTERFACE
 
 PUBLIC:: ReadState
+#endif
 
 CONTAINS
 
+#if !(USE_FV) || (USE_HDG)
 !===================================================================================================================================
 !> This routine will read in the current state from the statefile. Will call one of two routines: ReadStateWithoutGradients if no
 !> gradients have to be visualized or calculated and so no DG operator call is necessary, or ReadStateAndGradients if gradients
@@ -156,5 +159,6 @@ CALL CloseDataFile()
 
 CALL FinalizeParameters()
 END SUBROUTINE ReadStateWithoutGradients
+#endif /*no FV alone*/
 
 END MODULE MOD_Posti_ReadState

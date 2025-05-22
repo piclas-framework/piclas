@@ -44,7 +44,12 @@ SUBROUTINE FieldRestart()
 ! USED MODULES
 USE MOD_Globals
 USE MOD_PreProc
+#if USE_FV
+USE MOD_FV_Vars                ,ONLY: U_FV
+#endif
+#if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
+#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -81,7 +86,7 @@ USE MOD_Equation_Tools         ,ONLY: SynchronizeCPP
 USE MOD_HDG                    ,ONLY: SynchronizeBV
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
-USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide,nElems
+USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
 USE MOD_LoadBalance_Vars       ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
 USE MOD_HDG_Vars               ,ONLY: lambdaLB
@@ -95,16 +100,24 @@ USE MOD_HDG_Vars               ,ONLY: UseFPC
 USE PETSc
 USE MOD_HDG_Vars_PETSc         ,ONLY: lambda_petsc,PETScGlobal,PETScLocalToSideID,nPETScUniqueSides
 #endif
+#if USE_LOADBALANCE && USE_FV
+USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*USE_LOADBALANCE+FV*/
 #else /*USE_HDG*/
 ! Non-HDG stuff
+#if !(USE_FV)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,U2,nPMLElems,PMLnVar
+#endif /*USE_FV*/
 USE MOD_Restart_Vars           ,ONLY: Vdm_GaussNRestart_GaussN
 #if USE_LOADBALANCE
-USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
-USE MOD_Mesh_Vars              ,ONLY: OffsetElem
+#ifdef discrete_velocity /*DVM*/
+USE MOD_DistFunc               ,ONLY: GradDistribution
+#endif
+USE MOD_Mesh_Vars              ,ONLY: OffsetElem,nElems
+
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -132,18 +145,21 @@ INTEGER                            :: NonUniqueGlobalSideID
 INTEGER                            :: PETScLocalID
 PetscErrorCode                     :: ierr
 #endif
+#if USE_FV && USE_LOADBALANCE
+REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif
 #else /*USE_HDG*/
 INTEGER                            :: iElem
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE || defined(discrete_velocity)
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE || defined(discrete_velocity)*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
 INTEGER                            :: iPML
 INTEGER(KIND=IK)                   :: PMLnVarTmp
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
-#if defined(PARTICLES) || !(USE_HDG)
+#if defined(PARTICLES) || !(USE_HDG) || (USE_FV)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1)
@@ -274,7 +290,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   lambda=0.
 #endif /*defined(PARTICLES)*/
 
-#else /*USE_HDG*/
+#elif !(USE_FV) /*!USE_HDG*/
   ! Only required for time discs where U is allocated
   IF(ALLOCATED(U))THEN
     ALLOCATE(UTmp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,nElems))
@@ -295,6 +311,24 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     CALL MOVE_ALLOC(UTmp,U)
   END IF ! ALLOCATED(U)
 #endif /*USE_HDG*/
+#if USE_FV
+  ALLOCATE(UTmp(PP_nVar_FV,0:0,0:0,0:0,nElems))
+  ASSOCIATE (&
+          counts_send  => (INT(MPInElemSend     )) ,&
+          disp_send    => (INT(MPIoffsetElemSend)) ,&
+          counts_recv  => (INT(MPInElemRecv     )) ,&
+          disp_recv    => (INT(MPIoffsetElemRecv)))
+    ! Communicate PartInt over MPI
+    MPI_LENGTH       = PP_nVar_FV
+    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+    MPI_TYPE         = MPI_DOUBLE_PRECISION
+    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+    CALL MPI_ALLTOALLV(U_FV,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
+  END ASSOCIATE
+  CALL MOVE_ALLOC(UTmp,U_FV)
+#endif /*FV*/
 
   ! ! PML is not sorted along SFC, normal restart
   ! ! > PP_N always matches during loadbalance
@@ -317,7 +351,7 @@ ELSE ! normal restart
   PP_nVarTmp    = INT(PP_nVar,IK)
   PP_nElemsTmp  = INT(PP_nElems,IK)
   N_RestartTmp  = INT(N_Restart,IK)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   PMLnVarTmp    = INT(PMLnVar,IK)
 #endif /*not USE_HDG*/
   ! ===========================================================================
@@ -442,7 +476,7 @@ ELSE ! normal restart
         lambda=0.
       END IF
 
-#else /*not PP_POIS or HDG*/
+#elif !(USE_FV)
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_NTmp+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
       IF(DoPML)THEN
         ALLOCATE(U_local(PMLnVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
@@ -454,6 +488,7 @@ ELSE ! normal restart
         DEALLOCATE(U_local)
       END IF ! DoPML
 #endif
+
       !CALL ReadState(RestartFile,PP_nVar,PP_N,PP_nElems,U)
     ELSE! We need to interpolate the solution to the new computational grid
       SWRITE(UNIT_stdOut,*)'Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
@@ -500,7 +535,7 @@ ELSE ! normal restart
       !    END DO
       !    DEALLOCATE(U_local)
       !CALL RestartHDG(U)
-#else
+#elif !(USE_FV)
       ALLOCATE(U_local(PP_nVar,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
       CALL ReadArray('DG_Solution',5,(/PP_nVarTmp,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
           OffsetElemTmp,5,RealArray=U_local)
@@ -524,6 +559,23 @@ ELSE ! normal restart
 #endif
       SWRITE(UNIT_stdOut,*)' DONE!'
     END IF ! IF(.NOT. InterpolateSolution)
+
+#ifdef discrete_velocity
+    SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
+    ALLOCATE(UTmp(15,0:0,0:0,0:0,nElems))
+    UTmp=0.
+    CALL ReadArray('DVM_Solution',5,(/15,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Utmp)
+    DO iElem=1,nElems
+      Utmp(6:8,0,0,0,iElem)=Utmp(6:8,0,0,0,iElem)-SUM(Utmp(6:8,0,0,0,iElem))/3. ! traceless pressure tensor for Grad dist
+      CALL GradDistribution(Utmp(1:14,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+    END DO
+    DEALLOCATE(UTmp)
+#endif
+#ifdef drift_diffusion
+    SWRITE(UNIT_stdOut,*)'Performing Drift Diffusion restart'
+    CALL ReadArray('DriftDiffusion_Solution',5,(/PP_nVar_FV,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U_FV)
+#endif
+
   END IF ! IF(.NOT. RestartNullifySolution)
   CALL CloseDataFile()
 
