@@ -1472,10 +1472,10 @@ CALL BARRIER_AND_SYNC(ElemBaryNGeo_Shared_Win,MPI_COMM_SHARED)
 END SUBROUTINE BuildElementOriginShared
 
 
+!================================================================================================================================
+!> Build mapping from global element to the compute node offset based on the degrees of freedom in N_DG_Mapping(3,globElemID) = offSetDOFNode
+!================================================================================================================================
 SUBROUTINE BuildElemDofNodeMapping()
-!================================================================================================================================
-! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
-!================================================================================================================================
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
@@ -1523,26 +1523,26 @@ DO iElem = firstElem,lastElem
 END DO ! iElem = firstElem, lastElem
 
 #if USE_MPI
-  sendbuf = OffsetCounter
-  recvbuf = 0
-  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
-  OffsetN_DG_Mapping   = recvbuf
-  ! last proc knows CN total number of connected CN elements
-  sendbuf = OffsetN_DG_Mapping + OffsetCounter
-  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
-  nDofsMappingNode = sendbuf
+sendbuf = OffsetCounter
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+OffsetN_DG_Mapping   = recvbuf
+! last proc knows CN total number of connected CN elements
+sendbuf = OffsetN_DG_Mapping + OffsetCounter
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nDofsMappingNode = sendbuf
 
-  DO iElem=firstElem,lastElem
-    globElemID = GetGlobalElemID(iELem)
-    N_DG_Mapping(3,globElemID) = N_DG_Mapping(3,globElemID) + OffsetN_DG_Mapping
-  END DO
-  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+DO iElem=firstElem,lastElem
+  globElemID = GetGlobalElemID(iELem)
+  N_DG_Mapping(3,globElemID) = N_DG_Mapping(3,globElemID) + OffsetN_DG_Mapping
+END DO
+CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
 #else
-  nDofsMappingNode = OffsetCounter
+nDofsMappingNode = OffsetCounter
 #endif /*USE_MPI*/
 
-
 END SUBROUTINE BuildElemDofNodeMapping
+
 
 SUBROUTINE BuildElementBasisAndRadius()
 !================================================================================================================================

@@ -55,12 +55,12 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars       ,ONLY: N_Restart,RestartFile,RestartNullifySolution
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D,ChangeBasis2D
-USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize
+USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize,nDims,HSize
 USE MOD_HDF5_Input         ,ONLY: DatasetExists
 USE MOD_HDF5_Output        ,ONLY: FlushHDF5
 USE MOD_Interpolation_Vars ,ONLY: NMax,N_Inter,PREF_VDM
 USE MOD_DG_Vars            ,ONLY: U_N
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,Nloc_HDF5
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 #if defined(PARTICLES)
 USE MOD_Particle_Restart   ,ONLY: ParticleRestart
@@ -124,12 +124,12 @@ IMPLICIT NONE
 INTEGER                            :: Nres,iElem
 INTEGER(KIND=IK)                   :: Nres8,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
+LOGICAL                            :: DG_SolutionExists
 #if USE_LOADBALANCE
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 #endif /*USE_LOADBALANCE*/
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionPhiFExists
-LOGICAL                            :: DG_SolutionExists
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar,nVarVDL
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
@@ -169,7 +169,8 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
-INTEGER                            :: Nloc
+INTEGER                            :: Nloc, iDOF, nDOF, offsetDOF
+REAL,ALLOCATABLE                   :: U_N_2D_local(:,:)
 !===================================================================================================================================
 
 ! ===========================================================================
@@ -403,7 +404,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
           END DO
         END DO
       END DO
-    END DO ! iElem = 1, PP_nElems
+    END DO ! iElem = 1, nElems
     DEALLOCATE(U)
     ! Recompute initial value of PhiF on the surface from PhiF in the volume which has been exchanged via MPI here
     CALL CalculatePhiAndEFieldFromCurrentsVDL(.FALSE.)
@@ -466,7 +467,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     END DO
     ALLOCATE(U_N(iElem)%Ut(PP_nVar,0:Nloc,0:Nloc,0:Nloc))
     U_N(iElem)%Ut = 0.
-  END DO ! iElem = 1, PP_nElems
+  END DO ! iElem = 1, nElems
 
   ! Re-allocate the PML solution arrays
   ! TODO: why is U2 read from .h5 below  but not exchanged here during load balance?
@@ -518,35 +519,81 @@ ELSE ! Normal restart
     !CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
     ! Read in state
 
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0)')' Interpolating solution from restart grid with N=',N_restart,' to computational grid with N=',PP_N
-
-#if USE_HDG
-    ! TODO: Do we need this for the HDG solver? It seems so ....
+    ! TODO: Do we need this for the HDG solver? It seems so .... For the iterative solver to start with the optimal solution?
     CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
-    IF(DG_SolutionExists)THEN
+    IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'DG_Solution does not exist in restart file.')
+    ! Get dimension of dataset
+    CALL GetDataSize(File_ID,'DG_Solution',nDims,HSize)
+    DEALLOCATE(HSize)
+
+    IF(nDims.EQ.2)THEN
+      SWRITE(UNIT_stdOut,'(A)')' Reading DG solution from restart grid with variable N (p-adaption)'
+
+      ! Check Nloc in .h5 file and compare with current polynomial degree distribution
+      CALL GetNlocFromElemDataFromHDF5() ! Builds Nloc_HDF5(1:nElems) = NINT(ElemData(iVarNloc,1:nElems))
+
+      ! Sanity check
+      DO iElem = 1, nElems
+        Nloc = N_DG_Mapping(2,iElem+offSetElem)
+        IF (Nloc.NE.Nloc_HDF5(iElem)) THEN
+          IPWRITE(*,*) 'iElem           :', iElem
+          IPWRITE(*,*) 'Nloc            :', Nloc
+          IPWRITE(*,*) 'Nloc_HDF5(iElem):', Nloc_HDF5(iElem)
+          CALL abort(__STAMP__,'Nloc has changed during restart and dynamic p-adaption is not implemented yet.')
+        END IF ! Nloc.NE.Nloc_HDF5(iElem)
+      END DO
+
+      DEALLOCATE(Nloc_HDF5)
+
+      ! Preparing U_N_2D_local array for reading DG_Solution
+      ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+      nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+      ! Get the offset based on the element-local polynomial degree
+      IF(offsetElem.GT.0) THEN
+        offsetDOF = N_DG_Mapping(1,1+offsetElem)
+      ELSE
+        offsetDOF = 0
+      END IF
+
+      ! Allocate local 2D array
+      ALLOCATE(U_N_2D_local(1:nVar,1:nDOF))
+      CALL ReadArray('DG_Solution',2,(/INT(nVar,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+
+      ! Read data from 2D array
+      iDOF = 0
+      DO iElem = 1, nElems
+        Nloc = N_DG_Mapping(2,iElem+offsetElem)
+        DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+          iDOF = iDOF + 1
+          U_N(iElem)%U(1:nVar,i,j,k) = U_N_2D_local(1:nVar,iDOF)
+        END DO; END DO; END DO
+      END DO
+
+    ELSE ! nDims.EQ.5
+      SWRITE(UNIT_stdOut,'(A,I0,A,I0)')' Interpolating solution from restart grid with N=',N_restart,&
+                                                          ' to computational grid with N=',PP_N
+#if USE_HDG
       ALLOCATE(U(PP_nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
       CALL ReadArray('DG_Solution' ,5,(/nVar,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    ELSE
-      CALL abort(__STAMP__,'DG_Solution does not exist')
-    END IF
 
-    ! Map U from N_Restart to Nloc on the same interpolation point type (Gauss, GL, etc.)
-    ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
-    DO iElem = 1, nElems
-      Nloc = N_DG_Mapping(2,iElem+offSetElem)
-      IF(Nloc.EQ.N_Restart)THEN ! N is equal
-        U_N(iElem)%U(1:PP_nVar,0:Nres,0:Nres,0:Nres) = U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem)
-      ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
-      ELSE ! N reduces
-        !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PP_nVar,0:Nres,0:Nres,0:Nres))
-        ! switch back to nodal basis
-        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
-      END IF ! Nloc.EQ.N_Restart
-    END DO ! iElem = 1, nElems
-    DEALLOCATE(Uloc)
-    DEALLOCATE(U)
+      ! Map U from N_Restart to Nloc on the same interpolation point type (Gauss, GL, etc.)
+      ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
+      DO iElem = 1, nElems
+        Nloc = N_DG_Mapping(2,iElem+offSetElem)
+        IF(Nloc.EQ.N_Restart)THEN ! N is equal
+          U_N(iElem)%U(1:PP_nVar,0:Nres,0:Nres,0:Nres) = U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem)
+        ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
+          CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem), U_N(iElem)%U(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+        ELSE ! N reduces
+          !transform the slave side to the same degree as the master: switch to Legendre basis
+          CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, U(1:PP_nVar,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:PP_nVar,0:Nres,0:Nres,0:Nres))
+          ! switch back to nodal basis
+          CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc), U_N(iElem)%U(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
+        END IF ! Nloc.EQ.N_Restart
+      END DO ! iElem = 1, nElems
+      DEALLOCATE(Uloc)
+      DEALLOCATE(U)
+    END IF ! nDims.EQ.2
 
     ! Read HDG lambda solution (sorted in ascending global unique side ID ordering)
     CALL DatasetExists(File_ID,'DG_SolutionLambda',DG_SolutionLambdaExists)
@@ -694,7 +741,38 @@ ELSE ! Normal restart
 
     IF(DoVirtualDielectricLayer)THEN
       CALL DatasetExists(File_ID,'DG_PhiF',DG_SolutionPhiFExists)
-      IF(DG_SolutionPhiFExists)THEN
+      IF(.NOT.DG_SolutionPhiFExists) CALL abort(__STAMP__,'DG_PhiF (required for DoVirtualDielectricLayer=T) not in restart file')
+
+      ! Get dimension of dataset
+      CALL GetDataSize(File_ID,'DG_PhiF',nDims,HSize)
+      DEALLOCATE(HSize)
+
+      IF(nDims.EQ.2)THEN
+        ! Preparing U_N_2D_local array for output as DG_Solution
+        ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+        nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+        ! Get the offset based on the element-local polynomial degree
+        IF(offsetElem.GT.0) THEN
+          offsetDOF = N_DG_Mapping(1,1+offsetElem)
+        ELSE
+          offsetDOF = 0
+        END IF
+
+        ! Allocate local 2D array
+        ALLOCATE(U_N_2D_local(1:nVar,1:nDOF))
+        CALL ReadArray('DG_PhiF',2,(/INT(nVar,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+
+        ! Read data from 2D array
+        iDOF = 0
+        DO iElem = 1, nElems
+          Nloc = N_DG_Mapping(2,iElem+offsetElem)
+          DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+            iDOF = iDOF + 1
+            U_N(iElem)%PhiF(1:nVar,i,j,k) = U_N_2D_local(1:nVar,iDOF)
+          END DO; END DO; END DO
+        END DO
+        SDEALLOCATE(U_N_2D_local)
+      ELSE ! nDims.EQ.5
         ASSOCIATE( nVarPhiF => 3 )
           ALLOCATE(U(1:nVarPhiF,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
           ALLOCATE(Uloc(1:nVarPhiF,0:Nres,0:Nres,0:Nres))
@@ -719,64 +797,91 @@ ELSE ! Normal restart
         ! Recompute initial value of PhiF on the surface from PhiF in the volume which has been read from .h5 here
         CALL CalculatePhiAndEFieldFromCurrentsVDL(.FALSE.)
 #endif /*defined(PARTICLES)*/
-      ELSE ! DG_SolutionPhiFExists=F
-        CALL abort(__STAMP__,'DG_PhiF does not exist in the restart file, which is required for DoVirtualDielectricLayer=T')
-      END IF ! DG_SolutionPhiFExists
+      END IF ! nDims.EQ.2
     END IF ! DoVirtualDielectricLayer
 
 #else /*not USE_HDG*/
-    ALLOCATE(   U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
-    ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
-    CALL ReadArray('DG_Solution',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
-    DO iElem = 1, nElems
-      Nloc = N_DG_Mapping(2,iElem+offSetElem)
-      IF(Nloc.EQ.N_Restart)THEN ! N is equal
-        U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
-      ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-        CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
-                          U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                     &
-               U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
-      ELSE ! N reduces
-        !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
-                          U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                        &
-                       Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
-        ! switch back to nodal basis
-        CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
-                       Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc),              &
-               U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
-      END IF ! Nloc.EQ.N_Restart
-    END DO ! iElem = 1, nElems
-    DEALLOCATE(U)
-    DEALLOCATE(Uloc)
-    IF(DoPML)THEN
-      ALLOCATE(U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
-      ALLOCATE(   Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
-      CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
-          OffsetElemTmp,5,RealArray=U_local)
-      DO iPML=1,nPMLElems
-        iElem = PMLToElem(iPML)
-        Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(   U(1:nVar,0:Nres,0:Nres,0:Nres,PP_nElemsTmp))
+      ALLOCATE(Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
+      CALL ReadArray('DG_Solution',5,(/nVar,Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U)
+      DO iElem = 1, nElems
+        Nloc = N_DG_Mapping(2,iElem+offSetElem)
         IF(Nloc.EQ.N_Restart)THEN ! N is equal
-          U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
+          U_N(iElem)%U(1:nVar,0:Nres,0:Nres,0:Nres) = U(1:nVar,0:Nres,0:Nres,0:Nres,iElem)
         ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
-          CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
-                   U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                     &
-             U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PP_nVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
+                            U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                     &
+                 U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
         ELSE ! N reduces
           !transform the slave side to the same degree as the master: switch to Legendre basis
-          CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
-                   U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                        &
-                      Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+          CALL ChangeBasis3D(PP_nVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
+                            U(1:nVar,0:Nres,0:Nres,0:Nres,iElem),                        &
+                         Uloc(1:nVar,0:Nres,0:Nres,0:Nres))
           ! switch back to nodal basis
-          CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
-                      Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc),              &
-             U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+          CALL ChangeBasis3D(PP_nVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
+                         Uloc(1:nVar,0:Nloc,0:Nloc,0:Nloc),              &
+                 U_N(iElem)%U(1:nVar,0:Nloc,0:Nloc,0:Nloc))
         END IF ! Nloc.EQ.N_Restart
-      END DO ! iPML
-      DEALLOCATE(U_local)
+      END DO ! iElem = 1, nElems
+      DEALLOCATE(U)
       DEALLOCATE(Uloc)
-    END IF ! DoPML
+      IF(DoPML)THEN
+        IF(nDims.EQ.2)THEN
+          ! Preparing U_N_2D_local array for output as DG_Solution
+          ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+          nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+          ! Get the offset based on the element-local polynomial degree
+          IF(offsetElem.GT.0) THEN
+            offsetDOF = N_DG_Mapping(1,1+offsetElem)
+          ELSE
+            offsetDOF = 0
+          END IF
+
+          ! Allocate local 2D array
+          ALLOCATE(U_N_2D_local(1:PMLnVar,1:nDOF))
+          CALL ReadArray('PML_Solution',2,(/INT(PMLnVar,IK),INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
+
+          ! Read data from 2D array
+          iDOF = 0
+          DO iElem = 1, nElems
+            Nloc = N_DG_Mapping(2,iElem+offsetElem)
+            DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+              iDOF = iDOF + 1
+              U_N(iElem)%U2(1:PMLnVar,i,j,k) = U_N_2D_local(1:PMLnVar,iDOF)
+            END DO; END DO; END DO
+          END DO
+          SDEALLOCATE(U_N_2D_local)
+        ELSE ! nDims.EQ.5
+          ALLOCATE(U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,nElems))
+          ALLOCATE(   Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+          CALL ReadArray('PML_Solution',5,(/INT(PMLnVar,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
+              OffsetElemTmp,5,RealArray=U_local)
+          DO iPML=1,nPMLElems
+            iElem = PMLToElem(iPML)
+            Nloc  = N_DG_Mapping(2,iElem+offSetElem)
+            IF(Nloc.EQ.N_Restart)THEN ! N is equal
+              U_N(iElem)%U2(1:PMLnVar,0:Nres,0:Nres,0:Nres) = U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem)
+            ELSEIF(Nloc.GT.N_Restart)THEN ! N increases
+              CALL ChangeBasis3D(PMLnVar, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, &
+                       U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                     &
+                 U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+            ELSE ! N reduces
+              !transform the slave side to the same degree as the master: switch to Legendre basis
+              CALL ChangeBasis3D(PMLnVar, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, &
+                       U_local(1:PMLnVar,0:Nres,0:Nres,0:Nres,iElem),                        &
+                          Uloc(1:PMLnVar,0:Nres,0:Nres,0:Nres))
+              ! switch back to nodal basis
+              CALL ChangeBasis3D(PMLnVar, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, &
+                          Uloc(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc),              &
+                 U_N(iElem)%U2(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc))
+            END IF ! Nloc.EQ.N_Restart
+          END DO ! iPML
+          DEALLOCATE(U_local)
+          DEALLOCATE(Uloc)
+        END IF ! nDims.EQ.2
+      END IF ! DoPML
+    END IF ! nDims.EQ.2
+
 #endif /*USE_HDG*/
     !CALL ReadState(RestartFile,nVar,PP_N,PP_nElems,U)
 
@@ -788,6 +893,78 @@ END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE FieldRestart
+
+!===================================================================================================================================
+!> Builds Nloc_HDF5(1:nElems) = NINT(ElemData(iVarNloc,1:nElems)) by reading the ElemData from the .h5 file.
+!> The .h5 file must already be opened via "CALL OpenDataFile(...)" setting the correct File_ID when calling this subroutine.
+!===================================================================================================================================
+SUBROUTINE GetNlocFromElemDataFromHDF5()
+! MODULES
+USE MOD_Globals
+USE MOD_HDF5_Input            ,ONLY: OpenDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_DG_Vars               ,ONLY: Nloc_HDF5
+USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem,nGlobalElems
+USE MOD_IO_HDF5               ,ONLY: HSize
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+LOGICAL                         :: ElemDataExists, NlocFound
+INTEGER                         :: nDims, iVar, nVarAdd, nElems_HDF5
+REAL,ALLOCATABLE                :: ElemData(:,:)  !< Array for temporary read-in of ElemData container in the .h5 file
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesAdd(:) !< Container with additional variables names in the .h5 file
+!===================================================================================================================================
+
+! Allocate the container only once
+IF(ALLOCATED(Nloc_HDF5)) RETURN
+
+! Check for ElemData container
+CALL DatasetExists(File_ID,'ElemData',ElemDataExists)
+! Stop here if ElemData is not found
+IF(.NOT.ElemDataExists) CALL abort(__STAMP__,'ElemData not found in .h5 file. Either it does not exist or the file is not open.')
+
+! Get size of the ElemData array
+CALL GetDataSize(File_ID,'ElemData',nDims,HSize)
+nVarAdd     = INT(HSize(1),4)
+nElems_HDF5 = INT(HSize(2),4)
+IF(nGlobalElems.NE.nElems_HDF5)THEN
+  IPWRITE(*,*) 'nGlobalElems:', nGlobalElems
+  IPWRITE(*,*) 'nElems_HDF5 :', nElems_HDF5
+  IPWRITE(*,*) 'nElems      :', nElems
+  CALL abort(__STAMP__,'ElemData does not have the same number of elements as the nGlobalElems.')
+END IF
+DEALLOCATE(HSize)
+
+! Read-in the variable names
+ALLOCATE(VarNamesAdd(1:nVarAdd))
+CALL ReadAttribute(File_ID,'VarNamesAdd',nVarAdd,StrArray=VarNamesAdd(1:nVarAdd))
+
+! Loop over the number of variables and find Nloc (or NlocRay, in case of a RadiationVolState), exit the loop and use the last iVar
+NlocFound = .FALSE.
+DO iVar=1,nVarAdd
+  IF(TRIM(VarNamesAdd(iVar)).EQ.'Nloc'.OR.TRIM(VarNamesAdd(iVar)).EQ.'NlocRay') THEN
+    NlocFound = .TRUE.
+    EXIT
+  END IF
+END DO
+IF(.NOT.NlocFound) CALL abort(__STAMP__,'Nloc or NlocRay not found in .h5 file')
+
+ALLOCATE(Nloc_HDF5(1:nElems))
+ALLOCATE(ElemData(1:nVarAdd,1:nElems))
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+    nVarAdd     => INT(nVarAdd,IK)    ,&
+    offsetElem  => INT(offsetElem,IK) ,&
+    nElems      => INT(nElems,IK)     )
+  CALL ReadArray('ElemData',2,(/nVarAdd, nElems/),offsetElem,2,RealArray=ElemData(1:nVarAdd,1:nElems))
+END ASSOCIATE
+Nloc_HDF5(1:nElems) = NINT(ElemData(iVar,1:nElems))
+DEALLOCATE(ElemData)
+
+END SUBROUTINE GetNlocFromElemDataFromHDF5
 !#endif /*USE_LOADBALANCE*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 

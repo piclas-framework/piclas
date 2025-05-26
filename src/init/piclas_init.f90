@@ -279,7 +279,7 @@ USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
-USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut,ElementOutRay
+USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut,ElementOutRay,ElementOutNloc
 USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 #if (PP_TimeDiscMethod==600)
 USE MOD_Radiation_Init             ,ONLY: FinalizeRadiation
@@ -298,6 +298,7 @@ REAL                    :: Time
 !===================================================================================================================================
 CALL FinalizeElemData(ElementOut)
 CALL FinalizeElemData(ElementOutRay)
+CALL FinalizeElemData(ElementOutNloc)
 !Finalize
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()

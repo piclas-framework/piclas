@@ -35,3 +35,19 @@
         RP_SamplingOffset        = 1 ! only each x time step
         RP_DefFile               = Line_RPSet.h5
         RP_inUse                 = T
+
+- Test PIC temporal averaging for sampling the field data on Nloc
+
+        CalcTimeAverage = T
+        VarNameAvg      = Phi
+        VarNameAvg      = ElectricFieldX
+        VarNameAvg      = ElectricFieldY
+        VarNameAvg      = ElectricFieldZ
+        VarNameAvg      = ElectricFieldMagnitude
+        VarNameAvg      = ChargeDensity-Spec01
+        VarNameFluc     = Phi
+        VarNameFluc     = ElectricFieldX
+        VarNameFluc     = ElectricFieldY
+        VarNameFluc     = ElectricFieldZ
+        VarNameFluc     = ElectricFieldMagnitude
+        VarNameFluc     = ChargeDensity-Spec01

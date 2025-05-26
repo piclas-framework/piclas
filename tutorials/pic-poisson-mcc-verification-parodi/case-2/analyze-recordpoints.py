@@ -22,6 +22,7 @@ import skimage
 def plotExOverTime():
     RPSet  = 'Line_RPSet.h5'
     ProjectName = 'cvwm'
+    # ProjectName = 'turner2013'
 
     # Extract the RP position
     print('┌'+78*'─')
@@ -86,8 +87,10 @@ def plotExOverTime():
         print('│ shape of RP_Data_h5[:, 0, 0]', np.shape(RP_Data_h5[:, 0, 0]))
         print('│ shape of time', np.shape(time))
 
-        vmin = -10.
-        vmax = 10.
+        scale=10.0
+        # scale=1e4
+        vmin = -scale
+        vmax = scale
         print('│ shape of RP_Data', np.shape(RP_Data_h5))
         for cutoff in [2.25, 5.00]:
             if cutoff < 5:

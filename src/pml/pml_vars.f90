@@ -31,8 +31,6 @@ REAL,ALLOCATABLE    :: PMLchiScaleFace(:,:,:)   ! ramping factor for c_corr in P
 LOGICAL,ALLOCATABLE :: isPMLElem(:)             ! true if iElem is an element located within the PML region
 LOGICAL,ALLOCATABLE :: isPMLFace(:)             ! true if iFace is a Face located wihtin or on the boarder (interface) of the PML region
 LOGICAL,ALLOCATABLE :: isPMLInterFace(:)        ! true if iFace is a Face located on the boarder (interface) of the PML region
-!REAL,ALLOCATABLE    :: PMLzeta(:,:,:,:,:)       ! damping factor in xyz
-REAL,ALLOCATABLE    :: PMLzetaGlobal(:,:,:,:,:) ! damping factor in xyz: global field for output
 INTEGER             :: PMLzetaShape             ! shape functions for particle deposition and PML damping coefficient
 INTEGER             :: PMLwriteFields           ! output zeta field for debug
 INTEGER             :: PMLspread                ! if true zeta_x=zeta_y=zeta_z for all PML cells

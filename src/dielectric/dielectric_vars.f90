@@ -65,13 +65,6 @@ INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces  
 !                                                                                       ! (mapping)
 INTEGER,ALLOCATABLE :: DielectricToElem(:),DielectricToFace(:),DielectricInterToFace(:) ! Mapping to total element/face list
 INTEGER,ALLOCATABLE :: ElemToDielectric(:),FaceToDielectric(:),FaceToDielectricInter(:) ! Mapping to Dielectric element/face list
-!
-!REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricEps
-!REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricMu
-!REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricConstant_inv         ! 1./(EpsR*MuR)
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricGlobal               ! Contains DielectricEps and DielectricMu for HDF5 output
-!REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Master              ! face array containing 1./SQRT(EpsR*MuR) for each DOF
-!REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Slave
 
 ! For Poynting vector calculation
 LOGICAL                               :: poyntingusemur_inv             ! True/false depending on dielectric permittivity and

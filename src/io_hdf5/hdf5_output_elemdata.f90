@@ -18,7 +18,7 @@ MODULE MOD_HDF5_Output_ElemData
 !===================================================================================================================================
 ! MODULES
 USE MOD_io_HDF5
-USE MOD_HDF5_output
+USE MOD_HDF5_Output
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE

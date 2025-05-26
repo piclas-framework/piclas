@@ -809,11 +809,17 @@ NIG_PIC_maxwell_RK4:
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4/
 
-NIG_PIC_maxwell_RK4_p_adaption:
+NIG_PIC_maxwell_RK4_p_adaption_release:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
     - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4_p_adaption
+
+NIG_PIC_maxwell_RK4_p_adaption_debug:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; reggie -t Debug ../regressioncheck/NIG_PIC_maxwell_RK4_p_adaption
 
 NIG_convtest_maxwell:
   <<: *defaults_nightly

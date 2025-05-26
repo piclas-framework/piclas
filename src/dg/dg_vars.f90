@@ -35,10 +35,13 @@ SAVE
 INTEGER                               :: pAdaptionType          !< Set initial polynomial degree distribution
 INTEGER                               :: pAdaptionBCLevel       !< Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax
 INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
-INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping, N_DG_Mapping_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping           !< N_DG_Mapping(1:3,1:nGlobalElems)
+INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping_Shared    !<              1 = global offset based on the DOFs
+                                                                !<              2 = element-local polynomial degree
+                                                                !<              3 = compute-node offset based on the DOFs
 LOGICAL                               :: NDGAllocationIsDone=.FALSE.
-INTEGER                               :: nDofsMapping
-INTEGER                               :: nDofsMappingNode
+INTEGER                               :: nDofsMapping           !< Number of global DOFs
+INTEGER                               :: nDofsMappingNode       !< Number of compute-node DOFs
 INTEGER,ALLOCATABLE                   :: displsDofs(:), recvcountDofs(:)
 INTEGER,ALLOCATABLE                   :: DG_Elems_master(:)     !< prolongate local polynomial degree to faces, size(nSides)
 INTEGER,ALLOCATABLE                   :: DG_Elems_slave(:)      !< prolongate local polynomial degree to faces, size(nSides)
@@ -99,6 +102,10 @@ LOGICAL             :: DGInitIsDone=.FALSE.
 #if USE_MPI
 TYPE(MPI_Win)       :: N_DG_Mapping_Shared_Win
 #endif
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! HDF5 dependent variables
+INTEGER,ALLOCATABLE :: Nloc_HDF5(:) !< Array for read-in of Nloc container
 
 !===================================================================================================================================
 END MODULE MOD_DG_Vars

@@ -2786,7 +2786,7 @@ SUBROUTINE CalcPowerDensity()
 !   * compute the current density of the considered species
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
-USE MOD_Timeaverage_Vars ,ONLY: DoPowerDensity,PowerDensity
+USE MOD_Timeaverage_Vars ,ONLY: DoPowerDensity,PowerDensity_N
 USE MOD_Particle_Vars    ,ONLY: nSpecies,PartSpecies,PDM,PartLorentzType
 USE MOD_PICDepo_Vars     ,ONLY: PS_N
 USE MOD_Part_RHS         ,ONLY: PartVeloToGammaVelo, GammaVeloToPartVelo
@@ -2797,13 +2797,12 @@ USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
 USE MOD_DG_Vars          ,ONLY: U_N
 #else
 #if PP_nVar==1
-!USE MOD_Equation_Vars    ,ONLY: E
 USE MOD_DG_Vars          ,ONLY: U_N
 #else
 #endif
 #endif
 USE MOD_DG_Vars          ,ONLY: N_DG_Mapping
-USE MOD_Mesh_Vars        ,ONLY: offSetElem
+USE MOD_Mesh_Vars        ,ONLY: offSetElem,nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -2819,7 +2818,9 @@ INTEGER              :: iElem,i,j,k,iPart
 !===================================================================================================================================
 
 iSpec2=0
-PowerDensity=0.
+DO iElem = 1, nElems
+  PowerDensity_N(iElem)%U = 0.
+END DO !iElem = 1, nElems
 DO iSpec=1,nSpecies
   IF(.NOT.DoPowerDensity(iSpec)) CYCLE
   iSpec2=iSpec2+1
@@ -2852,24 +2853,24 @@ DO iSpec=1,nSpecies
         DO i=0,Nloc
           ! 1:3 PowerDensity, 4 charge density
 #if !(USE_HDG)
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*U_N(iElem)%U(1,i,j,k)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*U_N(iElem)%U(2,i,j,k)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*U_N(iElem)%U(3,i,j,k)
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
+          PowerDensity_N(iElem)%U(1,i,j,k,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*U_N(iElem)%U(1,i,j,k)
+          PowerDensity_N(iElem)%U(2,i,j,k,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*U_N(iElem)%U(2,i,j,k)
+          PowerDensity_N(iElem)%U(3,i,j,k,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*U_N(iElem)%U(3,i,j,k)
+          PowerDensity_N(iElem)%U(4,i,j,k,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
 #else
 #if PP_nVar==1
-          PowerDensity(1,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*U_N(iElem)%E(1,i,j,k)
-          PowerDensity(2,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*U_N(iElem)%E(2,i,j,k)
-          PowerDensity(3,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*U_N(iElem)%E(3,i,j,k)
+          PowerDensity_N(iElem)%U(1,i,j,k,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)*U_N(iElem)%E(1,i,j,k)
+          PowerDensity_N(iElem)%U(2,i,j,k,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)*U_N(iElem)%E(2,i,j,k)
+          PowerDensity_N(iElem)%U(3,i,j,k,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)*U_N(iElem)%E(3,i,j,k)
 #else
-          PowerDensity(1:3,i,j,k,iElem,iSpec2)=0.
+          PowerDensity_N(iElem)%U(1:3,i,j,k,iSpec2)=0.
 #endif
-          PowerDensity(4,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
+          PowerDensity_N(iElem)%U(4,i,j,k,iSpec2)=PS_N(iElem)%PartSource(4,i,j,k)
 #endif
           ! 5:7 current density
-          PowerDensity(5,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)
-          PowerDensity(6,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)
-          PowerDensity(7,i,j,k,iElem,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)
+          PowerDensity_N(iElem)%U(5,i,j,k,iSpec2)=PS_N(iElem)%PartSource(1,i,j,k)
+          PowerDensity_N(iElem)%U(6,i,j,k,iSpec2)=PS_N(iElem)%PartSource(2,i,j,k)
+          PowerDensity_N(iElem)%U(7,i,j,k,iSpec2)=PS_N(iElem)%PartSource(3,i,j,k)
         END DO ! i=0,Nloc
       END DO ! j=0,Nloc
     END DO ! k=0,Nloc
