@@ -45,7 +45,7 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Mesh_Tools               ,ONLY: GetCNSideID
 USE MOD_Part_Operations          ,ONLY: RemoveParticle
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PartSpecies,PDM,PEM
+USE MOD_Particle_Vars            ,ONLY: PartSpecies,PDM,PEM,Species
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo, CountNbrOfLostParts, NbrOfLostParticles
 USE MOD_Part_Tools               ,ONLY: StoreLostParticleProperties
 USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem
@@ -147,8 +147,14 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(2) ! PartBound%ReflectiveBC
   !-----------------------------------------------------------------------------------------------------------------------------------
-  ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
-    CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)
+    IF(Species(PartSpecies(iPart))%InterID.NE.100) THEN
+      ! Regular species
+      ! Decide which interaction (specular/diffuse reflection, species swap, SEE)
+      CALL SurfaceModelling(iPart,SideID,ElemID,n_loc)
+    ELSE
+      ! Granular species case
+      CALL PerfectReflection(iPart,SideID,n_loc,opt_Symmetry=.TRUE.)
+    END IF
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(3) ! PartBound%PeriodicBC
   !-----------------------------------------------------------------------------------------------------------------------------------
@@ -482,7 +488,6 @@ USE MOD_DSMC_Vars               ,ONLY: CollisMode, useDSMC, PartStateIntEn
 USE MOD_Particle_Vars           ,ONLY: PDM,InterPlanePartNumber, InterPlanePartIndx
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, LastPartVeloRotRef
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
-USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 #ifdef CODE_ANALYZE
 USE MOD_Particle_Tracking_Vars  ,ONLY: PartOut,MPIRankOut
 #endif /*CODE_ANALYZE*/

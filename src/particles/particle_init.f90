@@ -69,8 +69,9 @@ CONTAINS
 !==================================================================================================================================
 SUBROUTINE DefineParametersParticles()
 ! MODULES
-USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
-USE MOD_part_RHS    ,ONLY: DefineParametersParticleRHS
+USE MOD_ReadInTools       ,ONLY: prms,addStrListEntry
+USE MOD_part_RHS          ,ONLY: DefineParametersParticleRHS
+USE MOD_ParticleWeighting ,ONLY: DefineParametersParticleWeighting
 IMPLICIT NONE
 !==================================================================================================================================
 CALL DefineParametersParticleRHS()
@@ -216,13 +217,19 @@ CALL prms%CreateLogicalOption(  'Particles-SamplePressTensHeatflux' ,'Flag to sa
 ! === Rotational frame of reference
 CALL prms%CreateLogicalOption(  'Part-UseRotationalReferenceFrame', 'Activate the rotational frame of reference', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-RotRefFrame-UseSubCycling', 'Activate subcycling in the rotational frame of reference', '.FALSE.')
-CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcyling steps)','10')
+CALL prms%CreateIntOption(      'Part-RotRefFrame-SubCyclingSteps','Number of subcycling steps)','10')
 CALL prms%CreateIntOption(      'Part-RotRefFrame-Axis','Axis of rotational frame of reference (x=1, y=2, z=3)')
 CALL prms%CreateRealOption(     'Part-RotRefFrame-Frequency','Frequency of rotational frame of reference [1/s], sign according '//&
                                 'to right-hand rule, e.g. positive: counter-clockwise, negative: clockwise')
 CALL prms%CreateIntOption(      'Part-nRefFrameRegions','Number of rotational reference frame regions','0')
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MIN','Minimun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-RefFrameRegion[$]-MAX','Maximun of RefFrame Region along to RotRefFrame-Axis',numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'UseGravitation' ,'Flag for taking Earths gravity into account for granular species.', '.FALSE.')
+CALL prms%CreateRealArrayOption('DirectionOfGravity','Vector points in the direction of gravity force', no=3)
+CALL prms%CreateLogicalOption(  'SkipGranularUpdate' ,'Flag to skip granular species position, velocity and temperature update,'//&
+                                'used only for benchmark test case.', '.FALSE.')
+
+CALL DefineParametersParticleWeighting()
 
 END SUBROUTINE DefineParametersParticles
 
@@ -242,8 +249,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_PICDepo_Method         ,ONLY: InitDepositionMethod
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, VarTimeStep
-USE MOD_ReadInTools            ,ONLY: GETLOGICAL
+USE MOD_ReadInTools            ,ONLY: GETLOGICAL, GETREALARRAY
 USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing,PerformRayTracing
+USE MOD_ParticleWeighting      ,ONLY: InitParticleWeighting
 USE MOD_Particle_TimeStep      ,ONLY: InitPartTimeStep
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState
 USE MOD_Restart_Vars           ,ONLY: DoRestart
@@ -259,6 +267,9 @@ LOGICAL,INTENT(IN) :: IsLoadBalance
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE GLOBALS...'
+
+!--- Radial, linear or cell-local particle weighting
+CALL InitParticleWeighting()
 
 !--- Variable time step
 VarTimeStep%UseLinearScaling = GETLOGICAL('Part-VariableTimeStep-LinearScaling')
@@ -322,6 +333,8 @@ USE MOD_ReadInTools
 USE MOD_DSMC_Init                  ,ONLY: InitDSMC
 USE MOD_MCC_Init                   ,ONLY: InitMCC
 USE MOD_DSMC_Vars                  ,ONLY: useDSMC,DSMC,DSMC_Solution,DSMC_SolutionPressTens,BGGas
+USE MOD_DSMC_Vars                  ,ONLY: DoCellLocalWeighting
+USE MOD_CellLocalWeighting         ,ONLY: PerformCellLocalWeighting
 USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 USE MOD_LoadBalance_Vars           ,ONLY: nPartsPerElem
 USE MOD_Mesh_Vars                  ,ONLY: nElems
@@ -346,16 +359,12 @@ USE MOD_Particle_BGM               ,ONLY: CheckAndMayDeleteFIBGM
 USE MOD_Restart_Vars               ,ONLY: DoRestart
 #if USE_MPI
 USE MOD_Particle_MPI               ,ONLY: InitParticleCommSize
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
-!USE MOD_Particle_MPI_Emission      ,ONLY: InitEmissionParticlesToProcs
 #endif
 #if (PP_TimeDiscMethod==300)
 USE MOD_FPFlow_Init                ,ONLY: InitFPFlow
-USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 #if (PP_TimeDiscMethod==400)
 USE MOD_BGK_Init                   ,ONLY: InitBGK
-USE MOD_Symmetry_Vars              ,ONLY: Symmetry
 #endif
 USE MOD_Particle_Vars              ,ONLY: BulkElectronTemp
 #if USE_LOADBALANCE
@@ -394,6 +403,9 @@ IF(.NOT.ALLOCATED(nPartsPerElem))THEN
 END IF
 
 CALL InitializeVariables()
+
+! Determine the cell-local weighting factors
+IF(DoCellLocalWeighting) CALL PerformCellLocalWeighting()
 
 ! Initialize particle surface flux to be performed per iteration
 CALL InitializeParticleSurfaceflux()
@@ -452,9 +464,15 @@ IF (useDSMC) THEN
   CALL InitMCC()
   CALL InitSurfaceModel()
 #if (PP_TimeDiscMethod==300)
+  IF(DSMC%VibAHO) THEN
+    CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is only available for DSMC!')
+  END IF
   CALL InitFPFlow()
 #endif
 #if (PP_TimeDiscMethod==400)
+  IF(DSMC%VibAHO) THEN
+    CALL Abort(__STAMP__,'ERROR: The anharmonic oscillator model is only available for DSMC!')
+  END IF
   CALL InitBGK()
 #endif
 ELSE IF (WriteMacroVolumeValues.OR.WriteMacroSurfaceValues) THEN
@@ -486,8 +504,6 @@ SUBROUTINE InitializeVariables()
 USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Particle_Vars
-USE MOD_DSMC_Symmetry          ,ONLY: DSMC_2D_InitRadialWeighting
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Part_RHS               ,ONLY: InitPartRHS
 USE MOD_Particle_Mesh          ,ONLY: InitParticleMesh
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesInits
@@ -558,7 +574,18 @@ CALL InitializeVariablesSpeciesInits()
 ! Which Lorentz boost method should be used?
 CALL InitPartRHS()
 CALL InitializeVariablesPartBoundary()
-
+UseGranularSpecies = .FALSE.
+IF(ANY(Species(:)%InterID.EQ.100)) THEN
+  UseGranularSpecies = .TRUE.
+! Consideration of gravity for granular species
+  UseGravitation = GETLOGICAL('UseGravitation')
+  IF(UseGravitation) THEN
+    GravityDir(1:3) = GETREALARRAY('DirectionOfGravity',3)
+    GravityDir(:) = UNITVECTOR(GravityDir)
+  END IF
+  SkipGranularUpdate = GETLOGICAL('SkipGranularUpdate')
+  ForceAverage = 0.0
+END IF
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
 DoDeposition    = .FALSE.
@@ -581,6 +608,7 @@ DoInterpolationAnalytic   = GETLOGICAL('PIC-DoInterpolationAnalytic')
 IF(DoInterpolationAnalytic) DoInterpolation = DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 CALL InitializeVariablesVirtualCellMerge()
+
 ! Build BGM and initialize particle mesh
 CALL InitParticleMesh()
 #if USE_MPI
@@ -591,11 +619,6 @@ CALL InitPIC()
 
 ! === 2D/1D/Axisymmetric initialization
 IF(Symmetry%Axisymmetric) THEN
-  IF(RadialWeighting%DoRadialWeighting) THEN
-    ! Initialization of RadialWeighting in 2D axisymmetric simulations
-    RadialWeighting%PerformCloning = .TRUE.
-    CALL DSMC_2D_InitRadialWeighting()
-  END IF
   IF(TrackingMethod.NE.TRIATRACKING) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TrackingMethod = triatracking')
   IF(.NOT.TriaSurfaceFlux) CALL abort(__STAMP__,'ERROR: Axisymmetric simulation only supported with TriaSurfaceFlux = T')
 END IF
@@ -1505,8 +1528,12 @@ DO iSpec = 1, nSpecies
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideArea)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%WeightingFactor)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%VFR_total_allProcs)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight)
+    SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeightSub)
     SDEALLOCATE(Species(iSpec)%Surfaceflux(iSF)%CircleAreaPerTriaSide)
   END DO
   IF(ASSOCIATED(Species(iSpec)%Surfaceflux)) THEN
@@ -1665,7 +1692,7 @@ INTEGER               :: iSpec,err
 CHARACTER(32)         :: hilf
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
-LOGICAL               :: DataSetFound, AttrExists
+LOGICAL               :: GroupFound, AttrExists
 !===================================================================================================================================
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('Particles-Species-Database')
@@ -1703,19 +1730,20 @@ IF(SpeciesDatabase.NE.'none') THEN
     LBWRITE (UNIT_stdOut,'(68(". "))')
     CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Species(iSpec)%Name))
     dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-    CALL DatasetExists(file_id_specdb,TRIM(dsetname),DataSetFound)
+    ! use DatasetExists() to check if group exists because it only check for a link with H5LEXISTS()
+    CALL DatasetExists(file_id_specdb,TRIM(dsetname),GroupFound)
     ! Read-in if dataset is there, otherwise set the overwrite parameter
-    IF(DataSetFound) THEN
-      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists)
+    IF(GroupFound) THEN
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
       IF (AttrExists) THEN
-        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC)
+        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%ChargeIC,ReadFromGroup=.TRUE.)
       ELSE
         Species(iSpec)%ChargeIC = 0.0
       END IF
       CALL PrintOption('ChargeIC','DB',RealOpt=Species(iSpec)%ChargeIC)
-      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC)
+      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Species(iSpec)%MassIC,ReadFromGroup=.TRUE.)
       CALL PrintOption('MassIC','DB',RealOpt=Species(iSpec)%MassIC)
-      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID)
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Species(iSpec)%InterID,ReadFromGroup=.TRUE.)
       CALL PrintOption('InteractionID','DB',IntOpt=Species(iSpec)%InterID)
     ELSE
       Species(iSpec)%DoOverwriteParameters = .TRUE.
@@ -1769,6 +1797,10 @@ IF(UseRotRefFrame) THEN
 #if (PP_TimeDiscMethod!=4) && (PP_TimeDiscMethod!=400)
   CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented for the selected simulation method (only for DSMC/BGK)!')
 #endif
+  ! Abort if granular species are defined
+  IF(UseGranularSpecies) THEN
+    CALL abort(__STAMP__,'ERROR Rotational Reference Frame not implemented with granular species!')
+  END IF
   ALLOCATE(PartVeloRotRef(1:3,1:PDM%maxParticleNumber))
   PartVeloRotRef = 0.0
   ALLOCATE(LastPartVeloRotRef(1:3,1:PDM%maxParticleNumber))

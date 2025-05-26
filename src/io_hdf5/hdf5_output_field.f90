@@ -31,7 +31,9 @@ PRIVATE
 PUBLIC :: WriteBRAverageElemToHDF5
 #endif /*defined(PARTICLES)*/
 #else
+#if !(USE_FV)
 PUBLIC :: WritePMLzetaGlobalToHDF5
+#endif /*USE_FV*/
 #endif /*USE_HDG*/
 
 PUBLIC :: WriteDielectricGlobalToHDF5,WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
@@ -122,7 +124,6 @@ SDEALLOCATE(DielectricGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WriteDielectricGlobalToHDF5
 
-
 #if USE_HDG
 #if defined(PARTICLES)
 SUBROUTINE WriteBRAverageElemToHDF5(isBRAverageElem)
@@ -133,7 +134,6 @@ SUBROUTINE WriteBRAverageElemToHDF5(isBRAverageElem)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars        ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars     ,ONLY: ProjectName
 USE MOD_io_HDF5
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
@@ -199,6 +199,7 @@ END SUBROUTINE WriteBRAverageElemToHDF5
 
 
 #else
+#if !(USE_FV)
 SUBROUTINE WritePMLzetaGlobalToHDF5()
 !===================================================================================================================================
 ! write PMLzetaGlobal field to HDF5 file
@@ -278,6 +279,7 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 SDEALLOCATE(PMLzetaGlobal)
 SDEALLOCATE(StrVarNames)
 END SUBROUTINE WritePMLzetaGlobalToHDF5
+#endif /*USE_FV*/
 #endif /*USE_HDG*/
 
 

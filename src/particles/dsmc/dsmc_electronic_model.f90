@@ -38,7 +38,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec
+PUBLIC :: ElectronicEnergyExchange, InitElectronShell, TVEEnergyExchange, ReadSpeciesLevel, CalcProbCorrFactorElec, SortEnergies
 PUBLIC :: RelaxElectronicShellWall, LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList, LT_ElectronicEnergyExchangeChem
 !===================================================================================================================================
 CONTAINS
@@ -242,7 +242,7 @@ SUBROUTINE ElectronicEnergyExchange(iPair,iPart1,FakXi, NewPart, XSec_Level)
 !===================================================================================================================================
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst, ElementaryCharge
-USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, Coll_pData, DSMC, ElectronicDistriPart, CollInf
+USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, Coll_pData, DSMC, ElectronicDistriPart, CollInf
 USE MOD_Particle_Vars          ,ONLY: PartSpecies, UseVarTimeStep, usevMPF, nSpecies
 USE MOD_part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec
@@ -265,7 +265,7 @@ REAL,ALLOCATABLE              :: DistriOld(:)
 iSpec = PartSpecies(iPart1)
 SELECT CASE(DSMC%ElectronicModel)
 CASE(1)
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  IF (usevMPF.OR.UseVarTimeStep) THEN
     CollisionEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart1)
   ELSE
     CollisionEnergy = Coll_pData(iPair)%Ec
@@ -324,7 +324,7 @@ CASE(2)
   Eold=  PartStateIntEn(3,iPart1)
   DistriOld = ElectronicDistriPart(iPart1)%DistriFunc
   ETraRel = Coll_pData(iPair)%Ec
-  IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  IF (usevMPF.OR.UseVarTimeStep) THEN
     ETraRel = ETraRel / GetParticleWeight(iPart1)
   END IF
   TransElec = DSMC%InstantTransTemp(nSpecies + 1)
@@ -410,7 +410,7 @@ SUBROUTINE LT_ElectronicEnergyExchange(iPartIndx_Node, nPart, NodeVolume)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Vars           ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, RadialWeighting, CollInf, ElecRelaxPart
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, CollInf, ElecRelaxPart
 USE MOD_TimeDisc_Vars           ,ONLY: dt
 USE MOD_part_tools              ,ONLY: GetParticleWeight, CalcXiElec
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
@@ -449,7 +449,7 @@ ELSE
   dtCell = dt
 END IF
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   ! totalWeight contains the weighted particle number
   dens = totalWeight / NodeVolume
 ELSE
@@ -1203,7 +1203,7 @@ IF (Species(iSpec)%DoOverwriteParameters) THEN
   datasetname = dsetname
   ElLevelDatabase = TRIM(DSMC%ElectronicModelDatabase)
 ELSE
-  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
+  datasetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))//'/ElectronicLevel'
   ElLevelDatabase = TRIM(SpeciesDatabase)
 END IF
 LBWRITE(UNIT_StdOut,'(A)') ' | Read electronic level entries '//TRIM(datasetname)//' from '//TRIM(ElLevelDatabase)

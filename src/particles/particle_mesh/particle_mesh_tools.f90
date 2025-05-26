@@ -2504,7 +2504,7 @@ FUNCTION DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,iElem)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars              ,ONLY: Pi
-USE MOD_DSMC_Vars                 ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars                 ,ONLY: ParticleWeighting
 USE MOD_Particle_Mesh_Vars        ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -2513,7 +2513,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)                :: iLocSide,iElem           !> iElem is the compute-node element ID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(RadialWeighting%nSubSides)
+REAL                              :: DSMC_2D_CalcSymmetryAreaSubSides(ParticleWeighting%nSubSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                           :: iNode
@@ -2533,11 +2533,11 @@ Pmin(1) = MINVAL(P(1,:))
 Pmin(2) = MINVAL(P(2,:))
 Length = SQRT((Pmax(1)-Pmin(1))**2 + (Pmax(2)-Pmin(2))**2)
 
-DO iNode = 1, RadialWeighting%nSubSides
-  PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*(iNode-1.)
-  PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/RadialWeighting%nSubSides*iNode
+DO iNode = 1, ParticleWeighting%nSubSides
+  PminTemp = Pmin(2) + (Pmax(2) - Pmin(2))/ParticleWeighting%nSubSides*(iNode-1.)
+  PmaxTemp = Pmin(2) + (Pmax(2) - Pmin(2))/ParticleWeighting%nSubSides*iNode
   MidPoint = (PmaxTemp+PminTemp) / 2.
-  DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/RadialWeighting%nSubSides * MidPoint * Pi * 2.
+  DSMC_2D_CalcSymmetryAreaSubSides(iNode) = Length/ParticleWeighting%nSubSides * MidPoint * Pi * 2.
 END DO
 
 RETURN

@@ -105,6 +105,9 @@ DO iElem = firstElem, lastElem
           ElemSideNodeID2D_Shared(tmpNode,iLocSide, iElem) = ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1
         END IF
       END DO
+      IF(ANY(ElemSideNodeID2D_Shared(1:2,iLocSide,iElem).EQ.0)) THEN
+        CALL abort(__STAMP__,' ERROR in BuildMesh2DInfo: Mesh has potentially more than 1 element in z-direction!')
+      END IF
       EdgeVec(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,iLocSide,iElem))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,iLocSide,iElem))
       NormVec(1) = -EdgeVec(2)
       NormVec(2) = EdgeVec(1)
@@ -1089,7 +1092,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
 #if USE_MPI
 USE MOD_Globals            ,ONLY: MPIRoot
-USE MPI
+USE mpi_f08
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
@@ -1267,9 +1270,7 @@ DO iElem = firstElem,lastElem
 
       CountElems = CountElems + 1
 
-      IF(CountElems.GT.500) CALL abort(&
-      __STAMP__&
-      ,'CountElems > 500. Inrease the number and try again!')
+      IF(CountElems.GT.500) CALL abort(__STAMP__,'CountElems > 500. Increase the number and try again!')
 
       CheckedElemIDs(CountElems) = TestElemID
       ! Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs

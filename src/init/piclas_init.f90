@@ -66,16 +66,22 @@ USE MOD_Restart              ,ONLY: InitRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh                 ,ONLY: InitMesh
 USE MOD_Mesh_Vars            ,ONLY: GetMeshMinMaxBoundariesIsDone
+#if USE_FV
+USE MOD_Equation_FV          ,ONLY: InitEquation_FV
+USE MOD_FV                   ,ONLY: InitFV
+#endif
+#if !(USE_FV) || (USE_HDG)
 #if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 USE MOD_Equation             ,ONLY: InitEquation
 #endif
-USE MOD_GetBoundaryFlux      ,ONLY: InitBC
 USE MOD_DG                   ,ONLY: InitDG
-USE MOD_Mortar               ,ONLY: InitMortar
+USE MOD_Dielectric           ,ONLY: InitDielectric
 #if ! (USE_HDG)
 USE MOD_PML                  ,ONLY: InitPML
 #endif /*USE_HDG*/
-USE MOD_Dielectric           ,ONLY: InitDielectric
+#endif /*!(USE_FV) || (USE_HDG)*/
+USE MOD_GetBoundaryFlux      ,ONLY: InitBC
+USE MOD_Mortar               ,ONLY: InitMortar
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 #if defined(ROS) || defined(IMPA)
@@ -94,9 +100,6 @@ USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-#if USE_MPI
-USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
-#endif /* USE_MPI */
 #if defined(IMPA) || defined(ROS)
 USE MOD_ParticleSolver       ,ONLY: InitPartSolver
 #endif
@@ -163,10 +166,19 @@ CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIvars()
 #endif /*USE_MPI*/
+#if !(USE_FV) || (USE_HDG)
 #if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
 CALL InitEquation()
 #endif
+#endif /*!(USE_FV) || (USE_HDG)*/
 CALL InitBC()
+#if USE_FV
+#if USE_HDG
+CALL InitDG()
+#endif /*USE_HDG*/
+CALL InitEquation_FV()
+CALL InitFV()
+#else
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
 #endif /*USE_HDG*/
@@ -175,6 +187,7 @@ CALL InitDG()
 #if defined(ROS) || defined(IMPA)
 CALL InitLinearSolver()
 #endif /*ROS /IMEX*/
+#endif /*USE_FV*/
 #ifdef PARTICLES
 CALL InitParticleMPI
 CALL InitParticles()
@@ -204,11 +217,6 @@ CALL InitRadiationTransport()
 IF(DoImportTTMFile)THEN
   CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
 END IF
-#if USE_MPI
-! New IMD binary format (not TTM needed as this information is stored on the atoms)
-CALL initReadIMDdata()
-CALL read_IMD_results()
-#endif /* USE_MPI */
 #endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
@@ -237,17 +245,23 @@ USE MOD_ReadInTools                ,ONLY: prms,FinalizeParameters
 USE MOD_Restart                    ,ONLY: FinalizeRestart
 USE MOD_Interpolation              ,ONLY: FinalizeInterpolation
 USE MOD_Mesh                       ,ONLY: FinalizeMesh
+#if USE_FV
+USE MOD_Equation_FV                ,ONLY: FinalizeEquation_FV
+USE MOD_FV                         ,ONLY: FinalizeFV
+#endif
+#if !(USE_FV) || (USE_HDG)
 USE MOD_Equation                   ,ONLY: FinalizeEquation
-USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
-USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
 USE MOD_DG                         ,ONLY: FinalizeDG
-USE MOD_Mortar                     ,ONLY: FinalizeMortar
 USE MOD_Dielectric                 ,ONLY: FinalizeDielectric
 #if ! (USE_HDG)
 USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
+#endif /*!(USE_FV) || (USE_HDG)*/
+USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
+USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
+USE MOD_Mortar                     ,ONLY: FinalizeMortar
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
 USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
@@ -314,6 +328,11 @@ CALL FinalizeElemData(ElementOut)
 !Finalize
 CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
+#if USE_FV
+CALL FinalizeFV()
+CALL FinalizeEquation_FV()
+#endif
+#if !(USE_FV) || (USE_HDG)
 CALL FinalizeDG()
 #if defined(IMPA) || defined(ROS)
 !CALL FinalizeCSR()
@@ -326,6 +345,7 @@ CALL FinalizePML()
 CALL FinalizeHDG()
 #endif /*USE_HDG*/
 CALL FinalizeEquation()
+#endif /*!(USE_FV) || (USE_HDG)*/
 CALL FinalizeBC()
 IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
 CALL FinalizeRestart()

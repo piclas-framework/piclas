@@ -53,7 +53,7 @@ USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
 USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
 USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #if USE_LOADBALANCE
@@ -63,7 +63,8 @@ USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
 #endif /*ROS or IMPA*/
 #endif /*maxwell*/
 #endif /*USE_LOADBALANCE*/
-#else
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
 #ifdef PP_POIS
@@ -84,7 +85,9 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
+#if !(USE_FV) || (USE_HDG)
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
+#endif
 USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
@@ -243,7 +246,9 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
+#if !(USE_FV) || (USE_HDG)
 IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
+#endif
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -271,14 +276,15 @@ DO !iter_t=0,MaxIter
 
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
-#else
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
   IF(MPIroot)THEN
     iterationTotal = 0
     RunTimeTotal   = 0.
   END IF ! MPIroot
-#endif /*NOT USE_HDG*/
+#endif /*USE_HDG*/
 
   CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
@@ -317,6 +323,10 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_FPFlow()
 #elif (PP_TimeDiscMethod==400)
   CALL TimeStep_BGK()
+#elif (PP_TimeDiscMethod==700)
+  CALL TimeStep_DVM()
+#elif (PP_TimeDiscMethod==701)
+  CALL TimeStep_ExplicitFV()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 #if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
@@ -512,6 +522,7 @@ DO !iter_t=0,MaxIter
   GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/
 END DO ! iter_t
+
 END SUBROUTINE TimeDisc
 
 

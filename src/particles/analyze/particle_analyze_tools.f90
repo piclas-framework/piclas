@@ -49,7 +49,13 @@ PUBLIC :: CalcNumberDensity
 PUBLIC :: CalcSurfaceFluxInfo
 PUBLIC :: CalcTransTemp
 PUBLIC :: CalcMixtureTemp
-PUBLIC :: CalcTelec,CalcTVibPoly
+PUBLIC :: CalcTVibAHO
+PUBLIC :: CalcXiVib
+PUBLIC :: CalcXiTotalEqui
+PUBLIC :: CalcTelec
+PUBLIC :: CalcTVibPoly
+PUBLIC :: CalcTRotQuant
+PUBLIC :: CalcPartitionFunction
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
 PUBLIC :: CalcRelaxProbRotVib
 #endif
@@ -57,7 +63,9 @@ PUBLIC :: CalcVelocities
 #if (PP_TimeDiscMethod==4)
 PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
 #endif /*(PP_TimeDiscMethod==4)*/
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: CalcPowerDensity
+#endif /*FV*/
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
 PUBLIC :: CalcNumberDensityBGGasDistri
@@ -80,7 +88,6 @@ USE MOD_Globals_Vars  ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars ,ONLY: PartState, PartSpecies, Species
 USE MOD_PARTICLE_Vars ,ONLY: usevMPF
 USE MOD_Particle_Vars ,ONLY: PartLorentzType
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting
 USE MOD_part_tools    ,ONLY: GetParticleWeight
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -94,7 +101,7 @@ INTEGER,INTENT(IN)                 :: iPart
 REAL                               :: partV2, gamma1, WeightingFactor
 !===================================================================================================================================
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   WeightingFactor = GetParticleWeight(iPart)
 ELSE
   WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -414,8 +421,10 @@ IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 ! plasma frequency
 IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
 
+#if !(USE_FV) || (USE_HDG)
 ! Cyclotron frequency
 IF(CalcCyclotronFrequency) CALL CalculateCyclotronFrequencyAndRadiusCell()
+#endif
 
 ! PIC time step for gyro motion (cyclotron frequency)
 IF(CalcPICTimeStepCyclotron) CALL CalculatePICTimeStepCyclotron()
@@ -487,7 +496,6 @@ USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,IonDensityCell,NeutralDensityCell,ChargeNumberCell
 USE MOD_Particle_Vars         ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF
 USE MOD_Preproc
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
@@ -496,6 +504,9 @@ USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid
 USE MOD_PIC_Analyze           ,ONLY: CalculateBRElectronsPerCell
 #endif /*USE_HDG*/
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+#if drift_diffusion
+USE MOD_FV_Vars               ,ONLY: U_FV
+#endif /*drift_diffusion*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -520,7 +531,7 @@ ElectronDensityCell=0.
 ! CAUTION: we need the number of all real particle instead of simulated particles
 DO iPart=1,PDM%ParticleVecLength
   IF(.NOT.PDM%ParticleInside(iPart)) CYCLE
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+  IF(usevMPF) THEN
     MPF = GetParticleWeight(iPart)
   ELSE
     MPF = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -562,7 +573,13 @@ END IF
 
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
+#if drift_diffusion
+  ElectronDensityCell(iElem)=U_FV(1,0,0,0,iElem)
+  ! Sort out crazy small numbers (they crash piclas2vtk later when trying to convert .h5 to .vtu)
+  IF(ElectronDensityCell(iElem).LT.1e-10) ElectronDensityCell(iElem) = 0.
+#else
   ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+#endif /*drift_diffusion*/
        IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
    NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
 END DO ! iElem=1,PP_nElems
@@ -580,7 +597,6 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronTemperatureCell
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies,PartState
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
@@ -631,7 +647,7 @@ DO iPart=1,PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart))THEN
     IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
     ElemID            = PEM%LocalElemID(iPart)
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    IF(usevMPF) THEN
       WeightingFactor = GetParticleWeight(iPart)
     ELSE
       WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -689,7 +705,6 @@ USE MOD_Globals_Vars          ,ONLY: BoltzmannConst,ElectronMass,Joule2eV
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronMinEnergyCell,ElectronMaxEnergyCell,ElectronAverageEnergyCell
 USE MOD_Particle_Vars         ,ONLY: PDM,PEM,usevMPF,Species,PartSpecies
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 #if USE_HDG
 USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
@@ -735,7 +750,7 @@ ELSE
     IF(PDM%ParticleInside(iPart))THEN
       IF(.NOT.PARTISELECTRON(iPart)) CYCLE  ! ignore anything that is not an electron
       ElemID            = PEM%LocalElemID(iPart)
-      IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+      IF(usevMPF) THEN
         WeightingFactor = GetParticleWeight(iPart)
       ELSE
         WeightingFactor = GetParticleWeight(iPart) * Species(PartSpecies(iPart))%MacroParticleFactor
@@ -939,8 +954,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
@@ -962,7 +976,7 @@ IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -975,7 +989,7 @@ IF (nSpecAnalyze.GT.1) THEN
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
@@ -988,7 +1002,7 @@ IF (nSpecAnalyze.GT.1) THEN
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           ! %MacroParticleFactor is included in the case of vMPF (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
@@ -1004,7 +1018,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -1017,7 +1031,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -1026,7 +1040,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting)THEN
+        IF(usevMPF)THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -1052,8 +1066,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpec
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
@@ -1079,7 +1092,7 @@ IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -1092,8 +1105,8 @@ IF (nSpecAnalyze.GT.1) THEN
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN  ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 * Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-          ! %MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
+        IF(usevMPF) THEN
+          ! %MacroParticleFactor is included in the case of particle weighting (also in combination with variable time step)
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
@@ -1105,7 +1118,7 @@ IF (nSpecAnalyze.GT.1) THEN
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           Ekin(nSpecAnalyze)   = Ekin(nSpecAnalyze)   + Ekin_loc * GetParticleWeight(i)
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
@@ -1124,7 +1137,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -1137,7 +1150,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
       partV2 = DOTPRODUCT(PartState(4:6,i))
       IF ( partV2 .LT. RelativisticLimit) THEN ! |v| < 1000000 when speed of light is 299792458
         Ekin_loc = 0.5 *  Species(PartSpecies(i))%MassIC * partV2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+        IF(usevMPF) THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -1146,7 +1159,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
         GammaFac = partV2*c2_inv
         GammaFac = 1./SQRT(1.-GammaFac)
         Ekin_loc = (GammaFac-1.) * Species(PartSpecies(i))%MassIC * c2
-        IF(usevMPF.OR.RadialWeighting%DoRadialWeighting)THEN
+        IF(usevMPF)THEN
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * GetParticleWeight(i)
         ELSE
           Ekin(PartSpecies(i)) = Ekin(PartSpecies(i)) + Ekin_loc * Species(PartSpecies(i))%MacroParticleFactor*GetParticleWeight(i)
@@ -1172,7 +1185,7 @@ END SUBROUTINE CalcKineticEnergyAndMaximum
 PPURE SUBROUTINE CalcNumberDensity(NumSpec,NumDens)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
-USE MOD_DSMC_Vars             ,ONLY: BGGas, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_Particle_Vars         ,ONLY: Species,nSpecies,usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
@@ -1192,7 +1205,7 @@ INTEGER                           :: iSpec,bgSpec
 ! Only root does calculation
 IF(.NOT.MPIRoot) RETURN
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   NumDens(1:nSpecies) = NumSpec(1:nSpecies) / MeshVolume
 ELSE
   NumDens(1:nSpecies) = NumSpec(1:nSpecies) * Species(1:nSpecies)%MacroParticleFactor / MeshVolume
@@ -1405,7 +1418,6 @@ USE MOD_PARTICLE_Vars             ,ONLY: nSpecies, Species
 USE MOD_Particle_Analyze_Vars     ,ONLY: nSpecAnalyze
 USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, CollisMode, DSMC
 USE MOD_part_tools                ,ONLY: CalcXiElec
-USE MOD_DSMC_Relaxation           ,ONLY: CalcXiVib
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1488,7 +1500,6 @@ USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, PDM, nSpecies, usevMP
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, DSMC
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1499,7 +1510,7 @@ REAL, INTENT(IN)               :: NumSpec(nSpecAnalyze)    ! number of real part
 REAL,INTENT(OUT)               :: IntTemp(nSpecies,3) , IntEn(nSpecAnalyze,3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iPart, iSpec
+INTEGER                        :: iPart, iSpec, iPolyatMole
 REAL                           :: EVib(nSpecies), ERot(nSpecies), Eelec(nSpecies), tempVib, NumSpecTemp
 #if USE_MPI
 REAL                           :: RD(nSpecies)
@@ -1519,7 +1530,7 @@ DO iPart=1,PDM%ParticleVecLength
     EVib(iSpec) = EVib(iSpec) + PartStateIntEn(1,iPart) * GetParticleWeight(iPart)
     ERot(iSpec) = ERot(iSpec) + PartStateIntEn(2,iPart) * GetParticleWeight(iPart)
     IF (DSMC%ElectronicModel.GT.0) THEN
-      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+      IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
         Eelec(iSpec) = Eelec(iSpec) + PartStateIntEn(3,iPart) * GetParticleWeight(iPart)
       END IF
     END IF
@@ -1543,21 +1554,32 @@ IF(MPIRoot)THEN
   ! Calc TVib, TRot
   DO iSpec = 1, nSpecies
     NumSpecTemp = NumSpec(iSpec)
+    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
     IF(((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)).AND.(NumSpecTemp.GT.0.0)) THEN
-      IF (SpecDSMC(iSpec)%PolyatomicMol.AND.(SpecDSMC(iSpec)%Xi_Rot.EQ.3)) THEN
-        IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(3.0*BoltzmannConst*NumSpecTemp)  !Calc TRot
-      ELSE
-        IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpecTemp)  !Calc TRot
+      IF(DSMC%RotRelaxModel.EQ.0)THEN  ! continous treatment of rotational energies
+        IF (SpecDSMC(iSpec)%PolyatomicMol)THEN    ! polyatomic (also linear)
+          IntTemp(iSpec,2) = 2.0*ERot(iSpec)/(SpecDSMC(iSpec)%Xi_Rot*BoltzmannConst*NumSpecTemp)  !Calc TRot
+        ELSE          ! diatomic
+          IntTemp(iSpec,2) = ERot(iSpec)/(BoltzmannConst*NumSpecTemp)  !Calc TRot
+        END IF
+      ELSE IF(DSMC%RotRelaxModel.EQ.1)THEN  ! quantized treatment of rotational energies
+        IntTemp(iSpec,2) = CalcTRotQuant(ERot(iSpec)/NumSpecTemp, iSpec)
+      ELSE IF(DSMC%RotRelaxModel.EQ.2)THEN  ! quantized treatment of rotational energies
+        CALL abort(__STAMP__,'CalcIntTempsAndEn: Rotational relaxation model 2 not implemented yet')
       END IF
       IF (EVib(iSpec)/NumSpecTemp.GT.SpecDSMC(iSpec)%EZeroPoint) THEN
         IF (SpecDSMC(iSpec)%PolyatomicMol) THEN
           IntTemp(iSpec,1) = CalcTVibPoly(EVib(iSpec)/NumSpecTemp, iSpec)
         ELSE
-          tempVib = (EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
-          IF ((tempVib.GT.0.0) &
-            .OR.(EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).GT.DSMC%GammaQuant)) THEN
-            IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) &
-                              /(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
+          IF(DSMC%VibAHO) THEN !AHO
+            CALL CalcTVibAHO(iSpec, EVib(iSpec)/NumSpecTemp, IntTemp(iSpec,1))
+          ELSE ! SHO
+            tempVib = (EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant)
+            IF ((tempVib.GT.0.0) &
+              .OR.(EVib(iSpec)/(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib).GT.DSMC%GammaQuant)) THEN
+              IntTemp(iSpec,1) = SpecDSMC(iSpec)%CharaTVib/LOG(1 + 1/(EVib(iSpec) &
+                                /(NumSpecTemp*BoltzmannConst*SpecDSMC(iSpec)%CharaTVib)-DSMC%GammaQuant))
+            END IF
           END IF
         END IF
       ELSE
@@ -1569,15 +1591,15 @@ IF(MPIRoot)THEN
     END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
       IF(NumSpecTemp.GT.0) THEN
-        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
           IntTemp(iSpec,3) = CalcTelec(Eelec(iSpec)/NumSpecTemp,iSpec)
         END IF
       ELSE
         IntEn(iSpec,3) = 0.0
       END IF
     END IF
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
-      ! MacroParticleFactor is included in the case of RadialWeighting (also in combination with variable time step)
+    IF(usevMPF) THEN
+      ! MacroParticleFactor is included in the case of particle weighting (also in combination with variable time step)
       IntEn(iSpec,1) = EVib(iSpec)
       IntEn(iSpec,2) = ERot(iSpec)
       IF(DSMC%ElectronicModel.GT.0) IntEn(iSpec,3) = Eelec(iSpec)
@@ -1596,6 +1618,290 @@ IF(MPIRoot)THEN
 END IF
 
 END SUBROUTINE CalcIntTempsAndEn
+
+
+SUBROUTINE CalcTVibAHO(iSpec, EVib, tempVib)
+!===================================================================================================================================
+!> Calculation of the vibrational temperature for anharmonic oscillator model
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars               ,ONLY: AHO, SpecDSMC
+USE MOD_Particle_Vars           ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iSpec
+REAL, INTENT(IN)                :: EVib
+REAL, INTENT(OUT)               :: tempVib
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iQuant, iInit, iSF
+REAL                            :: tempIni, dTemp, tolerance, temp, VibEnergy(AHO%NumVibLevels(iSpec))
+REAL                            :: Nom, Denom, dNom, dDenom, dEVibAHO, Ediff, dEdiff, tempGuess, EVibAHO
+!===================================================================================================================================
+! definition of tolerance factor for Newton loop and temperature step for pre-Newton loop
+tolerance = 0.1
+dTemp = 10.
+
+! starting temperature as mean from ini values
+temp = 0.
+IF (Species(iSpec)%NumberOfInits.GT.0.) THEN
+  DO iInit = 1, Species(iSpec)%NumberOfInits
+    temp = temp + SpecDSMC(iSpec)%Init(iInit)%TVib
+  END DO
+  temp = temp / Species(iSpec)%NumberOfInits
+ELSE IF (Species(iSpec)%nSurfacefluxBCs.GT.0.) THEN
+  DO iSF = 1, Species(iSpec)%nSurfacefluxBCs
+    temp = temp + SpecDSMC(iSpec)%Surfaceflux(iSF)%TVib
+  END DO
+  temp = temp / Species(iSpec)%nSurfacefluxBCs
+END IF
+! set temp = 0.1 if no ini values or ini value = 0 --> otherwise NaN
+IF(temp.LE.0.) temp = 0.1
+
+! subtract zero-point energy from all quantum levels
+DO iQuant = 1, AHO%NumVibLevels(iSpec)
+  VibEnergy(iQuant) = AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1)
+END DO
+
+! Pre-Newton loop to guess tempIni
+! Calculate EVibAHO(temp), comes from Boltzmann distribution of population of the quantum levels
+Nom = 0.
+Denom = 0.
+DO iQuant = 1, AHO%NumVibLevels(iSpec)
+  Nom = Nom + VibEnergy(iQuant) * EXP(- VibEnergy(iQuant) / (BoltzmannConst * temp))
+  Denom = Denom + EXP(- VibEnergy(iQuant) / (BoltzmannConst * temp))
+END DO
+EVibAHO = Nom/Denom
+
+! search for the energy level closest to Evib, therefore increase temp stepwise (+ dTemp)
+DO WHILE (EVibAHO.LT.(EVib - AHO%VibEnergy(iSpec,1)))
+  temp = temp + dTemp
+  ! EVib()
+  Nom = 0.
+  Denom = 0.
+  DO iQuant = 1, AHO%NumVibLevels(iSpec)
+    Nom = Nom + VibEnergy(iQuant) * EXP(- VibEnergy(iQuant) / (BoltzmannConst * temp))
+    Denom = Denom + EXP(- VibEnergy(iQuant) / (BoltzmannConst * temp))
+  END DO
+  EVibAHO = Nom/Denom
+END DO
+
+! result is first temperature guess for Newton loop
+tempIni = temp
+
+! Newton loop --> minimisation of energy difference between EVibAHO and EVib in order to find correct vib temperature
+! Calculate EVibAHO(tempIni) and derivative
+Nom = 0.
+Denom = 0.
+dNom = 0.
+dDenom = 0.
+DO iQuant = 1, AHO%NumVibLevels(iSpec)
+  Nom = Nom + VibEnergy(iQuant) * EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni))
+  Denom = Denom + EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni))
+  dNom = dNom + VibEnergy(iQuant) * EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni)) &
+    * VibEnergy(iQuant) / (BoltzmannConst * tempIni**2.)
+  dDenom = dDenom + EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni)) &
+    * VibEnergy(iQuant) / (BoltzmannConst * tempIni**2.)
+END DO
+EVibAHO = Nom/Denom
+! quotient rule
+dEVibAHO = (dNom*Denom - Nom*dDenom) / Denom*Denom
+
+! Difference between EVib and EVibAHO --> f(tempIni)
+Ediff = (EVib - AHO%VibEnergy(iSpec,1)) - EVibAHO
+! Derivative f'(tempIni)
+dEdiff = - dEVibAHO
+
+! temperature guess
+tempGuess = tempIni - Ediff / dEdiff
+
+! Repeat as long as temperature differnce exceeds tolerance
+DO WHILE (ABS(tempGuess - tempIni).GT.tolerance)
+  tempIni = tempGuess
+
+  ! EvibAHO(tempIni) and derivative
+  Nom = 0.
+  Denom = 0.
+  dNom = 0.
+  dDenom = 0.
+  DO iQuant = 1, AHO%NumVibLevels(iSpec)
+    Nom = Nom + VibEnergy(iQuant) * EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni))
+    Denom = Denom + EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni))
+    dNom = dNom + VibEnergy(iQuant) * EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni)) &
+      * VibEnergy(iQuant) / (BoltzmannConst * tempIni**2.)
+    dDenom = dDenom + EXP(- VibEnergy(iQuant) / (BoltzmannConst * tempIni)) &
+      * VibEnergy(iQuant) / (BoltzmannConst * tempIni**2.)
+  END DO
+  EVibAHO = Nom/Denom
+  dEVibAHO = (dNom*Denom - Nom*dDenom) / Denom*Denom
+
+  ! Difference between EVib and EVibAHO --> f(tempIni)
+  Ediff = (EVib - AHO%VibEnergy(iSpec,1)) - EVibAHO
+  ! Derivative f'(tempIni)
+  dEdiff = - dEVibAHO
+
+  ! new temperature guess
+  tempGuess = tempIni - Ediff / dEdiff
+
+END DO
+
+tempVib = tempGuess
+
+END SUBROUTINE CalcTVibAHO
+
+
+SUBROUTINE CalcXiVib(TVib, iSpec, XiVibDOF, XiVibTotal)
+!===================================================================================================================================
+! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature, used for chemical reactions
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PolyatomMolDSMC, AHO, DSMC
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: TVib  !
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT),OPTIONAL      :: XiVibDOF(:), XiVibTotal
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                         :: iDOF, iPolyatMole, VibDOF, iQuant
+REAL                            :: TempRatio, Nom, Denom, EVibAHO
+REAL,ALLOCATABLE                :: XiVibPart(:)
+!===================================================================================================================================
+
+IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+  iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+  VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
+  ALLOCATE(XiVibPart(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+  XiVibPart = 0.0
+  DO iDOF = 1 , VibDOF
+    ! If the temperature is very small compared to the characteristic temperature, set the vibrational degree of freedom to zero
+    ! to avoid overflows in the exponential function
+    TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/ TVib
+    IF(CHECKEXP(TempRatio)) THEN
+      XiVibPart(iDOF) = (2.0*TempRatio) / (EXP(TempRatio) - 1.0)
+    END IF
+  END DO
+ELSE
+  VibDOF = 1
+  ALLOCATE(XiVibPart(VibDOF))
+  IF(DSMC%VibAHO) THEN ! AHO
+    ! Calculate EvibAHO(tempVib) - without zero-point energy - comes from Boltzmann distribution of population of the quantum levels
+    Nom = 0.
+    Denom = 0.
+    DO iQuant = 1, AHO%NumVibLevels(iSpec)
+      Nom = Nom + (AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1)) &
+        * EXP(- (AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1)) / (BoltzmannConst * TVib))
+      Denom = Denom + EXP(- (AHO%VibEnergy(iSpec,iQuant) - AHO%VibEnergy(iSpec,1)) / (BoltzmannConst * TVib))
+    END DO
+    EVibAHO = Nom/Denom
+    ! Calculate xi
+    XiVibPart = 2./ (BoltzmannConst*TVib) * EVibAHO
+  ELSE ! SHO
+    XiVibPart = 0.0
+    TempRatio = SpecDSMC(iSpec)%CharaTVib / TVib
+    IF(CHECKEXP(TempRatio)) THEN
+      XiVibPart(1) = (2.0*TempRatio) / (EXP(TempRatio) - 1.0)
+    END IF
+  END IF
+END IF
+
+IF(PRESENT(XiVibDOF)) THEN
+  XiVibDOF = 0.
+  XiVibDOF(1:VibDOF) = XiVibPart(1:VibDOF)
+END IF
+
+IF(PRESENT(XiVibTotal)) THEN
+  XiVibTotal = SUM(XiVibPart)
+END IF
+
+RETURN
+
+END SUBROUTINE CalcXiVib
+
+
+SUBROUTINE CalcXiTotalEqui(iReac, iPair, nProd, Xi_Total, Weight, XiVibPart, XiElecPart)
+!===================================================================================================================================
+! Calculation of the vibrational degrees of freedom for each characteristic vibrational temperature as well as the electronic
+! degrees of freedom at a common temperature, used for chemical reactions
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals_Vars              ,ONLY: BoltzmannConst
+USE MOD_DSMC_Vars                 ,ONLY: SpecDSMC, ChemReac, Coll_pData, DSMC
+USE MOD_part_tools                ,ONLY: CalcXiElec
+USE MOD_Particle_Vars             ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)             :: iReac, iPair, nProd
+REAL, INTENT(IN)                :: Xi_Total, Weight(1:4)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT), OPTIONAL     :: XiVibPart(:,:), XiElecPart(1:4)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                         :: iProd, iSpec
+REAL                            :: ETotal, EZeroPoint, EGuess, LowerTemp, UpperTemp, MiddleTemp, Xi_TotalTemp, XiVibTotal
+REAL,PARAMETER                  :: eps_prec=1E-3
+!===================================================================================================================================
+
+ASSOCIATE( ProductReac => ChemReac%Products(iReac,1:4) )
+
+  ! Weighted total collision energy
+  ETotal = Coll_pData(iPair)%Ec
+
+  EZeroPoint = 0.0
+  DO iProd = 1, nProd
+    EZeroPoint = EZeroPoint + SpecDSMC(ProductReac(iProd))%EZeroPoint * Weight(iProd)
+  END DO
+
+  LowerTemp = 1.0
+  UpperTemp = 2.*(ETotal - EZeroPoint) * nProd / SUM(Weight) / (Xi_Total * BoltzmannConst)
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
+    MiddleTemp = 0.5*( LowerTemp + UpperTemp)
+    Xi_TotalTemp = Xi_Total
+    DO iProd = 1, nProd
+      iSpec = ProductReac(iProd)
+      IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+        CALL CalcXiVib(MiddleTemp, iSpec, XiVibDOF=XiVibPart(iProd,:), XiVibTotal=XiVibTotal)
+        Xi_TotalTemp = Xi_TotalTemp + XiVibTotal
+      ELSE
+        IF(PRESENT(XiVibPart)) XiVibPart(iProd,:) = 0.0
+      END IF
+      IF((DSMC%ElectronicModel.EQ.1).OR.(DSMC%ElectronicModel.EQ.2).OR.(DSMC%ElectronicModel.EQ.4)) THEN
+        IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          XiElecPart(iProd) = CalcXiElec(MiddleTemp, iSpec)
+          Xi_TotalTemp = Xi_TotalTemp + XiElecPart(iProd)
+        ELSE
+          IF(PRESENT(XiElecPart)) XiElecPart(iProd) = 0.0
+        END IF
+      END IF
+    END DO
+    EGuess = EZeroPoint + Xi_TotalTemp / 2. * BoltzmannConst * MiddleTemp * SUM(Weight) / nProd
+    IF (EGuess .GT. ETotal) THEN
+      UpperTemp = MiddleTemp
+    ELSE
+      LowerTemp = MiddleTemp
+    END IF
+  END DO
+END ASSOCIATE
+
+RETURN
+
+END SUBROUTINE CalcXiTotalEqui
 
 
 SUBROUTINE CalcTransTemp(NumSpec, Temp)
@@ -1830,7 +2136,7 @@ INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
 INTEGER                 :: iDOF, iPolyatMole
 REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
 REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
-REAL,PARAMETER          :: eps_prec=5E-3                    !< Relative precision of root-finding algorithm
+REAL,PARAMETER          :: eps_prec=1E-5                    !< Relative precision of root-finding algorithm
 !===================================================================================================================================
 
 ! lower limit: very small value or lowest temperature if ionized
@@ -1863,6 +2169,228 @@ END IF
 RETURN
 
 END FUNCTION CalcTVibPoly
+
+
+SUBROUTINE CalcPartitionFunction(iSpec, Temp, Qtra, Qrot, Qvib, Qelec)
+!===================================================================================================================================
+!> Calculation of the partition function for a species at the given temperature
+!> (only for high temperatures compared to the chara. temperatures)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars        ,ONLY: Pi, PlanckConst, BoltzmannConst
+USE MOD_DSMC_Vars           ,ONLY: SpecDSMC, PolyatomMolDSMC, AHO, DSMC
+USE MOD_Particle_Vars       ,ONLY: Species
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)         :: iSpec
+REAL, INTENT(IN)            :: Temp
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL, INTENT(OUT)           :: Qtra, Qrot, Qvib, Qelec
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iPolyatMole, iDOF, iQuant
+REAL                        :: TempRatio, VibPartition
+!===================================================================================================================================
+
+Qtra = (2. * Pi * Species(iSpec)%MassIC * BoltzmannConst * Temp / (PlanckConst**2))**(1.5)
+Qvib = 1.
+Qrot = 1.
+IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+  IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+    iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+    IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
+      Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1))
+    ELSE
+      Qrot = SQRT(Pi) / SpecDSMC(iSpec)%SymmetryFactor * SQRT(Temp**3/( PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)    &
+                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)    &
+                                                                      * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)))
+    END IF
+    DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+      TempRatio = PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)/Temp
+      IF(CHECKEXP(TempRatio)) THEN
+        Qvib = Qvib / (1. - EXP(-TempRatio))
+      END IF
+    END DO
+  ELSE
+    Qrot = Temp / (SpecDSMC(iSpec)%SymmetryFactor * SpecDSMC(iSpec)%CharaTRot)
+    IF(DSMC%VibAHO) THEN ! AHO
+      VibPartition = 0.
+      DO iQuant = 1, AHO%NumVibLevels(iSpec)
+        VibPartition = VibPartition + EXP(- AHO%VibEnergy(iSpec,iQuant) / (BoltzmannConst * Temp))
+      END DO
+      Qvib = VibPartition
+    ELSE ! SHO
+      TempRatio = SpecDSMC(iSpec)%CharaTVib/Temp
+      IF(CHECKEXP(TempRatio)) THEN
+        Qvib = 1. / (1. - EXP(-TempRatio))
+      END IF
+    END IF
+  END IF
+END IF
+IF((Species(iSpec)%InterID.EQ.4).OR.SpecDSMC(iSpec)%FullyIonized) THEN
+  Qelec = 1.
+ELSE
+  Qelec = 0.
+  DO iDOF=0, SpecDSMC(iSpec)%MaxElecQuant - 1
+    TempRatio = SpecDSMC(iSpec)%ElectronicState(2,iDOF) / Temp
+    IF(CHECKEXP(TempRatio)) THEN
+      Qelec = Qelec + SpecDSMC(iSpec)%ElectronicState(1,iDOF) * EXP(-TempRatio)
+    END IF
+  END DO
+END IF
+
+IF(Qelec.EQ.0.) Qelec = 1.
+
+END SUBROUTINE CalcPartitionFunction
+
+
+REAL FUNCTION CalcTRotQuant(MeanERot, iSpec)
+!===================================================================================================================================
+!> Calculation of the rotational temperature (zero-point search) for polyatomic molecules
+!> For quantized rotational relaxation
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals       ,ONLY: Abort
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PlanckConst, PI, ElementaryCharge
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC, PolyatomMolDSMC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)                :: MeanERot   ! mean rotational Energy of all molecules
+INTEGER, INTENT(IN)             :: iSpec      ! Number of Species
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+INTEGER                 :: iPolyatMole, iLoop, kLoop, CutOffPartition
+REAL                    :: LowerTemp, UpperTemp, MiddleTemp !< Upper, lower and final value of modified zero point search
+REAL                    :: EGuess                           !< Energy value at the current MiddleTemp
+REAL                    :: Qrot, SumOne, SumTwo
+REAL,PARAMETER          :: eps_prec=1E-15                    !< Relative precision of root-finding algorithm
+!===================================================================================================================================
+! lower limit: very small value or lowest temperature if ionized
+! upper limit: highest possible temperature
+iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
+IF (MeanERot.GT.0) THEN
+  LowerTemp = 1.0
+  UpperTemp = 5.0*SpecDSMC(iSpec)%Ediss_eV*ElementaryCharge/BoltzmannConst
+  MiddleTemp = LowerTemp
+  DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(LowerTemp + UpperTemp),MiddleTemp,eps_prec))
+    MiddleTemp = 0.5*(LowerTemp + UpperTemp)
+    EGuess = 0.
+    SumOne = 0
+    IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol)THEN ! diatomic
+      ! calculate partition function
+      SumTwo = (2.*REAL(0)+1.)*exp(-REAL(0)*(REAL(0)+1)*SpecDSMC(iSpec)%CharaTRot/MiddleTemp)
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+        SumOne = SumTwo
+        SumTwo = SumOne + (2.*REAL(iLoop)+1.)*exp(-REAL(iLoop)*(REAL(iLoop)+1)*SpecDSMC(iSpec)%CharaTRot/MiddleTemp)
+        iLoop = iLoop + 1
+      END DO
+      CutOffPartition = iLoop
+      Qrot = SumTwo
+      DO iLoop=1, CutOffPartition
+        EGuess = EGuess + (2.*REAL(iLoop)+1.)*exp(-REAL(iLoop)*(REAL(iLoop)+1)*SpecDSMC(iSpec)%CharaTRot &
+                /MiddleTemp)*REAL(iLoop)*(REAL(iLoop)+1)*SpecDSMC(iSpec)%CharaTRot*BoltzmannConst
+      END DO
+      EGuess = EGuess * 1/Qrot
+    ELSE IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec)THEN ! linear molecule
+      ! calculate partition function
+      SumTwo = (2.*REAL(0)+1.)*exp(-REAL(0)*(REAL(0)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+        SumOne = SumTwo
+        SumTwo = SumOne + (2.*REAL(iLoop)+1.)*exp(-REAL(iLoop)*(REAL(iLoop)+1) * &
+                 PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
+        iLoop = iLoop + 1
+      END DO
+      CutOffPartition = iLoop
+      Qrot = SumTwo
+      DO iLoop=1, CutOffPartition
+        EGuess = EGuess + (2.*REAL(iLoop)+1.)*exp(-REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) &
+                /MiddleTemp)*REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*BoltzmannConst
+      END DO
+      EGuess = EGuess * 1/Qrot
+    ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.1)THEN  ! spherical top molecule
+      ! calculate partition function
+      SumTwo = (2.*REAL(0)+1.)**2.*exp(-REAL(0)*(REAL(0)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+        SumOne = SumTwo
+        SumTwo = SumOne + (2.*REAL(iLoop)+1.)**2.*exp(-REAL(iLoop)*(REAL(iLoop)+1) * &
+                 PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)/MiddleTemp)
+        iLoop = iLoop + 1
+      END DO
+      CutOffPartition = iLoop
+      Qrot = SumTwo
+      DO iLoop=1, CutOffPartition
+        EGuess = EGuess + (2.*REAL(iLoop)+1.)**2.*exp(-REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1) &
+                /MiddleTemp)*REAL(iLoop)*(REAL(iLoop)+1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*BoltzmannConst
+      END DO
+      EGuess = EGuess * 1/Qrot
+    ELSE IF((PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.10).OR.(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.11))THEN
+      ! symmetric top molecule
+      ! Find max value numerically
+      ! sumone not zero to enter loop, get a new value each loop
+      SumOne = 100
+      SumTwo = 0
+      iLoop = 0
+      DO WHILE(.NOT.ALMOSTEQUALRELATIVE(SumOne,SumTwo,eps_prec))
+        ! for k=0 not double degenerate
+        SumTwo =SumTwo+(2.*REAL(iLoop)+1.)*exp(-PlanckConst**2./(8.*PI**2.*BoltzmannConst*MiddleTemp)*(REAL(iLoop)*(REAL(iLoop)+1.)&
+                 / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
+        DO kLoop=1, iLoop
+          SumOne = SumTwo
+          SumTwo = SumTwo + 2.*(2.*REAL(iLoop)+1.)*exp(-PlanckConst**2. / (8.*PI**2.*BoltzmannConst*MiddleTemp) * &
+                (REAL(iLoop)*(REAL(iLoop)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + &
+                (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+                REAL(kLoop)**2.))
+        END DO
+        iLoop = iLoop + 1
+      END DO
+      CutOffPartition = iLoop
+      Qrot = SumTwo
+      DO iLoop=1, CutOffPartition
+        ! first term not double degenerate for k = 0
+        EGuess = EGuess + (2.*REAL(iLoop)+1.)*exp(-PlanckConst**2. / (8.*PI**2.*BoltzmannConst*MiddleTemp) * &
+                (REAL(iLoop)*(REAL(iLoop)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1))) * (PlanckConst**2. / &
+                (8.*PI**2.) * (REAL(iLoop)*(REAL(iLoop)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)))
+        DO kLoop=1, iLoop
+          EGuess = EGuess + 2.*(2.*REAL(iLoop)+1.)*exp(-PlanckConst**2. / (8.*PI**2.*BoltzmannConst*MiddleTemp) * &
+            (REAL(iLoop)*(REAL(iLoop)+1.) / PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + &
+            (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - 1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * &
+            REAL(kLoop)**2.)) * (PlanckConst**2. / (8.*PI**2.) * (REAL(iLoop)*(REAL(iLoop)+1.) / &
+            PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1) + (1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(3) - &
+            1./PolyatomMolDSMC(iPolyatMole)%MomentOfInertia(1)) * REAL(kLoop)**2.))
+        END DO
+      END DO
+      EGuess = EGuess * 1/Qrot
+    ELSE IF(PolyatomMolDSMC(iPolyatMole)%RotationalGroup.EQ.3)THEN  ! asymmetric top molecule
+      CALL abort(__STAMP__,'Rotational temperature calculation for asymmetric top molecules not implemented yet!')
+    ELSE
+      CALL ABORT(__STAMP__,'Unexpected dimensions of moments of inertia!')
+    END IF
+    IF (EGuess.GT.MeanERot) THEN
+      UpperTemp = MiddleTemp
+    ELSE
+      LowerTemp = MiddleTemp
+    END IF
+  END DO
+  CalcTRotQuant = MiddleTemp
+ELSE
+  CalcTRotQuant = 0. ! sup
+END IF
+RETURN
+
+END FUNCTION CalcTRotQuant
 
 
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
@@ -2381,7 +2909,7 @@ ChemReac%ReacCollMean = 0.0
 END SUBROUTINE ReacRates
 #endif
 
-
+#if !(USE_FV) || (USE_HDG)
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
 ! Used to average the source terms per species
@@ -2477,7 +3005,7 @@ DO iSpec=1,nSpecies
 END DO
 
 END SUBROUTINE CalcPowerDensity
-
+#endif
 
 SUBROUTINE CalculatePlasmaFrequencyCell()
 !===================================================================================================================================
@@ -2512,7 +3040,7 @@ END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePlasmaFrequencyCell
 
-
+#if !(USE_FV) || (USE_HDG)
 SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !===================================================================================================================================
 ! Determine the (relativistic) electron cyclotron frequency in each cell, which can be calculate without electrons present in the
@@ -2662,7 +3190,7 @@ ASSOCIATE( e   => ElementaryCharge,&
 END ASSOCIATE
 
 END SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell
-
+#endif
 
 SUBROUTINE CalculatePICTimeStepCyclotron()
 !===================================================================================================================================

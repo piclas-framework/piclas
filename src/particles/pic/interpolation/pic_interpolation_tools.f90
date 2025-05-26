@@ -27,9 +27,11 @@ INTERFACE GetInterpolatedFieldPartPos
   MODULE PROCEDURE GetInterpolatedFieldPartPos
 END INTERFACE
 
+#if !(USE_FV) || (USE_HDG)
 INTERFACE GetEMField
   MODULE PROCEDURE GetEMField
 END INTERFACE
+#endif
 
 INTERFACE InterpolateVariableExternalField1D
   MODULE PROCEDURE InterpolateVariableExternalField1D
@@ -37,7 +39,9 @@ END INTERFACE
 
 PUBLIC :: GetExternalFieldAtParticle
 PUBLIC :: GetInterpolatedFieldPartPos
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: GetEMField
+#endif
 PUBLIC :: InterpolateVariableExternalField1D
 !===================================================================================================================================
 
@@ -237,14 +241,16 @@ ELSE
 END IF
 
 ! Interpolate the field and return the vector
+#if !(USE_FV) || (USE_HDG)
 IF ((.NOT.SucRefPos).AND.(TRIM(DepositionType).EQ.'cell_volweight_mean')) THEN
   GetInterpolatedFieldPartPos(1:6) =  GetEMFieldDW(PEM%LocalElemID(PartID),PartState(1:3,PartID))
 ELSE
   GetInterpolatedFieldPartPos(1:6) =  GetEMField(PEM%LocalElemID(PartID),PartPosRef_loc(1:3))
 END IF
+#endif
 END FUNCTION GetInterpolatedFieldPartPos
 
-
+#if !(USE_FV) || (USE_HDG)
 PPURE FUNCTION GetEMField(ElemID,PartPosRef_loc)
 !===================================================================================================================================
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
@@ -316,7 +322,6 @@ CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,U(1:3,:,:,:,ElemID),3,GetE
 #endif
 #endif
 END FUNCTION GetEMField
-
 
 PPURE FUNCTION GetEMFieldDW(ElemID, PartPos_loc)
 !===================================================================================================================================
@@ -419,7 +424,7 @@ DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
     DistSum = 1.
     EXIT
   END IF ! norm.GT.0.
-  DistSum = DistSum + PartDistDepo(k,l,m) 
+  DistSum = DistSum + PartDistDepo(k,l,m)
 END DO; END DO; END DO
 
 DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
@@ -447,7 +452,7 @@ IF(useBGField)THEN
 END IF ! useBGField
 
 END FUNCTION GetEMFieldDW
-
+#endif
 
 PPURE FUNCTION InterpolateVariableExternalField1D(Pos)
 !===================================================================================================================================

@@ -215,7 +215,8 @@ INTEGER                          :: kk, ll, mm, ppp
 INTEGER                          :: globElemID, CNElemID
 REAL                             :: radius2, S, S1
 REAL                             :: PartSourceLoc(4-SourceSize+1:4,0:PP_N,0:PP_N,0:PP_N)
-INTEGER                          :: PartSourceSize, PartSourceSizeTarget, Request
+INTEGER                          :: PartSourceSize, PartSourceSizeTarget
+TYPE(MPI_Request)                :: Request
 INTEGER                          :: expo,I
 !----------------------------------------------------------------------------------------------------------------------------------
 I=5-SourceSize

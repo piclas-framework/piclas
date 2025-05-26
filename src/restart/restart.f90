@@ -167,8 +167,14 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   IF(DG_SolutionUExists)THEN
     CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
   END IF
+#elif (PP_TimeDiscMethod==700) /*DVM*/
+  CALL GetDataProps('DVM_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
 #else
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+#endif
+#ifdef drift_diffusion
+  SWRITE(UNIT_stdOut,'(A)') 'Init additional FV restart'
+  CALL GetDataProps('DriftDiffusion_Solution',nVar_Restart_FV,N_Restart_FV,nElems_Restart_FV,NodeType_Restart_FV)
 #endif
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'
@@ -179,8 +185,14 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
 #if USE_HDG
       SWRITE(UNIT_StdOut,'(A)')" HDG: Restarting from a different equation system."
+#elif (PP_TimeDiscMethod==700) /*DVM*/
+      SWRITE(UNIT_StdOut,'(A)')"DVM: Restarting from macroscopic values."
+#else
+#ifdef drift_diffusion
+      SWRITE(UNIT_StdOut,'(A)')"Drift diffusion: Restarting..."
 #else
       CALL abort(__STAMP__,'PP_nVar!=nVar_Restart (Number of variables in restart file does no match the compiled equation system).')
+#endif
 #endif /*USE_HDG*/
     END IF
   END IF

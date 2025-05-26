@@ -72,6 +72,7 @@ CALL prms%CreateLogicalOption(  'CalcVelos'               , 'Calculate the globa
                                                             '(/v_x,v_y,v_z,|v|/) ','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcLaserInteraction'    , 'Compute laser-plasma interaction properties such as maximum particle energy per species.','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcRelaxProb'           , 'Calculate variable rotational and vibrational relaxation probability for PartAnalyse.csv\nParticles-DSMC-CalcQualityFactors has to be true.','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcGranularDragHeat'    , 'Calculate mean drag force and mean heatflux on all granular particles within the simulation','.FALSE.')
 CALL prms%CreateRealOption(     'LaserInteractionEkinMaxRadius','maximum radius (x- and y-dir) of particle to be considered for '//&
                                                                 'Ekin maximum calculation (default is HUGE) '//&
                                                                 'OR if LaserInteractionEkinMaxZPosMin condition is true')
@@ -85,6 +86,7 @@ CALL prms%CreateRealOption(     'printDiffTime'           , 'Time for starting t
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'Vector (x,v) that is used to calcualte the L2 norm when using Part-TrackPosition=T','0. , 0. , 0. , 0. , 0. , 0.')
 CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMeanSquaredDisplacement' , 'Calculate the mean square displacement of particles [m] per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcSurfFluxInfo'        , 'Calculate the massflow rate [kg/s], current [A], or pressure [Pa] per species and surface flux','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')
@@ -108,7 +110,7 @@ SUBROUTINE InitParticleAnalyze()
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: PI
 USE MOD_Preproc
-USE MOD_DSMC_Vars             ,ONLY: DSMC, RadialWeighting, Collismode,BGGas
+USE MOD_DSMC_Vars             ,ONLY: DSMC, Collismode,BGGas
 USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems,offsetElem
 USE MOD_Particle_Analyze_Vars
@@ -646,8 +648,8 @@ IF(CalcRelaxProb.AND.(Collismode.LE.1)) CALL abort(__STAMP__,&
 IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReacRates)) CALL CalcNumberDensityBGGasDistri()
 
 IF(CalcReacRates) THEN
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) CALL abort(__STAMP__,&
-      'ERROR: CalcReacRates is not supported with radial weighting or variable time step yet!')
+  IF(usevMPF.OR.UseVarTimeStep) CALL abort(__STAMP__,&
+      'ERROR: CalcReacRates is not supported with variable weighting or variable time step yet!')
 END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
@@ -655,7 +657,7 @@ IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFl
 !-- Compute transversal or thermal velocity of whole computational domain
 CalcVelos = GETLOGICAL('CalcVelos')
 IF (CalcVelos) THEN
-  IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF(UseVarTimeStep.OR.usevMPF) THEN
     CALL abort(__STAMP__,'ERROR: CalcVelos is not supported with radial weighting or variable time step yet!')
   END IF
   DoPartAnalyze=.TRUE.
@@ -707,6 +709,10 @@ CALL PrintOption('CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef','INFO',&
 
 !-- check if magnetic field on each DG DOF of every element is to be written to .h5
 CalcEMFieldOutput = GETLOGICAL('CalcEMFieldOutput')
+
+!-- check if drag force and mean heatflux on all granular particles should be computed
+CalcGranularDragHeat = GETLOGICAL('CalcGranularDragHeat')
+IF(CalcGranularDragHeat) DoPartAnalyze = .TRUE.
 
 ParticleAnalyzeInitIsDone=.TRUE.
 
@@ -869,7 +875,7 @@ USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPoten
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
-USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,ForceAverage, SumForceAverage
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1318,6 +1324,16 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPICTimeStep'
           OutputCounter = OutputCounter + 1
         END IF ! CalcPICTimeStep
+        IF(CalcGranularDragHeat)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceX'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceY'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceZ'
+          OutputCounter = OutputCounter + 1
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecHeat'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcGranularDragHeat
         ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1414,29 +1430,29 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
       MaxCollProb = DSMC%CollProbMaxProcMax
       ! ResolvedCellPercentage:
 #if USE_MPI
-        IF(MPIRoot)THEN
-          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-        ELSE
-          CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          CALL MPI_REDUCE(DSMC%ParticleCalcCollCounter,DSMC%ParticleCalcCollCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-        END IF
+      IF(MPIRoot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedCellCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ParticleCalcCollCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      ELSE
+        CALL MPI_REDUCE(DSMC%ResolvedCellCounter,DSMC%ResolvedCellCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        CALL MPI_REDUCE(DSMC%ParticleCalcCollCounter,DSMC%ParticleCalcCollCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      END IF
 #endif /*USE_MPI*/
-        IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
-        IF (DSMC%ReservoirSimu) THEN
-          ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
-          ! Otherwise its the ResolvedTimestep
-          MeanCollProb = DSMC%CollProbMean
-        ELSE
+      IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedCellPercentage = REAL(DSMC%ResolvedCellCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+      IF (DSMC%ReservoirSimu) THEN
+        ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+        ! Otherwise its the ResolvedTimestep
+        MeanCollProb = DSMC%CollProbMean
+      ELSE
 #if USE_MPI
-          IF(MPIRoot)THEN
-            CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          ELSE
-            CALL MPI_REDUCE(DSMC%ResolvedTimestepCounter,DSMC%ResolvedTimestepCounter,1,MPI_REAL,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-          END IF
-#endif /*USE_MPI*/
-          IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedTimestep = REAL(DSMC%ResolvedTimestepCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+        IF(MPIRoot)THEN
+          CALL MPI_REDUCE(MPI_IN_PLACE,DSMC%ResolvedTimestepCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+        ELSE
+          CALL MPI_REDUCE(DSMC%ResolvedTimestepCounter,DSMC%ResolvedTimestepCounter,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
         END IF
+#endif /*USE_MPI*/
+        IF(DSMC%ParticleCalcCollCounter.GT.0) ResolvedTimestep = REAL(DSMC%ResolvedTimestepCounter) / REAL(DSMC%ParticleCalcCollCounter) * 100
+      END IF
       ! MeanFreePath:
       IF (MPIRoot) THEN
         IF(TempTotal(nSpecAnalyze).GT.0.0) MeanFreePath = CalcMeanFreePath(NumSpecTmp(1:nSpecies), NumSpecTmp(nSpecAnalyze), &
@@ -1456,6 +1472,25 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
 ! MPI Communication for values which are not YET communicated
 ! All routines ABOVE contain the required MPI-Communication
 !===================================================================================================================================
+#if USE_MPI
+  IF(CalcGranularDragHeat) THEN
+    IF(MPIRoot)THEN
+      SumForceAverage = 0.0
+      CALL MPI_REDUCE(ForceAverage(1),SumForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(2),SumForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(3),SumForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(4),SumForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(5),SumForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+    ELSE
+      CALL MPI_REDUCE(ForceAverage(1),ForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(2),ForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(3),ForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(4),ForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage(5),ForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+    END IF
+  END IF
+#endif /*USE_MPI*/
+
   IF(CalcCoupledPower) THEN
     PCouplIntAverage = 0.0 ! Default
 #if USE_MPI
@@ -1815,6 +1850,19 @@ IF (MPIRoot) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
     END IF ! PICValidPlasmaCellSum.GT.0
   END IF ! CalcPICTimeStep
+  IF(CalcGranularDragHeat) THEN
+    IF(SumForceAverage(1).GT.0.0) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(2)/SumForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(3)/SumForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(4)/SumForceAverage(1)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(5)/SumForceAverage(1)
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF
+  END IF ! CalcGranularDragHeat
   ! Finish the line with new line character
   WRITE(unit_index,'(A)') ''
 #if USE_MPI

@@ -15,6 +15,9 @@ MODULE MOD_RecordPoints_Vars
 ! Variables needed for the evaluation of the record points
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -41,12 +44,14 @@ REAL,ALLOCATABLE   :: L_eta_RP(:,:)
 REAL,ALLOCATABLE   :: L_zeta_RP(:,:)
 REAL,ALLOCATABLE   :: RP_Data(:,:,:)          ! solution evaluated at RPs (nvar,nRP,nSamples)
 REAL,ALLOCATABLE   :: lastSample(:,:)         ! solution evaluated at RPs (nvar,nRP,nSamples)
-CHARACTER(LEN=255) :: StrVarNames(PP_nVar)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! MPI Communicator for RPs
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER            :: myRPrank
-INTEGER            :: RP_COMM
+#if USE_MPI
+TYPE(mpi_comm)     :: RP_COMM
+#endif /*USE_MPI*/
 INTEGER            :: nRP_Procs
 
 END MODULE MOD_recordPoints_Vars

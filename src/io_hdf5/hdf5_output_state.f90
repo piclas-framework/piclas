@@ -48,13 +48,27 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime,InitialAutoRest
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+#if USE_FV
+USE MOD_FV_Vars                ,ONLY: U_FV
+USE MOD_Gradients              ,ONLY: GetGradients
+USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
+#endif
+#if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars                ,ONLY: U
+#endif
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems,nGlobalUniqueSides,nUniqueSides,offsetSide
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PartSource
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
@@ -71,6 +85,10 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #ifdef PP_POIS
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
+#ifdef discrete_velocity
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
+USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
+#endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: nGP_face,iLocSides,UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
@@ -140,8 +158,13 @@ REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
 #endif /*PARTICLES*/
 REAL                           :: StartT,EndT
 
+#if USE_FV
+REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
+#endif
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
+#elif defined(discrete_velocity)
+REAL                           :: Utemp(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 #elif USE_HDG
 #if PP_nVar==1
 REAL                           :: Utemp(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -155,9 +178,16 @@ REAL                           :: Utemp(1:7,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*not maxwell*/
 #endif /*PP_POIS*/
+#ifdef discrete_velocity
+REAL                           :: tau,dtMV
+INTEGER                        :: i,j,k,iElem
+#endif /*DVM*/
 REAL                           :: OutputTime_loc
 REAL                           :: PreviousTime_loc
 INTEGER(KIND=IK)               :: PP_nVarTmp
+#if USE_FV
+INTEGER(KIND=IK)               :: PP_nVarTmp_FV
+#endif
 LOGICAL                        :: usePreviousTime_loc, InitialAutoRestart
 #if USE_HDG
 INTEGER                        :: iSide
@@ -221,7 +251,7 @@ GETTIME(StartT)
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 IF(InitialAutoRestart) THEN
-  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitalRestart.h5'
+  FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
 #if USE_HDG
 #if PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
@@ -230,6 +260,13 @@ IF(InitialAutoRestart) THEN
 #else
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
+#elif defined(discrete_velocity) /*DVM*/
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution')
+  IF (time.EQ.0.) THEN
+    dtMV = 0.
+  ELSE
+    dtMV = dt
+  ENDIF
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif /*USE_HDG*/
@@ -242,6 +279,13 @@ ELSE
 #else
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
+#elif defined(discrete_velocity) /*DVM*/
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution')
+  IF (time.EQ.0.) THEN
+    dtMV = 0.
+  ELSE
+    dtMV = dt
+  ENDIF
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif /*USE_HDG*/
@@ -264,7 +308,13 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 
 ! Associate construct for integer KIND=8 possibility
 PP_nVarTmp = INT(PP_nVar,IK)
+#if USE_FV
+PP_nVarTmp_FV = INT(PP_nVar_FV,IK)
+#endif
 ASSOCIATE (&
+#if USE_FV
+      N_FV              => INT(PP_1,IK)               ,&
+#endif /*USE_FV*/
       N                 => INT(PP_N,IK)               ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
       PP_nElems         => INT(PP_nElems,IK)          ,&
@@ -500,7 +550,7 @@ ASSOCIATE (&
       offset=    (/0_IK , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE., RealArray=Utemp)
 #endif /*(PP_nVar==1)*/
-#else
+#elif !(USE_FV)
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DG_Solution', rank=5,&
       nValGlobal=(/PP_nVarTmp , N+1_IK , N+1_IK , N+1_IK , nGlobalElems/) , &
@@ -508,6 +558,38 @@ ASSOCIATE (&
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=U)
 #endif /*PP_POIS*/
+
+#if USE_FV
+  ! reconstruct solution using gradients, as done during simulation
+  CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
+  CALL ProlongToOutput(U_FV,Ureco)
+#ifdef discrete_velocity
+  DO iElem=1,INT(PP_nElems)
+    DO k=0,PP_1
+      DO j=0,PP_1
+        DO i=0,PP_1
+          CALL MacroValuesFromDistribution(Utemp(1:14,i,j,k,iElem),Ureco(:,i,j,k,iElem),dtMV,tau,1)
+          Utemp(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+        END DO
+      END DO
+    END DO
+  END DO
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DVM_Solution', rank=5,&
+      nValGlobal=(/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+      nVal=      (/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=Utemp)
+#endif
+#ifdef drift_diffusion
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DriftDiffusion_Solution', rank=5,&
+      nValGlobal=(/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=Ureco)
+#endif
+#endif /*USE_FV*/
 
 
 #ifdef PARTICLES
@@ -582,7 +664,7 @@ IF(DoBoundaryParticleOutputHDF5) THEN
 END IF
 IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) CALL WriteAdaptiveInfoToHDF5(FileName)
 CALL WriteVibProbInfoToHDF5(FileName)
-IF(RadialWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
+IF(ParticleWeighting%PerformCloning) CALL WriteClonesToHDF5(FileName)
 IF (PartBound%OutputWallTemp) CALL WriteAdaptiveWallTempToHDF5(FileName)
 #if USE_MPI
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)

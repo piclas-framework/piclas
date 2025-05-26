@@ -96,13 +96,16 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    CMAKEVERSION=3.24.2
-    #CMAKEVERSION=3.28.2
-
-    GCCVERSION=13.2.0
+    #GCCVERSION=12.2.0
+    #GCCVERSION=13.2.0
+    GCCVERSION=14.2.0
 
     # OPENMPI
+    #OPENMPIVERSION=4.1.4
+    #OPENMPIVERSION=4.1.5
     #OPENMPIVERSION=4.1.6
+    OPENMPIVERSION=5.0.6
+
     # MPICH
     MPICHVERSION=4.1.2
 
@@ -136,8 +139,12 @@ done
 # DOWNLOAD and INSTALL PETSc (example PETSc-3.17.0)
 #PETSCVERSION=3.17.0
 #PETSCVERSION=3.18.4
-# PETSCVERSION=3.19.6
-PETSCVERSION=3.20.4
+#PETSCVERSION=3.19.3
+#PETSCVERSION=3.19.6
+#PETSCVERSION=3.20.4
+#PETSCVERSION=3.20.6
+PETSCVERSION=3.21.6
+#PETSCVERSION=3.22.2 # currently does not work
 
 # Activate DEBUGGING MODE with ON/OFF
 DEBUG=OFF
@@ -184,13 +191,9 @@ fi
 # take the first gcc compiler installed with first compatible openmpi or mpich
 echo " "
 if [[ $LOADMODULES -eq 1 ]]; then
-  CMAKEVERSION=$(ls ${MODULESDIR}/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  if [[ -z $CMAKEVERSION ]]; then
-    CMAKEVERSION=$(ls ${MODULESDIR}/utilities/cmake/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  fi
   GCCVERSION=$(ls ${MODULESDIR}/compilers/gcc/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
   MPIVERSION=$(ls ${MODULESDIR}/MPI/${WHICHMPI}/ | sed 's/ /\n/g' | grep -i "[0-9]\." | head -n 1 | tail -n 1)
-  echo -e "Modules found automatically.\n\nCMAKEVERSION=${CMAKEVERSION}\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\n\nWARNING: The combination might not be possible!"
+  echo -e "Modules found automatically.\n\nGCCVERSION=${GCCVERSION}\n${WHICHMPI}-MPIVERSION=${MPIVERSION}\n\nWARNING: The combination might not be possible!"
   if [[ ${RERUNMODE} -eq 0 ]]; then
     read -p "Press [Enter] to continue or [Crtl+c] to abort!"
   fi
@@ -198,7 +201,6 @@ else
   echo "Modules defined by user. Check if the combination is possible!"
 fi
 
-check_module "cmake" "${CMAKEVERSION}"
 check_module "gcc" "${GCCVERSION}"
 check_module "${WHICHMPI}" "${MPIVERSION}"
 
@@ -216,9 +218,9 @@ if [ ! -e "${MODULEFILE}" ]; then
   MYSTR="creating module file"
   printf ${GREEN}'%s %s %s\n\n'${NC} "$MYSTR" "${dashes:${#MYSTR}}" "$MODULEFILE"
   module purge
-  load_module "cmake/${CMAKEVERSION}"
   load_module "gcc/${GCCVERSION}"
   load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
+  module load cmake
   module list
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
@@ -295,30 +297,36 @@ if [ ! -e "${MODULEFILE}" ]; then
     exit
   fi
   ./configure PETSC_ARCH=arch-linux \
-	      --prefix=${PETSCINSTALLDIR} \
-	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=${WITHDEBUG} \
-	      COPTFLAGS='-O3 -march=native -mtune=native' \
-	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-	      FOPTFLAGS='-O3 -march=native -mtune=native' \
-	      --download-hypre \
-	      --download-mumps \
-	      --download-scalapack \
-        ${BLAS_SUPPORT}
+      --prefix=${PETSCINSTALLDIR} \
+      --with-mpi-dir=${MPIINSTALLDIR} \
+      --with-debugging=${WITHDEBUG} \
+      COPTFLAGS='-O3 -march=native -mtune=native' \
+      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+      FOPTFLAGS='-O3 -march=native -mtune=native' \
+      --with-shared-libraries=1 \
+      --with-mpi-f90module-visibility=0 \
+      --with-bison=0 \
+      --download-hypre \
+      --download-mumps \
+      --download-scalapack \
+      ${BLAS_SUPPORT}
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
     echo " "
     echo -e "$RED""Failed command: [./configure PETSC_ARCH=arch-linux \
-	      --prefix=${PETSCINSTALLDIR} \
-	      --with-mpi-dir=${MPIINSTALLDIR} \
-	      --with-debugging=${WITHDEBUG} \
-	      COPTFLAGS='-O3 -march=native -mtune=native' \
-	      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-	      FOPTFLAGS='-O3 -march=native -mtune=native' \
-	      --download-hypre \
-	      --download-mumps \
-	      --download-scalapack \
-        ${BLAS_SUPPORT}]$NC"
+      --prefix=${PETSCINSTALLDIR} \
+      --with-mpi-dir=${MPIINSTALLDIR} \
+      --with-debugging=${WITHDEBUG} \
+      COPTFLAGS='-O3 -march=native -mtune=native' \
+      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
+      FOPTFLAGS='-O3 -march=native -mtune=native' \
+      --with-shared-libraries=1 \
+      --with-mpi-f90module-visibility=0 \
+      --with-bison=0 \
+      --download-hypre \
+      --download-mumps \
+      --download-scalapack \
+      ${BLAS_SUPPORT}]$NC"
     exit
   else
     # Compile source files with NBROFCORES threads
@@ -342,7 +350,6 @@ if [ ! -e "${MODULEFILE}" ]; then
     fi
     cp ${TEMPLATEPATH} ${MODULEFILE}
     sed -i 's/petscversion/'${PETSCVERSION}'/gI' ${MODULEFILE}
-    sed -i 's/CMAKEVERSIONFLAG/'${CMAKEVERSION}'/gI' ${MODULEFILE}
     sed -i 's/GCCVERSIONFLAG/'${GCCVERSION}'/gI' ${MODULEFILE}
     sed -i 's/MPIVERSIONFLAG/'${MPIVERSION}'/gI' ${MODULEFILE}
     sed -i 's\PETSCTOPDIR\'${PETSCINSTALLDIR}'\gI' ${MODULEFILE}

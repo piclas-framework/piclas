@@ -84,7 +84,7 @@ USE MOD_HDF5_Output_Fields,ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh_Vars         ,ONLY: nElems,ElemInfo,offsetElem
-#if ! (USE_HDG)
+#if ! (USE_HDG) && !(USE_FV)
 USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/
 #if USE_LOADBALANCE
@@ -123,7 +123,7 @@ END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)    ! 1./(EpsR*MuR)
 DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) ! 1./sqrt(EpsR*MuR)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 #endif /*if USE_HDG*/
 c_dielectric                     = c*DielectricConstant_RootInv          ! c/sqrt(EpsR*MuR)
@@ -217,8 +217,10 @@ CALL CountAndCreateMappings('Dielectric',&
 CALL SetDielectricVolumeProfile()
 
 #if !(USE_HDG)
+#if !(USE_FV)
   ! Determine dielectric Values on faces and communicate them: only for Maxwell
   CALL SetDielectricFaceProfile()
+#endif /*USE_FV*/
 #else /*if USE_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces
   CALL SetDielectricFaceProfile_HDG()
@@ -337,7 +339,7 @@ END IF
 END SUBROUTINE SetDielectricVolumeProfile
 
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 SUBROUTINE SetDielectricFaceProfile()
 !===================================================================================================================================
 !> Set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master".
@@ -482,7 +484,7 @@ IF(MINVAL(Dielectric_Master).LT.0.0)THEN
   RealInfoOpt=MINVAL(Dielectric_Master))
 END IF
 END SUBROUTINE SetDielectricFaceProfile
-#endif /* not USE_HDG*/
+#endif /* not USE_HDG or USE_FV*/
 
 
 #if USE_HDG

@@ -27,71 +27,12 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_data_sampling, CalcMeanFreePath,WriteDSMCToHDF5
-PUBLIC :: CalcTVib, CalcGammaVib
+PUBLIC :: CalcGammaVib
 PUBLIC :: CalcInstantTransTemp, SummarizeQualityFactors, DSMCMacroSampling
 PUBLIC :: SamplingRotVibRelaxProb, CalcInstantElecTempXi
 !===================================================================================================================================
 
 CONTAINS
-
-REAL FUNCTION CalcTVib(ChaTVib,MeanEVib,nMax)
-!===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals       ,ONLY: abort
-USE MOD_Globals_Vars  ,ONLY: BoltzmannConst
-USE MOD_DSMC_Vars     ,ONLY: DSMC
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL, INTENT(IN)                :: ChaTVib,MeanEVib  ! Charak TVib, mean vibrational Energy of all molecules
-INTEGER, INTENT(IN)             :: nMax              ! INT(CharaTDisss/CharaTVib) + 1
-REAL(KIND=8)                    :: LowerVal, UpperVal, MiddleVal, MaxPosiVal  ! upper and lower value of zero point search
-REAl(KIND=8)                    :: eps_prec=0.1   ! precision of zero point search
-REAL(KIND=8)                    :: ZeroVal1, ZeroVal2 ! both fuction values to compare
-!===================================================================================================================================
-
-IF (MeanEVib.GT.0) THEN
-  !.... Initial limits for a: lower limit = very small value
-  !                           upper limit = max. value allowed by system
-  !     zero point = CharaTVib / TVib
-  LowerVal  = 1.0/(2.0*nMax)                                    ! Tvib is max for nMax => lower limit = 1.0/nMax
-  UpperVal  = LOG(HUGE(MiddleVal*nMax))/nMax-1.0/(2.0 * nMax)   ! upper limit = for max possible EXP(nMax*MiddleVal)-value
-  MaxPosiVal = LOG(HUGE(MaxPosiVal))  ! maximum value possible in system
-  DO WHILE (ABS(LowerVal-UpperVal).GT.eps_prec)                      !  Let's search the zero point by bisection
-    MiddleVal = 0.5*(LowerVal+UpperVal)
-
-    IF ((LowerVal.GT.MaxPosiVal).OR.(MiddleVal.GT.MaxPosiVal)) THEN
-       CALL Abort(&
-__STAMP__&
-,'Cannot find zero point in TVib Calculation Function! CharTVib:',RealInfoOpt=ChaTVib)
-    END IF
-
-    ! Calc of actual function values
-    ZeroVal1 = DSMC%GammaQuant + 1/(EXP(LowerVal)-1) - nMax/(EXP(nMax*LowerVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-    ZeroVal2 = DSMC%GammaQuant + 1/(EXP(MiddleVal)-1) - nMax/(EXP(nMax*MiddleVal)-1) - MeanEVib/(ChaTVib*BoltzmannConst)
-    ! decision of direction of bisection
-    IF (ZeroVal1*ZeroVal2.LT.0) THEN
-      UpperVal = MiddleVal
-    ELSE
-      LowerVal = MiddleVal
-    END IF
-  END DO
-  CalcTVib = ChaTVib/LowerVal ! LowerVal = CharaTVib / TVib
-ELSE
-  CalcTVib = 0
-END IF
-
-RETURN
-
-END FUNCTION CalcTVib
-
 
 REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
 !===================================================================================================================================
@@ -101,7 +42,7 @@ REAL FUNCTION CalcMeanFreePath(SpecPartNum, nPart, Volume, opt_temp)
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_Particle_Vars ,ONLY: Species, nSpecies, usevMPF
-USE MOD_DSMC_Vars     ,ONLY: RadialWeighting, CollInf
+USE MOD_DSMC_Vars     ,ONLY: CollInf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -120,10 +61,16 @@ CalcMeanFreePath = 0.0
 
 IF (nPart.LE.1 .OR. ALL(SpecPartNum.EQ.0.) .OR.Volume.EQ.0) RETURN
 ! Calculation of mixture reference diameter
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   MacroParticleFactor = 1.
 ELSE
-  MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
+  DO iSpec = 1, nSpecies
+    IF(Species(iSpec)%InterID.NE.100) THEN
+      MacroParticleFactor = Species(iSpec)%MacroParticleFactor
+      EXIT
+    END IF
+  END DO
+  !MacroParticleFactor = Species(1)%MacroParticleFactor ! assumption: weighting factor of all species are identical!!!
 END IF
 
 ! Calculation of mean free path for a gas mixture (Bird 1986, p. 96, Eq. 4.77)
@@ -448,9 +395,11 @@ DO iPart=1,PDM%ParticleVecLength
           DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) &
             + (PartStateIntEn(1,iPart) - SpecDSMC(iSpec)%EZeroPoint)*partWeight
           DSMC_Solution(9,iElem, iSpec) = DSMC_Solution(9,iElem, iSpec)+PartStateIntEn(2,iPart)*partWeight
+        ELSE IF(Species(iSpec)%InterID.EQ.100) THEN
+          DSMC_Solution(8,iElem, iSpec) = DSMC_Solution(8,iElem, iSpec) + PartStateIntEn(1,iPart)*partWeight
         END IF
         IF (DSMC%ElectronicModel.GT.0) THEN
-          IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+          IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
             DSMC_Solution(10,iElem,iSpec)=DSMC_Solution(10,iElem,iSpec)+PartStateIntEn(3,iPart)*partWeight
           END IF
         END IF
@@ -511,9 +460,10 @@ CALL LBPauseTime(LB_DSMC,tLBStart)
 END SUBROUTINE DSMC_data_sampling
 
 
-SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVar_HeatPress,DSMC_MacroVal)
+SUBROUTINE DSMC_output_calc(nVar,nVar_quality,nVarloc,nVar_HeatPress,nVarMPF,DSMC_MacroVal)
 !===================================================================================================================================
 !> Calculation of the macroscopic output from sampled particles properties including the mixture values (Total_).
+!> Utilize nVarCount to write into the DSMC_MacroVal array, advance counter after write
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
@@ -521,7 +471,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
 USE MOD_BGK_Vars               ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_DSMC_Vars              ,ONLY: DSMC_Solution, DSMC_SolutionPressTens
-USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, RadialWeighting, BGGas
+USE MOD_DSMC_Vars              ,ONLY: CollisMode, SpecDSMC, DSMC, useDSMC, BGGas
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
+USE MOD_part_tools             ,ONLY: CalcVarWeightMPF, CalcRadWeightMPF
 USE MOD_FPFlow_Vars            ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, WriteMacroVolumeValues, usevMPF
@@ -533,26 +485,26 @@ USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,iter,dt
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemMidPoint_Shared, ElemVolume_Shared
 USE MOD_Mesh_Vars              ,ONLY: offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly
+USE MOD_Particle_Analyze_Tools ,ONLY: CalcTelec,CalcTVibPoly,CalcTVibAHO,CalcTRotQuant
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc,nVar_HeatPress
-REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress,nElems)
+INTEGER,INTENT(IN)      :: nVar,nVar_quality,nVarloc,nVar_HeatPress,nVarMPF
+REAL,INTENT(INOUT)      :: DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF,nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec
+INTEGER                 :: iElem, iSpec, nVarCount, nSpecTemp, nVarCountRelax, bgSpec, CNElemID
 REAL                    :: TVib_TempFac, iter_loc
 REAL                    :: MolecPartNum, HeavyPartNum
 !===================================================================================================================================
 ! nullify
 DSMC_MacroVal = 0.0
 
-nVarCount=0
+nVarCount = 0
 DO iElem = 1, nElems ! element/cell main loop
   IF (DoVirtualCellMerge) THEN
     IF (VirtMergedCells(iElem)%isMerged) CYCLE
@@ -606,7 +558,7 @@ DO iElem = 1, nElems ! element/cell main loop
           Macro_TempMean = (Macro_Temp(1) + Macro_Temp(2) + Macro_Temp(3)) / 3.
           ! compute number density
           IF (SimVolume.GT.0) THEN
-            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+            IF(usevMPF) THEN
               ! PartNum contains the weighted particle number
               Macro_Density = Macro_PartNum / SimVolume
             ELSE
@@ -617,7 +569,7 @@ DO iElem = 1, nElems ! element/cell main loop
           END IF
           IF (DoVirtualCellMerge) THEN
             IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
-              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+              IF(usevMPF) THEN
                 ! PartNum contains the weighted particle number
                 Macro_Density = Macro_PartNum / VirtMergedCells(iElem)%MergedVolume
               ELSE
@@ -626,7 +578,7 @@ DO iElem = 1, nElems ! element/cell main loop
             END IF
           END IF
           ! Compute total values for a gas mixture (nSpecies > 1)
-          IF(nSpecies.GT.1) THEN
+          IF((nSpecies.GT.1).AND.(Species(iSpec)%InterID.NE.100)) THEN
             Total_PartNum   = Total_PartNum + Macro_PartNum
             Total_Velo      = Total_Velo + Macro_Velo*Macro_PartNum
             Total_Temp      = Total_Temp + Macro_Temp*Macro_PartNum
@@ -637,6 +589,7 @@ DO iElem = 1, nElems ! element/cell main loop
           IF(useDSMC)THEN
             IF ((CollisMode.EQ.2).OR.(CollisMode.EQ.3))THEN
               IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
+                ! Molecular species (neutrals/ions)
                 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
                   IF( (PartEvib/PartNum) .GT. 0.0 ) THEN
                     Macro_TempVib = CalcTVibPoly(PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, iSpec)
@@ -644,22 +597,34 @@ DO iElem = 1, nElems ! element/cell main loop
                     Macro_TempVib = 0.0
                   END IF
                 ELSE
-                  TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
-                  IF ((PartEvib /PartNum).LE.0.0) THEN
-                    Macro_TempVib = 0.0
-                  ELSE
-                    Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
+                  IF (DSMC%VibAHO) THEN ! AHO
+                    CALL CalcTVibAHO(iSpec, PartEvib/PartNum + SpecDSMC(iSpec)%EZeroPoint, Macro_TempVib)
+                  ELSE ! SHO
+                    TVib_TempFac = PartEvib / (PartNum * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib)
+                    IF ((PartEvib /PartNum).LE.0.0) THEN
+                      Macro_TempVib = 0.0
+                    ELSE
+                      Macro_TempVib = SpecDSMC(iSpec)%CharaTVib / LOG(1. + 1./(TVib_TempFac))
+                    END IF
                   END IF
                 END IF
-                Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
+                IF(DSMC%RotRelaxModel.EQ.1)THEN ! quantized rotational relaxation
+                  Macro_TempRot = CalcTRotQuant(PartErot/PartNum, iSpec)
+                ELSE ! continuous rotational relaxation
+                  Macro_TempRot = 2. * PartERot / (PartNum*BoltzmannConst*REAL(SpecDSMC(iSpec)%Xi_Rot))
+                END IF
                 MolecPartNum = MolecPartNum + Macro_PartNum
                 IF(nSpecies.GT.1) THEN
                   Total_TempVib  = Total_TempVib  + Macro_TempVib*Macro_PartNum
                   Total_TempRot  = Total_TempRot  + Macro_TempRot*Macro_PartNum
                 END IF
+              ELSE IF(Species(iSpec)%InterID.EQ.100) THEN
+                ! Granular species: Solid temperature is stored in EVib/TVib
+                Macro_TempVib = PartEvib / PartNum
               END IF
               IF (DSMC%ElectronicModel.GT.0) THEN
-                IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+                ! All species except electrons, fully-ionized and granular species
+                IF ((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
                   Macro_TempElec = CalcTelec(PartEelec/PartNum, iSpec)
                   HeavyPartNum = HeavyPartNum + Macro_PartNum
                 END IF
@@ -701,7 +666,7 @@ DO iElem = 1, nElems ! element/cell main loop
       END IF
     END IF
     ! Radial weighting, vMPF, variable timestep: Getting the actual number of simulation particles without weighting factors
-    IF (usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+    IF (usevMPF.OR.UseVarTimeStep) THEN
       Total_PartNum = 0.0
       DO iSpec = 1, nSpecies
         IF(DSMC%SampNum.GT.0) DSMC_MacroVal(nVarLoc*(iSpec-1)+11,iElem) = DSMC_Solution(11,iElem, iSpec) / REAL(DSMC%SampNum)
@@ -710,6 +675,10 @@ DO iElem = 1, nElems ! element/cell main loop
     END IF
   END ASSOCIATE
 END DO
+
+! Set the counter according to the already written number of variables
+nVarCount = nVar
+
 ! write dsmc quality values
 IF (DSMC%CalcQualityFactors) THEN
   IF(WriteMacroVolumeValues) THEN
@@ -725,11 +694,12 @@ IF (DSMC%CalcQualityFactors) THEN
     IF (DoVirtualCellMerge) THEN
       IF (VirtMergedCells(iElem)%isMerged) CYCLE
     END IF
+    ! Resetting the nVarCount in the nElems loop
     nVarCount = nVar
     IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
       DSMC_MacroVal(nVarCount+1:nVarCount+3,iElem) = DSMC%QualityFacSamp(iElem,1:3) / DSMC%QualityFacSamp(iElem,4)
     END IF
-    nVarCount = nVar + 3
+    nVarCount = nVarCount + 3
     IF(UseVarTimeStep) THEN
       IF(VarTimeStep%UseLinearScaling.OR.VarTimeStep%UseDistribution) THEN
         IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
@@ -746,7 +716,7 @@ IF (DSMC%CalcQualityFactors) THEN
       DSMC_MacroVal(nVarCount+1,iElem) = VirtMergedCells(iElem)%MasterCell
       nVarCount = nVarCount + 1
     END IF
-    IF(RadialWeighting%PerformCloning) THEN
+    IF(ParticleWeighting%PerformCloning) THEN
       IF(DSMC%QualityFacSamp(iElem,4).GT.0.0) THEN
         DSMC_MacroVal(nVarCount+1:nVarCount+2,iElem)=DSMC%QualityFacSamp(iElem,5:6) / DSMC%QualityFacSamp(iElem,4)
       END IF
@@ -860,6 +830,7 @@ IF (SamplePressTensHeatflux) THEN
       END IF
     END ASSOCIATE
   END DO
+  nVarCount = nVarCount + 6
 END IF
 
 IF (DoVirtualCellMerge) THEN
@@ -868,6 +839,24 @@ IF (DoVirtualCellMerge) THEN
       DSMC_MacroVal(:,iElem) = DSMC_MacroVal(:,VirtMergedCells(iElem)%MasterCell-offSetElem)
     END IF
   END DO
+END IF
+
+! Visualization of the radial/linear/cell-local MPF in each cell
+IF (ParticleWeighting%EnableOutput) THEN
+  DO iElem=1,nElems
+    CNElemID = GetCNElemID(iElem + offsetElem)
+    IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),iElem)
+    ELSE IF (DoRadialWeighting) THEN
+      DSMC_MacroVal(nVarCount+1,iElem) = CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID),1)
+    END IF
+  END DO
+  nVarCount = nVarCount + 1
+END IF
+
+! Sanity check
+IF(nVar+nVar_quality+nVar_HeatPress+nVarMPF.NE.nVarCount) THEN
+  CALL abort(__STAMP__,' ERROR in DSMC_output_calc: Number of output variables is not consistent!')
 END IF
 
 END SUBROUTINE DSMC_output_calc
@@ -926,7 +915,7 @@ SUBROUTINE WriteDSMCToHDF5(MeshFileName,OutputTime)
 !> Subroutine to write the sampled macroscopic solution to the HDF5 format
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars     ,ONLY: DSMC, RadialWeighting, CollisMode, CollInf
+USE MOD_DSMC_Vars     ,ONLY: DSMC, ParticleWeighting, CollisMode, CollInf
 USE MOD_MCC_Vars      ,ONLY: SpecXSec
 USE MOD_PreProc
 USE MOD_Globals
@@ -953,6 +942,7 @@ CHARACTER(LEN=255)             :: SpecID, LevelID, SpecID2
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNamesElecExci(:)
 INTEGER                        :: nVar,nVar_quality,nVarloc,nVarCount,ALLOCSTAT, iSpec, nVarRelax, nSpecOut, iCase, iLevel
+INTEGER                        :: nVarMPF
 INTEGER                        :: jSpec,nVar_HeatPress
 REAL,ALLOCATABLE               :: DSMC_MacroVal(:,:), MacroElecExcitation(:,:)
 REAL                           :: StartT,EndT
@@ -981,7 +971,7 @@ IF (DSMC%CalcQualityFactors) THEN
   nVar_quality=3
   IF(UseVarTimeStep) nVar_quality = nVar_quality + 1
   IF(DoVirtualCellMerge) nVar_quality = nVar_quality + 1
-  IF(RadialWeighting%PerformCloning) nVar_quality = nVar_quality + 2
+  IF(ParticleWeighting%PerformCloning) nVar_quality = nVar_quality + 2
   IF(BGKInitDone) nVar_quality = nVar_quality + 8
   IF(FPInitDone) nVar_quality = nVar_quality + 5
 ELSE
@@ -994,7 +984,14 @@ ELSE
   nVar_HeatPress=0
 END IF
 
-ALLOCATE(StrVarNames(1:nVar+nVar_quality+nVar_HeatPress))
+
+IF(ParticleWeighting%EnableOutput) THEN
+  nVarMPF = 1
+ELSE
+  nVarMPF = 0
+END IF
+
+ALLOCATE(StrVarNames(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF))
 nVarCount=0
 IF(nSpecies.GT.1) THEN
   DO iSpec=1,nSpecies
@@ -1006,7 +1003,11 @@ IF(nSpecies.GT.1) THEN
     StrVarNames(nVarCount+DSMC_TEMPY      )='Spec'//TRIM(SpecID)//'_TempTransY'
     StrVarNames(nVarCount+DSMC_TEMPZ      )='Spec'//TRIM(SpecID)//'_TempTransZ'
     StrVarNames(nVarCount+DSMC_NUMDENS    )='Spec'//TRIM(SpecID)//'_NumberDensity'
-    StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_TempVib'
+    IF(Species(iSpec)%InterID.EQ.100)THEN
+      StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_Solid_Part_Temp'
+    ELSE
+      StrVarNames(nVarCount+DSMC_TVIB       )='Spec'//TRIM(SpecID)//'_TempVib'
+    END IF
     StrVarNames(nVarCount+DSMC_TROT       )='Spec'//TRIM(SpecID)//'_TempRot'
     StrVarNames(nVarCount+DSMC_TELEC      )='Spec'//TRIM(SpecID)//'_TempElec'
     StrVarNames(nVarCount+DSMC_SIMPARTNUM )='Spec'//TRIM(SpecID)//'_SimPartNum'
@@ -1066,9 +1067,9 @@ IF (DSMC%CalcQualityFactors) THEN
     StrVarNames(nVarCount+1) ='MergeMasterCell'
     nVarCount = nVarCount + 1
   END IF
-  IF(RadialWeighting%PerformCloning) THEN
-    StrVarNames(nVarCount+1) = '2D_ClonesInCell'
-    StrVarNames(nVarCount+2) = '2D_IdenticalParticles'
+  IF(ParticleWeighting%PerformCloning) THEN
+    StrVarNames(nVarCount+1) = 'ClonesInCell'
+    StrVarNames(nVarCount+2) = 'IdenticalParticles'
     nVarCount=nVarCount+2
   END IF
   IF(BGKInitDone) THEN
@@ -1100,6 +1101,12 @@ IF (SamplePressTensHeatflux) THEN
   StrVarNames(nVarCount+5)='Total_HeatFluxY'
   StrVarNames(nVarCount+6)='Total_HeatFluxZ'
   nVarCount=nVarCount+6
+END IF
+
+! Output of the weighting factor in case of a particle weighting
+IF(ParticleWeighting%EnableOutput) THEN
+  StrVarNames(nVarCount+1) = 'WeightingFactorCell'
+  nVarCount=nVarCount+1
 END IF
 
 ! Sampling of electronic excitation: Construct the variables name based on first and second species as well as the level threshold
@@ -1137,7 +1144,7 @@ IF(MPIRoot) THEN
   CALL WriteAttributeToHDF5(File_ID,'MeshFile',1,StrScalar=(/TRIM(MeshFileName)/))
   CALL WriteAttributeToHDF5(File_ID,'NSpecies',1,IntegerScalar=nSpecies)
   ! Standard variable names
-  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality+nVar_HeatPress,StrArray=StrVarNames)
+  CALL WriteAttributeToHDF5(File_ID,'VarNamesAdd',nVar+nVar_quality+nVar_HeatPress+nVarMPF,StrArray=StrVarNames)
   ! Additional variable names: electronic excitation rate output
   IF(SampleElecExcitation) CALL WriteAttributeToHDF5(File_ID,'VarNamesExci',ExcitationLevelCounter,StrArray=StrVarNamesElecExci)
   CALL CloseDataFile()
@@ -1150,11 +1157,12 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 ! Open data file for parallel output
 CALL OpenDataFile(FileName,create=.false.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
 
-ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress,nElems), STAT=ALLOCSTAT)
+ALLOCATE(DSMC_MacroVal(1:nVar+nVar_quality+nVar_HeatPress+nVarMPF,nElems), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) THEN
   CALL abort(__STAMP__,' Cannot allocate output array: DSMC_MacroVal!')
 END IF
-CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,nVar_HeatPress,DSMC_MacroVal)
+! Calculation of the macroscopic output values
+CALL DSMC_output_calc(nVar,nVar_quality,nVarloc+nVarRelax,nVar_HeatPress,nVarMPF,DSMC_MacroVal)
 
 ! Calculation of electronic excitation rates
 IF(SampleElecExcitation) THEN
@@ -1167,7 +1175,7 @@ END IF
 
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE (&
-  nVarX        => INT(nVar+nVar_quality+nVar_HeatPress,IK)       ,&
+  nVarX        => INT(nVar+nVar_quality+nVar_HeatPress+nVarMPF,IK)       ,&
   nVarExci     => INT(ExcitationLevelCounter,IK)  ,&
   PP_nElems    => INT(PP_nElems,IK)               ,&
   offsetElem   => INT(offsetElem,IK)              ,&

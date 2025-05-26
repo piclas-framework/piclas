@@ -76,6 +76,7 @@ USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 #if USE_PETSC
 USE PETSc
+USE MOD_HDG_Vars_PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem, nSides
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC
 #endif
@@ -465,6 +466,7 @@ USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchang
 #endif /*USE_MPI*/
 #if USE_PETSC
 USE PETSc
+USE MOD_HDG_Vars_PETSc
 #else
 USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG

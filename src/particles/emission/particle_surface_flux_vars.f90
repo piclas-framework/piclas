@@ -41,8 +41,8 @@ TYPE tSurfaceFlux
   INTEGER                                :: BC                               ! PartBound to be emitted from
   INTEGER                                :: Type                             ! Type set based on the read-in parameters
                                                                              ! 0: Standard surface flux
-                                                                             ! 1: Adaptive surface flux (includes RadialWeighting)
-                                                                             ! 2: Radial weighting in axisymmetric simulations
+                                                                             ! 1: Adaptive surface flux (includes particle weighting)
+                                                                             ! 2: Particle weighting in axisymmetric/3D simulations
                                                                              ! 3: DoPoissonRounding .AND. .NOT.DoTimeDepInflow
                                                                              ! 4: DoTimeDepInflow
                                                                              ! 5: Thermionic emission with Schottky effect (requires HDG)
@@ -77,12 +77,17 @@ TYPE tSurfaceFlux
   INTEGER                                :: AdaptiveType                     ! Chose the adaptive type, description in DefineParams
   REAL                                   :: AdaptiveMassflow                 ! Mass flow [kg/s], which is held constant
   REAL                                   :: AdaptivePressure                 ! Static pressure [Pa], which is held constant
-  REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)       ! Adaptive, Type 4: Weighting factor for SF-sides to
-                                                                             ! insert the right amount of particles
+  REAL, ALLOCATABLE                      :: ConstMassflowWeight(:,:,:)       ! Adaptive, Type 4: Ratio of side-local volume flow rate
+                                                                             ! to total to insert the right amount of particles
+  REAL, ALLOCATABLE                      :: ConstMassflowWeightSub(:,:)      ! Adaptive, Type 4, Radial weighting: Ratio of subside-local
+                                                                             ! volume flow rate to total VFR
   REAL, ALLOCATABLE                      :: CircleAreaPerTriaSide(:,:,:)     ! Adaptive, Type 4: Area within a triangle, determined
                                                                              ! through Monte Carlo integration (initially)
   REAL                                   :: SampledMassflow                  ! Actual mass flow rate through a surface flux boundary
   REAL, ALLOCATABLE                      :: nVFRSub(:,:)                     ! normal volume flow rate through subsubside
+  REAL, ALLOCATABLE                      :: SubSideWeight(:,:)               ! particle weighting: weight of subside
+  REAL, ALLOCATABLE                      :: SubSideArea(:,:)                 ! particle weighting: area of subside
+  REAL, ALLOCATABLE                      :: WeightingFactor(:)               ! particle weighting: weight of side
   LOGICAL                                :: ThermionicEmission               ! Flag for thermionic emission
   LOGICAL                                :: SchottkyEffectTE                 ! Flag for Schottky effect in thermionic emission
   REAL                                   :: WorkFunctionTE                   ! Material-specific work function [Input: eV]

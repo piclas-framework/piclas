@@ -66,14 +66,35 @@ Note that the same parameter setting for `epsCG` will result in a higher residua
 
 ## Symmetric Simulations
 
-The Poisson solver is suitable for 2D/1D and axially symmetric 2D simulations. Use the following parameter for these types of simulations:
+The Poisson solver is suitable for 3D, 2D/1D, and axially symmetric 2D simulations, but the field solver generally works in 3D Cartesian coordinates when no specific settings are selected.
+For 2D axisymmetric simulations, the solver can be switched from $x,y$ coordinates to $x,r$ by setting the parameter `Particles-Symmetry2DAxisymmetric`.
+Note that the mesh should be arranged in a way that $x$ is the axial direction, $y$ is the radial $r$ direction and, $z$ is the third symmetric or periodic dimension.
 
-    ! 2D
+| `Particles-Symmetry2DAxisymmetric` | **Coordinates**     | **Equation**                                                                                |
+| --------------:                    | ------------------- | -----------------                                                                           |
+| `T`                                | $x,y$               | $\frac{d^2\Phi}{dx^2}+\frac{d^2\Phi}{dy^2} = \frac{\rho(x,y)}{\varepsilon_{0}}$             |
+| `F`                                | $x,r$               | $\frac{d^2\Phi}{dx^2}+\frac{1}{r}\frac{d}{dr}\left(r\frac{d\Phi}{dr}\right) = \frac{\rho(x,r)}{\varepsilon_{0}}$ |
+
+When particles are present in the simulation, an additional parameter `Particles-Symmetry-Order` (default is 3) sets the
+dimensionality for particle behaviour
+
+| `Particles-Symmetry-Order` | **Coordinates**     | `Particles-Symmetry2DAxisymmetric` |
+| --------------:            | ------------------- | -------------------------          |
+| 1                          | 1D                  | `F` ($x,r$)                        |
+| 2                          | 2D                  | `T` ($x,y$), `F` ($x,r$)           |
+| 3                          | 3D (default)        | `F` ($x,r$)                        |
+
+There are different deposition methods available and their compatibility with the parameters `Particles-Symmetry-Order` and `Particles-Symmetry2DAxisymmetric` is described in
+Section {ref}`userguide/features-and-models/PIC:Compatibility with Field Solver Symmetry Settings`
+
+Examples: Use the following parameter for these types of simulations
+
+    ! 2D Cartesian
     Particles-Symmetry-Order = 2
 
-    ! 2D axisymmetrc
+    ! 2D Axisymmetrc
     Particles-Symmetry-Order = 2
-    Particles-Symmetry2DAxisymmetric = true
+    Particles-Symmetry2DAxisymmetric = T
 
     ! 1D
     Particles-Symmetry-Order = 1

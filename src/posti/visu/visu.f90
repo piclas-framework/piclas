@@ -64,7 +64,7 @@ USE MOD_IO_HDF5        ,ONLY: GetDatasetNamesInGroup,File_ID
 USE MOD_StringTools    ,ONLY: STRICMP
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)                                  :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)                           :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)                       :: statefile
 CHARACTER(LEN=*)  ,INTENT(IN)                       :: meshfile
 CHARACTER(LEN=255),INTENT(INOUT),ALLOCATABLE,TARGET :: varnames_loc(:)
@@ -214,7 +214,7 @@ USE MOD_StringTools        ,ONLY: STRICMP
 USE MOD_ReadInTools        ,ONLY: prms,GETINT,GETLOGICAL,addStrListEntry,GETSTR
 USE MOD_Posti_Mappings     ,ONLY: Build_mapDepToCalc_mapAllVarsToVisuVars
 IMPLICIT NONE
-INTEGER,INTENT(IN)               :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)        :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(IN)    :: statefile
 CHARACTER(LEN=255),INTENT(INOUT) :: postifile
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -323,7 +323,9 @@ USE MOD_PreProc
 USE MOD_Visu_Vars
 USE MOD_MPI                 ,ONLY: InitMPI
 USE MOD_HDF5_Input          ,ONLY: ISVALIDMESHFILE,ISVALIDHDF5FILE,CloseDataFile
+#if !(USE_FV) || (USE_HDG)
 USE MOD_Posti_ReadState     ,ONLY: ReadState
+#endif
 USE MOD_Posti_VisuMesh      ,ONLY: VisualizeMesh
 !USE MOD_Posti_Calc          ,ONLY: CalcQuantities_DG
 USE MOD_Posti_ConvertToVisu ,ONLY: ConvertToVisu_DG,ConvertToVisu_GenericData
@@ -334,7 +336,7 @@ USE MOD_Posti_Mappings      ,ONLY: Build_mapBCSides
 USE MOD_IO_HDF5             ,ONLY: InitMPIInfo
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)               :: mpi_comm_IN
+TYPE(MPI_Comm),INTENT(IN)        :: mpi_comm_IN
 CHARACTER(LEN=255),INTENT(INOUT) :: prmfile
 CHARACTER(LEN=255),INTENT(INOUT) :: postifile
 CHARACTER(LEN=255),INTENT(IN)    :: statefile
@@ -523,7 +525,12 @@ END SUBROUTINE visu
 SUBROUTINE FinalizeVisu()
 USE MOD_Globals
 USE MOD_Visu_Vars
-USE MOD_DG_Vars
+#if USE_FV
+USE MOD_FV_Vars                ,ONLY: U_FV
+#endif
+#if !(USE_FV) || (USE_HDG)
+USE MOD_DG_Vars                ,ONLY: U
+#endif
 USE MOD_Mesh_Vars, ONLY: Elem_xGP
 IMPLICIT NONE
 !===================================================================================================================================
@@ -546,7 +553,12 @@ SDEALLOCATE(mapDGElemsToAllElems)
 
 SDEALLOCATE(CoordsVisu_DG)
 SDEALLOCATE(UVisu_DG)
+#if !(USE_FV) || (USE_HDG)
 SDEALLOCATE(U)
+#endif
+#if USE_FV
+SDEALLOCATE(U_FV)
+#endif
 SDEALLOCATE(Elem_xGP)
 END SUBROUTINE FinalizeVisu
 

@@ -141,8 +141,8 @@ USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
 USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
-USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcXiVib
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY: ReadAttribute, DatasetExists, AttributeExists
@@ -293,12 +293,16 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
       ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
       IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
         IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
-          BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
-            + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
-          BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
-          ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
-          ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
-                                            * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+          IF(DSMC%VibAHO) THEN ! AHO
+            CALL CalcXiVib(SpecDSMC(iSpec)%Init(1)%TVib, iSpec, XiVibTotal=ChemReac%MeanXiVib_PerIter(iSpec))
+          ELSE ! SHO
+            BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
+              + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
+            BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
+            ChemReac%MeanEVibQua_PerIter(iSpec) = MIN(INT(BGGasEVib) + 1, SpecDSMC(iSpec)%MaxVibQuant)
+            ChemReac%MeanXiVib_PerIter(iSpec) = 2. * ChemReac%MeanEVibQua_PerIter(iSpec) &
+                                              * LOG(1.0/ChemReac%MeanEVibQua_PerIter(iSpec) + 1.0 )
+          END IF
         END IF
       ELSE
         ChemReac%MeanEVibQua_PerIter(iSpec) = 0
@@ -666,7 +670,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, PolyatomMolDSMC
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
-USE MOD_DSMC_ChemReact          ,ONLY: CalcPartitionFunction
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcPartitionFunction
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY: ReadAttribute
 ! IMPLICIT VARIABLE HANDLING
@@ -696,7 +700,7 @@ DO iSpec = 1, nSpecies
       CALL H5OPEN_F(err)
       CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
       dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
-      CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor)
+      CALL ReadAttribute(file_id_specdb,'SymmetryFactor',1,DatasetName = dsetname,IntScalar=SpecDSMC(iSpec)%SymmetryFactor,ReadFromGroup=.TRUE.)
       CALL PrintOption('SymmetryFactor '//TRIM(Species(iSpec)%Name),'DB',IntOpt=SpecDSMC(iSpec)%SymmetryFactor)
       ! Close the file.
       CALL H5FCLOSE_F(file_id_specdb, err)
@@ -727,7 +731,7 @@ DO iSpec = 1, nSpecies
       END IF
     END IF
   END IF
-  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
+  IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
       CALL abort(__STAMP__,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
     END IF
