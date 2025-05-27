@@ -300,6 +300,8 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
           IF(DSMC%VibAHO) THEN ! AHO
             CALL CalcXiVib(SpecDSMC(iSpec)%Init(1)%TVib, iSpec, XiVibTotal=ChemReac%MeanXiVib_PerIter(iSpec))
           ELSE ! SHO
+            IF(ABS(SpecDSMC(iSpec)%Init(1)%TVib).LE.0.0) CALL ABORT(__STAMP__,'Error: Initial vibrational temperature of species '//TRIM(Species(iSpec)%Name)//' is zero!')
+            IF(ABS(SpecDSMC(iSpec)%CharaTVib).LE.0.0) CALL ABORT(__STAMP__,'Error: CharaTVib of species '//TRIM(Species(iSpec)%Name)//' is zero!')
             BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
               + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
             BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
