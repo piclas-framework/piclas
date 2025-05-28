@@ -65,9 +65,9 @@ REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV,0:0,0:0,1:nSides)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID,SideID,firstSideID,lastSideID,iVel,jVel,kVel,upos
+INTEGER                         :: ElemID,SideID,firstSideID,lastSideID
 #ifdef discrete_velocity
-INTEGER                         :: iSpec, vFirstID
+INTEGER                         :: iVel,jVel,kVel,upos, iSpec, vFirstID
 #endif
 !===================================================================================================================================
 IF(doMPISides)THEN

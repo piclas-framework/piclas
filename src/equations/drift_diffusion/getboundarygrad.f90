@@ -72,7 +72,7 @@ CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
-    CALL ExactFunc_FV(IniExactFunc_FV,time,0,Face_xGP,UPrim_boundary)
+    CALL ExactFunc_FV(IniExactFunc_FV,time,Face_xGP,UPrim_boundary)
   ELSE
     UPrim_boundary = RefState_FV(:,BCState)
   END IF
@@ -82,9 +82,12 @@ CASE(3) ! von Neumann
   gradU = 0.
 
 CASE DEFAULT ! unknown BCType
-  CALL abort(__STAMP__,&
-        'no BC defined in DVM/getboundarygrad.f90!')
+  CALL abort(__STAMP__,'no BC defined in DVM/getboundarygrad.f90!')
 END SELECT ! BCType
+
+! Suppress compiler warnings
+RETURN
+UPrim_boundary(1)=NormVec(1)
 
 END SUBROUTINE GetBoundaryGrad
 

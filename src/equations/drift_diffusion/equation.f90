@@ -13,9 +13,6 @@
 #include "piclas.h"
 
 MODULE MOD_Equation_FV
-!===================================================================================================================================
-! Add comments please!
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -63,7 +60,7 @@ CALL prms%CreateRealArrayOption('RefState-FV',     "State(s) in primitive variab
 END SUBROUTINE DefineParametersEquation
 
 !==================================================================================================================================
-!> Read equation parameters (advection velocity, diffusion coeff, exact function)  from the ini file
+!> Read equation parameters from the ini file
 !==================================================================================================================================
 SUBROUTINE InitEquation()
 ! MODULES
@@ -119,7 +116,7 @@ LBWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
+SUBROUTINE ExactFunc(ExactFunction,tIn,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -132,13 +129,12 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 REAL,INTENT(IN)                 :: tIn                    !< input time (either time at RK stage or time at the beginning of
                                                           !< timestep if full boundary order is used (only with RK3)
-INTEGER, INTENT(IN)                :: tDeriv
 REAL,INTENT(IN)                 :: x(3)                   !< coordinates to evaluate exact function
 INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact function to be used
 REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-
+REAL :: exponent
 !==================================================================================================================================
 
 Resu   =0.
@@ -158,27 +154,31 @@ CASE(2) !shock
   END IF
 
 CASE(3) !1D streamer (Markosyan et al. - 2013)
-  Resu(1) = RefState_FV(1,1)*EXP(-((x(1)-0.8e-3)/2.9e-5)**2)
+  exponent = ((x(1)-0.8e-3)/2.9e-5)**2
+  IF (CHECKEXP(exponent)) THEN
+    Resu(1) = RefState_FV(1,1)*EXP(-exponent)
+  ELSE
+    Resu(1) = 0.0
+  END IF
 
 CASE DEFAULT
-  CALL abort(__STAMP__,&
-             'Specified exact function not implemented!')
+  CALL abort(__STAMP__,'Specified exact function not implemented!')
 END SELECT ! ExactFunction
 
 END SUBROUTINE ExactFunc
 
 SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
-! Specifies all the initial conditions. The state in conservative variables is returned.
+! Source term for the FV solver: ionization
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals           ,ONLY: abort, vecnorm
 USE MOD_PreProc
+USE MOD_Globals           ,ONLY: vecnorm
 USE MOD_FV_Vars           ,ONLY: U_FV
 USE MOD_Equation_Vars     ,ONLY: E
 USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars         ,ONLY: BGGas
-USE MOD_Particle_Vars     ,ONLY: nSpecies, Species
+USE MOD_Particle_Vars     ,ONLY: nSpecies
 USE MOD_Interpolation_Vars,ONLY: wGP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

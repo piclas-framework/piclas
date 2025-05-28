@@ -28,11 +28,9 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotatet: don't use it after this routine!!
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! 0
-USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
-USE MOD_DistFunc,        ONLY: ShakhovDistribution, ESBGKDistribution, GradDistributionPrandtl
-USE MOD_DistFunc,        ONLY: SkewNormalDistribution, SkewtDistribution
-USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMSpecData, DVMnSpecies, DVMMethod, DVMBGKModel, DVMColl
+USE MOD_PreProc ! PP_N
+USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, TargetDistribution
+USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMSpecData, DVMnSpecies, DVMMethod, DVMColl
 USE MOD_TimeDisc_Vars,   ONLY: dt
 USE MOD_Globals,         ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
@@ -51,7 +49,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
 REAL                                             :: n_loc(3),MacroVal_L(14,DVMnSpecies+1), MacroVal_R(14,DVMnSpecies+1), tau_L, tau_R
 REAL                                             :: Velo
 REAL,ALLOCATABLE                                 :: fTarget_L(:), fTarget_R(:), UTemp_L(:), UTemp_R(:)
-REAL                                             :: gamma_R, gamma_L
+REAL                                             :: gamma_R, gamma_L, relaxFac
 INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos, iSpec, vFirstID, vLastID
 !===================================================================================================================================
 ! Gauss point i,j
@@ -63,8 +61,18 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)
         SELECT CASE (DVMMethod)
         CASE(1)
-          gamma_L = 2.*tau_L*(1.-EXP(-dt/2./tau_L))/dt
-          gamma_R = 2.*tau_R*(1.-EXP(-dt/2./tau_R))/dt
+          relaxFac = dt/2./tau_L
+          IF(CHECKEXP(relaxFac)) THEN
+            gamma_L = 2.*tau_L*(1.-EXP(-relaxFac))/dt
+          ELSE
+            gamma_L = 0.
+          END IF
+          relaxFac = dt/2./tau_R
+          IF(CHECKEXP(relaxFac)) THEN
+            gamma_R = 2.*tau_R*(1.-EXP(-relaxFac))/dt
+          ELSE
+            gamma_R = 0.
+          END IF
         CASE(2)
           gamma_L = 2.*tau_L/(2.*tau_L+dt/2.)
           gamma_R = 2.*tau_R/(2.*tau_R+dt/2.)
@@ -81,31 +89,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         MacroVal_L(2:14,iSpec) = MacroVal_L(2:14,DVMnSpecies+1)
         MacroVal_R(2:14,iSpec) = MacroVal_R(2:14,DVMnSpecies+1)
         IF (DVMColl) THEN
-          SELECT CASE (DVMBGKModel)
-            CASE(1)
-              CALL ESBGKDistribution(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-              CALL ESBGKDistribution(MacroVal_R(:,iSpec),fTarget_R,iSpec)
-            CASE(2)
-              CALL ShakhovDistribution(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-              CALL ShakhovDistribution(MacroVal_R(:,iSpec),fTarget_R,iSpec)
-            CASE(3)
-              CALL MaxwellDistribution(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-              CALL MaxwellDistribution(MacroVal_R(:,iSpec),fTarget_R,iSpec)
-            CASE(4)
-              CALL MaxwellDistributionCons(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-              CALL MaxwellDistributionCons(MacroVal_R(:,iSpec),fTarget_R,iSpec)
-            CASE(5)
-              CALL SkewNormalDistribution(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-              CALL SkewNormalDistribution(MacroVal_R(:,iSpec),fTarget_R,iSpec)
-            CASE(6)
-              CALL SkewtDistribution(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-              CALL SkewtDistribution(MacroVal_R(:,iSpec),fTarget_R,iSpec)
-            CASE(7)
-              CALL GradDistributionPrandtl(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-              CALL GradDistributionPrandtl(MacroVal_R(:,iSpec),fTarget_R,iSpec)
-            CASE DEFAULT
-              CALL abort(__STAMP__,'DVM BGK Model not implemented.',999,999.)
-          END SELECT
+          CALL TargetDistribution(MacroVal_L(:,iSpec),fTarget_L,iSpec)
+          CALL TargetDistribution(MacroVal_R(:,iSpec),fTarget_R,iSpec)
           IF (dt.EQ.0.) THEN
             UTemp_L = 0.
             UTemp_R = 0.

@@ -145,11 +145,17 @@ The concept of the parameter file is described as followed:
 * The examination is case-insensitive
 * Comments can be set with symbol "!" in front of the text
 * Numbers can also be set by using "pi"
+* The order of defined variables is irrelevant, except for the special case when redefining boundaries. However, it is preferable to group similar variables together.
 ~~~~~~~
-    vector = (/1,2Pi,3Pi/)
+vector = (/1,2Pi,3Pi/)
 ~~~~~~~
-* The order of defined variables is irrelevant, except for the special case when redefining boundaries.
-However, it is preferable to group similar variables together.
+
+Due to the often repetitive definitions, the default value for a given parameter can be set using the wildcard `$`. Different
+values for individual parameters can be specified by explicitly specifying the numbered parameter, irrespective of the ordering
+in the parameter file.
+
+    Part-Species1-Init1-VeloIC = 1.
+    Part-Species$-Init$-VeloIC = 2.
 
 The options and underlying models are discussed in Chapter {ref}`userguide/features-and-models/index:Features & Models`, while the available
 output options are given in Chapter {ref}`userguide/visu_output:Visualization & Output`.

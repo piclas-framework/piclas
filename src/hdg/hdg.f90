@@ -1614,7 +1614,7 @@ INTEGER :: iUniqueEPCBC
 #if (USE_HDG && (PP_nVar==1))
 INTEGER           :: iDir,iElem
 #endif /*(USE_HDG && (PP_nVar==1))*/
-REAL              :: maxphi
+! REAL              :: maxphi
 #if USE_MPI
 #endif /*USE_MPI*/
 !===================================================================================================================================

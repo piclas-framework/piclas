@@ -685,6 +685,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(LEN=9)          :: dsetname = 'CloneData'
 INTEGER                   :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay, iPos
 INTEGER(HSIZE_T), POINTER :: SizeClone(:)
 REAL,ALLOCATABLE          :: CloneData(:,:)
@@ -699,7 +700,7 @@ ParameterExists = .FALSE.
 ResetClones = .FALSE.
 
 ! Determining whether clones have been written to State file
-CALL DatasetExists(File_ID,'CloneData',ClonesExist)
+CALL DatasetExists(File_ID,dsetname,ClonesExist)
 IF(.NOT.ClonesExist) THEN
   LBWRITE(*,*) 'No clone data found! Restart without cloning.'
   ResetClones = .TRUE.
@@ -713,9 +714,9 @@ IF(ClonesExist.AND..NOT.PerformLoadBalance) THEN
 IF(ClonesExist) THEN
 #endif /*USE_LOADBALANCE*/
   ! Determining the old time step
-  CALL DatasetExists(File_ID,'ManualTimeStep',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  CALL AttributeExists(File_ID,'ManualTimeStep',TRIM(dsetname), AttrExists=ParameterExists)
   IF(ParameterExists) THEN
-    CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName='CloneData')
+    CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName=dsetname)
     IF(OldParameter.NE.ManualTimeStep) THEN
       ResetClones = .TRUE.
       LBWRITE(*,*) 'Changed timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
@@ -727,9 +728,9 @@ IF(ClonesExist) THEN
   ParameterExists = .FALSE.
 
   ! Determining the old weighting factor
-  CALL DatasetExists(File_ID,'WeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  CALL AttributeExists(File_ID,'WeightingFactor',TRIM(dsetname), AttrExists=ParameterExists)
   IF(ParameterExists) THEN
-    CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+    CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName=dsetname)
     ! Only checking the weighting factor of the first species
     IF(OldParameter.NE.Species(1)%MacroParticleFactor) THEN
       ResetClones = .TRUE.
@@ -743,9 +744,9 @@ IF(ClonesExist) THEN
 
   ! Determining the old radial weighting factor
   IF(DoRadialWeighting) THEN
-    CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+    CALL AttributeExists(File_ID,'RadialWeightingFactor',TRIM(dsetname), AttrExists=ParameterExists)
     IF(ParameterExists) THEN
-      CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+      CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName=dsetname)
       IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
         ResetClones = .TRUE.
         LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
@@ -772,7 +773,7 @@ IF(ResetClones) THEN
   END IF
 END IF
 
-CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
+CALL GetDataSize(File_ID,dsetname,nDimsClone,SizeClone)
 
 CloneDataSize = INT(SizeClone(1),4)
 ClonePartNum = INT(SizeClone(2),4)
@@ -794,7 +795,7 @@ IF(ClonePartNum.GT.0) THEN
   ALLOCATE(CloneData(1:CloneDataSize,1:ClonePartNum))
   ASSOCIATE(ClonePartNum  => INT(ClonePartNum,IK)  ,&
             CloneDataSize => INT(CloneDataSize,IK) )
-    CALL ReadArray('CloneData',2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
+    CALL ReadArray(dsetname,2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
   END ASSOCIATE
   LBWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
   ! Determing the old clone delay

@@ -230,7 +230,7 @@ SUBROUTINE ReadMesh(FileString,ReadNodes)
 !> (i.e. the orientation of sides towards each other) is already contained in the mesh file.
 !> For parallel computations the number of elements will be distributed equally onto all processors and each processor only reads
 !> its own subset of the mesh.
-!> For a documentation of the mesh format see the documentation provided with HOPR (hopr-project.org)
+!> For a documentation of the mesh format see the documentation provided with HOPR (https://github.com/hopr-framework/hopr)
 !> The arrays ElemInfo, SideInfo and NodeCoords are read, alongside with the boundary condition data.
 !===================================================================================================================================
 ! MODULES

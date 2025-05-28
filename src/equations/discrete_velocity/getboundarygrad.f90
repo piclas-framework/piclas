@@ -25,12 +25,7 @@ PRIVATE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE GetBoundaryGrad
-  MODULE PROCEDURE GetBoundaryGrad
-END INTERFACE
 
 PUBLIC:: GetBoundaryGrad
 !===================================================================================================================================
@@ -77,7 +72,7 @@ CASE(1) !Periodic already filled!
 
 CASE(2) ! exact BC = Dirichlet BC !!
   IF(BCState.EQ.0) THEN ! Determine the exact BC state
-    CALL ExactFunc_FV(IniExactFunc_FV,time,0,Face_xGP,UPrim_boundary)
+    CALL ExactFunc_FV(IniExactFunc_FV,time,Face_xGP,UPrim_boundary)
   ELSE
     vFirstID=1
     vLastID=0

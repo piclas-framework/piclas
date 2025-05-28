@@ -68,14 +68,17 @@ CALL prms%CreateRealArrayOption('DVM-Species[$]-GaussHermiteTemp',        'Refer
                                                                '(/273.,273.,273./)', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('DVM-Species[$]-VeloMin',                 'Only for Newton-Cotes velocity quadrature', '(/-1.,-1.,-1./)', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('DVM-Species[$]-VeloMax',                 'Only for Newton-Cotes velocity quadrature', '(/1.,1.,1./)', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'DVM-Species[$]-nVelo' ,                  'Number of velocity discretization points', '15', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-nVelo' ,                  'Number of velocity discretization points', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DVM-Species[$]-NewtonCotesDegree',       'Degree of the subquadrature for composite quadrature', '(/1,1,1/)', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions for velocity discretization', '3')
 CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
                                                      '1: Ellipsoidal statistical (ESBGK)\n'//&
                                                      '2: Shakov (SBGK)\n'//&
                                                      '3: Standard BGK (Maxwell)'//&
-                                                     '4: Conservative Maxwell)')
+                                                     '4: Conservative ESBGK'//&
+                                                     '5: Conservative Maxwell'//&
+                                                     '6: SkewNormal BGK (SNBGK)'//&
+                                                     '7: Grad 13 BGK')
 CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//&
                                                      '1: Exponential differencing (EDDVM)\n'//&
                                                      '2: DUGKS')
@@ -277,7 +280,7 @@ LBWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
 
 
-SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
+SUBROUTINE ExactFunc(ExactFunction,tIn,x,resu)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -285,14 +288,13 @@ SUBROUTINE ExactFunc(ExactFunction,tIn,tDeriv,x,resu)
 USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI, BoltzmannConst
-USE MOD_DistFunc,      ONLY: MaxwellDistribution, MacroValuesFromDistribution, GradDistribution
-USE MOD_Equation_Vars_FV, ONLY: DVMSpecData, RefState_FV, DVMBGKModel, DVMnSpecies
+USE MOD_DistFunc,      ONLY: MaxwellDistribution, GradDistribution
+USE MOD_Equation_Vars_FV, ONLY: DVMSpecData, RefState_FV, DVMnSpecies
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 REAL,INTENT(IN)                 :: tIn                    !< input time (either time at RK stage or time at the beginning of
                                                           !< timestep if full boundary order is used (only with RK3)
-INTEGER, INTENT(IN)                :: tDeriv
 REAL,INTENT(IN)                 :: x(3)                   !< coordinates to evaluate exact function
 INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact function to be used
 REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables

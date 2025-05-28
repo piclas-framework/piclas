@@ -115,8 +115,8 @@ IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRe
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
 IF(UseVarTimeStep) THEN
-  IF(.NOT.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__, &
-    'ERROR: Variable timestep (except species-specific) are not implemented with a background gas yet!')
+  IF(.NOT.VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%UseLinearScaling) CALL abort(__STAMP__, &
+    'ERROR: Variable timestep (except species-specific and linear scaling in 3D) is not implemented with a background gas yet!')
 END IF
 
 DO iSpec = 1, nSpecies
@@ -579,7 +579,7 @@ DO iLoop = 1, nPart
   iPart = PEM%pNext(iPart)
 END DO
 
-IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors) THEN
+IF((((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
@@ -599,7 +599,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
       END IF
     END IF
   END DO
-  IF(SelectionProc.EQ.2) CALL CalcGammaVib()
+  IF(SelectionProc.EQ.2.AND..NOT.(DSMC%VibAHO)) CALL CalcGammaVib()
 END IF
 
 DO iSpec = 1, nSpecies
@@ -624,12 +624,9 @@ DO iPair = 1, nPair
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
   CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
-  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                            + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                            + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
+  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(5,Coll_pData(iPair)%iPart_p1) -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(6,Coll_pData(iPair)%iPart_p1) -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
@@ -643,7 +640,7 @@ DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL DSMC_prob_calc(iElem, iPair)
     CALL RANDOM_NUMBER(iRan)
-    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+    IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
       CALL DSMC_perform_collision(iPair,iElem)
     END IF
   END IF
@@ -665,7 +662,7 @@ IF(DSMC%CalcQualityFactors) THEN
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
-    ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+    ! In case of a reservoir simulation, MeanCollProb is the output in PartAnalyze
     ! Otherwise it is the ResolvedTimestep
     DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
   END IF
@@ -734,7 +731,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
+USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas

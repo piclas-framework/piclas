@@ -24,9 +24,8 @@ PRIVATE
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 
-PUBLIC:: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
-PUBLIC:: ShakhovDistribution, ESBGKDistribution, GradDistribution, GradDistributionPrandtl
-PUBLIC:: SkewNormalDistribution, SkewtDistribution
+PUBLIC:: MacroValuesFromDistribution, MaxwellDistribution, GradDistribution
+PUBLIC:: TargetDistribution
 PUBLIC:: MaxwellScattering, RescaleU, RescaleInit, ForceStep, IntegrateFluxValues
 !==================================================================================================================================
 
@@ -58,7 +57,7 @@ REAL                            :: rhoTotal, dens(DVMnSpecies+1), rhoU(3,DVMnSpe
 REAL                            :: uVelo(3,DVMnSpecies+1), cVel(3,DVMnSpecies+1), cMag2(DVMnSpecies+1)
 REAL                            :: mu(DVMnSpecies+1), thermalcond(DVMnSpecies+1), cP
 REAL                            :: PressTens(6,DVMnSpecies+1), Heatflux(3,DVMnSpecies+1)
-REAL                            :: weight, prefac, Prandtl, Phi, PrandtlCorrection
+REAL                            :: weight, prefac, Prandtl, Phi, PrandtlCorrection, relaxFac
 INTEGER                         :: iVel,jVel,kVel,upos,iSpec,jSpec,vFirstID,total
 !===================================================================================================================================
 rhoTotal = 0.
@@ -219,13 +218,17 @@ IF (DVMBGKModel.EQ.1) tau = tau/Prandtl !ESBGK
 IF (DVMBGKModel.EQ.7) tau = tau*2./3.
 
 IF (DVMColl.AND.tDeriv.GT.0.) THEN
-  SELECT CASE (tilde)
-  CASE(1) ! higher moments from f~
+  IF(tilde.EQ.1) THEN ! higher moments from f~
     SELECT CASE(DVMMethod)
     CASE(1) !EDDVM
-      prefac = (1.-EXP(-tDeriv/tau))/(tDeriv/tau)
+      relaxFac = tDeriv/tau
+      IF (CHECKEXP(relaxFac)) THEN
+        prefac = (1.-EXP(-relaxFac))/relaxFac
+      ELSE
+        prefac = 0.
+      END IF
       SELECT CASE(DVMBGKModel)
-      CASE(1) !ESBGK
+      CASE(1,4) !ESBGK
         Macroval(6,:)   = (Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
                           /(1./Prandtl+prefac*(1.-1./Prandtl))
         Macroval(7,:)   = (Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
@@ -234,14 +237,18 @@ IF (DVMColl.AND.tDeriv.GT.0.) THEN
                           /(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(12:14,:) = MacroVal(12:14,:)*prefac
-
-      CASE(2,5,6) !Shakhov/SN
+        MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal
+      CASE(2,6) !Shakhov/SN
         MacroVal(6,:)   = Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
         MacroVal(7,:)   = Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
         MacroVal(8,:)   = Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
         MacroVal(9:11,:)  = MacroVal(9:11,:)*prefac
         MacroVal(12:14,:) = MacroVal(12:14,:)*prefac/(Prandtl+prefac*(1-Prandtl))
-
+      CASE(3,5) !Maxwell
+        MacroVal(6,:)   = Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        MacroVal(7,:)   = Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        MacroVal(8,:)   = Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
+        Macroval(9:14,:)  = prefac*Macroval(9:14,:) ! non-eq moments should be zero anyway
       CASE(7) !Double moment distributions
         Macroval(6,:)   = (Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst*2./3.) &
         /(2./3.+prefac/3.)
@@ -251,18 +258,12 @@ IF (DVMColl.AND.tDeriv.GT.0.) THEN
         /(2./3.+prefac/3.)
         MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(2./3.+prefac/3.)
         MacroVal(12:14,:) = MacroVal(12:14,:)*prefac/(2.*Prandtl/3.+prefac*(1.-2.*Prandtl/3.))
-
-      CASE(3,4) !Maxwell
-        MacroVal(6,:)   = Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
-        MacroVal(7,:)   = Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
-        MacroVal(8,:)   = Macroval(8,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
-        Macroval(9:14,:)  = prefac*Macroval(9:14,:) ! non-eq moments should be zero anyway
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
       END SELECT
     CASE(2) !DUGKS
       SELECT CASE(DVMBGKModel)
-      CASE(1) !ESBGK
+      CASE(1,4) !ESBGK
         prefac = (2.*tau)/(2.*tau+tDeriv)
         Macroval(6,:)   = (Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst/Prandtl) &
                           /(1./Prandtl+prefac*(1.-1./Prandtl))
@@ -272,35 +273,42 @@ IF (DVMColl.AND.tDeriv.GT.0.) THEN
                           /(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(12:14,:) = MacroVal(12:14,:)*prefac
-      CASE(2,5,6) !Shakhov/SN
+        MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal
+      CASE(2,6) !Shakhov/SN
         Macroval(6,:)   = Macroval(6,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
         Macroval(7,:)   = Macroval(7,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
         Macroval(8,:)   = Macroval(8,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
         Macroval(9:11,:)  = Macroval(9:11,:)*2.*tau/(2.*tau+tDeriv)
         MacroVal(12:14,:) = MacroVal(12:14,:)*2.*tau/(2.*tau+tDeriv*Prandtl)
-      CASE(3,4) !Maxwell
+      CASE(3,5) !Maxwell
         Macroval(6,:)   = Macroval(6,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
         Macroval(7,:)   = Macroval(7,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
         Macroval(8,:)   = Macroval(8,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
         Macroval(9:14,:)  = Macroval(9:14,:)*2.*tau/(2.*tau+tDeriv) ! non-eq moments should be zero anyway
+      CASE(7) !Double moment distributions
+        Macroval(6,:)   = Macroval(6,:)*2.*tau/(2.*tau++2.*tDeriv/3.) &
+                        + 2.*MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+2.*tDeriv/3.)/3.
+        Macroval(7,:)   = Macroval(7,:)*2.*tau/(2.*tau++2.*tDeriv/3.) &
+                        + 2.*MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+2.*tDeriv/3.)/3.
+        Macroval(8,:)   = Macroval(8,:)*2.*tau/(2.*tau++2.*tDeriv/3.) &
+                        + 2.*MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+2.*tDeriv/3.)/3.
+        Macroval(9:11,:)  = Macroval(9:11,:)*2.*tau/(2.*tau+2.*tDeriv/3.)
+        MacroVal(12:14,:) = MacroVal(12:14,:)*2.*tau/(2.*tau+2.*tDeriv*Prandtl/3.)
       CASE DEFAULT
         CALL abort(__STAMP__,'DVM-BGKCollModel does not exist')
       END SELECT
+    CASE DEFAULT
+      CALL abort(__STAMP__,'DVM-Method does not exist')
     END SELECT
-  CASE(2) ! higher moments from f^
-    MacroVal(6:14,:) = 0. ! will get copied from earlier f~ macroval
-  CASE DEFAULT
-    CALL abort(__STAMP__,'DVM-Method does not exist')
-  END SELECT
+  END IF
+  !ELSE: higher moments from f^ will get copied from earlier f~ macroval
 END IF
-
-MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal ! for ESBGK
 
 END SUBROUTINE MacroValuesFromDistribution
 
 SUBROUTINE MaxwellDistributionCons(MacroVal,fMaxwell,iSpec)
 !===================================================================================================================================
-! conservative maxwell distribution
+! conservative maxwell distribution (cf Mieussens 2000)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
@@ -319,21 +327,26 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! LOCAL VARIABLES
 REAL                            :: rho, Temp, uVelo(DVMDim), vMag, weight, gM
 REAL,DIMENSION(2+DVMDim)        :: alpha, psi, rhovec
-REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim,1)
+REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim)
 INTEGER                         :: iVel,jVel,kVel, upos, countz, IPIV(2+DVMDim), info_dgesv
 !===================================================================================================================================
 rho = MacroVal(1)*DVMSpecData(iSpec)%Mass
 uVelo(1:DVMDim) = MacroVal(2:1+DVMDim)
 Temp = MacroVal(5)
+
+! vector of conservative variables
 rhovec(1) = rho
 rhovec(2:1+DVMDim)=rho*uVelo(:)
-rhovec(2+DVMDim)=rho*(3*DVMSpecData(iSpec)%R_S*Temp+DOT_PRODUCT(uVelo,uVelo))/2.
-countz=0
+rhovec(2+DVMDim)=rho*(FLOAT(DVMDim)*DVMSpecData(iSpec)%R_S*Temp+DOT_PRODUCT(uVelo,uVelo))/2.
 
 alpha(1) = LOG(rho/(2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))-DOT_PRODUCT(uVelo,uVelo)/2./DVMSpecData(iSpec)%R_S/Temp
 alpha(2:1+DVMDim) = uVelo(1:DVMDim)/DVMSpecData(iSpec)%R_S/Temp
 alpha(2+DVMDim) = -1/DVMSpecData(iSpec)%R_S/Temp
 
+! init counter
+countz=0
+
+!Newton algorithm to find alpha so that <psi exp(alpha.psi)> = rhovec
 DO WHILE (countz.LT.1000)
   countz=countz+1
   J = 0.
@@ -347,6 +360,9 @@ DO WHILE (countz.LT.1000)
     IF (DVMDim.GT.2) psi(4)=DVMSpecData(iSpec)%Velos(kVel,3)
     psi(2+DVMDim) = vMag/2.
     gM = EXP(DOT_PRODUCT(alpha,psi))
+
+    ! J: derivative of -B = <psi exp(alpha.psi)> - rhovec
+    ! J = <psi x psi exp(alpha.psi)>
     J(:,1) = J(:,1)+weight*gM*psi(:)
     J(:,2) = J(:,2)+weight*gM*psi(2)*psi(:)
     IF (DVMDim.GT.1) J(:,3) = J(:,3)+weight*gM*psi(3)*psi(:)
@@ -354,20 +370,21 @@ DO WHILE (countz.LT.1000)
     J(:,2+DVMDim) = J(:,2+DVMDim)+weight*gM*psi(2+DVMDim)*psi(:)
   END DO; END DO; END DO
 
-  B(:,1) = rhovec(:) - J(:,1)
+  B(:) = rhovec(:) - J(:,1)
 
+  ! solve JX = B
   CALL DGESV(2+DVMDim,1,J,2+DVMDim,IPIV,B,2+DVMDim,info_dgesv)
 
   IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Newton DGESV fail')
-  IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-5*ABS(alpha)+1e-12)))) EXIT
+  IF (.NOT.(ANY(ABS(B(:)).GT.(1e-5*ABS(alpha)+1e-12)))) EXIT
   ! IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-6*ABS(alpha)+1e-16)))) EXIT
-  alpha = alpha + B(:,1)
+
+  ! update alpha with Newton increment X (stored in B)
+  alpha = alpha + B
 END DO
 IF (countz.GE.1000) print*, 'Newton max iter reached'
 
-J=0.
-
-alpha = alpha + B(:,1)
+alpha = alpha + B
 DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
   weight = DVMSpecData(iSpec)%Weights(iVel,1)*DVMSpecData(iSpec)%Weights(jVel,2)*DVMSpecData(iSpec)%Weights(kVel,3)
   upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)
@@ -379,7 +396,6 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   psi(2+DVMDim) = vMag/2.
   fMaxwell(upos) = EXP(DOT_PRODUCT(alpha,psi))/DVMSpecData(iSpec)%Mass
   IF (DVMDim.LT.3) THEN
-    print*, 'I dont think MaxwellCons works with D < 3 :/'
     fMaxwell(DVMSpecData(iSpec)%nVar/2+upos) = fMaxwell(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
   END IF
 END DO; END DO; END DO
@@ -527,8 +543,8 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   cVel(3) = DVMSpecData(iSpec)%Velos(kVel,3) - uVelo(3)
 
   pressProduct = cVel(1)*DOT_PRODUCT(ilambda(:,1),cVel) &
-               + cVel(2)*DOT_PRODUCT(ilambda(:,2),cVel) &
-               + cVel(3)*DOT_PRODUCT(ilambda(:,3),cVel)
+                + cVel(2)*DOT_PRODUCT(ilambda(:,2),cVel) &
+                + cVel(3)*DOT_PRODUCT(ilambda(:,3),cVel)
 
   fESBGK(upos) = dens/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
   IF ((DVMSpecData(iSpec)%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
@@ -540,6 +556,171 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
 END DO; END DO; END DO
 
 END SUBROUTINE ESBGKDistribution
+
+SUBROUTINE ESBGKDistributionCons(MacroVal,fESBGK,iSpec)
+!===================================================================================================================================
+! Conservative ESBGK distribution from macro values, cf Mieussens 2000:
+! Discrete-Velocity Models and Numerical Schemes for the Boltzmann-BGK Equation in Plane and Axisymmetric Geometries
+!===================================================================================================================================
+! MODULES
+USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
+USE MOD_Basis                    ,ONLY: INV33
+USE MOD_PreProc
+USE MOD_Globals
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER                          :: iSpec
+REAL,INTENT(OUT)                 :: fESBGK(PP_nVar_FV)
+REAL, INTENT(IN)                 :: MacroVal(14)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                                              :: rho,Temp,uVelo(DVMDim),pressTens(3,3),pressVec(2*DVMDim),weight,gM,hfac
+REAL                                              :: iLambda(3,3),ldet, pressProduct(DVMDim)
+REAL,DIMENSION(1+2*DVMDim+DVMDim*(DVMDim-1)/2)    :: rhovec,alpha,psi,B
+REAL                                              :: J(1+2*DVMDim+DVMDim*(DVMDim-1)/2,1+2*DVMDim+DVMDim*(DVMDim-1)/2)
+INTEGER                                           :: iVel,jVel,kVel,upos,countz,IPIV(1+2*DVMDim+DVMDim*(DVMDim-1)/2),info_dgesv
+INTEGER                                           :: iMat,jMat
+!===================================================================================================================================
+rho = MacroVal(1)*DVMSpecData(iSpec)%Mass
+uVelo(1:DVMDim) = MacroVal(2:1+DVMDim)
+Temp = MacroVal(5)
+pressTens(1,1)   = MacroVal(6)
+pressTens(2,2)   = MacroVal(7)
+pressTens(3,3)   = MacroVal(8)
+pressTens(1,2:3) = MacroVal(9:10)
+pressTens(2:3,1) = MacroVal(9:10)
+pressTens(2,3)   = MacroVal(11)
+pressTens(3,2)   = MacroVal(11)
+
+pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens !/rho
+pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
+pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
+pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
+
+CALL INV33(pressTens,ilambda,ldet)
+IF (ldet.LE.0.) THEN
+  CALL abort(__STAMP__,'ESBGK matrix not positive-definite')
+ELSE
+  ! determinant from reduced pressure tensor (size D*D)
+  IF (DVMDim.LE.2) ldet = ldet/pressTens(3,3)
+  IF (DVMDim.LE.1) ldet = ldet/pressTens(2,2)
+END IF
+
+! pressure tensor to vector
+pressVec = 0.
+pressVec(1:DVMDim)   = MacroVal(6:6+DVMDim-1)
+pressVec(DVMDim+1:DVMDim+DVMDim*(DVMDim-1)/2) = MacroVal(9:9+DVMDim*(DVMDim-1)/2-1)
+
+pressVec = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressVec/rho
+pressVec(1:DVMDim) = pressVec(1:DVMDim)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
+
+! vector of conservative variables + cross terms
+rhovec(1) = rho
+rhovec(2:1+DVMDim)=rho*uVelo(:)
+rhovec(DVMDim+2:2*DVMDim+1)=rho*(uVelo(1:DVMDim)*uVelo(1:DVMDim) + pressVec(1:DVMDim))
+IF (DVMDim.GT.1) rhovec(2*DVMDim+2) = rho*(uVelo(1)*uVelo(2) + pressVec(DVMDim+1))
+IF (DVMDim.GT.2) THEN
+  rhovec(2*DVMDim+3) = rho*(uVelo(1)*uVelo(3) + pressVec(DVMDim+2))
+  rhovec(2*DVMDim+4) = rho*(uVelo(2)*uVelo(3) + pressVec(DVMDim+3))
+END IF
+
+pressProduct(1:DVMDim) = MATMUL(iLambda(1:DVMDim,1:DVMDim),uVelo)
+
+alpha = 0.
+alpha(1) = LOG(rho/sqrt(ldet*(2*Pi)**DVMDim))-DOT_PRODUCT(pressProduct,uVelo)/2.
+alpha(2:1+DVMDim) = pressProduct(1:DVMDim)
+alpha(2+DVMDim) = -iLambda(1,1)/2.
+IF (DVMDim.GT.1) THEN
+  alpha(3+DVMDim)= -iLambda(2,2)/2.
+  alpha(2+2*DVMDim) = -iLambda(1,2)/2.
+  IF (DVMDim.GT.2) THEN
+    alpha(4+DVMDim) = -iLambda(3,3)/2.
+    alpha(3+2*DVMDim) = -iLambda(1,3)/2.
+    alpha(4+2*DVMDim) = -iLambda(2,3)/2.
+  END IF
+END IF
+
+! init counter
+countz=0
+
+!Newton algorithm to find alpha so that <psi exp(alpha.psi)> = rhovec
+DO WHILE (countz.LT.1000)
+  countz=countz+1
+  J = 0.
+
+  DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
+    weight = DVMSpecData(iSpec)%Weights(iVel,1)*DVMSpecData(iSpec)%Weights(jVel,2)*DVMSpecData(iSpec)%Weights(kVel,3)
+    psi(1)=1
+    psi(2)=DVMSpecData(iSpec)%Velos(iVel,1)
+    psi(2+DVMDim) = DVMSpecData(iSpec)%Velos(iVel,1)**2
+    IF (DVMDim.GT.1) THEN
+      psi(3)=DVMSpecData(iSpec)%Velos(jVel,2)
+      psi(3+DVMDim)=DVMSpecData(iSpec)%Velos(jVel,2)**2
+      psi(2+2*DVMDim) = DVMSpecData(iSpec)%Velos(iVel,1)*DVMSpecData(iSpec)%Velos(jVel,2)
+      IF (DVMDim.GT.2) THEN
+        psi(4)=DVMSpecData(iSpec)%Velos(kVel,3)
+        psi(4+DVMDim)=DVMSpecData(iSpec)%Velos(kVel,3)**2
+        psi(3+2*DVMDim) = DVMSpecData(iSpec)%Velos(iVel,1)*DVMSpecData(iSpec)%Velos(kVel,3)
+        psi(4+2*DVMDim) = DVMSpecData(iSpec)%Velos(jVel,2)*DVMSpecData(iSpec)%Velos(kVel,3)
+      END IF
+    END IF
+    gM = EXP(DOT_PRODUCT(alpha,psi))
+
+    ! J: derivative of -B = <psi exp(alpha.psi)> - rhovec
+    ! J = <psi x psi exp(alpha.psi)>
+    DO iMat=1,1+2*DVMDim+DVMDim*(DVMDim-1)/2
+      DO jMat=1,1+2*DVMDim+DVMDim*(DVMDim-1)/2
+        J(iMat,jMat) = J(iMat,jMat) + weight*gM*psi(iMat)*psi(jMat)
+      END DO
+    END DO
+  END DO; END DO; END DO
+
+  B(:) = rhovec(:) - J(:,1)
+
+  ! solve JX = B
+  CALL DGESV(1+2*DVMDim+DVMDim*(DVMDim-1)/2,1,J,1+2*DVMDim+DVMDim*(DVMDim-1)/2,IPIV,B,1+2*DVMDim+DVMDim*(DVMDim-1)/2,info_dgesv)
+
+  IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Newton DGESV fail')
+  IF (.NOT.(ANY(ABS(B(:)).GT.(1e-5*ABS(alpha)+1e-12)))) EXIT
+  ! IF (.NOT.(ANY(ABS(B(:,1)).GT.(1e-6*ABS(alpha)+1e-16)))) EXIT
+
+  ! update alpha with Newton increment X (stored in B)
+  alpha = alpha + B
+END DO
+IF (countz.GE.1000) print*, 'Newton max iter reached'
+
+alpha = alpha + B
+DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
+  weight = DVMSpecData(iSpec)%Weights(iVel,1)*DVMSpecData(iSpec)%Weights(jVel,2)*DVMSpecData(iSpec)%Weights(kVel,3)
+  upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)
+  psi(1)=1
+  psi(2)=DVMSpecData(iSpec)%Velos(iVel,1)
+  psi(2+DVMDim) = DVMSpecData(iSpec)%Velos(iVel,1)**2
+  IF (DVMDim.GT.1) THEN
+    psi(3)=DVMSpecData(iSpec)%Velos(jVel,2)
+    psi(3+DVMDim)=DVMSpecData(iSpec)%Velos(jVel,2)**2
+    psi(2+2*DVMDim) = DVMSpecData(iSpec)%Velos(iVel,1)*DVMSpecData(iSpec)%Velos(jVel,2)
+    IF (DVMDim.GT.2) THEN
+      psi(4)=DVMSpecData(iSpec)%Velos(kVel,3)
+      psi(4+DVMDim)=DVMSpecData(iSpec)%Velos(kVel,3)**2
+      psi(3+2*DVMDim) = DVMSpecData(iSpec)%Velos(iVel,1)*DVMSpecData(iSpec)%Velos(kVel,3)
+      psi(4+2*DVMDim) = DVMSpecData(iSpec)%Velos(jVel,2)*DVMSpecData(iSpec)%Velos(kVel,3)
+    END IF
+  END IF
+  fESBGK(upos) = EXP(DOT_PRODUCT(alpha,psi))
+  IF ((DVMSpecData(iSpec)%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
+    hfac = DVMSpecData(iSpec)%R_S*Temp*DVMSpecData(iSpec)%Internal_DOF
+    IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
+    IF (DVMDim.LE.1) hfac = hfac + pressTens(2,2)
+    fESBGK(DVMSpecData(iSpec)%nVar/2+upos) = fESBGK(upos)*hfac
+  END IF
+END DO; END DO; END DO
+
+END SUBROUTINE ESBGKDistributionCons
 
 SUBROUTINE GradDistribution(MacroVal,fGrad,iSpec)
 !===================================================================================================================================
@@ -617,7 +798,7 @@ SUBROUTINE GradDistributionPrandtl(MacroVal,fGrad,iSpec)
 ! Grad 13 moments distribution from macro values
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
+USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData
 USE MOD_PreProc
 USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
@@ -631,56 +812,18 @@ REAL, INTENT(IN)                 :: MacroVal(14)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: dens,Temp,uVelo(3),cVel(3),cMag2,gM,q(3),pressTens(3,3),ShakhFac1,ShakhFac2,pressFac,pressProduct
-REAL                            :: pressProduct2
-INTEGER                         :: iVel,jVel,kVel,upos
+REAL                             :: MacroValPrandtl(14)
 !===================================================================================================================================
-dens              = MacroVal(1)
-uVelo(1:3)       = MacroVal(2:4)
-Temp             = MacroVal(5)
-pressTens(1,1)   = MacroVal(6)
-pressTens(2,2)   = MacroVal(7)
-pressTens(3,3)   = MacroVal(8)
-pressTens(1,2:3) = MacroVal(9:10)
-pressTens(2:3,1) = MacroVal(9:10)
-pressTens(2,3)   = MacroVal(11)
-pressTens(3,2)   = MacroVal(11)
+MacroValPrandtl(1:5)   = MacroVal(1:5)
 
-pressTens(1,1) = pressTens(1,1)-dens*BoltzmannConst*Temp
-pressTens(2,2) = pressTens(2,2)-dens*BoltzmannConst*Temp
-pressTens(3,3) = pressTens(3,3)-dens*BoltzmannConst*Temp
+MacroValPrandtl(6)     = (MacroVal(6)-MacroVal(1)*DVMSpecData(iSpec)%R_S*MacroVal(5))/3.
+MacroValPrandtl(7)     = (MacroVal(7)-MacroVal(1)*DVMSpecData(iSpec)%R_S*MacroVal(5))/3.
+MacroValPrandtl(8)     = (MacroVal(8)-MacroVal(1)*DVMSpecData(iSpec)%R_S*MacroVal(5))/3.
+MacroValPrandtl(9:11)  = MacroVal(9:11)/3.
 
-pressTens = pressTens/3.
-q(1:3)    = (1.-2.*DVMSpecData(iSpec)%Prandtl/3.)*MacroVal(12:14)
+MacroValPrandtl(12:14) = (1.-2.*DVMSpecData(iSpec)%Prandtl/3.)*MacroVal(12:14)
 
-DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
-  upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)
-
-  cVel(1) = DVMSpecData(iSpec)%Velos(iVel,1) - uVelo(1)
-  cVel(2) = DVMSpecData(iSpec)%Velos(jVel,2) - uVelo(2)
-  cVel(3) = DVMSpecData(iSpec)%Velos(kVel,3) - uVelo(3)
-  cMag2 = DOT_PRODUCT(cVel,cVel)
-
-  pressProduct = cVel(1)*DOT_PRODUCT(pressTens(:,1),cVel) &
-               + cVel(2)*DOT_PRODUCT(pressTens(:,2),cVel) &
-               + cVel(3)*DOT_PRODUCT(pressTens(:,3),cVel)
-
-  IF (DVMDim.LT.3) THEN
-    pressProduct2 = pressProduct + (5.-DVMDim)*DVMSpecData(iSpec)%R_S*Temp*pressTens(3,3)
-    pressProduct = pressProduct + (3.-DVMDim)*DVMSpecData(iSpec)%R_S*Temp*pressTens(3,3)
-  END IF
-
-  pressFac = dens*BoltzmannConst*DVMSpecData(iSpec)%R_S*Temp*Temp
-  ShakhFac1 = DOT_PRODUCT(q,cVel)/(5.*pressFac)
-  ShakhFac2 = cMag2/(DVMSpecData(iSpec)%R_S*Temp)
-
-  gM = dens/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
-  fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
-  IF (DVMDim.LT.3) THEN
-    fGrad(DVMSpecData(iSpec)%nVar/2+upos) = gM*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim) &
-                  *(1 + 0.5*pressProduct2/pressFac + ShakhFac1*(ShakhFac2-DVMDim))
-  END IF
-END DO; END DO; END DO
+CALL GradDistribution(MacroValPrandtl,fGrad,iSpec)
 
 END SUBROUTINE GradDistributionPrandtl
 
@@ -741,319 +884,52 @@ END DO; END DO; END DO
 
 END SUBROUTINE SkewNormalDistribution
 
-! function outer_product(A,B) result(AB)
-!   double precision, intent(in) :: A(:),B(:)
-!   double precision, allocatable :: AB(:,:)
-!   integer :: nA,nB
-!   nA=size(A)
-!   nB=size(B)
-!   allocate(AB(nA,nB))
-!   AB = spread(source = A, dim = 2, ncopies = nB) * &
-!        spread(source = B, dim = 1, ncopies = nA)
-! end function outer_product
-
-! subroutine cov2corr(covariance, correlation, n)
-!   implicit none
-!   integer, intent(in) :: n
-!   real, intent(in) :: covariance(n,n)
-!   real, intent(out) :: correlation(n,n)
-!   integer :: i, j
-
-!   ! Berechne die Diagonalelemente der Korrelationsmatrix
-!   do i = 1, n
-!      correlation(i,i) = 1.0
-!   end do
-
-!   ! Berechne die nicht-diagonalen Elemente der Korrelationsmatrix
-!   do i = 1, n
-!      do j = i+1, n
-!         correlation(i,j) = covariance(i,j) / sqrt(covariance(i,i) * covariance(j,j))
-!         correlation(j,i) = correlation(i,j) ! Symmetrisch setzen
-!      end do
-!   end do
-
-! end subroutine cov2corr
-
-! SUBROUTINE MultiSkewNormalDistribution(MacroVal,fSkew,skewness)
-! !===================================================================================================================================
-! ! Skew-normal distribution from macro values
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
-! USE MOD_Basis                    ,ONLY: INV33
-! USE MOD_PreProc
-! USE MOD_Globals
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! REAL,INTENT(OUT)                 :: fSkew(DVMSpecData(iSpec)%nVar)
-! REAL, INTENT(IN)                 :: MacroVal(14)
-! REAL, INTENT(IN),OPTIONAL        :: skewness(3)
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! REAL                            :: rho, Temp, uVelo(3), cVel(3), cMag2, q(3)
-! INTEGER                         :: iVel,jVel,kVel, upos, iLoop
-! REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi, max_skew, omegaMat(3,3), omegaInv(3,3), omegaBar(3,3), omegaBarInv(3,3), detBar
-! REAL                            :: obar_inv_delta(3), delta2(3), deltasq, pressTens(3,3), hfac, ldet, pressProduct
-! !===================================================================================================================================
-! ! print*, 'aaaaaaaaaaaaaaaaaaaaaa'
-! rho = MacroVal(1)
-! uVelo(1:3) = MacroVal(2:4)
-! Temp = MacroVal(5)
-! q(1:3) = MacroVal(12:14)
-! pressTens(1,1)   = MacroVal(6)
-! pressTens(2,2)   = MacroVal(7)
-! pressTens(3,3)   = MacroVal(8)
-! pressTens(1,2:3) = MacroVal(9:10)
-! pressTens(2:3,1) = MacroVal(9:10)
-! pressTens(2,3)   = MacroVal(11)
-! pressTens(3,2)   = MacroVal(11)
-
-! ! pressTens = pressTens/rho/3.
-! pressTens = pressTens/rho
-
-! ! pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*Temp*2./3.
-! ! pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*Temp*2./3.
-! ! pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*Temp*2./3.
-
-
-! max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
-! ! skew = (1.-2.*DVMSpecData(iSpec)%Prandtl/3.)*2.*(q/rho)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
-! skew = (skewness/rho)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
-
-
-! print*, 'skew', skew
-! print*, 'maxskew', 0.9*max_skew
-! print*, 'pressTens', pressTens
-! ! read*
-! IF (ABS(skew(1)).GT.max_skew) THEN
-!   print*, skew(1), max_skew
-!   read*
-! END IF
-
-
-! skew = SIGN(1.,skew)*MIN(ABS(skew),0.9*max_skew)
-
-! skew(3) = 0.
-
-! delta = SIGN(1.,skew)*((2.*ABS(skew)/(4.-Pi))**(1./3.))/SQRT(2./Pi*(1.+(2.*ABS(skew)/(4.-Pi))**(2./3.)))
-! delta2 = ((2.*ABS(skew)/(4.-Pi))**(2./3.))/(2./Pi*(1.+(2.*ABS(skew)/(4.-Pi))**(2./3.)))
-
-! DO iLoop = 1,3
-!   omega(iLoop) = SQRT(pressTens(iLoop,iLoop)/(1.-2.*delta2(iLoop)/Pi))
-! END DO
-! ksi = uVelo - SQRT(2./Pi)*omega*delta
-
-! omegaMat=pressTens + outer_product(delta*omega*sqrt(2./Pi),delta*omega*sqrt(2./Pi))
-
-! CALL INV33(omegaMat,omegaInv,ldet)
-
-! IF (ldet.LE.0.) THEN
-!   CALL abort(__STAMP__,'ESBGK matrix not positive-definite')
-! ELSE
-!   ! determinant from reduced pressure tensor (size D*D)
-!   IF (DVMDim.LE.2) ldet = ldet/pressTens(3,3)
-!   IF (DVMDim.LE.1) ldet = ldet/pressTens(2,2)
-! END IF
-
-! CALL cov2corr(omegaMat,omegaBar,3)
-! CALL INV33(omegaBar,omegaBarInv,detBar)
-! obar_inv_delta = MATMUL(omegaBarInv,delta)
-! deltasq= dot_product(delta,obar_inv_delta)
-! alpha = obar_inv_delta/SQRT(1.-deltasq)
-
-! print*, 'stuff', (2.*ABS(skew)/(4.-Pi))**(1./3.)
-! print*, 'delta', delta
-! print*, 'omega', omega
-! print*, 'omegaMat', omegaMat
-! print*, 'omegaBar', omegaBar
-! print*, 'omegaBarInv', omegaBarInv
-
-! print*, 'obar_inv_delta', obar_inv_delta
-! print*, 'alpha', alpha
-
-! DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
-!   upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)
-!   cVel(1) = (DVMSpecData(iSpec)%Velos(iVel,1) - ksi(1))
-!   cVel(2) = (DVMSpecData(iSpec)%Velos(jVel,2) - ksi(2))
-!   cVel(3) = (DVMSpecData(iSpec)%Velos(kVel,3) - ksi(3))
-!   cMag2 = DOT_PRODUCT(cVel,cVel)
-
-!   ! Phi = 1.+ERF(SUM(cVel/omega*alpha)/sqrt(2.))
-!   Phi = PRODUCT(1.+ERF(cVel/omega*alpha/sqrt(2.)))
-
-
-
-!   pressProduct = cVel(1)*DOT_PRODUCT(omegaInv(:,1),cVel) &
-!                + cVel(2)*DOT_PRODUCT(omegaInv(:,2),cVel) &
-!                + cVel(3)*DOT_PRODUCT(omegaInv(:,3),cVel)
-
-!   fSkew(upos) = rho/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)*Phi
-!   IF ((DVMSpecData(iSpec)%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
-!     hfac = DVMSpecData(iSpec)%R_S*Temp*DVMSpecData(iSpec)%Internal_DOF
-!     IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
-!     IF (DVMDim.LE.1) hfac = hfac + pressTens(2,2)
-!     fSkew(DVMSpecData(iSpec)%nVar/2+upos) = fSkew(upos)*hfac
-!   END IF
-
-!   IF(iVel.EQ.27.AND.jVel.EQ.27.AND.kVel.EQ.27) THEN
-!     print*, 'velo', DVMSpecData(iSpec)%Velos(iVel,1), DVMSpecData(iSpec)%Velos(jVel,2), DVMSpecData(iSpec)%Velos(kVel,3)
-!     print*, 'Phi', Phi
-!     print*, 'exp',  EXP(-pressProduct/2.)
-!     print*, 'f',fSkew(upos)
-!   END IF
-
-! END DO; END DO; END DO
-
-! END SUBROUTINE
-
-SUBROUTINE SkewtDistribution(MacroVal,fSkewt,iSpec)
+SUBROUTINE TargetDistribution(MacroVal,fTarget,iSpec)
 !===================================================================================================================================
-! skewed t dist
+! Target distribution from macro values
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
+USE MOD_Equation_Vars_FV         ,ONLY: DVMBGKModel,DVMSpecData
 USE MOD_PreProc
-USE MOD_IncBeta                  ,ONLY: betain
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
+! INPUT/OUTPUT VARIABLES
 INTEGER                          :: iSpec
-REAL,INTENT(OUT)                 :: fSkewt(DVMSpecData(iSpec)%nVar)
+REAL,INTENT(OUT)                 :: fTarget(DVMSpecData(iSpec)%nVar)
 REAL, INTENT(IN)                 :: MacroVal(14)
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: dens, Temp, uVelo(3), cVel(3), cMag2, q(3), cCumu(3), cCumuMag, betalog(1:3), gamma1
-INTEGER                         :: iVel,jVel,kVel, upos, iLoop, ifault
-REAL                            :: skew(1:3), delta, alpha(1:3), ksi(1:3), omega(1:3), nu(1:3), max_skew, b1, Phi(1:3), stut(1:3)
-LOGICAL                         :: IsSN(1:3)
-!===================================================================================================================================
-dens = MacroVal(1)
-uVelo(1:3) = MacroVal(2:4)
-Temp = MacroVal(5)
-q(1:3) = MacroVal(12:14)
-
-max_skew = 0.5 * (4. - Pi) * (2. / (Pi - 2.)) ** 1.5
-skew = (1-DVMSpecData(iSpec)%Prandtl)*2.*(q/dens/DVMSpecData(iSpec)%Mass)*(DVMSpecData(iSpec)%R_S*Temp)**(-3./2.)
-IsSN = .TRUE.
-nu = 100.
-DO iLoop = 1, 3
-  gamma1 = skew(iLoop)
-  IF (ABS(gamma1).GT.0.9*max_skew) THEN
-    IsSN(iLoop) = .FALSE.
-    IF (ABS(gamma1).LT.1.3) THEN
-      nu(iLoop) = 8.
-    ELSE IF (ABS(gamma1).LT.2.) THEN
-      nu(iLoop) = 5.
-    ELSE IF (ABS(gamma1).LT.3.5) THEN
-      nu(iLoop) = 4.
-    ELSE IF (ABS(gamma1).LT.6.) THEN
-      nu(iLoop) = 3.5
-    ELSE IF (ABS(gamma1).LT.10.) THEN
-      nu(iLoop) = 3.3
-    ELSE IF (ABS(gamma1).LT.14.) THEN
-      nu(iLoop) = 3.2
-    ELSE IF (ABS(gamma1).LT.26.) THEN
-      nu(iLoop) = 3.1
-    ELSE
-      IF (ABS(gamma1).GT.50.) gamma1 = SIGN(50.,gamma1)
-      nu(iLoop) = 3.05
-    END IF
-    b1 = SQRT(nu(iLoop))*GAMMA(0.5*(nu(iLoop)-1.))/(SQRT(Pi)*GAMMA(0.5*nu(iLoop)))
-    delta = CalcdeltafromSkew(skew(iLoop),b1,nu(iLoop))
-    alpha(iLoop) = delta/SQRT(1.-delta**2.)
-    omega(iLoop) = SQRT(DVMSpecData(iSpec)%R_S*Temp/(nu(iLoop)/(nu(iLoop)-2.)-(b1*delta)**2))
-    ksi(iLoop) = uVelo(iLoop)-omega(iLoop)*delta*b1
-  ELSE
-    delta = (SIGN(1.,skew(iLoop))*(2*ABS(skew(iLoop))/(4-Pi))**(1./3.))/SQRT(2./Pi*(1+(2*ABS(skew(iLoop))/(4-Pi))**(2./3.)))
-    alpha(iLoop) = delta/SQRT(1.-delta*delta)
-    omega(iLoop) = SQRT(DVMSpecData(iSpec)%R_S*Temp/(1.-2*delta*delta/Pi))
-    ksi(iLoop) = uVelo(iLoop) - SQRT(2/Pi)*omega(iLoop)*delta
-  END IF
-END DO
-
-betalog = lgamma (0.5*(nu+1)) + lgamma (0.5) - lgamma (0.5*nu+1)
-
-DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
-  upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)
-  cVel(1) = (DVMSpecData(iSpec)%Velos(iVel,1) - ksi(1))/omega(1)
-  cVel(2) = (DVMSpecData(iSpec)%Velos(jVel,2) - ksi(2))/omega(2)
-  cVel(3) = (DVMSpecData(iSpec)%Velos(kVel,3) - ksi(3))/omega(3)
-
-  IF (ANY(.NOT.IsSN)) THEN ! nonono faut faire des dist 1D puis multiplier p-e sn avec st
-    cCumu = alpha*cVel*SQRT((nu+1)/(cVel**2+nu))
-    stut = GAMMA((nu+1)/2.)/(SQRT(nu*Pi)*GAMMA(nu/2.))*(1.+(cVel**2)/nu)**(-(nu+1)/2.)
-    DO iLoop = 1, DVMDim
-      IF (cCumu(iLoop).LE.0.) THEN
-        stut(iLoop) = stut(iLoop)*0.5*betain((nu(iLoop)+1)/((nu(iLoop)+1)+cCumu(iLoop)**2),0.5*(nu(iLoop)+1),0.5,betalog(iLoop),ifault)
-      ELSE
-        stut(iLoop) = stut(iLoop)*(1-0.5*betain((nu(iLoop)+1)/((nu(iLoop)+1)+cCumu(iLoop)**2),0.5*(nu(iLoop)+1),0.5,betalog(iLoop),ifault))
-      END IF
-    END DO
-    fSkewt(upos) = 2**DVMDim*dens*PRODUCT(stut(1:DVMDim))/PRODUCT(omega(1:DVMDim))
-  ELSE
-    cMag2 = DOT_PRODUCT(cVel,cVel)
-    Phi = 1.+ERF(alpha*cVel/sqrt(2.))
-    fSkewt(upos) = dens*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
-  END IF
-
-  IF (DVMDim.LT.3) THEN
-    fSkewt(DVMSpecData(iSpec)%nVar/2+upos) = fSkewt(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
-  END IF
-
-END DO; END DO; END DO
-
-END SUBROUTINE SkewtDistribution
-
-REAL FUNCTION CalcdeltafromSkew(gamma1,b1,nu)
-!===================================================================================================================================
-!> Calculation of
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)      :: gamma1, b1, nu
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL                  :: Lowerdelta, Upperdelta, Middledelta !< Upper, lower and final value of modified zero point search
-REAL,PARAMETER        :: eps_prec=1E-12           !< Relative precision of root-finding algorithm
-REAL                  :: tmpgamma
 !===================================================================================================================================
 
-Lowerdelta = -1.0
-Upperdelta = 1.0
-Middledelta = -1.0
-DO WHILE (.NOT.ALMOSTEQUALRELATIVE(0.5*(Lowerdelta + Upperdelta),Middledelta,eps_prec))
-  Middledelta = 0.5*(Lowerdelta + Upperdelta)
-  tmpgamma = b1*Middledelta*(nu*(3.-Middledelta**2)/(nu-3.)-3.*nu/(nu-2.)+2.*(b1*Middledelta)**2)
-  tmpgamma = tmpgamma/((nu/(nu-2.)-b1**2*Middledelta**2))**(3./2.)
-  IF (tmpgamma.LT.gamma1) THEN
-    Lowerdelta = Middledelta
-  ELSE
-    Upperdelta = Middledelta
-  END IF
-  CalcdeltafromSkew = Middledelta
-END DO
+SELECT CASE(DVMBGKModel)
+  CASE(1)
+    CALL ESBGKDistribution(MacroVal,fTarget,iSpec)
+  CASE(2)
+    CALL ShakhovDistribution(MacroVal,fTarget,iSpec)
+  CASE(3)
+    CALL MaxwellDistribution(MacroVal,fTarget,iSpec)
+  CASE(4)
+    CALL ESBGKDistributionCons(MacroVal,fTarget,iSpec)
+  CASE(5)
+    CALL MaxwellDistributionCons(MacroVal,fTarget,iSpec)
+  CASE(6)
+    CALL SkewNormalDistribution(MacroVal,fTarget,iSpec)
+  CASE(7)
+    CALL GradDistributionPrandtl(MacroVal,fTarget,iSpec)
+  CASE DEFAULT
+    CALL abort(__STAMP__,'DVM BGK Model not implemented.')
+END SELECT
 
-END FUNCTION CalcdeltafromSkew
+END SUBROUTINE TargetDistribution
 
 SUBROUTINE MaxwellScattering(iSpec,fBoundary,U,NormVec,prefac,MacroVal)
 !===================================================================================================================================
 ! Gets accurate density for the half maxwellian at diffusive boundaries
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMBGKModel
+USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData
 USE MOD_PreProc
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
@@ -1069,24 +945,8 @@ REAL                                 :: Sout, Sin, weight, vnormal
 REAL                                 :: fRelaxed(DVMSpecData(iSpec)%nVar)
 INTEGER                              :: iVel, jVel, kVel, upos
 !===================================================================================================================================
-SELECT CASE (DVMBGKModel)
-  CASE(1)
-    CALL ESBGKDistribution(MacroVal,fRelaxed,iSpec)
-  CASE(2)
-    CALL ShakhovDistribution(MacroVal,fRelaxed,iSpec)
-  CASE(3)
-    CALL MaxwellDistribution(MacroVal,fRelaxed,iSpec)
-  CASE(4)
-    CALL MaxwellDistributionCons(MacroVal,fRelaxed,iSpec)
-  CASE(5)
-    CALL SkewNormalDistribution(MacroVal,fRelaxed,iSpec)
-  CASE(6)
-    CALL SkewtDistribution(MacroVal,fRelaxed,iSpec)
-  CASE(7)
-    CALL GradDistributionPrandtl(MacroVal,fRelaxed,iSpec)
-  CASE DEFAULT
-    CALL abort(__STAMP__,'DVM BGK Model not implemented.')
-END SELECT
+
+CALL TargetDistribution(MacroVal, fRelaxed, iSpec)
 
 fRelaxed = U*prefac + fRelaxed*(1.-prefac)
 
@@ -1116,7 +976,7 @@ SUBROUTINE RescaleU(tilde,tDeriv)
 ! Rescales distribution function for EDDVM/DUGKS
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY : DVMBGKModel, DVMMomentSave, DVMMethod, DVMSpecData, DVMnSpecies
+USE MOD_Equation_Vars_FV,  ONLY : DVMMomentSave, DVMMethod, DVMSpecData, DVMnSpecies
 USE MOD_Globals,        ONLY :abort
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -1131,7 +991,7 @@ INTEGER, INTENT(IN)           :: tilde
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(14,DVMnSpecies+1), MVtarget(14), tau, prefac
+REAL                            :: MacroVal(14,DVMnSpecies+1), MVtarget(14), tau, prefac, relaxFac
 INTEGER                         :: i,j,k,iElem,iSpec,vFirstID,vLastID
 REAL,ALLOCATABLE                :: fTarget(:)
 !===================================================================================================================================
@@ -1145,7 +1005,12 @@ DO iElem =1, nElems
         DVMMomentSave(15,:,iElem) = tau
         SELECT CASE(DVMMethod)
         CASE(1)
-          prefac = (EXP(-tDeriv/tau/2.)-EXP(-3.*tDeriv/tau/2.))/(1.-EXP(-tDeriv/tau/2.))/2.
+          relaxFac = tDeriv/tau/2.
+          IF (CHECKEXP(3.*relaxFac)) THEN
+            prefac = (EXP(-relaxFac)-EXP(-3.*relaxFac))/(1.-EXP(-relaxFac))/2.
+          ELSE
+            prefac = 0.
+          END IF
         CASE(2)
           prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
         END SELECT
@@ -1154,7 +1019,12 @@ DO iElem =1, nElems
         tau = DVMMomentSave(15,DVMnSpecies+1,iElem)
         SELECT CASE(DVMMethod)
         CASE(1)
-          prefac = 2.*(EXP(-tDeriv/tau)-EXP(-2.*tDeriv/tau))/(1.-EXP(-2.*tDeriv/tau))
+          relaxFac = tDeriv/tau
+          IF (CHECKEXP(2.*relaxFac)) THEN
+            prefac = 2.*(EXP(-relaxFac)-EXP(-2.*relaxFac))/(1.-EXP(-2.*relaxFac))
+          ELSE
+            prefac = 0.
+          END IF
         CASE(2)
           prefac = (4./3.)-(1./3.)*(2.*tau+2.*tDeriv)/(2.*tau-tDeriv)
         END SELECT
@@ -1166,24 +1036,7 @@ DO iElem =1, nElems
       vLastID = vLastID + DVMSpecData(iSpec)%nVar
       ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
       MVtarget(1) = MacroVal(1,iSpec) ! species density
-      SELECT CASE (DVMBGKModel)
-        CASE(1)
-          CALL ESBGKDistribution(MVtarget,fTarget,iSpec)
-        CASE(2)
-          CALL ShakhovDistribution(MVtarget,fTarget,iSpec)
-        CASE(3)
-          CALL MaxwellDistribution(MVtarget,fTarget,iSpec)
-        CASE(4)
-          CALL MaxwellDistributionCons(MVtarget,fTarget,iSpec)
-        CASE(5)
-          CALL SkewNormalDistribution(MVtarget,fTarget,iSpec)
-        CASE(6)
-          CALL SkewtDistribution(MVtarget,fTarget,iSpec)
-        CASE(7)
-          CALL GradDistributionPrandtl(MVtarget,fTarget,iSpec)
-        CASE DEFAULT
-          CALL abort(__STAMP__,'DVM BGK Model not implemented.')
-      END SELECT
+      CALL TargetDistribution(MVtarget, fTarget, iSpec)
       U_FV(vFirstID:vLastID,i,j,k,iElem) = U_FV(vFirstID:vLastID,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
       DEALLOCATE(fTarget)
       vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
@@ -1198,7 +1051,7 @@ SUBROUTINE RescaleInit(tDeriv)
 ! TODO: Should also be used for restart
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY: DVMBGKModel, DVMMethod, DVMSpecData, DVMnSpecies
+USE MOD_Equation_Vars_FV,  ONLY: DVMMethod, DVMSpecData, DVMnSpecies
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -1220,8 +1073,7 @@ SWRITE(UNIT_stdOut,*) 'INITIAL DISTRIBUTION FUNCTION RESCALE'
 vFirstID=1
 vLastID=0
 DO iElem =1, nElems
-  ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-  DO k=0, 0; DO j=0, 0; DO i=0, 0
+  DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
     CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),0.,tau,1) ! tDeriv=0 to get heatflux from original distribution
     SELECT CASE (DVMMethod)
       CASE(1)
@@ -1234,24 +1086,7 @@ DO iElem =1, nElems
       vLastID = vLastID + DVMSpecData(iSpec)%nVar
       ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
       MVtarget(1) = MacroVal(1,iSpec) ! species density
-      SELECT CASE (DVMBGKModel)
-        CASE(1)
-          CALL ESBGKDistribution(MVtarget,fTarget,iSpec)
-        CASE(2)
-          CALL ShakhovDistribution(MVtarget,fTarget,iSpec)
-        CASE(3)
-          CALL MaxwellDistribution(MVtarget,fTarget,iSpec)
-        CASE(4)
-          CALL MaxwellDistributionCons(MVtarget,fTarget,iSpec)
-        CASE(5)
-          CALL SkewNormalDistribution(MVtarget,fTarget,iSpec)
-        CASE(6)
-          CALL SkewtDistribution(MVtarget,fTarget,iSpec)
-        CASE(7)
-          CALL GradDistributionPrandtl(MVtarget,fTarget,iSpec)
-        CASE DEFAULT
-          CALL abort(__STAMP__,'DVM BGK Model not implemented.')
-      END SELECT
+      CALL TargetDistribution(MVtarget, fTarget, iSpec)
       U_FV(vFirstID:vLastID,i,j,k,iElem) = U_FV(vFirstID:vLastID,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
       DEALLOCATE(fTarget)
       vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
@@ -1265,7 +1100,7 @@ SUBROUTINE ForceStep(tDeriv,ploesma)
 ! Calculates force term (to add in 2 parts (Strang splitting) for 2nd order accuracy)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY: DVMSpecData, DVMnSpecies, DVMDim, DVMForce !, DVMBGKModel
+USE MOD_Equation_Vars_FV,  ONLY: DVMSpecData, DVMnSpecies, DVMDim, DVMForce, DVMBGKModel
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -1289,6 +1124,7 @@ INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstI
 REAL, ALLOCATABLE               :: fTarget(:)
 REAL                            :: Eloc(3)
 !===================================================================================================================================
+IF (DVMBGKModel.EQ.4) CALL abort(__STAMP__,'ForceStep does not seem to work with ESBGKCons')
 DO iElem =1, nElems
 #if USE_HDG
   IF (PRESENT(ploesma)) THEN

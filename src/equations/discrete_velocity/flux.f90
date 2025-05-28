@@ -15,6 +15,7 @@
 MODULE MOD_Flux
 !===================================================================================================================================
 ! Contains the routine EvalFlux3D which computes the complete flux f,g,h for all DOFs in one Element: used in volume integral
+! Only useful for DVM with DG
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -47,10 +48,8 @@ USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_FV_Vars      ,ONLY: U
-USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMBGKModel, DVMMethod, DVMDim
-USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, MaxwellDistributionCons
-USE MOD_DistFunc     ,ONLY: ShakhovDistribution, ESBGKDistribution, GradDistributionPrandtl
-USE MOD_DistFunc     ,ONLY: SkewNormalDistribution, SkewtDistribution
+USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMMethod, DVMDim
+USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, TargetDistribution
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -69,24 +68,7 @@ DO k=0,PP_N
       UTemp=U(:,i,j,k,iElem)
       CALL MacroValuesFromDistribution(MacroVal,UTemp,dt/2.,tau,1)
       ! wrong because no reconstruction/relaxation was done before ---> DVM only works with FV
-      SELECT CASE (DVMBGKModel)
-        CASE(1)
-          CALL ESBGKDistribution(MacroVal,fTarget)
-        CASE(2)
-          CALL ShakhovDistribution(MacroVal,fTarget)
-        CASE(3)
-          CALL MaxwellDistribution(MacroVal,fTarget)
-        CASE(4)
-          CALL MaxwellDistributionCons(MacroVal,fTarget)
-        CASE(5)
-          CALL SkewNormalDistribution(MacroVal,fTarget)
-        CASE(6)
-          CALL SkewtDistribution(MacroVal,fTarget)
-        CASE(7)
-          CALL GradDistributionPrandtl(MacroVal,fTarget)
-        CASE DEFAULT
-          CALL abort(__STAMP__,'DVM BGK Model not implemented')
-      END SELECT
+      CALL TargetDistribution(MacroVal, fTarget)
       IF (dt.GT.0.) THEN
         SELECT CASE (DVMMethod)
         CASE(1)

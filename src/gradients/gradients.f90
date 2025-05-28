@@ -55,10 +55,10 @@ SUBROUTINE InitGradients(ini_dim)
 USE MOD_Globals
 USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
 USE MOD_Mesh_Vars             ,ONLY: nElems, nSides
-USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
 #if USE_MPI
+USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_MPI_Vars
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
 #if USE_LOADBALANCE
@@ -145,8 +145,9 @@ SUBROUTINE GetGradients(VarForGradients,output)
 USE MOD_Globals
 USE MOD_Gradient_Vars
 USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
-USE MOD_Mesh_Vars           ,ONLY: nElems,nSides,ElemToSide
+USE MOD_Mesh_Vars           ,ONLY: nElems,ElemToSide
 #if USE_MPI
+USE MOD_Mesh_Vars           ,ONLY: nSides
 USE MOD_MPI                 ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
 USE MOD_MPI_Vars
 #if USE_LOADBALANCE
@@ -286,11 +287,17 @@ SUBROUTINE CalcDiff(output,doMPISides)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC, Grad_DIM, Var_slave, Var_master, Diff_side
+USE MOD_Gradient_Vars            ,ONLY: Var_slave, Var_master, Diff_side
+#ifdef discrete_velocity
+USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC, Grad_DIM
+#endif
 USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
 USE MOD_Mesh_Vars_FV             ,ONLY: NormVec_FV,Face_xGP_FV
 USE MOD_Mesh_Vars                ,ONLY: firstBCSide,lastBCSide,firstInnerSide, lastInnerSide
-USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE, SideToElem, ElemToSide
+USE MOD_Mesh_Vars                ,ONLY: firstMPISide_MINE,lastMPISide_MINE
+#ifdef discrete_velocity
+USE MOD_Mesh_Vars                ,ONLY: SideToElem, ElemToSide
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -300,8 +307,11 @@ LOGICAL,INTENT(IN)      :: output,doMPISides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, SideID2, lastSideID, firstSideID_wo_BC, ElemID, locSideID, locSideID2
+INTEGER                         :: SideID, lastSideID, firstSideID_wo_BC
+#ifdef discrete_velocity
 REAL                            :: diffUinside(Grad_DIM), gradWeight
+INTEGER                         :: ElemID, locSideID, locSideID2, SideID2
+#endif
 !===================================================================================================================================
 ! Set the side range according to MPI or no MPI
 IF(doMPISides)THEN

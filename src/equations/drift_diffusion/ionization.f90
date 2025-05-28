@@ -47,9 +47,9 @@ USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_part_emission_tools,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Mesh_Vars_FV       ,ONLY:Elem_xGP_FV
-USE MOD_Equation_Vars_FV   ,ONLY:IniExactFunc_FV
 USE MOD_Equation_FV        ,ONLY:ExactFunc_FV
 USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Part_Tools         ,ONLY: UpdateNextFreePosition
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -77,7 +77,7 @@ END DO
 DO ElemID=1,PP_nElems
   IF (PRESENT(init)) THEN
     !initial insertion according to electron density
-    CALL ExactFunc_FV(init,0.,0,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
+    CALL ExactFunc_FV(init,0.,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
     DeltaPartDens = resu(1)
   ELSE
 
@@ -117,8 +117,8 @@ DO ElemID=1,PP_nElems
       ElecEnergy = 0.
 
       IF (CollisMode.GT.1) THEN
-        RotEnergy = CalcERot_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TRot)
-        VibEnergy = CalcEVib_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TVib)
+        RotEnergy = CalcERot_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TRot,iPart)
+        VibEnergy = CalcEVib_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TVib,iPart)
         IF (DSMC%ElectronicModel.GT.0) THEN
           ElecEnergy = CalcEElec_particle(iSpecBG,SpecDSMC(iSpecBG)%Init(1)%TElec)
         END IF
@@ -129,6 +129,8 @@ DO ElemID=1,PP_nElems
     END DO ! nPart
   END ASSOCIATE
 END DO
+
+CALL UpdateNextFreePosition()
 
 END SUBROUTINE InsertNewIons
 

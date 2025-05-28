@@ -313,27 +313,21 @@ SUBROUTINE RecordPoints(t,Output)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+#if USE_FV
 #ifdef discrete_velocity
-! USE MOD_Mesh_Vars             ,ONLY: Elem_xGP
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMBGKModel, DVMnSpecies, DVMSpecData, DVMColl
-USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, MaxwellDistribution, ESBGKDistribution, ShakhovDistribution
-USE MOD_DistFunc               ,ONLY: MaxwellDistributionCons, SkewNormalDistribution, SkewtDistribution, GradDistributionPrandtl
-#endif
-#if !(USE_FV) || (USE_HDG)
-USE MOD_DG_Vars                ,ONLY: U
-#endif
+USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMnSpecies, DVMSpecData, DVMColl
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution
+#endif /*discrete_velocity*/
+#endif /*USE_FV*/
 USE MOD_Timedisc_Vars     ,ONLY: dt
 USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze
 USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
-USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
-USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
-USE MOD_RecordPoints_Vars ,ONLY: l_xi_RP,l_eta_RP,l_zeta_RP,nRP
-#if USE_HDG && !(USE_FV)
-#if PP_nVar==1
-USE MOD_Equation_Vars      ,ONLY: E
-#endif /*PP_nVar==1*/
-#endif /*USE_HDG*/
+USE MOD_RecordPoints_Vars
+#if ! defined(discrete_velocity)
+USE MOD_Equation_Vars
+USE MOD_DG_Vars
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -404,24 +398,7 @@ DO iRP=1,nRP
           DO iSpec=1,DVMnSpecies
             vLastID = vLastID + DVMSpecData(iSpec)%nVar
             MacroVal(2:14,iSpec) = MacroVal(2:14,DVMnSpecies+1)
-            SELECT CASE (DVMBGKModel)
-              CASE(1)
-                CALL ESBGKDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
-              CASE(2)
-                CALL ShakhovDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
-              CASE(3)
-                CALL MaxwellDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
-              CASE(4)
-                CALL MaxwellDistributionCons(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
-              CASE(5)
-                CALL SkewNormalDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
-              CASE(6)
-                CALL SkewtDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
-              CASE(7)
-                CALL GradDistributionPrandtl(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
-              CASE DEFAULT
-                CALL abort(__STAMP__,'DVM BGK Model not implemented')
-            END SELECT
+            CALL TargetDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
             vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
           END DO
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
@@ -429,13 +406,17 @@ DO iRP=1,nRP
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
           ! U_RP(1,iRP)=Elem_xGP(1,0,0,0,RP_ElemID(iRP)) !when RP position is needed
         END IF
-#elif USE_HDG
-#if PP_nVar==1 && !(defined(drift_diffusion))
+#else /*NOT discrete_velocity*/
+#if USE_HDG
+#ifndef drift_diffusion
+#if PP_nVar==1
         U_RP(:,iRP)=U_RP(:,iRP) + (/ U(:,i,j,k,RP_ElemID(iRP)), E(1:3,i,j,k,RP_ElemID(iRP)) /)*l_xi_RP(i,iRP)*l_eta_zeta_RP
 #endif /*PP_nVar==1*/
-#else
+#endif /*NOT drift_diffusion*/
+#else /*NOT USE_HDG*/
         U_RP(:,iRP)=U_RP(:,iRP) +    U(:,i,j,k,RP_ElemID(iRP))                                *l_xi_RP(i,iRP)*l_eta_zeta_RP
-#endif /*DVM/HDG*/
+#endif /*USE_HDG*/
+#endif /*discrete_velocity*/
       END DO !i
     END DO !j
   END DO !k

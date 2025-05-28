@@ -37,14 +37,14 @@ CONTAINS
 
 SUBROUTINE FillFlux(t,Flux_Master,Flux_Slave,U_master,U_slave,doMPISides)
 !===================================================================================================================================
-!
+! FV side-based flux computation
 !===================================================================================================================================
 ! MODULES
 USE MOD_GLobals
 USE MOD_PreProc
 USE MOD_Mesh_Vars       ,ONLY: nSides,nBCSides
 USE MOD_Riemann         ,ONLY: Riemann
-USE MOD_Mesh_Vars_FV    ,ONLY: NormVec_FV, TangVec1_FV, tangVec2_FV, SurfElem_FV, Face_xGP_FV
+USE MOD_Mesh_Vars_FV    ,ONLY: NormVec_FV, SurfElem_FV, Face_xGP_FV
 USE MOD_GetBoundaryFlux ,ONLY: GetBoundaryFlux
 USE MOD_Mesh_Vars       ,ONLY: firstMPISide_MINE,lastMPISide_MINE,firstInnerSide,firstBCSide,lastInnerSide
 #ifdef discrete_velocity
@@ -54,8 +54,6 @@ USE MOD_DistFunc        ,ONLY: IntegrateFluxValues
 #endif
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV,ONLY: EFluid_GradSide
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Mesh_Vars       ,ONLY: SideToElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -117,12 +115,10 @@ END DO ! SideID
 
 ! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
 IF(.NOT.doMPISides)THEN
-  CALL GetBoundaryFlux(t,0,Flux_Master    (1:PP_nVar_FV,0:0,0:0,1:nBCSides) &
+  CALL GetBoundaryFlux(t,Flux_Master   (1:PP_nVar_FV,0:0,0:0,1:nBCSides) &
                                ,U_master          (:,0:0,0:0,1:nBCSides) &
-                               ,NormVec_FV        (1:3              ,0:0,0:0,1:nBCSides) &
-                               ,TangVec1_FV       (1:3              ,0:0,0:0,1:nBCSides) &
-                               ,TangVec2_FV       (1:3              ,0:0,0:0,1:nBCSides) &
-                               ,Face_XGP_FV       (1:3              ,0:0,0:0,1:nBCSides) )
+                               ,NormVec_FV      (1:3,0:0,0:0,1:nBCSides) &
+                               ,Face_XGP_FV     (1:3,0:0,0:0,1:nBCSides) )
 #ifdef discrete_velocity
   IF (WriteDVMSurfaceValues) THEN
     IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END))) THEN

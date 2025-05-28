@@ -134,7 +134,6 @@ SUBROUTINE WriteBRAverageElemToHDF5(isBRAverageElem)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars        ,ONLY: MeshFile,nGlobalElems,offsetElem
-USE MOD_Globals_Vars     ,ONLY: ProjectName
 USE MOD_io_HDF5
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance

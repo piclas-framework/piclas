@@ -69,30 +69,11 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER :: i,iSide
-INTEGER :: locType,locState, locType_FV, locState_FV
-INTEGER :: MaxBCState,MaxBCStateGlobal
 !==================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).AND.(.NOT.MeshInitIsDone).AND.(.NOT.EquationInitIsDone_FV))THEN
   CALL CollectiveStop(__STAMP__,&
     "InitBC not ready to be called or already called.")
 END IF
-! determine globally max MaxBCState
-MaxBCState = 0
-DO iSide=1,nBCSides
-  locType =BoundaryType(BC(iSide),BC_TYPE)
-  locType_FV =BoundaryType_FV(BC(iSide),BC_TYPE)
-  locState=BoundaryType(BC(iSide),BC_STATE)
-  locState_FV=BoundaryType_FV(BC(iSide),BC_STATE)
-END DO
-MaxBCStateGLobal=MaxBCState
-#if USE_MPI
-CALL MPI_ALLREDUCE(MPI_IN_PLACE,MaxBCStateGlobal,1,MPI_INTEGER,MPI_MAX,MPI_COMM_PICLAS,iError)
-#endif /*USE_MPI*/
-
-! Initialize State File Boundary condition
-DO i=1,nBCs
-  locType =BoundaryType_FV(i,BC_TYPE)
-END DO
 
 ! Count number of sides of each boundary
 ALLOCATE(nBCByType(nBCs))
@@ -121,7 +102,7 @@ END SUBROUTINE InitBC
 !> Computes the boundary values for a given Cartesian mesh face (defined by FaceID)
 !> BCType: 1...periodic, 2...exact BC
 !==================================================================================================================================
-SUBROUTINE GetBoundaryFlux(t,tDeriv,Flux,UPrim_master,NormVec,TangVec1,TangVec2,Face_xGP)
+SUBROUTINE GetBoundaryFlux(t,Flux,UPrim_master,NormVec,Face_xGP)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals         ,ONLY: Abort
@@ -136,25 +117,20 @@ USE MOD_Equation_Vars_FV,ONLY: IniExactFunc_FV,RefState_FV
 USE MOD_Gradient_Vars   ,ONLY: Grad_dx_master
 USE MOD_Riemann
 USE MOD_Equation_FV     ,ONLY: ExactFunc_FV
-USE MOD_Interpolation_Vars ,ONLY: wGP
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
-INTEGER,INTENT(IN)                   :: tDeriv      ! deriv
 REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV+3,0:0,0:0,1:nBCSides)
 REAL,INTENT(IN)                      :: NormVec(           3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec1(          3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN),OPTIONAL             :: TangVec2(          3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN)                      :: Face_xGP(        3,0:0,0:0,1:nBCSides)
+REAL,INTENT(IN)                      :: Face_xGP(          3,0:0,0:0,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: iBC,iSide,SideID,ElemID
+INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV+3,0:0,0:0), GradSide
-INTEGER                              :: p,q, i, j, k
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -169,7 +145,7 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       IF(BCState.EQ.0) THEN
-        CALL ExactFunc_FV(IniExactFunc_FV,t,0,Face_xGP(:,0,0,SideID),UPrim_boundary(1:PP_nVar_FV,0,0))
+        CALL ExactFunc_FV(IniExactFunc_FV,t,Face_xGP(:,0,0,SideID),UPrim_boundary(1:PP_nVar_FV,0,0))
       ELSE
         UPrim_boundary(1,0,0)=RefState_FV(1,BCState)
       END IF
@@ -192,8 +168,7 @@ DO iBC=1,nBCs
     END DO
 
   CASE DEFAULT ! unknown BCType
-    CALL abort(__STAMP__,&
-         'no BC defined in DVM/getboundaryflux.f90!')
+    CALL abort(__STAMP__,'no BC defined in DVM/getboundaryflux.f90!')
   END SELECT ! BCType
 END DO
 
