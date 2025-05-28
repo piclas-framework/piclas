@@ -767,13 +767,15 @@ PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
 PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
 
 PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+! ASSOCIATE( rtol => PETSC_DEFAULT_REAL )
+ASSOCIATE( rtol => 1e-99 )
 SELECT CASE(PrecondType)
 CASE(0)
   ! ====== Iterative solver: Conjugate Gradient
   PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: None
   PetscCallA(PCSetType(pc,PCNONE,ierr))
 CASE(1)
@@ -781,7 +783,7 @@ CASE(1)
   PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
 CASE(2)
@@ -790,7 +792,7 @@ CASE(2)
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
   ! Tolerances defaults: rtol=1e-5, atol=1e-50, dtol=1e5, maxits=1e4
-  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
 CASE(3)
@@ -802,7 +804,7 @@ CASE(3)
   PetscCallA(KSPGMRESSetRestart(PETScSolver, 100, ierr))
   PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
   PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(PETScSolver,PETSC_DEFAULT_REAL,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
 #ifdef PETSC_HAVE_HYPRE
   ! ===  Preconditioner: BoomerAMG
   PetscCallA(PCSetType(pc, PCHYPRE, ierr))
@@ -863,6 +865,7 @@ CASE(10)
 CASE DEFAULT
   CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS. PrecondType=', IntInfoOpt=PrecondType)
 END SELECT
+END ASSOCIATE
 
 ! Get solver and preconditioner types
 PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
@@ -882,6 +885,7 @@ IF (TRIM(ksp_type) .EQ. 'preonly') THEN
 ELSE
   LBWRITE(UNIT_stdOut,'(A)') ' | Iterative solver: '//TRIM(ksp_type)//' with '//TRIM(pc_type)//' preconditioning'
 END IF
+
 
 END SUBROUTINE PETScSetSolver
 #endif /*USE_PETSC*/
