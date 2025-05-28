@@ -237,7 +237,7 @@ IF (DVMColl.AND.tDeriv.GT.0.) THEN
                           /(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(12:14,:) = MacroVal(12:14,:)*prefac
-        MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal
+        ! MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal
       CASE(2,6) !Shakhov/SN
         MacroVal(6,:)   = Macroval(6,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
         MacroVal(7,:)   = Macroval(7,:)*prefac+(1.-prefac)*MacroVal(5,:)*dens(:)*BoltzmannConst
@@ -273,7 +273,7 @@ IF (DVMColl.AND.tDeriv.GT.0.) THEN
                           /(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(9:11,:)  = Macroval(9:11,:)*prefac/(1./Prandtl+prefac*(1.-1./Prandtl))
         MacroVal(12:14,:) = MacroVal(12:14,:)*prefac
-        MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal
+        ! MacroVal(6:11,:) = MacroVal(6:11,:)/rhoTotal
       CASE(2,6) !Shakhov/SN
         Macroval(6,:)   = Macroval(6,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
         Macroval(7,:)   = Macroval(7,:)*2.*tau/(2.*tau+tDeriv) + MacroVal(5,:)*dens(:)*BoltzmannConst*tDeriv/(2.*tau+tDeriv)
@@ -521,7 +521,7 @@ pressTens(2:3,1) = MacroVal(9:10)
 pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
 
-pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens !/dens/DVMSpecData(iSpec)%Mass
+pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens/dens/DVMSpecData(iSpec)%Mass
 pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
@@ -596,7 +596,7 @@ pressTens(2:3,1) = MacroVal(9:10)
 pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
 
-pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens !/rho
+pressTens = (1.-1./DVMSpecData(iSpec)%Prandtl)*pressTens/rho
 pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
 pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*Temp/DVMSpecData(iSpec)%Prandtl
@@ -711,7 +711,7 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
       psi(4+2*DVMDim) = DVMSpecData(iSpec)%Velos(jVel,2)*DVMSpecData(iSpec)%Velos(kVel,3)
     END IF
   END IF
-  fESBGK(upos) = EXP(DOT_PRODUCT(alpha,psi))
+  fESBGK(upos) = EXP(DOT_PRODUCT(alpha,psi))/DVMSpecData(iSpec)%Mass
   IF ((DVMSpecData(iSpec)%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
     hfac = DVMSpecData(iSpec)%R_S*Temp*DVMSpecData(iSpec)%Internal_DOF
     IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
@@ -816,9 +816,9 @@ REAL                             :: MacroValPrandtl(14)
 !===================================================================================================================================
 MacroValPrandtl(1:5)   = MacroVal(1:5)
 
-MacroValPrandtl(6)     = (MacroVal(6)-MacroVal(1)*DVMSpecData(iSpec)%R_S*MacroVal(5))/3.
-MacroValPrandtl(7)     = (MacroVal(7)-MacroVal(1)*DVMSpecData(iSpec)%R_S*MacroVal(5))/3.
-MacroValPrandtl(8)     = (MacroVal(8)-MacroVal(1)*DVMSpecData(iSpec)%R_S*MacroVal(5))/3.
+MacroValPrandtl(6)     = (MacroVal(6)-MacroVal(1)*BoltzmannConst*MacroVal(5))/3.
+MacroValPrandtl(7)     = (MacroVal(7)-MacroVal(1)*BoltzmannConst*MacroVal(5))/3.
+MacroValPrandtl(8)     = (MacroVal(8)-MacroVal(1)*BoltzmannConst*MacroVal(5))/3.
 MacroValPrandtl(9:11)  = MacroVal(9:11)/3.
 
 MacroValPrandtl(12:14) = (1.-2.*DVMSpecData(iSpec)%Prandtl/3.)*MacroVal(12:14)
