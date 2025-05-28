@@ -106,6 +106,7 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
@@ -121,7 +122,6 @@ USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
@@ -212,7 +212,7 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
-REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3)
+REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
 !===================================================================================================================================
 
@@ -354,6 +354,7 @@ IF(GEO%InitFIBGM) THEN
 #endif
     ! FIBGMdeltas1    = FIBGMdeltas1/REAL(nGlobalElems)
     FIBGMdeltas1    = FIBGMdeltas1/ElemWeights
+    ElemWeights     = ElemWeights/REAL(nGlobalElems)
 
     ! Min
     ! Determine a maximum FIBGMdeltas size by the smallest element in such a way that not to many elemems are in this FIBGM element
@@ -373,6 +374,40 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMdeltas(1) = MIN(FIBGMdeltas1(1),FIBGMdeltas2(1))
     GEO%FIBGMdeltas(2) = MIN(FIBGMdeltas1(2),FIBGMdeltas2(2))
     GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
+
+    IF((GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1) &
+      *(GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2) &
+      *(GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3) &
+      .GT.nGlobalElems*10**(Symmetry%Order/2.)) THEN
+      ! Fallback to prevent too small FIBGM cells
+
+      ! Calculate mean number of elements in every direction
+      GEO%FIBGMdeltas(1) = (GEO%xmaxglob-GEO%xminglob)/ElemWeights(1)
+      GEO%FIBGMdeltas(2) = (GEO%ymaxglob-GEO%yminglob)/ElemWeights(2)
+      GEO%FIBGMdeltas(3) = (GEO%zmaxglob-GEO%zminglob)/ElemWeights(3)
+
+      ! Set GEO%FIBGMdeltas to have about sqrt(1000) * nglobalElems in total in 3D
+      a = (nGlobalElems*10**(Symmetry%Order/2.)/(GEO%FIBGMdeltas(1)*GEO%FIBGMdeltas(2)*GEO%FIBGMdeltas(3)))**(1./3.)
+      GEO%FIBGMdeltas = GEO%FIBGMdeltas * a
+
+      GEO%FIBGMdeltas(1) = (GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)
+      GEO%FIBGMdeltas(2) = (GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)
+      GEO%FIBGMdeltas(3) = (GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3)
+
+    END IF
+
+
+  END IF
+
+ELSE
+  LBWRITE(UNIT_stdOut,'(A)') ' | FIBGM not built, if you want to force the build set "Part-ForceFIBGM" to true'
+  GEO%AutomaticFIBGM=.FALSE.
+END IF
+! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
+CALL InitPeriodicBC()
+
+IF(GEO%InitFIBGM) THEN
+  IF(GEO%AutomaticFIBGM) THEN
     LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') " | Automatically determined Part-FIBGMdeltas: "&
                                                           , GEO%FIBGMdeltas(1), ", ", GEO%FIBGMdeltas(2), ", ", GEO%FIBGMdeltas(3)
   END IF
@@ -399,14 +434,6 @@ IF(GEO%InitFIBGM) THEN
                                             , BGMimaxglob - BGMiminglob + 1                                 ,', '&
                                             , BGMjmaxglob - BGMjminglob + 1                                 ,', '&
                                             , BGMkmaxglob - BGMkminglob + 1
-ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' | FIBGM is not builded, if you want to force the build set "Part-ForceFIBGM" to true'
-  GEO%AutomaticFIBGM=.FALSE.
-END IF
-! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
-CALL InitPeriodicBC()
-
-IF(GEO%InitFIBGM) THEN
 #if USE_MPI
   CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
