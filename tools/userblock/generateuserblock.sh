@@ -25,6 +25,8 @@ if [ ! -d "$2" ]; then
   exit 1;
 fi
 
+USERBLOCK_TXT=$(realpath "${1}/userblock.txt")
+
 # Check if inside git repo
 INSIDEGITREPO="$(git rev-parse --is-inside-work-tree 2>/dev/null)"
 
@@ -75,82 +77,82 @@ if [ $INSIDEGITREPO ]; then
 fi
 
 cd "$1"
-echo "{[( CMAKE )]}"               >  userblock.txt
-cat configuration.cmake            >> userblock.txt
-echo "{[( GIT BRANCH )]}"          >> userblock.txt
-echo "$BRANCHNAME"                 >> userblock.txt
-echo "$GITCOMMIT"                  >> userblock.txt
+echo "{[( CMAKE )]}"               >  "$USERBLOCK_TXT"
+cat configuration.cmake            >> "$USERBLOCK_TXT"
+echo "{[( GIT BRANCH )]}"          >> "$USERBLOCK_TXT"
+echo "$BRANCHNAME"                 >> "$USERBLOCK_TXT"
+echo "$GITCOMMIT"                  >> "$USERBLOCK_TXT"
 
 # Reference is the start commit, which is either identical to
 # the branch, if it exists on the remote or points to the first
 # real parent in branch history available on remote.
-echo "{[( GIT REFERENCE )]}"       >> userblock.txt
-echo ${PARENTNAME}                 >> userblock.txt
-echo ${PARENTCOMMIT}               >> userblock.txt
+echo "{[( GIT REFERENCE )]}"       >> "$USERBLOCK_TXT"
+echo ${PARENTNAME}                 >> "$USERBLOCK_TXT"
+echo ${PARENTCOMMIT}               >> "$USERBLOCK_TXT"
 
-#echo "{[( GIT FORMAT-PATCH )]}"    >> userblock.txt
+#echo "{[( GIT FORMAT-PATCH )]}"    >> "$USERBLOCK_TXT"
 ## create format patch containing log info for commit changes
 ## PARENT should be identical to origin
-#git format-patch $PARENTCOMMIT..HEAD --minimal --stdout >> $1/userblock.txt
+#git format-patch $PARENTCOMMIT..HEAD --minimal --stdout >> "$USERBLOCK_TXT"
 
 # Also store binary changes in diff
-echo "{[( GIT DIFF )]}"            >> userblock.txt
+echo "{[( GIT DIFF )]}"            >> "$USERBLOCK_TXT"
 if [ $INSIDEGITREPO ]; then
   # committed changes
   if [ -n ${PARENTEXISTS} ]; then
-    git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> userblock.txt
+    git diff -p $PARENTCOMMIT..HEAD | head -n 1000   >> "$USERBLOCK_TXT"
   fi
   # uncommited changes
   ## exclude any files not wanted such as HDF5, regressionchecks, and tutorials files
   ## these can still normally committed as they are only excluded from the userblock
   GITROOT=$(git rev-parse --show-toplevel)
   ## this only works from the root of the git directory
-  cd $GITROOT
-  git diff -p HEAD ':!regressioncheck' ':!tutorials' ':!*.h5' ':!*.csv' ':!*.tmp' | head -n 1000 >> $1/userblock.txt
+  cd "${GITROOT}"
+  git diff -p HEAD ':!regressioncheck' ':!tutorials' ':!*.h5' ':!*.csv' ':!*.tmp' | head -n 1000 >> "$USERBLOCK_TXT"
   cd "$1"
 else
-  echo "not a git repo"                              >> userblock.txt
+  echo "not a git repo"            >> "$USERBLOCK_TXT"
 fi
 
-echo "{[( GIT URL )]}"             >> userblock.txt
+echo "{[( GIT URL )]}"             >> "$USERBLOCK_TXT"
 [ $INSIDEGITREPO ] && GITURL=$(git config --get remote.origin.url)
-echo ${GITURL}                     >> userblock.txt
+echo ${GITURL}                     >> "$USERBLOCK_TXT"
 
 # change directory to cmake cache dir
 if [ -d "$2/CMakeFiles" ]; then
   cd "$2/CMakeFiles"
   # copy compile flags of the piclas(lib) to userblock
-  [ -f "libpiclasstatic.dir/flags.make" ] && echo "{[( libpiclasstatic.dir/flags.make )]}" >> $1/userblock.txt
-  [ -f "libpiclasstatic.dir/flags.make" ] && cat libpiclasstatic.dir/flags.make            >> $1/userblock.txt
-  [ -f "libpiclasshared.dir/flags.make" ] && echo "{[( libpiclasshared.dir/flags.make )]}" >> $1/userblock.txt
-  [ -f "libpiclasshared.dir/flags.make" ] && cat libpiclasshared.dir/flags.make            >> $1/userblock.txt
-  [ -f "piclas.dir/flags.make"          ] && echo "{[( piclas.dir/flags.make )]}"          >> $1/userblock.txt
-  [ -f "piclas.dir/flags.make"          ] && cat piclas.dir/flags.make                     >> $1/userblock.txt
+  [ -f "libpiclasstatic.dir/flags.make" ] && echo "{[( libpiclasstatic.dir/flags.make )]}" >> "$USERBLOCK_TXT"
+  [ -f "libpiclasstatic.dir/flags.make" ] && cat libpiclasstatic.dir/flags.make            >> "$USERBLOCK_TXT"
+  [ -f "libpiclasshared.dir/flags.make" ] && echo "{[( libpiclasshared.dir/flags.make )]}" >> "$USERBLOCK_TXT"
+  [ -f "libpiclasshared.dir/flags.make" ] && cat libpiclasshared.dir/flags.make            >> "$USERBLOCK_TXT"
+  [ -f "piclas.dir/flags.make"          ] && echo "{[( piclas.dir/flags.make )]}"          >> "$USERBLOCK_TXT"
+  [ -f "piclas.dir/flags.make"          ] && cat piclas.dir/flags.make                     >> "$USERBLOCK_TXT"
 fi
 
 # change directory to actual cmake version
 if [ -d "$3" ]; then
   cd "$3"
   # copy detection of compiler to userblock
-  echo "{[( COMPILER VERSIONS )]}" >> $1/userblock.txt
-  cat CMakeFortranCompiler.cmake   >> $1/userblock.txt
+  echo "{[( COMPILER VERSIONS )]}" >> "$USERBLOCK_TXT"
+  cat CMakeFortranCompiler.cmake   >> "$USERBLOCK_TXT"
 fi
 
 # write PICLas version to userblock
 if [ -f "$4" ]; then
-  echo "{[( PICLAS VERSION )]}" >> $1/userblock.txt
-  PICLAS_MAJOR_VERSION=$(grep "INTEGER.*PARAMETER.*MajorVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
-  PICLAS_MINOR_VERSION=$(grep "INTEGER.*PARAMETER.*MinorVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
-  PICLAS_MATCH_VERSION=$(grep "INTEGER.*PARAMETER.*PatchVersion.*\=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
-  echo "$PICLAS_MAJOR_VERSION.$PICLAS_MINOR_VERSION.$PICLAS_MATCH_VERSION" >> $1/userblock.txt
+  echo "{[( PICLAS VERSION )]}" >> "$USERBLOCK_TXT"
+  PICLAS_MAJOR_VERSION=$(grep "INTEGER.*PARAMETER.*MajorVersion.*=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+  PICLAS_MINOR_VERSION=$(grep "INTEGER.*PARAMETER.*MinorVersion.*=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+  PICLAS_MATCH_VERSION=$(grep "INTEGER.*PARAMETER.*PatchVersion.*=" "$4" | cut -d "=" -f2 | cut -f1 -d! | sed 's/[[:space:]]//g')
+  echo "$PICLAS_MAJOR_VERSION.$PICLAS_MINOR_VERSION.$PICLAS_MATCH_VERSION" >> "$USERBLOCK_TXT"
 fi
 
 # write cpu info to userblock
 if [ -f "/proc/cpuinfo" ]; then
-  echo "{[( CPU INFO )]}" >> $1/userblock.txt
+  echo "{[( CPU INFO )]}" >> "$USERBLOCK_TXT"
   THREADS=$(grep -c ^processor /proc/cpuinfo)
-  echo "Total number of processors/threads given in /proc/cpuinfo: ${THREADS}" >> $1/userblock.txt
-  sed '/^$/Q' /proc/cpuinfo | sed -e 's/\t//g' >> $1/userblock.txt
+  echo "Total number of processors/threads given in /proc/cpuinfo: ${THREADS}" >> "$USERBLOCK_TXT"
+  sed '/^$/Q' /proc/cpuinfo | sed -e 's/\t//g' >> "$USERBLOCK_TXT"
 fi
 
 cd "$1" # go back to the runtime output directory
