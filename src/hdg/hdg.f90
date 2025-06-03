@@ -864,7 +864,7 @@ CASE(10)
   ! PetscCallA(MatMumpsSetIcntl(F,23,2000,ierr))
 #endif
 CASE DEFAULT
-  CALL abort(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Note that the direct solver (10) is currently only available with MUMPS. PrecondType=', IntInfoOpt=PrecondType)
+  CALL CollectiveStop(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Direct solver (10) is only available with MUMPS. PrecondType=', IntInfoOpt=PrecondType)
 END SELECT
 END ASSOCIATE
 
@@ -967,7 +967,7 @@ IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
 UseFPC = .TRUE.
 
 #if !(USE_PETSC)
-CALL abort(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
+CALL CollectiveStop(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 
 GETTIME(StartT)
