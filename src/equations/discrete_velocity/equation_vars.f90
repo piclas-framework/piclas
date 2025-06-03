@@ -60,7 +60,6 @@ TYPE tSpeciesData
   REAL            :: Mass
   REAL            :: Charge
   REAL            :: R_S
-  REAL            :: Prandtl
   INTEGER         :: Internal_DOF
   INTEGER         :: nVar
   INTEGER         :: nVelos(3)

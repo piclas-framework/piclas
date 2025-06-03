@@ -348,7 +348,7 @@ INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 INTEGER                 :: nVar
 #ifdef discrete_velocity
-REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(14,DVMnSpecies+1), fTarget(PP_nVar_FV)
+REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(14,DVMnSpecies+1), fTarget(PP_nVar_FV), rho, Pr
 INTEGER                 :: iSpec, vFIrstID, vLastID
 #else
 REAL                    :: U_RP(PP_nVar+AddVar,nRP)
@@ -386,7 +386,7 @@ DO iRP=1,nRP
       DO i=0,PP_N
 #ifdef discrete_velocity
         IF (t.GT.0..AND.DVMColl) THEN
-          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1)
+          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr)
           SELECT CASE(DVMMethod)
             CASE(1)
               prefac = tau*(1.-EXP(-dt/tau))/dt
@@ -397,8 +397,7 @@ DO iRP=1,nRP
           vLastID = 0
           DO iSpec=1,DVMnSpecies
             vLastID = vLastID + DVMSpecData(iSpec)%nVar
-            MacroVal(2:14,iSpec) = MacroVal(2:14,DVMnSpecies+1)
-            CALL TargetDistribution(MacroVal(:,iSpec),fTarget(vFirstID:vLastID),iSpec)
+            CALL TargetDistribution(MacroVal(:,DVMnSpecies+1),fTarget(vFirstID:vLastID),iSpec,MacroVal(1,iSpec),rho,Pr)
             vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
           END DO
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)

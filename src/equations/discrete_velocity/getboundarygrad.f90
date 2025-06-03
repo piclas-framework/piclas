@@ -43,10 +43,10 @@ USE MOD_Globals          ,ONLY: Abort
 USE MOD_Mesh_Vars        ,ONLY: BC
 USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
 USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
-USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV!, DVMBGKModel
-USE MOD_Equation_Vars_FV ,ONLY: DVMVeloDisc, DVMSpecData, DVMnSpecies, DVMDim, DVMMethod!, Pi, DVMWeights
+USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV
+USE MOD_Equation_Vars_FV ,ONLY: DVMVeloDisc, DVMSpecData, DVMnSpecies, DVMDim, DVMMethod
 USE MOD_TimeDisc_Vars    ,ONLY: dt, time
-USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScattering
+USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScatteringDVM
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -61,7 +61,7 @@ LOGICAL,INTENT(IN):: output
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
-REAL    :: MacroVal(14), tau, vnormal, prefac, MacroValInside(14,DVMnSpecies+1)!, vwall, Sin, Sout, MovTerm, WallDensity, weight
+REAL    :: MacroVal(14), tau, vnormal, prefac, MacroValInside(14,DVMnSpecies+1),rho,Pr
 INTEGER :: iVel, jVel, kVel, upos, upos_sp, iSpec, vFirstID, vLastID
 !==================================================================================================================================
 BCType  = BoundaryType_FV(BC(SideID),BC_TYPE)
@@ -154,9 +154,9 @@ CASE(3) ! specular reflection
 CASE(4) ! diffusive
   fplus(:)=UPrim_master(:)-gradUinside(:)
   IF (output) THEN
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr)
   ELSE
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr)
   END IF
   IF (dt.EQ.0.) THEN
     prefac = 1.
@@ -170,12 +170,11 @@ CASE(4) ! diffusive
   END IF
   vFirstID=1
   vLastID=0
-  DO iSPec = 1,DVMnSpecies
+  DO iSpec = 1,DVMnSpecies
     vLastID = vLastID + DVMSpecData(iSpec)%nVar
     MacroVal(:) = RefState_FV(:,iSpec,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
-    MacroValInside(2:14,iSpec)=MacroValInside(2:14,DVMnSpecies+1) ! relaxation uses total temperature etc.
-    CALL MaxwellScattering(iSpec,UPrim_boundary(vFirstID:vLastID),fplus(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,iSpec))
+    CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),fplus(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr)
     DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
       upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2) + vFirstID-1
       vnormal = DVMSpecData(iSpec)%Velos(iVel,1)*NormVec(1) &
@@ -198,9 +197,9 @@ CASE(4) ! diffusive
 
 CASE(14) ! diffusive order 1
   IF (output) THEN
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr)
   ELSE
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr)
   END IF
   IF (dt.EQ.0.) THEN
     prefac = 1.
@@ -218,8 +217,7 @@ CASE(14) ! diffusive order 1
     vLastID = vLastID + DVMSpecData(iSpec)%nVar
     MacroVal(:) = RefState_FV(:,iSpec,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
-    MacroValInside(2:14,iSpec)=MacroValInside(2:14,DVMnSpecies+1) ! relaxation uses total temperature etc.
-    CALL MaxwellScattering(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,iSpec))
+    CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr)
     vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
   END DO
   gradU = 2.*(UPrim_master-UPrim_boundary)

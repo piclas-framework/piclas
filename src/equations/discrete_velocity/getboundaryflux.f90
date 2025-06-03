@@ -116,7 +116,7 @@ USE MOD_Equation_Vars_FV,ONLY: IniExactFunc_FV,RefState_FV
 USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
-USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScattering, MacroValuesFromDistribution
+USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScatteringDVM, MacroValuesFromDistribution
 USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMethod
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -135,7 +135,7 @@ REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0)
 INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFirstID, vLastID
 REAL                                 :: MacroVal(14), tau, prefac, vnormal
-REAL                                 :: MacroValInside(14,DVMnSpecies+1)
+REAL                                 :: MacroValInside(14,DVMnSpecies+1),rho,Pr
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -242,7 +242,7 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       DO q=0,0; DO p=0,0
-        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
+        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr)
         IF (dt.EQ.0.) THEN
           prefac = 1.
         ELSE
@@ -259,8 +259,7 @@ DO iBC=1,nBCs
           vLastID = vLastID + DVMSpecData(iSpec)%nVar
           MacroVal(:) = RefState_FV(:,iSpec,BCState)
           CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
-          MacroValInside(2:14,iSpec)=MacroValInside(2:14,DVMnSpecies+1) ! relaxation uses total temperature etc.
-          CALL MaxwellScattering(iSpec,UPrim_boundary(vFirstID:vLastID,p,q),UPrim_master(vFirstID:vLastID,p,q,SideID),NormVec(:,p,q,SideID),prefac,MacroValInside(:,iSpec))
+          CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID,p,q),UPrim_master(vFirstID:vLastID,p,q,SideID),NormVec(:,p,q,SideID),prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr)
           vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
         END DO; END DO
       END DO

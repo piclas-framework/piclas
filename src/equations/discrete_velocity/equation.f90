@@ -75,10 +75,9 @@ CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'/
                                                      '1: Ellipsoidal statistical (ESBGK)\n'//&
                                                      '2: Shakov (SBGK)\n'//&
                                                      '3: Standard BGK (Maxwell)'//&
-                                                     '4: Conservative ESBGK'//&
-                                                     '5: Conservative Maxwell'//&
-                                                     '6: SkewNormal BGK (SNBGK)'//&
-                                                     '7: Grad 13 BGK')
+                                                     '4: Conservative Maxwell'//&
+                                                     '5: SkewNormal BGK (SNBGK)'//&
+                                                     '6: Grad 13 BGK', '1')
 CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//&
                                                      '1: Exponential differencing (EDDVM)\n'//&
                                                      '2: DUGKS')
@@ -158,7 +157,6 @@ DO iSpec = 1, DVMnSpecies
   Sp%Charge       = GETREAL('DVM-Species'//TRIM(hilf)//'-Charge')
   Sp%mu_Ref       = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
   Sp%R_S          = BoltzmannConst / Sp%Mass
-  Sp%Prandtl      = 2.*(Sp%Internal_DOF + 5.)/(2.*Sp%Internal_DOF + 15.)
 
   DVMVeloDisc(iSpec)  = GETINT('DVM-Species'//TRIM(hilf)//'-VeloDiscretization')
   Sp%nVelos(1:3)      = 1
@@ -258,7 +256,7 @@ END IF
 
 DVMForce = GETREALARRAY('DVM-Accel',3)
 
-ALLOCATE(DVMMomentSave(15,DVMnSpecies+1,nElems))
+ALLOCATE(DVMMomentSave(17,DVMnSpecies+1,nElems))
 DVMMomentSave = 0.
 
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
@@ -391,7 +389,7 @@ DO iSpec=1,DVMnSpecies
       MacroVal(:) = RefState_FV(:,iSpec,1)
       mu = DVMSpecData(iSpec)%mu_Ref*(MacroVal(5)/DVMSpecData(iSpec)%T_Ref)**(DVMSpecData(iSpec)%omegaVHS+0.5)
       tau = mu/(BoltzmannConst*MacroVal(1)*MacroVal(5))
-      MacroVal(12:14) = MacroVal(12:14)*EXP(-tIn*DVMSpecData(iSpec)%Prandtl/tau) !Heat flux relaxes with rate Pr/tau
+      MacroVal(12:14) = MacroVal(12:14)*EXP(-tIn*2./3./tau) !Heat flux relaxes with rate Pr/tau
       CALL GradDistribution(MacroVal(:),Resu(vFirstID:vLastID),iSpec)
     END IF
 

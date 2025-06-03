@@ -47,7 +47,7 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                             :: n_loc(3),MacroVal_L(14,DVMnSpecies+1), MacroVal_R(14,DVMnSpecies+1), tau_L, tau_R
-REAL                                             :: Velo
+REAL                                             :: Velo, rho_L, rho_R, Pr_L, Pr_R
 REAL,ALLOCATABLE                                 :: fTarget_L(:), fTarget_R(:), UTemp_L(:), UTemp_R(:)
 REAL                                             :: gamma_R, gamma_L, relaxFac
 INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos, iSpec, vFirstID, vLastID
@@ -57,8 +57,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
     DO Count_1=0,0
       n_loc(:)=nv(:,Count_1,Count_2)
       IF (DVMColl) THEN
-        CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1)
-        CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)
+        CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1,MassDensity=rho_L,PrandtlNumber=Pr_L)
+        CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1,MassDensity=rho_R,PrandtlNumber=Pr_R)
         SELECT CASE (DVMMethod)
         CASE(1)
           relaxFac = dt/2./tau_L
@@ -86,11 +86,9 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         ALLOCATE(fTarget_R(DVMSpecData(iSpec)%nVar))
         ALLOCATE(UTemp_L(DVMSpecData(iSpec)%nVar))
         ALLOCATE(UTemp_R(DVMSpecData(iSpec)%nVar))
-        MacroVal_L(2:14,iSpec) = MacroVal_L(2:14,DVMnSpecies+1)
-        MacroVal_R(2:14,iSpec) = MacroVal_R(2:14,DVMnSpecies+1)
         IF (DVMColl) THEN
-          CALL TargetDistribution(MacroVal_L(:,iSpec),fTarget_L,iSpec)
-          CALL TargetDistribution(MacroVal_R(:,iSpec),fTarget_R,iSpec)
+          CALL TargetDistribution(MacroVal_L(:,DVMnSpecies+1),fTarget_L,iSpec,MacroVal_L(1,iSpec),rho_L,Pr_L)
+          CALL TargetDistribution(MacroVal_R(:,DVMnSpecies+1),fTarget_R,iSpec,MacroVal_R(1,iSpec),rho_R,Pr_R)
           IF (dt.EQ.0.) THEN
             UTemp_L = 0.
             UTemp_R = 0.
