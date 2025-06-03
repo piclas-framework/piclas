@@ -826,10 +826,10 @@ CASE(3)
   ! Coarsen during the interpolation
   PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_truncfactor", "0.3", ierr))
   PetscCallA(PCSetFromOptions(pc,ierr))
-#else
+#else /*NOT PETSC_HAVE_HYPRE*/
   ! ===  Preconditioner: Block Jacobi
   PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
-#endif
+#endif /*PETSC_HAVE_HYPRE*/
 #ifdef PETSC_HAVE_MUMPS
 CASE(10)
   ! ====== Direct solver: Cholesky
@@ -843,7 +843,7 @@ CASE(10)
 #if USE_DEBUG
   ! Increase MUMPS diagnostics level: Errors, warnings, and main statistics printed.
   PetscCallA(MatMumpsSetIcntl(F, 4, 2, ierr))
-#endif
+#endif /*USE_DEBUG*/
   ! === Compression
   ! Enable BLR compression with automatic settings: showed better performance for initial factorization and better memory footprint
   PetscCallA(MatMumpsSetIcntl(F, 35, 1, ierr))
@@ -862,9 +862,10 @@ CASE(10)
   PetscCallA(MatMumpsSetIcntl(F,14,100,ierr))
   ! ! Limit to 2GB per process, or default (=0): each processor will allocate workspace based on the estimates computed during the analysis
   ! PetscCallA(MatMumpsSetIcntl(F,23,2000,ierr))
-#endif
+#endif /*PETSC_HAVE_MUMPS*/
 CASE DEFAULT
-  CALL CollectiveStop(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Direct solver (10) is only available with MUMPS. PrecondType=', IntInfoOpt=PrecondType)
+  SWRITE(*,*) 'PrecondType:', PrecondType
+  CALL CollectiveStop(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Direct solver (10) is only available with MUMPS.')
 END SELECT
 END ASSOCIATE
 
@@ -886,7 +887,6 @@ IF (TRIM(ksp_type) .EQ. 'preonly') THEN
 ELSE
   LBWRITE(UNIT_stdOut,'(A)') ' | Iterative solver: '//TRIM(ksp_type)//' with '//TRIM(pc_type)//' preconditioning'
 END IF
-
 
 END SUBROUTINE PETScSetSolver
 #endif /*USE_PETSC*/
