@@ -3,8 +3,8 @@
 # =========================================================================
 SET(PROJECT_NAME "PICLas")
 SET(PROJECT_DESC "A parallel, three-dimensional PIC-DSMC solver and flexible particle-based plasma simulation suite")
-SET(PROJECT_VER  "3.50")
-SET(PROJECT_URL  "https://piclas.readthedocs.io")
+SET(PROJECT_VER  "3.6.0")
+SET(PROJECT_URL  "https://github.com/piclas-framework/piclas")
 
 # =========================================================================
 # CMake configuration
