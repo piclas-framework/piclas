@@ -53,6 +53,8 @@ INTEGER,ALLOCATABLE  :: DVMNewtDeg(:,:)
 REAL,ALLOCATABLE     :: DVMMomentSave(:,:,:)
 
 TYPE tSpeciesData
+  CHARACTER(LEN=64):: Name
+  LOGICAL          :: DoOverwriteParameters ! Flag to read in parameters manually
   REAL            :: omegaVHS
   REAL            :: T_Ref
   REAL            :: d_Ref
@@ -60,6 +62,7 @@ TYPE tSpeciesData
   REAL            :: Mass
   REAL            :: Charge
   REAL            :: R_S
+  INTEGER         :: InterID
   INTEGER         :: Internal_DOF
   INTEGER         :: nVar
   INTEGER         :: nVelos(3)

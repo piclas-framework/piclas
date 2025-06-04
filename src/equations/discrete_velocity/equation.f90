@@ -56,13 +56,22 @@ IMPLICIT NONE
 CALL prms%SetSection("Equation")
 CALL prms%CreateIntOption(      'IniExactFunc-FV'     , 'Define exact function necessary for '//&
                                                      'discrete velocity method', '-1')
+CALL prms%CreateStringOption(   'DVM-Species-Database', 'File name for the species database', 'none')
 CALL prms%CreateIntOption(      'DVM-nSpecies',      'Number of species for DVM', '1')
+CALL prms%CreateStringOption(   'DVM-Species[$]-SpeciesName' ,'Species name of Species[$]', 'none', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption(  'DVM-Species[$]-DoOverwriteParameters', 'Flag to set parameters in ini-file manually', '.FALSE.'&
+                                                                        , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-omegaVHS',      'Variable Hard Sphere parameter', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-T_Ref',         'VHS reference temperature', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-d_Ref',         'VHS reference diameter', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Mass',          'Molecular mass', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Charge',          'Electrical charge', '0.', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'DVM-Species[$]-Internal_DOF',  'Number of (non translational) internal degrees of freedom', '0', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
+                                                                 '  1: Atom\n'//&
+                                                                 '  2: Molecule\n'//&
+                                                                 '  4: Electron\n'//&
+                                                                 ' 10: Atomic Ion\n'//&
+                                                                 ' 20: Molecular Ion', '0', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'DVM-Species[$]-VeloDiscretization',      '1: do not use, 2: Gauss-Hermite, 3: Newton-Cotes', '2', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('DVM-Species[$]-GaussHermiteTemp',        'Reference temperature for GH quadrature (per direction)',&
                                                                '(/273.,273.,273./)', numberedmulti=.TRUE.)
@@ -143,21 +152,14 @@ ALLOCATE(DVMSpecData(DVMnSpecies))
 ALLOCATE(StrVarNames_FV(14*(DVMnSpecies+1)+1))
 PP_nVar_FV = 0
 
+CALL InitDVMSpecData()
+
 ALLOCATE(DVMVeloDisc(DVMnSpecies))
 
 DO iSpec = 1, DVMnSpecies
   LBWRITE (UNIT_stdOut,'(68(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
   ASSOCIATE(Sp => DVMSpecData(iSpec))
-  Sp%omegaVHS     = GETREAL('DVM-Species'//TRIM(hilf)//'-omegaVHS')
-  Sp%T_Ref        = GETREAL('DVM-Species'//TRIM(hilf)//'-T_Ref')
-  Sp%d_Ref        = GETREAL('DVM-Species'//TRIM(hilf)//'-d_Ref')
-  Sp%Internal_DOF = GETINT('DVM-Species'//TRIM(hilf)//'-Internal_DOF')
-  Sp%Mass         = GETREAL('DVM-Species'//TRIM(hilf)//'-Mass')
-  Sp%Charge       = GETREAL('DVM-Species'//TRIM(hilf)//'-Charge')
-  Sp%mu_Ref       = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
-  Sp%R_S          = BoltzmannConst / Sp%Mass
-
   DVMVeloDisc(iSpec)  = GETINT('DVM-Species'//TRIM(hilf)//'-VeloDiscretization')
   Sp%nVelos(1:3)      = 1
   Sp%nVelos(1:DVMDim) = GETINT('DVM-Species'//TRIM(hilf)//'-nVelo')
@@ -276,6 +278,141 @@ EquationInitIsDone_FV=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT DVM DONE!'
 LBWRITE(UNIT_stdOut,'(132("-"))')
 END SUBROUTINE InitEquation
+
+SUBROUTINE InitDVMSpecData()
+!===================================================================================================================================
+!> Initialize the species parameter: read-in the species name, and then either read-in from the database or the parameter file.
+!> Possbility to overwrite specific species with custom values or use species not defined in the database.
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars
+USE MOD_ReadInTools
+USE MOD_Equation_Vars_FV    ,ONLY: DVMSpecData, DVMnSpecies, DVMColl
+USE MOD_io_hdf5
+USE MOD_HDF5_input          ,ONLY:ReadAttribute, DatasetExists, AttributeExists
+#if USE_MPI
+USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+ IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER               :: iSpec,err
+CHARACTER(32)         :: hilf
+CHARACTER(LEN=64)     :: dsetname
+INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
+LOGICAL               :: GroupFound, AttrExists
+CHARACTER(LEN=256)    :: SpeciesDatabase                  ! Name of the species database
+!===================================================================================================================================
+! Read-in of the species database
+SpeciesDatabase       = GETSTR('DVM-Species-Database')
+
+! Read-in of species name and whether to overwrite the database parameters
+DO iSpec = 1, DVMnSpecies
+  WRITE(UNIT=hilf,FMT='(I0)') iSpec
+  DVMSpecData(iSpec)%Name    = TRIM(GETSTR('DVM-Species'//TRIM(hilf)//'-SpeciesName'))
+  DVMSpecData(iSpec)%DoOverwriteParameters = GETLOGICAL('DVM-Species'//TRIM(hilf)//'-DoOverwriteParameters')
+END DO ! iSpec
+
+! If no database is used, use the overwrite per default
+IF(SpeciesDatabase.EQ.'none') DVMSpecData(:)%DoOverwriteParameters = .TRUE.
+
+! Check whether SpeciesName is provided and if not, whether DoOverwriteParameters is activated (regular parameter read-in from file)
+! Abort when SpeciesName is not provided and DoOverwriteParameters is not activated
+DO iSpec = 1, DVMnSpecies
+  IF(DVMSpecData(iSpec)%Name.EQ.'none'.AND..NOT.DVMSpecData(iSpec)%DoOverwriteParameters) &
+    CALL abort(__STAMP__,'ERROR: Please define a species name for DVM species:', iSpec)
+END DO ! iSpec
+
+! Read-in the values from the database
+IF(SpeciesDatabase.NE.'none') THEN
+  ! Initialize FORTRAN interface.
+  CALL H5OPEN_F(err)
+  ! Check if file exists
+  IF(.NOT.FILEEXISTS(SpeciesDatabase)) THEN
+    CALL abort(__STAMP__,'ERROR: Database ['//TRIM(SpeciesDatabase)//'] does not exist.')
+  END IF
+  ! Open file
+  CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
+  ! Loop over number of species and skip those with overwrite
+  DO iSpec = 1, DVMnSpecies
+    IF (DVMSpecData(iSpec)%DoOverwriteParameters) CYCLE
+    ASSOCIATE(Sp => DVMSpecData(iSpec))
+    LBWRITE (UNIT_stdOut,'(68(". "))')
+    CALL PrintOption('Species Name','INFO',StrOpt=TRIM(Sp%Name))
+    dsetname = TRIM('/Species/'//TRIM(Sp%Name))
+    ! use DatasetExists() to check if group exists because it only check for a link with H5LEXISTS()
+    CALL DatasetExists(file_id_specdb,TRIM(dsetname),GroupFound)
+    ! Read-in if dataset is there, otherwise set the overwrite parameter
+    IF(GroupFound) THEN
+      CALL AttributeExists(file_id_specdb,'ChargeIC',TRIM(dsetname), AttrExists=AttrExists,ReadFromGroup=.TRUE.)
+      IF (AttrExists) THEN
+        CALL ReadAttribute(file_id_specdb,'ChargeIC',1,DatasetName = dsetname,RealScalar=Sp%Charge,ReadFromGroup=.TRUE.)
+      ELSE
+        Sp%Charge = 0.0
+      END IF
+      CALL PrintOption('ChargeIC','DB',RealOpt=Sp%Charge)
+      CALL ReadAttribute(file_id_specdb,'MassIC',1,DatasetName = dsetname,RealScalar=Sp%Mass,ReadFromGroup=.TRUE.)
+      CALL PrintOption('MassIC','DB',RealOpt=Sp%Mass)
+      CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Sp%InterID,ReadFromGroup=.TRUE.)
+      CALL PrintOption('InteractionID','DB',IntOpt=Sp%InterID)
+      IF(DVMColl) THEN
+        ! Reference temperature
+        CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=Sp%T_Ref,ReadFromGroup=.TRUE.)
+        CALL PrintOption('Tref','DB',RealOpt=Sp%T_Ref)
+        ! Reference diameter
+        CALL ReadAttribute(file_id_specdb,'dref',1,DatasetName = dsetname,RealScalar=Sp%d_Ref,ReadFromGroup=.TRUE.)
+        CALL PrintOption('dref','DB',RealOpt=Sp%d_Ref)
+        ! Viscosity exponent
+        CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=Sp%omegaVHS,ReadFromGroup=.TRUE.)
+        CALL PrintOption('omega','DB',RealOpt=Sp%omegaVHS)
+      END IF
+    ELSE
+      Sp%DoOverwriteParameters = .TRUE.
+      SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
+    END IF
+    END ASSOCIATE ! Sp => DVMSpecData(iSpec)
+  END DO
+  ! Close the file.
+  CALL H5FCLOSE_F(file_id_specdb, err)
+  ! Close FORTRAN interface.
+  CALL H5CLOSE_F(err)
+END IF
+
+! Old parameter file read-in of species values
+DO iSpec = 1, DVMnSpecies
+  ASSOCIATE(Sp => DVMSpecData(iSpec))
+  IF(Sp%DoOverwriteParameters) THEN
+    LBWRITE (UNIT_stdOut,'(68(". "))')
+    WRITE(UNIT=hilf,FMT='(I0)') iSpec
+    Sp%Charge              = GETREAL('DVM-Species'//TRIM(hilf)//'-Charge')
+    Sp%Mass                = GETREAL('DVM-Species'//TRIM(hilf)//'-Mass')
+    Sp%InterID             = GETINT('DVM-Species'//TRIM(hilf)//'-InteractionID')
+    Sp%omegaVHS            = GETREAL('DVM-Species'//TRIM(hilf)//'-omegaVHS')
+    Sp%T_Ref               = GETREAL('DVM-Species'//TRIM(hilf)//'-T_Ref')
+    Sp%d_Ref               = GETREAL('DVM-Species'//TRIM(hilf)//'-d_Ref')
+  END IF
+  Sp%mu_Ref              = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
+  Sp%R_S                 = BoltzmannConst / Sp%Mass
+  IF (Sp%InterID.LE.1) THEN
+    Sp%Internal_DOF = 0 ! atomic species
+  ELSE
+    CALL abort(__STAMP__,'ERROR: DVM only implemented for atomic species!')
+  END IF
+  CALL PrintOption('Internal_DOF','INFO',IntOpt=Sp%Internal_DOF)
+  END ASSOCIATE
+END DO ! iSpec
+
+IF(DVMnSpecies.GT.0)THEN
+  LBWRITE (UNIT_stdOut,'(68(". "))')
+END IF ! nSpecies.GT.0
+
+END SUBROUTINE InitDVMSpecData
 
 
 SUBROUTINE ExactFunc(ExactFunction,tIn,x,resu)
