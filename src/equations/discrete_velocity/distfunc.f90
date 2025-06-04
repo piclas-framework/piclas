@@ -213,9 +213,13 @@ cP = (5./2.) * BoltzmannConst * dens(total)/rhoTotal
 Prandtl = cP*mu(total)/thermalcond(total)*PrandtlCorrection
 IF (PRESENT(PrandtlNumber)) PrandtlNumber = Prandtl
 
-tau = mu(total)/(BoltzmannConst*dens(total)*MacroVal(5,total))
-IF (DVMBGKModel.EQ.1) tau = tau/Prandtl !ESBGK
-IF (DVMBGKModel.EQ.6) tau = tau*2./3. !Grad13BGK
+IF (DVMnSpecies.EQ.1) THEN
+  tau = mu(total)/BoltzmannConst/dens(total)/MacroVal(5,total)
+  IF (DVMBGKModel.EQ.1) tau = tau/Prandtl !ESBGK
+  IF (DVMBGKModel.EQ.6) tau = tau*2./3. !Grad13BGK
+ELSE ! multispecies (but why?)
+  tau = mu(total)/BoltzmannConst/dens(total)/MacroVal(5,total)/Prandtl
+END IF
 
 IF (DVMColl.AND.tDeriv.GT.0.) THEN
   IF(tilde.EQ.1) THEN ! higher moments from f~
