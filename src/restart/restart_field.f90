@@ -568,7 +568,7 @@ ELSE ! Normal restart
           U_N(iElem)%U(1:nVar,i,j,k) = U_N_2D_local(1:nVar,iDOF)
         END DO; END DO; END DO
       END DO
-
+      SDEALLOCATE(U_N_2D_local)
     ELSE ! nDims.EQ.5
       SWRITE(UNIT_stdOut,'(A,I0,A,I0)')' Interpolating solution from restart grid with N=',N_restart,&
                                                           ' to computational grid with N=',PP_N
