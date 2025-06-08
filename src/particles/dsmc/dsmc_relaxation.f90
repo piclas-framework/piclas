@@ -127,17 +127,22 @@ REAL, INTENT(IN)              :: FakXi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: LocalFakXi, iRan
+REAL                          :: LocalFakXi, iRan, CollEnergy
 INTEGER                       :: iSpec
 !===================================================================================================================================
+IF (usevMPF.OR.UseVarTimeStep) THEN
+  CollEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+ELSE
+  CollEnergy = Coll_pData(iPair)%Ec
+END IF
+
 iSpec = PartSpecies(iPart)
+
 ! fix for changed FakXi for polyatomic
 LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot
 CALL RANDOM_NUMBER(iRan)
-PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
-IF(usevMPF.OR.UseVarTimeStep) THEN
-  PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
-END IF
+PartStateIntEn(2, iPart) = CollEnergy * (1.0 - iRan**(1.0/LocalFakXi))
+
 END SUBROUTINE DSMC_RotRelaxDiaContinuous
 
 

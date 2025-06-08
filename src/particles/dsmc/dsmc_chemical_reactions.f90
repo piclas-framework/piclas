@@ -649,7 +649,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
 END IF
 ! Sanity check
 IF(Coll_pData(iPair)%Ec.LT.0)THEN
-  IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Added vibrational and electronic energy"
+  IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Added vibrational and electronic energy"
   IPWRITE(UNIT_StdOut,*) "iReac       =", iReac
   IPWRITE(UNIT_StdOut,*) "ReactInx(1) =", ReactInx(1), " ReactInx(2) =", ReactInx(2)
   IPWRITE(UNIT_StdOut,*) "Weight(1)   =", Weight(1)  , " Weight(2)   =", Weight(2)
@@ -748,7 +748,7 @@ FakXi = 0.5*Xi_total - 1.0
 Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SUM(EZeroTempToExec(:))
 ! Sanity check
 IF(Coll_pData(iPair)%Ec.LT.0.)THEN
-  IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Zero-point energy"
+  IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Zero-point energy"
   IPWRITE(UNIT_StdOut,*) "iReac =", iReac
   CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
 END IF ! Coll_pData(iPair)%Ec.LT.0.
@@ -789,7 +789,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., XSec_Level = 0)
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
         IF(Coll_pData(iPair)%Ec.LT.0.) THEn
-          IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Electronic energy exchange"
+          IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Electronic energy exchange"
           IPWRITE(UNIT_StdOut,*) "iProd =", iProd
           IPWRITE(UNIT_StdOut,*) "iReac =", iReac
           CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
@@ -817,7 +817,7 @@ DO iProd = 1, NumProd
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(iProd))*Weight(iProd)
       ! Sanity check
       IF(Coll_pData(iPair)%Ec.LT.0.) THEn
-        IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Vibrational energy exchange"
+        IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Vibrational energy exchange"
         IPWRITE(UNIT_StdOut,*) "iProd =", iProd
         IPWRITE(UNIT_StdOut,*) "iReac =", iReac
         CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
@@ -836,16 +836,14 @@ DO iProd = 1, NumProd
     ELSE
       CALL RotRelaxDiaRoutineFuncPTR(iPair, ReactInx(iProd), FakXi)
     END IF
-
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(iProd))
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(iProd))*Weight(iProd)
     ! Sanity check
     IF(Coll_pData(iPair)%Ec.LT.0.) THEn
-      IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Rotational energy exchange"
+      IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Rotational energy exchange"
       IPWRITE(UNIT_StdOut,*) "iProd =", iProd
       IPWRITE(UNIT_StdOut,*) "iReac =", iReac
       CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
     END IF
-    PartStateIntEn(2,ReactInx(iProd)) = PartStateIntEn(2,ReactInx(iProd))/Weight(iProd)
   ELSE
     PartStateIntEn(1,ReactInx(iProd)) = 0.0
     PartStateIntEn(2,ReactInx(iProd)) = 0.0
@@ -1036,7 +1034,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
   ! Sanity check
   IF(ERel_React1_React3.LT.0.) THEn
     IPWRITE(UNIT_StdOut,*) "iReac =", iReac
-    CALL abort(__STAMP__,'DSMC Chemisry: Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
+    CALL abort(__STAMP__,'DSMC Chemistry: Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
   END IF
 
   IF (usevMPF) THEN

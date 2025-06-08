@@ -1261,23 +1261,29 @@ SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, NormProb, tempProb, fak1, fak2, Ec, LocalFakXi
+  REAL                          :: iRan, NormProb, tempProb, fak1, fak2, CollEnergy, LocalFakXi
   INTEGER                       :: iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
+
+IF (usevMPF.OR.UseVarTimeStep) THEN
+  CollEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+ELSE
+  CollEnergy = Coll_pData(iPair)%Ec
+END IF
+
 IF(SpecDSMC(iSpec)%Xi_Rot.EQ.3) THEN
-  Ec = Coll_pData(iPair)%Ec
   fak1 = (3.0/2.0+FakXi-1.0)/(3.0/2.0-1.0)
   fak2 = (3.0/2.0+FakXi-1.0)/(FakXi)
 
   CALL RANDOM_NUMBER(iRan)
-  tempProb = Ec*iRan
-  NormProb = ((fak1*tempProb/Ec)**(3.0/2.0-1.0))*((fak2*(1.0-tempProb/Ec))**(FakXi))
+  tempProb = CollEnergy*iRan
+  NormProb = ((fak1*tempProb/CollEnergy)**(3.0/2.0-1.0))*((fak2*(1.0-tempProb/CollEnergy))**(FakXi))
   CALL RANDOM_NUMBER(iRan)
   DO WHILE (iRan.GE.NormProb)
     CALL RANDOM_NUMBER(iRan)
-    tempProb = Ec*iRan
-    NormProb = (fak1*tempProb/Ec)**(3.0/2.0-1.0)*(fak2*(1.0-tempProb/Ec))**(FakXi)
+    tempProb = CollEnergy*iRan
+    NormProb = (fak1*tempProb/CollEnergy)**(3.0/2.0-1.0)*(fak2*(1.0-tempProb/CollEnergy))**(FakXi)
     CALL RANDOM_NUMBER(iRan)
   END DO
   PartStateIntEn(2,iPart)=tempProb
@@ -1285,11 +1291,9 @@ ELSE    ! continous treatment of linear molecules
   ! fix for changed FakXi for polyatomic
   LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot
   CALL RANDOM_NUMBER(iRan)
-  PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
+  PartStateIntEn(2, iPart) = CollEnergy * (1.0 - iRan**(1.0/LocalFakXi))
 END IF
-IF(usevMPF.OR.UseVarTimeStep) THEN
-  PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
-END IF
+
 END SUBROUTINE DSMC_RotRelaxPoly
 
 
