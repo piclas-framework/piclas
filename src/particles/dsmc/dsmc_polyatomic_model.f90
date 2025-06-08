@@ -12,10 +12,10 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+!===================================================================================================================================
+!> Routines for the treatment of polyatomic molecules
+!===================================================================================================================================
 MODULE MOD_DSMC_PolyAtomicModel
-!===================================================================================================================================
-! Routines for the treatment of polyatomic molecules
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -36,8 +36,8 @@ ABSTRACT INTERFACE
 END INTERFACE
 
 PROCEDURE(RotRelaxPolyRoutine),POINTER :: RotRelaxPolyRoutineFuncPTR !< pointer defining the function called for rotational relaxation
-                                                                !  depending on the RotRelaxModel (continous or quantized)
-                                                                !  for polyatomic molecules
+                                                                     !< depending on the RotRelaxModel (continuous or quantized)
+                                                                     !< for polyatomic molecules
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
@@ -51,10 +51,10 @@ PUBLIC :: DSMC_FindFirstVibPick, DSMC_RelaxVibPolyProduct, RotRelaxPolyRoutineFu
 
 CONTAINS
 
-SUBROUTINE InitPolyAtomicMolecs(iSpec)
 !===================================================================================================================================
 !> Initialization of variables for polyatomic molecules
 !===================================================================================================================================
+SUBROUTINE InitPolyAtomicMolecs(iSpec)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
@@ -336,10 +336,10 @@ PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(1:PolyatomMolDSMC(iPolyatMole)%VibDO
 END SUBROUTINE InitPolyAtomicMolecs
 
 
+!===================================================================================================================================
+!> Burn-in phase for the modified Metropolis-Hasting method for the particle generation of polyatomic molecules
+!===================================================================================================================================
 SUBROUTINE DSMC_FindFirstVibPick(iInitTmp, iSpec, init_or_sf)
-!===================================================================================================================================
-! Burn-in phase for the modified Metropolis-Hasting method for the particle generation of polyatomic molecules
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
@@ -401,10 +401,10 @@ DEALLOCATE(iRan, iQuant_old)
 END SUBROUTINE DSMC_FindFirstVibPick
 
 
+!===================================================================================================================================
+!> Set the internal energies of a specific particle, using temperature values from initialization, surface flux, or surface values
+!===================================================================================================================================
 SUBROUTINE DSMC_SetInternalEnr(iSpec, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-!> Energy distribution according to dissertation of Laux (diatomic)
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: abort
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst
@@ -508,10 +508,10 @@ END IF
 END SUBROUTINE DSMC_SetInternalEnr
 
 
+!===================================================================================================================================
+!> Initialization of polyatomic molecules by treating every mode separately in a loop
+!===================================================================================================================================
 SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode(iSpecies, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-! Initialization of polyatomic molecules by treating every mode separately in a loop
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
@@ -606,11 +606,11 @@ PartStateIntEn( 2,iPart) = RotInitPolyRoutineFuncPTR(iSpecies,TRot,iPart)
 END SUBROUTINE DSMC_SetInternalEnr_Poly_ARM_SingleMode
 
 
+!===================================================================================================================================
+!> Initialization/particle generation of polyatomic molecules with the acceptance-rejection method (extremely slow for molecules with
+!> more than 3 atoms due to low acceptance probability, only for comparison with Metropolis-Hastings)
+!===================================================================================================================================
 SUBROUTINE DSMC_SetInternalEnr_Poly_ARM(iSpec, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-! Initialization/particle generation of polyatomic molecules with the acceptance-rejection method (extremely slow for molecules with
-! more than 3 atoms due to low acceptance probability, only for comparison with Metropolis-Hastings)
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -696,11 +696,11 @@ END IF
 END SUBROUTINE DSMC_SetInternalEnr_Poly_ARM
 
 
+!===================================================================================================================================
+!> Initialization/particle generation of polyatomic molecules with modified Metropolis-Hasting method
+!> Burn-in phase is included for each particle, can be utilized for setting the internal energy regardless of the previous state
+!===================================================================================================================================
 SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick(iSpec, iInit, iPart, init_or_sf)
-!===================================================================================================================================
-! Initialization/particle generation of polyatomic molecules with modified Metropolis-Hasting method
-! Burn-in phase is included for each particle, can be utilized for setting the internal energy regardless of the previous state
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -785,11 +785,11 @@ ElemID = PEM%LocalElemID(iPart)
 END SUBROUTINE DSMC_SetInternalEnr_Poly_MH_FirstPick
 
 
+!===================================================================================================================================
+!> Initialization/particle generation of polyatomic molecules with modified Metropolis-Hasting method
+!> Burn-in phase is NOT included, utilizes LastVibQuantNums as first initial value of the Markov chain
+!===================================================================================================================================
 SUBROUTINE DSMC_SetInternalEnr_Poly_MH(iSpec, iInitTmp, iPart, init_or_sf)
-!===================================================================================================================================
-! Initialization/particle generation of polyatomic molecules with modified Metropolis-Hasting method
-! Burn-in phase is NOT included, utilizes LastVibQuantNums as first initial value of the Markov chain
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -876,72 +876,72 @@ END IF
 END SUBROUTINE DSMC_SetInternalEnr_Poly_MH
 
 
+!===================================================================================================================================
+!> Initialization of the vibrational state of polyatomic molecules created during chemical reactions
+!> Single mode initialization analagous to DSMC_SetInternalEnr_Poly_ARM_SingleMode
+!===================================================================================================================================
 SUBROUTINE DSMC_RelaxVibPolyProduct(iPair, iPart, FakXi, Xi_Vib, WeightProd)
-!===================================================================================================================================
-! Initialization of the vibrational state of polyatomic molecules created during chemical reactions
-! Single mode initialization analagous to DSMC_SetInternalEnr_Poly_ARM_SingleMode
-!===================================================================================================================================
 ! MODULES
-  USE MOD_Globals
-  USE MOD_Globals_Vars,         ONLY : BoltzmannConst
-  USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, Coll_pData, VibQuantsPar
-  USE MOD_Particle_Vars,        ONLY : PartSpecies
+USE MOD_Globals
+USE MOD_Globals_Vars,         ONLY : BoltzmannConst
+USE MOD_DSMC_Vars,            ONLY : PartStateIntEn, SpecDSMC, DSMC, PolyatomMolDSMC, Coll_pData, VibQuantsPar
+USE MOD_Particle_Vars,        ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart, iPair
-  REAL, INTENT(IN)              :: Xi_Vib(:)
-  REAL, INTENT(INOUT)           :: FakXi
-  REAL, INTENT(IN), OPTIONAL    :: WeightProd
+INTEGER, INTENT(IN)           :: iPart, iPair
+REAL, INTENT(IN)              :: Xi_Vib(:)
+REAL, INTENT(INOUT)           :: FakXi
+REAL, INTENT(IN), OPTIONAL    :: WeightProd
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, MaxColQua, Weight
-  INTEGER                       :: iQua, iQuaMax, iDOF, iPolyatMole
+REAL                          :: iRan, MaxColQua, Weight
+INTEGER                       :: iQua, iQuaMax, iDOF, iPolyatMole
 !===================================================================================================================================
-  iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-  IF (PRESENT(WeightProd)) THEN
-    Weight = WeightProd
-  ELSE
-    Weight = 1.
-  END IF
-  IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
-  ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
-  PartStateIntEn( 1,iPart) = 0.0
-  DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
-    ! Addition of the zero-point energy part for the respective dofs (avoiding the redistribution of too much vibrational energy)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec  &
-        + DSMC%GammaQuant * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*Weight
-    ! Maximum quantum number calculated with the collision energy
-    MaxColQua = Coll_pData(iPair)%Ec/(Weight*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))  &
-              - DSMC%GammaQuant
-    iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
+iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+IF (PRESENT(WeightProd)) THEN
+  Weight = WeightProd
+ELSE
+  Weight = 1.
+END IF
+IF(ALLOCATED(VibQuantsPar(iPart)%Quants)) DEALLOCATE(VibQuantsPar(iPart)%Quants)
+ALLOCATE(VibQuantsPar(iPart)%Quants(PolyatomMolDSMC(iPolyatMole)%VibDOF))
+PartStateIntEn( 1,iPart) = 0.0
+DO iDOF = 1, PolyatomMolDSMC(iPolyatMole)%VibDOF
+  ! Addition of the zero-point energy part for the respective dofs (avoiding the redistribution of too much vibrational energy)
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec  &
+      + DSMC%GammaQuant * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*Weight
+  ! Maximum quantum number calculated with the collision energy
+  MaxColQua = Coll_pData(iPair)%Ec/(Weight*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF))  &
+            - DSMC%GammaQuant
+  iQuaMax = MIN(INT(MaxColQua) + 1, PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF(iDOF))
+  CALL RANDOM_NUMBER(iRan)
+  iQua = INT(iRan * iQuaMax)
+  CALL RANDOM_NUMBER(iRan)
+  DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
+    !laux diss page 31
     CALL RANDOM_NUMBER(iRan)
     iQua = INT(iRan * iQuaMax)
     CALL RANDOM_NUMBER(iRan)
-    DO WHILE (iRan.GT.(1 - iQua/MaxColQua)**FakXi)
-     !laux diss page 31
-     CALL RANDOM_NUMBER(iRan)
-     iQua = INT(iRan * iQuaMax)
-     CALL RANDOM_NUMBER(iRan)
-    END DO
-    PartStateIntEn(1,iPart) = PartStateIntEn(1,iPart)     &
-      + (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
-        - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*Weight
-    VibQuantsPar(iPart)%Quants(iDOF) = iQua
-    IF (iDOF.LT.PolyatomMolDSMC(iPolyatMole)%VibDOF) FakXi = FakXi - 0.5*Xi_vib(iDOF + 1)
   END DO
+  PartStateIntEn(1,iPart) = PartStateIntEn(1,iPart)     &
+    + (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec &
+      - (iQua + DSMC%GammaQuant) * BoltzmannConst * PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)*Weight
+  VibQuantsPar(iPart)%Quants(iDOF) = iQua
+  IF (iDOF.LT.PolyatomMolDSMC(iPolyatMole)%VibDOF) FakXi = FakXi - 0.5*Xi_vib(iDOF + 1)
+END DO
 END SUBROUTINE DSMC_RelaxVibPolyProduct
 
 
+!===================================================================================================================================
+!> Vibrational relaxation routine with the acceptance rejection method (slower than Metropolis-Hasting for molecules with more than
+!> three atoms, use only for comparison)
+!===================================================================================================================================
 SUBROUTINE DSMC_VibRelaxPoly_ARM(iPair, iPart, FakXi)
-!===================================================================================================================================
-! Vibrational relaxation routine with the acceptance rejection method (slower than Metropolis-Hasting for molecules with more than
-! three atoms, use only for comparison)
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
@@ -1002,10 +1002,10 @@ DEALLOCATE(iRan ,tempEng ,iQuant ,iMaxQuant)
 END SUBROUTINE DSMC_VibRelaxPoly_ARM
 
 
+!===================================================================================================================================
+!> Vibrational relaxation routine with the Metropolis-Hastings method (no burn-in phase)
+!===================================================================================================================================
 SUBROUTINE DSMC_VibRelaxPoly_MH(iPair, iPart,FakXi)
-!===================================================================================================================================
-! Vibrational relaxation routine with the Metropolis-Hastings method (no burn-in phase)
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
@@ -1069,10 +1069,10 @@ END DO
 END SUBROUTINE DSMC_VibRelaxPoly_MH
 
 
+!===================================================================================================================================
+!> Vibrational relaxation (multi-mode) using Gibbs sampling
+!===================================================================================================================================
 SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling(iPair, iPart, FakXi)
-!===================================================================================================================================
-! Vibrational relaxation (multi-mode) using Gibbs sampling
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC,VibQuantsPar, Coll_pData
@@ -1145,46 +1145,45 @@ DEALLOCATE(iQuant ,iMaxQuant)
 END SUBROUTINE DSMC_VibRelaxPoly_GibbsSampling
 
 
+!===================================================================================================================================
+!> Switch between ARM and MH/Gibbs depending on the number of vibrational modes:
+!> Acceptance Rejection: up to 4 modes (molecules with 3 atoms, linear and non-linear)
+!> Metropolis-Hastings: from 6 modes (molecules with 4 or more atoms)
+!> Gibbs sampling: strong dependence on the number of iterations for duration and accuracy, has to be tested more thoroughly for
+!>                 different molecules
+!===================================================================================================================================
 SUBROUTINE DSMC_VibRelaxPoly_ARM_MH(iPair, iPart,FakXi)
-!===================================================================================================================================
-! Switch between ARM and MH/Gibbs depending on the number of vibrational modes:
-! Acceptance Rejection: up to 4 modes (molecules with 3 atoms, linear and non-linear)
-! Metropolis-Hastings: from 6 modes (molecules with 4 or more atoms)
-! Gibbs sampling: strong dependence on the number of iterations for duration and accuracy, has to be tested more thoroughly for
-!                 different molecules
-!===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
-  USE MOD_Particle_Vars,        ONLY : PartSpecies
+USE MOD_DSMC_Vars,            ONLY : SpecDSMC, PolyatomMolDSMC
+USE MOD_Particle_Vars,        ONLY : PartSpecies
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair, iPart
-  REAL, INTENT(IN)              :: FakXi
+INTEGER, INTENT(IN)           :: iPair, iPart
+REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                       :: iPolyatMole
+INTEGER                       :: iPolyatMole
 !===================================================================================================================================
 
-  iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
-  IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.5) THEN
-    CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
-    ! CALL DSMC_VibRelaxPoly_GibbsSampling(iPair,iPart,FakXi)
-  ELSE
-    CALL DSMC_VibRelaxPoly_ARM(iPair,iPart,FakXi)
-  END IF
+iPolyatMole = SpecDSMC(PartSpecies(iPart))%SpecToPolyArray
+IF(PolyatomMolDSMC(iPolyatMole)%VibDOF.GT.5) THEN
+  CALL DSMC_VibRelaxPoly_MH(iPair,iPart,FakXi)
+  ! CALL DSMC_VibRelaxPoly_GibbsSampling(iPair,iPart,FakXi)
+ELSE
+  CALL DSMC_VibRelaxPoly_ARM(iPair,iPart,FakXi)
+END IF
 
 END SUBROUTINE DSMC_VibRelaxPoly_ARM_MH
 
 
+!===================================================================================================================================
+!> Vibrational relaxation routine for polyatomic molecules, only treating a single given vibrational mode with ARM
+!===================================================================================================================================
 SUBROUTINE DSMC_VibRelaxPolySingle(iPair, iPart, FakXi, DOFRelax)
-!===================================================================================================================================
-! Vibrational relaxation routine for polyatomic molecules, only treating a single given vibrational mode with ARM
-! NOTE: Not compatible for radial weighting yet.
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, SpecDSMC, PolyatomMolDSMC, VibQuantsPar, Coll_pData, DSMC
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, usevMPF, UseVarTimeStep
@@ -1239,30 +1238,30 @@ VibQuantsPar(iPart)%Quants(DOFRelax) = iQua
 END SUBROUTINE DSMC_VibRelaxPolySingle
 
 
+!===================================================================================================================================
+!> Continous rotational relaxation routine
+!===================================================================================================================================
 SUBROUTINE DSMC_RotRelaxPoly(iPair, iPart,FakXi)
-!===================================================================================================================================
-! Continous rotational relaxation routine
-!===================================================================================================================================
 ! MODULES
-  USE MOD_Globals               ,ONLY: Abort
-  USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
-  USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, usevMPF
-  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
-  USE MOD_Particle_Vars         ,ONLY: PartSpecies
-  USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
+USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, usevMPF
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
+USE MOD_Particle_Vars         ,ONLY: PartSpecies
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart, iPair
-  REAL, INTENT(IN)              :: FakXi
+INTEGER, INTENT(IN)           :: iPart, iPair
+REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, NormProb, tempProb, fak1, fak2, CollEnergy, LocalFakXi
-  INTEGER                       :: iSpec
+REAL                          :: iRan, NormProb, tempProb, fak1, fak2, CollEnergy, LocalFakXi
+INTEGER                       :: iSpec
 !===================================================================================================================================
 iSpec = PartSpecies(iPart)
 
@@ -1297,33 +1296,33 @@ END IF
 END SUBROUTINE DSMC_RotRelaxPoly
 
 
+!===================================================================================================================================
+!> Quantized rotational relaxation routine for given collision energy
+!> Different rotational groups are sampled differently:
+!> - linear molecules, spherical molecules and symmetric top molecules  - Acceptance-Rejection sampling
+!> - asymmetric top molecules                                           - only possible with database of rotational levels
+!===================================================================================================================================
 SUBROUTINE DSMC_RotRelaxQuantPoly(iPair,iPart,FakXi)
-!===================================================================================================================================
-! Quantized rotational relaxation routine for given collision energy
-! Different rotational groups are sampled differently:
-! - linear molecules, spherical molecules and symmetric top molecules  - Acceptance-Rejection sampling
-! - asymmetric top molecules                                           - only possible with database of rotational levels
-!===================================================================================================================================
 ! MODULES
-  USE MOD_Globals               ,ONLY: Abort
-  USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
-  USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, PolyatomMolDSMC
-  USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
-  USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Globals               ,ONLY: Abort
+USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, PI
+USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC, PolyatomMolDSMC
+USE MOD_Particle_Vars         ,ONLY: PartSpecies, UseVarTimeStep, usevMPF
+USE MOD_part_tools            ,ONLY: GetParticleWeight
 
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPart, iPair
-  REAL, INTENT(IN)              :: FakXi
+INTEGER, INTENT(IN)           :: iPart, iPair
+REAL, INTENT(IN)              :: FakXi
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: iRan, fNorm, Ec, MaxValue, CurrentValue
-  INTEGER                       :: iQuant, kQuant, J2, iPolyatMole, iSpec, jIter, kIter, delta
-  LOGICAL                       :: ARM
+REAL                          :: iRan, fNorm, Ec, MaxValue, CurrentValue
+INTEGER                       :: iQuant, kQuant, J2, iPolyatMole, iSpec, jIter, kIter, delta
+LOGICAL                       :: ARM
 !===================================================================================================================================
 IF (usevMPF.OR.UseVarTimeStep) THEN
   Ec = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
@@ -1540,10 +1539,10 @@ END IF
 END SUBROUTINE DSMC_RotRelaxQuantPoly
 
 
-SUBROUTINE DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)
 !===================================================================================================================================
 !> Rotational relaxation with database energy levels
 !===================================================================================================================================
+SUBROUTINE DSMC_RotRelaxDatabasePoly(iPair,iPart,FakXi)
   USE MOD_Globals
   USE MOD_Globals_Vars           ,ONLY: BoltzmannConst
   USE MOD_DSMC_Vars              ,ONLY: SpecDSMC, PartStateIntEn, Coll_pData
@@ -1608,6 +1607,5 @@ END DO
 PartStateIntEn(2,iPart) = BoltzmannConst * SpecDSMC(iSpec)%RotationalState(2,iQua)
 
 END SUBROUTINE DSMC_RotRelaxDatabasePoly
-
 
 END MODULE MOD_DSMC_PolyAtomicModel
