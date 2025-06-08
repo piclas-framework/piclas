@@ -25,14 +25,6 @@ INTERFACE DSMC_Chemistry
   MODULE PROCEDURE DSMC_Chemistry
 END INTERFACE
 
-INTERFACE simpleCEX
-  MODULE PROCEDURE simpleCEX
-END INTERFACE
-
-INTERFACE simpleMEX
-  MODULE PROCEDURE simpleMEX
-END INTERFACE
-
 INTERFACE CalcBackwardRate
   MODULE PROCEDURE CalcBackwardRate
 END INTERFACE
@@ -42,7 +34,7 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate
+PUBLIC :: DSMC_Chemistry, CalcReactionProb, CalcBackwardRate
 PUBLIC :: CalcPhotoIonizationNumber, PhotoIonization_InsertProducts
 !===================================================================================================================================
 
@@ -1174,88 +1166,10 @@ END DO
 END SUBROUTINE DSMC_Chemistry
 
 
-SUBROUTINE simpleCEX(iReac, iPair)
 !===================================================================================================================================
-! simple charge exchange interaction
-! ION(v1) + ATOM(v2) -> ATOM(v1) + ION(v2)
+!> Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval
 !===================================================================================================================================
-! MODULES
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
-  USE MOD_Particle_Vars,         ONLY : PartSpecies
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair, iReac
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: ReactInx(1:2)
-!===================================================================================================================================
-
-  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
-    ReactInx(1) = Coll_pData(iPair)%iPart_p1
-    ReactInx(2) = Coll_pData(iPair)%iPart_p2
-  ELSE
-    ReactInx(2) = Coll_pData(iPair)%iPart_p1
-    ReactInx(1) = Coll_pData(iPair)%iPart_p2
-  END IF
-  ! change species
-  PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,1)
-  PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,2)
-
-END SUBROUTINE simpleCEX
-
-
-SUBROUTINE simpleMEX(iReac, iPair)
-!===================================================================================================================================
-! simple momentum exchange interaction
-! ION(v1) + ATOM(v2) -> ION2(v1') + ATOM(v2')
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals,               ONLY : abort
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
-  USE MOD_Particle_Vars,         ONLY : PartSpecies,Species
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair, iReac
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: ReactInx(1:2)
-!===================================================================================================================================
-
-  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
-    ReactInx(1) = Coll_pData(iPair)%iPart_p1
-    ReactInx(2) = Coll_pData(iPair)%iPart_p2
-  ELSE
-    ReactInx(2) = Coll_pData(iPair)%iPart_p1
-    ReactInx(1) = Coll_pData(iPair)%iPart_p2
-  END IF
-  ! change species of educt-ion to product-ion
-  IF (Species(PartSpecies(ReactInx(1)))%ChargeIC.NE.0. .AND. Species(PartSpecies(ReactInx(2)))%ChargeIC.EQ.0.) THEN
-    PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,2)
-  ELSE IF (Species(PartSpecies(ReactInx(2)))%ChargeIC.NE.0. .AND. Species(PartSpecies(ReactInx(1)))%ChargeIC.EQ.0.) THEN
-    PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,1)
-  ELSE
-    CALL abort(&
-     __STAMP__&
-      ,'ERROR in simpleMEX: one of the products must be an ion!')
-  END IF
-
-END SUBROUTINE simpleMEX
-
-
 SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
-!===================================================================================================================================
-! Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: maxEXP
