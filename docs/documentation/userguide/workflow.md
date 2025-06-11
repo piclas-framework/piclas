@@ -103,7 +103,7 @@ cell contains $(N+1)^3$ collocation points to represent the solution.
 The options EQNSYSNAME, POLYNOMIAL_DEGREE and NODETYPE can be ignored for a DSMC simulation. For parallel computation the following
 flags should be configured:
 
-* ``LIBS_USE_MPI``: Enabling parallel computation. For a detailed description of the installation of MPI, please refer to refer to
+* ``LIBS_USE_MPI``: Enabling parallel computation. For a detailed description of the installation of MPI, please refer to
                     Section {ref}`sec:installing-mpi`.
 * ``PICLAS_LOADBALANCE``: Enable timer-based load-balancing by automatic determination of workload weights for each simulation
                           element.
@@ -198,7 +198,7 @@ must be compiled with `PICLAS_MPI=ON`. Parallel execution is then controlled usi
 
     mpirun -np [no. processors] piclas parameter.ini [DSMC.ini] [restart_file.h5]
 
-The grid elements are organized along a space-filling curved, which gives a unique one-dimensional element list. In a parallel run,
+The grid elements are organized along a space-filling curve, which gives a unique one-dimensional element list. In a parallel run,
 the mesh is simply divided into parts along the space filling curve. Thus, domain decomposition is done *fully automatic* and is
 not limited by e.g. an integer factor between the number of cores and elements. The only limitation is that the number of cores
 may not exceed the number of elements.

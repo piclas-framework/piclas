@@ -145,7 +145,7 @@ and finally install it by
 
     make install 2>&1 | tee install.out
 
-If you encounter any difficulties, you can submit an issue on GitHub attaching the `make.out` and/or `install.out` files, where the console output is stored. To make sure that the installed compiler is also utilized by CMake, you have to set the environment variables, again making sure to use your installation folder and the correct version
+If you encounter any difficulties, you can submit an issue on GitHub and attach the `make.out` and/or `install.out` files, where the console output is stored. To make sure that the installed compiler is also utilized by CMake, you have to set the environment variables, again making sure to use your installation folder and the correct version
 
     export CC = /home/user/gcc/11.2.0/bin/gcc
     export CXX = /home/user/gcc/11.2.0/bin/g++
@@ -175,7 +175,7 @@ and finally install it by
 
     make install 2>&1 | tee install.out
 
-If you encounter any difficulties, you can submit an issue on GitHub attaching the `make.out` and/or `install.out` files, where the console output is stored. To make sure that the installed OpenMPI is also utilized by CMake, you have to set the environment variables, again making sure to use your installation folder and the correct version
+If you encounter any difficulties, you can submit an issue on GitHub and attach the `make.out` and/or `install.out` files, where the console output is stored. To make sure that the installed OpenMPI is also utilized by CMake, you have to set the environment variables, again making sure to use your installation folder and the correct version
 
     export MPI_DIR=/home/user/openmpi/4.1.1
     export PATH="/home/user/openmpi/4.1.1/bin:$PATH"
@@ -208,7 +208,7 @@ and finally install it by
 
     make install 2>&1 | tee install.out
 
-If you encounter any difficulties, you can submit an issue on GitHub attaching the `make.out` and/or `install.out` files, where the console output is stored. To make sure that the installed HDF5 is also utilized by CMake, you have to set the environment variables, again making sure to use your installation folder and the correct version
+If you encounter any difficulties, you can submit an issue on GitHub and attach the `make.out` and/or `install.out` files, where the console output is stored. To make sure that the installed HDF5 is also utilized by CMake, you have to set the environment variables, again making sure to use your installation folder and the correct version
 
     export HDF5_DIR = /home/user/hdf5/1.12.1
     export HDF5_ROOT = /home/user/hdf5/1.12.1
@@ -402,7 +402,7 @@ or the corresponding Ninja command
 
 To use all available cores for parallel compilation use either `make -j` or `ninja -j0`.
 Finally, the executables **piclas** and **piclas2vtk** are contained in your **PICLas** directory in `build/bin/`.
-If you encounter any difficulties, you can submit an issue on GitHub attaching the `piclas_make.out` file, where the console output is stored.
+If you encounter any difficulties, you can submit an issue on GitHub and attach the `piclas_make.out` file, where the console output is stored.
 
 (sec:directory-paths)=
 ### Directory paths
