@@ -123,12 +123,12 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Metrics    ,ONLY: MoveCoords,MoveMetrics
+USE MOD_LoadBalance_Metrics    ,ONLY: ExchangeVolMesh,ExchangeMetrics
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #if USE_FV
-USE MOD_LoadBalance_Metrics_FV ,ONLY: MoveCoords_FV,MoveMetrics_FV
+USE MOD_LoadBalance_Metrics_FV ,ONLY: ExchangeVolMesh_FV,ExchangeMetrics_FV
 #endif /*USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
@@ -270,9 +270,9 @@ END IF
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  CALL MoveCoords()
+  CALL ExchangeVolMesh()
 #if USE_FV
-  CALL MoveCoords_FV()
+  CALL ExchangeVolMesh_FV()
 #endif
 ELSE
 ! Build the coordinates of the solution gauss points in the volume
@@ -365,9 +365,9 @@ IF (ABS(meshMode).GT.1) THEN
 #if USE_LOADBALANCE
   IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Shift metric arrays during load balance
-    CALL MoveMetrics()
+    CALL ExchangeMetrics()
 #if USE_FV
-    CALL MoveMetrics_FV()
+    CALL ExchangeMetrics_FV()
 #endif
   ELSE
     ! deallocate existing arrays

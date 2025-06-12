@@ -24,16 +24,9 @@ PRIVATE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
-INTERFACE MoveCoords
-  MODULE PROCEDURE MoveCoords
-END INTERFACE
 
-INTERFACE MoveMetrics
-  MODULE PROCEDURE MoveMetrics
-END INTERFACE
-
-PUBLIC::MoveCoords
-PUBLIC::MoveMetrics
+PUBLIC::ExchangeVolMesh
+PUBLIC::ExchangeMetrics
 !==================================================================================================================================
 
 CONTAINS
@@ -41,7 +34,7 @@ CONTAINS
 !==================================================================================================================================
 !> This routine rearranges the coordinates along the space-filling curve
 !==================================================================================================================================
-SUBROUTINE MoveCoords()
+SUBROUTINE ExchangeVolMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -90,10 +83,10 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! CALL DisplayMessageAndTime(WallTime,'DONE',DisplayDespiteLB=.TRUE.,DisplayLine=.FALSE.)
 END IF
 
-END SUBROUTINE MoveCoords
+END SUBROUTINE ExchangeVolMesh
 
 
-SUBROUTINE MoveMetrics()
+SUBROUTINE ExchangeMetrics()
 !===================================================================================================================================
 !> This routine rearranges the metrics along the space-filling curve
 !===================================================================================================================================
@@ -364,7 +357,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   CALL DisplayMessageAndTime(WallTime,'DONE',DisplayDespiteLB=.TRUE.,DisplayLine=.FALSE.)
 END IF
 
-END SUBROUTINE MoveMetrics
+END SUBROUTINE ExchangeMetrics
 #endif /*USE_LOADBALANCE*/
 
 END MODULE MOD_LoadBalance_Metrics
