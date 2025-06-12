@@ -262,7 +262,7 @@ IF(InitialAutoRestart) THEN
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution')
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1)
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
@@ -281,7 +281,7 @@ ELSE
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution')
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1)
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE

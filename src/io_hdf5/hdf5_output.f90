@@ -70,7 +70,7 @@ PUBLIC :: RemoveHDF5
 CONTAINS
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut,ContainerName)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -105,7 +105,6 @@ REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
 CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
-CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: ContainerName      ! Name of the container (default: DG_Solution)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -142,21 +141,6 @@ CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,us
 
 ! Write file header
 CALL WriteHDF5Header(TRIM(TypeString),File_ID)
-
-! Preallocate the data space for the dataset.
-Dimsf=(/nVar,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
-CALL H5SCREATE_SIMPLE_F(5, Dimsf, FileSpace, iError)
-! Create the dataset with default properties.
-HDF5DataType=H5T_NATIVE_DOUBLE
-! Default container name
-IF (PRESENT(ContainerName)) THEN
-  CALL H5DCREATE_F(File_ID,TRIM(ContainerName), HDF5DataType, FileSpace, DSet_ID, iError)
-ELSE
-  CALL H5DCREATE_F(File_ID,'DG_Solution', HDF5DataType, FileSpace, DSet_ID, iError)
-END IF
-! Close the filespace and the dataset
-CALL H5DCLOSE_F(Dset_id, iError)
-CALL H5SCLOSE_F(FileSpace, iError)
 
 ! Write dataset properties "Time","MeshFile","NextFile","NodeType","VarNames"
 CALL WriteAttributeToHDF5(File_ID,'N',1,IntegerScalar=Nloc)
