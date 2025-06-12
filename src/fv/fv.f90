@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_FV
+#if USE_FV
 !===================================================================================================================================
 ! Contains the initialization of the FV global variables
 ! Computes the different FV spatial operators/residuals(Ut_FV) using U_FV
@@ -379,7 +380,6 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 
 
-
 SUBROUTINE FinalizeFV()
 !===================================================================================================================================
 ! Deallocate global variable U_FV (solution) and Ut_FV (fv time derivative).
@@ -421,4 +421,5 @@ END IF
 FVInitIsDone = .FALSE.
 END SUBROUTINE FinalizeFV
 
+#endif /*USE_FV*/
 END MODULE MOD_FV
