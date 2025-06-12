@@ -156,7 +156,8 @@ USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
+USE MOD_MPI               ,ONLY: FinishExchangeMPIData
+USE MOD_MPI_FV            ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV
 #if defined(PARTICLES) && defined(LSERK)
 USE MOD_Particle_Vars     ,ONLY: DelayTime
 USE MOD_TimeDisc_Vars     ,ONLY: time
