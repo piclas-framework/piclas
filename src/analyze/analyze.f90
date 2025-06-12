@@ -148,11 +148,9 @@ USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETIN
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
-#if (USE_FV) && !(USE_HDG)
-USE MOD_Equation_vars_FV      ,ONLY: Wavelength
-#else
+#if !(USE_FV)
 USE MOD_Equation_vars         ,ONLY: Wavelength
-#endif
+#endif /*(!USE_FV)*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 #if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
@@ -176,8 +174,11 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=40)   :: DefStr
-INTEGER             :: iElem,CNElemID,iBoundary,BCType,BCState,iBC
+INTEGER             :: iBoundary,BCType,BCState,iBC
+#if !(USE_FV)
+INTEGER             :: iElem,CNElemID
 REAL                :: PPWCellMax,PPWCellMin
+#endif /*!(USE_FV)*/
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(__STAMP__,'InitAnalyse not ready to be called or already called.')
@@ -293,6 +294,7 @@ AnalyzeInitIsDone = .TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 
+#if !(USE_FV)
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
 IF(CalcPointsPerWavelength)THEN
@@ -329,6 +331,7 @@ IF(CalcPointsPerWavelength)THEN
   CALL PrintOption('MIN(PPWCell)','CALCUL.',RealOpt=PPWCellMin)
   CALL PrintOption('MAX(PPWCell)','CALCUL.',RealOpt=PPWCellMax)
 END IF
+#endif /*!(USE_FV)*/
 END SUBROUTINE InitAnalyze
 
 #if !(USE_FV) || (USE_HDG)

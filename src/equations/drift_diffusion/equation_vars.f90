@@ -25,9 +25,6 @@ SAVE
 LOGICAL           :: doCalcSource             !< Swith to calculate a source term or not, automatically set by calcsource itself
 
 #if !(USE_HDG)
-REAL                 :: c_corr
-REAL                 :: fDamping
-REAL                 :: WaveLength                             !> wave length
 INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each boundary
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 #endif
