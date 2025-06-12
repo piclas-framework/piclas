@@ -59,8 +59,8 @@ ENDIF()
 # =========================================================================
 
 INCLUDE(SetLinker)
-# Languages are specified in CMakeListMachine.txt as Hawk requires them
-# after specifiying CMAKE_COMPILER
+# Languages are specified in SetCompiler as Hawk requires them
+# after specifying CMAKE_COMPILER
 INCLUDE(SetMachine)
 
 PROJECT(${PROJECT_NAME}
