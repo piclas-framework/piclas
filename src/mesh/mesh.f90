@@ -1237,7 +1237,6 @@ SDEALLOCATE(GlobalUniqueSideID)
 !SDEALLOCATE(SideBoundingBoxVolume)
 !#endif
 !#endif
-SDEALLOCATE(ElemToElemGlob)
 ! mortars
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
