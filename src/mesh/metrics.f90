@@ -51,15 +51,8 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE BuildCoords
-  MODULE PROCEDURE BuildCoords
-END INTERFACE
 
-INTERFACE SurfMetricsFromJa
-  MODULE PROCEDURE SurfMetricsFromJa
-END INTERFACE
-
-PUBLIC::BuildCoords
+PUBLIC::BuildElem_xGP
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
@@ -71,7 +64,7 @@ CONTAINS
 !> This routine takes the equidistant node coordinates of the mesh (on NGeo+1 points) and uses them to build the coordinates
 !> of solution/interpolation points of type NodeType on polynomial degree Nloc (Nloc+1 points per direction).
 !==================================================================================================================================
-SUBROUTINE BuildCoords(NodeCoords,Nloc,VolumeCoords)
+SUBROUTINE BuildElem_xGP(NodeCoords,Nloc,VolumeCoords)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -107,7 +100,7 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(3,NGeo,Nloc,Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),VolumeCoords(:,:,:,:,iElem))
 END DO
 
-END SUBROUTINE BuildCoords
+END SUBROUTINE BuildElem_xGP
 
 SUBROUTINE CalcMetrics(XCL_NGeo_Out,dXCL_NGeo_out)
 !===================================================================================================================================
