@@ -151,7 +151,7 @@ CASE(3) ! specular reflection
   END DO
 
 
-CASE(4) ! diffusive
+CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
   fplus(:)=UPrim_master(:)-gradUinside(:)
   IF (output) THEN
     CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr)

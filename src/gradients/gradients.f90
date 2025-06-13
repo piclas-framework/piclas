@@ -81,8 +81,11 @@ ALLOCATE(Grad_dx_slave(1:3,1:nSides))
 ALLOCATE(Grad_dx_master(1:3,1:nSides))
 ALLOCATE(Grad_SysSol_slave(1:3,1:nSides))
 ALLOCATE(Grad_SysSol_master(1:3,1:nSides))
+Grad_dx_slave = 0.; Grad_dx_master = 0.; Grad_SysSol_slave = 0.; Grad_SysSol_master = 0.
+#ifdef discrete_velocity
 ALLOCATE(Grad_SysSol_BC(1:3,1:nSides))
-Grad_dx_slave = 0.; Grad_dx_master = 0.; Grad_SysSol_slave = 0.; Grad_SysSol_master = 0.; Grad_SysSol_BC = 0.
+Grad_SysSol_BC = 0.
+#endif /*discrete_velocity*/
 
 Grad_DIM = ini_dim
 ALLOCATE(Var_slave(Grad_DIM,nSides))
@@ -143,7 +146,7 @@ SUBROUTINE GetGradients(VarForGradients,output)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Gradient_Vars
+USE MOD_Gradient_Vars       ,ONLY: Grad_DIM, Var_slave, Var_master, Diff_side, Gradient_elem,Grad_SysSol_slave, Grad_SysSol_master
 USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
 USE MOD_Mesh_Vars           ,ONLY: nElems,ElemToSide
 #if USE_MPI
@@ -156,6 +159,7 @@ USE MOD_LoadBalance_Timers  ,ONLY: LBStartTime,LBSplitTime
 #endif /*MPI*/
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV    ,ONLY: EFluid_GradSide
+USE MOD_Gradient_Vars       ,ONLY: Grad_dx_master, Grad_dx_slave
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -168,7 +172,7 @@ LOGICAL,INTENT(IN)      :: output ! true if routine called during output
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: ElemID, SideID, locSideID, flip
-REAL                    :: gradWeight, maxDiff(Grad_DIM), minDiff(Grad_DIM)
+REAL                    :: maxDiff(Grad_DIM), minDiff(Grad_DIM)
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -245,28 +249,27 @@ DO ElemID = 1, nElems
 #endif
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
     flip=ElemToSide(E2S_FLIP,locSideID,ElemID)
-    gradWeight = 1/VECNORM(Grad_dx_master(:,SideID)-Grad_dx_slave(:,SideID))**2
     IF (flip.EQ.0) THEN !master
       maxDiff = MAX(maxDiff,-Diff_side(:,SideID))
       minDiff = MIN(minDiff,-Diff_side(:,SideID))
       Gradient_elem(1,:,ElemID) = Gradient_elem(1,:,ElemID) &
-                                          - gradWeight*Grad_SysSol_master(1,SideID)*Diff_side(:,SideID)
+                                          - Grad_SysSol_master(1,SideID)*Diff_side(:,SideID)
       Gradient_elem(2,:,ElemID) = Gradient_elem(2,:,ElemID) &
-                                          - gradWeight*Grad_SysSol_master(2,SideID)*Diff_side(:,SideID)
+                                          - Grad_SysSol_master(2,SideID)*Diff_side(:,SideID)
 #if PP_dim == 3
       Gradient_elem(3,:,ElemID) = Gradient_elem(3,:,ElemID) &
-                                          - gradWeight*Grad_SysSol_master(3,SideID)*Diff_side(:,SideID)
+                                          - Grad_SysSol_master(3,SideID)*Diff_side(:,SideID)
 #endif
     ELSE !slave
       maxDiff = MAX(maxDiff,Diff_side(:,SideID))
       minDiff = MIN(minDiff,Diff_side(:,SideID))
       Gradient_elem(1,:,ElemID) = Gradient_elem(1,:,ElemID) &
-                                          + gradWeight*Grad_SysSol_slave(1,SideID)*Diff_side(:,SideID)
+                                          + Grad_SysSol_slave(1,SideID)*Diff_side(:,SideID)
       Gradient_elem(2,:,ElemID) = Gradient_elem(2,:,ElemID) &
-                                          + gradWeight*Grad_SysSol_slave(2,SideID)*Diff_side(:,SideID)
+                                          + Grad_SysSol_slave(2,SideID)*Diff_side(:,SideID)
 #if PP_dim == 3
       Gradient_elem(3,:,ElemID) = Gradient_elem(3,:,ElemID) &
-                                          + gradWeight*Grad_SysSol_slave(3,SideID)*Diff_side(:,SideID)
+                                          + Grad_SysSol_slave(3,SideID)*Diff_side(:,SideID)
 #endif
     END IF
   END DO
@@ -289,7 +292,7 @@ SUBROUTINE CalcDiff(output,doMPISides)
 USE MOD_Globals
 USE MOD_Gradient_Vars            ,ONLY: Var_slave, Var_master, Diff_side
 #ifdef discrete_velocity
-USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC, Grad_DIM
+USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_SysSol_BC, Grad_DIM
 #endif
 USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
 USE MOD_Mesh_Vars_FV             ,ONLY: NormVec_FV,Face_xGP_FV
@@ -309,7 +312,7 @@ LOGICAL,INTENT(IN)      :: output,doMPISides
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, lastSideID, firstSideID_wo_BC
 #ifdef discrete_velocity
-REAL                            :: diffUinside(Grad_DIM), gradWeight
+REAL                            :: diffUinside(Grad_DIM)
 INTEGER                         :: ElemID, locSideID, locSideID2, SideID2
 #endif
 !===================================================================================================================================
@@ -339,10 +342,9 @@ IF (.NOT.doMPISides) THEN
     DO locSideID2=1,6
       SideID2=ElemToSide(E2S_SIDE_ID,locSideID2,ElemID)
       IF (SideID2.LE.lastBCSide) CYCLE
-      gradWeight = 1/VECNORM(Grad_dx_master(:,SideID2)-Grad_dx_slave(:,SideID2))**2
-      diffUinside(:) = diffUinside(:) - Grad_dx_master(1,SideID)*gradWeight*Grad_SysSol_BC(1,SideID2)*Diff_side(:,SideID2) &
-                                      - Grad_dx_master(2,SideID)*gradWeight*Grad_SysSol_BC(2,SideID2)*Diff_side(:,SideID2) &
-                                      - Grad_dx_master(3,SideID)*gradWeight*Grad_SysSol_BC(3,SideID2)*Diff_side(:,SideID2)
+      diffUinside(:) = diffUinside(:) - Grad_dx_master(1,SideID)*Grad_SysSol_BC(1,SideID2)*Diff_side(:,SideID2) &
+                                      - Grad_dx_master(2,SideID)*Grad_SysSol_BC(2,SideID2)*Diff_side(:,SideID2) &
+                                      - Grad_dx_master(3,SideID)*Grad_SysSol_BC(3,SideID2)*Diff_side(:,SideID2)
     END DO
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),diffUinside,&
                           Var_master(:,SideID),&
@@ -469,11 +471,13 @@ SDEALLOCATE(Grad_dx_slave)
 SDEALLOCATE(Grad_dx_master)
 SDEALLOCATE(Grad_SysSol_slave)
 SDEALLOCATE(Grad_SysSol_master)
-SDEALLOCATE(Grad_SysSol_BC)
 SDEALLOCATE(Var_slave)
 SDEALLOCATE(Var_master)
 SDEALLOCATE(Diff_side)
 SDEALLOCATE(Gradient_elem)
+#ifdef discrete_velocity
+SDEALLOCATE(Grad_SysSol_BC)
+#endif /*discrete_velocity*/
 
 END SUBROUTINE FinalizeGradients
 

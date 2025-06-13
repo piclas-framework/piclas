@@ -118,13 +118,16 @@ END SUBROUTINE InitGradMetrics
 
 SUBROUTINE BuildGradSideMatrix(dmaster,dslave)
 !==================================================================================================================================
-!> Build element-neighbour-distance matrix, invert it and multiply by slave->master vector
+!> Build element-neighbour-distance matrix, invert it and multiply by weighted slave->master vector
 !==================================================================================================================================
   ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars              ,ONLY: nElems, nSides, ElemToSide, lastBCSide
-USE MOD_Gradient_Vars          ,ONLY: Grad_SysSol_slave, Grad_SysSol_master, Grad_SysSol_BC
+USE MOD_Gradient_Vars          ,ONLY: Grad_SysSol_slave, Grad_SysSol_master
+#ifdef discrete_velocity
+USE MOD_Gradient_Vars          ,ONLY: Grad_SysSol_BC
+#endif /*discrete_velocity*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -132,17 +135,23 @@ REAL, INTENT(IN)                      :: dmaster(3,1:nSides)
 REAL, INTENT(IN)                      :: dslave(3,1:nSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                :: SideID, ElemID, locSideID, flip, info_dgesv, IPIV(PP_dim), singleDir, dblDir1, dblDir2
-REAL                                   :: gradWeight, dElem(3), dMatrix(PP_dim,PP_dim), dMatrixBC(PP_dim,PP_dim)
-REAL                                   :: vector2(2), dMatrixBC2(2,2)
+INTEGER                                :: SideID, ElemID, locSideID, flip, info_dgesv, IPIV(PP_dim)
+REAL                                   :: gradWeight, dElem(3), dMatrix(PP_dim,PP_dim)
+#ifdef discrete_velocity
+INTEGER                                :: singleDir, dblDir1, dblDir2
+REAL                                   :: dMatrixBC(PP_dim,PP_dim), vector2(2), dMatrixBC2(2,2)
 LOGICAL                                :: BCelem
+#endif /*discrete_velocity*/
 !==================================================================================================================================
 
 DO ElemID = 1, nElems
 
-  BCelem = .FALSE.
   dMatrix = 0.
+#ifdef discrete_velocity
   dMatrixBC = 0.
+  BCelem = .FALSE.
+#endif /*discrete_velocity*/
+  ! Least-squares method: element-based matrix A calculation
 #if PP_dim == 3
   DO locSideID=1,6
 #else
@@ -156,7 +165,9 @@ DO ElemID = 1, nElems
 #if PP_dim == 3
     dMatrix(1:PP_dim,3) = dMatrix(1:PP_dim,3) + gradWeight*dElem(3)*dElem(1:PP_dim)
 #endif
+#ifdef discrete_velocity
     IF (SideID.LE.lastBCSide) THEN
+      ! elem contains a boundary side
       BCelem = .TRUE.
       dMatrixBC(1:PP_dim,1) = dMatrixBC(1:PP_dim,1) + gradWeight*dElem(1)*dElem(1:PP_dim)
       dMatrixBC(1:PP_dim,2) = dMatrixBC(1:PP_dim,2) + gradWeight*dElem(2)*dElem(1:PP_dim)
@@ -164,8 +175,10 @@ DO ElemID = 1, nElems
       dMatrixBC(1:PP_dim,3) = dMatrixBC(1:PP_dim,3) + gradWeight*dElem(3)*dElem(1:PP_dim)
 #endif
     END IF
+#endif /*discrete_velocity*/
   END DO
 
+  ! Least-squares method: solve side-based system Ax=b
 #if PP_dim == 3
   DO locSideID=1,6
 #else
@@ -175,22 +188,32 @@ DO ElemID = 1, nElems
     flip=ElemToSide(E2S_FLIP,locSideID,ElemID)
     !Grad_SysSol needs to be calculated with elem -> neighbour direction
     IF (flip.EQ.0) THEN
+      ! b = weight*(dmaster - dslave)
       Grad_SysSol_master(:,SideID) = dmaster(:,SideID) - dslave(:,SideID)
+      Grad_SysSol_master(:,SideID) = Grad_SysSol_master(:,SideID)/VECNORM(Grad_SysSol_master(:,SideID))**2
+      ! x = A^-1 * b
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,Grad_SysSol_master(1:PP_dim,SideID),PP_dim,info_dgesv)
       IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error: info_dgesv.NE.0')
     ELSE
+      ! b = weight*(dslave - dmaster)
       Grad_SysSol_slave(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
+      Grad_SysSol_slave(:,SideID) = Grad_SysSol_slave(:,SideID)/VECNORM(Grad_SysSol_slave(:,SideID))**2
+      ! x = A^-1 * b
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,Grad_SysSol_slave(1:PP_dim,SideID),PP_dim,info_dgesv)
       IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error: info_dgesv.NE.0')
     END IF
   END DO
 
-! Boundary elements
+#ifdef discrete_velocity
+! Boundary elements: need the same calculation exluding the boundary sides
+! because a gradient is already needed to define the 2nd order boundary condition
   IF (BCelem) THEN
     singleDir = 0
     dblDir1 = 0
     dblDir2 = 0
-    dMatrixBC = dMatrix - dMatrixBC
+    dMatrixBC = dMatrix - dMatrixBC !A matrix without boundary sides
+    ! reduce the system dimension in case of parallel boundaries that lead to a non-invertible matrix
+    ! singleDir (in case of 1x1 system) or dblDir1/dblDir2 (in case of 2x2 system) are the non-zero directions
 #if PP_dim == 3
     IF (dMatrixBC(1,1).EQ.0.) THEN
       dblDir1 = 2
@@ -217,13 +240,15 @@ DO ElemID = 1, nElems
       SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
       IF (SideID.LE.lastBCSide) CYCLE
       !Grad_SysSol_BC calculated with slave -> master direction
-      IF (singleDir.GT.0) THEN
+      Grad_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
+      gradWeight = 1/VECNORM(Grad_SysSol_BC(:,SideID))**2
+      Grad_SysSol_BC(:,SideID) = Grad_SysSol_BC(:,SideID)*gradWeight
+      IF (singleDir.GT.0) THEN ! 1x1 system (simple division)
         Grad_SysSol_BC(:,SideID) = 0.
         IF (dMatrixBC(singleDir,singleDir).GT.0.) THEN
-          Grad_SysSol_BC(singleDir,SideID) = (dslave(singleDir,SideID) - dmaster(singleDir,SideID))/dMatrixBC(singleDir,singleDir)
+          Grad_SysSol_BC(singleDir,SideID) = gradWeight*(dslave(singleDir,SideID) - dmaster(singleDir,SideID))/dMatrixBC(singleDir,singleDir)
         END IF
-      ELSE IF (dblDir1.GT.0) THEN
-        Grad_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
+      ELSE IF (dblDir1.GT.0) THEN ! 2x2 system
         vector2(1) = Grad_SysSol_BC(dblDir1,SideID)
         vector2(2) = Grad_SysSol_BC(dblDir2,SideID)
         dMatrixBC2(1,1) = dMatrixBC(dblDir1,dblDir1)
@@ -235,13 +260,13 @@ DO ElemID = 1, nElems
         Grad_SysSol_BC(:,SideID) = 0.
         Grad_SysSol_BC(dblDir1,SideID) = vector2(1)
         Grad_SysSol_BC(dblDir2,SideID) = vector2(2)
-      ELSE
-        Grad_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
+      ELSE ! full 3x3 system
         CALL DGESV(PP_dim,1,dMatrixBC,PP_dim,IPIV,Grad_SysSol_BC(1:PP_dim,SideID),PP_dim,info_dgesv)
         IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics BC error: info_dgesv.NE.0')
       END IF
     END DO
   END IF
+#endif /*discrete_velocity*/
 
 END DO
 END SUBROUTINE BuildGradSideMatrix
