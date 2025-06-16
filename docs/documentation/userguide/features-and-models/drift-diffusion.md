@@ -20,7 +20,7 @@ $$
 \frac{\partial n_{\text{ion}}}{\partial t} = \nu_I(E, t) \tag{2}
 $$
 
-Where $E = |E|$, $n_{\text{ion}}$ is the ion density, and where mobility $\mu$ and diffusion coefficient $D$ are functions of the local electric field.
+Where $E = |E|$, $n_{\text{ion}}$ is the ion density, and where the electron mobility $\mu$ and diffusion coefficient $D$ are functions of the local electric field.
 After the change in ion density is determined based on this equation and the ionization rate $\nu_I$, a corresponding number of ions is introduced as particles.
 The electric field is then calculated in PICLas—as in a classical PIC simulation—by solving the Poisson equation.
 However, in this hybrid approach, the electron density used in the Poisson equation is taken from the solution of the above equation.
