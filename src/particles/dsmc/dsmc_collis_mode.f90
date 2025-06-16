@@ -1186,7 +1186,7 @@ END SUBROUTINE ProcessRotRelax
 SUBROUTINE ProcessRotRelaxGimelshein(iPair, iPart, iSpec, FakXi, CorrFactor)
 !===================================================================================================================================
 ! Routine to handle the rotational relaxation of a particle with DSMC_Relax_Col_Gimelshein
-! Seperate routine to enhance performance of DSMC_Relax_Col_LauxTSHO since no BLCorrFact is needed there
+! Separate routine to enhance performance of DSMC_Relax_Col_LauxTSHO since no BLCorrFact is needed there
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
@@ -1195,7 +1195,6 @@ USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, usevMPF
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: RotRelaxPolyRoutineFuncPTR
 USE MOD_DSMC_Relaxation         ,ONLY: RotRelaxDiaRoutineFuncPTR
-
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1206,7 +1205,7 @@ REAL, INTENT(IN)              :: FakXi, CorrFactor
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: LocalFakXi, iRan
+REAL                          :: LocalFakXi, iRan, CollEnergy
 !===================================================================================================================================
 IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
   CALL RotRelaxPolyRoutineFuncPTR(iPair, iPart, FakXi)
@@ -1215,13 +1214,14 @@ ELSE
     IF(DSMC%RotRelaxModel.NE.0)THEN
       CALL ABORT(__STAMP__,'ERROR in ProcessRotRelaxGimelshein: Rotational relaxation model (NDD) not tested for quantized treatment of rotational relaxation')
     ELSE
+      IF (usevMPF.OR.UseVarTimeStep) THEN
+        CollEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+      ELSE
+        CollEnergy = Coll_pData(iPair)%Ec
+      END IF
       CALL RANDOM_NUMBER(iRan)
       LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot
-      PartStateIntEn(2,iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi)*CorrFactor)
-      ! radial weighting for oter cases in function pointer (only NDD for N2 seperate)
-      IF(usevMPF.OR.UseVarTimeStep) THEN
-        PartStateIntEn(2,iPart) = PartStateIntEn(2,iPart)/GetParticleWeight(iPart)
-      END IF
+      PartStateIntEn(2,iPart) = CollEnergy * (1.0 - iRan**(1.0/LocalFakXi)*CorrFactor)
     END IF
   ELSE
     CALL RotRelaxDiaRoutineFuncPTR(iPair, iPart, FakXi)
@@ -1230,6 +1230,4 @@ END IF
 Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2, iPart) * GetParticleWeight(iPart)
 END SUBROUTINE ProcessRotRelaxGimelshein
 
-
-!--------------------------------------------------------------------------------------------------!
 END MODULE MOD_DSMC_Collis
