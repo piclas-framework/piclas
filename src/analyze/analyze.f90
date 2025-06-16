@@ -502,37 +502,6 @@ END SUBROUTINE CalcErrorPartSource
 #endif /*PARTICLES*/
 
 
-SUBROUTINE getVARformatStr(VARformatStr,L2name)
-!===================================================================================================================================
-! This creates the format string for writeAnalyse2file
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals
-  USE MOD_Equation_Vars,ONLY:StrVarNames
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  ! CALC%varName: Name of conservative variables
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-  CHARACTER(LEN=30) :: L2name(PP_nVar) ! The name of the Tecplot variables
-  CHARACTER(LEN=50) :: VARformatStr ! L2name format string
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER           :: i ! counter
-!===================================================================================================================================
-DO i=1,PP_nVar
-  WRITE(L2name(i),'(A5,A,A2)')' "L2_',TRIM(StrVarNames(i)),'" '
-END DO
-WRITE(VARformatStr,'(A3)')'(A,'
-DO i=1,PP_nVar
-  WRITE(VARformatStr,'(A,A1,I2,A1)')TRIM(VARformatStr),'A',LEN_TRIM(L2name(i)),','
-END DO
-WRITE(VARformatStr,'(A,A2)')TRIM(VARformatStr),'A)'
-END SUBROUTINE getVARformatStr
-
-
 SUBROUTINE FinalizeAnalyze()
 !===================================================================================================================================
 ! Finalizes variables necessary for analyse subroutines
