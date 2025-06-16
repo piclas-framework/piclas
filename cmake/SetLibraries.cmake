@@ -755,6 +755,8 @@ IF(LIBS_USE_PETSC)
           --download-hypre
           --download-mumps
           --download-scalapack
+          --download-metis
+          --download-parmetis
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
         BUILD_BYPRODUCTS ${PETSC_LIB_LIBRARIES}/libpetsc.so
     )
