@@ -1,29 +1,28 @@
 (sec:drift-diffusion)=
 # Drift-diffusion model
 
-The drift-diffusion scheme {cite}`Dujko2020` can be used to model the plasma as a continuum instead of kinetic particles. In PICLas, it is utilized to model electrons as a fluid, whereas ions are treated kinetically, resulting in a hybrid model. The executable to use this model can be created by
+The drift-diffusion scheme {cite}`Dujko2020` can be used to model the plasma as a continuum instead of kinetic particles. In PICLas, it is utilized to model electrons as a fluid, whereas ions are treated kinetically with PIC, resulting in a hybrid model. The executable to use this model can be created by
 
     mkdir build_electron_fluid && cd build_electron_fluid
     cmake .. -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON
 
 A tutorial, where the model is applied to a streamer formation, can be found here: {ref}`sec:tutorial-streamer`.
 
-## First-order fluid model
-
-The first order model, also called classical model, is the simplest model. Only the first conservation law, namely the continuity equation, is considered {cite}`Markosyan2015`. Accordingly, the change in electron density is determined as follows, referring exclusively to the electron density in the hybrid approach developed here:
+For the fluid model, only the first conservation law, namely the continuity equation, is considered (first-order model) {cite}`Markosyan2015`. Accordingly, the change in electron density is determined as follows:
 
 $$
 \frac{\partial n}{\partial t} = \nabla \cdot \left( \mu(E) E n \right) + D(E) \cdot \nabla n + \nu_I(E, t) \tag{1}
 $$
 
+where the electron mobility $\mu$ and diffusion coefficient $D$ are functions of the local electric field.
+The change in ion density $n_{\text{ion}}$ is determined consistently based on the ionization rate $\nu_I$, and a corresponding number of ions is introduced as particles:
+
 $$
 \frac{\partial n_{\text{ion}}}{\partial t} = \nu_I(E, t) \tag{2}
 $$
 
-Where $E = |E|$, $n_{\text{ion}}$ is the ion density, and where the electron mobility $\mu$ and diffusion coefficient $D$ are functions of the local electric field.
-After the change in ion density is determined based on this equation and the ionization rate $\nu_I$, a corresponding number of ions is introduced as particles.
-The electric field is then calculated in PICLas—as in a classical PIC simulation—by solving the Poisson equation.
-However, in this hybrid approach, the electron density used in the Poisson equation is taken from the solution of the above equation.
+The electric field is then calculated in PICLas — as in a classical PIC simulation — by solving the Poisson equation.
+However, in this hybrid approach, the electron density used in the Poisson equation is taken from the solution of the above drift-diffusion equation.
 
 ## Finite volume solver
 
