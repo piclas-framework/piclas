@@ -76,6 +76,12 @@ Following modules have been loaded before compiling and within the submit script
     module load cmake/3.22.3 hdf5/1.12.1-openmpi-4.1.2-gcc-11.2.0 mkl/2024.1
     module load gcc/13.1.0
 
+#### Setup for Hunter (CPU only)
+
+    module swap HLRS/APU HLRS/CPU
+    module swap PrgEnv-cray PrgEnv-gnu/8.5.0
+    module load cray-hdf5-parallel
+
 (sec:petsc-at-hlrs)=
 ### Installing PETSc with restricted internet access
 
@@ -106,6 +112,10 @@ If you are having problems with MPI, `--with-mpi-dir=` can be used to point dire
 The specific PETSc configure command for the Vulcan cluster and the AMD Epyc compute nodes (`genoa` queue):
 
     ./configure --with-mpi-dir=/opt/hlrs/non-spack/2022-02/mpi/openmpi/4.1.2-gcc-11.2.0/ --with-debugging=0 --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 COPTFLAGS='-O3 -march=znver3 -mtune=znver3' CXXOPTFLAGS='-O3 -march=znver3 -mtune=znver3' FOPTFLAGS='-O3 -march=znver3 -mtune=znver3' --with-packages-download-dir=../externalpackages/ --download-hypre --download-mumps --download-scalapack --download-metis --download-parmetis
+
+#### Configure for Hunter
+
+    ./configure --with-mpi --with-debugging=0 --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 COPTFLAGS='-O3 -march=znver4 -mtune=znver4' CXXOPTFLAGS='-O3 -march=znver4 -mtune=znver4' FOPTFLAGS='-O3 -march=znver4 -mtune=znver4' --with-packages-download-dir=externalpackages/ --download-hypre --download-mumps --download-scalapack --download-metis --download-parmetis
 
 ### Compiling and executing PICLas
 

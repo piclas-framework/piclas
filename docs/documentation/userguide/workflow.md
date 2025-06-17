@@ -60,11 +60,11 @@ the CMake configuration file for HDF5 (optional, advanced).
       -- Compiling Nitro/Release/Profile with [GNU] (v12.2.0) fortran compiler using PICLAS_INSTRUCTION [-march=native] instructions.
 
   When compiling piclas on one machine and executing the code on a different one, the instruction setting should be set to
-  `generic` or the appropriate options for the specific architecture. Note that the availability of the options depends on the utilized compiler and its version. This can be accomplished by running
+  `generic` or the appropriate options for the specific architecture. This can be accomplished by running
 
-      cmake -DPICLAS_INSTRUCTION='-march=generic -mtune=generic' ..
+      cmake -DPICLAS_INSTRUCTION='-mtune=generic' ..
 
-  To reset the instruction settings, run cmake again but with
+  Note that the availability of the options depends on the utilized compiler and its version ([List of the options for GCC](https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html)). To reset the instruction settings, run cmake again but with
 
       cmake -DPICLAS_INSTRUCTION= ..
 
@@ -85,6 +85,7 @@ Before setting up a simulation, the code must be compiled with the desired param
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
+    * Radiation: Radiation and radiation transport solver, Section {ref}`sec:Radiation`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
     * maxwell: Electromagnetic
     * poisson: Electrostatic
