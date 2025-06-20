@@ -723,12 +723,14 @@ IF(LIBS_USE_PETSC)
     SET(PETSC_INCLUDE_DIRS  ${LIBS_EXTERNAL_LIB_DIR}/PETSc/linux-gnu-c/include)
 
     # Determine if PETSc should be built with debugging or optimization flags
-    IF(CMAKE_BUILD_TYPE MATCHES "Release")
-      MESSAGE (STATUS "Compiling [PETSc] with optimization flags!")
-      SET(PETSC_COMPILER_FLAGS --with-debugging=0 COPTFLAGS=-O3 -march=native -mtune=native CXXOPTFLAGS=-O3 -march=native -mtune=native FOPTFLAGS=-O3 -march=native -mtune=native)
-    ELSE()
-      MESSAGE (STATUS "Compiling [PETSc] with debugging flags!")
+    IF(CMAKE_BUILD_TYPE MATCHES "Debug" OR CMAKE_BUILD_TYPE MATCHES "Sanitize")
       SET(PETSC_COMPILER_FLAGS --with-debugging=1)
+      SET(PETSC_OPTIMIZATION "")
+      MESSAGE (STATUS "Compiling [PETSc] with debugging flags (${PETSC_COMPILER_FLAGS})!")
+    ELSE()
+      SET(PETSC_COMPILER_FLAGS --with-debugging=0)
+      SET(PETSC_OPTIMIZATION "-O3 ${PICLAS_INSTRUCTION}")
+      MESSAGE (STATUS "Compiling [PETSc] with optimization flags (${PETSC_COMPILER_FLAGS} ${PETSC_OPTIMIZATION})!")
     ENDIF()
 
     # Settings
@@ -749,12 +751,17 @@ IF(LIBS_USE_PETSC)
           ${LIBS_PETSC_DIR}/src/PETSc/configure
           --prefix=${PETSC_BUILD_DIR}
           ${PETSC_COMPILER_FLAGS}
+          COPTFLAGS=${PETSC_OPTIMIZATION}
+          CXXOPTFLAGS=${PETSC_OPTIMIZATION}
+          FOPTFLAGS=${PETSC_OPTIMIZATION}
           --with-shared-libraries=1
           --with-mpi-f90module-visibility=0
           --with-bison=0
           --download-hypre
           --download-mumps
           --download-scalapack
+          --download-metis
+          --download-parmetis
         # BUILD_COMMAND ${CMAKE_MAKE_PROGRAM} -j4
         BUILD_BYPRODUCTS ${PETSC_LIB_LIBRARIES}/libpetsc.so
     )

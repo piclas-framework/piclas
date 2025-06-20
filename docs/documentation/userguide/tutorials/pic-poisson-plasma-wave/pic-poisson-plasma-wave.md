@@ -4,7 +4,7 @@
 The setup considers a 1D plasma oscillation, which is a common and simple electrostatic PIC benchmark {cite}`Birdsall1991`,
 {cite}`Hockney1988`,{cite}`Jacobs2006b`.
 In PICLas it can be simulated either with the full Maxwell solver (DGSEM) or with the Poisson solver (HDGSEM), where the latter is
-chosen for this this tutorial. In this setup, electrons oscillate around the almost immobile ions, which creates a fluctuating
+chosen for this tutorial. In this setup, electrons oscillate around the almost immobile ions, which creates a fluctuating
 electric field.
 
 Before beginning with the tutorial, copy the `pic-poisson-plasma-wave` directory from the tutorial folder in the top level
