@@ -178,7 +178,9 @@ USE MOD_LoadBalance_Vars       ,ONLY: ElemTime,nLoadBalance,tCurrent
 #if USE_HDG
 USE MOD_LoadBalance_Vars       ,ONLY: ElemHDGSides,TotalHDGSides
 #else
+#if !(USE_FV)
 USE MOD_PML_Vars               ,ONLY: DoPML,nPMLElems,ElemToPML
+#endif /*USE_FV*/
 #endif /*USE_HDG*/
 USE MOD_LoadBalance_Vars       ,ONLY: DeviationThreshold, PerformLoadBalance, LoadBalanceSample
 #ifdef PARTICLES
@@ -273,8 +275,11 @@ IF(PerformLBSample .AND. LoadBalanceSample.GT.0) THEN
 #else
     ElemTimeFieldElem = (tCurrent(LB_DG) + tCurrent(LB_DGANALYZE))/REAL(PP_nElems)
 #endif /*USE_HDG*/
+#if USE_FV
+    ElemTimeFieldElem = ElemTimeFieldElem + tCurrent(LB_FV)/REAL(PP_nElems)
+#endif /*USE_FV*/
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
     ! Add time used in PML routines
     IF(DoPML)THEN
       IF(ElemToPML(iElem).GT.0 ) ElemTimeFieldElem = ElemTimeFieldElem + tCurrent(LB_PML)/REAL(nPMLElems)

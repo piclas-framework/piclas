@@ -88,6 +88,9 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
@@ -103,11 +106,11 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
 #if ! (USE_HDG)
-USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 #if USE_MPI
@@ -116,10 +119,9 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2, halo_eps_woshape
 USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
-USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf
+USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf,dim_sf_dir
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
@@ -142,7 +144,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -173,7 +175,7 @@ INTEGER,ALLOCATABLE            :: offsetElemsInBGMCell(:,:,:)
 INTEGER                        :: nHaloElems
 INTEGER,ALLOCATABLE            :: offsetCNHalo2GlobalElem(:)
 REAL,POINTER                   :: MPISideBoundsOfElemCenter_Shared(:,:) => null()
-INTEGER                        :: MPISideBoundsOfElemCenter_Shared_Win
+TYPE(MPI_Win)                  :: MPISideBoundsOfElemCenter_Shared_Win
 REAL                           :: BoundsOfElemCenter(1:4)
 LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
@@ -210,8 +212,9 @@ REAL                           :: halo_eps
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
 REAL                           :: StartT,EndT ! Timer
-REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3)
+REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
+INTEGER                        :: nFIBGMElems, nFIBGMElems_target, iDim, PseudoSymmetryOrder
 !===================================================================================================================================
 
 #if USE_MPI
@@ -299,7 +302,12 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
 #if USE_MPI
   .OR. nComputeNodeProcessors.NE.nProcessors_Global & ! FIBGM needed to build the halo region
 #endif  /*USE_MPI*/
+#if USE_LOADBALANCE
+  ! FIBGM needed to find lost particles, not needed for loadbalance
+  .OR. (DoRestart.AND..NOT.PerformLoadBalance).OR. (DoRestart.AND.UseH5IOLoadBalance) &
+#else
   .OR. DoRestart & ! FIBGM needed to find lost particles
+#endif /*USE_LOADBALANCE*/
   .OR. GEO%ForceFIBGM ) THEN
     GEO%InitFIBGM = .TRUE.
 ELSE
@@ -309,7 +317,8 @@ ELSE
   ! FIBGM needed in every emmision except cell_local
   DO iSpec=1,nSpecies
     DO iInit=1,Species(iSpec)%NumberOfInits
-      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local') THEN
+      IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
+         TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background') THEN
         GEO%InitFIBGM = .TRUE.
       END IF
     END DO
@@ -371,6 +380,63 @@ IF(GEO%InitFIBGM) THEN
     GEO%FIBGMdeltas(1) = MIN(FIBGMdeltas1(1),FIBGMdeltas2(1))
     GEO%FIBGMdeltas(2) = MIN(FIBGMdeltas1(2),FIBGMdeltas2(2))
     GEO%FIBGMdeltas(3) = MIN(FIBGMdeltas1(3),FIBGMdeltas2(3))
+
+    nFIBGMElems_target = CEILING(nGlobalElems*10**(Symmetry%Order/2.))
+    nFIBGMElems = CEILING((GEO%xmaxglob-GEO%xminglob)/GEO%FIBGMdeltas(1)*(GEO%ymaxglob-GEO%yminglob)/GEO%FIBGMdeltas(2)*(GEO%zmaxglob-GEO%zminglob)/GEO%FIBGMdeltas(3))
+
+    IF(nFIBGMElems.GT.nFIBGMElems_target) THEN
+      ! Fallback to prevent too small FIBGM cells
+
+
+      SELECT CASE(Symmetry%Order)
+      CASE(3)
+        GEO%FIBGMSymmetryVec = .TRUE.
+      CASE(2)
+        GEO%FIBGMSymmetryVec = (/ .TRUE., .TRUE., .FALSE. /)
+      CASE(1)
+        GEO%FIBGMSymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
+      END SELECT
+      IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(1),GEO%xmaxglob-GEO%xminglob)) THEN
+        GEO%FIBGMSymmetryVec(1) = .FALSE.
+      END IF
+      IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(2),GEO%ymaxglob-GEO%yminglob)) THEN
+        GEO%FIBGMSymmetryVec(2) = .FALSE.
+      END IF
+      IF(ALMOSTALMOSTEQUAL(GEO%FIBGMdeltas(3),GEO%zmaxglob-GEO%zminglob)) THEN
+        GEO%FIBGMSymmetryVec(3) = .FALSE.
+      END IF
+      PseudoSymmetryOrder = COUNT(GEO%FIBGMSymmetryVec)
+
+      ! Scale GEO%FIBGMdeltas1 to have about sqrt(1000) * nglobalElems in total in 3D
+      ! Use the values of FIBGMdeltas1 because they do not have the minimum size of the elements included
+      nFIBGMElems_target = CEILING(nGlobalElems*10**(PseudoSymmetryOrder/2.))
+      nFIBGMElems = CEILING((GEO%xmaxglob-GEO%xminglob)/FIBGMdeltas1(1)*(GEO%ymaxglob-GEO%yminglob)/FIBGMdeltas1(2)*(GEO%zmaxglob-GEO%zminglob)/FIBGMdeltas1(3))
+      a = (REAL(nFIBGMElems)/REAL(nFIBGMElems_target))**(1./Symmetry%Order)
+
+      IF(GEO%FIBGMSymmetryVec(1)) GEO%FIBGMdeltas(1) = FIBGMdeltas1(1)*a
+      IF(GEO%FIBGMSymmetryVec(2)) GEO%FIBGMdeltas(2) = FIBGMdeltas1(2)*a
+      IF(GEO%FIBGMSymmetryVec(3)) GEO%FIBGMdeltas(3) = FIBGMdeltas1(3)*a
+
+      ! Needed for periodic vectors
+      GEO%FIBGMdeltas(1) = MIN(GEO%FIBGMdeltas(1),GEO%xmaxglob-GEO%xminglob)
+      GEO%FIBGMdeltas(2) = MIN(GEO%FIBGMdeltas(2),GEO%ymaxglob-GEO%yminglob)
+      GEO%FIBGMdeltas(3) = MIN(GEO%FIBGMdeltas(3),GEO%zmaxglob-GEO%zminglob)
+
+    END IF
+
+
+  END IF
+
+ELSE
+  LBWRITE(UNIT_stdOut,'(A)') ' | FIBGM not built, if you want to force the build set "Part-ForceFIBGM" to true'
+  GEO%AutomaticFIBGM=.FALSE.
+  GEO%FIBGMSymmetryVec = .TRUE. ! Prevent maybe future errors in setting this variable
+END IF
+! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
+CALL InitPeriodicBC()
+
+IF(GEO%InitFIBGM) THEN
+  IF(GEO%AutomaticFIBGM) THEN
     LBWRITE(UNIT_stdOut,'(A,E18.8,A,E18.8,A,E18.8)') " | Automatically determined Part-FIBGMdeltas: "&
                                                           , GEO%FIBGMdeltas(1), ", ", GEO%FIBGMdeltas(2), ", ", GEO%FIBGMdeltas(3)
   END IF
@@ -397,14 +463,26 @@ IF(GEO%InitFIBGM) THEN
                                             , BGMimaxglob - BGMiminglob + 1                                 ,', '&
                                             , BGMjmaxglob - BGMjminglob + 1                                 ,', '&
                                             , BGMkmaxglob - BGMkminglob + 1
-ELSE
-  LBWRITE(UNIT_stdOut,'(A)') ' | FIBGM is not builded, if you want to force the build set "Part-ForceFIBGM" to true'
-  GEO%AutomaticFIBGM=.FALSE.
-END IF
-! Read periodic vectors from parameter file, if AutoFIBGM: GEO%FIBGMdeltas may be adjusted here
-CALL InitPeriodicBC()
+  ! Check if the calculation of the FIBGM can be simplified by symmetry
+  ! Determined by Symmetry%Order and if only 1 FIBGM-Element in one spatial direction
+  SELECT CASE(Symmetry%Order)
+  CASE(3)
+    GEO%FIBGMSymmetryVec = .TRUE.
+  CASE(2)
+    GEO%FIBGMSymmetryVec = (/ .TRUE., .TRUE., .FALSE. /)
+  CASE(1)
+    GEO%FIBGMSymmetryVec = (/ .TRUE., .FALSE., .FALSE. /)
+  END SELECT
+  IF(BGMimaxglob - BGMiminglob + 1.EQ.1) THEN
+    GEO%FIBGMSymmetryVec(1) = .FALSE.
+  END IF
+  IF(BGMjmaxglob - BGMjminglob + 1.EQ.1) THEN
+    GEO%FIBGMSymmetryVec(2) = .FALSE.
+  END IF
+  IF(BGMkmaxglob - BGMkminglob + 1.EQ.1) THEN
+    GEO%FIBGMSymmetryVec(3) = .FALSE.
+  END IF
 
-IF(GEO%InitFIBGM) THEN
 #if USE_MPI
   CALL Allocate_Shared((/6  ,nGlobalElems/),ElemToBGM_Shared_Win,ElemToBGM_Shared)
   CALL MPI_WIN_LOCK_ALL(0,ElemToBGM_Shared_Win  ,IERROR)
@@ -418,13 +496,18 @@ IF(GEO%InitFIBGM) THEN
   ! convex hull
   DO iElem = firstElem, lastElem
     ! Flag elements depending on radius
-    origin(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)), &
-                     SUM(   BoundsOfElem_Shared(1:2,2,iElem)), &
-                     SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+    DO iDim=1,3
+      IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+        origin(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,iElem)+BoundsOfElem_Shared(2,iDim,iElem))
+      ELSE
+        origin(iDim) = 0.0
+      END IF
+    END DO
     ! Calculate halo element outer radius
-    radius    = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                            BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                            BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+    radius    = CONDVECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                                BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2. &
+                                ,GEO%FIBGMSymmetryVec)
 
     xmin = origin(1) - radius
     xmax = origin(1) + radius
@@ -511,6 +594,33 @@ IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
 #endif /*USE_MPI*/
   halo_eps  = 0.
 #if USE_MPI
+  IF(StringBeginsWith(DepositionType,'shape_function'))THEN
+    IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet (less than zero)! r_sf=',RealInfoOpt=r_sf)
+    SELECT CASE(dim_sf)
+      ! Ensure that all elements in the symmetry direction(s) are in the FIBGM and halo region for lower dimensional shape functions
+    CASE(3)
+      halo_eps = halo_eps + r_sf
+    CASE(2)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,GEO%xmaxglob-GEO%xminglob)
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,GEO%ymaxglob-GEO%yminglob)
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,GEO%zmaxglob-GEO%zminglob)
+      END SELECT
+    CASE(1)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob))
+      END SELECT
+    END SELECT
+    CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
+  END IF
   halo_eps2 = 0.
 ELSE
   IF (ManualTimeStep.LE.0.0) THEN
@@ -541,14 +651,37 @@ ELSE
   ! Check whether halo_eps is smaller than shape function radius e.g. 'shape_function'
   IF(StringBeginsWith(DepositionType,'shape_function'))THEN
     IF(r_sf.LT.0.) CALL abort(__STAMP__,'Shape function radius not read yet (less than zero)! r_sf=',RealInfoOpt=r_sf)
-    halo_eps = halo_eps + r_sf
+    SELECT CASE(dim_sf)
+      ! Ensure that all elements in the symmetry direction(s) are in the FIBGM and halo region for lower dimensional shape functions
+    CASE(3)
+      halo_eps = halo_eps + r_sf
+    CASE(2)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,GEO%xmaxglob-GEO%xminglob)
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,GEO%ymaxglob-GEO%yminglob)
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,GEO%zmaxglob-GEO%zminglob)
+      END SELECT
+    CASE(1)
+      SELECT CASE(dim_sf_dir)
+      CASE(1)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%ymaxglob-GEO%yminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(2)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%zmaxglob-GEO%zminglob))
+      CASE(3)
+        halo_eps = halo_eps + MAX(r_sf,MAX(GEO%xmaxglob-GEO%xminglob,GEO%ymaxglob-GEO%yminglob))
+      END SELECT
+    END SELECT
     CALL PrintOption('halo_eps from shape function radius','CALCUL.',RealOpt=halo_eps)
   END IF
 
   ! limit halo_eps to diagonal of bounding box
-  globalDiag = SQRT( (GEO%xmaxglob-GEO%xminglob)**2 &
-                   + (GEO%ymaxglob-GEO%yminglob)**2 &
-                   + (GEO%zmaxglob-GEO%zminglob)**2 )
+  globalDiag    = CONDVECNORM ((/ GEO%xmaxglob-GEO%xminglob, &
+                                  GEO%ymaxglob-GEO%yminglob, &
+                                  GEO%zmaxglob-GEO%zminglob /) &
+                                  ,GEO%FIBGMSymmetryVec)
   IF(halo_eps.GT.globalDiag)THEN
     CALL PrintOption('unlimited halo distance','CALCUL.',RealOpt=halo_eps)
     LBWRITE(UNIT_stdOut,'(A38)') ' |   limitation of halo distance  |    '
@@ -566,9 +699,10 @@ END IF
 ! >> Find radius of largest cell
 maxCellRadius = 0
 DO iElem = firstElem, lastElem
-  maxCellRadius = MAX(maxCellRadius,VECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                               BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
-                                               BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2.))
+  maxCellRadius = MAX(maxCellRadius,CONDVECNORM((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                                   BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem), &
+                                                   BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem)/)/2., &
+                                                   GEO%FIBGMSymmetryVec))
 END DO
 ! >> Communicate global maximum
 CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxCellRadius,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_SHARED,iError)
@@ -766,13 +900,18 @@ ELSE
       nBorderElems= nBorderElems + 1
 
       ! Get centers and radii of all CN elements connected to MPI sides for distance check with the halo elements assigned to the proc
-      MPISideBoundsOfElemCenter_Shared(1:3,nBorderElems) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                                              SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                                              SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+      DO iDim=1,3
+        IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+          MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
+        ELSE
+          MPISideBoundsOfElemCenter_Shared(iDim,nBorderElems) = 0.0
+        END IF
+      END DO
       ! Calculate outer radius of the element on my compute node
-      MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = VECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                                                     BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                                                     BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+      MPISideBoundsOfElemCenter_Shared(4,nBorderElems) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                                                         BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                                                         BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                                                         GEO%FIBGMSymmetryVec)
     END IF
   END DO
 
@@ -799,13 +938,19 @@ ELSE
   DO iHaloElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
-    BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,ElemID)), &
-                                 SUM(   BoundsOfElem_Shared(1:2,2,ElemID)), &
-                                 SUM(   BoundsOfElem_Shared(1:2,3,ElemID)) /) / 2.
+
+    DO iDim=1,3
+      IF(GEO%FIBGMSymmetryVec(iDim)) THEN
+        BoundsOfElemCenter(iDim) = 0.5*(BoundsOfElem_Shared(1,iDim,ElemID)+BoundsOfElem_Shared(2,iDim,ElemID))
+      ELSE
+        BoundsOfElemCenter(iDim) = 0.0
+      END IF
+    END DO
     ! Calculate halo element outer radius
-    BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
-                                        BoundsOfElem_Shared(2  ,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
-                                        BoundsOfElem_Shared(2  ,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2.)
+    BoundsOfElemCenter(4) = CONDVECNORM ((/ BoundsOfElem_Shared(2,1,ElemID)-BoundsOfElem_Shared(1,1,ElemID), &
+                                            BoundsOfElem_Shared(2,2,ElemID)-BoundsOfElem_Shared(1,2,ElemID), &
+                                            BoundsOfElem_Shared(2,3,ElemID)-BoundsOfElem_Shared(1,3,ElemID) /) / 2., &
+                                            GEO%FIBGMSymmetryVec)
     DO iElem = 1, nComputeNodeBorderElems
       ! compare distance of bounding boxes along each direction
       ! CartBox(1) = BoundsOfElem_Shared(1,1,ElemID)

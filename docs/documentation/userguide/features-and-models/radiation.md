@@ -37,7 +37,18 @@ To define the species which are used in the radiation simulation, the following 
     Part-Species1-NuclCharge            = 1       ! Charge (1:neutral particles, 2:ions)
     Radiation-Species1-SpectraFileName  = Ni.dat
 
-The `Radiation-Species[$]-SpectraFileName` contains information about level energy and radiative transition lines. An example is given in the regression-tests and can e.g. be built using information available in the NIST database. For convenience, the calculation of each species can be disabled with
+The `Radiation-Species[$]-SpectraFileName` contains information about level energy and radiative transition lines. An example is given in the regression-tests and can e.g. be built using information available in the NIST database. The data files for atoms contains information about the energy levels (number of energy levels, then degeneracy, level energy in cm<sup>-1</sup>, the energy level index, the quantum number of the released electron, and the Gaunt factor) and the possible transition lines (number of possible transition lines, then wavelength in Angstrom, lower energy level index, upper energy level index, degenercy of the lower and upper energy level, Einstein coefficient for spontaneous emission, a value that is not needed anymore, and the Stark halfwidth). For molecules it contains the different energy levels (first number of levels, then their names), then transition bands (with the indices of the upper and lower level and then the type of the transition). The following table shows a list of the implemented transition types:
+
+    1: parallel transition, Delta Lambda = 0
+    2: perpendicular transition, Delta Lambda = +-1
+    3: 2Sigma -> 2Pi
+    4: 2Sigma -> 2Sigma
+    5: 2Pi -> 2Pi
+    6: 3Pi -> 3Pi
+
+Next, the different energy levels are described in more detail and vibtrational and rotational constants are defined (degeneracy, T<sub>e</sub>, D<sub>0</sub>, w<sub>e</sub>, w<sub>e</sub>x<sub>e</sub>, w<sub>e</sub>y<sub>e</sub>, w<sub>e</sub>z<sub>e</sub>, B<sub>e</sub>, $\alpha$<sub>e</sub>, $\mu$, $\nu$<sub>spin</sub>, alternating factor, D<sub>e</sub>, $\beta$<sub>e</sub>, R<sub>equilibrium</sub>, A, $\Lambda$). Last, information on the transition lines are given (first number of lines, then nu<sub>upper level</sub>, nu<sub>lower level</sub>, sumre/Franck-Condon-Factor, Franck-Condon-Factor, SumRe<sup>2</sup>)
+
+For convenience, the calculation of each species can be disabled with
 
     Part-Species[$]-DoRadiation = F
 
@@ -172,7 +183,7 @@ The simulations can also be run on a two-dimensional rotationally symmetric mesh
 
 ## Raytracing
 
-In addition to the radiation coupling, a ray tracing model is implemented. A boundary must be defined from which rays or photons are emitted in a preliminary step, which are tracked throughout the domain until they are absorbed at a boundary. The volumes and surface elements are sampled by passing photons and from this information the ionization within each volume element and secondary electron emission from each surface is calculated in the actual plasma simulation. The output of the sampling procedure can be viewed as irradiated volumes and surfaces and is written to the output files EUV_RadiationVolState.h5 and EUV_RadiationSurfState.h5, which can be converted to .vtk format with piclas2vtk.
+In addition to the radiation coupling, a ray tracing model is implemented. A boundary must be defined from which rays or photons are emitted in a preliminary step, which are tracked throughout the domain until they are absorbed at a boundary. The volumes and surface elements are sampled by passing photons and from this information the ionization within each volume element and secondary electron emission from each surface is calculated in the actual plasma simulation. The output of the sampling procedure can be viewed as irradiated volumes and surfaces and is written to the output files ProjectName_RadiationVolState.h5 and ProjectName_RadiationSurfState.h5, which can be converted to .vtk format with piclas2vtk.
 Raytracing is activated with
 
     UseRayTracing = T

@@ -42,9 +42,11 @@ workflow:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Load modules on new boltzplatz reggie
 before_script:
+  - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
   - ulimit -s unlimited
   - python3 -V || true
   - python2 -V || true
+  - python  -V || true
   - if [ -n "${DO_CORE_SPLIT}" ]; then
       echo " PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE. Splitting shared memory domains on processor-level!";
       export PICLAS_SPLIT_TYPE=OMPI_COMM_TYPE_CORE;
@@ -64,6 +66,7 @@ before_script:
       export NCORES=0;
     else
       echo " Using default generator [Unix Makefiles] and [make] for compiling.";
+      export CMAKE_GENERATOR=;
       export GENERATOR=make;
       export NCORES=;
     fi
@@ -85,23 +88,29 @@ before_script:
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5 || true;
+      module load  cmake/3.31.1  gcc/14.2.0  openmpi/5.0.6/gcc/14.2.0      hdf5/1.14.0/gcc/14.2.0/openmpi/5.0.6      hopr/master/gcc/14.2.0/openmpi/5.0.6/hdf5/1.14.0      petsc/3.21.6/gcc/14.2.0/openmpi/5.0.6 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2 || true;
+      module load  cmake/3.31.1  gcc/14.2.0  mpich/4.1.2/gcc/14.2.0        hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2        hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.21.6/gcc/14.2.0/mpich/4.1.2 || true;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich/4.1.2/gcc/13.2.0        hdf5/1.14.0/gcc/13.2.0/mpich/4.1.2        hopr/master/gcc/13.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.19.3/gcc/13.2.0/mpich/4.1.2 || true;
+      module load  cmake/3.31.1  gcc/14.2.0  mpich/4.1.2/gcc/14.2.0        hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2        hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.21.6/gcc/14.2.0/mpich/4.1.2 || true;
     fi
   - if [ -n "${DO_MPICH_DEBUG}" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.19.3/gcc/13.2.0/mpich-debug/4.1.2 || true;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2 || true;
     fi
-  - module list || true
+  - if [ -n "${DO_RUN_LOCAL}" ]; then
+      source $(ls /opt/modules/*/init/bash | tail -n1);
+      for LOCALMODULE in ${DO_RUN_LOCAL}; do module load ${LOCALMODULE}; done;
+      module list;
+    else
+      module list || true ;
+    fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -113,11 +122,12 @@ stages:
   - reggie_DSMC_nightly
 #  - reggie_bgk_nightly
   - reggie_tools_nightly
+  - reggie_nightly_special
   - reggie_nightly
-  - reggie_nightly_build_all
   - reggie_weekly
-  - documentation
+  - reggie_tutorials
   - deploy
+  - appimage
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Templates ("hidden jobs")
@@ -223,6 +233,68 @@ stages:
     - if: '$DO_NIGHTLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for drift_diffusion tests
+.defaults_drift_diffusion: &defaults_drift_diffusion
+  extends: .default_param
+  needs: [build_drift_diffusion]
+  artifacts:
+    paths:
+      - build_drift_diffusion
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DD"
+      paths:
+        - build_drift_diffusion
+      policy: pull
+
+.defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_drift_diffusion_nightly: &defaults_drift_diffusion_nightly
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_drift_diffusion_weekly: &defaults_drift_diffusion_weekly
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for DVM tests
+.defaults_DVM: &defaults_DVM
+  extends: .default_param
+  needs: [build_DVM]
+  artifacts:
+    paths:
+      - build_DVM
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM"
+      paths:
+        - build_DVM
+      policy: pull
+
+.defaults_DVM_checkin: &defaults_DVM_checkin
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_DVM_nightly: &defaults_DVM_nightly
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_DVM_weekly: &defaults_DVM_weekly
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
 .defaults_poisson_petsc: &defaults_poisson_petsc
   extends: .default_param
@@ -253,6 +325,11 @@ stages:
   <<: *defaults_poisson_petsc
   rules:
     - if: '$DO_NIGHTLY'
+
+.defaults_poisson_petsc_weekly: &defaults_poisson_petsc_weekly
+  <<: *defaults_poisson_petsc
+  rules:
+    - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DSMC tests (pull only)
@@ -326,12 +403,21 @@ reggie_download:
     policy: push
   stage: build
   script:
+    # Check if the "reggie" directory contains a ".git" directory
+    # Check if the .day file exists under "reggie/.day" and move it here if that is the case
+    # Check if the "reggie" directory exists and remove it before cloning it again
+    # Clone the "reggie2.0" repository into the "reggie" directory
+    # "--break-system-packages" is only required on newer systems but not on Ubuntu 20
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
         git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        if [ -d "reggie" ]; then cd reggie ; pip install -e . --break-system-packages ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
+    # Test reggie installation
+    - reggie --help
+    # Output reggie commit hash for checking if the correct reggie version is used
     - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
 
 build:
@@ -363,7 +449,11 @@ build_maxwell:
   stage: build
   script:
     - mkdir -p build_maxwell ; cd build_maxwell
-    - cmake .. -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all
+    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
 
 build_poisson:
   extends: .default_build_param
@@ -389,13 +479,28 @@ build_poisson:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_RK3 ; cd build_poisson_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    # Check greater than 10, see https://regex101.com/ for details
+    # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
+    # Check greater than 9, see https://regex101.com/ for details
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - cd ..
     - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_Leapfrog ; cd build_poisson_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [ -n "$WARN" ]; then echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; fi
+    # Check greater than 10, see https://regex101.com/ for details
+    # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
+    # Check greater than 9, see https://regex101.com/ for details
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - cd ..
 
 build_poisson_petsc:
@@ -422,7 +527,11 @@ build_poisson_petsc:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
@@ -455,15 +564,51 @@ build_DSMC:
     - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_DSMC_debug ; cd build_DSMC_debug
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
-    - cd ..
-    - mkdir -p build_DSMC_N1 ; cd build_DSMC_N1
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
+    - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
+        if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
+      fi
+    - if [ -n "${DO_WEEKLY}" ]; then
+        cd .. ;
+        mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
+      fi
     - if [ -n "${DO_WEEKLY}" ]; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
+
+build_drift_diffusion:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_drift_diffusion]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DD"
+      paths: [build_drift_diffusion]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_drift_diffusion ; cd build_drift_diffusion
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
+
+build_DVM:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_DVM]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM"
+      paths: [build_DVM]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_DVM ; cd build_DVM
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
 
 build_hopr:
   extends: .default_build_param
@@ -495,7 +640,7 @@ build_hopr_in_piclas:
   stage: build
   script:
     - mkdir -p build_hopr_lib ; cd build_hopr_lib
-    - python ../reggie/reggie.py ../regressioncheck/WEK_HOPR
+    - reggie ../regressioncheck/WEK_HOPR
   rules:
     #- if: '$DO_CORE_SPLIT'
       #when: never
@@ -564,7 +709,7 @@ build_petsc_in_piclas:
     - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
     - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
-    - python ../reggie/reggie.py -e ./bin/piclas ../regressioncheck/NIG_poisson_PETSC
+    - reggie -e ./bin/piclas ../regressioncheck/NIG_poisson_PETSC
   rules:
     - if: '$DO_WEEKLY'
 
@@ -575,38 +720,49 @@ run_basic:
   <<: *defaults_checkin
   stage: reggie_checkin
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/run_basic/maxwell -e ./bin/piclas
+    - cd build ; reggie ../regressioncheck/run_basic/maxwell -e ./bin/piclas
 
 maxwell:
   <<: *defaults_maxwell
   stage: reggie_checkin
   script:
-    - cd build_maxwell ; python ../reggie/reggie.py ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
+    - cd build_maxwell ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
 poisson_release:
   <<: *defaults_poisson_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_release_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_release_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_debug:
   <<: *defaults_poisson_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_debug_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_debug_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_petsc_release:
   <<: *defaults_poisson_petsc_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_petsc_release_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_petsc_release_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
 
 poisson_petsc_debug:
   <<: *defaults_poisson_petsc_checkin
   stage: reggie_checkin
   script:
-    - cd build_poisson_petsc_debug_RK3 ; python ../reggie/reggie.py ../regressioncheck/CHE_poisson -e ./bin/piclas
+    - cd build_poisson_petsc_debug_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
 
+drift_diffusion:
+  <<: *defaults_drift_diffusion_checkin
+  stage: reggie_checkin
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV -e ./bin/piclas
+
+discrete_velocity:
+  <<: *defaults_DVM_checkin
+  stage: reggie_checkin
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
@@ -617,34 +773,32 @@ CHE_PIC_maxwell_RK4:
   <<: *defaults_checkin
   stage: reggie_feature_checkin
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/CHE_PIC_maxwell_RK4 -e ./bin/piclas
+    - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_RK4 -e ./bin/piclas
 
       # Commented out 07/12/2020 - to be fixed (this reggie fails due to bug in implicit particle tracking)
       #CHE_PIC_maxwell_implicitBC:
       #  <<: *defaults_checkin
       #  stage: reggie_feature_checkin
       #  script:
-      #    - cd build ; python ../reggie/reggie.py ../regressioncheck/CHE_PIC_maxwell_implicitBC
+      #    - cd build ; reggie ../regressioncheck/CHE_PIC_maxwell_implicitBC
 
 CHE_DSMC:
   <<: *defaults_DSMC_checkin
   stage: reggie_feature_checkin
   script:
-    - cd build_DSMC_release ; python ../reggie/reggie.py ../regressioncheck/CHE_DSMC -e ./bin/piclas
-    - cd ..
-    - cd build_DSMC_N1 ; python ../reggie/reggie.py ../regressioncheck/CHE_DSMC -e ./bin/piclas
+    - cd build_DSMC_release ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
 
 CHE_BGK:
   <<: *defaults_checkin
   stage: reggie_feature_checkin
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/CHE_BGK
+    - cd build ; reggie ../regressioncheck/CHE_BGK
 
 CHE_FPFlow:
   <<: *defaults_checkin
   stage: reggie_feature_checkin
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/CHE_FPFlow
+    - cd build ; reggie ../regressioncheck/CHE_FPFlow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
@@ -653,7 +807,7 @@ NIG_Reservoir:
   <<: *defaults_DSMC_nightly
   stage: reggie_DSMC_nightly
   script:
-    - cd build_DSMC_release/ ; python ../reggie/reggie.py ../regressioncheck/NIG_Reservoir -e bin/piclas
+    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_Reservoir -e bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run tracking examples on nightly
@@ -662,7 +816,7 @@ NIG_Tracking:
   <<: *defaults_DSMC_nightly
   stage: reggie_DSMC_nightly
   script:
-    - cd build_DSMC_debug/ ; python ../reggie/reggie.py ../regressioncheck/NIG_tracking_DSMC -e ./bin/piclas
+    - cd build_DSMC_debug/ ; reggie ../regressioncheck/NIG_tracking_DSMC -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run DSMC examples on nightly
@@ -671,9 +825,9 @@ NIG_DSMC:
   <<: *defaults_DSMC_nightly
   stage: reggie_DSMC_nightly
   script:
-    - cd build_DSMC_release/ ; python ../reggie/reggie.py ../regressioncheck/NIG_DSMC -e bin/piclas
+    - cd build_DSMC_release/ ; reggie ../regressioncheck/NIG_DSMC -e bin/piclas
     - cd ..
-    - cd build_DSMC_debug/ ; python ../reggie/reggie.py ../regressioncheck/NIG_DSMC -e bin/piclas
+    - cd build_DSMC_debug/ ; reggie ../regressioncheck/NIG_DSMC -e bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tools_nightly": Build and run superB and piclas2vtk examples on nightly
@@ -683,20 +837,20 @@ NIG_SuperB_piclas:
   needs: [build]
   stage: reggie_tools_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_SuperB -e ./bin/piclas
+    - cd build ; reggie ../regressioncheck/NIG_SuperB -e ./bin/piclas
 
 NIG_SuperB_standalone:
   <<: *defaults_nightly
   needs: [build]
   stage: reggie_tools_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_SuperB -e ./bin/superB
+    - cd build ; reggie ../regressioncheck/NIG_SuperB -e ./bin/superB
 
 NIG_piclas2vtk:
   <<: *defaults_nightly
   stage: reggie_tools_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_piclas2vtk
+    - cd build ; reggie ../regressioncheck/NIG_piclas2vtk
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_bgk_nightly": Build and run BGK-Flow examples on nightly (CURRENTLY NO NIGHTLY TEST FOR BGK)
@@ -706,7 +860,7 @@ NIG_piclas2vtk:
 #   stage: reggie_bgk_nightly
 #   tags: [withmodules-concurrent]
 #   script:
-#     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_BGK-Flow
+#     - cd build ; reggie ../regressioncheck/NIG_BGK-Flow
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_nightly": Build and run
@@ -720,108 +874,117 @@ NIG_piclas2vtk:
 #                                                            the entry and exit of the cuboid domain)
 #                      examples on nightly
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+NIG_BGK:
+  <<: *defaults_nightly
+  stage: reggie_nightly
+  script:
+    - cd build ; reggie ../regressioncheck/NIG_BGK
+
 NIG_dielectric:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/NIG_dielectric
+    - cd build ;  reggie ../regressioncheck/NIG_dielectric
 
 NIG_PIC_maxwell_RK4:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_maxwell_RK4/
+    - cd build ; reggie ../regressioncheck/NIG_PIC_maxwell_RK4/
 
 NIG_convtest_maxwell:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/NIG_convtest_maxwell
+    - cd build ;  reggie ../regressioncheck/NIG_convtest_maxwell
 
 NIG_convtest_t_maxwell:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/NIG_convtest_t_maxwell
+    - cd build ;  reggie ../regressioncheck/NIG_convtest_t_maxwell
 
 NIG_convtest_t_poisson:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/NIG_convtest_t_poisson
+    - cd build ;  reggie ../regressioncheck/NIG_convtest_t_poisson
 
+# TODO: Re-name/structure NIG_convtest_poisson to WEK_convtest_poisson in branch feature.p.adaption
 NIG_convtest_poisson:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/NIG_convtest_poisson
+    - cd build ;  reggie ../regressioncheck/NIG_convtest_poisson
 
 NIG_PIC_poisson_RK3:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_RK3/
+    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_RK3/
 
+# TODO: Re-name/structure NIG_PIC_poisson_Boris-Leapfrog to WEK_PIC_poisson_Boris-Leapfrog in branch feature.p.adaption
 NIG_PIC_poisson_Boris-Leapfrog:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
+    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog/
 
 NIG_PIC_poisson_Boris-Leapfrog_PETSC:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog_PETSC/
+    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Boris-Leapfrog_PETSC/
 
 NIG_PIC_poisson_Leapfrog:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Leapfrog/
+    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog/
 
       # NIG_PIC_poisson_Leapfrog_not_working:
       #   <<: *defaults_nightly
       #   stage: reggie_nightly
       #   script:
-      #     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_Leapfrog_not_working/
+      #     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_Leapfrog_not_working/
 
       # Crank-Nicolson (2nd order implicit) time integration
       # NIG_PIC_poisson_powerdensity:
       #   <<: *defaults_nightly
       #   stage: reggie_nightly
       #   script:
-      #     - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_powerdensity/
+      #     - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_powerdensity/
 
 NIG_poisson:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_poisson/
+    - cd build ; reggie ../regressioncheck/NIG_poisson/
 
+# TODO: Re-name/structure NIG_poisson_PETSC-Leapfrog to WEK_poisson_PETSC-Leapfrog in branch feature.p.adaption
 NIG_poisson_PETSC:
-  <<: *defaults_nightly
-  stage: reggie_nightly
+  <<: *defaults_weekly
+  stage: reggie_weekly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_poisson_PETSC/
+    - cd build ; reggie ../regressioncheck/NIG_poisson_PETSC/
 
 NIG_maxwell_RK4:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_maxwell_RK4/
+    - cd build ; reggie ../regressioncheck/NIG_maxwell_RK4/
 
 NIG_PIC_poisson_plasma_wave:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_plasma_wave/
+    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_plasma_wave/
 
 NIG_maxwell_dipole_dielectric:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_maxwell_dipole_dielectric/
+    - cd build ; reggie ../regressioncheck/NIG_maxwell_dipole_dielectric/
 
       # Commented out 07/12/2020 - to be fixed:
       # this reggie has two examples:
@@ -831,31 +994,31 @@ NIG_maxwell_dipole_dielectric:
       #  <<: *defaults_nightly
       #  stage: reggie_nightly
       #  script:
-      #    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_poisson_implicit04/
+      #    - cd build ; reggie ../regressioncheck/NIG_PIC_poisson_implicit04/
 
 NIG_LoadBalance:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_LoadBalance/
+    - cd build ; reggie ../regressioncheck/NIG_LoadBalance/
 
 NIG_code_analyze:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_code_analyze/
+    - cd build ; reggie ../regressioncheck/NIG_code_analyze/
 
 NIG_IntKind8:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_IntKind8/
+    - cd build ; reggie ../regressioncheck/NIG_IntKind8/
 
 NIG_PIC_Deposition:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_PIC_Deposition/
+    - cd build ; reggie ../regressioncheck/NIG_PIC_Deposition/
 
 # 2023-10-28: Deactivate RK3 for photoionization for now in order to save time when running the reggies. This features is currently only used in combination with Leapfrog anyway.
 # 2024-01-17: Moved to weekly (reactivated 4 + move to weekly, move release_Leapfrog and debug_Leapfrog from nightly to weekly to reduce time further)
@@ -866,7 +1029,7 @@ WEK_Photoionization_release_RK3:
   <<: *defaults_poisson_nightly
   stage: reggie_weekly
   script:
-    - cd build_poisson_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -878,7 +1041,7 @@ WEK_Photoionization_debug_RK3:
   <<: *defaults_poisson_nightly
   stage: reggie_weekly
   script:
-    - cd build_poisson_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -890,7 +1053,7 @@ WEK_Photoionization_petsc_release_RK3:
   <<: *defaults_poisson_petsc_nightly
   stage: reggie_weekly
   script:
-    - cd build_poisson_petsc_release_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_petsc_release_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -902,7 +1065,7 @@ WEK_Photoionization_petsc_debug_RK3:
   <<: *defaults_poisson_petsc_nightly
   stage: reggie_weekly
   script:
-    - cd build_poisson_petsc_debug_RK3;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_petsc_debug_RK3;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -914,7 +1077,7 @@ WEK_Photoionization_release_Leapfrog:
   <<: *defaults_poisson_nightly
   stage: reggie_weekly
   script:
-    - cd build_poisson_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -926,7 +1089,7 @@ WEK_Photoionization_debug_Leapfrog:
   <<: *defaults_poisson_nightly
   stage: reggie_weekly
   script:
-    - cd build_poisson_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -940,7 +1103,7 @@ NIG_Photoionization_petsc_release_Leapfrog:
   <<: *defaults_poisson_petsc_nightly
   stage: reggie_nightly
   script:
-    - cd build_poisson_petsc_release_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_petsc_release_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
@@ -948,47 +1111,65 @@ NIG_Photoionization_petsc_release_Leapfrog:
       when: never
     - if: '$DO_NIGHTLY'
 
-NIG_Photoionization_petsc_debug_Leapfrog:
-  <<: *defaults_poisson_petsc_nightly
-  stage: reggie_nightly
+WEK_Photoionization_petsc_debug_Leapfrog:
+  <<: *defaults_poisson_petsc_weekly
+  stage: reggie_weekly
   script:
-    - cd build_poisson_petsc_debug_Leapfrog;  python ../reggie/reggie.py ../regressioncheck/NIG_Photoionization -e ./bin/piclas
+    - cd build_poisson_petsc_debug_Leapfrog;  reggie ../regressioncheck/NIG_Photoionization -e ./bin/piclas
   rules:
     - if: '$DO_CORE_SPLIT'
       when: never
     - if: '$DO_NODE_SPLIT'
       when: never
-    - if: '$DO_NIGHTLY'
+    - if: '$DO_WEEKLY'
 
 NIG_Radiation:
   <<: *defaults_nightly
   stage: reggie_nightly
   script:
-    - cd build ; python ../reggie/reggie.py ../regressioncheck/NIG_Radiation
+    - cd build ; reggie ../regressioncheck/NIG_Radiation
+
+NIG_drift_diffusion:
+  <<: *defaults_drift_diffusion_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/NIG_drift_diffusion_explicit-FV
+
+NIG_DVM:
+  <<: *defaults_DVM_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/NIG_DVM
+
+NIG_convtest_DVM:
+  <<: *defaults_DVM_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/NIG_convtest_DVM
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_nightly_build_all": Build and run
+# Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
 #                                    - sanitizer for maxwell/poisson (CMAKE_BUILD_TYPE=Sanitize,Profile)
 #                                    - math tools Lapack and OpenBlas with LIBS_BUILD_MATH_LIB = ON and LIBS_BUILD_MATH_LIB_VENDOR = LAPACK,OpenBLAS
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 build_all:
-  <<: *defaults_nightly
-  stage: reggie_nightly_build_all
+  <<: *defaults_weekly
+  stage: build
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/run_basic
+    - cd build ;  reggie ../regressioncheck/run_basic
 
 build_sanitize:
   <<: *defaults_nightly
-  stage: reggie_nightly_build_all
+  stage: reggie_nightly_special
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/NIG_sanitize
+    - cd build ;  reggie ../regressioncheck/NIG_sanitize
 
 build_math_tools:
   <<: *defaults_nightly
-  stage: reggie_nightly_build_all
+  stage: reggie_nightly_special
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/NIG_math_libs
+    - cd build ;  reggie ../regressioncheck/NIG_math_libs
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly": Build and run examples once a week
@@ -998,20 +1179,27 @@ WEK_PIC_maxwell:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/WEK_PIC_maxwell
+    - cd build ;  reggie ../regressioncheck/WEK_PIC_maxwell
 
 WEK_PIC_poisson:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/WEK_PIC_poisson
+    - cd build ;  reggie ../regressioncheck/WEK_PIC_poisson
 
 WEK_DSMC:
   <<: *defaults_DSMC_weekly
   needs: [build_DSMC]
   stage: reggie_weekly
   script:
-    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC -e bin/piclas
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC -e bin/piclas
+
+WEK_DSMC_N1:
+  <<: *defaults_DSMC_weekly
+  needs: [build_DSMC]
+  stage: reggie_weekly
+  script:
+    - cd build_DSMC_N1 ; reggie ../regressioncheck/CHE_DSMC -e ./bin/piclas
 
 WEK_DSMC_Radiation:
   <<: *defaults_DSMC_weekly_pull_push
@@ -1019,7 +1207,7 @@ WEK_DSMC_Radiation:
   stage: reggie_weekly
   script:
     # Use -s, --save   Do not remove output directories buildsXXXX in output_dir after successful run.
-    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_DSMC_Radiation -e bin/piclas -s
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_DSMC_Radiation -e bin/piclas -s
 
 WEK_Radiation:
   <<: *defaults_DSMC_weekly_pull_push
@@ -1030,32 +1218,47 @@ WEK_Radiation:
     - cp $(find ../build_DSMC_release/output_dir -name "70degCone2D_Set1_ConeHot_DSMCState_000.00020000000000000.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
     - cp $(find ../build_DSMC_release/output_dir -name "mesh_70degCone2D_Set1_noWake_mesh.h5" | head -n 1) ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot/.
     - rm -rf ../build_DSMC_release/output_dir
-    - python ../reggie/reggie.py -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot
+    - reggie -e ./bin/piclas ../regressioncheck/WEK_Radiation/Flow_N2-N_70degConeHot
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly
   stage: reggie_weekly
   script:
-    - cd build_DSMC_release ;  python ../reggie/reggie.py ../regressioncheck/WEK_Reservoir -e bin/piclas
+    - cd build_DSMC_release ;  reggie ../regressioncheck/WEK_Reservoir -e bin/piclas
 
 WEK_FPFlow:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/WEK_FPFlow
+    - cd build ;  reggie ../regressioncheck/WEK_FPFlow
 
 WEK_BGKFlow:
   <<: *defaults_weekly
   stage: reggie_weekly
   script:
-    - cd build ;  python ../reggie/reggie.py ../regressioncheck/WEK_BGKFlow
+    - cd build ;  reggie ../regressioncheck/WEK_BGKFlow
+
+WEK_DVM:
+  <<: *defaults_DVM_weekly
+  stage: reggie_weekly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "documentation": Compile the userguide and developer guide
+# Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+WEK_drift_diffusion:
+  <<: *defaults_drift_diffusion_weekly
+  stage: reggie_tutorials
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/WEK_drift_diffusion_explicit-FV
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "build": Compile the userguide and developer guide
+# ---------------------------------------------------------------------------V
 documentation:
   extends: .default_build_param
-  stage: documentation
+  stage: build
   script:
     - cd docs/documentation
     - python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt --break-system-packages
@@ -1087,3 +1290,45 @@ github:
     - cd piclas_github ;
     - git remote add piclas-framework git@github.com:piclas-framework/piclas.git ;
     - git push --force --follow-tags piclas-framework master ;
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "appimage": Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+github_create_appimage:
+  stage: appimage
+  tags:
+    - withmodules-concurrent
+  rules:
+    - if: '$DO_CREATE_APPIMAGE'
+  script:
+    - if [ -z "${DO_CREATE_APPIMAGE}" ]; then exit; fi
+    - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
+    - rm -rf piclas-testing || true ;
+    - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@piclas.boltzplatz.eu:piclas/piclas.git piclas-testing
+    - cd piclas-testing
+    - git remote add piclas-testing git@github.com-reggie2.0:scopplestone/piclas-testing.git
+    - git push --force piclas-testing ${CI_COMMIT_REF_NAME}
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "appimage": Download the AppImages from the piclas-testing repository and test them
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+github_test_appimage:
+  stage: appimage
+  tags:
+    - withmodules-concurrent
+  rules:
+    - if: '$DO_TEST_APPIMAGE'
+  script:
+    - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
+    - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
+    - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+    - module purge || true;
+    - module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5 || true;
+    - rm -rf piclas-testing || true ;
+    - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
+    - cd piclas-testing
+    - source /var/lib/gitlab-runner/.bashrc
+    - gh run download -n ${DO_TEST_APPIMAGE}
+    - ls -l
+    - module li
+    - ./tools/testAppImages.sh . regressioncheck

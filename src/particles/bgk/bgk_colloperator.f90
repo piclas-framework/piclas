@@ -929,15 +929,15 @@ outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
             ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
             IF(CHECKEXP(exparg)) THEN
               IF(exparg.gt.0.) THEN ! positive overflow: exp -> inf
-                Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
+                Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(EXP(exparg)-1.)
               ELSE ! negative overflow: exp -> 0
-                Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
+                Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(-1.)
               END IF ! exparg.gt.0.
             ELSE
-              Xi_vib_DOF(iSpec,iDOF) = 0.0
+              Xi_vib_DOF(iPolyatMole,iDOF) = 0.0
             END IF ! CHECKEXP(exparg)
           END DO
-          Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iSpec,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+          Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iPolyatMole,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
         ELSE ! diatomic
           exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
           ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
@@ -985,15 +985,15 @@ outerLoop: DO WHILE ( ABS( TEqui - TEqui_Old ) .GT. eps_prec )
               ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
               IF(CHECKEXP(exparg)) THEN
                 IF(exparg.gt.0.) THEN ! positive overflow: exp -> inf
-                  Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(EXP(exparg)-1.)
+                  Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(EXP(exparg)-1.)
                 ELSE ! negative overflow: exp -> 0
-                  Xi_vib_DOF(iSpec,iDOF) = 2.*exparg/(-1.)
+                  Xi_vib_DOF(iPolyatMole,iDOF) = 2.*exparg/(-1.)
                 END IF ! exparg.gt.0.
               ELSE
-                Xi_vib_DOF(iSpec,iDOF) = 0.0
+                Xi_vib_DOF(iPolyatMole,iDOF) = 0.0
               END IF ! CHECKEXP(exparg)
             END DO
-            Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iSpec,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
+            Xi_VibSpecNew(iSpec) = SUM(Xi_vib_DOF(iPolyatMole,1:PolyatomMolDSMC(iPolyatMole)%VibDOF))
           ELSE ! diatomic
             exparg = SpecDSMC(iSpec)%CharaTVib/TEqui
             ! Check if the exponent is within the range of machine precision for calculation of vibrational degrees of freedom
@@ -1722,8 +1722,11 @@ DO iSpec = 1, nSpecies
       DiffCoef(iSpec,jSpec) = 3.*E_12/(2.*(Species(iSpec)%MassIC+Species(jSpec)%MassIC)*dens)
       DiffCoef(jSpec,iSpec) = DiffCoef(iSpec,jSpec)
     END IF
-    Xj_Dij(iSpec,jSpec) = Xi(jSpec)/DiffCoef(iSpec,jSpec)
-    Xj_Dij(jSpec,iSpec) = Xj_Dij(iSpec,jSpec)
+    IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20).OR. &
+        (Species(jSpec)%InterID.EQ.2).OR.(Species(jSpec)%InterID.EQ.20)) THEN
+      Xj_Dij(iSpec,jSpec) = Xi(jSpec)/DiffCoef(iSpec,jSpec)
+      Xj_Dij(jSpec,iSpec) = Xj_Dij(iSpec,jSpec)
+    END IF
   END DO
   IF ((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     ! Calculation of thermal conductivity of rotation and vibration for each molecular species

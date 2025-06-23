@@ -74,7 +74,7 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, DMDDataExists
-LOGICAL                        :: BGFieldExists, ExcitationDataExists
+LOGICAL                        :: BGFieldExists, ExcitationDataExists, DVMSolutionExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 INTEGER                        :: iElem, iNode
@@ -270,6 +270,7 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
   CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
   CALL DatasetExists(File_ID , 'BGField'      , BGFieldExists) ! deprecated , but allow for backward compatibility
+  CALL DatasetExists(File_ID , 'DVM_Solution'  , DVMSolutionExists)
   CALL DatasetExists(File_ID , 'Mode_001_ElectricFieldX_Img'     , DMDDataExists)
   IF(BGFieldExists)THEN
     DGSolutionExists  = .TRUE.
@@ -298,7 +299,7 @@ DO iArgs = iArgsStart,nArgs
     ReadMeshFinished = .TRUE.
   END IF
   ! Build connectivity for element/volume output
-  IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
+  IF((ElemDataExists.OR.DVMSolutionExists).AND..NOT.ElemMeshInit) THEN
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -365,6 +366,10 @@ DO iArgs = iArgsStart,nArgs
     IF(AdaptiveInfoExists) THEN
       CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive',iArgs)
     END IF
+  END IF
+  ! === DVM_Solution ===============================================================================================================
+  IF(DVMSolutionExists) THEN
+    CALL ConvertDVMSolution(InputStateFile,NVisu,NodeTypeVisuOut,'DVM_Solution')
   END IF
 END DO ! iArgs = 2, nArgs
 
@@ -645,6 +650,107 @@ SDEALLOCATE(Vertex)
 SDEALLOCATE(nodeids)
 
 END SUBROUTINE WriteDataToVTK_PICLas
+
+
+!===================================================================================================================================
+!> Convert DVM solution to a cell-based VTK format
+!===================================================================================================================================
+SUBROUTINE ConvertDVMSolution(InputStateFile,NVisu,NodeTypeVisuOut,ArrayName)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: ProjectName
+USE MOD_IO_HDF5               ,ONLY: HSize
+USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,GetDataProps
+USE MOD_Mesh_Vars             ,ONLY: NodeCoords,nElems,offsetElem,NGeo
+USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
+USE MOD_Interpolation         ,ONLY: GetVandermonde
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
+USE MOD_VTK                   ,ONLY: WriteDataToVTK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile,NodeTypeVisuOut
+CHARACTER(LEN=*),INTENT(IN)     :: ArrayName
+INTEGER,INTENT(IN)              :: NVisu
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)              :: FileString,NodeType_State
+REAL                            :: OutputTime
+INTEGER                         :: nDims,nVar,N_State,nElems_State,iElem
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNames(:)
+REAL,ALLOCATABLE,TARGET         :: U(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 !< Solution on visualization nodes
+REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           !< Coordinates of visualization nodes
+REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
+!===================================================================================================================================
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
+CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+SDEALLOCATE(Coords_NVisu)
+ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+! Convert coordinates to visu grid
+DO iElem = 1,nElems
+  CALL ChangeBasis3D(3,NGeo,NVisu,Vdm_EQNgeo_NVisu,NodeCoords(:,:,:,:,iElem),Coords_NVisu(:,:,:,:,iElem))
+END DO
+
+! Read in solution
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+OutputTime = 0. ! default
+CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+CALL GetDataSize(File_ID,TRIM(ArrayName),nDims,HSize)
+IF (nDims.NE.5) CALL abort(__STAMP__,'Wrong number of dimensions in state file!')
+CALL GetDataProps(TRIM(ArrayName),nVar,N_State,nElems_State,NodeType_State)
+IF (nElems.NE.nElems_State) CALL abort(__STAMP__,'Number of elements in state file and mesh file do not match!')
+
+IF (nVar.GT.0) THEN
+  ALLOCATE(VarNames(1:nVar))
+  CALL ReadAttribute(File_ID,'VarNames',nVar,StrArray=VarNames(1:nVar))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVar       => INT(nVar,IK)      ,&
+        N_State    => INT(N_State, IK)  ,&
+        offsetElem => INT(offsetElem,IK),&
+        nElems     => INT(nElems,IK)    )
+    SDEALLOCATE(U)
+    ALLOCATE(U(1:nVar,0:N_State,0:N_State,0:N_State,1:nElems))
+    CALL ReadArray(TRIM(ArrayName),5,(/nVar,N_State+1_IK,N_State+1_IK,N_State+1_IK, nElems/),offsetElem,5, &
+    RealArray=U(1:nVar,0:N_State,0:N_State,0:N_State,1:nElems))
+  END ASSOCIATE
+
+  SDEALLOCATE(Vdm_N_NVisu)
+  ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+  CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+
+  SDEALLOCATE(U_Visu)
+  ALLOCATE(U_Visu(nVar,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+  ! Write solution to vtk
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_DVM',OutputTime))//'.vtu'
+  ! Interpolate solution to visu grid
+  DO iElem = 1,nElems
+    CALL ChangeBasis3D(nVar,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iElem))
+  END DO
+  ! Output to VTK
+  CALL WriteDataToVTK(nVar,NVisu,nElems,VarNames,Coords_NVisu,U_Visu,TRIM(FileString),dim=3,DGFV=0)
+END IF
+
+SDEALLOCATE(VarNames)
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+SDEALLOCATE(Coords_NVisu)
+SDEALLOCATE(U)
+SDEALLOCATE(Vdm_N_NVisu)
+SDEALLOCATE(U_Visu)
+
+CALL CloseDataFile()
+
+END SUBROUTINE ConvertDVMSolution
 
 
 !===================================================================================================================================
@@ -1207,7 +1313,11 @@ END IF
 
 IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
   IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+    IF(TRIM(File_Type).NE.'DVMSurfState') THEN
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+    ELSE
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfDVM',OutputTime))//'.vtu'
+    END IF
   ELSE
     FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
   END IF
@@ -1351,5 +1461,3 @@ SDEALLOCATE(SurfBCName_HDF5)
 CALL CloseDataFile()
 
 END SUBROUTINE BuildSurfMeshConnectivity
-
-

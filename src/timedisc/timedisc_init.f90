@@ -239,6 +239,10 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==600)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
+#elif (PP_TimeDiscMethod==700)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ED-DVM or DUGKS'
+#elif (PP_TimeDiscMethod==701)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Explicit finite volumes'
 #endif
 
 RKdtFrac      = 1.

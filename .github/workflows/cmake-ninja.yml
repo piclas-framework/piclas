@@ -91,18 +91,20 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Install OpenMPI 4.1.0
+    - name: Install OpenMPI 4.1.6
       run: |
+        MPIVERSION='4.1.6'
+        MPIVERSIONSHORT=${MPIVERSION%.*}
         source ~/.bashrc
         yum install -y rdma-core-devel
-        wget https://download.open-mpi.org/release/open-mpi/v4.1/openmpi-4.1.0.tar.gz
-        tar -xvf openmpi-4.1.0.tar.gz
-        cd openmpi-4.1.0
-        ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
-        #./configure --enable-debug --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/4.1.0
+        wget https://download.open-mpi.org/release/open-mpi/v${MPIVERSIONSHORT}/openmpi-${MPIVERSION}.tar.gz
+        tar -xvf openmpi-${MPIVERSION}.tar.gz
+        cd openmpi-${MPIVERSION}
+        ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/${MPIVERSION}
+        #./configure --enable-debug --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/${MPIVERSION}
         make -j && make install
         echo "======================================================================="
-        MPI_DIR='/opt/openmpi/4.1.0'
+        MPI_DIR='/opt/openmpi/'${MPIVERSION}
         echo 'MPI_DIR="'${MPI_DIR}'"' >> $GITHUB_ENV
         echo ${MPI_DIR}
         echo 'export MPI_DIR="'${MPI_DIR}'"' >> ~/.bashrc
@@ -114,15 +116,17 @@ jobs:
 
     - name: Install HDF5 1.12.2
       run: |
+        HDF5VERSION='1.12.2'
+        HDF5VERSIONSHORT=${HDF5VERSION%.*}
         source ~/.bashrc
-        wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-1.12/hdf5-1.12.2/src/hdf5-1.12.2.tar.gz
-        tar -xvf hdf5-1.12.2.tar.gz
-        cd hdf5-1.12.2
-        ./configure --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
-        #./configure --enable-build-mode=debug --prefix=/opt/hdf5/1.12.2 --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+        wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSIONSHORT}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz
+        tar -xvf hdf5-${HDF5VERSION}.tar.gz
+        cd hdf5-${HDF5VERSION}
+        ./configure --prefix=/opt/hdf5/${HDF5VERSION} --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+        #./configure --enable-build-mode=debug --prefix=/opt/hdf5/${HDF5VERSION} --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
         make -j && make install
         echo "======================================================================="
-        HDF5_DIR='/opt/hdf5/1.12.2'
+        HDF5_DIR='/opt/hdf5/'${HDF5VERSION}
         echo ${HDF5_DIR}
         echo 'HDF5_DIR="'${HDF5_DIR}'"' >> $GITHUB_ENV
         echo 'export HDF5_DIR="'${HDF5_DIR}'"' >> ~/.bashrc
@@ -134,11 +138,11 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Install PETSc 3.19.3
+    - name: Install PETSc 3.21.6
       run: |
-        PETSCVERSION='3.19.3'
+        PETSCVERSION='3.21.6'
         source ~/.bashrc
-        wget --no-check-certificate https://ftp.mcs.anl.gov/pub/petsc/release-snapshots/petsc-${PETSCVERSION}.tar.gz
+        wget --no-check-certificate https://web.cels.anl.gov/projects/petsc/download/release-snapshots/petsc-${PETSCVERSION}.tar.gz
         tar -xvf petsc-${PETSCVERSION}.tar.gz
         cd petsc-${PETSCVERSION}
           #--with-cc=$(which mpicc) \
@@ -149,13 +153,17 @@ jobs:
           --prefix=/opt/petsc/${PETSCVERSION} \
           --with-mpi-dir=${MPI_DIR} \
           --with-debugging=0 \
-          COPTFLAGS='-O3 -march=native -mtune=native' \
-          CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-          FOPTFLAGS='-O3 -march=native -mtune=native' \
+          --with-shared-libraries=1 \
+          --with-mpi-f90module-visibility=0 \
+          --with-bison=0 \
+          COPTFLAGS='-O3 -mtune=generic' \
+          CXXOPTFLAGS='-O3 -mtune=generic' \
+          FOPTFLAGS='-O3 -mtune=generic' \
           --download-hypre \
           --download-mumps \
           --download-scalapack \
-          --download-fblaslapack=1
+          --download-metis \
+          --download-parmetis
         make -j && make install
         echo "======================================================================="
         PETSC_DIR='/opt/petsc/'${PETSCVERSION}
@@ -168,7 +176,7 @@ jobs:
         cat ~/.bashrc
         echo "======================================================================="
 
-    - name: Configure CMake Piclas Single-core
+    - name: Configure CMake PICLas Single-core
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -176,13 +184,13 @@ jobs:
         source ~/.bashrc
         cmake -G Ninja -B build_single -DPICLAS_INSTRUCTION=-mtune=generic -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: Build Piclas Single-core
+    - name: Build PICLas Single-core
       shell: bash
       run: |
         source ~/.bashrc
         cmake --build build_single
 
-    - name: Configure CMake Piclas DSMC
+    - name: Configure CMake PICLas DSMC
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -190,13 +198,13 @@ jobs:
         source ~/.bashrc
         cmake -G Ninja -B build_DSMC -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=DSMC -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: Build Piclas DSMC
+    - name: Build PICLas DSMC
       shell: bash
       run: |
         source ~/.bashrc
         cmake --build build_DSMC
 
-    - name: Configure CMake Piclas BGK
+    - name: Configure CMake PICLas BGK
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -204,13 +212,13 @@ jobs:
         source ~/.bashrc
         cmake -G Ninja -B build_BGK -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=BGK-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: Build Piclas BGK
+    - name: Build PICLas BGK
       shell: bash
       run: |
         source ~/.bashrc
         cmake --build build_BGK
 
-    - name: Configure CMake Piclas FP
+    - name: Configure CMake PICLas FP
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -218,22 +226,21 @@ jobs:
         source ~/.bashrc
         cmake -G Ninja -B build_FP -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 -DPICLAS_TIMEDISCMETHOD=FP-Flow -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: Build Piclas FP
+    - name: Build PICLas FP
       shell: bash
       run: |
         source ~/.bashrc
         cmake --build build_FP
 
-    - name: Configure CMake Piclas Poisson Leapfrog
+    - name: Configure CMake PICLas Poisson Leapfrog
       shell: bash
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
         source ~/.bashrc
-        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
-        #cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=OFF -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=OFF -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
+        cmake -G Ninja -B build_poisson_leapfrog -DPICLAS_INSTRUCTION=-mtune=generic -DPOSTI_BUILD_PICLAS2VTK=OFF -DPOSTI_BUILD_SUPERB=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DCMAKE_BUILD_TYPE=Release -DLIBS_USE_MPI=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DCMAKE_INSTALL_PREFIX=/usr
 
-    - name: Build Piclas Poisson Leapfrog
+    - name: Build PICLas Poisson Leapfrog
       shell: bash
       run: |
         source ~/.bashrc
@@ -250,7 +257,7 @@ jobs:
         cd build_single
 
         # Declare an array of strings
-        declare -a PROGS=("piclas2vtk" "superB")
+        declare -a PROGS=("piclas2vtk")
 
         # Iterate the string array
         for PROG in ${PROGS[@]}; do
@@ -363,7 +370,7 @@ jobs:
         cd build_poisson_leapfrog
 
         # Declare an array of strings
-        declare -a PROGS=("piclas")
+        declare -a PROGS=("piclas" "superB")
 
         # Iterate the string array
         for PROG in ${PROGS[@]}; do
@@ -391,7 +398,7 @@ jobs:
         mkdir artifacts
         mkdir release-assets
         cp build_single/piclas2vtk*x86_64.AppImage piclas2vtk
-        cp build_single/superB*x86_64.AppImage superB
+        cp build_poisson_leapfrog/superB*x86_64.AppImage superB
         cp build_DSMC/piclas-*x86_64.AppImage piclasDSMC
         cp build_BGK/piclas-*x86_64.AppImage piclasBGK
         cp build_FP/piclas-*x86_64.AppImage piclasFP
@@ -411,7 +418,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: piclas-binaries-v3.5.0
+        name: piclas-binaries-v3.6.0
         path: artifacts
 
     - name: Upload release asset
@@ -424,4 +431,3 @@ jobs:
         asset_path: ./release-assets/piclas-linux64.zip
         asset_name: piclas-linux64.zip
         asset_content_type: application/zip
-

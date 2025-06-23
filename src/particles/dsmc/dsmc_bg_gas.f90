@@ -46,14 +46,15 @@ CALL prms%CreateLogicalOption(  'Particles-BGGas-UseDistribution', &
                                       'Utilization of a cell-local background gas distribution as read-in from a previous '//&
                                       'DSMC/BGK result using Particles-MacroscopicRestart', '.FALSE.')
 ! Backgroun gas regions
-CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                    ,'Number of background gas regions', '0')
-CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'              ,'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'          ,'Outer radius'                 , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'         ,'Inner radius (e.g. for a ring)' , '0.', numberedmulti=.TRUE.)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'       , 'Base point'         , numberedmulti=.TRUE., no=3)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'     , 'First base vector'  , numberedmulti=.TRUE., no=3)
-CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'     , 'Second base vector' , numberedmulti=.TRUE., no=3)
-CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC'  ,'Third measure of cylinder', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Particles-BGGas-nRegions'                   , 'Number of background gas regions'                                              , '0')
+CALL prms%CreateStringOption(   'Particles-BGGas-Region[$]-Type'             , 'Keyword for particle space condition of species [$] in case of multiple inits' , 'cylinder'            , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-RadiusIC'         , 'Outer radius'                                                                  , numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-Radius2IC'        , 'Inner radius (e.g. for a ring)'                                                , '0.'                  , numberedmulti=.TRUE.)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BasePointIC'      , 'Base point'                                                                    , numberedmulti=.TRUE.  , no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector1IC'    , 'First base vector'                                                             , numberedmulti=.TRUE.  , no=3)
+CALL prms%CreateRealArrayOption('Particles-BGGas-Region[$]-BaseVector2IC'    , 'Second base vector'                                                            , numberedmulti=.TRUE.  , no=3)
+CALL prms%CreateRealOption(     'Particles-BGGas-Region[$]-CylinderHeightIC' , 'Third measure of cylinder'                                                     , numberedmulti=.TRUE.)
+CALL prms%CreateStringOption(   'BGGas-DriftDiff-Database'                   , 'Define database containing the drift-diffusion transport coefficients')
 END SUBROUTINE DefineParametersBGG
 
 
@@ -64,11 +65,21 @@ SUBROUTINE BGGas_Initialize()
 !===================================================================================================================================
 ! MODULES
 USE MOD_ReadInTools
-USE MOD_Globals               ,ONLY: abort
+USE MOD_Globals
+USE MOD_io_hdf5
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
+#ifdef drift_diffusion
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_StringTools           ,ONLY: STRICMP
+USE MOD_Particle_Vars         ,ONLY: SpeciesDatabase
+USE MOD_Transport_Data        ,ONLY: InterpolateCoefficient
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#endif /*drift_diffusion*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -79,6 +90,25 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER           :: iSpec, bgSpec, iElem
 REAL              :: SpeciesDensTmp(1:nSpecies)
+
+#ifdef drift_diffusion
+INTEGER                                               :: err
+CHARACTER(LEN=255)                                    :: datasetname
+CHARACTER(LEN=255)                                    :: DatabaseSpeciesName
+CHARACTER(LEN=255), DIMENSION(:), ALLOCATABLE         :: datasetsNamesList
+INTEGER(HSIZE_T), DIMENSION(2)                        :: dims,sizeMax
+INTEGER(HID_T)                                        :: file_id_fv                       ! File identifier
+INTEGER(HID_T)                                        :: dset_id_fv                       ! Dataset identifier
+INTEGER(HID_T)                                        :: filespace                        ! filespace identifier
+REAL,ALLOCATABLE                                      :: DriftDiffCoefs(:,:)
+REAL,ALLOCATABLE                                      :: TempDiffusion(:,:)
+REAL,ALLOCATABLE                                      :: TempEnergy(:,:)
+REAL,ALLOCATABLE                                      :: TempMobility(:,:)
+INTEGER                                               :: iDataset
+LOGICAL                                               :: DataSetFound
+REAL                                                  :: SumNumberDensity
+REAL                                                  :: eps_rel=5e-5
+#endif
 !===================================================================================================================================
 
 ! 0.) Variable read-in
@@ -86,8 +116,8 @@ IF(BGGas%UseDistribution) MacroRestartFileName = GETSTR('Particles-MacroscopicRe
 
 ! 1.) Check compatibility with other features and whether required parameters have been read-in
 IF(UseVarTimeStep) THEN
-  IF(.NOT.VarTimeStep%UseSpeciesSpecific) CALL abort(__STAMP__, &
-    'ERROR: Variable timestep (except species-specific) are not implemented with a background gas yet!')
+  IF(.NOT.VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%UseLinearScaling) CALL abort(__STAMP__, &
+    'ERROR: Variable timestep (except species-specific and linear scaling in 3D) is not implemented with a background gas yet!')
 END IF
 
 DO iSpec = 1, nSpecies
@@ -157,6 +187,115 @@ DO bgSpec = 1, BGGas%NumberOfSpecies
     END IF ! SUM(SpeciesDensTmp).GT.0.
   END IF
 END DO ! bgSpec = 1, BGGas%NumberOfSpecies
+
+! 6.) Read-in/convert drift diffusion coefficients
+#ifdef drift_diffusion
+IF(STRICMP(TRIM(SpeciesDatabase),'none')) CALL CollectiveStop(__STAMP__,&
+  'Particles-Species-Database must be set when using BGGas-DriftDiff-Database.')
+BGGas%DatabaseName = TRIM(GETSTR('BGGas-DriftDiff-Database'))
+! Loop through the array and create combination of species for database access
+DatabaseSpeciesName = ''
+DO iSpec = 1, nSpecies
+  IF(BGGas%BackgroundSpecies(iSpec)) THEN
+    DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // TRIM(Species(iSpec)%Name)
+    IF (iSpec < nSpecies) then
+        DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // '-'
+    END IF
+  END IF
+END DO
+DatabaseSpeciesName = TRIM(DatabaseSpeciesName) // 'electron'
+! walk through all available datasets and save existing ones
+ALLOCATE(datasetsNamesList(4))
+datasetsNamesList = (/ 'DIFFUSION ', 'IONIZATION', 'MOBILITY  ', 'ENERGY    ' /)
+! Initialize FORTRAN interface.
+CALL H5OPEN_F(err)
+CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_fv, err)
+DO iDataset =1, 4
+  datasetname = TRIM('/Diffusion-Coefficients/'//TRIM(DatabaseSpeciesName)//'/'//TRIM(BGGas%DatabaseName)//'/'//TRIM(datasetsNamesList(iDataset)))
+  CALL DatasetExists(file_id_fv,TRIM(datasetname),DataSetFound)
+  IF(DataSetFound)THEN
+    LBWRITE(UNIT_StdOut,'(A)') ' | Read diffusion coefficient entries '//TRIM(datasetname)//' from '//TRIM(SpeciesDatabase)
+    ! Open the  dataset.
+    CALL H5DOPEN_F(file_id_fv, datasetname, dset_id_fv, err)
+    ! Get the file space of the dataset.
+    CALL H5DGET_SPACE_F(dset_id_fv, FileSpace, err)
+    ! get size
+    CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+    ALLOCATE (DriftDiffCoefs(1:dims(1),1:dims(2)))
+    ! read data
+    CALL H5dread_f(dset_id_fv, H5T_NATIVE_DOUBLE, DriftDiffCoefs, dims, err)
+    ! save found dataset in temporary array
+    IF(STRICMP(TRIM(datasetsNamesList(iDataset)),'DIFFUSION'))THEN
+      ALLOCATE(TempDiffusion(2,1:dims(2)))
+      TempDiffusion                        = DriftDiffCoefs
+    ELSE IF (STRICMP(TRIM(datasetsNamesList(iDataset)),'ENERGY'))THEN
+      ALLOCATE(TempEnergy(2,1:dims(2)))
+      TempEnergy                           = DriftDiffCoefs
+    ELSE IF (STRICMP(TRIM(datasetsNamesList(iDataset)),'IONIZATION'))THEN
+      ALLOCATE(BGGas%ReducedTownsendCoefficient( 1:dims(1), 1:dims(2)) )
+      BGGas%ReducedTownsendCoefficient     = DriftDiffCoefs
+    ELSE IF (STRICMP(TRIM(datasetsNamesList(iDataset)),'MOBILITY'))THEN
+      ALLOCATE(TempMobility(2,1:dims(2)))
+      TempMobility                         = DriftDiffCoefs
+    END IF
+  END IF
+  IF(ALLOCATED(DriftDiffCoefs))THEN
+    DEALLOCATE(DriftDiffCoefs)
+  END IF
+END DO
+SumNumberDensity = 0
+DO iSpec = 1, BGGas%NumberOfSpecies
+  SumNumberDensity = SumNumberDensity + BGGas%NumberDensity(iSpec)
+END DO
+! find given combination of arrays and store in BGGas container
+IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempEnergy))THEN
+  ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempEnergy(1,:))))
+  BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
+  BGGas%DriftDiffusionCoefficient(2,:) = TempDiffusion(2,:) / SumNumberDensity
+  BGGas%ElectronMobility(1,:)          = TempEnergy(1,:)
+  BGGas%ElectronMobility(2,:)          = 1 / TempEnergy(2,:) * TempDiffusion(2,:) / SumNumberDensity
+  IF(ALLOCATED(TempMobility))THEN ! sanity check if more datasets are given - currently only for LXCat created datasets
+    IF(ANY(.NOT.ALMOSTEQUALRELATIVE(TempMobility(2,:) / SumNumberDensity,BGGas%ElectronMobility(2,:),eps_rel)))THEN
+        CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+                             'Please check species database!')
+    END IF
+  END IF
+ELSE IF(ALLOCATED(TempMobility).AND.ALLOCATED(TempEnergy))THEN
+  ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempEnergy(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
+  BGGas%DriftDiffusionCoefficient(1,:) = TempEnergy(1,:)
+  BGGas%DriftDiffusionCoefficient(2,:) = TempEnergy(2,:) * TempMobility(2,:) / SumNumberDensity
+  BGGas%ElectronMobility(1,:)          = TempMobility(1,:)
+  BGGas%ElectronMobility(2,:)          = TempMobility(2,:) / SumNumberDensity
+  IF(ALLOCATED(TempDiffusion))THEN ! sanity check if more datasets are given
+    IF(ANY(.NOT.ALMOSTEQUALRELATIVE(TempDiffusion(2,:) / SumNumberDensity,BGGas%DriftDiffusionCoefficient(2,:),eps_rel)))THEN
+      CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+                           'Please check species database!')
+    END IF
+  END IF
+ELSE IF(ALLOCATED(TempDiffusion).AND.ALLOCATED(TempMobility))THEN
+  ALLOCATE(BGGas%DriftDiffusionCoefficient(2,SIZE(TempDiffusion(1,:))), BGGas%ElectronMobility(2,SIZE(TempMobility(1,:))))
+  BGGas%DriftDiffusionCoefficient(1,:) = TempDiffusion(1,:)
+  BGGas%DriftDiffusionCoefficient(2,:) = TempDiffusion(2,:) / SumNumberDensity
+  BGGas%ElectronMobility(1,:)          = TempMobility(1,:)
+  BGGas%ElectronMobility(2,:)          = TempMobility(2,:) / SumNumberDensity
+  IF(ALLOCATED(TempEnergy))THEN ! sanity check if more datasets are given
+    IF(ANY(.NOT.ALMOSTEQUALRELATIVE(TempEnergy(2,:),BGGas%DriftDiffusionCoefficient(2,:)/BGGas%ElectronMobility(2,:),eps_rel)))THEN
+      CALL Abort(__STAMP__,'Combination of existing datasets did not result in same results !'//&
+                           'Please check species database!')
+    END IF
+  END IF
+ELSE
+  CALL Abort(__STAMP__,'Combination of datasets not possible to calculate D and mu!'//&
+  'Please check species database!')
+END IF
+IF(ALLOCATED(TempDiffusion)) DEALLOCATE(TempDiffusion)
+IF(ALLOCATED(TempEnergy)) DEALLOCATE(TempEnergy)
+IF(ALLOCATED(TempMobility)) DEALLOCATE(TempMobility)
+! Close the file.
+CALL H5FCLOSE_F(file_id_fv, err)
+! Close FORTRAN interface.
+CALL H5CLOSE_F(err)
+#endif
 
 END SUBROUTINE BGGas_Initialize
 
@@ -441,7 +580,7 @@ DO iLoop = 1, nPart
   iPart = PEM%pNext(iPart)
 END DO
 
-IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors) THEN
+IF((((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC%CalcQualityFactors)) THEN
   ! 1. Case: Inelastic collisions and chemical reactions with the Gimelshein relaxation procedure and variable vibrational
   !           relaxation probability (CalcGammaVib)
   ! 2. Case: Chemical reactions and backward rate require cell temperature for the partition function and equilibrium constant
@@ -461,7 +600,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
       END IF
     END IF
   END DO
-  IF(SelectionProc.EQ.2) CALL CalcGammaVib()
+  IF(SelectionProc.EQ.2.AND..NOT.(DSMC%VibAHO)) CALL CalcGammaVib()
 END IF
 
 DO iSpec = 1, nSpecies
@@ -486,12 +625,9 @@ DO iPair = 1, nPair
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   CollInf%Coll_CaseNum(iCase) = CollInf%Coll_CaseNum(iCase) + 1 !sum of coll case (Sab)
   CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + GetParticleWeight(Coll_pData(iPair)%iPart_p1)
-  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
-                            + (PartState(5,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
-                            + (PartState(6,Coll_pData(iPair)%iPart_p1) &
-                            -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
+  Coll_pData(iPair)%CRela2 = (PartState(4,Coll_pData(iPair)%iPart_p1) -  PartState(4,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(5,Coll_pData(iPair)%iPart_p1) -  PartState(5,Coll_pData(iPair)%iPart_p2))**2 &
+                           + (PartState(6,Coll_pData(iPair)%iPart_p1) -  PartState(6,Coll_pData(iPair)%iPart_p2))**2
   Coll_pData(iPair)%PairType = iCase
   Coll_pData(iPair)%NeedForRec = .FALSE.
 END DO
@@ -505,7 +641,7 @@ DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL DSMC_prob_calc(iElem, iPair)
     CALL RANDOM_NUMBER(iRan)
-    IF (Coll_pData(iPair)%Prob.ge.iRan) THEN
+    IF (Coll_pData(iPair)%Prob.GE.iRan) THEN
       CALL DSMC_perform_collision(iPair,iElem)
     END IF
   END IF
@@ -527,7 +663,7 @@ IF(DSMC%CalcQualityFactors) THEN
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
-    ! In case of a reservoir simulation, MeanCollProb is the ouput in PartAnalyze
+    ! In case of a reservoir simulation, MeanCollProb is the output in PartAnalyze
     ! Otherwise it is the ResolvedTimestep
     DSMC%ResolvedTimestepCounter = DSMC%ResolvedTimestepCounter + 1
   END IF
@@ -596,7 +732,7 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib, CalcMeanFreePath
+USE MOD_DSMC_Analyze           ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, PartStateIntEn, DSMC
 USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas

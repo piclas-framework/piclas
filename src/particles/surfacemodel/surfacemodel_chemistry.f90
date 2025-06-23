@@ -156,6 +156,8 @@ DO iBound=1, nPartBound
   SurfChem%PSMap(iBound)%PureSurfReac = .FALSE.
 END DO
 
+SurfChemReac(:)%CatName = 'empty'
+
 ! Probability based surface chemistry model
 ALLOCATE(SurfChem%EventProbInfo(nSpecies))
 SurfChem%EventProbInfo(:)%NumOfReactionPaths = 0
@@ -243,7 +245,8 @@ IF (SpeciesDatabase.EQ.'none') THEN
   SurfChem%OverwriteCatParameters = .TRUE.
 END IF
 
-IF(SpeciesDatabase.NE.'none') THEN
+! Read-in parameter for reactive surface model only, else set OverwriteCatParameters to TRUE
+IF(SpeciesDatabase.NE.'none'.AND.SurfChem%CatBoundNum.GT.0) THEN
   CALL H5OPEN_F(err)
 
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
@@ -417,6 +420,8 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FCLOSE_F(file_id_specdb, err)
   ! Close FORTRAN interface.
   CALL H5CLOSE_F(err)
+ELSE
+  SurfChem%OverwriteCatParameters = .TRUE.
 END IF !SpeciesDatabase
 
 IF(SurfChem%OverwriteCatParameters) THEN
@@ -1189,7 +1194,7 @@ IMPLICIT NONE
 INTEGER                         :: iSpec,iProc,SideID,iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
 INTEGER                         :: nValues, SurfChemVarNum, SurfChemSampSize
-INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
+TYPE(MPI_Request)               :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -1273,12 +1278,12 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
-      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
 
     IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
   END DO ! iProc

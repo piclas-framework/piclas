@@ -177,7 +177,7 @@ CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., Display
 END SUBROUTINE WriteTimeAverage
 
 
-SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut)
+SUBROUTINE GenerateFileSkeleton(TypeString,nVar,StrVarNames,MeshFileName,OutputTime,FileNameIn,WriteUserblockIn,NIn,NodeType_in,FileNameOut,ContainerName)
 !===================================================================================================================================
 ! Subroutine that generates the output file on a single processor and writes all the necessary attributes (better MPI performance)
 !===================================================================================================================================
@@ -212,6 +212,7 @@ REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
 CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
+CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: ContainerName      ! Name of the container (default: DG_Solution)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -254,7 +255,12 @@ Dimsf=(/nVar,Nloc+1,Nloc+1,Nloc+1,nGlobalElems/)
 CALL H5SCREATE_SIMPLE_F(5, Dimsf, FileSpace, iError)
 ! Create the dataset with default properties.
 HDF5DataType=H5T_NATIVE_DOUBLE
-CALL H5DCREATE_F(File_ID,'DG_Solution', HDF5DataType, FileSpace, DSet_ID, iError)
+! Default container name
+IF (PRESENT(ContainerName)) THEN
+  CALL H5DCREATE_F(File_ID,TRIM(ContainerName), HDF5DataType, FileSpace, DSet_ID, iError)
+ELSE
+  CALL H5DCREATE_F(File_ID,'DG_Solution', HDF5DataType, FileSpace, DSet_ID, iError)
+END IF
 ! Close the filespace and the dataset
 CALL H5DCLOSE_F(Dset_id, iError)
 CALL H5SCLOSE_F(FileSpace, iError)
@@ -908,7 +914,8 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)                   :: FileName,DataSetName
 LOGICAL,INTENT(IN)                            :: collective
-INTEGER,INTENT(IN)                            :: offSetDim,communicator
+INTEGER,INTENT(IN)                            :: offSetDim
+TYPE(mpi_comm),INTENT(IN)                     :: communicator
 INTEGER,INTENT(IN)                            :: rank
 INTEGER(KIND=IK),INTENT(IN)                   :: nValGlobal(rank)               ! max size of array in offset dimension
 INTEGER(KIND=IK),INTENT(IN)                   :: nVal(rank)                     ! size of complete (local) array to write
@@ -921,8 +928,9 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL,TARGET :: StrArray( PRODUCT(nVal))
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: Color, OutPutCOMM,nOutPutProcs,MyOutputRank
+INTEGER                        :: Color,nOutPutProcs,MyOutputRank
 LOGICAL                        :: DataOnProc, DoNotSplit
+TYPE(mpi_comm)                 :: OutPutCOMM
 !===================================================================================================================================
 
 DataOnProc=.FALSE.
@@ -967,7 +975,7 @@ IF(.NOT.DoNotSplit)THEN
   END IF
   ! MPI Barrier is required, that the other procs don't open the datafile while this procs are still writing
   CALL MPI_BARRIER(COMMUNICATOR,IERROR)
-  OutputCOMM=MPI_UNDEFINED
+  OutputCOMM=MPI_COMM_NULL
 ELSE
 ! 3: else write with all procs of the given communicator
   ! communicator_opt has to be the given communicator or else procs that are not in the given communicator might block the write out

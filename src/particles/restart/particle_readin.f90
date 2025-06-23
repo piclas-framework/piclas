@@ -107,7 +107,7 @@ INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
 #if USE_LOADBALANCE
 ! LoadBalance
 INTEGER(KIND=IK)                   :: PartRank
-INTEGER                            :: offsetPartSend,offsetPartRecv
+INTEGER                            :: offsetPartSend,offsetPartRecv,CNElemID
 INTEGER,PARAMETER                  :: N_variables=1
 REAL,ALLOCATABLE                   :: NodeSourceExtEquiLBTmp(:,:,:,:,:)
 INTEGER                            :: NodeID(1:8)
@@ -121,7 +121,8 @@ INTEGER,ALLOCATABLE                :: VibQuantDataTmp(:,:)
 REAL,ALLOCATABLE                   :: ElecDistriDataTmp(:,:)
 REAL,ALLOCATABLE                   :: AD_DataTmp(:,:)
 ! Custom data type
-INTEGER                            :: MPI_LENGTH(1),MPI_TYPE(1),MPI_STRUCT
+INTEGER                            :: MPI_LENGTH(1)
+TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 CHARACTER(LEN=32)                  :: hilf
@@ -217,7 +218,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Loop over all elements and store absolute charge values in equidistantly distributed nodes of PP_N=1
     DO iElem=1,PP_nElems
       ! Copy values to equidistant distribution
-      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
       NodeSourceExt(NodeID(1)) = NodeSourceExtEquiLBTmp(1,0,0,0,iElem)
       NodeSourceExt(NodeID(2)) = NodeSourceExtEquiLBTmp(1,1,0,0,iElem)
       NodeSourceExt(NodeID(3)) = NodeSourceExtEquiLBTmp(1,1,1,0,iElem)
@@ -683,6 +685,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+CHARACTER(LEN=9)          :: dsetname = 'CloneData'
 INTEGER                   :: nDimsClone, CloneDataSize, ClonePartNum, iPart, iDelay, maxDelay, iElem, tempDelay, iPos
 INTEGER(HSIZE_T), POINTER :: SizeClone(:)
 REAL,ALLOCATABLE          :: CloneData(:,:)
@@ -697,7 +700,7 @@ ParameterExists = .FALSE.
 ResetClones = .FALSE.
 
 ! Determining whether clones have been written to State file
-CALL DatasetExists(File_ID,'CloneData',ClonesExist)
+CALL DatasetExists(File_ID,dsetname,ClonesExist)
 IF(.NOT.ClonesExist) THEN
   LBWRITE(*,*) 'No clone data found! Restart without cloning.'
   ResetClones = .TRUE.
@@ -711,9 +714,9 @@ IF(ClonesExist.AND..NOT.PerformLoadBalance) THEN
 IF(ClonesExist) THEN
 #endif /*USE_LOADBALANCE*/
   ! Determining the old time step
-  CALL DatasetExists(File_ID,'ManualTimeStep',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  CALL AttributeExists(File_ID,'ManualTimeStep',TRIM(dsetname), AttrExists=ParameterExists)
   IF(ParameterExists) THEN
-    CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName='CloneData')
+    CALL ReadAttribute(File_ID,'ManualTimeStep',1,RealScalar=OldParameter,DatasetName=dsetname)
     IF(OldParameter.NE.ManualTimeStep) THEN
       ResetClones = .TRUE.
       LBWRITE(*,*) 'Changed timestep of read-in CloneData. Resetting the array to avoid wrong cloning due to different time steps.'
@@ -725,9 +728,9 @@ IF(ClonesExist) THEN
   ParameterExists = .FALSE.
 
   ! Determining the old weighting factor
-  CALL DatasetExists(File_ID,'WeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+  CALL AttributeExists(File_ID,'WeightingFactor',TRIM(dsetname), AttrExists=ParameterExists)
   IF(ParameterExists) THEN
-    CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+    CALL ReadAttribute(File_ID,'WeightingFactor',1,RealScalar=OldParameter,DatasetName=dsetname)
     ! Only checking the weighting factor of the first species
     IF(OldParameter.NE.Species(1)%MacroParticleFactor) THEN
       ResetClones = .TRUE.
@@ -741,9 +744,9 @@ IF(ClonesExist) THEN
 
   ! Determining the old radial weighting factor
   IF(DoRadialWeighting) THEN
-    CALL DatasetExists(File_ID,'RadialWeightingFactor',ParameterExists,attrib=.TRUE.,DSetName_attrib='CloneData')
+    CALL AttributeExists(File_ID,'RadialWeightingFactor',TRIM(dsetname), AttrExists=ParameterExists)
     IF(ParameterExists) THEN
-      CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName='CloneData')
+      CALL ReadAttribute(File_ID,'RadialWeightingFactor',1,RealScalar=OldParameter,DatasetName=dsetname)
       IF(OldParameter.NE.ParticleWeighting%ScaleFactor) THEN
         ResetClones = .TRUE.
         LBWRITE(*,*) 'Changed radial weighting factor of read-in CloneData. Resetting the array.'
@@ -770,7 +773,7 @@ IF(ResetClones) THEN
   END IF
 END IF
 
-CALL GetDataSize(File_ID,'CloneData',nDimsClone,SizeClone)
+CALL GetDataSize(File_ID,dsetname,nDimsClone,SizeClone)
 
 CloneDataSize = INT(SizeClone(1),4)
 ClonePartNum = INT(SizeClone(2),4)
@@ -792,7 +795,7 @@ IF(ClonePartNum.GT.0) THEN
   ALLOCATE(CloneData(1:CloneDataSize,1:ClonePartNum))
   ASSOCIATE(ClonePartNum  => INT(ClonePartNum,IK)  ,&
             CloneDataSize => INT(CloneDataSize,IK) )
-    CALL ReadArray('CloneData',2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
+    CALL ReadArray(dsetname,2,(/CloneDataSize,ClonePartNum/),0_IK,2,RealArray=CloneData)
   END ASSOCIATE
   LBWRITE(*,*) 'Read-in of cloned particles complete. Total clone number: ', ClonePartNum
   ! Determing the old clone delay

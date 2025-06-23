@@ -29,6 +29,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 !----------------------------------------------------------------------------------------------------------------------------------
 
+#if !(USE_FV) || (USE_HDG)
 #if (PP_nVar>=6)
 INTERFACE CalcPoyntingIntegral
   MODULE PROCEDURE CalcPoyntingIntegral
@@ -46,6 +47,8 @@ INTERFACE CalcPotentialEnergy_Dielectric
 END INTERFACE
 
 PUBLIC:: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+#endif /*no FV alone*/
+
 PUBLIC:: AnalyzeField
 #if USE_HDG
 PUBLIC:: GetAverageElectricPotentialPlane,CalculateAverageElectricPotential,FinalizeAverageElectricPotential
@@ -377,6 +380,7 @@ END IF
 
 END SUBROUTINE AnalyzeField
 
+#if !(USE_FV) || (USE_HDG)
 #if (PP_nVar>=6)
 SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral,doProlong)
 !===================================================================================================================================
@@ -882,8 +886,8 @@ USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
 #if !(USE_HDG)
-USE MOD_DG_Vars,            ONLY : U
-#endif /*PP_nVar=8*/
+USE MOD_DG_Vars            ,ONLY: U
+#endif /*HDG*/
 #if USE_HDG
 #if PP_nVar==1
 USE MOD_Equation_Vars      ,ONLY: E
@@ -1796,6 +1800,7 @@ END DO ! iEDCBC = 1, EDC%NBoundaries
 
 END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
+#endif /*no FV alone*/
 
 !===================================================================================================================================
 !> Determine the field boundary output (BFO) values for the given iBC

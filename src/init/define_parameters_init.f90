@@ -48,13 +48,21 @@ USE MOD_Analyze                    ,ONLY: DefineParametersAnalyze
 USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDiscInit               ,ONLY: DefineParametersTimeDisc
 USE MOD_Mesh                       ,ONLY: DefineParametersMesh
+#if !(USE_FV) || (USE_HDG)
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
-#if !(USE_HDG)
+#endif
+#if USE_FV
+USE MOD_Equation_FV                ,ONLY: DefineParametersEquation_FV
+#endif
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*USE_HDG*/
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
+#if USE_FV
+USE MOD_Gradients                  ,ONLY: DefineParametersGradients
+#endif
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
@@ -82,9 +90,6 @@ USE MOD_Particle_TimeStep          ,ONLY: DefineParametersVariableTimeStep
 USE MOD_SuperB_Init                ,ONLY: DefineParametersSuperB
 USE MOD_SurfaceModel_Chemistry     ,ONLY: DefineParametersSurfaceChemistry
 USE MOD_RayTracing_Init            ,ONLY: DefineParametersRayTracing
-#if USE_MPI
-USE mod_readIMD                    ,ONLY: DefineParametersReadIMDdata
-#endif
 #endif
 #if (PP_TimeDiscMethod==600)
 USE MOD_RadiationTrans_Init        ,ONLY: DefineParametersRadiationTrans
@@ -120,13 +125,21 @@ CALL DefineParametersOutput()
 CALL DefineParametersPiclas()
 CALL DefineParametersTimeDisc()
 CALL DefineParametersMesh()
+#if !(USE_FV) || (USE_HDG)
 CALL DefineParametersEquation()
-#if !(USE_HDG)
+#endif
+#if USE_FV
+CALL DefineParametersEquation_FV()
+#endif
+#if !(USE_HDG) && !(USE_FV)
 CALL DefineParametersPML()
 #endif /*USE_HDG*/
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
+#if USE_FV
+CALL DefineParametersGradients()
+#endif
 CALL DefineParametersDielectric()
 CALL DefineParametersAnalyze()
 CALL DefineParametersRecordPoints()
@@ -163,9 +176,6 @@ CALL DefineParametersRadiationTrans()
 CALL DefineParametersSurfModel()
 CALL DefineParametersSurfModelAnalyze()
 CALL DefineParametersSurfaceChemistry()
-#if USE_MPI && defined(PARTICLES)
-CALL DefineParametersReadIMDdata()
-#endif /* USE_MPI */
 #endif
 
 SWRITE(UNIT_stdOut,'(132("="))')

@@ -11,6 +11,7 @@ BC-field-solver.md
 BC-particle-solver.md
 particle-initialization-and-emission.md
 PIC.md
+drift-diffusion.md
 magnetic-background-field.md
 DSMC.md
 BGG.md

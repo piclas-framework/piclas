@@ -17,6 +17,9 @@ MODULE MOD_RayTracing_Vars
 ! Contains the tadiation transport variables
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -84,9 +87,9 @@ INTEGER              :: RayPartBound                   !< Particle boundary ID w
 INTEGER,PARAMETER    :: RayElemSize=6
 REAL, ALLOCATABLE    :: RayElemPassedEnergy(:,:)       !<
 #if USE_MPI
-INTEGER              :: RayElemPassedEnergy_Shared_Win    !<
+TYPE(MPI_Win)        :: RayElemPassedEnergy_Shared_Win    !<
 REAL,POINTER         :: RayElemPassedEnergy_Shared(:,:)   !<
-INTEGER              :: RayElemPassedEnergyHO_Shared_Win  !< high-order sampling
+TYPE(MPI_Win)        :: RayElemPassedEnergyHO_Shared_Win  !< high-order sampling
 REAL,POINTER         :: RayElemPassedEnergyHO_Shared(:,:) !< high-order sampling
 INTEGER,ALLOCATABLE  :: RayElemOffset(:)                  !< Entry offset for high-order sampling
 #endif
@@ -103,7 +106,7 @@ INTEGER,PARAMETER    :: nVarRay=5                      !< Number of variables fo
 INTEGER,ALLOCATABLE  :: N_DG_Ray_loc(:)                !< for output to ElemData and usage in emission routines
 INTEGER,ALLOCPOINT   :: N_DG_Ray(:)                    !< polynomial degree inside DG element for higher-order sampling for volume ray tracing, size(nElems)
 #if USE_MPI
-INTEGER              :: N_DG_Ray_Shared_Win
+TYPE(MPI_Win)        :: N_DG_Ray_Shared_Win
 INTEGER,ALLOCPOINT   :: N_DG_Ray_Shared(:)
 #endif
 
