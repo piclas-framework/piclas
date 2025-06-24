@@ -26,10 +26,12 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: WriteStateToHDF5
+#if !(PP_TimeDiscMethod==700)
+PUBLIC :: WriteTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
 #if defined(PARTICLES)
 PUBLIC :: WriteElemDataToSeparateContainer
 #endif /*PARTICLES*/
-PUBLIC :: WriteTimeAverage
 !===================================================================================================================================
 
 CONTAINS
@@ -43,12 +45,26 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime,InitialAutoRest
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+#if USE_FV
+USE MOD_FV_Vars                ,ONLY: U_FV
+USE MOD_Gradients              ,ONLY: GetGradients
+USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
+#endif
+#if !(USE_FV) || (USE_HDG)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_DG_Vars                ,ONLY: U_N
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif
 USE MOD_Globals_Vars           ,ONLY: ProjectName
 USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_Restart_Vars           ,ONLY: RestartFile,DoInitialAutoRestart
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars           ,ONLY: OutputSource,PS_N
@@ -69,6 +85,10 @@ USE MOD_HDF5_Output_Particles  ,ONLY: WriteLostParticlesToHDF5,WriteEmissionVari
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars              ,ONLY: nElems
+#ifdef discrete_velocity
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
+USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
+#endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseFPC,FPC,UseEPC,EPC
 #if PP_nVar==1
@@ -92,7 +112,9 @@ USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPoten
 #endif /*PARTICLES*/
 #else
 #endif /*USE_HDG*/
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_vars                ,ONLY: N_DG_Mapping,nDofsMapping
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
@@ -105,7 +127,7 @@ USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 USE MOD_ChangeBasis            ,ONLY : ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
 USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
 #if USE_HDG
@@ -114,7 +136,7 @@ USE MOD_HDF5_Output_Fields     ,ONLY: WriteSurfVDLToHDF5
 USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -143,6 +165,12 @@ INTEGER                        :: nVar
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
+#if USE_FV
+REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
+#endif
+#ifdef discrete_velocity
+REAL                           :: tau,dtMV
+#endif /*DVM*/
 INTEGER                        :: i,j,k
 #if USE_HDG
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
@@ -177,7 +205,7 @@ END IF
 !                          2. went missing during restart: TotalNbrOfMissingParticlesSum > 0
 IF(CountNbrOfLostParts)THEN
   IF((NbrOfNewLostParticlesTotal.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0))THEN
-    CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
+   CALL WriteLostParticlesToHDF5(MeshFileName,OutputTime_loc)
   END IF ! (NbrOfNewLostParticlesTotal.GT.0).OR.(TotalNbrOfMissingParticlesSum.GT.0)
 END IF
 ! Output total number of particles here, if DoWriteStateToHDF5=F. Otherwise the info will be displayed at the end of this routine
@@ -210,18 +238,33 @@ NOut = PP_N
 nVarOut = 7
 NOut = PP_N
 #endif  /*PP_nVar==1*/
-#else /*USE_HDG*/
+#elif defined(discrete_velocity) /*DVM*/
+  nVarOut = 15
+  NOut = PP_1
+  IF (time.EQ.0.) THEN
+    dtMV = 0.
+  ELSE
+    dtMV = dt
+  ENDIF
+#else /*not USE_HDG*/
 ! maxwell
 nVarOut = PP_nVar
 NOut = NMax
 #endif /*USE_HDG*/
 
+#if defined(discrete_velocity) /*DVM*/
+ASSOCIATE( StrVarNames => StrVarNames_FV )
+#endif /*DVM*/
 IF(InitialAutoRestart) THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
   CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut,FileNameIn=FileName)
 ELSE
   CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut,FileNameOut=FileName)
 END IF
+#if defined(discrete_velocity) /*DVM*/
+END ASSOCIATE
+#endif /*DVM*/
+
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') '['//TRIM(FileName)//'] ...'
 RestartFile=Filename
 ! generate nextfile info in previous output file
@@ -241,6 +284,7 @@ CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #if USE_HDG
 CALL WriteLambdaSolutionSorted(FileName)
 #endif /*USE_HDG*/
+#if !(PP_TimeDiscMethod==700)
 ! ---------------------------------------------------------
 ! Preparing U_N_2D_local array for output as DG_Solution
 ! ---------------------------------------------------------
@@ -256,6 +300,7 @@ END IF
 ! Allocate local 2D array
 ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
 U_N_2D_local = 0. ! Important: Initialize with zero to get the null-container output in the .h5 file if no actual data is written
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 #if USE_HDG
 #if (PP_nVar==1)
@@ -263,8 +308,8 @@ U_N_2D_local = 0. ! Important: Initialize with zero to get the null-container ou
 ! poisson
 ! ---------------------------------------------------------
 #ifdef PARTICLES
-! Adjust electric field for Landmark test case
-IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
+  ! Adjust electric field for Landmark testcase
+  IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
   ! Write into 2D array
   iDOF = 0
   DO iElem = 1, PP_nElems
@@ -279,7 +324,7 @@ IF(useAlgebraicExternalField.AND.AlgebraicExternalField.EQ.1)THEN
       U_N_2D_local(3:4,iDOF) = U_N(iElem)%E(2:3,i,j,k)
     END DO; END DO; END DO
   END DO
-ELSE
+  ELSE
 #endif /*PARTICLES*/
   ! Write into 2D array
   iDOF = 0
@@ -292,27 +337,27 @@ ELSE
     END DO; END DO; END DO
   END DO
 #ifdef PARTICLES
-END IF
+  END IF
 #endif /*PARTICLES*/
 
 #elif (PP_nVar==3)
 ! ---------------------------------------------------------
 ! magnetostatic
 ! ---------------------------------------------------------
-Utemp(1:3,:,:,:,:)=B(1:3,:,:,:,:)
+  Utemp(1:3,:,:,:,:)=B(1:3,:,:,:,:)
 #else /*(PP_nVar==4)*/
 ! ---------------------------------------------------------
 ! magnetostatic_poisson
 ! ---------------------------------------------------------
-Utemp(1,:,:,:,:)  =U(4,:,:,:,:)
-Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
-Utemp(5:7,:,:,:,:)=B(1:3,:,:,:,:)
+  Utemp(1,:,:,:,:)=U(4,:,:,:,:)
+  Utemp(2:4,:,:,:,:)=E(1:3,:,:,:,:)
+  Utemp(5:7,:,:,:,:)=B(1:3,:,:,:,:)
 #endif /*(PP_nVar==1)*/
 #else /*!USE_HDG*/
 ! ---------------------------------------------------------
 ! maxwell
 ! ---------------------------------------------------------
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 ! Write into 2D array
 iDOF = 0
 DO iElem = 1, PP_nElems
@@ -322,8 +367,9 @@ DO iElem = 1, PP_nElems
     U_N_2D_local(1:nVarOut,iDOF) = U_N(iElem)%U(1:nVarOut,i,j,k)
   END DO; END DO; END DO
 END DO
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /*USE_HDG*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 ! ---------------------------------------------------------
 ! Output of DG_Solution
 ! TODO: currently an empty container is written for DSMC/BGK/FP
@@ -333,7 +379,7 @@ ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
           nDofsMapping    => INT(nDofsMapping,IK)      ,&
           nDOFOutput      => INT(nDOFOutput,IK)        ,&
           offsetDOF       => INT(offsetDOF,IK)         )
-CALL GatheredWriteArray(FileName, create = .FALSE.                            , &
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
                         DataSetName = 'DG_Solution' , rank = 2                , &
                         nValGlobal  = (/nVarOut     , nDofsMapping/)          , &
                         nVal        = (/nVarOut     , nDOFOutput/)            , &
@@ -341,31 +387,73 @@ CALL GatheredWriteArray(FileName, create = .FALSE.                            , 
                         collective  = .TRUE.        , RealArray = U_N_2D_local)
 END ASSOCIATE
 SDEALLOCATE(U_N_2D_local)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+
+#if USE_FV
+  ! reconstruct solution using gradients, as done during simulation
+  CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
+  CALL ProlongToOutput(U_FV,Ureco)
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE(N_FV            => INT(PP_1,IK)               ,&
+          nGlobalElems    => INT(nGlobalElems,IK)       ,&
+          PP_nElems       => INT(PP_nElems,IK)          ,&
+          offsetElem      => INT(offsetElem,IK)         ,&
+          PP_nVarTmp_FV   => INT(PP_nVar_FV,IK)          )
+#ifdef discrete_velocity
+  ALLOCATE(Utemp(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems))
+  DO iElem=1,INT(PP_nElems)
+    DO k=0,PP_1
+      DO j=0,PP_1
+        DO i=0,PP_1
+          CALL MacroValuesFromDistribution(Utemp(1:14,i,j,k,iElem),Ureco(:,i,j,k,iElem),dtMV,tau,1)
+          Utemp(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+        END DO
+      END DO
+    END DO
+  END DO
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DVM_Solution', rank=5,&
+      nValGlobal=(/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+      nVal=      (/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK             , 0_IK      , 0_IK      , 0_IK   , offsetElem/)   , &
+      collective=.TRUE.,RealArray=Utemp)
+#endif
+#ifdef drift_diffusion
+  CALL GatheredWriteArray(FileName,create=.FALSE.,&
+      DataSetName='DriftDiffusion_Solution', rank=5,&
+      nValGlobal=(/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+      nVal=      (/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
+      offset=    (/0_IK           , 0_IK     , 0_IK      , 0_IK      , offsetElem/)   , &
+      collective=.TRUE.,RealArray=Ureco)
+#endif
+END ASSOCIATE
+#endif /*USE_FV*/
+
 ! ---------------------------------------------------------
 ! output of last source term
 ! ---------------------------------------------------------
 #ifdef PARTICLES
 #if USE_MPI
-CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
-IF(OutputSource) THEN
+  IF(OutputSource) THEN
   nVarOut = 4
 #if USE_HDG
-  ! Add BR electron fluid density to PartSource for output to state.h5
-  IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
+    ! Add BR electron fluid density to PartSource for output to state.h5
+    IF(UseBRElectronFluid) CALL AddBRElectronFluidToPartSource()
 #endif /*USE_HDG*/
-  ! output of pure current and density
-  ! not scaled with epsilon0 and c_corr
+    ! output of pure current and density
+    ! not scaled with epsilon0 and c_corr
   ALLOCATE(LocalStrVarNames(1:nVarOut))
-  LocalStrVarNames(1)='CurrentDensityX'
-  LocalStrVarNames(2)='CurrentDensityY'
-  LocalStrVarNames(3)='CurrentDensityZ'
-  LocalStrVarNames(4)='ChargeDensity'
-  IF(MPIRoot)THEN
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    LocalStrVarNames(1)='CurrentDensityX'
+    LocalStrVarNames(2)='CurrentDensityY'
+    LocalStrVarNames(3)='CurrentDensityZ'
+    LocalStrVarNames(4)='ChargeDensity'
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'VarNamesSource',nVarOut,StrArray=LocalStrVarnames)
-    CALL CloseDataFile()
-  END IF
+      CALL CloseDataFile()
+    END IF
 
   ! Allocate local 2D array
   ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
@@ -385,7 +473,7 @@ IF(OutputSource) THEN
             nDofsMapping    => INT(nDofsMapping,IK) , &
             nDOFOutput      => INT(nDOFOutput,IK)   , &
             offsetDOF       => INT(offsetDOF,IK)    )
-  CALL GatheredWriteArray(FileName,create = .FALSE.                           , &
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName = 'DG_Source' , rank = 2                , &
                           nValGlobal  = (/nVarOut   , nDofsMapping/)          , &
                           nVal        = (/nVarOut   , nDOFOutput/)            , &
@@ -393,25 +481,25 @@ IF(OutputSource) THEN
                           collective  = .TRUE.      , RealArray = U_N_2D_local)
   END ASSOCIATE
   DEALLOCATE(U_N_2D_local)
-  DEALLOCATE(LocalStrVarNames)
-END IF
+    DEALLOCATE(LocalStrVarNames)
+  END IF
 #endif /*PARTICLES*/
 
 ! ---------------------------------------------------------
 ! Output temporal derivate of the electric field
 ! ---------------------------------------------------------
 #if USE_HDG
-IF(CalcElectricTimeDerivative) THEN
+  IF(CalcElectricTimeDerivative) THEN
   nVarOut = 3
   ALLOCATE(LocalStrVarNames(1:nVarOut))
-  LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
-  LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
-  LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
-  IF(MPIRoot)THEN
-    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    LocalStrVarNames(1)='TimeDerivativeElecDisplacementX'
+    LocalStrVarNames(2)='TimeDerivativeElecDisplacementY'
+    LocalStrVarNames(3)='TimeDerivativeElecDisplacementZ'
+    IF(MPIRoot)THEN
+      CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
     CALL WriteAttributeToHDF5(File_ID,'VarNamesTimeDerivative',nVarOut,StrArray=LocalStrVarnames)
-    CALL CloseDataFile()
-  END IF
+      CALL CloseDataFile()
+    END IF
 
   ! Allocate local 2D array
   ALLOCATE(U_N_2D_local(1:nVarOut,1:nDOFOutput))
@@ -431,7 +519,7 @@ IF(CalcElectricTimeDerivative) THEN
             nDofsMapping    => INT(nDofsMapping,IK) , &
             nDOFOutput      => INT(nDOFOutput,IK)   , &
             offsetDOF       => INT(offsetDOF,IK)    )
-  CALL GatheredWriteArray(FileName,create = .FALSE.                           , &
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
                           DataSetName = 'DG_TimeDerivative' , rank = 2        , &
                           nValGlobal  = (/nVarOut   , nDofsMapping/)          , &
                           nVal        = (/nVarOut   , nDOFOutput/)            , &
@@ -439,8 +527,8 @@ IF(CalcElectricTimeDerivative) THEN
                           collective  = .TRUE.      , RealArray = U_N_2D_local)
   END ASSOCIATE
   DEALLOCATE(U_N_2D_local)
-  DEALLOCATE(LocalStrVarNames)
-END IF
+    DEALLOCATE(LocalStrVarNames)
+  END IF
 ! ---------------------------------------------------------
 ! Calculate the electric VDL surface potential from the particle and electric displacement current
 ! ---------------------------------------------------------
@@ -481,7 +569,7 @@ IF(DoVirtualDielectricLayer)THEN
                           nVal        = (/nVarOut   , nDOFOutput/)            , &
                           offset      = (/0_IK      , offsetDOF/)             , &
                           collective  = .TRUE.      , RealArray = U_N_2D_local)
-  END ASSOCIATE
+END ASSOCIATE
   DEALLOCATE(U_N_2D_local)
   DEALLOCATE(LocalStrVarNames)
 END IF ! DoVirtualDielectricLayer
@@ -674,7 +762,7 @@ END IF
 ! ---------------------------------------------------------
 ! Output of error norms
 ! ---------------------------------------------------------
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
 ! ---------------------------------------------------------
 ! Output for the virtual dielectric layer (VDL)
@@ -684,7 +772,7 @@ IF(OutputErrorNormsToH5) CALL WriteErrorNormsToHDF5(OutputTime_loc)
 IF(DoVirtualDielectricLayer) CALL WriteSurfVDLToHDF5(OutputTime_loc)
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 #if defined(PARTICLES)
 CALL DisplayNumberOfParticles(1)
@@ -1030,6 +1118,7 @@ END SUBROUTINE WriteLambdaSolutionSorted
 #endif /*USE_HDG*/
 
 
+#if !(PP_TimeDiscMethod==700)
 SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,VarNamesFluc,nVar_Avg,nVar_Fluc)
 !==================================================================================================================================
 !> Subroutine to write time averaged data and fluctuations HDF5 format
@@ -1170,5 +1259,6 @@ IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
 GETTIME(endT)
 CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 END SUBROUTINE WriteTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 END MODULE MOD_HDF5_Output_State

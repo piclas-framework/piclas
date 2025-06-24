@@ -74,6 +74,10 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
+#ifdef drift_diffusion
+USE MOD_FV_Vars                ,ONLY: U_FV, Ut_FV
+USE MOD_FV                     ,ONLY: FV_main
+#endif /*drift_diffusion*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -235,6 +239,11 @@ END IF
 
 #endif /*PARTICLES*/
 
+#ifdef drift_diffusion
+CALL FV_main(time,tStage,doSource=.FALSE.)
+U_FV = U_FV + Ut_FV*dt*RK_c(2)
+#endif /*drift_diffusion*/
+
 ! perform RK steps
 DO iStage=2,nRKStages
   tStage=time+dt*RK_c(iStage)
@@ -362,6 +371,16 @@ DO iStage=2,nRKStages
     IF(DoVirtualDielectricLayer) CALL DepositVirtualDielectricLayerParticles()
   END IF ! time.GE.DelayTime
 #endif /*PARTICLES*/
+
+#ifdef drift_diffusion
+  CALL FV_main(time,tStage,doSource=.FALSE.)
+  IF (iStage.NE.nRKStages) THEN
+    U_FV = U_FV + Ut_FV*dt*(RK_c(iStage+1)-RK_c(iStage))
+  ELSE
+    U_FV = U_FV + Ut_FV*dt*(1.-RK_c(nRKStages))
+  END IF
+#endif /*drift_diffusion*/
+
 END DO ! iStage=2,nRKStages
 
 #ifdef PARTICLES

@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_FillMortar
+#if !(USE_FV) || (USE_HDG)
 !===================================================================================================================================
 ! Add comments please!
 !===================================================================================================================================
@@ -29,10 +30,7 @@ INTERFACE U_Mortar
   MODULE PROCEDURE U_Mortar
 END INTERFACE
 
-#if !(USE_HDG)
-INTERFACE Flux_Mortar
-  MODULE PROCEDURE Flux_Mortar
-END INTERFACE
+#if !(USE_HDG) || (USE_FV)
 PUBLIC:: Flux_Mortar
 #endif /*USE_HDG*/
 
@@ -237,7 +235,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 END DO !MortarSideID
 END SUBROUTINE U_Mortar
 
-#if !(USE_HDG)
+#if !(USE_HDG) || (USE_FV)
 SUBROUTINE Flux_Mortar(doMPISides)
 !===================================================================================================================================
 ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
@@ -262,7 +260,6 @@ USE MOD_Mortar_Vars, ONLY: N_Mortar
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides, offSetElem,SideToElem
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,N_Mesh
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
-USE MOD_PML_vars,    ONLY:PMLnVar
 USE MOD_DG_Vars,     ONLY: N_DG_Mapping, U_Surf_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -373,6 +370,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
   END SELECT ! mortarType(MortarSideID)
 END DO !MortarSideID
 END SUBROUTINE Flux_Mortar
-#endif /*USE_HDG*/
+#endif !(USE_HDG) || (USE_FV)
 
+#endif /*!(USE_FV) || (USE_HDG)*/
 END MODULE MOD_FillMortar

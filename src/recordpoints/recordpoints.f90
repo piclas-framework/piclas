@@ -17,13 +17,13 @@ MODULE MOD_RecordPoints
 IMPLICIT NONE
 PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
-
-PUBLIC::DefineParametersRecordPoints
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 PUBLIC:: InitRecordPoints
 PUBLIC:: RecordPoints
 PUBLIC:: EvalRecordPoints
 PUBLIC:: WriteRP
 PUBLIC:: FinalizeRecordPoints
+PUBLIC:: DefineParametersRecordPoints
 !==================================================================================================================================
 
 CONTAINS
@@ -250,7 +250,9 @@ USE MOD_PreProc
 USE MOD_RecordPoints_Vars     ,ONLY: nRP,L_xi_RP,L_eta_RP,L_zeta_RP,RP_ElemID
 USE MOD_Interpolation_Vars    ,ONLY: N_Inter,NMax
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -268,7 +270,11 @@ L_eta_RP  = 0.0
 L_zeta_RP = 0.0
 DO iRP=1,nRP
   ElemID = RP_ElemID(iRP)
+#if !(PP_TimeDiscMethod==700)
   Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
+#else
+  Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
   CALL LagrangeInterpolationPolys(xi_RP(1,iRP),Nloc,N_Inter(Nloc)%xGP,N_Inter(Nloc)%wBary,L_xi_RP(:,iRP))
   CALL LagrangeInterpolationPolys(xi_RP(2,iRP),Nloc,N_Inter(Nloc)%xGP,N_Inter(Nloc)%wBary,L_eta_RP(:,iRP))
   CALL LagrangeInterpolationPolys(xi_RP(3,iRP),Nloc,N_Inter(Nloc)%xGP,N_Inter(Nloc)%wBary,L_zeta_RP(:,iRP))
@@ -284,6 +290,7 @@ SUBROUTINE RecordPoints(t,forceSampling)
 !SUBROUTINE RecordPoints(nVar,StrVarNames,iter,t)
 ! MODULES
 USE MOD_Globals
+USE MOD_Preproc
 USE MOD_Timedisc_Vars     ,ONLY: dt
 USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze,iter
 USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
@@ -299,31 +306,37 @@ REAL,INTENT(IN)                :: t                       !< current time t
 LOGICAL,INTENT(IN)             :: forceSampling           !< force sampling (e.g. at first/last timestep of computation)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if USE_HDG
+#if USE_HDG && !(USE_FV)
 #if PP_nVar==1
 INTEGER,PARAMETER       :: AddVar=3
 #endif /*PP_nVar==1*/
 #else
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
-REAL                    :: U_RP(PP_nVar+AddVar,nRP)
+INTEGER                 :: nVar
+REAL, ALLOCATABLE       :: U_RP(:,:)
 !----------------------------------------------------------------------------------------------------------------------------------
 RP_SamplingOffset = 1 ! Set to one for now
 IF(MOD(iter,INT(RP_SamplingOffset,8)).NE.0 .AND. .NOT. forceSampling) RETURN
-
+#ifdef discrete_velocity
+nVar = PP_nVar_FV
+#else
+nVar = PP_nVar+AddVar
+#endif /*discrete_velocity*/
+ALLOCATE(U_RP(nVar,nRP))
 IF(.NOT.ALLOCATED(RP_Data))THEN
   ! Compute required buffersize from timestep and add 20% tolerance
   ! +1 is added to ensure a minimum buffersize of 2
   RP_Buffersize = MIN(CEILING((1.2*Analyze_dt)/(dt*FieldAnalyzeStep))+1,RP_MaxBufferSize)
-  ALLOCATE(RP_Data(0:PP_nVar+AddVar,nRP,RP_Buffersize))
+  ALLOCATE(RP_Data(0:nVar,nRP,RP_Buffersize))
 END IF
 
 ! evaluate state at RPs
-CALL EvalRecordPoints(U_RP)
+CALL EvalRecordPoints(t,nVar,U_RP)
 
 ! Increment counter and fill buffer
-iSample = iSample + 1
-RP_Data(1:PP_nVar+AddVar,:,iSample) = U_RP
+iSample=iSample+1
+RP_Data(1:nVar,:,iSample) = U_RP
 RP_Data(0,     :,iSample) = t
 
 ! dataset is full, write data and reset
@@ -335,51 +348,76 @@ END SUBROUTINE RecordPoints
 !==================================================================================================================================
 !> Evaluate solution at current time t at recordpoint positions
 !==================================================================================================================================
-SUBROUTINE EvalRecordPoints(U_RP)
+SUBROUTINE EvalRecordPoints(t,nVar,U_RP)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+#if USE_FV
+#ifdef discrete_velocity
+USE MOD_FV_Vars                ,ONLY: U_FV
+USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution
+USE MOD_Timedisc_Vars          ,ONLY: dt
+#endif /*discrete_velocity*/
+#endif /*USE_FV*/
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
 USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
 USE MOD_RecordPoints_Vars ,ONLY: L_xi_RP,L_eta_RP,L_zeta_RP,nRP
 USE MOD_Mesh_Vars         ,ONLY: offSetElem
-#if USE_HDG
-#if PP_nVar==1
-!USE MOD_Equation_Vars      ,ONLY: E
-#endif /*PP_nVar==1*/
-#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-#if USE_HDG
-#if PP_nVar==1
-INTEGER,PARAMETER       :: AddVar=3
-#endif /*PP_nVar==1*/
-#else
-INTEGER,PARAMETER       :: AddVar=0
-#endif /*USE_HDG*/
-REAL,INTENT(INOUT)      :: U_RP(PP_nVar+AddVar,nRP)          !< State at recordpoints
+REAL,INTENT(IN)         :: t                       !< current time t
+INTEGER,INTENT(IN)      :: nVar
+REAL,INTENT(INOUT)      :: U_RP(nVar,nRP)          !< State at recordpoints
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: i,j,k,iRP,ElemID,Nloc
 REAL                    :: L_eta_zeta_RP
+#ifdef discrete_velocity
+REAL                    :: tau, prefac, MacroVal(14), fTarget(PP_nVar_FV)
+#endif
 !----------------------------------------------------------------------------------------------------------------------------------
 U_RP=0.
 DO iRP=1,nRP
   ElemID = RP_ElemID(iRP)
-  Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
+#if !(PP_TimeDiscMethod==700)
+  Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+#else
+  Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
   DO k = 0,Nloc
     DO j = 0,Nloc
       L_eta_zeta_RP=L_eta_RP(j,iRP)*L_zeta_RP(k,iRP)
       DO i=0,Nloc
 #if USE_HDG
+#ifndef drift_diffusion
 #if PP_nVar==1
         U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(ElemID)%U(:,i,j,k), U_N(ElemID)%E(1:3,i,j,k) /)*L_xi_RP(i,iRP)*L_eta_zeta_RP
 #endif /*PP_nVar==1*/
-#else
+#endif /*NOT drift_diffusion*/
+#else /*NOT USE_HDG*/
+#ifdef discrete_velocity
+        IF (t.GT.0.) THEN
+          CALL MacroValuesFromDistribution(MacroVal(:),U_FV(:,i,j,k,ElemID),dt,tau,1)
+          SELECT CASE(DVMMethod)
+            CASE(1)
+              prefac = tau*(1.-EXP(-dt/tau))/dt
+            CASE(2)
+              prefac = 2.*tau/(2.*tau+dt)
+          END SELECT
+          CALL TargetDistribution(MacroVal, fTarget)
+          U_RP(:,iRP)=U_FV(:,0,0,0,ElemID)*prefac + fTarget(:)*(1.-prefac)
+        ELSE
+          U_RP(:,iRP)=U_FV(:,0,0,0,ElemID)
+        END IF
+#else /*NOT discrete_velocity*/
         U_RP(:,iRP)=U_RP(:,iRP) +    U_N(ElemID)%U(:,i,j,k)                             *L_xi_RP(i,iRP)*L_eta_zeta_RP
+#endif /*discrete_velocity*/
 #endif /*USE_HDG*/
       END DO !i
     END DO !j
@@ -398,7 +436,14 @@ USE MOD_PreProc
 USE MOD_Globals
 USE HDF5
 USE MOD_IO_HDF5           ,ONLY: File_ID,OpenDataFile,CloseDataFile
+#if USE_FV
+#if USE_HDG
 USE MOD_Equation_Vars     ,ONLY: StrVarNames
+#endif
+USE MOD_Equation_Vars_FV       ,ONLY: StrVarNames_FV
+#else
+USE MOD_Equation_Vars          ,ONLY: StrVarNames
+#endif
 USE MOD_HDF5_Output       ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5
 USE MOD_Globals_Vars      ,ONLY: ProjectName
 USE MOD_Mesh_Vars         ,ONLY: MeshFile
@@ -408,6 +453,9 @@ USE MOD_Recordpoints_Vars ,ONLY: offsetRP,nRP,nGlobalRP,lastSample
 USE MOD_Recordpoints_Vars ,ONLY: RP_Buffersize,RP_Maxbuffersize,RP_fileExists,chunkSamples
 #if USE_MPI
 USE MOD_Recordpoints_Vars ,ONLY: RP_COMM,nRP_Procs
+#endif
+#ifdef discrete_velocity
+USE MOD_Equation_Vars_FV  ,ONLY: DVMWeights, DVMnVelos, DVMVelos
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -425,10 +473,37 @@ INTEGER,PARAMETER       :: AddVar=3
 #else
 INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
+#if USE_FV && USE_HDG
+CHARACTER(LEN=255)      :: StrVarNames_HDGFV(PP_nVar+AddVar+PP_nVar_FV)
+#endif /*USE_FV && USE_HDG*/
+
+! #ifdef discrete_velocity
+! REAL,DIMENSION(PP_nVar_FV) :: Weights, VeloX, VeloY, VeloZ
+! INTEGER                    :: iVel, jVel, kVel, upos
+! #endif
 !==================================================================================================================================
 WRITE(hilf,'(A)') ' WRITE RECORDPOINT DATA TO HDF5 FILE...'
 SWRITE(UNIT_stdOut,'(A)')' '//TRIM(hilf)
 GETTIME(startT)
+
+#if USE_FV
+#if USE_HDG
+StrVarNames_HDGFV(1:PP_nVar+AddVar) = StrVarNames
+StrVarNames_HDGFV(PP_nVar+AddVar+1:PP_nVar+AddVar+PP_nVar_FV) = StrVarNames_FV
+ASSOCIATE (StrVarNames_loc => StrVarNames_HDGFV, &
+           PP_nVar_loc     => PP_nVar+AddVar+PP_nVar_FV)
+#else
+#ifdef discrete_velocity
+ASSOCIATE (PP_nVar_loc     => PP_nVar_FV)
+#else
+ASSOCIATE (StrVarNames_loc => StrVarNames_FV, &
+           PP_nVar_loc     => PP_nVar_FV)
+#endif /*discrete_velocity*/
+#endif
+#else
+ASSOCIATE (StrVarNames_loc => StrVarNames, &
+           PP_nVar_loc     => PP_nVar+AddVar)
+#endif
 
 FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_RP',OutputTime))//'.h5'
 
@@ -446,13 +521,16 @@ IF(myRPrank.EQ.0)THEN
     CALL WriteAttributeToHDF5(File_ID,'ProjectName',1,StrScalar=(/tmp255/))
     tmp255=TRIM(RPDefFile)
     CALL WriteAttributeToHDF5(File_ID,'RPDefFile'  ,1,StrScalar=(/tmp255/))
-    CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar+AddVar,StrArray=StrVarNames)
     CALL WriteAttributeToHDF5(File_ID,'Time'       ,1,RealScalar=OutputTime)
+#ifndef discrete_velocity
+    CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar_loc,StrArray=StrVarNames_loc)
+#endif
   END IF
   CALL CloseDataFile()
 #if USE_MPI
 END IF
 #endif /* USE_MPI */
+
 
 #if USE_MPI
 CALL MPI_BARRIER(RP_COMM,iError)
@@ -465,6 +543,27 @@ END IF
 CALL OpenDataFile(Filestring,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
 #endif /* USE_MPI */
 
+#ifdef discrete_velocity
+  ! Associate construct for integer KIND=8 possibility
+ASSOCIATE (nVel    => INT(DVMnVelos(1),IK))
+
+  CALL WriteArrayToHDF5(DataSetName = 'Weights', rank= 2, &
+  nValGlobal  = (/nVel,3_IK/)     , &
+  nVal        = (/nVel,3_IK/)     , &
+  offset      = (/0_IK,0_IK/)          , &
+  RealArray   = DVMWeights             , &
+  collective  = .FALSE.)
+
+  CALL WriteArrayToHDF5(DataSetName = 'Velos', rank= 2, &
+  nValGlobal  = (/nVel,3_IK/)     , &
+  nVal        = (/nVel,3_IK/)     , &
+  offset      = (/0_IK,0_IK/)          , &
+  RealArray   = DVMVelos               , &
+  collective  = .FALSE.)
+
+END ASSOCIATE
+#endif /*DVM*/
+
 IF(iSample.GT.0)THEN
   IF(.NOT.RP_fileExists) chunkSamples=iSample
   ! write buffer into file, we need two offset dimensions (one buffer, one processor)
@@ -472,7 +571,7 @@ IF(iSample.GT.0)THEN
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
-        PP_nVarP1    => INT(PP_nVar+AddVar+1,IK)    ,&
+        PP_nVarP1    => INT(PP_nVar_loc+1,IK)    ,&
         nSamples     => INT(nSamples,IK)     ,&
         nRP          => INT(nRP,IK)          ,&
         iSample      => INT(iSample,IK)      ,&
@@ -513,13 +612,13 @@ iSample=0
 RP_fileExists=.TRUE.
 IF(finalizeFile)THEN
   IF(myRPrank.EQ.0)THEN
-    WRITE(UNIT_stdOut,'(a,I4,a)')' RP Buffer : ',nSamples,' samples.'
+    WRITE(UNIT_stdOut,'(a,I4,a)')' RP Buffer  : ',nSamples,' samples.'
   END IF
   IF((nSamples.GT.RP_Buffersize).AND.(RP_Buffersize.LT.RP_Maxbuffersize))THEN
     ! Recompute required buffersize from timestep and add 10% tolerance
     RP_Buffersize=MIN(CEILING(1.1*nSamples)+1,RP_MaxBufferSize)
     DEALLOCATE(RP_Data)
-    ALLOCATE(RP_Data(0:PP_nVar+AddVar,nRP,RP_Buffersize))
+    ALLOCATE(RP_Data(0:PP_nVar_loc,nRP,RP_Buffersize))
   END IF
 
   RP_fileExists=.FALSE.
@@ -531,6 +630,7 @@ IF(finalizeFile)THEN
 ELSE
   hilf=' '
 END IF
+END ASSOCIATE
 
 GETTIME(endT)
 CALL DisplayMessageAndTime(EndT-StartT, TRIM(hilf)//' DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
@@ -572,5 +672,6 @@ IF(RP_COMM.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(RP_COMM, iError)
 RecordPointsInitIsDone = .FALSE.
 
 END SUBROUTINE FinalizeRecordPoints
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
 
 END MODULE MOD_RecordPoints

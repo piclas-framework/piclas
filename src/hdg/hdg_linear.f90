@@ -44,7 +44,7 @@ USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nSides,BC,N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide, offSetElem
-USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM
+USE MOD_Interpolation_Vars ,ONLY: NMax,PREF_VDM,N_Inter
 USE MOD_Elem_Mat           ,ONLY: PostProcessGradientHDG
 USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
 #if (PP_nVar==1)
@@ -61,7 +61,6 @@ USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 USE PETSc
 USE MOD_Mesh_Vars          ,ONLY: SideToElem,nGlobalMortarSides
 USE MOD_HDG_Vars_PETSc
-USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
 USE MOD_MPI_Vars
@@ -112,7 +111,13 @@ INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
 INTEGER              :: iMortar, iType
 INTEGER              :: iGP, jGP, ip, iq, jp, jq
+REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
+! Dummy for chitens_face(:,:,p,q,SideID)
+chitens_face=0.0
+chitens_face(1,1)=1.
+chitens_face(2,2)=1.
+chitens_face(3,3)=1.
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -180,6 +185,18 @@ DO iVar = 1, PP_nVar
       DO q=0,Nloc; DO p=0,Nloc
         r=q*(Nloc+1) + p+1
         HDG_Surf_N(SideID)%qn_face(iVar,r)= 0.
+      END DO; END DO !p,q
+    CASE(11) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/1.,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+      END DO; END DO !p,q
+    CASE(12) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/-1.45e7,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
       END DO; END DO !p,q
     END SELECT ! BCType
   END DO !BCsideID=1,nNeumannBCSides

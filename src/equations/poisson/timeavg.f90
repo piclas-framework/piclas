@@ -54,14 +54,14 @@ SUBROUTINE InitTimeAverage()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_ReadInTools      ,ONLY: CountOption,GETSTR,GETLOGICAL,GETINT
+USE MOD_ReadInTools,    ONLY: CountOption,GETSTR,GETLOGICAL,GETINT
 USE MOD_Mesh_Vars        ,ONLY: nElems,offSetElem
 USE MOD_DG_Vars          ,ONLY: N_DG_Mapping
 USE MOD_Timeaverage_Vars
-USE MOD_Equation_Vars    ,ONLY: StrVarNames
+USE MOD_Equation_Vars,  ONLY: StrVarNames
 #ifdef PARTICLES
-USE MOD_Particle_Vars    ,ONLY: nSpecies
-USE MOD_PICDepo_Vars     ,ONLY: DoDeposition, RelaxDeposition
+USE MOD_Particle_Vars,  ONLY: nSpecies
+USE MOD_PICDepo_Vars,   ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

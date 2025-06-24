@@ -28,13 +28,13 @@ USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,Extractparam
 USE MOD_Interpolation         ,ONLY: InitInterpolation
 USE MOD_IO_HDF5               ,ONLY: InitIOHDF5
 USE MOD_MPI                   ,ONLY: InitMPI
-USE MOD_Equation              ,ONLY: InitEquation
 USE MOD_Output                ,ONLY: InitOutput
 USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation
 USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
 USE MOD_Output                ,ONLY: DefineParametersOutput
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
+USE MOD_Equation              ,ONLY: InitEquation
 USE MOD_Interpolation_Vars    ,ONLY: N_BG
 USE MOD_Mesh                  ,ONLY: InitMesh
 #ifdef PARTICLES
@@ -126,7 +126,7 @@ CALL InitIOHDF5()
 CALL InitGlobals()
 #ifdef PARTICLES
 Symmetry%Order = 3
-#endif
+#endif /*PARTICLES*/
 #if USE_MPI
 CALL InitMPIShared()
 #endif /*USE_MPI*/
@@ -160,7 +160,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 ! We also have to finalize MPI itself here
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) STOP 'MPI finalize error'
-#endif
+#endif /*USE_MPI*/
 
 END PROGRAM SuperB_standalone
-#endif
+#endif /*USE_SUPER_B*/

@@ -65,6 +65,7 @@ INTERFACE StartSendMPIData
 END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 #if USE_HDG
 PUBLIC :: StartReceiveMPISurfDataType
@@ -73,12 +74,13 @@ PUBLIC :: Mask_MPIsides
 #else
 PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric,StartReceiveMPIDataTypeDielectric
 #endif /*USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 PUBLIC :: StartExchange_DG_Elems
 PUBLIC :: StartReceiveMPIDataInt,StartSendMPIDataInt
-#endif
-PUBLIC :: DefineParametersMPI
+#endif /*USE_MPI*/
+PUBLIC::DefineParametersMPI
 #if defined(MEASURE_MPI_WAIT)
-PUBLIC :: OutputMPIW8Time
+PUBLIC::OutputMPIW8Time
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
 
@@ -142,7 +144,7 @@ ELSE
   IF(.NOT.initDone) CALL MPI_INIT(iError)
   IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_INITIALIZED',iError)
   ! General communicator
-  CALL MPI_COMM_DUP (MPI_COMM_WORLD,MPI_COMM_PICLAS,iError)
+  CALL MPI_COMM_DUP(MPI_COMM_WORLD,MPI_COMM_PICLAS,iError)
   IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_COMM_DUP',iError)
   MPI_COMM_LOC = MPI_COMM_PICLAS
 END IF
@@ -178,6 +180,9 @@ USE MOD_MPI_Shared_Vars    ,ONLY: nProcessors_Global
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_FV
+USE MOD_MPI_FV             ,ONLY: InitMPIvarsFV
+#endif /*USE_FV*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -189,6 +194,9 @@ IMPLICIT NONE
 INTEGER :: color,groupsize
 !===================================================================================================================================
 IF(.NOT.InterpolationInitIsDone) CALL Abort(__STAMP__,'InitMPITypes called before InitInterpolation')
+#if USE_FV
+CALL InitMPIvarsFV()
+#endif /*USE_FV*/
 ALLOCATE(SendRequest_U(nNbProcs)     )
 ALLOCATE(SendRequest_U2(nNbProcs)     )
 ALLOCATE(SendRequest_GEO(nNbProcs)     )
@@ -339,7 +347,7 @@ INTEGER,INTENT(IN)  :: UpperBound                                             !<
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
-REAL,INTENT(OUT)    :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
+REAL,INTENT(OUT)              :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -366,9 +374,9 @@ SUBROUTINE StartReceiveMPIDataType(MPIRequest, SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-#if !(USE_HDG)
+#if !(USE_HDG) && !(PP_TimeDiscMethod==700)
 USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
-#endif /*!(USE_HDG)*/
+#endif /*!(USE_HDG) && !(PP_TimeDiscMethod==700)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -551,7 +559,7 @@ INTEGER, INTENT(IN)          :: firstDim,LowerBound,UpperBound
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)
-REAL, INTENT(IN)             :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
+REAL, INTENT(IN)              :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -691,6 +699,7 @@ END SUBROUTINE StartSendMPISurfDataType
 #endif /*USE_HDG*/
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !===================================================================================================================================
 !> See above, but for for send direction (type-based p-adaption).
 !===================================================================================================================================
@@ -843,6 +852,7 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataTypeDielectric
 #endif /*not USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 
 !==================================================================================================================================
@@ -911,7 +921,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)          :: SendID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-TYPE(MPI_Request), INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request), INTENT(INOUT) :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if defined(MEASURE_MPI_WAIT)
@@ -1033,6 +1043,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataInt
 
 
+
 #if USE_HDG
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
@@ -1147,6 +1158,7 @@ END SUBROUTINE FinishExchangeMPISurfDataType
 #endif /*USE_HDG*/
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
 !> SendRequest, RecRequest: communication handles
@@ -1354,6 +1366,7 @@ END DO !iProc=1,nNBProcs
 
 END SUBROUTINE FinishExchangeMPIDataTypeDielectric
 #endif /*not USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 
 #if USE_HDG
@@ -1528,6 +1541,9 @@ USE MOD_MPI_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_FV
+USE MOD_MPI_FV             ,ONLY: FinalizeMPIFV
+#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1545,6 +1561,9 @@ SDEALLOCATE(offsetMPISides_YOUR)
 SDEALLOCATE(NbProc)
 
 ! requires knowledge of number of MPI neighbors
+#if USE_FV
+CALL FinalizeMPIFV()
+#endif /*USE_FV*/
 SDEALLOCATE(SendRequest_U)
 SDEALLOCATE(SendRequest_U2)
 SDEALLOCATE(SendRequest_Flux)

@@ -42,19 +42,31 @@ USE MOD_Output                     ,ONLY: DefineParametersOutput
 USE MOD_Restart                    ,ONLY: DefineParametersRestart
 USE MOD_LoadBalance                ,ONLY: DefineParametersLoadBalance
 USE MOD_Analyze                    ,ONLY: DefineParametersAnalyze
-USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
 USE MOD_TimeDiscInit               ,ONLY: DefineParametersTimeDisc
 USE MOD_Mesh                       ,ONLY: DefineParametersMesh
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+USE MOD_RecordPoints               ,ONLY: DefineParametersRecordPoints
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
+#if !(USE_FV) || (USE_HDG)
 USE MOD_Equation                   ,ONLY: DefineParametersEquation
+#endif
+#if USE_FV
+USE MOD_Equation_FV                ,ONLY: DefineParametersEquation_FV
+#endif
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(PP_TimeDiscMethod==700)
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
-#if !(USE_HDG)
+#endif /*!(PP_TimeDiscMethod==700)*/
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*!(USE_HDG)*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
+#if USE_FV
+USE MOD_Gradients                  ,ONLY: DefineParametersGradients
+#endif
 USE MOD_Piclas_Init                ,ONLY: DefineParametersPiclas
 #ifdef PARTICLES
 USE MOD_ParticleInit               ,ONLY: DefineParametersParticles
@@ -112,18 +124,30 @@ CALL DefineParametersOutput()
 CALL DefineParametersPiclas()
 CALL DefineParametersTimeDisc()
 CALL DefineParametersMesh()
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+CALL DefineParametersRecordPoints()
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
+#if !(USE_FV) || (USE_HDG)
 CALL DefineParametersEquation()
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !(USE_HDG)
-CALL DefineParametersPML()
-#endif /*USE_HDG*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 CALL DefineParametersDielectric()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!(USE_FV) || (USE_HDG)*/
+#if USE_FV
+CALL DefineParametersEquation_FV()
+#endif /*USE_FV*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(USE_HDG) && !(USE_FV)
+CALL DefineParametersPML()
+#endif /*!(USE_HDG)*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_HDG
 CALL DefineParametersHDG()
 #endif /*USE_HDG*/
+#if USE_FV
+CALL DefineParametersGradients()
+#endif
 CALL DefineParametersAnalyze()
-CALL DefineParametersRecordPoints()
 #ifdef PARTICLES
 CALL DefineParametersRayTracing()
 CALL DefineParametersSuperB()

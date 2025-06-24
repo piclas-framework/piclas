@@ -54,7 +54,9 @@ PUBLIC :: CalcVelocities
 PUBLIC :: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates,CollRatesBackScatter
 #endif /*(PP_TimeDiscMethod==4)*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: CalcPowerDensity
+#endif /*FV*/
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 PUBLIC :: CalculatePartElemData
 PUBLIC :: CalcCoupledPowerPart, CalcEelec
@@ -323,8 +325,10 @@ IF(CalcElectronEnergy) CALL CalculateElectronEnergyCell()
 ! plasma frequency
 IF(CalcPlasmaFrequency) CALL CalculatePlasmaFrequencyCell()
 
+#if !(USE_FV) || (USE_HDG)
 ! Cyclotron frequency
 IF(CalcCyclotronFrequency) CALL CalculateCyclotronFrequencyAndRadiusCell()
+#endif
 
 ! PIC time step for gyro motion (cyclotron frequency)
 IF(CalcPICTimeStepCyclotron) CALL CalculatePICTimeStepCyclotron()
@@ -376,7 +380,7 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep.OR.CalcElectronEnergy)THEN
        PPDCellResolved(4) = tmpArray(4)
     END IF ! CalcPointsPerDebyeLength
     IF(CalcPICTimeStep) PICTimeCellResolved = tmpArray(5)
-    PICValidPlasmaCellSum   = tmpArray(6)
+    PICValidPlasmaCellSum = tmpArray(6)
     NbrOfElemsWithElectrons(1) = tmpArray(7)
     NbrOfElemsWithElectrons(2) = tmpArray(8)
   ELSE
@@ -407,6 +411,9 @@ USE MOD_HDG_Vars              ,ONLY: ElemToBRRegion,UseBRElectronFluid
 USE MOD_PIC_Analyze           ,ONLY: CalculateBRElectronsPerCell
 #endif /*USE_HDG*/
 USE MOD_part_tools            ,ONLY: GetParticleWeight
+#if drift_diffusion
+USE MOD_FV_Vars               ,ONLY: U_FV
+#endif /*drift_diffusion*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -440,11 +447,11 @@ DO iPart=1,PDM%ParticleVecLength
   ASSOCIATE ( &
     ElemID  => PEM%LocalElemID(iPart)                              )  ! Element ID
     ASSOCIATE ( &
-      n_e    => ElectronDensityCell(ElemID),&   ! Electron density (cell average)
+      n_e    => ElectronDensityCell(ElemID),& ! Electron density (cell average)
       Nsim_e => ElectronSimNumberCell(ElemID),& ! Electron simulation particle number (cell average)
-      n_i    => IonDensityCell(ElemID)     ,&   ! Ion density (cell average)
-      n_n    => NeutralDensityCell(ElemID) ,&   ! Neutral density (cell average)
-      Z      => ChargeNumberCell(ElemID)   )    ! Charge number (cell average)
+      n_i    => IonDensityCell(ElemID)     ,& ! Ion density (cell average)
+      n_n    => NeutralDensityCell(ElemID) ,& ! Neutral density (cell average)
+      Z      => ChargeNumberCell(ElemID)   )  ! Charge number (cell average)
       charge = Species(PartSpecies(iPart))%ChargeIC/ElementaryCharge
       IF(PARTISELECTRON(iPart))THEN ! electrons
         n_e = n_e + MPF
@@ -477,7 +484,13 @@ END IF
 ! loop over all elements and divide by volume
 DO iElem=1,PP_nElems
   CNElemID = GetCNElemID(iElem+offSetElem)
+#if drift_diffusion
+  ElectronDensityCell(iElem)=U_FV(1,0,0,0,iElem)
+  ! Sort out crazy small numbers (they crash piclas2vtk later when trying to convert .h5 to .vtu)
+  IF(ElectronDensityCell(iElem).LT.1e-10) ElectronDensityCell(iElem) = 0.
+#else
   ElectronDensityCell(iElem)=ElectronDensityCell(iElem)/ElemVolume_Shared(CNElemID)
+#endif /*drift_diffusion*/
        IonDensityCell(iElem)=IonDensityCell(iElem)     /ElemVolume_Shared(CNElemID)
    NeutralDensityCell(iElem)=NeutralDensityCell(iElem) /ElemVolume_Shared(CNElemID)
 END DO ! iElem=1,PP_nElems
@@ -625,9 +638,9 @@ REAL    :: WeightingFactor
 INTEGER :: RegionID
 #endif /*USE_HDG*/
 !===================================================================================================================================
-ElectronMinEnergyCell      = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
-ElectronMaxEnergyCell      = 0.
-ElectronAverageEnergyCell  = 0.
+ElectronMinEnergyCell     = HUGE(1.) ! Set zero before output to .h5 if unchanged (check if maximum is <= 0.)
+ElectronMaxEnergyCell     = 0.
+ElectronAverageEnergyCell = 0.
 NbrOfElemsWithElectrons(:) = 0
 #if USE_HDG
 IF (UseBRElectronFluid) THEN ! check for BR electrons
@@ -698,7 +711,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
@@ -720,7 +733,7 @@ IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -772,7 +785,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -830,7 +843,7 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpec
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: nSpecAnalyze,LaserInteractionEkinMaxRadius,LaserInteractionEkinMaxZPosMin
 USE MOD_part_tools            ,ONLY: GetParticleWeight
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
 USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
@@ -856,7 +869,7 @@ IF (nSpecAnalyze.GT.1) THEN
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -901,7 +914,7 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
   DO i=1,PDM%ParticleVecLength
     IF (PDM%ParticleInside(i)) THEN
       ElemID = PEM%LocalElemID(i)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
       IF(DoPML)THEN
         IF(isPMLElem(ElemID)) CYCLE
       ENDIF
@@ -2775,7 +2788,7 @@ ChemReac%ReacCollMean = 0.0
 END SUBROUTINE ReacRates
 #endif
 
-
+#if !(USE_FV) || (USE_HDG)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE CalcPowerDensity()
 !===================================================================================================================================
@@ -2826,12 +2839,12 @@ DO iSpec=1,nSpecies
   iSpec2=iSpec2+1
   IF(PartLorentzType.EQ.5) THEN
     ! map particle from gamma v to v
-    DO iPart=1,PDM%ParticleVecLength
+  DO iPart=1,PDM%ParticleVecLength
       IF(PDM%ParticleInside(iPart)) CYCLE
       IF(PartSpecies(iPart).NE.iSpec) CYCLE
       CALL GammaVeloToPartVelo(iPart)
     END DO ! iPart
-  END IF
+      END IF
 
   ! compute particle source terms on field solver of considered species
   CALL Deposition()
@@ -2879,7 +2892,7 @@ END DO
 
 END SUBROUTINE CalcPowerDensity
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-
+#endif
 
 SUBROUTINE CalculatePlasmaFrequencyCell()
 !===================================================================================================================================
@@ -2914,7 +2927,7 @@ END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePlasmaFrequencyCell
 
-
+#if !(USE_FV) || (USE_HDG)
 SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 !===================================================================================================================================
 ! Determine the (relativistic) electron cyclotron frequency in each cell, which can be calculate without electrons present in the
@@ -3064,7 +3077,7 @@ ASSOCIATE( e   => ElementaryCharge,&
 END ASSOCIATE
 
 END SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell
-
+#endif
 
 SUBROUTINE CalculatePICTimeStepCyclotron()
 !===================================================================================================================================
@@ -3510,12 +3523,12 @@ END SUBROUTINE CalculateNumericalPlasmaParameter
 !===================================================================================================================================
 SUBROUTINE CalcCoupledPowerPart(iPart,mode)
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM
-USE MOD_Particle_Analyze_Vars ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
-USE MOD_Part_Tools            ,ONLY: isChargedParticle
-USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
-USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Particle_Vars           ,ONLY: PartSpecies, PEM
+USE MOD_Particle_Analyze_Vars   ,ONLY: PCoupl, PCouplAverage, PCouplSpec, EDiff
+USE MOD_Part_Tools              ,ONLY: isChargedParticle
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Particle_Analyze_Pure ,ONLY: CalcEkinPart
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

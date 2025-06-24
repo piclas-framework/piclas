@@ -49,7 +49,7 @@ USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,BoundaryType,nSides,BC,offSetElem
 USE MOD_Mesh_Vars              ,ONLY: ElemToSide
-USE MOD_Interpolation_Vars     ,ONLY: NMax,PREF_VDM
+USE MOD_Interpolation_Vars     ,ONLY: NMax,PREF_VDM,N_Inter
 USE MOD_Elem_Mat               ,ONLY: PostProcessGradientHDG, Elem_Mat,BuildPrecond
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
 #if (PP_nVar==1)
@@ -94,7 +94,13 @@ REAL    :: BTemp(3,3,nGP_vol(PP_N),PP_nElems)
 #if USE_LOADBALANCE
 REAL    :: tLBStart
 #endif /*USE_LOADBALANCE*/
+REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
+! Dummy for chitens_face(:,:,p,q,SideID)
+chitens_face=0.0
+chitens_face(1,1)=1.
+chitens_face(2,2)=1.
+chitens_face(3,3)=1.
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
@@ -150,6 +156,18 @@ DO BCsideID=1,nNeumannBCSides
       r=q*(PP_N+1) + p+1
       HDG_Surf_N(SideID)%qn_face(PP_nVar,r)= 0.
     END DO; END DO !p,q
+    CASE(11) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/1.,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+      END DO; END DO !p,q
+    CASE(12) !neumann q*n=1 !test
+      DO q=0,Nloc; DO p=0,Nloc
+        r=q*(Nloc+1) + p+1
+        HDG_Surf_N(SideID)%qn_face(iVar,r)=SUM((/-1.45e7,1.,1./)  &
+                            *MATMUL(chitens_face(:,:),N_SurfMesh(SideID)%NormVec(:,p,q)))*N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+      END DO; END DO !p,q
   END SELECT ! BCType
 END DO !BCsideID=1,nNeumannBCSides
 

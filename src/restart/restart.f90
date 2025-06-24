@@ -159,10 +159,29 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
     END IF ! FileVersionHDF5Real.GE.3.59
   END IF ! FileVersionExists
   N_Restart=-1
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+  CALL DatasetExists(File_ID,'DVM_Solution',DG_SolutionExists)
+#if (PP_TimeDiscMethod==700) /*DVM*/
+  IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DVM_Solution')
+#endif /*DVM*/
+IF (DG_SolutionExists) THEN
+  CALL GetDataProps('DVM_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+ELSE
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-  IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initialization of N_Restart!')
+END IF ! DG_SolutionExists
+#else
+  nVar_Restart = PP_nVar
+  N_Restart = 0
+  nElems_Restart = -1
+  NodeType_Restart = 'undefined'
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+  IF(N_Restart.LT.0) CALL abort(__STAMP__,'N_Restart<0 is not allowed. Check initialization of N_Restart!',IntInfoOpt=N_Restart)
+#ifdef drift_diffusion
+  SWRITE(UNIT_stdOut,'(A)') 'Init additional FV restart'
+  CALL GetDataProps('DriftDiffusion_Solution',nVar_Restart_FV,N_Restart_FV,nElems_Restart_FV,NodeType_Restart_FV)
+#endif
   IF(RestartNullifySolution)THEN ! Open the restart file and neglect the DG solution (only read particles if present)
     SWRITE(UNIT_stdOut,*)' | Restarting from File: "',TRIM(RestartFile),'" (but without reading the DG solution)'
   ELSE ! Use the solution in the restart file
@@ -172,14 +191,20 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
 #if USE_HDG
       SWRITE(UNIT_StdOut,'(A)')" HDG: Restarting from a different equation system."
-#else
+#elif (PP_TimeDiscMethod==700) /*DVM*/
+      SWRITE(UNIT_StdOut,'(A)')"DVM: Restarting from macroscopic values."
+#else /*NOT USE_HDG and NOT DVM*/
+#ifdef drift_diffusion
+      SWRITE(UNIT_StdOut,'(A)')"Drift diffusion: Restarting..."
+#else /*NOT drift_diffusion*/
       CALL abort(__STAMP__,'PP_nVar!=nVar_Restart (Number of variables in restart file does no match the compiled equation system).')
+#endif /*drift_diffusion*/
 #endif /*USE_HDG*/
     END IF
   END IF
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
-  IF(FileVersionExists)THEN
+  IF (FileVersionExists) THEN
     IF(FileVersionHDF5Real.LT.1.5)THEN
       SWRITE(UNIT_StdOut,'(A)')' '
       SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '

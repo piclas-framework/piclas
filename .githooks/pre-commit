@@ -140,9 +140,13 @@ if [ -n "$CHANGED" ]; then
 
     # Check for tab characters in specific file endings
     name=$($BN_EXE -- "$file")
+    # Get file extension
     ext="${name##*.}"
+    # Get file name without extension
     name="${name%.*}"
+    # Only check .txt, .f90 and .ini files in the following
     if [ "$ext" = "txt" ] || [ "$ext" = "f90" ] || [ "$ext" = "ini" ]; then
+      # Use grep to find tab characters
       # -P, --perl-regexp         PATTERNS are Perl regular expressions
       NbrOfLinesWithTabs=$(grep -Pc '\t' "$file")
       if [ "${NbrOfLinesWithTabs}" -gt 0 ]; then
@@ -150,6 +154,20 @@ if [ -n "$CHANGED" ]; then
         ERROR=1
         TABERR=1
         TABLINE="$LINE\n$TABLINE"
+      fi
+    fi
+
+    # Check for MPI_COMM_WORLD usage instead of MPI_COMM_PICLAS. Except when using it in MPI_COMM_DUP(), which is allowed.
+    # Only check .txt, .f90 and .ini files in the following
+    if [ "$ext" = "f90" ]; then
+      # Use grep to find tab characters
+      # -P, --perl-regexp         PATTERNS are Perl regular expressions
+      NbrOfLinesWithMPICommWorld=$(grep -v -e '^\s*!' $file | grep 'MPI_COMM_WORLD' | grep -v 'MPI_COMM_DUP' | wc -l)
+      if [ "${NbrOfLinesWithMPICommWorld}" -gt 0 ]; then
+        LINE=$($LS_EXE -alhs "$file")
+        ERROR=1
+        MPICOMMWORLDERR=1
+        MPICOMMWORLDLINE="$LINE\n$MPICOMMWORLDLINE"
       fi
     fi
 
@@ -217,6 +235,11 @@ if [ -n "$CHANGED" ]; then
   if [ "$SPECDBERR" -ne 0 ]; then
     printf "\n${RED}SpeciesDatabase.h5 has been changed, which is not allowed. Remove changes from this file (e.g. via 'git checkout SpeciesDatabase.h5'). Run 'git add' on the fixed file and 'git commit' afterwards.${NC}\n"
     printf "%s\n" "${SPECDBLINE}"
+  fi
+
+  if [ "$MPICOMMWORLDERR" -ne 0 ]; then
+    printf "${RED}The following file(s) contain MPI_COMM_WORLD, which is not allowed. Replace them all by MPI_COMM_PICLAS, except when calling MPI_COMM_DUP(). Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "$MPICOMMWORLDLINE"
   fi
 
   # Abort if hook encountered any error
