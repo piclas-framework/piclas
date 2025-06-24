@@ -46,7 +46,7 @@ USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV
 USE MOD_Equation_Vars_FV ,ONLY: DVMVeloDisc, DVMSpecData, DVMnSpecies, DVMDim, DVMMethod
 USE MOD_TimeDisc_Vars    ,ONLY: dt, time
-USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScatteringDVM
+USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScatteringDVM, MoleculeRelaxEnergy
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
@@ -63,6 +63,7 @@ INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
 REAL    :: MacroVal(14), tau, vnormal, prefac, MacroValInside(14,DVMnSpecies+1),rho,Pr
 INTEGER :: iVel, jVel, kVel, upos, upos_sp, iSpec, vFirstID, vLastID
+REAL    :: Erot(DVMnSpecies), ErelaxTrans, ErelaxRot(DVMnSpecies)
 !==================================================================================================================================
 BCType  = BoundaryType_FV(BC(SideID),BC_TYPE)
 BCState = BoundaryType_FV(BC(SideID),BC_STATE)
@@ -138,12 +139,12 @@ CASE(3) ! specular reflection
         ! END IF
         gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos_sp))! - MovTerm)
         IF (DVMDim.LT.3) THEN
-          gradU(Sp%nVar/2+upos) = 2.*(UPrim_master(Sp%nVar/2+upos) - UPrim_boundary(Sp%nVar/2+upos_sp))! - MovTerm)
+          gradU(Sp%nVarReduced+upos) = 2.*(UPrim_master(Sp%nVarReduced+upos) - UPrim_boundary(Sp%nVarReduced+upos_sp))! - MovTerm)
         END IF
       ELSE
         gradU(upos) = 2.*gradUinside(upos)
         IF (DVMDim.LT.3) THEN
-          gradU(Sp%nVar/2+upos) = 2.*gradUinside(Sp%nVar/2+upos)
+          gradU(Sp%nVarReduced+upos) = 2.*gradUinside(Sp%nVarReduced+upos)
         END IF
       END IF
     END DO; END DO; END DO
@@ -154,9 +155,11 @@ CASE(3) ! specular reflection
 CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
   fplus(:)=UPrim_master(:)-gradUinside(:)
   IF (output) THEN
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
   ELSE
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
   END IF
   IF (dt.EQ.0.) THEN
     prefac = 1.
@@ -174,7 +177,7 @@ CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
     vLastID = vLastID + DVMSpecData(iSpec)%nVar
     MacroVal(:) = RefState_FV(:,iSpec,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
-    CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),fplus(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr)
+    CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),fplus(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
     DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
       upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2) + vFirstID-1
       vnormal = DVMSpecData(iSpec)%Velos(iVel,1)*NormVec(1) &
@@ -183,12 +186,12 @@ CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
       IF (vnormal.LT.0.) THEN
         gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos))
         IF (DVMDim.LT.3) THEN
-          gradU(DVMSpecData(iSpec)%nVar/2+upos) = 2.*(UPrim_master(DVMSpecData(iSpec)%nVar/2+upos) - UPrim_boundary(DVMSpecData(iSpec)%nVar/2+upos))
+          gradU(DVMSpecData(iSpec)%nVarReduced+upos) = 2.*(UPrim_master(DVMSpecData(iSpec)%nVarReduced+upos) - UPrim_boundary(DVMSpecData(iSpec)%nVarReduced+upos))
         END IF
       ELSE
         gradU(upos) = 2.*gradUinside(upos)
         IF (DVMDim.LT.3) THEN
-          gradU(DVMSpecData(iSpec)%nVar/2+upos) = 2.*gradUinside(DVMSpecData(iSpec)%nVar/2+upos)
+          gradU(DVMSpecData(iSpec)%nVarReduced+upos) = 2.*gradUinside(DVMSpecData(iSpec)%nVarReduced+upos)
         END IF
       END IF
     END DO; END DO; END DO
@@ -197,9 +200,11 @@ CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
 
 CASE(14) ! diffusive order 1
   IF (output) THEN
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
   ELSE
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr)
+    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
   END IF
   IF (dt.EQ.0.) THEN
     prefac = 1.
@@ -217,7 +222,7 @@ CASE(14) ! diffusive order 1
     vLastID = vLastID + DVMSpecData(iSpec)%nVar
     MacroVal(:) = RefState_FV(:,iSpec,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
-    CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr)
+    CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
     vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
   END DO
   gradU = 2.*(UPrim_master-UPrim_boundary)

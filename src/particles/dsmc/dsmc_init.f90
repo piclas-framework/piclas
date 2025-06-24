@@ -803,7 +803,6 @@ ELSE !CollisMode.GT.0
           dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
           WRITE(UNIT=hilf,FMT='(I0)') iSpec
           IF((Species(iSpec)%InterID.NE.4).AND.(Species(iSpec)%InterID.NE.100)) THEN
-            dsetname = TRIM('/Species/'//TRIM(Species(iSpec)%Name))
             CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=AttrExists,ReadFromGroup=.TRUE.)
             IF (AttrExists) THEN
               CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=IntToLog, &

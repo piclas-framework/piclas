@@ -25,13 +25,13 @@ PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 
 PUBLIC:: MacroValuesFromDistribution, MaxwellDistribution, GradDistribution
-PUBLIC:: TargetDistribution
+PUBLIC:: TargetDistribution, MoleculeRelaxEnergy
 PUBLIC:: MaxwellScatteringDVM, RescaleU, RescaleInit, ForceStep, IntegrateFluxValues
 !==================================================================================================================================
 
 CONTAINS
 
-SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde,charge,MassDensity,PrandtlNumber)
+SUBROUTINE MacroValuesFromDistribution(MacroVal,U,tDeriv,tau,tilde,charge,MassDensity,PrandtlNumber,Erot)
 !===================================================================================================================================
 ! Calculates the moments of the distribution function
 !===================================================================================================================================
@@ -47,13 +47,14 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: U(PP_nVar_FV), tDeriv
 INTEGER,INTENT(IN)              :: tilde
 REAL, INTENT(OUT)               :: MacroVal(14,DVMnSpecies+1), tau
-REAL, INTENT(OUT), OPTIONAL     :: charge, MassDensity, PrandtlNumber
+REAL, INTENT(OUT), OPTIONAL     :: charge, MassDensity, PrandtlNumber, Erot(DVMnSpecies)
 ! REAL, INTENT(OUT), OPTIONAL     :: skewness(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: rhoTotal, dens(DVMnSpecies+1), rhoU(3,DVMnSpecies+1), densE(DVMnSpecies+1), cV(DVMnSpecies+1)
+REAL                            :: rhoTotal, dens(DVMnSpecies+1), rhoU(3,DVMnSpecies+1)
+REAL                            :: densEtr(DVMnSpecies+1), densErot(DVMnSpecies+1)
 REAL                            :: uVelo(3,DVMnSpecies+1), cVel(3,DVMnSpecies+1), cMag2(DVMnSpecies+1)
 REAL                            :: mu(DVMnSpecies+1), thermalcond(DVMnSpecies+1), cP
 REAL                            :: PressTens(6,DVMnSpecies+1), Heatflux(3,DVMnSpecies+1)
@@ -64,11 +65,13 @@ rhoTotal = 0.
 tau = 0.
 dens = 0.
 rhoU = 0.
-densE = 0.
+densEtr = 0.
+densErot = 0.
+IF (PRESENT(Erot)) Erot = 0.
 PressTens = 0.
 Heatflux = 0.
-cV = 0.
 MacroVal = 0.
+cP = 0.
 mu = 0.
 thermalcond = 0.
 PrandtlCorrection = 0.
@@ -88,30 +91,39 @@ DO iSpec=1, DVMnSpecies
     rhoU(2,iSpec) = rhoU(2,iSpec) + weight*Sp%Mass*Sp%Velos(jVel,2)*U(upos)
     rhoU(3,iSpec) = rhoU(3,iSpec) + weight*Sp%Mass*Sp%Velos(kVel,3)*U(upos)
     IF (DVMDim.LT.3) THEN
-      densE(iSpec) = densE(iSpec) + weight*0.5*Sp%Mass*((Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos) &
-                                            +U(Sp%nVar/2+upos))
+      densEtr(iSpec) = densEtr(iSpec) + weight*0.5*Sp%Mass*((Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos) &
+                                            +U(Sp%nVarReduced+upos))
     ELSE
-      densE(iSpec) = densE(iSpec) + weight*0.5*Sp%Mass*(Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos)
+      densEtr(iSpec) = densEtr(iSpec) + weight*0.5*Sp%Mass*(Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos)
+    END IF
+    IF (Sp%Xi_Rot.GT.0) THEN
+      densErot(iSpec) = densErot(iSpec) + weight*U(Sp%nVarReduced*2+upos)
     END IF
   END DO; END DO; END DO
   uVelo(1:3,iSpec) = rhoU(1:3,iSpec)/dens(iSpec)/Sp%Mass
-  cV(iSpec) = BoltzmannConst*dens(iSpec)*(3.+Sp%Internal_DOF)/2.
 
   MacroVal(1,iSpec) = dens(iSpec)
   MacroVal(2:4,iSpec) = uVelo(1:3,iSpec)
-  MacroVal(5,iSpec) = (densE(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/dens(iSpec)/Sp%Mass)/cV(iSpec)
+  MacroVal(5,iSpec) = (densEtr(iSpec) - 0.5*(DOT_PRODUCT(rhoU(:,iSpec),rhoU(:,iSpec)))/dens(iSpec)/Sp%Mass) &
+                      *2./3./dens(iSpec)/BoltzmannConst
   IF (.NOT.(PRESENT(charge)).AND.MacroVal(5,iSpec).LE.0) THEN
     CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
   ELSE IF (.NOT.(PRESENT(charge))) THEN
     mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
-    thermalcond(iSpec) = (15./4.)*mu(iSpec)*Sp%R_S
+    IF((Sp%InterID.EQ.2).OR.(Sp%InterID.EQ.20)) THEN ! inner DOF
+      ! Istomin et. al., "Eucken correction in high-temperature gases with electronic excitation", J. Chem. Phys. 140,
+      ! 184311 (2014)
+      thermalcond(iSpec) = 0.25 * (15. + 2. * Sp%Xi_Rot) * 1.328 * mu(iSpec) * BoltzmannConst / Sp%Mass
+    ELSE ! atoms
+      thermalcond(iSpec) = 0.25 * 15. * mu(iSpec) * BoltzmannConst / Sp%Mass
+    END IF
   END IF
+  IF (PRESENT(Erot)) Erot(iSpec) = densErot(iSpec)/dens(iSpec)
 
   rhoTotal = rhoTotal + Sp%Mass*dens(iSpec)
   dens(total) = dens(total) + dens(iSpec)
   rhoU(1:3,total) = rhoU(1:3,total) + rhoU(1:3,iSpec)
-  densE(total) = densE(total) + densE(iSpec)
-  cV(total) = cV(total) + cV(iSpec)
+  densEtr(total) = densEtr(total) + densEtr(iSpec)
   IF (PRESENT(charge)) charge = charge + Sp%Charge*dens(iSpec)
 
   vFirstID = vFirstID + Sp%nVar
@@ -123,7 +135,7 @@ uVelo(1:3,total) = rhoU(1:3,total)/rhoTotal
 MacroVal(1,total) = dens(total)
 IF (PRESENT(MassDensity)) MassDensity = rhoTotal
 MacroVal(2:4,total) = uVelo(1:3,total)
-MacroVal(5,total) = (densE(total) - 0.5*(DOT_PRODUCT(rhoU(:,total),rhoU(:,total)))/rhoTotal)/cV(total)
+MacroVal(5,total) = (densEtr(total) - 0.5*(DOT_PRODUCT(rhoU(:,total),rhoU(:,total)))/rhoTotal)*2./3./dens(total)/BoltzmannConst
 IF (MacroVal(5,total).LE.0) CALL abort(__STAMP__,'DVM negative total temperature!')
 
 vFirstID = 0
@@ -199,17 +211,16 @@ DO iSpec=1, DVMnSpecies
   END DO
   mu(total) = mu(total) + dens(iSpec)*mu(iSpec)/Phi
   thermalcond(total) = thermalcond(total) + dens(iSpec)*thermalcond(iSpec)/Phi
+  cP = cP + (5.+Sp%Xi_Rot/2.) * BoltzmannConst * dens(iSpec)/rhoTotal
+  PrandtlCorrection = PrandtlCorrection + dens(iSpec)*rhoTotal/Sp%Mass/dens(total)/dens(total)
 
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
-
-  PrandtlCorrection = PrandtlCorrection + dens(iSpec)*rhoTotal/DVMSpecData(iSpec)%Mass/dens(total)/dens(total)
 END DO
 
 Macroval(6:11,total)  = PressTens(1:6,total)
 MacroVal(12:14,total) = Heatflux(1:3,total)
 
-cP = (5./2.) * BoltzmannConst * dens(total)/rhoTotal
 Prandtl = cP*mu(total)/thermalcond(total)*PrandtlCorrection
 IF (PRESENT(PrandtlNumber)) PrandtlNumber = Prandtl
 
@@ -303,6 +314,43 @@ END IF
 
 END SUBROUTINE MacroValuesFromDistribution
 
+SUBROUTINE MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,TempTrans,Erot)!,Zrot
+!===================================================================================================================================
+! Calculate relaxation energies (translational and rotational) for molecules
+! (Hild & Pfeiffer 2024, J. Comp. Phys. 514, 113226)
+!===================================================================================================================================
+! MODULES
+USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMnSpecies
+USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                 :: TempTrans, Erot(DVMnSpecies)!, Zrot
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: ErelaxTrans,ErelaxRot(DVMnSpecies)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                         :: iSpec
+REAL                            :: EdiffRot
+!===================================================================================================================================
+ErelaxTrans = TempTrans*BoltzmannConst*3./2.
+ErelaxRot = 0.
+
+DO iSpec = 1, DVMnSpecies
+  ASSOCIATE(Sp => DVMSpecData(iSpec))
+  IF (Sp%Xi_Rot.GT.0) THEN
+    EdiffRot = 30.*(TempTrans*BoltzmannConst*Sp%Xi_Rot/2.-Erot(iSpec))/(4.-2.*Sp%omegaVHS)/(6.-2.*Sp%omegaVHS)/5. !Zrot(iSpec)
+    ! change this to include actual multispecies collfreq
+    ErelaxRot(iSpec) = Erot(iSpec) + EdiffRot
+    ErelaxTrans = ErelaxTrans - EdiffRot
+  END IF
+  END ASSOCIATE
+END DO
+
+END SUBROUTINE MoleculeRelaxEnergy
+
 SUBROUTINE MaxwellDistributionCons(MacroVal,fMaxwell,iSpec,densSpec)
 !===================================================================================================================================
 ! conservative maxwell distribution (cf Mieussens 2000)
@@ -327,6 +375,11 @@ REAL,DIMENSION(2+DVMDim)        :: alpha, psi, rhovec
 REAL                            :: J(2+DVMDim,2+DVMDim), B(2+DVMDim)
 INTEGER                         :: iVel,jVel,kVel, upos, countz, IPIV(2+DVMDim), info_dgesv
 !===================================================================================================================================
+IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
+  ! molecules with rotational DOF
+  CALL abort(__STAMP__,'Conservative DVM not implemented for species with rotational DOF')
+END IF
+
 rho = densSpec*DVMSpecData(iSpec)%Mass
 uVelo(1:DVMDim) = MacroVal(2:1+DVMDim)
 Temp = MacroVal(5)
@@ -393,19 +446,20 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   psi(2+DVMDim) = vMag/2.
   fMaxwell(upos) = EXP(DOT_PRODUCT(alpha,psi))/DVMSpecData(iSpec)%Mass
   IF (DVMDim.LT.3) THEN
-    fMaxwell(DVMSpecData(iSpec)%nVar/2+upos) = fMaxwell(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
+    fMaxwell(DVMSpecData(iSpec)%nVarReduced+upos) = fMaxwell(upos)*DVMSpecData(iSpec)%R_S*Temp*(3.-DVMDim)
   END IF
 END DO; END DO; END DO
 
 END SUBROUTINE MaxwellDistributionCons
 
-SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell,iSpec,densSpec)
+SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell,iSpec,densSpec,ErelaxRot)
 !===================================================================================================================================
 ! Maxwell distribution from macro values
 !===================================================================================================================================
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
 USE MOD_PreProc
+USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -413,7 +467,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)              :: iSpec
 REAL,INTENT(OUT)                 :: fMaxwell(DVMSpecData(iSpec)%nVar)
 REAL, INTENT(IN)                 :: MacroVal(14)
-REAL, INTENT(IN), OPTIONAL       :: densSpec
+REAL, INTENT(IN), OPTIONAL       :: densSpec,ErelaxRot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -437,7 +491,15 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   cMag2 = cVel(1)*cVel(1) + cVel(2)*cVel(2)+ cVel(3)*cVel(3)
   fMaxwell(upos) = dens/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
   IF (DVMDim.LT.3) THEN
-    fMaxwell(DVMSpecData(iSpec)%nVar/2+upos) = fMaxwell(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
+    fMaxwell(DVMSpecData(iSpec)%nVarReduced+upos) = fMaxwell(upos)*DVMSpecData(iSpec)%R_S*Temp*(3.-DVMDim)
+  END IF
+  IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
+    ! molecules with rotational DOF
+    IF (PRESENT(ErelaxRot)) THEN
+      fMaxwell(DVMSpecData(iSpec)%nVarReduced*2+upos) = fMaxwell(upos)*ErelaxRot
+    ELSE
+      fMaxwell(DVMSpecData(iSpec)%nVarReduced*2+upos) = fMaxwell(upos)*Temp*BoltzmannConst*DVMSpecData(iSpec)%Xi_Rot/2.
+    END IF
   END IF
 END DO; END DO; END DO
 
@@ -482,15 +544,15 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   ShakhFac2 = cMag2/(DVMSpecData(iSpec)%R_S*Temp)
   fShakhov(upos) = gM*(1.+(1.-Prandtl)*ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
-    fShakhov(DVMSpecData(iSpec)%nVar/2+upos) = gM*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim &
-                                + (1.-Prandtl)*ShakhFac1*((ShakhFac2-DVMDim)*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)&
-                                - 2.*DVMSpecData(iSpec)%Internal_DOF))
+    fShakhov(DVMSpecData(iSpec)%nVarReduced+upos) = gM*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Xi_Rot+3.-DVMDim &
+                                + (1.-Prandtl)*ShakhFac1*((ShakhFac2-DVMDim)*(DVMSpecData(iSpec)%Xi_Rot+3.-DVMDim)&
+                                - 2.*DVMSpecData(iSpec)%Xi_Rot))
   END IF
 END DO; END DO; END DO
 
 END SUBROUTINE ShakhovDistribution
 
-SUBROUTINE ESBGKDistribution(MacroVal,fESBGK,iSpec,densSpec,Prandtl)
+SUBROUTINE ESBGKDistribution(MacroVal,fESBGK,iSpec,densSpec,Prandtl,ErelaxTrans,ErelaxRot)
 !===================================================================================================================================
 ! ESBGK distribution from macro values
 !===================================================================================================================================
@@ -506,12 +568,12 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER, INTENT(IN)              :: iSpec
 REAL,INTENT(OUT)                 :: fESBGK(DVMSpecData(iSpec)%nVar)
-REAL, INTENT(IN)                 :: MacroVal(14),densSpec,Prandtl
+REAL, INTENT(IN)                 :: MacroVal(14),densSpec,Prandtl,ErelaxTrans,ErelaxRot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: dens,Temp,uVelo(3),cVel(3),pressTens(3,3),pressProduct,ilambda(3,3),ldet,hfac,densTotal
+REAL                            :: dens,Temp,uVelo(3),cVel(3),pressTens(3,3),pressProduct,ilambda(3,3),ldet,hfac,densTotal,TtransRel
 INTEGER                         :: iVel,jVel,kVel, upos
 !===================================================================================================================================
 dens             = densSpec
@@ -525,11 +587,12 @@ pressTens(1,2:3) = MacroVal(9:10)
 pressTens(2:3,1) = MacroVal(9:10)
 pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
+TtransRel = 2.*ErelaxTrans/BoltzmannConst/3.
 
-pressTens = (1.-1./Prandtl)*pressTens/densTotal/DVMSpecData(iSpec)%Mass
-pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*Temp/Prandtl
-pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*Temp/Prandtl
-pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*Temp/Prandtl
+pressTens = (1.-1./Prandtl)*pressTens*TtransRel/Temp/densTotal/DVMSpecData(iSpec)%Mass
+pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*TtransRel/Prandtl
+pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*TtransRel/Prandtl
+pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*TtransRel/Prandtl
 
 CALL INV33(pressTens,ilambda,ldet)
 IF (ldet.LE.0.) THEN
@@ -552,17 +615,21 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
                 + cVel(3)*DOT_PRODUCT(ilambda(:,3),cVel)
 
   fESBGK(upos) = dens/sqrt(ldet*(2*Pi)**DVMDim)*EXP(-pressProduct/2.)
-  IF ((DVMSpecData(iSpec)%Internal_DOF .GT.0.0).OR.(DVMDim.LT.3)) THEN
-    hfac = DVMSpecData(iSpec)%R_S*Temp*DVMSpecData(iSpec)%Internal_DOF
+  IF (DVMDim.LT.3) THEN
+    hfac = 0.
     IF (DVMDim.LE.2) hfac = hfac + pressTens(3,3)
     IF (DVMDim.LE.1) hfac = hfac + pressTens(2,2)
-    fESBGK(DVMSpecData(iSpec)%nVar/2+upos) = fESBGK(upos)*hfac
+    fESBGK(DVMSpecData(iSpec)%nVarReduced+upos) = fESBGK(upos)*hfac
+  END IF
+  IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
+    ! molecules with rotational DOF
+    fESBGK(DVMSpecData(iSpec)%nVarReduced*2+upos) = fESBGK(upos)*ErelaxRot
   END IF
 END DO; END DO; END DO
 
 END SUBROUTINE ESBGKDistribution
 
-SUBROUTINE GradDistribution(MacroVal,fGrad,iSpec,densSpec,rhoTotal)
+SUBROUTINE GradDistribution(MacroVal,fGrad,iSpec,densSpec,rhoTotal,ErelaxRot)
 !===================================================================================================================================
 ! Grad 13 moments distribution from macro values
 !===================================================================================================================================
@@ -578,7 +645,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)              :: iSpec
 REAL,INTENT(OUT)                 :: fGrad(DVMSpecData(iSpec)%nVar)
 REAL, INTENT(IN)                 :: MacroVal(14)
-REAL, INTENT(IN), OPTIONAL       :: densSpec,rhoTotal
+REAL, INTENT(IN), OPTIONAL       :: densSpec,rhoTotal,ErelaxRot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -634,8 +701,16 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   gM = dens/((2.*Pi*DVMSpecData(iSpec)%R_S*Temp)**(DVMDim/2.))*exp(-cMag2/(2.*DVMSpecData(iSpec)%R_S*Temp))
   fGrad(upos) = gM*(1.+0.5*pressProduct/pressFac+ShakhFac1*(ShakhFac2-2.-DVMDim))
   IF (DVMDim.LT.3) THEN
-    fGrad(DVMSpecData(iSpec)%nVar/2+upos) = gM*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim) &
+    fGrad(DVMSpecData(iSpec)%nVarReduced+upos) = gM*DVMSpecData(iSpec)%R_S*Temp*(3.-DVMDim) &
                   *(1 + 0.5*pressProduct2/pressFac + ShakhFac1*(ShakhFac2-DVMDim))
+  END IF
+  IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
+    ! molecules with rotational DOF
+    IF (PRESENT(ErelaxRot)) THEN
+      fGrad(DVMSpecData(iSpec)%nVarReduced*2+upos) = fGrad(upos)*ErelaxRot
+    ELSE
+      fGrad(DVMSpecData(iSpec)%nVarReduced*2+upos) = fGrad(upos)*Temp*BoltzmannConst*DVMSpecData(iSpec)%Xi_Rot/2.
+    END IF
   END IF
 END DO; END DO; END DO
 
@@ -648,6 +723,7 @@ SUBROUTINE GradDistributionPrandtl(MacroVal,fGrad,iSpec,densSpec,rhoTotal,Prandt
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData
 USE MOD_PreProc
+USE MOD_Globals
 USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -662,6 +738,11 @@ REAL, INTENT(IN)                 :: MacroVal(14),densSpec,rhoTotal,Prandtl
 ! LOCAL VARIABLES
 REAL                             :: MacroValPrandtl(14)
 !===================================================================================================================================
+IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
+  ! molecules with rotational DOF
+  CALL abort(__STAMP__,'Grad13 BGK not implemented for species with rotational DOF')
+END IF
+
 MacroValPrandtl(1:5)   = MacroVal(1:5)
 
 MacroValPrandtl(6)     = (MacroVal(6)-MacroVal(1)*BoltzmannConst*MacroVal(5))/3.
@@ -682,6 +763,7 @@ SUBROUTINE SkewNormalDistribution(MacroVal,fSkew,iSpec,densSpec,rhoTotal,Prandtl
 ! MODULES
 USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMDim, Pi
 USE MOD_PreProc
+USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -698,6 +780,11 @@ REAL                            :: dens, Temp, uVelo(3), cVel(3), cMag2, q(3)
 INTEGER                         :: iVel,jVel,kVel, upos
 REAL                            :: skew(1:3), delta(1:3), alpha(1:3), ksi(1:3), omega(1:3), Phi(1:3), max_skew
 !===================================================================================================================================
+IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
+  ! molecules with rotational DOF
+  CALL abort(__STAMP__,'Skew normal BGK not implemented for species with rotational DOF')
+END IF
+
 dens = densSpec
 uVelo(1:3) = MacroVal(2:4)
 Temp = MacroVal(5)
@@ -725,19 +812,19 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   fSkew(upos) = dens*Phi(1)*Phi(2)*Phi(3)*EXP(-cMag2/2.)/PRODUCT(omega(1:DVMDim))/(2.*Pi)**(DVMDim/2.)
 
   IF (DVMDim.LT.3) THEN
-    fSkew(DVMSpecData(iSpec)%nVar/2+upos) = fSkew(upos)*DVMSpecData(iSpec)%R_S*Temp*(DVMSpecData(iSpec)%Internal_DOF+3.-DVMDim)
+    fSkew(DVMSpecData(iSpec)%nVar/2+upos) = fSkew(upos)*DVMSpecData(iSpec)%R_S*Temp*(3.-DVMDim)
   END IF
 
 END DO; END DO; END DO
 
 END SUBROUTINE SkewNormalDistribution
 
-SUBROUTINE TargetDistribution(MacroVal,fTarget,iSpec,densSpec,rho,Pr)
+SUBROUTINE TargetDistribution(MacroVal,fTarget,iSpec,densSpec,rho,Pr,ErelaxTrans,ErelaxRot)
 !===================================================================================================================================
 ! Target distribution from macro values
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMBGKModel,DVMSpecData
+USE MOD_Equation_Vars_FV         ,ONLY: DVMBGKModel,DVMSpecData,DVMnSpecies
 USE MOD_PreProc
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
@@ -747,13 +834,15 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)              :: iSpec
 REAL,INTENT(OUT)                 :: fTarget(DVMSpecData(iSpec)%nVar)
 REAL, INTENT(IN)                 :: MacroVal(14),densSpec,rho,Pr
+REAL, INTENT(IN)                 :: ErelaxTrans,ErelaxRot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+REAL                            :: MassDensity
 !===================================================================================================================================
 
 SELECT CASE(DVMBGKModel)
   CASE(1)
-    CALL ESBGKDistribution(MacroVal,fTarget,iSpec,densSpec,Pr)
+    CALL ESBGKDistribution(MacroVal,fTarget,iSpec,densSpec,Pr,ErelaxTrans,ErelaxRot)
   CASE(2)
     CALL ShakhovDistribution(MacroVal,fTarget,iSpec,densSpec,rho,Pr)
   CASE(3)
@@ -770,7 +859,7 @@ END SELECT
 
 END SUBROUTINE TargetDistribution
 
-SUBROUTINE MaxwellScatteringDVM(iSpec,fBoundary,U,NormVec,prefac,MacroVal,densSpec,MassDensity,PrandtlNumber)
+SUBROUTINE MaxwellScatteringDVM(iSpec,fBoundary,U,NormVec,prefac,MacroVal,densSpec,MassDensity,PrandtlNumber,ErelaxTrans,ErelaxRot)
 !===================================================================================================================================
 ! Gets accurate density for the half maxwellian at diffusive boundaries
 !===================================================================================================================================
@@ -785,6 +874,7 @@ IMPLICIT NONE
 INTEGER,INTENT(IN)                   :: iSpec
 REAL,INTENT(INOUT)                   :: fBoundary(DVMSpecData(iSpec)%nVar)
 REAL,INTENT(IN)                      :: U(DVMSpecData(iSpec)%nVar),NormVec(3),prefac,MacroVal(14),densSpec,MassDensity,PrandtlNumber
+REAL,INTENT(IN)                      :: ErelaxTrans,ErelaxRot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                                 :: Sout, Sin, weight, vnormal
@@ -792,7 +882,7 @@ REAL                                 :: fRelaxed(DVMSpecData(iSpec)%nVar)
 INTEGER                              :: iVel, jVel, kVel, upos
 !===================================================================================================================================
 
-CALL TargetDistribution(MacroVal, fRelaxed, iSpec, densSpec, MassDensity, PrandtlNumber)
+CALL TargetDistribution(MacroVal, fRelaxed, iSpec, densSpec, MassDensity, PrandtlNumber,ErelaxTrans,ErelaxRot)
 
 fRelaxed = U*prefac + fRelaxed*(1.-prefac)
 
@@ -838,6 +928,7 @@ INTEGER, INTENT(IN)           :: tilde
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: MacroVal(14,DVMnSpecies+1), tau, prefac, relaxFac, Pr, rho
+REAL                            :: ErelaxTrans, Erot(DVMnSpecies), ErelaxRot(DVMnSpecies)
 INTEGER                         :: i,j,k,iElem,iSpec,vFirstID,vLastID
 REAL,ALLOCATABLE                :: fTarget(:)
 !===================================================================================================================================
@@ -846,7 +937,7 @@ DO iElem =1, nElems
   DO k=0, 0; DO j=0, 0; DO i=0, 0
     SELECT CASE (tilde)
       CASE(1) ! f~  -----> f2^    (tDeriv=dt)
-        CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),tDeriv,tau,tilde,MassDensity=rho,PrandtlNumber=Pr)
+        CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),tDeriv,tau,tilde,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
         DVMMomentSave(1:14,:,iElem) = MacroVal(1:14,:)
         DVMMomentSave(15,:,iElem) = tau
         DVMMomentSave(16,:,iElem) = rho
@@ -879,12 +970,13 @@ DO iElem =1, nElems
           prefac = (4./3.)-(1./3.)*(2.*tau+2.*tDeriv)/(2.*tau-tDeriv)
         END SELECT
     END SELECT
+    CALL MoleculeRelaxEnergy(ErelaxTrans, ErelaxRot, MacroVal(5,DVMnSpecies+1), Erot)
     vFirstID=1
     vLastID=0
     DO iSpec=1,DVMnSpecies
       vLastID = vLastID + DVMSpecData(iSpec)%nVar
       ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
-      CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr)
+      CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr, ErelaxTrans, Erelaxrot(iSpec))
       U_FV(vFirstID:vLastID,i,j,k,iElem) = U_FV(vFirstID:vLastID,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
       DEALLOCATE(fTarget)
       vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
@@ -916,23 +1008,25 @@ REAL, INTENT(IN)              :: tDeriv
 REAL                            :: MacroVal(14,DVMnSpecies+1), tau, prefac, rho, Pr
 INTEGER                         :: i,j,k,iElem,iSpec,vFirstID,vLastID
 REAL, ALLOCATABLE               :: fTarget(:)
+REAL                            :: ErelaxTrans, Erot(DVMnSpecies), ErelaxRot(DVMnSpecies)
 !===================================================================================================================================
 SWRITE(UNIT_stdOut,*) 'INITIAL DISTRIBUTION FUNCTION RESCALE'
 vFirstID=1
 vLastID=0
 DO iElem =1, nElems
   DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-    CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),0.,tau,1,MassDensity=rho,PrandtlNumber=Pr) ! tDeriv=0 to get heatflux from original distribution
+    CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),0.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot) ! tDeriv=0 to get heatflux from original distribution
     SELECT CASE (DVMMethod)
       CASE(1)
         prefac = (tDeriv/tau)/(1. - (EXP(-tDeriv/tau)))
       CASE(2)
         prefac = (2.*tau+tDeriv)/(2.*tau)
     END SELECT
+    CALL MoleculeRelaxEnergy(ErelaxTrans, ErelaxRot, MacroVal(5,DVMnSpecies+1), Erot)
     DO iSpec=1,DVMnSpecies
       vLastID = vLastID + DVMSpecData(iSpec)%nVar
       ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
-      CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr)
+      CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr, ErelaxTrans, Erelaxrot(iSpec))
       U_FV(vFirstID:vLastID,i,j,k,iElem) = U_FV(vFirstID:vLastID,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
       DEALLOCATE(fTarget)
       vFirstID = vFirstID + DVMSpecData(iSpec)%nVar

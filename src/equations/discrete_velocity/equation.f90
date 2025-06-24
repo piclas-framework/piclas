@@ -163,8 +163,13 @@ DO iSpec = 1, DVMnSpecies
   DVMVeloDisc(iSpec)  = GETINT('DVM-Species'//TRIM(hilf)//'-VeloDiscretization')
   Sp%nVelos(1:3)      = 1
   Sp%nVelos(1:DVMDim) = GETINT('DVM-Species'//TRIM(hilf)//'-nVelo')
-  Sp%nVar             = Sp%nVelos(1)**DVMDim !non reduced dimensions must have same nVelos for now
-  IF (DVMDim.LT.3) Sp%nVar = Sp%nVar*2 !double variables for reduced distributions
+  Sp%nVarReduced      = Sp%nVelos(1)*Sp%nVelos(2)*Sp%nVelos(3) !number of velocity points, potentially using reduced distribution
+  Sp%nVar             = Sp%nVarReduced
+  IF (DVMDim.LT.3) Sp%nVar = Sp%nVar + Sp%nVarReduced ! variables for translational energy reduced distribution
+  IF ((DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20).AND.DVMBGKModel.EQ.1) THEN
+     ! variables for rotational energy reduced distribution (only for ESBGK)
+    Sp%nVar = Sp%nVar + Sp%nVarReduced
+  END IF
   PP_nVar_FV          = PP_nVar_FV + Sp%nVar
   LBWRITE(UNIT_stdOut,*)'DVM species '//TRIM(hilf)//':', Sp%nVelos(1), 'x', Sp%nVelos(2), 'x', Sp%nVelos(3),' velocities!'
 
@@ -302,7 +307,7 @@ USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: iSpec,err
+INTEGER               :: iSpec,err, PolyMol
 CHARACTER(32)         :: hilf
 CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
@@ -361,6 +366,14 @@ IF(SpeciesDatabase.NE.'none') THEN
       CALL PrintOption('MassIC','DB',RealOpt=Sp%Mass)
       CALL ReadAttribute(file_id_specdb,'InteractionID',1,DatasetName = dsetname,IntScalar=Sp%InterID,ReadFromGroup=.TRUE.)
       CALL PrintOption('InteractionID','DB',IntOpt=Sp%InterID)
+      IF((Sp%InterID.NE.4).AND.(Sp%InterID.NE.100)) THEN
+        CALL AttributeExists(file_id_specdb,'PolyatomicMol',TRIM(dsetname),AttrExists=AttrExists,ReadFromGroup=.TRUE.)
+          IF (AttrExists) THEN
+            CALL ReadAttribute(file_id_specdb,'PolyatomicMol',1,DatasetName = dsetname,IntScalar=PolyMol, &
+              ReadFromGroup=.TRUE.)
+            IF(PolyMol.EQ.1) CALL Abort(__STAMP__,'! Simulation of Polyatomic Molecules with DVM not possible yet!!!')
+          END IF
+      END IF
       IF(DVMColl) THEN
         ! Reference temperature
         CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=Sp%T_Ref,ReadFromGroup=.TRUE.)
@@ -399,12 +412,12 @@ DO iSpec = 1, DVMnSpecies
   END IF
   Sp%mu_Ref              = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
   Sp%R_S                 = BoltzmannConst / Sp%Mass
-  IF (Sp%InterID.LE.1) THEN
-    Sp%Internal_DOF = 0 ! atomic species
+  IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+    ! diatomic molecule (not more for now)
+    Sp%Xi_Rot              = 2
   ELSE
-    CALL abort(__STAMP__,'ERROR: DVM only implemented for atomic species!')
+    Sp%Xi_Rot              = 0
   END IF
-  CALL PrintOption('Internal_DOF','INFO',IntOpt=Sp%Internal_DOF)
   END ASSOCIATE
 END DO ! iSpec
 

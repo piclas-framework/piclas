@@ -317,7 +317,7 @@ USE MOD_Preproc
 #ifdef discrete_velocity
 USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMnSpecies, DVMSpecData, DVMColl
-USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution
+USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution, MoleculeRelaxEnergy
 #endif /*discrete_velocity*/
 #endif /*USE_FV*/
 USE MOD_Timedisc_Vars     ,ONLY: dt
@@ -349,7 +349,8 @@ INTEGER,PARAMETER       :: AddVar=0
 INTEGER                 :: nVar
 #ifdef discrete_velocity
 REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(14,DVMnSpecies+1), fTarget(PP_nVar_FV), rho, Pr
-INTEGER                 :: iSpec, vFIrstID, vLastID
+INTEGER                 :: iSpec, vFirstID, vLastID
+REAL                    :: Erot(DVMnSpecies), ErelaxTrans, ErelaxRot(DVMnSpecies)
 #else
 REAL                    :: U_RP(PP_nVar+AddVar,nRP)
 #endif /*discrete_velocity*/
@@ -386,7 +387,8 @@ DO iRP=1,nRP
       DO i=0,PP_N
 #ifdef discrete_velocity
         IF (t.GT.0..AND.DVMColl) THEN
-          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr)
+          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+          CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroVal(5,DVMnSpecies+1),Erot)
           SELECT CASE(DVMMethod)
             CASE(1)
               prefac = tau*(1.-EXP(-dt/tau))/dt
@@ -397,7 +399,7 @@ DO iRP=1,nRP
           vLastID = 0
           DO iSpec=1,DVMnSpecies
             vLastID = vLastID + DVMSpecData(iSpec)%nVar
-            CALL TargetDistribution(MacroVal(:,DVMnSpecies+1),fTarget(vFirstID:vLastID),iSpec,MacroVal(1,iSpec),rho,Pr)
+            CALL TargetDistribution(MacroVal(:,DVMnSpecies+1),fTarget(vFirstID:vLastID),iSpec,MacroVal(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
             vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
           END DO
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)

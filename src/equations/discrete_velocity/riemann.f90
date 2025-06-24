@@ -29,7 +29,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! PP_N
-USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, TargetDistribution
+USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, TargetDistribution, MoleculeRelaxEnergy
 USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMSpecData, DVMnSpecies, DVMMethod, DVMColl
 USE MOD_TimeDisc_Vars,   ONLY: dt
 USE MOD_Globals,         ONLY: abort
@@ -51,14 +51,19 @@ REAL                                             :: Velo, rho_L, rho_R, Pr_L, Pr
 REAL,ALLOCATABLE                                 :: fTarget_L(:), fTarget_R(:), UTemp_L(:), UTemp_R(:)
 REAL                                             :: gamma_R, gamma_L, relaxFac
 INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos, iSpec, vFirstID, vLastID
+REAL                                             :: Erot_L(DVMnSpecies),Erot_R(DVMnSpecies)
+REAL                                             :: ErelaxTrans_L,ErelaxTrans_R
+REAL                                             :: ErelaxRot_L(DVMnSpecies),ErelaxRot_R(DVMnSpecies)
 !===================================================================================================================================
 ! Gauss point i,j
   DO Count_2=0,0
     DO Count_1=0,0
       n_loc(:)=nv(:,Count_1,Count_2)
       IF (DVMColl) THEN
-        CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1,MassDensity=rho_L,PrandtlNumber=Pr_L)
-        CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1,MassDensity=rho_R,PrandtlNumber=Pr_R)
+        CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1,MassDensity=rho_L,PrandtlNumber=Pr_L,Erot=Erot_L)
+        CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1,MassDensity=rho_R,PrandtlNumber=Pr_R,Erot=Erot_R)
+        CALL MoleculeRelaxEnergy(ErelaxTrans_L,ErelaxRot_L,MacroVal_L(5,DVMnSpecies+1),ERot_L)
+        CALL MoleculeRelaxEnergy(ErelaxTrans_R,ErelaxRot_R,MacroVal_R(5,DVMnSpecies+1),ERot_R)
         SELECT CASE (DVMMethod)
         CASE(1)
           relaxFac = dt/2./tau_L
@@ -87,8 +92,8 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
         ALLOCATE(UTemp_L(DVMSpecData(iSpec)%nVar))
         ALLOCATE(UTemp_R(DVMSpecData(iSpec)%nVar))
         IF (DVMColl) THEN
-          CALL TargetDistribution(MacroVal_L(:,DVMnSpecies+1),fTarget_L,iSpec,MacroVal_L(1,iSpec),rho_L,Pr_L)
-          CALL TargetDistribution(MacroVal_R(:,DVMnSpecies+1),fTarget_R,iSpec,MacroVal_R(1,iSpec),rho_R,Pr_R)
+          CALL TargetDistribution(MacroVal_L(:,DVMnSpecies+1),fTarget_L,iSpec,MacroVal_L(1,iSpec),rho_L,Pr_L,ErelaxTrans_L,ErelaxRot_L(iSpec))
+          CALL TargetDistribution(MacroVal_R(:,DVMnSpecies+1),fTarget_R,iSpec,MacroVal_R(1,iSpec),rho_R,Pr_R,ErelaxTrans_R,ErelaxRot_R(iSpec))
           IF (dt.EQ.0.) THEN
             UTemp_L = 0.
             UTemp_R = 0.
@@ -108,9 +113,9 @@ INTEGER                                          :: Count_1,Count_2, iVel, jVel,
               + n_loc(3)*DVMSpecData(iSpec)%Velos(kVel,3)
           F(vFirstID+upos-1,Count_1,Count_2)=0.5*((Velo+abs(Velo))*Utemp_L(upos)+(Velo-abs(Velo))*Utemp_R(upos))
           IF (DVMDim.LT.3) THEN
-            F(vFirstID+DVMSpecData(iSpec)%nVar/2+upos-1,Count_1,Count_2) = &
-                                                    0.5*((Velo+abs(Velo))*Utemp_L(DVMSpecData(iSpec)%nVar/2+upos) &
-                                                       + (Velo-abs(Velo))*Utemp_R(DVMSpecData(iSpec)%nVar/2+upos))
+            F(vFirstID+DVMSpecData(iSpec)%nVarReduced+upos-1,Count_1,Count_2) = &
+                                                    0.5*((Velo+abs(Velo))*Utemp_L(DVMSpecData(iSpec)%nVarReduced+upos) &
+                                                       + (Velo-abs(Velo))*Utemp_R(DVMSpecData(iSpec)%nVarReduced+upos))
           END IF
         END DO; END DO; END DO;
         DEALLOCATE(fTarget_L)

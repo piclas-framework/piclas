@@ -63,8 +63,9 @@ TYPE tSpeciesData
   REAL            :: Charge
   REAL            :: R_S
   INTEGER         :: InterID
-  INTEGER         :: Internal_DOF
+  INTEGER         :: Xi_Rot
   INTEGER         :: nVar
+  INTEGER         :: nVarReduced
   INTEGER         :: nVelos(3)
   REAL            :: VeloMin(3)
   REAL            :: VeloMax(3)

@@ -96,10 +96,10 @@ DO SideID=firstSideID,lastSideID
                                     + Gradient_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                     + Gradient_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
       IF (DVMDim.LT.3) THEN
-        Uface_slave(Sp%nVar/2+upos,0,0,SideID) = Uvol(Sp%nVar/2+upos,0,0,0,ElemID) &
-                                    + Gradient_elem(1,Sp%nVar/2+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
-                                    + Gradient_elem(2,Sp%nVar/2+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
-                                    + Gradient_elem(3,Sp%nVar/2+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+        Uface_slave(Sp%nVarReduced+upos,0,0,SideID) = Uvol(Sp%nVarReduced+upos,0,0,0,ElemID) &
+                                    + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                    + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                    + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
       END IF
     END DO; END DO; END DO
     vFirstID = vFirstID + Sp%nVar
@@ -144,10 +144,10 @@ DO SideID=firstSideID,lastSideID
                                       + Gradient_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                       + Gradient_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
         IF (DVMDim.LT.3) THEN
-          Uface_master(Sp%nVar/2+upos,0,0,SideID) = Uvol(Sp%nVar/2+upos,0,0,0,ElemID) &
-                                      + Gradient_elem(1,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
-                                      + Gradient_elem(2,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
-                                      + Gradient_elem(3,Sp%nVar/2+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+          Uface_master(Sp%nVarReduced+upos,0,0,SideID) = Uvol(Sp%nVarReduced+upos,0,0,0,ElemID) &
+                                      + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                      + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                      + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
         END IF
       END DO; END DO; END DO
       vFirstID = vFirstID + Sp%nVar
