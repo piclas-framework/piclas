@@ -23,8 +23,6 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL           :: doCalcSource             !< Swith to calculate a source term or not, automatically set by calcsource itself
-REAL              :: AdvVel(3)                !< Advection velocity
-REAL              :: DiffC                    !< Diffusion constant
 INTEGER           :: IniExactFunc_FV             !< Number of exact function used for initialization
 INTEGER           :: IniRefState              !< RefState for initialization
 INTEGER           :: nRefState                !< number of refstates defined in parameter file
@@ -49,10 +47,6 @@ INTEGER              :: DVMDim
 REAL, ALLOCATABLE    :: DVMVelos(:,:)
 REAL, ALLOCATABLE    :: DVMWeights(:,:)
 REAL                 :: DVMForce(3)
-
-REAL                 :: c_corr
-REAL                 :: fDamping
-REAL                 :: WaveLength                             !> wave length
 
 REAL,ALLOCATABLE     :: DVMMomentSave(:,:)
 

@@ -112,7 +112,7 @@ USE MOD_Mesh_Tools             ,ONLY: InitGetCNElemID
 USE MOD_Mesh_Vars_FV
 USE MOD_Metrics_FV             ,ONLY: CalcMetrics_PP_1,CalcSurfMetrics_PP_1
 #endif /*FV*/
-USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics,CalcSurfMetrics
+USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
@@ -123,12 +123,12 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Metrics    ,ONLY: MoveCoords,MoveMetrics
+USE MOD_LoadBalance_Metrics    ,ONLY: ExchangeVolMesh,ExchangeMetrics
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
 #if USE_FV
-USE MOD_LoadBalance_Metrics_FV ,ONLY: MoveCoords_FV,MoveMetrics_FV
+USE MOD_LoadBalance_Metrics_FV ,ONLY: ExchangeVolMesh_FV,ExchangeMetrics_FV
 #endif /*USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
@@ -270,25 +270,25 @@ END IF
 
 #if USE_LOADBALANCE
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  CALL MoveCoords()
+  CALL ExchangeVolMesh()
 #if USE_FV
-  CALL MoveCoords_FV()
+  CALL ExchangeVolMesh_FV()
 #endif
 ELSE
 ! Build the coordinates of the solution gauss points in the volume
 #endif /*USE_LOADBALANCE*/
   SDEALLOCATE(Elem_xGP)
   ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
+  CALL BuildElem_xGP(NodeCoords,PP_N,Elem_xGP)
 #if USE_FV
   ! Element centers
   SDEALLOCATE(Elem_xGP_FV)
   ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))
-  CALL BuildCoords(NodeCoords,0,Elem_xGP_FV)
+  CALL BuildElem_xGP(NodeCoords,0,Elem_xGP_FV)
   ! Output points
   SDEALLOCATE(Elem_xGP_PP_1)
   ALLOCATE(Elem_xGP_PP_1 (3,0:PP_1,0:PP_1,0:PP_1,nElems))
-  CALL BuildCoords(NodeCoords,PP_1,Elem_xGP_PP_1)
+  CALL BuildElem_xGP(NodeCoords,PP_1,Elem_xGP_PP_1)
   ! Normal Elem_xGP useless for FV, remove?
 #endif
 #if USE_LOADBALANCE
@@ -365,9 +365,9 @@ IF (ABS(meshMode).GT.1) THEN
 #if USE_LOADBALANCE
   IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     ! Shift metric arrays during load balance
-    CALL MoveMetrics()
+    CALL ExchangeMetrics()
 #if USE_FV
-    CALL MoveMetrics_FV()
+    CALL ExchangeMetrics_FV()
 #endif
   ELSE
     ! deallocate existing arrays
@@ -1237,7 +1237,6 @@ SDEALLOCATE(GlobalUniqueSideID)
 !SDEALLOCATE(SideBoundingBoxVolume)
 !#endif
 !#endif
-SDEALLOCATE(ElemToElemGlob)
 ! mortars
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)

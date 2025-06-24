@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_FV
+#if USE_FV
 !===================================================================================================================================
 ! Contains the initialization of the FV global variables
 ! Computes the different FV spatial operators/residuals(Ut_FV) using U_FV
@@ -155,7 +156,8 @@ USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
+USE MOD_MPI               ,ONLY: FinishExchangeMPIData
+USE MOD_MPI_FV            ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV
 #if defined(PARTICLES) && defined(LSERK)
 USE MOD_Particle_Vars     ,ONLY: DelayTime
 USE MOD_TimeDisc_Vars     ,ONLY: time
@@ -379,7 +381,6 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 
 
-
 SUBROUTINE FinalizeFV()
 !===================================================================================================================================
 ! Deallocate global variable U_FV (solution) and Ut_FV (fv time derivative).
@@ -421,4 +422,5 @@ END IF
 FVInitIsDone = .FALSE.
 END SUBROUTINE FinalizeFV
 
+#endif /*USE_FV*/
 END MODULE MOD_FV

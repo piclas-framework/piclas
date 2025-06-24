@@ -31,6 +31,7 @@ INTERFACE WriteStateToHDF5
 END INTERFACE
 
 PUBLIC :: WriteStateToHDF5
+PUBLIC :: WriteTimeAverage
 #if defined(PARTICLES)
 PUBLIC :: WriteIMDStateToHDF5
 PUBLIC :: WriteElemDataToSeparateContainer
@@ -261,7 +262,7 @@ IF(InitialAutoRestart) THEN
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution')
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1)
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
@@ -280,7 +281,7 @@ ELSE
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
 #elif defined(discrete_velocity) /*DVM*/
-  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution')
+  CALL GenerateFileSkeleton('State',15,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1)
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
@@ -1068,6 +1069,109 @@ DEALLOCATE(ElemData)
 
 END SUBROUTINE WriteElemDataToSeparateContainer
 #endif /*USE_LOADBALANCE || defined(PARTICLES)*/
+
+
+SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,VarNamesFluc,UAvg,UFluc,dtAvg,nVar_Avg,nVar_Fluc)
+!==================================================================================================================================
+!> Subroutine to write time averaged data and fluctuations HDF5 format
+!==================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_Mesh_Vars    ,ONLY: offsetElem,nGlobalElems,nElems
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+INTEGER,INTENT(IN)             :: nVar_Avg                                     !< Number of averaged variables
+INTEGER,INTENT(IN)             :: nVar_Fluc                                    !< Number of fluctuations
+CHARACTER(LEN=*),INTENT(IN)    :: MeshFileName                                 !< Name of mesh file
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesAvg(nVar_Avg)                        !< Average variable names
+CHARACTER(LEN=*),INTENT(IN)    :: VarNamesFluc(nVar_Fluc)                      !< Fluctuations variable names
+REAL,INTENT(IN)                :: OutputTime                                   !< Time of output
+REAL,INTENT(IN),OPTIONAL       :: PreviousTime                                 !< Time of previous output
+REAL,INTENT(IN),TARGET         :: UAvg(nVar_Avg,0:PP_N,0:PP_N,0:PP_N,nElems)   !< Averaged Solution
+REAL,INTENT(IN),TARGET         :: UFluc(nVar_Fluc,0:PP_N,0:PP_N,0:PP_N,nElems) !< Fluctuations
+REAL,INTENT(IN)                :: dtAvg                                        !< Timestep of averaging
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: FileName
+REAL                           :: StartT,EndT
+!==================================================================================================================================
+IF((nVar_Avg.EQ.0).AND.(nVar_Fluc.EQ.0)) RETURN ! no time averaging
+
+GETTIME(StartT)
+SWRITE (UNIT_stdOut,'(A)',ADVANCE='NO') ' WRITE TIME AVERAGED STATE AND FLUCTUATIONS TO HDF5 FILE...'
+
+! generate nextfile info in previous output file
+IF(PRESENT(PreviousTime))THEN
+  IF(MPIRoot .AND. PreviousTime.LT.OutputTime) CALL GenerateNextFileInfo('TimeAvg',OutputTime,PreviousTime)
+END IF
+
+! Write timeaverages ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Avg.GT.0)THEN
+  ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+  CALL GenerateFileSkeleton('TimeAvg',nVar_Avg,VarNamesAvg,MeshFileName,OutputTime,FileNameOut=FileName)
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif /*USE_MPI*/
+
+  ! Reopen file and write DG solution
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        nElems          => INT(nElems,IK)          ,&
+        nVar_Avg        => INT(nVar_Avg,IK)        ,&
+        N               => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+    CALL GatheredWriteArray(FileName , create = .FALSE.  , &
+                            DataSetName     = 'DG_Solution' , rank = 5          , &
+                            nValGlobal      = (/nVar_Avg    , N+1_IK            , N+1_IK , N+1_IK , nGlobalElems/) , &
+                            nVal            = (/nVar_Avg    , N+1_IK            , N+1_IK , N+1_IK , nElems/)       , &
+                            offset          = (/0_IK        , 0_IK              , 0_IK   , 0_IK   , offsetElem/)   , &
+                            collective      = .TRUE.        , RealArray = UAvg)
+  END ASSOCIATE
+END IF
+
+! Write fluctuations ---------------------------------------------------------------------------------------------------------------
+IF(nVar_Fluc.GT.0)THEN
+  CALL GenerateFileSkeleton('Fluc',nVar_Fluc,VarNamesFluc,MeshFileName,OutputTime,FileNameOut=FileName)
+  IF(MPIRoot)THEN
+    CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+    CALL WriteAttributeToHDF5(File_ID,'AvgTime',1,RealScalar=dtAvg)
+    CALL CloseDataFile()
+  END IF
+#if USE_MPI
+  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif /*USE_MPI*/
+
+  ! Reopen file and write DG solution
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nGlobalElems    => INT(nGlobalElems,IK)    ,&
+        nElems          => INT(nElems,IK)          ,&
+        nVar_Fluc       => INT(nVar_Fluc,IK)       ,&
+        N               => INT(PP_N,IK)            ,&
+        offsetElem      => INT(offsetElem,IK)      )
+    CALL GatheredWriteArray(FileName , create = .FALSE.                                                          , &
+                            DataSetName     = 'DG_Solution' , rank = 5           , &
+                            nValGlobal      = (/nVar_Fluc   , N+1_IK             , N+1_IK , N+1_IK , nGlobalElems/) , &
+                            nVal            = (/nVar_Fluc   , N+1_IK             , N+1_IK , N+1_IK , nElems/)       , &
+                            offset          = (/0_IK        , 0_IK               , 0_IK   , 0_IK   , offsetElem/)   , &
+                            collective      = .TRUE.        , RealArray = UFluc)
+  END ASSOCIATE
+END IF
+
+IF (MPIRoot) CALL MarkWriteSuccessful(FileName)
+
+GETTIME(endT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+END SUBROUTINE WriteTimeAverage
 
 
 END MODULE MOD_HDF5_Output_State
