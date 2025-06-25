@@ -117,7 +117,7 @@ USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScatteringDVM, MacroValuesFromDistribution, MoleculeRelaxEnergy
-USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMethod
+USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMethod, DVMnMacro
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -134,9 +134,9 @@ INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0)
 INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFirstID, vLastID
-REAL                                 :: MacroVal(14), tau, prefac, vnormal
-REAL                                 :: MacroValInside(14,DVMnSpecies+1),rho,Pr
-REAL                                 :: Erot(DVMnSpecies), ErelaxTrans, ErelaxRot(DVMnSpecies)
+REAL                                 :: MacroVal(DVMnMacro), tau, prefac, vnormal
+REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr
+REAL                                 :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -244,7 +244,7 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       DO q=0,0; DO p=0,0
         CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
+        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
         IF (dt.EQ.0.) THEN
           prefac = 1.
         ELSE

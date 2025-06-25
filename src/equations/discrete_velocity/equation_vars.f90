@@ -42,6 +42,8 @@ INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 
 LOGICAL              :: DVMColl
 INTEGER              :: DVMnSpecies
+INTEGER              :: DVMnMacro=14
+INTEGER              :: DVMnInnerE
 INTEGER              :: DVMBGKModel
 INTEGER              :: DVMMethod
 INTEGER              :: DVMDim
@@ -51,6 +53,7 @@ REAL,ALLOCATABLE     :: DVMGHTemp(:,:)
 INTEGER,ALLOCATABLE  :: DVMNewtDeg(:,:)
 
 REAL,ALLOCATABLE     :: DVMMomentSave(:,:,:)
+REAL,ALLOCATABLE     :: DVMInnerESave(:,:,:)
 
 TYPE tSpeciesData
   CHARACTER(LEN=64):: Name
@@ -66,6 +69,7 @@ TYPE tSpeciesData
   INTEGER         :: Xi_Rot
   INTEGER         :: nVar
   INTEGER         :: nVarReduced
+  INTEGER         :: nVarErotStart
   INTEGER         :: nVelos(3)
   REAL            :: VeloMin(3)
   REAL            :: VeloMax(3)

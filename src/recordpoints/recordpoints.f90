@@ -316,7 +316,7 @@ USE MOD_Preproc
 #if USE_FV
 #ifdef discrete_velocity
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMnSpecies, DVMSpecData, DVMColl
+USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMnSpecies, DVMSpecData, DVMColl, DVMnMacro
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution, MoleculeRelaxEnergy
 #endif /*discrete_velocity*/
 #endif /*USE_FV*/
@@ -348,9 +348,9 @@ INTEGER,PARAMETER       :: AddVar=0
 #endif /*USE_HDG*/
 INTEGER                 :: nVar
 #ifdef discrete_velocity
-REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(14,DVMnSpecies+1), fTarget(PP_nVar_FV), rho, Pr
+REAL                    :: U_RP(PP_nVar_FV,nRP), tau, prefac, MacroVal(DVMnMacro,DVMnSpecies+1), fTarget(PP_nVar_FV), rho, Pr
 INTEGER                 :: iSpec, vFirstID, vLastID
-REAL                    :: Erot(DVMnSpecies), ErelaxTrans, ErelaxRot(DVMnSpecies)
+REAL                    :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
 #else
 REAL                    :: U_RP(PP_nVar+AddVar,nRP)
 #endif /*discrete_velocity*/
@@ -388,7 +388,7 @@ DO iRP=1,nRP
 #ifdef discrete_velocity
         IF (t.GT.0..AND.DVMColl) THEN
           CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-          CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroVal(5,DVMnSpecies+1),Erot)
+          CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroVal(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
           SELECT CASE(DVMMethod)
             CASE(1)
               prefac = tau*(1.-EXP(-dt/tau))/dt

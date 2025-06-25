@@ -991,7 +991,7 @@ USE MOD_Globals_Vars       ,ONLY: eps0, ElementaryCharge
 USE MOD_FV_Vars            ,ONLY: U_FV
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_DistFunc           ,ONLY: MacroValuesFromDistribution
-USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecies
+USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecies, DVMnMacro
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1018,7 +1018,7 @@ REAL                            :: ElemCharLengthX
 #endif /*defined(CODE_ANALYZE)*/
 #endif /*PARTICLES*/
 #ifdef discrete_velocity
-REAL                            :: DVMtotalCharge, tau, MacroVal(14,DVMnSpecies+1)
+REAL                            :: DVMtotalCharge, tau, MacroVal(DVMnMacro,DVMnSpecies+1)
 #endif
 !===================================================================================================================================
 ASSOCIATE( x => Elem_xGP(1,i,j,k,iElem), y => Elem_xGP(2,i,j,k,iElem), z => Elem_xGP(3,i,j,k,iElem))

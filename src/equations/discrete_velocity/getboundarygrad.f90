@@ -44,7 +44,7 @@ USE MOD_Mesh_Vars        ,ONLY: BC
 USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
 USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV
-USE MOD_Equation_Vars_FV ,ONLY: DVMVeloDisc, DVMSpecData, DVMnSpecies, DVMDim, DVMMethod
+USE MOD_Equation_Vars_FV ,ONLY: DVMVeloDisc, DVMSpecData, DVMnSpecies, DVMDim, DVMMethod, DVMnMacro
 USE MOD_TimeDisc_Vars    ,ONLY: dt, time
 USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScatteringDVM, MoleculeRelaxEnergy
 IMPLICIT NONE
@@ -61,9 +61,9 @@ LOGICAL,INTENT(IN):: output
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
-REAL    :: MacroVal(14), tau, vnormal, prefac, MacroValInside(14,DVMnSpecies+1),rho,Pr
+REAL    :: MacroVal(DVMnMacro), tau, vnormal, prefac, MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr
 INTEGER :: iVel, jVel, kVel, upos, upos_sp, iSpec, vFirstID, vLastID
-REAL    :: Erot(DVMnSpecies), ErelaxTrans, ErelaxRot(DVMnSpecies)
+REAL    :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
 !==================================================================================================================================
 BCType  = BoundaryType_FV(BC(SideID),BC_TYPE)
 BCState = BoundaryType_FV(BC(SideID),BC_STATE)
@@ -156,10 +156,10 @@ CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
   fplus(:)=UPrim_master(:)-gradUinside(:)
   IF (output) THEN
     CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
   ELSE
     CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
   END IF
   IF (dt.EQ.0.) THEN
     prefac = 1.
@@ -201,10 +201,10 @@ CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
 CASE(14) ! diffusive order 1
   IF (output) THEN
     CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
   ELSE
     CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot)
+    CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
   END IF
   IF (dt.EQ.0.) THEN
     prefac = 1.

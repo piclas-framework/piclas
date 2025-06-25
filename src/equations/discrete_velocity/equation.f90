@@ -51,6 +51,7 @@ CONTAINS
 SUBROUTINE DefineParametersEquation()
 ! MODULES
 USE MOD_ReadInTools ,ONLY: prms
+USE MOD_Equation_Vars_FV ,ONLY: DVMnMacro
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Equation")
@@ -92,7 +93,7 @@ CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//
                                                      '2: DUGKS')
 CALL prms%CreateIntOption(      'IniRefState-FV',  'Refstate required for initialization.')
 CALL prms%CreateRealArrayOption('RefState-FV',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
-                                                 multiple=.TRUE., no=14 )
+                                                 multiple=.TRUE., no=DVMnMacro )
 CALL prms%CreateRealArrayOption('DVM-Accel',    'Acceleration vector for force term', '(/0., 0., 0./)')
 CALL prms%CreateLogicalOption(  'DVM-Collisions',  'Activate collision (RHS BGK equation)', '.TRUE.')
 CALL prms%CreateLogicalOption(  'DVM-WriteMacroSurfaceValues',  'Surface output', '.FALSE.')
@@ -120,7 +121,7 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: i, iGH, iDim, iSpec
+INTEGER               :: i, iGH, iDim, iSpec, offsetSpec
 CHARACTER(32)         :: hilf
 CHARACTER(LEN=255)    :: SpecID
 !==================================================================================================================================
@@ -149,11 +150,11 @@ END IF
 
 DVMnSpecies = GETINT('DVM-nSpecies')
 ALLOCATE(DVMSpecData(DVMnSpecies))
-ALLOCATE(StrVarNames_FV(14*(DVMnSpecies+1)+1))
 PP_nVar_FV = 0
 
 CALL InitDVMSpecData()
 
+ALLOCATE(StrVarNames_FV((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1))
 ALLOCATE(DVMVeloDisc(DVMnSpecies))
 
 DO iSpec = 1, DVMnSpecies
@@ -169,6 +170,8 @@ DO iSpec = 1, DVMnSpecies
   IF ((DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20).AND.DVMBGKModel.EQ.1) THEN
      ! variables for rotational energy reduced distribution (only for ESBGK)
     Sp%nVar = Sp%nVar + Sp%nVarReduced
+    Sp%nVarErotStart = Sp%nVarReduced
+    IF (DVMDim.LT.3) Sp%nVarErotStart = Sp%nVarErotStart + Sp%nVarReduced
   END IF
   PP_nVar_FV          = PP_nVar_FV + Sp%nVar
   LBWRITE(UNIT_stdOut,*)'DVM species '//TRIM(hilf)//':', Sp%nVelos(1), 'x', Sp%nVelos(2), 'x', Sp%nVelos(3),' velocities!'
@@ -212,37 +215,45 @@ DO iSpec = 1, DVMnSpecies
   END ASSOCIATE
   ! Set output variable names
   WRITE(SpecID,'(I3.3)') iSpec
-  StrVarNames_FV(14*(iSpec-1)+1)  = 'Spec'//TRIM(SpecID)//'_NumberDensity'
-  StrVarNames_FV(14*(iSpec-1)+2)  = 'Spec'//TRIM(SpecID)//'_VelocityX'
-  StrVarNames_FV(14*(iSpec-1)+3)  = 'Spec'//TRIM(SpecID)//'_VelocityY'
-  StrVarNames_FV(14*(iSpec-1)+4)  = 'Spec'//TRIM(SpecID)//'_VelocityZ'
-  StrVarNames_FV(14*(iSpec-1)+5)  = 'Spec'//TRIM(SpecID)//'_Temperature'
-  StrVarNames_FV(14*(iSpec-1)+6)  = 'Spec'//TRIM(SpecID)//'_PressureXX'
-  StrVarNames_FV(14*(iSpec-1)+7)  = 'Spec'//TRIM(SpecID)//'_PressureYY'
-  StrVarNames_FV(14*(iSpec-1)+8)  = 'Spec'//TRIM(SpecID)//'_PressureZZ'
-  StrVarNames_FV(14*(iSpec-1)+9)  = 'Spec'//TRIM(SpecID)//'_PressureXY'
-  StrVarNames_FV(14*(iSpec-1)+10) = 'Spec'//TRIM(SpecID)//'_PressureXZ'
-  StrVarNames_FV(14*(iSpec-1)+11) = 'Spec'//TRIM(SpecID)//'_PressureYZ'
-  StrVarNames_FV(14*(iSpec-1)+12) = 'Spec'//TRIM(SpecID)//'_HeatfluxX'
-  StrVarNames_FV(14*(iSpec-1)+13) = 'Spec'//TRIM(SpecID)//'_HeatfluxY'
-  StrVarNames_FV(14*(iSpec-1)+14) = 'Spec'//TRIM(SpecID)//'_HeatfluxZ'
+  offsetSpec = (DVMnMacro+DVMnInnerE)*(iSpec-1)
+  StrVarNames_FV(offsetSpec+1)  = 'Spec'//TRIM(SpecID)//'_NumberDensity'
+  StrVarNames_FV(offsetSpec+2)  = 'Spec'//TRIM(SpecID)//'_VelocityX'
+  StrVarNames_FV(offsetSpec+3)  = 'Spec'//TRIM(SpecID)//'_VelocityY'
+  StrVarNames_FV(offsetSpec+4)  = 'Spec'//TRIM(SpecID)//'_VelocityZ'
+  StrVarNames_FV(offsetSpec+5)  = 'Spec'//TRIM(SpecID)//'_Temperature'
+  StrVarNames_FV(offsetSpec+6)  = 'Spec'//TRIM(SpecID)//'_PressureXX'
+  StrVarNames_FV(offsetSpec+7)  = 'Spec'//TRIM(SpecID)//'_PressureYY'
+  StrVarNames_FV(offsetSpec+8)  = 'Spec'//TRIM(SpecID)//'_PressureZZ'
+  StrVarNames_FV(offsetSpec+9)  = 'Spec'//TRIM(SpecID)//'_PressureXY'
+  StrVarNames_FV(offsetSpec+10) = 'Spec'//TRIM(SpecID)//'_PressureXZ'
+  StrVarNames_FV(offsetSpec+11) = 'Spec'//TRIM(SpecID)//'_PressureYZ'
+  StrVarNames_FV(offsetSpec+12) = 'Spec'//TRIM(SpecID)//'_HeatfluxX'
+  StrVarNames_FV(offsetSpec+13) = 'Spec'//TRIM(SpecID)//'_HeatfluxY'
+  StrVarNames_FV(offsetSpec+14) = 'Spec'//TRIM(SpecID)//'_HeatfluxZ'
+  IF (DVMnInnerE.GT.0) THEN
+    StrVarNames_FV(offsetSpec+15) = 'Spec'//TRIM(SpecID)//'_ERot'
+  END IF
 END DO
 
-StrVarNames_FV(14*DVMnSpecies+1)  = 'Total_NumberDensity'
-StrVarNames_FV(14*DVMnSpecies+2)  = 'Total_VelocityX'
-StrVarNames_FV(14*DVMnSpecies+3)  = 'Total_VelocityY'
-StrVarNames_FV(14*DVMnSpecies+4)  = 'Total_VelocityZ'
-StrVarNames_FV(14*DVMnSpecies+5)  = 'Total_Temperature'
-StrVarNames_FV(14*DVMnSpecies+6)  = 'Total_PressureXX'
-StrVarNames_FV(14*DVMnSpecies+7)  = 'Total_PressureYY'
-StrVarNames_FV(14*DVMnSpecies+8)  = 'Total_PressureZZ'
-StrVarNames_FV(14*DVMnSpecies+9)  = 'Total_PressureXY'
-StrVarNames_FV(14*DVMnSpecies+10) = 'Total_PressureXZ'
-StrVarNames_FV(14*DVMnSpecies+11) = 'Total_PressureYZ'
-StrVarNames_FV(14*DVMnSpecies+12) = 'Total_HeatfluxX'
-StrVarNames_FV(14*DVMnSpecies+13) = 'Total_HeatfluxY'
-StrVarNames_FV(14*DVMnSpecies+14) = 'Total_HeatfluxZ'
-StrVarNames_FV(14*DVMnSpecies+15) = 'RelaxationFactor'
+offsetSpec = (DVMnMacro+DVMnInnerE)*DVMnSpecies
+StrVarNames_FV(offsetSpec+1)  = 'Total_NumberDensity'
+StrVarNames_FV(offsetSpec+2)  = 'Total_VelocityX'
+StrVarNames_FV(offsetSpec+3)  = 'Total_VelocityY'
+StrVarNames_FV(offsetSpec+4)  = 'Total_VelocityZ'
+StrVarNames_FV(offsetSpec+5)  = 'Total_Temperature'
+StrVarNames_FV(offsetSpec+6)  = 'Total_PressureXX'
+StrVarNames_FV(offsetSpec+7)  = 'Total_PressureYY'
+StrVarNames_FV(offsetSpec+8)  = 'Total_PressureZZ'
+StrVarNames_FV(offsetSpec+9)  = 'Total_PressureXY'
+StrVarNames_FV(offsetSpec+10) = 'Total_PressureXZ'
+StrVarNames_FV(offsetSpec+11) = 'Total_PressureYZ'
+StrVarNames_FV(offsetSpec+12) = 'Total_HeatfluxX'
+StrVarNames_FV(offsetSpec+13) = 'Total_HeatfluxY'
+StrVarNames_FV(offsetSpec+14) = 'Total_HeatfluxZ'
+IF (DVMnInnerE.GT.0) THEN
+  StrVarNames_FV(offsetSpec+15) = 'Total_ERot'
+END IF
+StrVarNames_FV(offsetSpec+15+DVMnInnerE) = 'RelaxationFactor'
 
 ! Read Boundary information / RefStates / perform sanity check
 IniRefState_FV = GETINT('IniRefState-FV')
@@ -253,10 +264,10 @@ IF(IniRefState_FV.GT.nRefState_FV)THEN
 END IF
 
 IF(nRefState_FV .GT. 0)THEN
-  ALLOCATE(RefState_FV(14,DVMnSpecies,nRefState_FV))
+  ALLOCATE(RefState_FV(DVMnMacro,DVMnSpecies,nRefState_FV))
   DO i=1,nRefState_FV
     DO iSpec=1,DVMnSpecies
-      RefState_FV(1:14,iSpec,i)  = GETREALARRAY('RefState-FV',14)
+      RefState_FV(1:DVMnMacro,iSpec,i)  = GETREALARRAY('RefState-FV',DVMnMacro)
     END DO
   END DO
 END IF
@@ -265,6 +276,10 @@ DVMForce = GETREALARRAY('DVM-Accel',3)
 
 ALLOCATE(DVMMomentSave(17,DVMnSpecies+1,nElems))
 DVMMomentSave = 0.
+IF (DVMnInnerE.GT.0) THEN
+  ALLOCATE(DVMInnerESave(DVMnInnerE,DVMnSpecies+1,nElems))
+  DVMInnerESave = 0.
+END IF
 
 ! Always set docalcsource true, set false by calcsource itself on first run if not needed
 doCalcSource=.TRUE.
@@ -293,7 +308,7 @@ SUBROUTINE InitDVMSpecData()
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_ReadInTools
-USE MOD_Equation_Vars_FV    ,ONLY: DVMSpecData, DVMnSpecies, DVMColl
+USE MOD_Equation_Vars_FV    ,ONLY: DVMSpecData, DVMnSpecies, DVMColl, DVMnInnerE
 USE MOD_io_hdf5
 USE MOD_HDF5_input          ,ONLY:ReadAttribute, DatasetExists, AttributeExists
 #if USE_MPI
@@ -314,6 +329,7 @@ INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 LOGICAL               :: GroupFound, AttrExists
 CHARACTER(LEN=256)    :: SpeciesDatabase                  ! Name of the species database
 !===================================================================================================================================
+DVMnInnerE = 0
 ! Read-in of the species database
 SpeciesDatabase       = GETSTR('DVM-Species-Database')
 
@@ -421,6 +437,8 @@ DO iSpec = 1, DVMnSpecies
   END ASSOCIATE
 END DO ! iSpec
 
+IF (ANY(DVMSpecData(:)%Xi_Rot.GT.0)) DVMnInnerE = DVMnInnerE + 1
+
 IF(DVMnSpecies.GT.0)THEN
   LBWRITE (UNIT_stdOut,'(68(". "))')
 END IF ! nSpecies.GT.0
@@ -437,7 +455,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Globals_Vars,  ONLY: PI, BoltzmannConst
 USE MOD_DistFunc,      ONLY: MaxwellDistribution, GradDistribution
-USE MOD_Equation_Vars_FV, ONLY: DVMSpecData, RefState_FV, DVMnSpecies
+USE MOD_Equation_Vars_FV, ONLY: DVMSpecData, RefState_FV, DVMnSpecies, DVMnMacro
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -448,12 +466,12 @@ INTEGER,INTENT(IN)              :: ExactFunction          !< specifies the exact
 REAL,INTENT(OUT)                :: Resu(PP_nVar_FV)          !< output state in conservative variables
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(14)
+REAL                            :: MacroVal(DVMnMacro)
 REAL                            :: WallVelo1, WallTemp1, WallVelo2, WallTemp2
 REAL                            :: SecondDist(PP_nVar_FV)
 REAL                            :: SodMacro_L(5), SodMacro_R(5), SodMacro_LL(5), SodMacro_M(5), SodMacro_RR(5)
 REAL                            :: gamma, Ggamma, beta, pL, pR, pM, cL, cR, cM, vs
-REAL                            :: mu, tau
+REAL                            :: mu, tau, ErelaxRot
 INTEGER                         :: iSpec,vFirstID,vLastID
 !==================================================================================================================================
 Resu=0.
@@ -566,6 +584,10 @@ DO iSpec=1,DVMnSpecies
       CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
     END IF
 
+  CASE(8) ! Rotational relaxation
+    ErelaxRot = 8000*BoltzmannConst*DVMSpecData(iSpec)%Xi_Rot/2.
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec,ErelaxRot=ErelaxRot)
+
   CASE(11) !Grad 13 uniform init with perturbation (two stream instability)
     CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)
     IF (iSpec.GE.2.AND.tIn.EQ.0..AND.x(1).GT.0.49) THEN
@@ -656,7 +678,7 @@ END SUBROUTINE CalcSource
 SUBROUTINE FinalizeEquation()
 ! MODULES
 USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone_FV, RefState_FV, WriteDVMSurfaceValues, DVMSpecData, DVMnSpecies
-USE MOD_Equation_Vars_FV,ONLY: DVMMomentSave, DVMVeloDisc, StrVarNames_FV
+USE MOD_Equation_Vars_FV,ONLY: DVMMomentSave, DVMVeloDisc, StrVarNames_FV, DVMInnerESave, DVMnInnerE
 USE MOD_DVM_Boundary_Analyze,ONLY: FinalizeDVMBoundaryAnalyze
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -665,6 +687,7 @@ INTEGER :: iSpec
 !==================================================================================================================================
 EquationInitIsDone_FV = .FALSE.
 IF (WriteDVMSurfaceValues) CALL FinalizeDVMBoundaryAnalyze()
+SDEALLOCATE(DVMInnerESave)
 SDEALLOCATE(DVMMomentSave)
 SDEALLOCATE(DVMVeloDisc)
 SDEALLOCATE(StrVarNames_FV)
