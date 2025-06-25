@@ -265,7 +265,9 @@ USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_AnalyzeField           ,ONLY: CalculateElectricPotentialAndFieldBoundaryVDL
+#if defined(PARTICLES) && USE_HDG
+USE MOD_AnalyzeField_HDG       ,ONLY: CalculateElectricPotentialAndFieldBoundaryVDL
+#endif /*defined(PARTICLES) && USE_HDG*/
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -300,8 +302,10 @@ TYPE(InterpolateMe),ALLOCATABLE :: NtonSurfSample(:)
 ! nodes without surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
 
+#if defined(PARTICLES) && USE_HDG
 ! Prolong-to-face electric potential and electric field
 CALL CalculateElectricPotentialAndFieldBoundaryVDL()
+#endif /*defined(PARTICLES) && USE_HDG*/
 
 ! Build mapping from NodeType to equidistant (visu) node set
 #if !(PP_NodeType==1 || PP_NodeType==2)

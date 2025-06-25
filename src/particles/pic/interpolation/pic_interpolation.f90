@@ -256,7 +256,7 @@ USE MOD_PICInterpolation_Vars ,ONLY: InterpolationElemLoop
 USE MOD_SuperB_Vars           ,ONLY: UseTimeDepCoil
 ! USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5
 #if USE_HDG
-USE MOD_AnalyzeField          ,ONLY: CalculateAverageElectricPotential
+USE MOD_AnalyzeField_HDG      ,ONLY: CalculateAverageElectricPotential
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential
 #endif /*USE_HDG*/
 USE MOD_PICInterpolation_tools,ONLY:GetExternalFieldAtParticle,GetInterpolatedFieldPartPos

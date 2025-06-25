@@ -145,7 +145,7 @@ USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 #if USE_HDG
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential,CalcElectricTimeDerivative
-USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
+USE MOD_AnalyzeField_HDG      ,ONLY: GetAverageElectricPotentialPlane
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 #endif /*PARTICLES*/
@@ -511,7 +511,7 @@ USE MOD_TimeAverage        ,ONLY: FinalizeTimeAverage
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #if USE_HDG
 USE MOD_Analyze_Vars       ,ONLY: CalcAverageElectricPotential,EDC
-USE MOD_AnalyzeField       ,ONLY: FinalizeAverageElectricPotential
+USE MOD_AnalyzeField_HDG   ,ONLY: FinalizeAverageElectricPotential
 USE MOD_Analyze_Vars       ,ONLY: CalcElectricTimeDerivative
 #endif /*USE_HDG*/
 USE MOD_Interpolation_Vars ,ONLY: UEx

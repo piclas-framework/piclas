@@ -24,13 +24,11 @@ USE mpi_f08
 IMPLICIT NONE
 PRIVATE
 #if USE_MPI && USE_HDG
-
-#if USE_HDG
 ! !no interface for reshape inout vector
 ! INTERFACE Mask_MPIsides
 !   MODULE PROCEDURE Mask_MPIsides
 ! END INTERFACE
-#endif /*USE_HDG*/
+
 PUBLIC :: Mask_MPIsides
 PUBLIC :: StartReceiveMPISurfDataType
 PUBLIC :: StartSendMPISurfDataType
