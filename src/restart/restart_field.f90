@@ -84,7 +84,7 @@ USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
 #if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 !USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType, Mask_MPIsides
+USE MOD_MPI_HDG            ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType,Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC

@@ -68,7 +68,7 @@ USE MOD_MPI_Vars
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
 #endif
 #if USE_MPI
-USE MOD_MPI                ,ONLY: Mask_MPIsides
+USE MOD_MPI_HDG            ,ONLY: Mask_MPIsides
 #endif
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D

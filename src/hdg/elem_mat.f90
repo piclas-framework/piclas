@@ -521,7 +521,8 @@ USE MOD_Preproc
 USE MOD_HDG_Vars
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,Mask_MPIsides
+USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI_HDG        ,ONLY: Mask_MPIsides
 #endif /*USE_MPI*/
 USE MOD_Mesh_Vars      ,ONLY: nSides,SideToElem,nMPIsides_YOUR,N_SurfMesh, offSetElem
 USE MOD_FillMortar_HDG ,ONLY: SmallToBigMortarPrecond_HDG

@@ -61,7 +61,7 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,RegionElectronRef
 USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
 #if USE_MPI
-USE MOD_MPI                    ,ONLY: Mask_MPIsides
+USE MOD_MPI_HDG                ,ONLY: Mask_MPIsides
 #endif
 USE MOD_HDG_Tools              ,ONLY: CG_solver,DisplayConvergence
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis2D

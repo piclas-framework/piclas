@@ -232,7 +232,6 @@ USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_PreProc
 USE MOD_MPI_Vars           ,ONLY: nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
-USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: NInfo,PREF_VDM,N_Inter
 #endif /*USE_MPI*/
