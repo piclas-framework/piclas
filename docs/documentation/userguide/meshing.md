@@ -45,7 +45,7 @@ Detailed instructions for some mesh generators that we have experience with (Gms
 
 ### Mesh generation with Gmsh
 
-[Gmsh](https://gmsh.info/) is an open-source mesh generator with a built-in CAD engine. As of Gmsh 4.11.0 (October 2022), meshes can be exported in the `.msh` format. For the mesh conversion with HOPR, it is required to enable the option `Save all elements` and chose the ASCII code for the file export. The mesh file can be converted with HOPR, using the corresponding mode:
+[Gmsh](https://gmsh.info/) is an open-source mesh generator with a built-in CAD engine. As of Gmsh 4.11.0 (October 2022), meshes can be exported in the `.msh` format. For the mesh conversion with HOPR, it is required to enable the option `Save all elements` and choose the ASCII code for the file export. The mesh file can be converted with HOPR, using the corresponding mode:
 
     Mode = 5
 
@@ -168,7 +168,7 @@ not have a MeshGems-Hexa license and cannot give any support on mesh generation.
     * Import the exported CGNS file
     * Check the names of boundary conditions
       * Activate the BC by clicking on the visibility icon next to the name
-      * Change the name to correspond to the entry in the preproc.ini
+      * Change the name to correspond to the entry in the hopr.ini
     * Export the modified mesh again as CGNS
 * Convert CGNS mesh from hdf to adf format
         Install cgns-tools ("sudo apt-get install cgns-tools")

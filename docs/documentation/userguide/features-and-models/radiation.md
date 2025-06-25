@@ -183,7 +183,7 @@ The simulations can also be run on a two-dimensional rotationally symmetric mesh
 
 ## Raytracing
 
-In addition to the radiation coupling, a ray tracing model is implemented. A boundary must be defined from which rays or photons are emitted in a preliminary step, which are tracked throughout the domain until they are absorbed at a boundary. The volumes and surface elements are sampled by passing photons and from this information the ionization within each volume element and secondary electron emission from each surface is calculated in the actual plasma simulation. The output of the sampling procedure can be viewed as irradiated volumes and surfaces and is written to the output files EUV_RadiationVolState.h5 and EUV_RadiationSurfState.h5, which can be converted to .vtk format with piclas2vtk.
+In addition to the radiation coupling, a ray tracing model is implemented. A boundary must be defined from which rays or photons are emitted in a preliminary step, which are tracked throughout the domain until they are absorbed at a boundary. The volumes and surface elements are sampled by passing photons and from this information the ionization within each volume element and secondary electron emission from each surface is calculated in the actual plasma simulation. The output of the sampling procedure can be viewed as irradiated volumes and surfaces and is written to the output files ProjectName_RadiationVolState.h5 and ProjectName_RadiationSurfState.h5, which can be converted to .vtk format with piclas2vtk.
 Raytracing is activated with
 
     UseRayTracing = T

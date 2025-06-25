@@ -1,8 +1,10 @@
+(sec:tutorial-streamer)=
 # Negative Streamer Discharge (PIC, Poisson's Equation)
 
-This test case describes the simulation of streamer formation. A neutral gas is seeded with a small number of electrons between two planar electrodes. The evolution follows a well-known pattern: initial electron density increases due to ionization, leading to charge separation as oppositely charged particles drift in the electric field. This distortion of the initially uniform field results in localized screening, eventually halting ionization within the ionized region. As a result, characteristic ionization front profiles of electron and ion densities, as well as the electric field, emerge, marking the transition from an ionization avalanche to a fully developed streamer.
+This test case describes the simulation of streamer formation. Streamers occur when a gas is exposed to high voltages. Streamers occur in lightning and sprites as well as in industrial applications such as lighting, treatment of polluted gases and water, disinfection plasma jets and plasma-assisted combustion. Further optimization and understanding of such applications depend on an accurate knowledge of the electron dynamics during streamer development {cite}`Dujko2020`.
+For the simulation of a streamer, a neutral gas is seeded with a small number of electrons between two planar electrodes. The evolution follows a well-known pattern: initial electron density increases due to ionization, leading to charge separation as oppositely charged particles drift in the electric field. This distortion of the initially uniform field results in localized screening, eventually halting ionization within the ionized region. As a result, characteristic ionization front profiles of electron and ion densities, as well as the electric field, emerge, marking the transition from an ionization avalanche to a fully developed streamer.
 
-In this tutorial, the streamer formation will be simulated using two different modeling approaches. First, we employ an electron fluid model, where instead of modeling electrons kinetically as particles, their density evolution is described using a fluid approach. However, ions continue to be treated as particles, resulting in a hybrid fluid-kinetic modeling approach. Next, we simulate the streamer formation using the classical PIC-MCC method. Finally, both models are compared to evaluate their respective strengths and differences.
+In this tutorial, the streamer formation will be simulated using two different modeling approaches. First, we employ an electron fluid model, where instead of modeling electrons kinetically as particles, their density evolution is described using a fluid approach. However, ions continue to be treated as particles, resulting in a hybrid fluid-kinetic modeling approach (for more details see Section {ref}`sec:drift-diffusion`). Next, we simulate the streamer formation using the classical PIC-MCC method (for more details see Section {ref}`sec:PIC`). Finally, both models are compared to evaluate their respective strengths and differences.
 
 
 ## Drift-Diffusion Electron Fluid
@@ -203,8 +205,8 @@ electron fluid solver must be set by
 
     Grad-LimiterType = 0
 
-The `IniExactFunc-FV` is set to 3, as this represents a special initial condition for the streamer test case.  
-Here, a Gaussian-type distribution of electrons is initialized at *x = 0.8 mm*.  
+The `IniExactFunc-FV` is set to 3, as this represents a special initial condition for the streamer test case.
+Here, a Gaussian-type distribution of electrons is initialized at *x = 0.8 mm*.
 The maximum number density is defined by `RefState-FV`.
 The numerical scheme for tracking the movement of all particles throughout the simulation domain can be switched by
 
@@ -628,12 +630,12 @@ In contrast to the fluid case, PICLas does not allow specifying a local Gaussian
     !Part-Species2-SpeciesName = N2Ion1
     Part-Species2-MacroParticleFactor = 200         ! Weighting factor for species #2
     Part-Species2-nInits              = 1           ! Number of initialization/emission regions for species #1
-    Part-Species2-Init1-SpaceIC               = cuboid   !(cartesian) 
+    Part-Species2-Init1-SpaceIC               = cuboid   !(cartesian)
     Part-Species2-Init1-ParticleNumber        = 1000   ! 1000*200/(5e-5)^3 => 1.6e18
     Part-Species2-Init1-BasePointIC           =(/0.000775 , 0. , 0./)
     Part-Species2-Init1-BaseVector1IC         =(/0, 0.00005 , 0./)
-    Part-Species2-Init1-BaseVector2IC         =(/0, 0. , 0.00005/) 
-    Part-Species2-Init1-NormalIC              =(/1, 0. , 0./) 
+    Part-Species2-Init1-BaseVector2IC         =(/0, 0. , 0.00005/)
+    Part-Species2-Init1-NormalIC              =(/1, 0. , 0./)
     Part-Species2-Init1-CuboidHeightIC        = 0.00005
     Part-Species2-Init1-velocityDistribution  = maxwell_lpn !constant( unrealistic temp)
     Part-Species2-Init1-MWTemperatureIC       = 298.
@@ -644,12 +646,12 @@ In contrast to the fluid case, PICLas does not allow specifying a local Gaussian
     ! =============================================================================== !
     Part-Species3-MacroParticleFactor         = 200
     Part-Species3-nInits                      = 1
-    Part-Species3-Init1-SpaceIC               = cuboid   !(cartesian) 
+    Part-Species3-Init1-SpaceIC               = cuboid   !(cartesian)
     Part-Species3-Init1-ParticleNumber        = 1000   ! 1000*200/(5e-5)^3 => 1.6e18
     Part-Species3-Init1-BasePointIC           =(/0.000775 , 0. , 0./)
     Part-Species3-Init1-BaseVector1IC         =(/0, 0.00005 , 0./)
-    Part-Species3-Init1-BaseVector2IC         =(/0, 0. , 0.00005/) 
-    Part-Species3-Init1-NormalIC              =(/1, 0. , 0./) 
+    Part-Species3-Init1-BaseVector2IC         =(/0, 0. , 0.00005/)
+    Part-Species3-Init1-NormalIC              =(/1, 0. , 0./)
     Part-Species3-Init1-CuboidHeightIC        = 0.00005
     Part-Species3-Init1-velocityDistribution  = maxwell_lpn !constant( unrealistic temp)
     Part-Species3-Init1-MWTemperatureIC       = 298
