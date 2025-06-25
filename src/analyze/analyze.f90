@@ -26,23 +26,8 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
-
-! GLOBAL VARIABLES
-INTERFACE InitAnalyze
-  MODULE PROCEDURE InitAnalyze
-END INTERFACE
-
-INTERFACE FinalizeAnalyze
-  MODULE PROCEDURE FinalizeAnalyze
-END INTERFACE
-
-INTERFACE PerformAnalyze
-  MODULE PROCEDURE PerformAnalyze
-END INTERFACE
-
-!===================================================================================================================================
 PUBLIC:: DefineParametersAnalyze
-PUBLIC:: CalcError, InitAnalyze, FinalizeAnalyze, PerformAnalyze
+PUBLIC:: InitAnalyze, FinalizeAnalyze, PerformAnalyze
 !===================================================================================================================================
 
 CONTAINS
@@ -70,7 +55,6 @@ CALL prms%CreateIntOption(    'nSkipAnalyzeSwitch'   , 'Skip Analyze_dt with a d
 CALL prms%CreateRealOption(   'OutputTimeFixed'      , 'fixed time for writing state to .h5','-1.0')
 CALL prms%CreateLogicalOption('DoMeasureAnalyzeTime' , 'Measure time that is spent in analyze routines and count the number of '//&
                                                        'analysis calls (to std out stream)','.FALSE.')
-
 ! -------------------------
 CALL prms%SetSection("Analyzefield")
 ! -------------------------
@@ -147,11 +131,13 @@ USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
+#if !(USE_FV)
 USE MOD_Equation_vars         ,ONLY: Wavelength
+#endif /*(!USE_FV)*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 #if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
@@ -175,8 +161,11 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(LEN=40)   :: DefStr
-INTEGER             :: iElem,CNElemID,iBoundary,BCType,BCState,iBC
+INTEGER             :: iBoundary,BCType,BCState,iBC
+#if !(USE_FV)
+INTEGER             :: iElem,CNElemID
 REAL                :: PPWCellMax,PPWCellMin
+#endif /*!(USE_FV)*/
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.AnalyzeInitIsDone) THEN
   CALL abort(__STAMP__,'InitAnalyse not ready to be called or already called.')
@@ -225,9 +214,9 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed')
   doCalcTimeAverage = .FALSE.
 #endif
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
 DoFieldAnalyze    = .FALSE.
@@ -299,6 +288,7 @@ AnalyzeInitIsDone = .TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 
+#if !(USE_FV)
 ! Points Per Wavelength
 CalcPointsPerWavelength = GETLOGICAL('CalcPointsPerWavelength')
 IF(CalcPointsPerWavelength)THEN
@@ -335,9 +325,10 @@ IF(CalcPointsPerWavelength)THEN
   CALL PrintOption('MIN(PPWCell)','CALCUL.',RealOpt=PPWCellMin)
   CALL PrintOption('MAX(PPWCell)','CALCUL.',RealOpt=PPWCellMax)
 END IF
+#endif /*!(USE_FV)*/
 END SUBROUTINE InitAnalyze
 
-
+#if !(USE_FV) || (USE_HDG)
 #if USE_HDG
 SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 #else
@@ -424,6 +415,7 @@ END DO ! iElem=1,PP_nElems
 L_2_Error = SQRT(L_2_Error/MeshVolume)
 
 END SUBROUTINE CalcError
+#endif /*FV/HDG*/
 
 
 #ifdef PARTICLES
@@ -513,10 +505,10 @@ USE MOD_Analyze_Vars       ,ONLY: CalcPoyntingInt
 USE MOD_AnalyzeField       ,ONLY: FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
 USE MOD_Analyze_Vars       ,ONLY: PPWCell,AnalyzeInitIsDone
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 USE MOD_TimeAverage_Vars   ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage        ,ONLY: FinalizeTimeAverage
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #if USE_HDG
 USE MOD_Analyze_Vars       ,ONLY: CalcAverageElectricPotential,EDC
 USE MOD_AnalyzeField       ,ONLY: FinalizeAverageElectricPotential
@@ -551,9 +543,9 @@ IF(CalcElectricTimeDerivative)THEN
 #endif /*USE_MPI*/
 END IF ! CalcElectricTimeDerivative
 #endif /*USE_HDG*/
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) || (PP_TimeDiscMethod==700)*/
 SDEALLOCATE(PPWCell)
 SDEALLOCATE(UEx)
 AnalyzeInitIsDone = .FALSE.
@@ -591,13 +583,17 @@ USE MOD_Preproc
 USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,OutputErrorNormsPart,FieldAnalyzeStep
 USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars              ,ONLY: DoRestart
-USE MOD_TimeDisc_Vars             ,ONLY: iter,tEnd
+USE MOD_TimeDisc_Vars             ,ONLY: iter
+#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
 USE MOD_RecordPoints              ,ONLY: RecordPoints
+#endif
 USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
 USE MOD_Globals_Vars              ,ONLY: ProjectName
 USE MOD_AnalyzeField              ,ONLY: AnalyzeField
-#ifdef PARTICLES
+#if defined(PARTICLES) || defined(discrete_velocity)
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
+#endif
+#ifdef PARTICLES
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
 USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
@@ -630,10 +626,10 @@ USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#if defined(LSERK) || USE_HDG
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
-#endif /*defined(LSERK) || USE_HDG*/
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -641,6 +637,17 @@ USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 USE MOD_TimeDisc_Vars             ,ONLY: time
+#ifdef discrete_velocity
+USE MOD_Equation_Vars_FV          ,ONLY: WriteDVMSurfaceValues
+USE MOD_DVM_Boundary_Analyze      ,ONLY: WriteDVMSurfToHDF5
+#else
+#if defined(LSERK) || USE_HDG
+USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
+#endif /*defined(LSERK) || USE_HDG*/
+#endif /*discrete_velocity*/
+#if (USE_FV)
+USE MOD_Analyze_FV                ,ONLY: CalcError_FV
+#endif /*FV*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -668,11 +675,20 @@ REAL                          :: RECR
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
-#if defined(LSERK) || USE_HDG
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
-#endif /* LSERK && USE_HDG*/
+#endif /* LSERK || USE_HDG || defined(discrete_velocity)*/
+#if USE_FV
+#ifdef discrete_velocity
+REAL                          :: L_2_Error_FV(14)
+REAL                          :: L_Inf_Error_FV(14)
+#else
+REAL                          :: L_2_Error_FV(PP_nVar_FV)
+REAL                          :: L_Inf_Error_FV(PP_nVar_FV)
+#endif /*discrete_velocity*/
+#endif /*FV*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze
@@ -799,9 +815,13 @@ IF(DoCalcErrorNorms) THEN
     OutputErrorNorms=.TRUE.
 #if USE_HDG
     CALL CalcError(L_2_Error,L_Inf_Error)
-#else
+#elif !(USE_FV)
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
 #endif
+#if (USE_FV)
+  CALL CalcError_FV(OutputTime,L_2_Error_FV,L_Inf_Error_FV)
+#endif /*FV*/
+
 #ifdef PARTICLES
     IF (DoDeposition.AND.RelaxDeposition) CALL CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 #endif /*PARTICLES*/
@@ -811,15 +831,26 @@ END IF
 IF(DoPerformErrorCalc) OutputErrorNormsPart = .TRUE.
 #endif /*defined(PARTICLES)*/
 
+!----------------------------------------------------------------------------------------------------------------------------------
+! DVM Surface analyze
+!----------------------------------------------------------------------------------------------------------------------------------
+#ifdef discrete_velocity
+IF (WriteDVMSurfaceValues.AND.(OutPutHDF5.OR.FirstOrLastIter)) THEN
+  CALL WriteDVMSurfToHDF5(TRIM(MeshFile),OutputTime)
+END IF
+#endif /*discrete_velocity*/
+
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
-#if defined(LSERK) || USE_HDG
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
 !----------------------------------------------------------------------------------------------------------------------------------
+#ifndef discrete_velocity
 IF (DoFieldAnalyze) THEN
   IF(DoPerformFieldAnalyze) CALL AnalyzeField(OutputTime)
 END IF
+#endif
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Recordpoints buffer
@@ -846,7 +877,8 @@ IF(RP_onProc) THEN
 END IF
 
 ! end the analyzes for all Runge-Kutta based time-discs
-#endif /* LSERK && USE_HDG*/
+#endif /* LSERK || USE_HDG || defined(discrete_velocity)*/
+
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! PIC, DSMC and other Particle-based Solvers
@@ -993,9 +1025,21 @@ IF(DoPerformErrorCalc)THEN
   IF(DoCalcErrorNorms) THEN
     ! Graphical output
     IF(MPIroot) THEN
+#ifndef discrete_velocity
       WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar,'ES16.7)'
       WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error
       WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error
+#if USE_FV
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',PP_nVar_FV,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_FV
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_FV
+#endif /*FV*/
+#else /*discrete_velocity*/
+      ! Only first moments for readability
+      WRITE(formatStr,'(A5,I1,A7)')'(A13,',5,'ES16.7)'
+      WRITE(UNIT_StdOut,formatStr)' L_2       : ',L_2_Error_FV(1:5)
+      WRITE(UNIT_StdOut,formatStr)' L_inf     : ',L_Inf_Error_FV(1:5)
+#endif /*discrete_velocity*/
     END IF
   END IF
 #ifdef PARTICLES

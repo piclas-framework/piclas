@@ -34,39 +34,16 @@ SAVE
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part
 ! ----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE InitInterpolation
-   MODULE PROCEDURE InitInterpolation
-END INTERFACE
-
-INTERFACE FinalizeInterpolation
-   MODULE PROCEDURE FinalizeInterpolation
-END INTERFACE
-
-INTERFACE GetNodesAndWeights
-   MODULE PROCEDURE GetNodesAndWeights
-END INTERFACE
-
-INTERFACE GetDerivativeMatrix
-   MODULE PROCEDURE GetDerivativeMatrix
-END INTERFACE
-
-INTERFACE ApplyJacobian
-   MODULE PROCEDURE ApplyJacobian
-END INTERFACE
-
-INTERFACE InitInterpolationBasis
-   MODULE PROCEDURE InitInterpolationBasis
-END INTERFACE
-
 PUBLIC::InitInterpolation
-PUBLIC::ApplyJacobian
 PUBLIC::FinalizeInterpolation
 PUBLIC::GetNodesAndWeights
 PUBLIC::GetDerivativeMatrix
 PUBLIC::GetVandermonde
 PUBLIC::InitInterpolationBasis
-
 PUBLIC::DefineParametersInterpolation
+#if !(PP_TimeDiscMethod==700)
+PUBLIC::ApplyJacobian
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 !===================================================================================================================================
 
@@ -127,6 +104,10 @@ IF (InterpolationInitIsDone) CALL CollectiveStop(__STAMP__,'InitInterpolation al
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
 
+#if USE_FV && !(USE_HDG)
+PP_N = 0
+SWRITE(UNIT_stdOut,'(A)') ' Finite Volumes: PP_N set to 0'
+#else
 ! Access ini-file
 #if PP_N == N
 IF(PRESENT(NIn_opt))THEN
@@ -143,6 +124,7 @@ ELSE
 END IF
 IF(PP_N.NE.Ntmp) CALL CollectiveStop(__STAMP__,'N in ini-file is different from hard-compiled N. Ini/Compiled:',Ntmp,REAL(PP_N))
 #endif
+#endif /*USE_FV*/
 
 ! polynomial degree range for p-Refinement
 Nmin = 1
@@ -453,6 +435,7 @@ CALL PolynomialDerivativeMatrix(N_in,xIP,D)
 END SUBROUTINE GetDerivativeMatrix
 
 
+#if !(PP_TimeDiscMethod==700)
 SUBROUTINE ApplyJacobian(toPhysical,toSwap)
 !===================================================================================================================================
 ! Convert solution between physical <-> reference space
@@ -505,6 +488,7 @@ ELSE
   END IF
 END IF
 END SUBROUTINE ApplyJacobian
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 
 SUBROUTINE InitAnalyzeBasis(Nanalyze_in)
@@ -585,4 +569,3 @@ InterpolationInitIsDone = .FALSE.
 END SUBROUTINE FinalizeInterpolation
 
 END MODULE MOD_Interpolation
-

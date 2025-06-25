@@ -156,6 +156,8 @@ DO iPartBound=1, nPartBound
   SurfChem%PSMap(iPartBound)%PureSurfReac = .FALSE.
 END DO
 
+SurfChemReac(:)%CatName = 'empty'
+
 ! Probability based surface chemistry model
 ALLOCATE(SurfChem%EventProbInfo(nSpecies))
 SurfChem%EventProbInfo(:)%NumOfReactionPaths = 0
@@ -262,7 +264,8 @@ IF (SpeciesDatabase.EQ.'none') THEN
   SurfChem%OverwriteCatParameters = .TRUE.
 END IF
 
-IF(SpeciesDatabase.NE.'none') THEN
+! Read-in parameter for reactive surface model only, else set OverwriteCatParameters to TRUE
+IF(SpeciesDatabase.NE.'none'.AND.SurfChem%CatBoundNum.GT.0) THEN
   CALL H5OPEN_F(err)
 
   CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
@@ -436,6 +439,8 @@ IF(SpeciesDatabase.NE.'none') THEN
   CALL H5FCLOSE_F(file_id_specdb, err)
   ! Close FORTRAN interface.
   CALL H5CLOSE_F(err)
+ELSE
+  SurfChem%OverwriteCatParameters = .TRUE.
 END IF !SpeciesDatabase
 
 IF(SurfChem%OverwriteCatParameters) THEN

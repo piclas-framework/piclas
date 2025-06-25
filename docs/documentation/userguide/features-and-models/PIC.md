@@ -1,3 +1,4 @@
+(sec:PIC)=
 # Particle-In-Cell
 
 A particle-in-cell (PIC) simulation requires the selection of the equation system to be solved, either Maxwell's (electromagnetic)

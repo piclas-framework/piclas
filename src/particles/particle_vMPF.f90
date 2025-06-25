@@ -185,6 +185,7 @@ E_trans = 0.0; E_trans_new = 0.0
 E_elec = 0.0; E_elec_new = 0.0; DOF_elec = 0.0
 E_vib = 0.0; E_vib_new = 0.0; DOF_vib = 0.0
 E_rot = 0.0; E_rot_new = 0.0; DOF_rot = 0.0
+Energy_Sum = 0.0
 
 iPartIndx_Node = iPartIndx_Node_in
 

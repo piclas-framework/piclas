@@ -25,14 +25,6 @@ INTERFACE DSMC_Chemistry
   MODULE PROCEDURE DSMC_Chemistry
 END INTERFACE
 
-INTERFACE simpleCEX
-  MODULE PROCEDURE simpleCEX
-END INTERFACE
-
-INTERFACE simpleMEX
-  MODULE PROCEDURE simpleMEX
-END INTERFACE
-
 INTERFACE CalcBackwardRate
   MODULE PROCEDURE CalcBackwardRate
 END INTERFACE
@@ -42,16 +34,17 @@ END INTERFACE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DSMC_Chemistry, simpleCEX, simpleMEX, CalcReactionProb, CalcBackwardRate
+PUBLIC :: DSMC_Chemistry, CalcReactionProb, CalcBackwardRate
 PUBLIC :: CalcPhotoIonizationNumber, PhotoIonization_InsertProducts
 !===================================================================================================================================
 
 CONTAINS
 
+!===================================================================================================================================
+!> Calculates the reaction probability for dissociation, exchange, recombination and associative ionization reactions
+!> using the Arrhenius-type reaction rate
+!===================================================================================================================================
 SUBROUTINE CalcReactionProb(iPair,iReac,ReactionProb,nPair,NumDens)
-!===================================================================================================================================
-! Calculates the reaction probability for dissociation, exchange, recombination and associative ionization reactions
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, maxEXP
@@ -301,10 +294,10 @@ END IF
 END SUBROUTINE CalcReactionProb
 
 
+!===================================================================================================================================
+!> Calculates the Beta coefficient for polyatomic reactions
+!===================================================================================================================================
 PPURE REAL FUNCTION Calc_Beta_TCE(iReac,Xi_Total)
-!===================================================================================================================================
-! Calculates the Beta coefficient for polyatomic reactions
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars       ,ONLY: ChemReac, CollInf
@@ -339,10 +332,10 @@ END IF
 END FUNCTION Calc_Beta_TCE
 
 
+!===================================================================================================================================
+!> Routine performs a reaction of the type A + B + C -> D + E + F + G, where A, B, C, D, E, F can be anything
+!===================================================================================================================================
 SUBROUTINE DSMC_Chemistry(iPair, iReac)
-!===================================================================================================================================
-! Routine performs an exchange reaction of the type A + B + C -> D + E + F + G, where A, B, C, D, E, F can be anything
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut
 USE MOD_Globals_Vars
@@ -649,7 +642,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
 END IF
 ! Sanity check
 IF(Coll_pData(iPair)%Ec.LT.0)THEN
-  IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Added vibrational and electronic energy"
+  IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Added vibrational and electronic energy"
   IPWRITE(UNIT_StdOut,*) "iReac       =", iReac
   IPWRITE(UNIT_StdOut,*) "ReactInx(1) =", ReactInx(1), " ReactInx(2) =", ReactInx(2)
   IPWRITE(UNIT_StdOut,*) "Weight(1)   =", Weight(1)  , " Weight(2)   =", Weight(2)
@@ -748,7 +741,7 @@ FakXi = 0.5*Xi_total - 1.0
 Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - SUM(EZeroTempToExec(:))
 ! Sanity check
 IF(Coll_pData(iPair)%Ec.LT.0.)THEN
-  IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Zero-point energy"
+  IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Zero-point energy"
   IPWRITE(UNIT_StdOut,*) "iReac =", iReac
   CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
 END IF ! Coll_pData(iPair)%Ec.LT.0.
@@ -789,7 +782,7 @@ IF (DSMC%ElectronicModel.GT.0) THEN
         CALL ElectronicEnergyExchange(iPair,ReactInx(iProd),FakXi, NewPart = .TRUE., XSec_Level = 0)
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(3,ReactInx(iProd))*Weight(iProd)
         IF(Coll_pData(iPair)%Ec.LT.0.) THEn
-          IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Electronic energy exchange"
+          IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Electronic energy exchange"
           IPWRITE(UNIT_StdOut,*) "iProd =", iProd
           IPWRITE(UNIT_StdOut,*) "iReac =", iReac
           CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
@@ -817,7 +810,7 @@ DO iProd = 1, NumProd
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(1,ReactInx(iProd))*Weight(iProd)
       ! Sanity check
       IF(Coll_pData(iPair)%Ec.LT.0.) THEn
-        IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Vibrational energy exchange"
+        IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Vibrational energy exchange"
         IPWRITE(UNIT_StdOut,*) "iProd =", iProd
         IPWRITE(UNIT_StdOut,*) "iReac =", iReac
         CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
@@ -836,16 +829,14 @@ DO iProd = 1, NumProd
     ELSE
       CALL RotRelaxDiaRoutineFuncPTR(iPair, ReactInx(iProd), FakXi)
     END IF
-
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(iProd))
+    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,ReactInx(iProd))*Weight(iProd)
     ! Sanity check
     IF(Coll_pData(iPair)%Ec.LT.0.) THEn
-      IPWRITE(UNIT_StdOut,*) "DSMC Chemisry: Rotational energy exchange"
+      IPWRITE(UNIT_StdOut,*) "DSMC Chemistry: Rotational energy exchange"
       IPWRITE(UNIT_StdOut,*) "iProd =", iProd
       IPWRITE(UNIT_StdOut,*) "iReac =", iReac
       CALL abort(__STAMP__,'Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
     END IF
-    PartStateIntEn(2,ReactInx(iProd)) = PartStateIntEn(2,ReactInx(iProd))/Weight(iProd)
   ELSE
     PartStateIntEn(1,ReactInx(iProd)) = 0.0
     PartStateIntEn(2,ReactInx(iProd)) = 0.0
@@ -1036,7 +1027,7 @@ ELSEIF(ProductReac(3).EQ.0) THEN
   ! Sanity check
   IF(ERel_React1_React3.LT.0.) THEn
     IPWRITE(UNIT_StdOut,*) "iReac =", iReac
-    CALL abort(__STAMP__,'DSMC Chemisry: Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
+    CALL abort(__STAMP__,'DSMC Chemistry: Coll_pData(iPair)%Ec < 0.)',RealInfoOpt = Coll_pData(iPair)%Ec)
   END IF
 
   IF (usevMPF) THEN
@@ -1131,6 +1122,9 @@ END IF
 ! Check for energy difference
 IF (.NOT.ALMOSTEQUALRELATIVE(Energy_old,Energy_new,RelEneTol)) THEN
   WRITE(UNIT_StdOut,*) '\n'
+  IPWRITE(UNIT_StdOut,*)    " Species, Reactants     : ",EductReac
+  IPWRITE(UNIT_StdOut,*)    " Species, Products      : ",ProductReac
+  IPWRITE(UNIT_StdOut,*)    " Weights                : ",Weight
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_old             : ",Energy_old
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " Energy_new             : ",Energy_new
   IPWRITE(UNIT_StdOut,'(I0,A,ES25.14E3)')    " abs. Energy difference : ",Energy_old-Energy_new
@@ -1176,88 +1170,10 @@ END DO
 END SUBROUTINE DSMC_Chemistry
 
 
-SUBROUTINE simpleCEX(iReac, iPair)
 !===================================================================================================================================
-! simple charge exchange interaction
-! ION(v1) + ATOM(v2) -> ATOM(v1) + ION(v2)
+!> Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval
 !===================================================================================================================================
-! MODULES
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
-  USE MOD_Particle_Vars,         ONLY : PartSpecies
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair, iReac
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: ReactInx(1:2)
-!===================================================================================================================================
-
-  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
-    ReactInx(1) = Coll_pData(iPair)%iPart_p1
-    ReactInx(2) = Coll_pData(iPair)%iPart_p2
-  ELSE
-    ReactInx(2) = Coll_pData(iPair)%iPart_p1
-    ReactInx(1) = Coll_pData(iPair)%iPart_p2
-  END IF
-  ! change species
-  PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,1)
-  PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,2)
-
-END SUBROUTINE simpleCEX
-
-
-SUBROUTINE simpleMEX(iReac, iPair)
-!===================================================================================================================================
-! simple momentum exchange interaction
-! ION(v1) + ATOM(v2) -> ION2(v1') + ATOM(v2')
-!===================================================================================================================================
-! MODULES
-  USE MOD_Globals,               ONLY : abort
-  USE MOD_DSMC_Vars,             ONLY : Coll_pData
-  USE MOD_DSMC_Vars,             ONLY : ChemReac
-  USE MOD_Particle_Vars,         ONLY : PartSpecies,Species
-! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair, iReac
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-  INTEGER                       :: ReactInx(1:2)
-!===================================================================================================================================
-
-  IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
-    ReactInx(1) = Coll_pData(iPair)%iPart_p1
-    ReactInx(2) = Coll_pData(iPair)%iPart_p2
-  ELSE
-    ReactInx(2) = Coll_pData(iPair)%iPart_p1
-    ReactInx(1) = Coll_pData(iPair)%iPart_p2
-  END IF
-  ! change species of educt-ion to product-ion
-  IF (Species(PartSpecies(ReactInx(1)))%ChargeIC.NE.0. .AND. Species(PartSpecies(ReactInx(2)))%ChargeIC.EQ.0.) THEN
-    PartSpecies(ReactInx(1)) = ChemReac%Products(iReac,2)
-  ELSE IF (Species(PartSpecies(ReactInx(2)))%ChargeIC.NE.0. .AND. Species(PartSpecies(ReactInx(1)))%ChargeIC.EQ.0.) THEN
-    PartSpecies(ReactInx(2)) = ChemReac%Products(iReac,1)
-  ELSE
-    CALL abort(&
-     __STAMP__&
-      ,'ERROR in simpleMEX: one of the products must be an ion!')
-  END IF
-
-END SUBROUTINE simpleMEX
-
-
 SUBROUTINE CalcBackwardRate(iReacTmp,LocalTemp,BackwardRate)
-!===================================================================================================================================
-! Calculation of the backward reaction rate with partition sums, interpolation within the given temperature interval
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: maxEXP
@@ -1371,10 +1287,10 @@ REAL                            :: Qtra, Qrot, Qvib, Qelec, expVal
 END SUBROUTINE CalcBackwardRate
 
 
+!===================================================================================================================================
+!> Routine determines the reduced mass and the mass fraction between a pseudo-molecule and third species
+!===================================================================================================================================
 SUBROUTINE CalcPseudoScatterVars(PseuSpec1, PseuSpec2, ScatterSpec3, FracMassCent1, FracMassCent2, MassRed, Weight)
-!===================================================================================================================================
-! Routine determines the reduced mass and the mass fraction between a pseudo-molecule and third species
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: Species
@@ -1398,10 +1314,10 @@ MassRed = (Mass*Species(ScatterSpec3)%MassIC*Weight(3)) &
                         / (Mass+Species(ScatterSpec3)%MassIC*Weight(3))
 END SUBROUTINE CalcPseudoScatterVars
 
+!===================================================================================================================================
+!> Routine determines the reduced mass and the mass fraction between a pseudo-molecule and third species
+!===================================================================================================================================
 SUBROUTINE CalcPseudoScatterVars_4Prod(Spec1, Spec2, Spec3, Spec4, FracMassCent1, FracMassCent2, MassRed, Weight)
-!===================================================================================================================================
-! Routine determines the reduced mass and the mass fraction between a pseudo-molecule and third species
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Particle_Vars         ,ONLY: Species
@@ -1426,10 +1342,10 @@ MassRed = (MassPseu1*MassPseu2) / (MassPseu1+MassPseu2)
 END SUBROUTINE CalcPseudoScatterVars_4Prod
 
 
-SUBROUTINE CalcPhotoIonizationNumber(i,NbrOfPhotons,NbrOfReactions)
 !===================================================================================================================================
-!>
+!> Calculate the number of photo-ionization reactions to perform based on a given number of photons and cross-section
 !===================================================================================================================================
+SUBROUTINE CalcPhotoIonizationNumber(iSpec,NbrOfPhotons,NbrOfReactions)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: c
@@ -1442,11 +1358,11 @@ USE MOD_TimeDisc_Vars ,ONLY: dt
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: i
-REAL, INTENT(IN)              :: NbrOfPhotons
+INTEGER, INTENT(IN)           :: iSpec              !< Species index
+REAL, INTENT(IN)              :: NbrOfPhotons       !< Simulated number of photons
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: NbrOfReactions
+REAL, INTENT(OUT)             :: NbrOfReactions     !< Number of reactions to be performed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iReac,iPhotoReac,iLine
@@ -1470,7 +1386,7 @@ IF(NbrOfPhotonXsecReactions.GT.0)THEN
       END ASSOCIATE
     END DO ! PhotoIonFirstLine, PhotoIonLastLine
   END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
-  NbrOfReactions = NbrOfReactions * density * c * dt / Species(i)%MacroParticleFactor
+  NbrOfReactions = NbrOfReactions * density * c * dt / Species(iSpec)%MacroParticleFactor
 END IF ! NbrOfPhotonXsecReactions.GT.0
 
 ! Photoionization reactions with constant cross sections
@@ -1482,18 +1398,18 @@ DO iReac = 1, ChemReac%NumOfReact
              CrossSection => ChemReac%CrossSection(iReac))
     ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
     ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
-    NbrOfReactions = NbrOfReactions + density * NbrOfPhotons * CrossSection * c * dt / Species(i)%MacroParticleFactor
+    NbrOfReactions = NbrOfReactions + density * NbrOfPhotons * CrossSection * c * dt / Species(iSpec)%MacroParticleFactor
   END ASSOCIATE
 END DO
 
 END SUBROUTINE CalcPhotoIonizationNumber
 
 
-SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, iLineOpt, PartBCIndex)
 !===================================================================================================================================
 !> Routine performing the photo-ionization reaction: initializing the heavy species at the background gas temperature (first
 !> reactant) and distributing the remaining collision energy onto the electrons
 !===================================================================================================================================
+SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, iLineOpt, PartBCIndex)
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: eV2Joule
@@ -1786,10 +1702,10 @@ END IF
 END SUBROUTINE PhotoIonization_InsertProducts
 
 
+!===================================================================================================================================
+!> Pick random vector in a plane set up by the basis vectors b1 and b2
+!===================================================================================================================================
 PPURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
-!===================================================================================================================================
-! Pick random vector in a plane set up by the basis vectors b1 and b2
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals      ,ONLY: VECNORM
 USE MOD_Globals_Vars ,ONLY: PI
@@ -1797,9 +1713,9 @@ USE MOD_Globals_Vars ,ONLY: PI
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)    :: b1(1:3),b2(1:3) ! Basis vectors (normalized)
-REAL,INTENT(IN)    :: VeloVec(1:3)    ! Velocity vector before the random direction selection within the plane defined by b1 and b2
-REAL,INTENT(IN)    :: RandVal         ! Random number (given from outside to render this function PPURE)
+REAL,INTENT(IN)    :: b1(1:3),b2(1:3) !< Basis vectors (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3)    !< Velocity vector before the random direction selection within the plane defined by b1 and b2
+REAL,INTENT(IN)    :: RandVal         !< Random number (given from outside to render this function PPURE)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLE
 REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector
@@ -1814,11 +1730,11 @@ GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
 END FUNCTION GetRandomVectorInPlane
 
 
+!===================================================================================================================================
+!> Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta)**2
+!> distribution via the ARM
+!===================================================================================================================================
 FUNCTION GetRotatedVector(VeloVec,NormVec)
-!===================================================================================================================================
-! Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta)**2
-! distribution via the ARM
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals      ,ONLY: VECNORM, UNITVECTOR
 USE MOD_Globals_Vars ,ONLY: PI
@@ -1826,11 +1742,11 @@ USE MOD_Globals_Vars ,ONLY: PI
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)    :: NormVec(1:3) ! Basis vector (normalized)
-REAL,INTENT(IN)    :: VeloVec(1:3) ! Velocity vector before the random direction selection within the plane defined by b1 and b2
+REAL,INTENT(IN)    :: NormVec(1:3) !< Basis vector (normalized)
+REAL,INTENT(IN)    :: VeloVec(1:3) !< Velocity vector before the random direction selection within the plane defined by b1 and b2
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLE
-REAL               :: GetRotatedVector(1:3) ! Output velocity vector
+REAL               :: GetRotatedVector(1:3) !< Output velocity vector
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL               :: Vabs ! Absolute velocity

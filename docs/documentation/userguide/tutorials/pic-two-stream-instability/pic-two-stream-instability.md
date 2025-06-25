@@ -1,5 +1,5 @@
 (sec:tutorial-pic-two-stream-instability)=
-# Two Stream Instability(PIC, Poisson's Equation)
+# Two Stream Instability (PIC, Poisson's Equation)
 
 This tutorial considers a one-dimensional (1D) setup of the so-called two-stream instability (TSI) using PICLas.
 The TSI is a key phenomenon in plasma physics, occurring when two counter-flowing and interpenetrating streams of

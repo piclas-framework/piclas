@@ -27,21 +27,14 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-INTERFACE InitDielectric
-  MODULE PROCEDURE InitDielectric
-END INTERFACE
-INTERFACE FinalizeDielectric
-  MODULE PROCEDURE FinalizeDielectric
-END INTERFACE
-
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 PUBLIC::InitDielectric,FinalizeDielectric
 PUBLIC::DefineParametersDielectric
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 CONTAINS
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !==================================================================================================================================
 !> Define parameters for surfaces (particle-sides)
 !==================================================================================================================================
@@ -74,6 +67,7 @@ CALL prms%CreateRealArrayOption('DielectricZoneMuR'            , 'MuR for each z
 
 END SUBROUTINE DefineParametersDielectric
 
+
 SUBROUTINE InitDielectric()
 !===================================================================================================================================
 !  Initialize perfectly matched layer
@@ -87,7 +81,7 @@ USE MOD_HDF5_Output_Fields,ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh_Vars         ,ONLY: nElems,ElemInfo,offsetElem
-#if ! (USE_HDG)
+#if ! (USE_HDG) && !(USE_FV)
 USE MOD_Equation_Vars     ,ONLY: c_corr
 #endif /*if not USE_HDG*/
 #if USE_LOADBALANCE
@@ -126,7 +120,7 @@ END IF
 DielectricEpsR_inv               = 1./(DielectricEpsR)                   ! 1./EpsR
 !DielectricConstant_inv           = 1./(DielectricEpsR*DielectricMuR)    ! 1./(EpsR*MuR)
 DielectricConstant_RootInv       = 1./sqrt(DielectricEpsR*DielectricMuR) ! 1./sqrt(EpsR*MuR)
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 eta_c_dielectric                 = (c_corr-DielectricConstant_RootInv)*c ! ( chi - 1./sqrt(EpsR*MuR) ) * c
 #endif /*if USE_HDG*/
 c_dielectric                     = c*DielectricConstant_RootInv          ! c/sqrt(EpsR*MuR)
@@ -220,8 +214,10 @@ CALL CountAndCreateMappings('Dielectric',&
 CALL SetDielectricVolumeProfile()
 
 #if !(USE_HDG)
+#if !(USE_FV)
   ! Determine dielectric Values on faces and communicate them: only for Maxwell
   CALL SetDielectricFaceProfile()
+#endif /*USE_FV*/
 #else /*if USE_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces
   CALL SetDielectricFaceProfile_HDG()
@@ -373,7 +369,7 @@ END IF
 END SUBROUTINE SetDielectricVolumeProfile
 
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 SUBROUTINE SetDielectricFaceProfile()
 !===================================================================================================================================
 !> Set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master".
@@ -459,8 +455,8 @@ DO iElem = 1, nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ALLOCATE(DielectricVolDummy(iElem)%U(1,0:Nloc,0:Nloc,0:Nloc))
   DielectricVolDummy(iElem)%U = 0.
-  ! 2.  Fill dummy element values for non-Dielectric sides
-  IF (isDielectricElem(iElem))THEN
+! 2.  Fill dummy element values for non-Dielectric sides
+  IF(isDielectricElem(iElem))THEN
     DielectricVolDummy(iElem)%U(1,0:Nloc,0:Nloc,0:Nloc) = &
         SQRT(DielectricVol(ElemToDielectric(iElem))%DielectricConstant_inv(0:Nloc,0:Nloc,0:Nloc))
   ELSE
@@ -477,12 +473,12 @@ CALL U_Mortar(               doDielectricSides=.TRUE., doMPISides=.FALSE.)
 CALL ProlongToFace_TypeBased(doDielectricSides=.TRUE., doMPISides=.TRUE.)
 CALL U_Mortar(               doDielectricSides=.TRUE., doMPISides=.TRUE.)
 
-! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
-!     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
-!     is not allowed)
-!     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
-!     information)
-DO iSide=1,nSides
+  ! 4.  For MPI communication, the data on the faces has to be stored in an array which is completely sent to the corresponding MPI
+  !     threads (one cannot simply send parts of an array using, e.g., "2:5" for an allocated array of dimension "1:5" because this
+  !     is not allowed)
+  !     re-map data from dimension PP_nVar (due to prolong to face routine) to 1 (only one dimension is needed to transfer the
+  !     information)
+      DO iSide=1,nSides
   N_master = DG_Elems_master(iSide)
   N_slave  = DG_Elems_slave(iSide)
   DO p=0,N_master
@@ -493,16 +489,16 @@ DO iSide=1,nSides
   DO p=0,N_slave
     DO q=0,N_slave
       DielectricSurf(iSide)%Dielectric_dummy_Slave2 (1,p,q) = DielectricSurf(iSide)%Dielectric_dummy_Slave( 1,p,q)
+      END DO
     END DO
   END DO
-END DO
 
-! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
+  ! 5.  Send Slave Dielectric info (real array with dimension (N+1)*(N+1)) to Master procs
 ! SendID=2: Send Dielectric_dummy_Slave2
 CALL StartReceiveMPIDataTypeDielectric( RecRequest_U2,SendID=2) ! Receive MINE
 CALL StartSendMPIDataTypeDielectric(   SendRequest_U2,SendID=2) ! Send YOUR
 
-! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
+  ! Send Master Dielectric info (real array with dimension (N+1)*(N+1)) to Slave procs
 ! SendID=1: Send Dielectric_dummy_Master2
 CALL StartReceiveMPIDataTypeDielectric( RecRequest_U,SendID=1) ! Receive YOUR
 CALL StartSendMPIDataTypeDielectric(   SendRequest_U,SendID=1) ! Send MINE
@@ -529,14 +525,14 @@ DO iSide =1, nSides
 END DO ! iSide =1, nSides
 
 ! 7. Copy slave side to master side if the dielectric region is on the slave side as the master will calculate the flux for the
-!    master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
-DO iSide = 1, nSides
+  ! master and the slave side and it requires the factor 1./SQRT(EpsR*MuR) for the wave travelling into the dielectric region
+  DO iSide = 1, nSides
   MinSlave  = MINVAL(DielectricSurf(iSide)%Dielectric_Slave(:,:))
   MinMaster = MINVAL(DielectricSurf(iSide)%Dielectric_Master(:,:))
-  IF((MinMaster.LT.0.0).AND.(MinSlave.LT.0.0))THEN
+    IF((MinMaster.LT.0.0).AND.(MinSlave.LT.0.0))THEN
     ! Both are negative, that means vacuum-vacuum side
     DielectricSurf(iSide)%Dielectric_Master(:,:) = 1.0
-  ELSEIF(MinMaster.LT.0.0)THEN
+    ELSEIF(MinMaster.LT.0.0)THEN
     ! Master is negative, that means master side is in vacuum, slave side is in dielectric
     N_master = DG_Elems_master(iSide)
     N_slave  = DG_Elems_slave(iSide)
@@ -559,8 +555,8 @@ DO iSide = 1, nSides
         DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master))
       DielectricSurf(iSide)%Dielectric_Master(:,:) = DielectricSurf(iSide)%Dielectric_dummy_Master(1,0:N_master,0:N_master)
     END IF ! N_master.EQ.N_slave
-  END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
-END DO ! iSide = 1, nSides
+    END IF ! (MinMaster.LT.0.0).AND.(MinSlave.LT.0.0)
+  END DO ! iSide = 1, nSides
 
 ! 8.  Check if the default value remains unchanged (negative material constants are not allowed until now)
 DO iSide =1, nSides
@@ -569,7 +565,7 @@ DO iSide =1, nSides
     IPWRITE(UNIT_StdOut,*) "DielectricSurf(iSide)%Dielectric_Master =", DielectricSurf(iSide)%Dielectric_Master
     CALL abort(__STAMP__,'Dielectric material values for Riemann solver not correctly determined. MINVAL(Dielectric_Master)=',&
         RealInfoOpt=dummy)
-  END IF
+END IF
 END DO ! iSide =1, nSides
 
 ! Cleanup: Deallocate
@@ -583,7 +579,7 @@ DO iSide =1, nSides
 END DO ! iSide =1, nSides
 
 END SUBROUTINE SetDielectricFaceProfile
-#endif /*not USE_HDG*/
+#endif /*!(USE_HDG) && !(USE_FV)*/
 
 
 #if USE_HDG
@@ -594,10 +590,10 @@ SUBROUTINE SetDielectricFaceProfile_HDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,DielectricEpsR
+USE MOD_Dielectric_Vars, ONLY:isDielectricElem,DielectricEpsR
 USE MOD_Equation_Vars   ,ONLY: chi
 USE MOD_Mesh_Vars       ,ONLY: nInnerSides, offSetElem
-USE MOD_Mesh_Vars       ,ONLY: ElemToSide
+USE MOD_Mesh_Vars,       ONLY:ElemToSide
 USE MOD_DG_Vars         ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -706,6 +702,6 @@ SDEALLOCATE(DielectricZoneID)
 SDEALLOCATE(DielectricZoneEpsR)
 SDEALLOCATE(DielectricZoneMuR)
 END SUBROUTINE FinalizeDielectric
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 END MODULE MOD_Dielectric

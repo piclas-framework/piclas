@@ -26,24 +26,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitMortar
-  MODULE PROCEDURE InitMortar
-END INTERFACE
-
-INTERFACE MortarBasis_BigToSmall
-  MODULE PROCEDURE MortarBasis_BigToSmall
-END INTERFACE
-
-INTERFACE MortarBasis_SmallToBig
-  MODULE PROCEDURE MortarBasis_SmallToBig
-END INTERFACE
-
-INTERFACE FinalizeMortar
-  MODULE PROCEDURE FinalizeMortar
-END INTERFACE
-
 PUBLIC::InitMortar,FinalizeMortar,MortarBasis_BigToSmall,MortarBasis_SmallToBig
-
 !===================================================================================================================================
 
 CONTAINS
@@ -77,8 +60,8 @@ IF(MortarInitIsDone.OR.(.NOT.InterpolationInitIsDone))THEN
 END IF
 
 ! DG interfaces
-ALLOCATE(N_Mortar(NMin:NMax))
-DO Nloc = NMin, NMax
+ALLOCATE(N_Mortar(MIN(NMin,0):MAX(NMax,1)))
+DO Nloc = MIN(NMin,0), MAX(NMax,1)
   ALLOCATE(N_Mortar(Nloc)%M_0_1(0:Nloc,0:Nloc))
   ALLOCATE(N_Mortar(Nloc)%M_0_2(0:Nloc,0:Nloc))
   ALLOCATE(N_Mortar(Nloc)%M_1_0(0:Nloc,0:Nloc))
@@ -88,7 +71,6 @@ DO Nloc = NMin, NMax
   CALL MortarBasis_BigToSmall(0, Nloc, NodeType, N_Mortar(Nloc)%M_0_1, N_Mortar(Nloc)%M_0_2)
   CALL MortarBasis_SmallToBig(0, Nloc, NodeType, N_Mortar(Nloc)%M_1_0, N_Mortar(Nloc)%M_2_0)
 END DO ! Nloc = NMin, NMax
-
 
 !> TODO: Make a unit test out of this one
 #if (PP_NodeType==1)

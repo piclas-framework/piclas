@@ -95,7 +95,6 @@ SUBROUTINE InitTimeDisc()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars     ,ONLY: nElems, offSetElem
-USE MOD_DG_Vars       ,ONLY: N_DG_Mapping
 USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
@@ -172,6 +171,10 @@ dt=HUGE(1.)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Leapfrog, Poisson'
 #elif (PP_TimeDiscMethod==600)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
+#elif (PP_TimeDiscMethod==700)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ED-DVM or DUGKS'
+#elif (PP_TimeDiscMethod==701)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Explicit finite volumes'
 #endif
 
 RKdtFrac      = 1.

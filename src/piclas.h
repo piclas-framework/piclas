@@ -117,6 +117,10 @@
 #define PP_ij      i,j
 #endif
 
+#if USE_FV
+#define PP_1 1
+#endif
+
 #ifdef INTKIND8
 #define MPI_INTEGER_INT_KIND MPI_INTEGER8
 #else
@@ -304,8 +308,10 @@
 #define LB_SURFFLUX      18
 #define LB_SURFCOMM      19
 #define LB_ADAPTIVE      20
+#define LB_FV            21
+#define LB_FVCOMM        22
 
-#define LB_NTIMES        20
+#define LB_NTIMES        22
 
 ! DSMC_analyze indeces used in arrays
 #define DSMC_VELOX       1

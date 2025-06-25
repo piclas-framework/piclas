@@ -902,6 +902,9 @@ USE MOD_Globals_Vars       ,ONLY: eps0
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars       ,ONLY: PS_N,DoDeposition
 USE MOD_HDG_Vars           ,ONLY: ElemToBRRegion,UseBRElectronFluid,RegionElectronRef
+#ifndef drift_diffusion
+USE MOD_Globals_Vars       ,ONLY: eps0
+#endif
 #if defined(CODE_ANALYZE)
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared
@@ -909,6 +912,10 @@ USE MOD_Particle_Mesh_Vars ,ONLY: BoundsOfElem_Shared
 #endif /*PARTICLES*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
+#ifdef drift_diffusion
+USE MOD_FV_Vars            ,ONLY: U_FV
+USE MOD_Globals_Vars       ,ONLY: eps0, ElementaryCharge
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1027,6 +1034,13 @@ IF(DoDeposition)THEN
 END IF
 #endif /*defined(PARTICLES)*/
 END ASSOCIATE
+
+#ifdef drift_diffusion
+! Add the electron density from the FV solver to the particle source
+resu(1) = - ((PS_N(iElem)%PartSource(4,i,j,k) - U_FV(1,0,0,0,iElem)*ElementaryCharge))/eps0
+!resu(1) = 0.!- ((1e20 - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
+#endif
+
 
 END SUBROUTINE CalcSourceHDG
 

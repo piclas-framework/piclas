@@ -96,7 +96,7 @@ USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,Rea
 USE MOD_Mesh_Vars             ,ONLY: OffsetElem,nGlobalElems,MeshFile,nElems
 USE MOD_EquationDMD           ,ONLY: InitEquationDMD,CalcEquationDMD
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
-USE MOD_Globals_Vars          ,ONLY: TimeStampLenStr,TimeStampLenStr2
+USE MOD_Globals_Vars ,ONLY: TimeStampLenStr,TimeStampLenStr2
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping,N_DG
 USE MOD_Mesh                  ,ONLY: Set_N_DG_Mapping
 USE MOD_HDF5_Input            ,ONLY: DatasetExists
@@ -215,7 +215,7 @@ IF (nDim.EQ.2) THEN
   ! Set Nloc in N_DG_Mapping
   CALL Set_N_DG_Mapping(OffsetCounter)
 ELSE
-  CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
+CALL GetDataProps('DG_Solution',nVar_State,N_State,nElems_State,NodeType_State)
 END IF
 IF ( NodeType .NE. NodeType_State  ) THEN
   CALL CollectiveStop(__STAMP__,'Node Type of given state File is not applicable to compiled version')
@@ -242,11 +242,6 @@ MeshFile = MeshFile_state
 nGlobalElems = nElems_State
 offsetElem   = 0 ! OffsetElem is 0 since the tool only works on single
 
-
-IF (nDim.EQ.2) THEN
-
-
-END IF ! nDim.EQ.2
 
 IF (.NOT. use2D) THEN
   nDoFs = (N_State+1)**3 * nElems_State
@@ -622,7 +617,6 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_HDF5_Output       ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,GenerateFileSkeleton
-USE MOD_HDF5_Output_State ,ONLY: WriteStateToHDF5
 USE MOD_Output            ,ONLY: InitOutput
 USE MOD_Output_Vars
 USE MOD_DMD_Vars          ,ONLY: Phi,N_State,N_StateZ,nElems_State,nModes,freq,alpha,lambda,sigmaSort,Time_State,VarNameDMD

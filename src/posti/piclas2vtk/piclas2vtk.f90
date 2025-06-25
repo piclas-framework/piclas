@@ -75,7 +75,7 @@ LOGICAL                        :: CmdLineMode, NVisuDefault         ! In command
 CHARACTER(LEN=2)               :: NVisuString                       ! String containing NVisu from command line option
 CHARACTER(LEN=20)              :: fmtString                         ! String containing options for formatted write
 LOGICAL                        :: DGSolutionExists, ElemDataExists, SurfaceDataExists, VisuParticles, PartDataExists, DMDDataExists
-LOGICAL                        :: BGFieldExists, ExcitationDataExists
+LOGICAL                        :: BGFieldExists, ExcitationDataExists, DVMSolutionExists
 LOGICAL                        :: VisuAdaptiveInfo, AdaptiveInfoExists
 LOGICAL                        :: ReadMeshFinished, ElemMeshInit, SurfMeshInit
 LOGICAL                        :: ConvertPointToCellData
@@ -285,6 +285,7 @@ DO iArgs = iArgsStart,nArgs
   CALL DatasetExists(File_ID , 'SurfaceData'  , SurfaceDataExists)
   CALL DatasetExists(File_ID , 'PartData'     , PartDataExists)
   CALL DatasetExists(File_ID , 'BGField'      , BGFieldExists) ! deprecated , but allow for backward compatibility
+  CALL DatasetExists(File_ID , 'DVM_Solution'  , DVMSolutionExists)
   CALL DatasetExists(File_ID , 'Mode_001_ElectricFieldX_Img'     , DMDDataExists)
   IF(BGFieldExists)THEN
     DGSolutionExists  = .TRUE.
@@ -313,7 +314,7 @@ DO iArgs = iArgsStart,nArgs
     ReadMeshFinished = .TRUE.
   END IF
   ! Build connectivity for element/volume output
-  IF(ElemDataExists.AND..NOT.ElemMeshInit) THEN
+  IF((ElemDataExists.OR.DVMSolutionExists).AND..NOT.ElemMeshInit) THEN
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
@@ -383,6 +384,10 @@ DO iArgs = iArgsStart,nArgs
     IF(AdaptiveInfoExists) THEN
       CALL ConvertElemData(InputStateFile,'AdaptiveInfo','VarNamesAdaptive',iArgs)
     END IF
+  END IF
+  ! === DVM_Solution ===============================================================================================================
+  IF(DVMSolutionExists) THEN
+    CALL ConvertDVMSolution(InputStateFile,NVisu,NodeTypeVisuOut,'DVM_Solution')
   END IF
 END DO ! iArgs = 2, nArgs
 
@@ -668,6 +673,107 @@ END SUBROUTINE WriteDataToVTK_PICLas
 
 
 !===================================================================================================================================
+!> Convert DVM solution to a cell-based VTK format
+!===================================================================================================================================
+SUBROUTINE ConvertDVMSolution(InputStateFile,NVisu,NodeTypeVisuOut,ArrayName)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars          ,ONLY: ProjectName
+USE MOD_IO_HDF5               ,ONLY: HSize
+USE MOD_HDF5_Input            ,ONLY: OpenDataFile,CloseDataFile,ReadAttribute,File_ID,ReadArray,GetDataSize,GetDataProps
+USE MOD_Mesh_Vars             ,ONLY: NodeCoords,nElems,offsetElem,NGeo
+USE MOD_Interpolation_Vars    ,ONLY: NodeTypeVisu
+USE MOD_Interpolation         ,ONLY: GetVandermonde
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
+USE MOD_VTK                   ,ONLY: WriteDataToVTK
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile,NodeTypeVisuOut
+CHARACTER(LEN=*),INTENT(IN)     :: ArrayName
+INTEGER,INTENT(IN)              :: NVisu
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)              :: FileString,NodeType_State
+REAL                            :: OutputTime
+INTEGER                         :: nDims,nVar,N_State,nElems_State,iElem
+CHARACTER(LEN=255),ALLOCATABLE  :: VarNames(:)
+REAL,ALLOCATABLE,TARGET         :: U(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET         :: U_Visu(:,:,:,:,:)                 !< Solution on visualization nodes
+REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:,:)           !< Coordinates of visualization nodes
+REAL,ALLOCATABLE                :: Vdm_EQNgeo_NVisu(:,:)             !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                  !< Vandermonde from state to visualization nodes
+!===================================================================================================================================
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+ALLOCATE(Vdm_EQNgeo_NVisu(0:Ngeo,0:NVisu))
+CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+SDEALLOCATE(Coords_NVisu)
+ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+! Convert coordinates to visu grid
+DO iElem = 1,nElems
+  CALL ChangeBasis3D(3,NGeo,NVisu,Vdm_EQNgeo_NVisu,NodeCoords(:,:,:,:,iElem),Coords_NVisu(:,:,:,:,iElem))
+END DO
+
+! Read in solution
+CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
+CALL ReadAttribute(File_ID,'Project_Name',1,StrScalar=ProjectName)
+OutputTime = 0. ! default
+CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+CALL GetDataSize(File_ID,TRIM(ArrayName),nDims,HSize)
+IF (nDims.NE.5) CALL abort(__STAMP__,'Wrong number of dimensions in state file!')
+CALL GetDataProps(TRIM(ArrayName),nVar,N_State,nElems_State,NodeType_State)
+IF (nElems.NE.nElems_State) CALL abort(__STAMP__,'Number of elements in state file and mesh file do not match!')
+
+IF (nVar.GT.0) THEN
+  ALLOCATE(VarNames(1:nVar))
+  CALL ReadAttribute(File_ID,'VarNames',nVar,StrArray=VarNames(1:nVar))
+
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVar       => INT(nVar,IK)      ,&
+        N_State    => INT(N_State, IK)  ,&
+        offsetElem => INT(offsetElem,IK),&
+        nElems     => INT(nElems,IK)    )
+    SDEALLOCATE(U)
+    ALLOCATE(U(1:nVar,0:N_State,0:N_State,0:N_State,1:nElems))
+    CALL ReadArray(TRIM(ArrayName),5,(/nVar,N_State+1_IK,N_State+1_IK,N_State+1_IK, nElems/),offsetElem,5, &
+    RealArray=U(1:nVar,0:N_State,0:N_State,0:N_State,1:nElems))
+  END ASSOCIATE
+
+  SDEALLOCATE(Vdm_N_NVisu)
+  ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+  CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+
+  SDEALLOCATE(U_Visu)
+  ALLOCATE(U_Visu(nVar,0:NVisu,0:NVisu,0:NVisu,nElems))
+
+  ! Write solution to vtk
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_Solution_DVM',OutputTime))//'.vtu'
+  ! Interpolate solution to visu grid
+  DO iElem = 1,nElems
+    CALL ChangeBasis3D(nVar,N_State,NVisu,Vdm_N_NVisu,U(:,:,:,:,iElem),U_Visu(:,:,:,:,iElem))
+  END DO
+  ! Output to VTK
+  CALL WriteDataToVTK(nVar,NVisu,nElems,VarNames,Coords_NVisu,U_Visu,TRIM(FileString),dim=3,DGFV=0)
+END IF
+
+SDEALLOCATE(VarNames)
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
+SDEALLOCATE(Coords_NVisu)
+SDEALLOCATE(U)
+SDEALLOCATE(Vdm_N_NVisu)
+SDEALLOCATE(U_Visu)
+
+CALL CloseDataFile()
+
+END SUBROUTINE ConvertDVMSolution
+
+
+!===================================================================================================================================
 !> Convert the output of the field solver to a VTK output format
 !===================================================================================================================================
 SUBROUTINE ConvertDGSolution(InputStateFile,NVisu,NodeTypeVisuOut,OutputName,DGSolutionDataset,iErrorReturn)
@@ -807,8 +913,8 @@ END IF
 CALL GetDataSize(File_ID,TRIM(DGSolutionDataset),nDims,HSize)
 ! Check the number of fields in the file, if more than 5 dimensions, the 6th dimensions carries the number of fields
 IF(nDims.GE.5) THEN
-  nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
-  nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
+nFields     = MERGE(1 , INT(HSize(nDims)) , nDims.EQ.5)
+nDimsOffset = MERGE(0 , 1                 , nDims.EQ.5)
 ELSE
   ! p-adaption data format
   IF (nDims.EQ.2) THEN
@@ -925,18 +1031,18 @@ IF(NlocFound) THEN
                                                                      ElemLocal(iElem)%Coords_NVisu(1:3,0:Nloc,0:Nloc,0:Nloc))
   END DO
 ELSE
-  SDEALLOCATE(Vdm_EQNgeo_NVisu)
+SDEALLOCATE(Vdm_EQNgeo_NVisu)
   ALLOCATE(Vdm_EQNgeo_NVisu(0:NVisu,0:NGeo))
-  CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
-  SDEALLOCATE(Coords_NVisu)
-  ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
-  SDEALLOCATE(Coords_DG)
-  ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
-  ! Convert coordinates to visu grid
-  DO iElem = 1,nElems
+CALL GetVandermonde(Ngeo,NodeTypeVisu,NVisu,NodeTypeVisuOut,Vdm_EQNgeo_NVisu,modal=.FALSE.)
+SDEALLOCATE(Coords_NVisu)
+ALLOCATE(Coords_NVisu(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+SDEALLOCATE(Coords_DG)
+ALLOCATE(Coords_DG(3,0:NVisu,0:NVisu,0:NVisu,nElems))
+! Convert coordinates to visu grid
+DO iElem = 1,nElems
     CALL ChangeBasis3D(3, NGeo, NVisu, Vdm_EQNgeo_NVisu(0:NVisu,0:NGeo), NodeCoords(1:3,0:NGeo ,0:NGeo ,0:NGeo ,iElem), &
                                                                        Coords_NVisu(1:3,0:NVisu,0:NVisu,0:NVisu,iElem))
-  END DO
+END DO
 END IF
 
 ! Read in solution
@@ -1002,19 +1108,19 @@ ASSOCIATE (&
         IF(DGSourceExtExists) &
           CALL ReadArray('DG_SourceExt',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_TD+1:nVar_State,1:nDOF))
       ELSEIF(nDims.EQ.5) THEN
-        SDEALLOCATE(U)
-        ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
-        CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-            RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
-        ! Read nVar_Solution+1:nVar_Source
-        IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
-            RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
-        ! Read nVar_Source+1:nVar_TD
-        IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-            offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
-        ! Read nVar_TD+1:nVar_State
-        IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
-            offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
+      SDEALLOCATE(U)
+      ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
+      CALL ReadArray(TRIM(DGSolutionDataset),5,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_Solution+1:nVar_Source
+      IF(DGSourceExists) CALL ReadArray('DG_Source',5,(/4_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),offsetElem,5, &
+          RealArray=U(nVar_Solution+1:nVar_Source,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_Source+1:nVar_TD
+      IF(DGTimeDerivativeExists) CALL ReadArray('DG_TimeDerivative',5,(/3_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_Source+1:nVar_TD,0:N_State,0:N_State,0:N_State,1:nElems))
+      ! Read nVar_TD+1:nVar_State
+      IF(DGSourceExtExists) CALL ReadArray('DG_SourceExt',5,(/1_IK,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems/),&
+          offsetElem,5,RealArray=U(nVar_TD+1:nVar_State,0:N_State,0:N_State,0:N_State,1:nElems))
       END IF
     ELSE ! more than one field
       ! Check whether old (nDims=5) or new p-adaption data shape (nDim=3, 2 + 1 for nFields) is used
@@ -1024,11 +1130,11 @@ ASSOCIATE (&
         CALL ReadArray(TRIM(DGSolutionDataset),3,(/nVar_Solution,nDOF,nFields/),offsetElem,2,&
                       RealArray=U_N_3D(1:nVar_Solution,1:nDOF,1:nFields))
       ELSEIF(nDims.EQ.6) THEN
-        SDEALLOCATE(U2)
-        ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
-        ! Default: DGSolutionDataset = 'DG_Solution'
-        CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
-            RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
+      SDEALLOCATE(U2)
+      ALLOCATE(U2(nVar_State,0:N_State,0:N_State,0:N_State,nElems,nFields))
+      ! Default: DGSolutionDataset = 'DG_Solution'
+      CALL ReadArray(TRIM(DGSolutionDataset),6,(/nVar_Solution,N_State+1_IK,N_State+1_IK,N_State+1_IK,nElems,nFields/),offsetElem,5, &
+          RealArray=U2(1:nVar_Solution,0:N_State,0:N_State,0:N_State,1:nElems,1:nFields))
       ELSE
         IPWRITE(*,*) 'nDims:', nDims
         CALL abort(__STAMP__,'Unknown nDims for nFields>1 encountered')
@@ -1102,21 +1208,21 @@ IF(NlocFound) THEN
   END IF
 ELSE
   ! Old format: constant polynomial degree
-  SDEALLOCATE(Vdm_N_NVisu)
-  ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
-  CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
+SDEALLOCATE(Vdm_N_NVisu)
+ALLOCATE(Vdm_N_NVisu(0:N_State,0:NVisu))
+CALL GetVandermonde(N_State,NodeType_State,NVisu,NodeTypeVisuOut,Vdm_N_NVisu,modal=.FALSE.)
 
-  SDEALLOCATE(U_Visu)
-  ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
+SDEALLOCATE(U_Visu)
+ALLOCATE(U_Visu(nVar_State,0:NVisu,0:NVisu,0:NVisu,nElems))
 
-  ! Set DG coords
-  iDG = 0
-  DO iElem = 1,nElems
-    iDG = iDG + 1
-    Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
-  END DO
-  Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
-  U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
+! Set DG coords
+iDG = 0
+DO iElem = 1,nElems
+  iDG = iDG + 1
+  Coords_DG(:,:,:,:,iDG) = Coords_NVisu(:,:,:,:,iElem)
+END DO
+Coords_DG_p => Coords_DG(:,:,:,:,1:iDG)
+U_Visu_p    => U_Visu(:,:,:,:,1:iDG)
 END IF
 
 ! Output multiples files, if the DGSolution file contains more than one field (e.g. multiple different times for the same field)
@@ -1209,19 +1315,19 @@ DO iField = 1, nFields
     END DO
   ELSE
     ! Old format: constant polynomial degree
-    iDG = 0
-    DO iElem = 1,nElems
-      iDG = iDG + 1
-      IF(nFields.EQ.1)THEN
+  iDG = 0
+  DO iElem = 1,nElems
+    iDG = iDG + 1
+    IF(nFields.EQ.1)THEN
         CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu             , &
                            U( 1:nVar_State,0:N_State,0:N_State,0:N_State,iElem), &
                            U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
-      ELSE ! more than one field
+    ELSE ! more than one field
         CALL ChangeBasis3D(nVar_State, N_State, NVisu, Vdm_N_NVisu                    , &
                            U2(1:nVar_State,0:N_State,0:N_State,0:N_State,iElem,iField), &
                            U_Visu(1:nVar_State,0:NVisu,0:NVisu,0:NVisu,iDG))
-      END IF ! nFields.GT.1
-    END DO
+    END IF ! nFields.GT.1
+  END DO
   END IF
 
   ! Output to VTK
@@ -1230,7 +1336,7 @@ DO iField = 1, nFields
     CALL WriteDataToVTKpAdaption(nVar_State,StrVarNames,TRIM(FileString_DG))
   ELSE
     ! Old format: constant polynomial degree
-    CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
+  CALL WriteDataToVTK(nVar_State,NVisu,iDG,StrVarNames,Coords_DG_p,U_Visu_p,TRIM(FileString_DG),dim=3,DGFV=0)
   END IF
 
 END DO ! iField = 1, nFields
@@ -1476,7 +1582,9 @@ USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
 USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh
 USE MOD_ReadInTools             ,ONLY: PrintOption
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars                 ,ONLY: DG_Elems_master,DG_Elems_slave
+#endif /*!(PP_TimeDiscMethod==700)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1490,13 +1598,13 @@ CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
 INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide, Nloc
 REAL                            :: OutputTime
-REAL,ALLOCATABLE                :: tempSurfData(:,:,:,:,:)
+REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Interpolation variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 TYPE :: VisuInterpolation
-  REAL,ALLOCATABLE :: Vdm_N_NVisu(:,:)               !< Vandermonde from equidistant mesh to visualization nodes
+REAL,ALLOCATABLE                :: Vdm_N_NVisu(:,:)                    !< Vandermonde from equidistant mesh to visualization nodes
 END TYPE VisuInterpolation
 
 TYPE(VisuInterpolation),ALLOCATABLE :: N_Inter_Visu(:)      !< Array of prebuild interpolation matrices
@@ -1563,7 +1671,11 @@ IF(nSurfSample.GT.1) THEN
   DO iSurfOutputSide = 1, SurfConnect%nSurfaceOutputSides
     ! Mapping from nSurfaceOutputSides to nSides
     SideID = SurfOutputSideToUniqueSide(iSurfOutputSide)
+#if !(PP_TimeDiscMethod==700)
     Nloc   = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+#else
+    Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
     CALL ChangeBasis2D(3, Nloc, nSurfSample, N_Inter_Visu(Nloc)%Vdm_N_NVisu, &
         N_SurfMesh(SideID)%Face_xGP(1:3 , 0:Nloc        , 0:Nloc)       , &
                     NodeCoords_visu(1:3 , 0:nSurfSample , 0:nSurfSample , 0 , iSurfOutputSide))
@@ -1576,7 +1688,11 @@ END IF
 
 IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
   IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
+    IF(TRIM(File_Type).NE.'DVMSurfState') THEN
     FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+  ELSE
+      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfDVM',OutputTime))//'.vtu'
+    END IF
   ELSE
     FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
   END IF

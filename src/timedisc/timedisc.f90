@@ -37,6 +37,10 @@ USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectN
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: time,tEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,tStart
 USE MOD_TimeDisc_Vars          ,ONLY: time_start
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
+USE MOD_RecordPoints           ,ONLY: WriteRP!,RecordPoints
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #if defined(PARTICLES)
@@ -44,8 +48,10 @@ USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceV
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(PP_TimeDiscMethod==700)
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
@@ -55,15 +61,14 @@ USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze,nSkipAnalyze,SkipAnaly
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,nGlobalDOFs,NMaxGlobal,NMinGlobal
-USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-USE MOD_RecordPoints           ,ONLY: WriteRP!,RecordPoints
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-#else
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
 #if USE_MPI
@@ -81,7 +86,9 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
+#if !(USE_FV) || (USE_HDG)
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
+#endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
@@ -216,7 +223,9 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
+#if !(USE_FV) || (USE_HDG)
 IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
+#endif
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -242,18 +251,19 @@ DO !iter_t=0,MaxIter
 
   CALL UpdateTimeStep()
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
-#else
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
   IF(MPIroot)THEN
     iterationTotal = 0
     RunTimeTotal   = 0.
   END IF ! MPIroot
-#endif /*NOT USE_HDG*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
   CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
@@ -266,6 +276,10 @@ DO !iter_t=0,MaxIter
   CALL TimeStep_FPFlow()
 #elif (PP_TimeDiscMethod==400)
   CALL TimeStep_BGK()
+#elif (PP_TimeDiscMethod==700)
+  CALL TimeStep_DVM()
+#elif (PP_TimeDiscMethod==701)
+  CALL TimeStep_ExplicitFV()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 #if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
@@ -387,11 +401,13 @@ DO !iter_t=0,MaxIter
 #else
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
 #endif
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
       ! Write recordpoints data to hdf5
       IF(RP_onProc) CALL WriteRP(tAnalyze,.TRUE.)
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
       tPreviousAnalyze        = tAnalyze
       tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')

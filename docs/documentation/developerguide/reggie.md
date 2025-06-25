@@ -194,11 +194,11 @@ which gives the expanded version of utilized `extends:` and `<<:` templates.
 When running `gitlab-ci-local` on a system with a module environment, it is neccessary to pass the local modules that are used for compiling
 ```
 DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
-gitlab-ci-local --variable --variable DO_RUN_LOCAL=$DO_RUN_LOCAL
+gitlab-ci-local --variable DO_RUN_LOCAL=$DO_RUN_LOCAL
 ```
 If multiple variables are required add them to the command
 ```
-gitlab-ci-local --variable --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable CHECK_WARNINGS=True
+gitlab-ci-local --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable CHECK_WARNINGS=True
 ```
 to envoke additional options of the pipeline.
 
