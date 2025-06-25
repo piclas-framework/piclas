@@ -267,7 +267,7 @@ USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
 USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+USE MOD_MPI_Output                 ,ONLY: OutputMPIW8Time
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES

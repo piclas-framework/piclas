@@ -14,7 +14,7 @@
 
 MODULE MOD_MPI_FV
 !===================================================================================================================================
-! Add comments please!
+! Module containing subroutines and functions that are required only for Finite Volume (FV) methods
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
