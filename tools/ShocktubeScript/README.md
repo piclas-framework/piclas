@@ -6,11 +6,7 @@ This is done in an iterative process with two stages. In the first stage, the sh
 
 # Usage of the Script
 
-To use the script, one must know how to conduct simulations with PICLas and which parameters are necessary. The script forwards most of the simulation parameters to the PICLas simulations unchanged, but some are adjusted based on the simulation  case and enabled autoadjusts of simulation parameters.
-
-## Example: EAST-50-29
-
-This is the example case. It was a test in the EAST shock tube facility [[1]](#1) which is also an ESA reference case [[2]](#2). The results are published in [[3]](#3). The shock tube operates with air and reaches a shock speed of 10,300 m/s, meaning a significant amount of ionization occurs. During the test, the velocity of the shock front was measured, and spectra of the emitted light were recorded at different wavelengths.
+To use the script, one must know how to conduct simulations with PICLas and which parameters are necessary. The script forwards most of the simulation parameters to the PICLas simulations unchanged, but some are adjusted based on the simulation case and enabled autoadjusts of simulation parameters.
 
 ## Setup of a Simulation
 
@@ -49,13 +45,66 @@ This is the example case. It was a test in the EAST shock tube facility [[1]](#1
 
 The end time and length should be within a reasonable range. For example, the shock should not touch the inflow boundary, and there should be enough time for a shock to develop.
 
-All other PICLas simulation parameters must be set in this file and will be passed on to the simulation. The inflow composition is defined by setting it as init1, as shown in the example file:
+All other PICLas simulation parameters must be set in this file and will be passed on to the simulation. The inflow composition is defined by setting it as init1. The script will set the corresponding velocity and surface flux based on the iterated velocities. As in a normal PICLas simulation, all species parameters must be defined in the DSMCSpecies.ini. It has to be tested to see if it works with the Species Database.
+
+
+## Example: EAST-50-29
+
+This is the example case. It was a test in the EAST shock tube facility [[1]](#1) which is also an ESA reference case [[2]](#2). The shock tube operates with air and reaches a shock speed of 10,300 m/s, meaning a significant amount of ionization occurs. During the test, the velocity of the shock front was measured, and spectra of the emitted light were recorded at different wavelengths. PICLas was used to simulate the flow field, the PICLas radiation solver generated the resulting spectrum. The results are published in [[3]](#3). The necessary files to conduct the simulation are appended. This section only explains the SHocktube.ini file, which is an extended parameter.ini file of a PICLas simulation.
+
+The shocktube script related parameters are set to:
+```
+! =============================================================================== !
+! Shock Simulation
+! =============================================================================== !
+Shock-Target-Velo=10300                                                 ! Desired velocity of the shock
+Shock-Target-dev=10.0                                                   ! Desired acuracy of the traget velocity
+Shock-Simulation-dt=1.230767e-09                                        ! Time step of the simulation, start time step for autoadjust
+Shock-Simulation-tend=4.236113e-04                                      ! End time of the simulation, start time step for autoadjust
+Shock-Simulation-MPF=3.005187e+16                                       ! Particle Weight for the simulation, start time step for autoadjust (vmpf is not supported)
+Shock-Simulation-ElemsPerWrite=10                                       ! How many elements shall the shock front propagate per output (noise,memory)
+Shock-Simulation-ElectronSpecies=11                                     ! Species 11 are the electrons
+Shock-Mesh-dxElem=0.0005                                                ! x-Resolution of the Mesh
+Shock-Mesh-Length=0.3                                                   ! Length of the mesh
+Shock-Start-Velo=9587.299262                                            ! The start velocity is set to the the final value or a fast convergence, typically it is not known and has to be iterated by the script
+Shock-KeepAllSimulationData=true                                        ! The data of the iterations are not deleted
+Shock-UseMPI=true                                                       ! MPI is enabled
+Shock-nMPICores=10                                                      ! 10 Cores are used for the simulation
+Shock-PiclasPath=~/master.dev/build/bin/piclas                          ! Path to piclas executable
+Shock-HoprPath=hopr                                                     ! Path to hopr executable
+Shock-DSMCSpecies=DSMCSpecies_Earth_11Spec.ini                          ! DSMC.ini file
+Shock-AdditionalCopyFiles=DSMCSpecies_electronic_state_full_Data.h5     ! The electronic level database is needed to calculate the backward reaction rates and electrical exictations
+Shock-Autoadjust-Mesh=false                                             ! The mesh will not be adjusted due to instabillities
+Shock-Autoadjust-dt=true                                                ! The simulation time step will be adjusted, based on the maximum collision probability and travel distance of the particles
+Shock-Autoadjust-tend=true                                              ! The end time of the simulation will be adjusted based on the location of the shock front or the smoothness of the solution
+Shock-Autoadjust-MPF=true                                               ! The particle weight will be adjusted, based on the MCS over MPF and minimal particle number
+Shock-partperelemmin=10                                                 ! Minimum 10 particles per computational element
+```
+
+The initialization of particles is set to the following parameters:
 
 ```
 ! =============================================================================== !
+! Piclas-parameters copied to the shocktube simulations
+! Init1 are the pre-shock conditions
+! =============================================================================== !
+
+Part-nSpecies=11
+! =============================================================================== !
+! Species1 - N
+! =============================================================================== !
+Part-Species1-MassIC=2.32600E-26        ! N Molecular Mass
+! =============================================================================== !
+! Species2 - O
+! =============================================================================== !
+Part-Species2-MassIC=2.65700E-26         ! O Molecular Mass
+! =============================================================================== !
 ! Species3 - N2
 ! =============================================================================== !
+Part-Species3-MassIC=4.65200E-26         ! N2 Molecular Mass
+
 Part-Species3-nInits=1
+
 Part-Species3-Init1-velocityDistribution=maxwell
 Part-Species3-Init1-VeloVecIC=(/1,0.,0/)
 Part-Species3-Init1-MWTemperatureIC=300
@@ -64,12 +113,12 @@ Part-Species3-Init1-TempRot=300
 Part-Species3-Init1-TempElec=300
 Part-Species3-Init1-PartDensity=5.15217391304348E+020
 ! =============================================================================== !
-! Species4 - O2Shock-PartperElemmin             | float     | 10      | Only if "Shock-Autoadjust-MPF": lowest Simpartnum allowed in Elems                                            |
-| Shock-MCSoverMFPmax              | float     | 0.2     | Only if "Shock-Autoadjust-MPF": highest MCSoverMFP allowed in Elems                                           |
-| Shock-VeloTempEps                | float     | 5       | Only if "Shock-Autoadjust-dt": maximum considered multiple thermal velocity of the mean thermal velocity      |
-| Shock-MaxCollProbMax
+! Species4 - O2
 ! =============================================================================== !
+Part-Species4-MassIC=5.31400E-26        ! O2 Molecular Mass
+
 Part-Species4-nInits=1
+
 Part-Species4-Init1-velocityDistribution=maxwell
 Part-Species4-Init1-VeloVecIC=(/1,0.,0/)
 Part-Species4-Init1-MWTemperatureIC=300
@@ -77,8 +126,143 @@ Part-Species4-Init1-TempVib=300
 Part-Species4-Init1-TempRot=300
 Part-Species4-Init1-TempElec=300
 Part-Species4-Init1-PartDensity=1.3695652173913E+020
+! =============================================================================== !
+! Species5 - NOexitations
+! =============================================================================== !
+Part-Species5-MassIC=4.98300E-26          ! NO Molecular Mass
+! =============================================================================== !
+! Species6 - N+
+! =============================================================================== !
+Part-Species6-MassIC=2.3259089061644E-26        ! N Molecular Mass
+Part-Species3-MWConstA-3-1=31.06
+Part-Species3-MWConstB-3-1=-3.51
+Part-Species3-MWConstA-3-2=180.47
+Part-Species3-MWConstB-3-2=-10.62
+Part-Species3-MWConstA-3-3=220
+Part-Species3-MWConstB-3-3=-12.27
+Part-Species3-MWConstA-3-4=115.1
+Part-Species3-MWConstB-3-4=-6.92
+Part-Species3-MWConstA-3-5=101.2
+Part-Species3-MWConstB-3-5=-5.26
+Part-Species3-MWConstA-3-6=180.47
+Part-Species3-MWConstB-3-6=-10.62
+Part-Species3-MWConstA-3-7=31.06
+Part-Species3-MWConstB-3-7=-3.51
+Part-Species3-MWConstA-3-8=220
+Part-Species3-MWConstB-3-8=-12.27
+Part-Species3-MWConstA-3-9=115.1
+Part-Species3-MWConstB-3-9=-6.92
+Part-Species3-MWConstA-3-10=101.2
+Part-Species3-MWConstB-3-10=-5.26
+Part-Species3-MWConstA-3-11=1.39
+Part-Species3-MWConstB-3-11=-6.9
+Part-Species6-ChargeIC=1.60217653E-19
+! =============================================================================== !
+! Species7 - O+
+! =============================================================================== !
+Part-Species7-MassIC=2.6569089061644E-26         ! O Molecular Mass
+Part-Species7-ChargeIC=1.60217653E-19
+! =============================================================================== !
+! Species8 - N2+
+! =============================================================================== !
+Part-Species8-MassIC=4.6519089061644E-26          ! N2 Molecular Mass
+Part-Species8-ChargeIC=1.60217653E-19
+! =============================================================================== !
+! Species9 - O2+
+! =============================================================================== !
+Part-Species9-MassIC=5.3137267184932E-26        ! O2 Molecular Mass
+Part-Species9-ChargeIC=1.60217653E-19
+! =============================================================================== !
+! Species10 - NO+
+! =============================================================================== !
+Part-Species10-MassIC=4.9828178123288E-26          ! NO Molecular Mass
+Part-Species10-ChargeIC=1.60217653E-19
+! =============================================================================== !
+! Species11 - e
+! =============================================================================== !
+Part-Species11-MassIC=9.10938356E-31        ! e Mass
+Part-Species11-ChargeIC=-1.60217653E-19
+! =============================================================================== !
+! MESHexitations
+! =============================================================================== !
+TrackingMethod=triatracking
+! =============================================================================== !
+! OUTPUT / VISUALIZATION
+! =============================================================================== !
+ProjectName   = EAST-50-29
+IterDisplayStep  = 100
+Logging       = F
+! =============================================================================== !
+! CALCULATIONexitations
+! =============================================================================== !
+CFLscale   = 0.2  ! Scaling of theoretical CFL number
+
+! =============================================================================== !
+! DSMC
+! =============================================================================== !
+UseDSMC=true
+Particles-DSMC-CollisMode=3 !(1:elast coll, 2: elast + rela, 3:chem)
+Part-NumberOfRandomSeeds=2
+Particles-RandomSeed1=1
+Particles-RandomSeed2=2
+Particles-ModelForVibrationEnergy=0 !(0:SHO, 1:TSHO)
+Particles-DSMC-UseNearestNeighbour=FALSE
+Particles-DSMC-UseOctree=false
+Particles-OctreePartNumNode=80
+Particles-OctreePartNumNodeMin=50
+Particles-MPIWeight=1000
+Particles-HaloEpsVelo=100000000
+Particles-DSMC-CalcQualityFactors=true
+Particles-DSMC-BackwardReacRate = true
+Particles-DSMC-PartitionMaxTemp = 120000.
+Particles-DSMC-PartitionInterval= 20.
+Particles-DSMC-AmbipolarDiffusion = T
+Particles-DSMC-useRelaxProbCorrFactor = T
+Particles-DSMC-ElectronicModel  = 2
+Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5
+EpsMergeElectronicState = 1E-2
 ```
-The script will set the corresponding velocity and surface flux. As in a normal PICLas simulation, all species parameters must be defined in the DSMCSpecies.ini. It has to be tested to see if it works with the Species Database.
+The mass and non-zero charge is defined for all species. The inflow composition is defined as init1; so the inflow consists of only nitrogen and oxygen molecules. All other species will be formed in and behind the shock front. The script will set the corresponding velocity and surface flux.
+
+Other simulation parameters are forwarded directly to the PICLas simulation and are set to:
+```
+! =============================================================================== !
+! MESH
+! =============================================================================== !
+TrackingMethod=triatracking                                             ! used tracking method, fast
+! =============================================================================== !
+! OUTPUT / VISUALIZATION
+! =============================================================================== !
+ProjectName   = EAST-50-29
+IterDisplayStep  = 100exitations
+Logging       = F
+! =============================================================================== !
+! CALCULATION
+! =============================================================================== !
+CFLscale   = 0.2  ! Scaling of theoretical CFL number
+
+! =============================================================================== !
+! DSMC
+! =============================================================================== !
+UseDSMC=true                                                            ! DSMC collisions are necessary to form a shock
+Particles-DSMC-CollisMode=3 !(1:elast coll, 2: elast + rela, 3:chem)    ! chemical reactions re desired
+Part-NumberOfRandomSeeds=2
+Particles-RandomSeed1=1
+Particles-RandomSeed2=2
+Particles-ModelForVibrationEnergy=0 !(0:SHO, 1:TSHO)                    ! Simple harmonic ocillator as vibration model
+Particles-DSMC-UseNearestNeighbour=true                                 ! nearest neighbor search of the second collision partner
+Particles-DSMC-UseOctree=true                                           ! octree is used for fast pairing
+Particles-MPIWeight=1000                                                ! for MPI simulations of the second stage
+Particles-HaloEpsVelo=100000000                                         ! reduces particle loss to consider the whole computational domain
+Particles-DSMC-CalcQualityFactors=true                                  ! needed for autoadjusts
+Particles-DSMC-BackwardReacRate = true                                  ! automatic calculation of backward reaction rates
+Particles-DSMC-PartitionMaxTemp = 120000.                               ! above maximum expected temperature for chemical reaction
+Particles-DSMC-PartitionInterval= 20.                                   ! resolution of chemical reaction database
+Particles-DSMC-AmbipolarDiffusion = T                                   ! electrons are pinned to heavy particles, no calculation of electrical field necessary, much faster simulation
+Particles-DSMC-ElectronicModel  = 2                                     ! Every particle carries an distribution of electrical exictations, better resolution of exitation states for radiation solver
+Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5 ! Electronic level database
+EpsMergeElectronicState = 1E-2                                          ! pinning of electrical states for faster simulations
+```
 
 ## Conducting the simulation
 
