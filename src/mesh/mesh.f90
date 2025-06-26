@@ -1139,8 +1139,8 @@ ALLOCATE(DG_Elems_master(1:nSides))
 ALLOCATE(DG_Elems_slave (1:nSides))
 ! Initialize with element-local N
 !IF(pAdaptionType.EQ.0)THEN
-  DG_Elems_master = PP_N
-  DG_Elems_slave  = PP_N
+  DG_Elems_master = -1
+  DG_Elems_slave  = -1
 !ELSE
 !  DO iSide = 1, nSides
 !    iElem = SideToElem(S2E_ELEM_ID,iSide)
