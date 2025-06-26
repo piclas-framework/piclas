@@ -225,10 +225,16 @@ DO iBC=1,nBCs
               IF (DVMDim.LT.3) THEN
                 UPrim_boundary(Sp%nVarReduced+upos,p,q)=UPrim_master(Sp%nVarReduced+upos_sp,p,q,SideID)! + MovTerm
               END IF
+              IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+                UPrim_boundary(Sp%nVarErotStart+upos,p,q)=UPrim_master(Sp%nVarErotStart+upos_sp,p,q,SideID)! + MovTerm
+              END IF
             ELSE
               UPrim_boundary(upos,p,q)=UPrim_master(upos,p,q,SideID)
               IF (DVMDim.LT.3) THEN
                 UPrim_boundary(Sp%nVarReduced+upos,p,q)=UPrim_master(Sp%nVarReduced+upos,p,q,SideID)
+              END IF
+              IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+                UPrim_boundary(Sp%nVarErotStart+upos,p,q)=UPrim_master(Sp%nVarErotStart+upos,p,q,SideID)
               END IF
             END IF
           END DO; END DO; END DO

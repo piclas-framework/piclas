@@ -58,7 +58,7 @@ REAL                            :: densEtr(DVMnSpecies+1), densErot(DVMnSpecies+
 REAL                            :: uVelo(3,DVMnSpecies+1), cVel(3,DVMnSpecies+1), cMag2(DVMnSpecies+1)
 REAL                            :: mu(DVMnSpecies+1), thermalcond(DVMnSpecies+1), cP
 REAL                            :: PressTens(6,DVMnSpecies+1), Heatflux(3,DVMnSpecies+1)
-REAL                            :: weight, prefac, Phi, Prandtl, PrandtlCorrection, relaxFac
+REAL                            :: weight, prefac, Phi, Prandtl, PrandtlCorr1, PrandtlCorr2, relaxFac
 INTEGER                         :: iVel,jVel,kVel,upos,iSpec,jSpec,vFirstID,total
 !===================================================================================================================================
 rhoTotal = 0.
@@ -74,7 +74,8 @@ MacroVal = 0.
 cP = 0.
 mu = 0.
 thermalcond = 0.
-PrandtlCorrection = 0.
+PrandtlCorr1 = 0.
+PrandtlCorr2 = 0.
 total = DVMnSpecies+1
 IF (PRESENT(charge)) charge = 0.
 
@@ -113,7 +114,7 @@ DO iSpec=1, DVMnSpecies
     IF((Sp%InterID.EQ.2).OR.(Sp%InterID.EQ.20)) THEN ! inner DOF
       ! Istomin et. al., "Eucken correction in high-temperature gases with electronic excitation", J. Chem. Phys. 140,
       ! 184311 (2014)
-      thermalcond(iSpec) = 0.25 * (15. + 2. * Sp%Xi_Rot) * 1.328 * mu(iSpec) * BoltzmannConst / Sp%Mass
+      thermalcond(iSpec) = 0.25 * (15. + 2. * Sp%Xi_Rot * 1.328) * mu(iSpec) * BoltzmannConst / Sp%Mass
     ELSE ! atoms
       thermalcond(iSpec) = 0.25 * 15. * mu(iSpec) * BoltzmannConst / Sp%Mass
     END IF
@@ -204,31 +205,40 @@ DO iSpec=1, DVMnSpecies
   Macroval(6:11,iSpec)  = PressTens(1:6,iSpec)
   MacroVal(12:14,iSpec) = Heatflux(1:3,iSpec)
 
-  ! Wilke's mixing rules
-  Phi = 0.
-  DO jSpec=1, DVMnSpecies
-      Phi = Phi + dens(jSpec) * (1.+SQRT(mu(iSpec)/mu(jSpec)) &
-      * (DVMSpecData(jSpec)%Mass/Sp%Mass)**(0.25) )**(2.0) &
-      / ( SQRT(8.0 * (1.0 + Sp%Mass/DVMSpecData(jSpec)%Mass)) )
-  END DO
-  mu(total) = mu(total) + dens(iSpec)*mu(iSpec)/Phi
-  thermalcond(total) = thermalcond(total) + dens(iSpec)*thermalcond(iSpec)/Phi
-  cP = cP + (5.+Sp%Xi_Rot/2.) * BoltzmannConst * dens(iSpec)/rhoTotal
-  PrandtlCorrection = PrandtlCorrection + dens(iSpec)*rhoTotal/Sp%Mass/dens(total)/dens(total)
-
+  IF (DVMnSpecies.GT.1) THEN
+    ! Wilke's mixing rules
+    Phi = 0.
+    DO jSpec=1, DVMnSpecies
+        Phi = Phi + dens(jSpec) * (1.+SQRT(mu(iSpec)/mu(jSpec)) &
+        * (DVMSpecData(jSpec)%Mass/Sp%Mass)**(0.25) )**(2.0) &
+        / ( SQRT(8.0 * (1.0 + Sp%Mass/DVMSpecData(jSpec)%Mass)) )
+    END DO
+    mu(total) = mu(total) + dens(iSpec)*mu(iSpec)/Phi
+    thermalcond(total) = thermalcond(total) + dens(iSpec)*thermalcond(iSpec)/Phi
+    cP = cP + ((5.+Sp%Xi_Rot)/2.) * BoltzmannConst * dens(iSpec)/rhoTotal
+    PrandtlCorr1 = PrandtlCorr1 + (5.+Sp%Xi_Rot)*dens(iSpec)/Sp%Mass
+    PrandtlCorr2 = PrandtlCorr2 + (5.+Sp%Xi_Rot)*dens(iSpec)
+  ELSE
+    mu(total) = mu(1)
+    thermalcond(total) = thermalcond(1)
+  END IF
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
 END DO
 
-Macroval(6:11,total)  = PressTens(1:6,total)
-MacroVal(12:14,total) = Heatflux(1:3,total)
-
-Prandtl = cP*mu(total)/thermalcond(total)*PrandtlCorrection
-IF (PRESENT(PrandtlNumber)) PrandtlNumber = Prandtl
-
+IF (DVMnSpecies.GT.1) THEN
+  Prandtl = cP*mu(total)/thermalcond(total)*PrandtlCorr1*rhoTotal/PrandtlCorr2/dens(total) !Pr = alpha * cP * mu / K
+ELSE
+  Prandtl = 2.*(DVMSpecData(1)%Xi_Rot + 5.)/(2.*DVMSpecData(1)%Xi_Rot + 15.)
+END IF
 tau = mu(total)/BoltzmannConst/dens(total)/MacroVal(5,total)
 IF (DVMBGKModel.EQ.1) tau = tau/Prandtl !ESBGK
 IF (DVMBGKModel.EQ.6) tau = tau*2./3. !Grad13BGK
+
+IF (PRESENT(PrandtlNumber)) PrandtlNumber = Prandtl
+
+Macroval(6:11,total)  = PressTens(1:6,total)
+MacroVal(12:14,total) = Heatflux(1:3,total)
 
 IF (DVMColl.AND.tDeriv.GT.0.) THEN
   IF(tilde.EQ.1) THEN ! higher moments from f~
