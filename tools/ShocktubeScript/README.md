@@ -134,28 +134,6 @@ Part-Species5-MassIC=4.98300E-26          ! NO Molecular Mass
 ! Species6 - N+
 ! =============================================================================== !
 Part-Species6-MassIC=2.3259089061644E-26        ! N Molecular Mass
-Part-Species3-MWConstA-3-1=31.06
-Part-Species3-MWConstB-3-1=-3.51
-Part-Species3-MWConstA-3-2=180.47
-Part-Species3-MWConstB-3-2=-10.62
-Part-Species3-MWConstA-3-3=220
-Part-Species3-MWConstB-3-3=-12.27
-Part-Species3-MWConstA-3-4=115.1
-Part-Species3-MWConstB-3-4=-6.92
-Part-Species3-MWConstA-3-5=101.2
-Part-Species3-MWConstB-3-5=-5.26
-Part-Species3-MWConstA-3-6=180.47
-Part-Species3-MWConstB-3-6=-10.62
-Part-Species3-MWConstA-3-7=31.06
-Part-Species3-MWConstB-3-7=-3.51
-Part-Species3-MWConstA-3-8=220
-Part-Species3-MWConstB-3-8=-12.27
-Part-Species3-MWConstA-3-9=115.1
-Part-Species3-MWConstB-3-9=-6.92
-Part-Species3-MWConstA-3-10=101.2
-Part-Species3-MWConstB-3-10=-5.26
-Part-Species3-MWConstA-3-11=1.39
-Part-Species3-MWConstB-3-11=-6.9
 Part-Species6-ChargeIC=1.60217653E-19
 ! =============================================================================== !
 ! Species7 - O+
