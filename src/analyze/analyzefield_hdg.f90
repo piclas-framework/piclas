@@ -18,6 +18,7 @@ MODULE MOD_AnalyzeField_HDG
 !===================================================================================================================================
 ! MODULES
 #if USE_HDG
+USE MOD_Globals, ONLY:UNIT_stdOut
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
