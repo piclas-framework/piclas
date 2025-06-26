@@ -33,7 +33,7 @@ To use the script, one must know how to conduct simulations with PICLas and whic
 | Shock-AdditionalCopyFiles        | str       |         | Only if "KeepAllSimulationData": additional neccessary files like electronic data base                        |
 | Shock-Simulation-ElemsPerWrite   | float     | 1       | Average travel distance of the shock in Elems between piclas macrowrites                                      |
 | Shock-Simulation-ElectronSpecies | int       | -1      | Species number of electrons =-1 if there is no electron species                                               |
-| Shock-Autoadjust-Mesh            | bool      | False  [[3]](#3) | If true: mesh length will be adjusted by last simulation results, might be unstable                           |
+| Shock-Autoadjust-Mesh            | bool      | False   | If true: mesh length will be adjusted by last simulation results, might be unstable                           |
 | Shock-Autoadjust-dt              | bool      | False   | If true: dt will be adjusted by last simulation results.                                                      |
 | Shock-Autoadjust-tend            | bool      | False   | If true: tend will be adjusted by last simulation results.                                                    |
 | Shock-Autoadjust-maxPartNum      | bool      | False   | If true: maxpartnum will be adjusted by last simulation results, deprecated                                   |
@@ -160,45 +160,6 @@ Part-Species10-ChargeIC=1.60217653E-19
 ! =============================================================================== !
 Part-Species11-MassIC=9.10938356E-31        ! e Mass
 Part-Species11-ChargeIC=-1.60217653E-19
-! =============================================================================== !
-! MESHexitations
-! =============================================================================== !
-TrackingMethod=triatracking
-! =============================================================================== !
-! OUTPUT / VISUALIZATION
-! =============================================================================== !
-ProjectName   = EAST-50-29
-IterDisplayStep  = 100
-Logging       = F
-! =============================================================================== !
-! CALCULATIONexitations
-! =============================================================================== !
-CFLscale   = 0.2  ! Scaling of theoretical CFL number
-
-! =============================================================================== !
-! DSMC
-! =============================================================================== !
-UseDSMC=true
-Particles-DSMC-CollisMode=3 !(1:elast coll, 2: elast + rela, 3:chem)
-Part-NumberOfRandomSeeds=2
-Particles-RandomSeed1=1
-Particles-RandomSeed2=2
-Particles-ModelForVibrationEnergy=0 !(0:SHO, 1:TSHO)
-Particles-DSMC-UseNearestNeighbour=FALSE
-Particles-DSMC-UseOctree=false
-Particles-OctreePartNumNode=80
-Particles-OctreePartNumNodeMin=50
-Particles-MPIWeight=1000
-Particles-HaloEpsVelo=100000000
-Particles-DSMC-CalcQualityFactors=true
-Particles-DSMC-BackwardReacRate = true
-Particles-DSMC-PartitionMaxTemp = 120000.
-Particles-DSMC-PartitionInterval= 20.
-Particles-DSMC-AmbipolarDiffusion = T
-Particles-DSMC-useRelaxProbCorrFactor = T
-Particles-DSMC-ElectronicModel  = 2
-Particles-DSMCElectronicDatabase = DSMCSpecies_electronic_state_full_Data.h5
-EpsMergeElectronicState = 1E-2
 ```
 The mass and non-zero charge is defined for all species. The inflow composition is defined as init1; so the inflow consists of only nitrogen and oxygen molecules. All other species will be formed in and behind the shock front. The script will set the corresponding velocity and surface flux.
 
