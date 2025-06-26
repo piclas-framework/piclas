@@ -282,7 +282,7 @@ CHARACTER(LEN=255)                  :: FileName
 CHARACTER(LEN=255)                  :: Statedummy
 CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
-INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, SurfSideNb,Nloc,BCSideID,iLocSide,iElem,BCType,iBC
+INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, Nloc,BCSideID,iLocSide,iElem,BCType,iBC
 INTEGER                             :: GlobalElemID,iPartBound,GlobalNonUniqueSideID
 INTEGER                             :: nSurfSample, MessageSize
 REAL                                :: tstart,tend
@@ -845,7 +845,7 @@ SUBROUTINE WriteBGFieldToHDF5(OutputTime)
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ProjectName
-USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile
+USE MOD_Mesh_Vars          ,ONLY: offsetElem,nElems,MeshFile
 USE MOD_io_HDF5
 USE MOD_HDF5_output        ,ONLY: copy_userblock
 USE MOD_HDF5_Output        ,ONLY: WriteArrayToHDF5
@@ -870,7 +870,7 @@ REAL,INTENT(IN),OPTIONAL         :: OutputTime
 INTEGER                        :: nVarOut
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal, iTimePoint, iElem, Nloc
+INTEGER                        :: iElem, Nloc
 REAL                           :: StartT,EndT
 ! p-adaption output
 REAL,ALLOCATABLE    :: U_N_2D_local(:,:),U_N_3D_local(:,:,:)
