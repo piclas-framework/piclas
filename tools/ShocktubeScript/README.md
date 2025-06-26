@@ -230,7 +230,7 @@ Some notes about the implementation of core elements of the script
 ## Determination of the shock speed
 
 
-This follows the Higdon algorithm closely [[4]](#4). The speed of the pressure jump is extracted since it combines all species data and is the fastest parameter to reach equilibrium in the post-shock condition. During the initial development of the shock, some nonlinearities appear; these must be excluded. This is accomplished through a series of second-order fits of the shock position; each fit excludes an additional writeout, beginning with the earliest one. When the sign of the quadratic term changes, it is assumed that the noise in the remaining signal is greater than the initial nonlinearities. The velocity is the slope of the linear fit of the remaining writeouts.
+This follows the Higdon algorithm closely [[4]](#4). The speed of the pressure jump is extracted since it combines all species data and is the fastest parameter to reach equilibrium in the post-shock condition. During the initial development of the shock, some non-linearities appear; these must be excluded. This is accomplished through a series of second-order fits of the shock position; each fit excludes an additional writeout, beginning with the earliest one. When the sign of the quadratic term changes, it is assumed that the noise in the remaining signal is greater than the initial non-linearities. The velocity is the slope of the linear fit of the remaining writeouts.
 
 ## Extraction of the Equilibrium condition
 
