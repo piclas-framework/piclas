@@ -809,11 +809,17 @@ CHE_FPFlow:
   script:
     - cd build ; reggie ../regressioncheck/CHE_FPFlow
 
-CHE_poisson_p_adaption:
+CHE_poisson_p_adaption_release:
   <<: *defaults_poisson_petsc_checkin
   stage: reggie_feature_checkin
   script:
     - cd build_poisson_petsc_release_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
+
+CHE_poisson_p_adaption_debug:
+  <<: *defaults_poisson_petsc_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build_poisson_petsc_debug_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
 
 CHE_poisson_periodic:
   <<: *defaults_checkin

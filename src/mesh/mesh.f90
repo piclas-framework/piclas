@@ -644,6 +644,10 @@ NDGAllocationIsDone = .FALSE.
 
 ! Read p-adaption specific input data
 pAdaptionType = GETINTFROMSTR('pAdaptionType')
+#if USE_HDG && !(USE_PETSC)
+! Sanity check: p-adaption without petsc is not allowed
+IF (pAdaptionType.NE.PRM_P_ADAPTION_ZERO) CALL abort(__STAMP__,'p-adaption is only implemented with petsc. Set LIBS_USE_PETSC=ON')
+#endif /*USE_HDG && !(USE_PETSC)*/
 
 ! Allocate arrays and initialize local polynomial degree
 ! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation

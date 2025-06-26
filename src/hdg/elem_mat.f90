@@ -540,6 +540,12 @@ INTEGER          :: ElemID, locSideID, SideID, igf
 INTEGER          :: lapack_info
 INTEGER          :: NSide
 !===================================================================================================================================
+! Sanity check: Remove this if p-adaption for HDG without PETSc is implemented
+DO SideID=1,nSides
+  NSide = N_SurfMesh(SideID)%NSide
+  IF(NSide.NE.NMax) CALL abort(__STAMP__,'p-adaption is not implemented for the HDG CG solver. Set LIBS_USE_PETSC=ON')
+END DO ! SideID=1,nSides
+
 SELECT CASE(PrecondType)
 CASE(0)
 ! do nothing
@@ -558,7 +564,6 @@ CASE(1)
     locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-      IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       HDG_Surf_N(SideID)%Precond(:,:) = HDG_Surf_N(SideID)%Precond(:,:)+HDG_Vol_N(ElemID)%Smat(:,:,locSideID,locSideID)
     END IF !locSideID.NE.-1
   END DO ! SideID=1,nSides
@@ -583,7 +588,6 @@ CASE(2)
     locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
     IF(locSideID.NE.-1)THEN
       ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-      IF(NSide.NE.NMax) CALL abort(__STAMP__,'not implemented for different polynomial degrees')
       DO igf = 1, nGP_face(NSide)
         HDG_Surf_N(SideID)%InvPrecondDiag(igf) = HDG_Surf_N(SideID)%InvPrecondDiag(igf)+ &
                               HDG_Vol_N(ElemID)%Smat(igf,igf,locSideID,locSideID)
