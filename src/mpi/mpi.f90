@@ -336,6 +336,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIData2D
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !===================================================================================================================================
 !> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
 !===================================================================================================================================
@@ -422,6 +423,7 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIDataTypeDielectric
 #endif /*!(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 
 !===================================================================================================================================

@@ -68,7 +68,7 @@ SUBROUTINE BuildElem_xGP(NodeCoords)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: NGeo,nElems,N_VolMesh, offSetElem
-USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmin,Nmax
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
@@ -77,6 +77,8 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #endif /*!(PP_TimeDiscMethod==700)*/
 #if USE_FV
 USE MOD_Mesh_Vars_FV,       ONLY: Elem_xGP_PP_1,Elem_xGP_FV
+#else
+USE MOD_Interpolation_Vars ,ONLY: Nmin
 #endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -96,12 +98,12 @@ TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm
 !==================================================================================================================================
 
 #if USE_FV
-  ! Element centers
-  SDEALLOCATE(Elem_xGP_FV)
-  ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))!
-  ! Output points
-  SDEALLOCATE(Elem_xGP_PP_1)
-  ALLOCATE(Elem_xGP_PP_1 (3,0:PP_1,0:PP_1,0:PP_1,nElems))
+! Element centers
+SDEALLOCATE(Elem_xGP_FV)
+ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))!
+! Output points
+SDEALLOCATE(Elem_xGP_PP_1)
+ALLOCATE(Elem_xGP_PP_1 (3,0:PP_1,0:PP_1,0:PP_1,nElems))
 ASSOCIATE( Nmin => 0 , Nmax => MAX(Nmax,1) )
 #endif /*USE_FV*/
 ! Build Vdm for every degree

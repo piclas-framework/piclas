@@ -52,11 +52,10 @@ SUBROUTINE U_Mortar_FV(U_in_master,U_in_slave,doMPISides)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Mortar_Vars     ,ONLY: N_Mortar
-USE MOD_Mesh_Vars       ,ONLY: MortarType,MortarInfo, offSetElem, SideToElem, nSides
+USE MOD_Mesh_Vars       ,ONLY: MortarType,MortarInfo, nSides
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 USE MOD_Mesh_Vars       ,ONLY: N_Mesh
-USE MOD_Dielectric_Vars ,ONLY: DielectricSurf
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -76,7 +75,7 @@ REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV,0:0,0:0,1:nSides) !< (INOUT) can 
 LOGICAL,INTENT(IN) :: doMPISides                                 !< flag whether MPI sides are processed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER      :: p,q,l
+INTEGER      :: p,q!,l
 INTEGER      :: iMortar,nMortars
 INTEGER      :: firstMortarSideID,lastMortarSideID
 INTEGER      :: MortarSideID,SideID,locSide,flip
@@ -110,10 +109,10 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       DO p=0,0 ! for every xi-layer perform Mortar operation in eta-direction
         U_tmp2(:,p,q,1)=                  M1(0,q)*U_in_master(:,p,0,MortarSideID)
         U_tmp2(:,p,q,2)=                  M2(0,q)*U_in_master(:,p,0,MortarSideID)
-        DO l=1,0
-          U_tmp2(:,p,q,1)=U_tmp2(:,p,q,1)+M1(l,q)*U_in_master(:,p,l,MortarSideID)
-          U_tmp2(:,p,q,2)=U_tmp2(:,p,q,2)+M2(l,q)*U_in_master(:,p,l,MortarSideID)
-        END DO
+        ! DO l=1,0
+        !   U_tmp2(:,p,q,1)=U_tmp2(:,p,q,1)+M1(l,q)*U_in_master(:,p,l,MortarSideID)
+        !   U_tmp2(:,p,q,2)=U_tmp2(:,p,q,2)+M2(l,q)*U_in_master(:,p,l,MortarSideID)
+        ! END DO
       END DO
     END DO
     ! then in xi
@@ -128,12 +127,12 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
         U_tmp(:,p,q,2)=                 M2(0,p)*U_tmp2(:,0,q,1)
         U_tmp(:,p,q,3)=                 M1(0,p)*U_tmp2(:,0,q,2)
         U_tmp(:,p,q,4)=                 M2(0,p)*U_tmp2(:,0,q,2)
-        DO l=1,0
-          U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,p)*U_tmp2(:,l,q,1)
-          U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,p)*U_tmp2(:,l,q,1)
-          U_tmp(:,p,q,3)=U_tmp(:,p,q,3)+M1(l,p)*U_tmp2(:,l,q,2)
-          U_tmp(:,p,q,4)=U_tmp(:,p,q,4)+M2(l,p)*U_tmp2(:,l,q,2)
-        END DO !l=1,0
+        ! DO l=1,0
+        !   U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,p)*U_tmp2(:,l,q,1)
+        !   U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,p)*U_tmp2(:,l,q,1)
+        !   U_tmp(:,p,q,3)=U_tmp(:,p,q,3)+M1(l,p)*U_tmp2(:,l,q,2)
+        !   U_tmp(:,p,q,4)=U_tmp(:,p,q,4)+M2(l,p)*U_tmp2(:,l,q,2)
+        ! END DO !l=1,0
        END DO
      END DO
 
@@ -145,10 +144,10 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       DO p=0,0 ! for every xi-layer perform Mortar operation in eta-direction
         U_tmp(:,p,q,1)=                 M1(0,q)*U_in_master(:,p,0,MortarSideID)
         U_tmp(:,p,q,2)=                 M2(0,q)*U_in_master(:,p,0,MortarSideID)
-        DO l=1,0
-          U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,q)*U_in_master(:,p,l,MortarSideID)
-          U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,q)*U_in_master(:,p,l,MortarSideID)
-         END DO
+        ! DO l=1,0
+        !   U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,q)*U_in_master(:,p,l,MortarSideID)
+        !   U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,q)*U_in_master(:,p,l,MortarSideID)
+        !  END DO
        END DO
      END DO
 
@@ -160,10 +159,10 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       DO p=0,0
         U_tmp(:,p,q,1)=                 M1(0,p)*U_in_master(:,0,q,MortarSideID)
         U_tmp(:,p,q,2)=                 M2(0,p)*U_in_master(:,0,q,MortarSideID)
-        DO l=1,0
-          U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,p)*U_in_master(:,l,q,MortarSideID)
-          U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,p)*U_in_master(:,l,q,MortarSideID)
-        END DO
+        ! DO l=1,0
+        !   U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,p)*U_in_master(:,l,q,MortarSideID)
+        !   U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,p)*U_in_master(:,l,q,MortarSideID)
+        ! END DO
       END DO
     END DO
   END SELECT ! mortarType(SideID)
@@ -209,7 +208,7 @@ SUBROUTINE Flux_Mortar_FV(Flux_Master,Flux_Slave,doMPISides)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Mortar_Vars, ONLY: N_Mortar
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides, offSetElem,SideToElem
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,N_Mesh
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 ! IMPLICIT VARIABLE HANDLING
@@ -231,7 +230,7 @@ LOGICAL,INTENT(IN) :: doMPISides
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER  :: p,q,l
+INTEGER  :: p,q!,l
 INTEGER  :: iMortar,nMortars
 INTEGER  :: firstMortarSideID,lastMortarSideID
 INTEGER  :: MortarSideID,SideID,iSide,flip
@@ -281,10 +280,10 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       DO p=0,0
         Flux_tmp2(:,p,q,1)=                       M1(0,p)*Flux_tmp(:,0,q,1)+M2(0,p)*Flux_tmp(:,0,q,2)
         Flux_tmp2(:,p,q,2)=                       M1(0,p)*Flux_tmp(:,0,q,3)+M2(0,p)*Flux_tmp(:,0,q,4)
-        DO l=1,0
-          Flux_tmp2(:,p,q,1)=Flux_tmp2(:,p,q,1) + M1(l,p)*Flux_tmp(:,l,q,1)+M2(l,p)*Flux_tmp(:,l,q,2)
-          Flux_tmp2(:,p,q,2)=Flux_tmp2(:,p,q,2) + M1(l,p)*Flux_tmp(:,l,q,3)+M2(l,p)*Flux_tmp(:,l,q,4)
-        END DO
+        ! DO l=1,0
+        !   Flux_tmp2(:,p,q,1)=Flux_tmp2(:,p,q,1) + M1(l,p)*Flux_tmp(:,l,q,1)+M2(l,p)*Flux_tmp(:,l,q,2)
+        !   Flux_tmp2(:,p,q,2)=Flux_tmp2(:,p,q,2) + M1(l,p)*Flux_tmp(:,l,q,3)+M2(l,p)*Flux_tmp(:,l,q,4)
+        ! END DO
       END DO
     END DO
     !then in eta
@@ -293,9 +292,9 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     DO q=0,0
       DO p=0,0 ! for every xi-layer perform Mortar operation in eta-direction
         Flux_Master(:,p,q,MortarSideID)=                               M1(0,q)*Flux_tmp2(:,p,0,1)+M2(0,q)*Flux_tmp2(:,p,0,2)
-        DO l=1,0
-          Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,q)*Flux_tmp2(:,p,l,1)+M2(l,q)*Flux_tmp2(:,p,l,2)
-        END DO
+        ! DO l=1,0
+        !   Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,q)*Flux_tmp2(:,p,l,1)+M2(l,q)*Flux_tmp2(:,p,l,2)
+        ! END DO
       END DO
     END DO
 
@@ -306,9 +305,9 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       !    Flux(iVar,p,:,MortarSideID)  =  M1 * Flux_tmp(iVar,p,:,1) + M2 * Flux_tmp(iVar,p,:,2)
       DO q=0,0 ! for every xi-layer perform Mortar operation in eta-direction
         Flux_Master(:,p,q,MortarSideID)=                                  M1(0,q)*Flux_tmp(:,p,0,1)+M2(0,q)*Flux_tmp(:,p,0,2)
-        DO l=1,0
-          Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,q)*Flux_tmp(:,p,l,1)+M2(l,q)*Flux_tmp(:,p,l,2)
-        END DO
+        ! DO l=1,0
+        !   Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,q)*Flux_tmp(:,p,l,1)+M2(l,q)*Flux_tmp(:,p,l,2)
+        ! END DO
       END DO
     END DO
 
@@ -318,9 +317,9 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       !    Flux(iVar,:,q,MortarSideID)  =   M1 * Flux_tmp(iVar,:,q,1) + M2 * Flux_tmp(iVar,:,q,2)
       DO p=0,0
         Flux_Master(:,p,q,MortarSideID)=                                    M1(0,p)*Flux_tmp(:,0,q,1)+M2(0,p)*Flux_tmp(:,0,q,2)
-        DO l=1,0
-          Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,p)*Flux_tmp(:,l,q,1)+M2(l,p)*Flux_tmp(:,l,q,2)
-        END DO
+        ! DO l=1,0
+        !   Flux_Master(:,p,q,MortarSideID)=Flux_Master(:,p,q,MortarSideID) + M1(l,p)*Flux_tmp(:,l,q,1)+M2(l,p)*Flux_tmp(:,l,q,2)
+        ! END DO
       END DO
     END DO
 

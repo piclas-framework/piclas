@@ -165,7 +165,9 @@ REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 #if USE_FV
+#ifdef discrete_velocity
 REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
+#endif /*discrete_velocity*/
 REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 #endif
 #ifdef discrete_velocity
@@ -417,7 +419,7 @@ ASSOCIATE(N_FV            => INT(PP_1,IK)               ,&
       nVal=      (/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
       offset=    (/0_IK             , 0_IK      , 0_IK      , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Utemp)
-#endif
+#endif /*discrete_velocity*/
 #ifdef drift_diffusion
   CALL GatheredWriteArray(FileName,create=.FALSE.,&
       DataSetName='DriftDiffusion_Solution', rank=5,&
