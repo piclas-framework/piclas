@@ -26,13 +26,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE setLocalSideIDs
-  MODULE PROCEDURE setLocalSideIDs
-END INTERFACE
-
-INTERFACE fillMeshInfo
-  MODULE PROCEDURE fillMeshInfo
-END INTERFACE
 
 PUBLIC::setLocalSideIDs,fillMeshInfo
 
@@ -83,6 +76,9 @@ USE MOD_MPI_Vars           ,ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISi
 USE MOD_MPI_Vars           ,ONLY: nMPISides_rec, OffsetMPISides_rec
 USE MOD_LoadBalance_Vars   ,ONLY: writePartitionInfo,DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #endif
+#if USE_FV
+USE MOD_Mesh_Vars_FV       ,ONLY: IsPeriodicSide
+#endif /*USE_FV*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -162,7 +158,11 @@ IF(ANY(PeriodicBCMap.EQ.-2))&
 ! and for periodic sides set BCindex of the slave side to the index of the master side using the PeriodicBCMap.
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+#if PP_dim == 3
   DO iLocSide=1,6
+#else
+  DO iLocSide=2,5
+#endif
     aSide=>aElem%Side(iLocSide)%sp
     ! LOOP over mortars, if no mortar, then LOOP is executed once
     nMortars=aSide%nMortars
@@ -210,7 +210,11 @@ nSlaveMortarMPISides_Proc=0
 #endif /*USE_MPI*/
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+#if PP_dim == 3
   DO iLocSide=1,6
+#else
+  DO iLocSide=2,5
+#endif
     aSide=>aElem%Side(iLocSide)%sp
     aSide%tmp=0
     IF(aSide%nMortars.GT.0)THEN   ! only if side has small virtual sides
@@ -261,7 +265,11 @@ iInnerSide=nBCSides+nMortarInnerSides ! inner (non-Mortar) side come next
 iMortarMPISide=nSides-nMortarMPISides ! MPI Mortar sides come last
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+#if PP_dim == 3
   DO iLocSide=1,6
+#else
+  DO iLocSide=2,5
+#endif
     aSide=>aElem%Side(iLocSide)%sp
     nMortars=aSide%nMortars
     DO iMortar=0,nMortars
@@ -274,6 +282,11 @@ DO iElem=FirstElemInd,LastElemInd
             iSide=iSide+1
             aSide%SideID=iInnerSide            ! set SideID for this side
             aSide%connection%SideID=iInnerSide ! and set same SideID for connected side
+#if USE_FV
+            IF(aSide%BCIndex.GE.1) THEN
+              IF(BoundaryType(aSide%BCIndex,BC_TYPE).EQ.1) IsPeriodicSide(iInnerSide)=.TRUE.
+            END IF
+#endif
           ELSE  ! side has no connection => big Mortar or BC side
             IF(aSide%MortarType.GT.0) THEN ! if big Mortar side
               IF(aSide%tmp.EQ.-1)THEN         ! if MPI Mortar side
@@ -367,7 +380,11 @@ DO iNbProc=1,nNbProcs
   iSide=0
   DO iElem=FirstElemInd,LastElemInd
     aElem=>Elems(iElem)%ep
+#if PP_dim == 3
     DO iLocSide=1,6
+#else
+    DO iLocSide=2,5
+#endif
       aSide=>aElem%Side(iLocSide)%sp
       nMortars=aSide%nMortars
       DO iMortar=0,nMortars
@@ -396,7 +413,11 @@ DO iNbProc=1,nNbProcs
   ! again loop over all common sides with the specific neighboring processor and assign SideIDs according to the 'SideIDMap'.
   DO iElem=FirstElemInd,LastElemInd
     aElem=>Elems(iElem)%ep
+#if PP_dim == 3
     DO iLocSide=1,6
+#else
+    DO iLocSide=2,5
+#endif
       aSide=>aElem%Side(iLocSide)%sp
       nMortars=aSide%nMortars
       DO iMortar=0,nMortars
@@ -856,7 +877,11 @@ CHARACTER(3)      :: hilf
 nSides_flip=0
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     ElemToSide(E2S_SIDE_ID,LocSideID,iElem)=aSide%SideID
     ElemToSide(E2S_FLIP,LocSideID,iElem)   =aSide%Flip
@@ -867,7 +892,11 @@ END DO ! iElem
 ! Side to Element mapping, sorted by SideID
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     IF(aSide%Flip.EQ.0)THEN ! root side
       SideToElem(S2E_ELEM_ID,aSide%SideID)         = iElem ! root Element
@@ -890,7 +919,11 @@ nSides_MortarType=0
 
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     ! Set type of mortar:
     !    -1: Small side belonging to big mortar
@@ -954,7 +987,11 @@ LOGWRITE(*,*)'============================= START SIDE CHECKER =================
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
   LOGWRITE(*,*)'=============== iElem= ',iElem, '==================='
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     LOGWRITE(*,'(7(A,I4))')'globSideID= ',aSide%ind, ', flip= ',aSide%flip ,    ', SideID= ', aSide%SideID, &
              ', nbProc= ',aSide%nbProc, ', %MortarType= ',aSide%MortarType, &
@@ -999,11 +1036,11 @@ IF(meshMode.GT.1)THEN
         IF(SideID.LE.nBCSides)THEN
           ! Add weighting depending on BC or inner sides
           SELECT CASE(BCType)
-          CASE(1) ! periodic
+          CASE(1) !periodic
             CALL abort(__STAMP__,'SideID.LE.nBCSides and SideID is periodic should not happen')
           CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
             ! do not consider this side
-          CASE(10) ! Neumann
+          CASE(10,11,12) ! Neumann
             HDGSides = HDGSides + 1
           CASE(20) ! FPC
             HDGSides = HDGSides + 1
@@ -1131,7 +1168,11 @@ ALLOCATE(Flip_YOUR(offsetMPISides_YOUR(0)+1:offsetMPISides_YOUR(nNBProcs)))
 !fill MINE flip info
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     nMortars=aSide%nMortars
     DO iMortar=0,nMortars
@@ -1169,7 +1210,11 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     nMortars=aSide%nMortars
     DO iMortar=0,nMortars

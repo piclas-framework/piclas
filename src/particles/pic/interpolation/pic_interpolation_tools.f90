@@ -27,9 +27,11 @@ INTERFACE GetInterpolatedFieldPartPos
   MODULE PROCEDURE GetInterpolatedFieldPartPos
 END INTERFACE
 
+#if !(USE_FV) || (USE_HDG)
 INTERFACE GetEMField
   MODULE PROCEDURE GetEMField
 END INTERFACE
+#endif
 
 INTERFACE InterpolateVariableExternalField1D
   MODULE PROCEDURE InterpolateVariableExternalField1D
@@ -37,7 +39,9 @@ END INTERFACE
 
 PUBLIC :: GetExternalFieldAtParticle
 PUBLIC :: GetInterpolatedFieldPartPos
+#if !(USE_FV) || (USE_HDG)
 PUBLIC :: GetEMField
+#endif
 PUBLIC :: InterpolateVariableExternalField1D
 #if USE_HDG
 PUBLIC :: GetInterpolatedPotentialPartPos
@@ -240,15 +244,16 @@ ELSE
 END IF
 
 ! Interpolate the field and return the vector
+#if !(USE_FV) || (USE_HDG)
 IF ((.NOT.SucRefPos).AND.(TRIM(DepositionType).EQ.'cell_volweight_mean')) THEN
   GetInterpolatedFieldPartPos(1:6) =  GetEMFieldDW(PEM%LocalElemID(PartID),PartState(1:3,PartID))
 ELSE
   GetInterpolatedFieldPartPos(1:6) =  GetEMField(PEM%LocalElemID(PartID),PartPosRef_loc(1:3))
 END IF
+#endif
 END FUNCTION GetInterpolatedFieldPartPos
 
-
-#if USE_HDG
+#if !(USE_FV) || (USE_HDG)
 FUNCTION GetInterpolatedPotentialPartPos(GlobalElemID,PartID)
 !===================================================================================================================================
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
@@ -389,7 +394,6 @@ DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
 END DO; END DO; END DO
 
 END FUNCTION GetPotentialDW
-#endif /*USE_HDG*/
 
 
 PPURE FUNCTION GetEMField(ElemID,PartPosRef_loc)
@@ -537,7 +541,7 @@ DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
     DistSum = 1.
     EXIT
   END IF ! norm.GT.0.
-  DistSum = DistSum + PartDistDepo(k,l,m)
+  DistSum = DistSum + PartDistDepo(k,l,m) 
 END DO; END DO; END DO
 
 GetEMFieldDW = 0.0
@@ -566,7 +570,7 @@ IF(useBGField)THEN
 END IF ! useBGField
 
 END FUNCTION GetEMFieldDW
-
+#endif /*!(USE_FV) || (USE_HDG)*/
 
 PPURE FUNCTION InterpolateVariableExternalField1D(Pos)
 !===================================================================================================================================

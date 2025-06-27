@@ -16,6 +16,7 @@ ENDMACRO()
 SUBDIRLIST(EQNSYSTEMS ${CMAKE_CURRENT_SOURCE_DIR}/src/equations/)
 
 OPTION(PICLAS_PARTICLES "Particles" ON)
+
 # =========================================================================
 # Time discretization
 # =========================================================================
@@ -30,6 +31,8 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           DSMC
                                                           FP-Flow
                                                           BGK-Flow
+                                                          ED-DVM
+                                                          Explicit-FV
                                                           Radiation)
 
 # =========================================================================
@@ -119,17 +122,36 @@ IF(PICLAS_EQNSYSNAME STREQUAL "maxwell")
   #SET(PICLAS_C_PREPROC ${F2P_C_PREPROC} -Dmaxwell)
   ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell)
   SET(PICLAS_HDG OFF)
+  SET(PICLAS_FV OFF)
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "poisson")
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
   SET(PICLAS_HDG ON)
+  SET(PICLAS_FV OFF)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
+  ADD_DEFINITIONS(-DPP_nVar=8 -Dmaxwell_pois -DPOIS)
+  SET(PICLAS_HDG OFF)
+  SET(PICLAS_FV OFF)
+  MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic")
   ADD_DEFINITIONS(-DPP_nVar=3 -Dmagnetostatic)
   SET(PICLAS_HDG ON)
+  SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   ADD_DEFINITIONS(-DPP_nVar=4 -Dmagnetostatic_poisson)
   SET(PICLAS_HDG ON)
+  SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "discrete_velocity")
+  ADD_DEFINITIONS(-DPP_nVar=0 -Ddiscrete_velocity)
+  SET(PICLAS_HDG OFF)
+  SET(PICLAS_FV ON)
+ELSEIF(PICLAS_EQNSYSNAME STREQUAL "drift_diffusion")
+  ADD_DEFINITIONS(-DPP_nVar_FV=1 -Ddrift_diffusion)
+  ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
+  SET(PICLAS_HDG ON)
+  SET(PICLAS_FV ON)
+
 ELSE()
    MESSAGE(SEND_ERROR "Unknown equation system.")
 ENDIF()
@@ -228,6 +250,12 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "BGK-Flow")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Radiation")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_Radiation.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=600)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DVM.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=700)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_ExplicitFV.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=701)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -252,12 +280,50 @@ IF(PICLAS_HDG)
       MESSAGE(STATUS "use HDG with RK4")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
       MESSAGE(STATUS "use HDG with RK14")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
+     MESSAGE(STATUS "use HDG in parallel to Explicit-FV")
   ELSE()
       MESSAGE(SEND_ERROR "Unknown time discretization method for HDG.")
   ENDIF()
 ELSE()
   ADD_DEFINITIONS(-DUSE_HDG=0)
 ENDIF(PICLAS_HDG)
+
+# =========================================================================
+# FV
+# =========================================================================
+
+CMAKE_DEPENDENT_OPTION(PICLAS_FV_2D "FV fluxes not calculated for dimension Z" OFF "PICLAS_FV" OFF)
+
+IF(PICLAS_FV)
+  ADD_DEFINITIONS(-DUSE_FV=1)
+  IF(PICLAS_FV_2D)
+    IF (PICLAS_HDG)
+      MESSAGE(SEND_ERROR "PICLAS_FV_2D not available in combination with HDG")
+    ELSE()
+      ADD_DEFINITIONS(-DPP_dim=2)
+      MESSAGE(STATUS "use FV with 2D fluxes")
+    ENDIF(PICLAS_HDG)
+  ELSE()
+    ADD_DEFINITIONS(-DPP_dim=3)
+  ENDIF(PICLAS_FV_2D)
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
+    MESSAGE(STATUS "use FV with DVM")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
+    MESSAGE(STATUS "use Explicit Finite Volumes")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
+    MESSAGE(STATUS "use HDG/FV with RK3")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
+    MESSAGE(STATUS "use HDG/FV with RK4")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
+    MESSAGE(STATUS "use HDG/FV with RK14")
+  ELSE()
+    MESSAGE(SEND_ERROR "Unknown time discretization method for FV.")
+  ENDIF()
+ELSE()
+  ADD_DEFINITIONS(-DUSE_FV=0)
+  ADD_DEFINITIONS(-DPP_dim=3)
+ENDIF(PICLAS_FV)
 
 # ========================================================================
 # LOADBALANCE
@@ -388,6 +454,30 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90)
 
+FILE(GLOB_RECURSE fvF90 ./src/fv/*.f90
+                        ./src/gradients/*.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/*.f90)
+
+FILE(GLOB_RECURSE hdgfvF90 ./src/hdg/*.f90
+                         ./src/dg/dg.f90
+                         ./src/dg/dg_vars.f90
+                         ./src/fv/*.f90
+                        ./src/interpolation/prolongtoface.f90
+                        ./src/gradients/*.f90
+                        ./src/equations/drift_diffusion/equation.f90
+                        ./src/equations/drift_diffusion/equation_vars.f90
+                        ./src/equations/drift_diffusion/transport_data.f90
+                        ./src/equations/drift_diffusion/riemann.f90
+                        ./src/equations/drift_diffusion/getboundaryflux.f90
+                        ./src/equations/drift_diffusion/getboundarygrad.f90
+                        ./src/equations/drift_diffusion/ionization.f90
+                        ./src/equations/poisson/equation.f90
+                        ./src/equations/poisson/equation_tools.f90
+                        ./src/equations/poisson/equation_vars.f90
+                        ./src/equations/poisson/timeavg.f90
+                        ./src/equations/poisson/timeavg_vars.f90
+                        ./src/equations/poisson/calctimestep.f90)
+
 #FILE(GLOB mainF90 ./src/piclas.f90
                   #./src/piclaslib.f90)
 FILE(GLOB_RECURSE particlesF90 ./src/particles/*.f90
@@ -416,7 +506,13 @@ IF(PICLAS_EXTRAE)
 ENDIF(PICLAS_EXTRAE)
 
 IF(PICLAS_HDG)
-  LIST(APPEND piclasF90 ${hdgF90})
+  IF(PICLAS_FV)
+    LIST(APPEND piclasF90 ${hdgfvF90})
+  ELSE()
+    LIST(APPEND piclasF90 ${hdgF90})
+  ENDIF()
+ELSEIF(PICLAS_FV)
+  LIST(APPEND piclasF90 ${fvF90})
 ELSE()
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*particle_br_electron_fluid.f90$")
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*superb.f90$")

@@ -62,7 +62,7 @@ CHARACTER(LEN=255)             :: ProgramName
 LOGICAL                        :: help
 !===================================================================================================================================
 IF(.NOT.FILEEXISTS(FileName))THEN
-  SWRITE(UNIT_stdOut,'(A)')' ERROR: The file does not exit! FileName: '//TRIM(FileName)
+  SWRITE(UNIT_stdOut,'(A)')' ERROR: The file does not exist! FileName: '//TRIM(FileName)
   isValidHDF5File=.FALSE.
   RETURN
 END IF ! .NOT.FILEEXISTS(FileName)

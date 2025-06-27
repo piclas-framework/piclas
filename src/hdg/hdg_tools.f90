@@ -367,7 +367,7 @@ USE MOD_Mesh_Vars          ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
 USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
 #if USE_MPI
 USE MOD_MPI_Vars
-USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType, Mask_MPIsides
+USE MOD_MPI_HDG            ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType,Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -805,72 +805,6 @@ CALL DPOTRS('U',dimA,nRHS,A,dimA,X,dimA,lapack_info)
 !  STOP 'LAPACK ERROR IN SOLVE CHOLESKY!'
 !END IF
 END SUBROUTINE solveSPD
-
-
-!===================================================================================================================================
-!> Computes Dot Product for vectors a and b: resu=a.b
-!===================================================================================================================================
-SUBROUTINE VectorDotProduct(dim1,A,B,Resu)
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
-#endif /*defined(MEASURE_MPI_WAIT)*/
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN):: dim1
-REAL,INTENT(IN)   :: A(dim1)
-REAL,INTENT(IN)   :: B(dim1)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)  :: Resu
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: i
-#if USE_MPI
-REAL              :: ResuSend
-#endif
-#if USE_LOADBALANCE
-REAL              :: tLBStart
-#endif /*USE_LOADBALANCE*/
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-!===================================================================================================================================
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-Resu=0.
-DO i=1,dim1
-  Resu=Resu + A(i)*B(i)
-END DO
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-#if USE_MPI
-  ResuSend=Resu
-  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
-#endif
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-END SUBROUTINE VectorDotProduct
 
 
 !===================================================================================================================================

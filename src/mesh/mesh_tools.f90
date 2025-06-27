@@ -456,7 +456,7 @@ USE MOD_Mesh_Vars          ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
 USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,NMax
+USE MOD_Interpolation_Vars ,ONLY: NMax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

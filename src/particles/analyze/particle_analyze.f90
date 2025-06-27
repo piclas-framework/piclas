@@ -88,6 +88,7 @@ CALL prms%CreateRealOption(     'printDiffTime'           , 'Time for starting t
 CALL prms%CreateRealArrayOption('printDiffVec'            , 'Vector (x,v) that is used to calcualte the L2 norm when using Part-TrackPosition=T','0. , 0. , 0. , 0. , 0. , 0.')
 CALL prms%CreateLogicalOption(  'CalcNumSpec'             , 'Calculate the number of simulation particles per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcNumDens'             , 'Calculate the number density [1/m3] per species for the complete domain','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcMeanSquaredDisplacement' , 'Calculate the mean square displacement of particles [m] per species for the complete domain','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcSurfFluxInfo'        , 'Calculate the massflow rate [kg/s], current [A], or pressure [Pa] per species and surface flux','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')

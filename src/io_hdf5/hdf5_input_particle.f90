@@ -52,7 +52,7 @@ USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes!,NodeToElemMapping,NodeToElemInfo
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_Restart_Vars           ,ONLY: N_Restart
-USE MOD_DG_vars                ,ONLY: N_DG_Mapping,nDofsMapping
+USE MOD_DG_vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: NMax,NMin
 !#if USE_MPI
 !USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
@@ -89,7 +89,7 @@ END TYPE NSEType
 TYPE(NSEType), DIMENSION(:), ALLOCATABLE :: NodeSourceExt_N !< Array to store all NodeSourceExtEqui depending on Nloc
 
 REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
-INTEGER                        :: nDOF, iDOF, nDOFOutput, offsetDOF, Nloc, i, j, k
+INTEGER                        :: nDOF, iDOF, offsetDOF, Nloc, i, j, k
 !===================================================================================================================================
 ! DoDielectric=F for VDL model
 !IF(.NOT.DoDielectric) RETURN

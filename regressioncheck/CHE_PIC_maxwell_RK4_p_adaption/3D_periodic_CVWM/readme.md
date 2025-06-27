@@ -5,3 +5,5 @@
 - create restart + reference file in ./pre-piclas/parameter.ini with MPI=1 (single-core run)
   - restart from /pre-piclas/plasma_wave_State_000.00000000000000000.h5 using 1,2,...,30 cores
   - compare output with /pre-piclas/plasma_wave_State_000.00000000010000000.h5: this does not work for random N between 1 and 5
+- the "external" run is deactivated as it requires the functionality of a changing Nloc, which is not implemented yet.
+  The polynomial degree must not change over time. Activacte as soon as this feature is implemented.

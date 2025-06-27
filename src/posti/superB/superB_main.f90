@@ -61,7 +61,6 @@ USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE  :: BFieldPermMag(:,:,:,:,:)
 INTEGER           :: iMagnet, iCoil, iTimePoint, Nloc, iElem
 REAL              :: timestep
 INTEGER,PARAMETER :: TimeStampLength=21
@@ -69,7 +68,7 @@ LOGICAL           :: BGFieldNotZero              !< flag is set true as soon as 
 TYPE tBPermMag
   REAL,ALLOCATABLE :: Field(:,:,:,:)                                                                           !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
 END TYPE tBPermMag
-TYPE(tBPermMag),ALLOCATABLE    :: BPermMag(:) 
+TYPE(tBPermMag),ALLOCATABLE    :: BPermMag(:)
 !===================================================================================================================================
 WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
@@ -161,7 +160,7 @@ END IF
 ! ------------------------------------------------------------
 IF(NumOfPermanentMagnets.GT.0) THEN
   DO iElem = 1, nElems
-    N_BG(iElem)%BGField = N_BG(iElem)%BGField + BPermMag(iElem)%Field 
+    N_BG(iElem)%BGField = N_BG(iElem)%BGField + BPermMag(iElem)%Field
   END DO
 END IF
 

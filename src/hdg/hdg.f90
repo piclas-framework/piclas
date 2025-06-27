@@ -42,7 +42,7 @@ PUBLIC :: DefineParametersHDG
 #if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
 #if defined(PARTICLES)
-PUBLIC :: SynchronizeBV
+ PUBLIC :: SynchronizeBV
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI */
 #if defined(PARTICLES)
@@ -128,7 +128,7 @@ USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
 #if USE_MPI
-USE MOD_MPI                   ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
+USE MOD_MPI_HDG               ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
 USE MOD_MPI_Vars
 #endif
 #if USE_LOADBALANCE
@@ -392,7 +392,7 @@ IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
 
-  CALL InitMortar_HDG()
+CALL InitMortar_HDG()
 END IF !mortarMesh
 
 ! 6. BCs, the first
@@ -406,7 +406,7 @@ DO SideID=1,nBCSides
   SELECT CASE(BCType)
   CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
     nDirichletBCsides=nDirichletBCsides+1
-  CASE(10) ! Neumann
+  CASE(10,11,12) ! Neumann
     nNeumannBCsides=nNeumannBCsides+1
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
     nConductorBCsides=nConductorBCsides+1
@@ -460,7 +460,7 @@ DO SideID=1,nBCSides
     nDirichletBCsides=nDirichletBCsides+1
     DirichletBC(nDirichletBCsides)=SideID
     MaskedSide(SideID)=1
-  CASE(10) !Neumann,
+  CASE(10,11,12) !Neumann,
     nNeumannBCsides=nNeumannBCsides+1
     NeumannBC(nNeumannBCsides)=SideID
   CASE(20) ! Conductor: Floating Boundary Condition (FPC)
@@ -478,7 +478,7 @@ IF(nNeumannBCsides.GT.0)THEN
     Nloc = DG_Elems_master(SideID)
     ALLOCATE(HDG_Surf_N(SideID)%qn_face(PP_nVar, nGP_face(Nloc)))
   END DO ! iNeumannBCsides = 1, nNeumannBCsides
-END IF
+  END IF
 
 ! 9. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
 ! Initialize interpolation variables
@@ -489,23 +489,23 @@ DO Nloc = 1, NMax
     DO i=0,Nloc
       N_Inter(Nloc)%LL_minus(i,j) = N_Inter(Nloc)%L_minus(i)*N_Inter(Nloc)%L_minus(j)
       N_Inter(Nloc)%LL_plus(i,j)  = N_Inter(Nloc)%L_plus(i)*N_Inter(Nloc)%L_plus(j)
-    END DO
-  END DO
+END DO
+END DO
 
   ALLOCATE(N_Inter(Nloc)%Lomega_m(0:Nloc))
   ALLOCATE(N_Inter(Nloc)%Lomega_p(0:Nloc))
-  ! Compute a lifting matrix scaled by the Gaussian weights
+! Compute a lifting matrix scaled by the Gaussian weights
   N_Inter(Nloc)%Lomega_m = - N_Inter(Nloc)%L_minus/N_Inter(Nloc)%wGP
   N_Inter(Nloc)%Lomega_p = + N_Inter(Nloc)%L_plus/N_Inter(Nloc)%wGP
   ALLOCATE(N_Inter(Nloc)%Domega(0:Nloc,0:Nloc))
-  ! Compute Differentiation matrix D for given Gausspoints (1D)
+! Compute Differentiation matrix D for given Gausspoints (1D)
   CALL PolynomialDerivativeMatrix(Nloc,N_Inter(Nloc)%xGP,D(0:Nloc,0:Nloc))
   ! Compute a Differentiation matrix scaled by the Gaussian weights
   DO j=0,Nloc
     DO i=0,Nloc
       N_Inter(Nloc)%Domega(i,j) = N_Inter(Nloc)%wGP(i)/N_Inter(Nloc)%wGP(j)*D(i,j)
-    END DO !r
-  END DO !s
+  END DO !r
+END DO !s
 
   ALLOCATE(N_Inter(Nloc)%wGP_vol(nGP_vol(Nloc)))
   DO k=0,Nloc
@@ -528,7 +528,7 @@ DO iElem=1,PP_nElems
   END DO; END DO; END DO !i,j,k
 
   ALLOCATE(HDG_Vol_N(iElem)%Ehat(nGP_face(Nloc),nGP_vol(Nloc),6))
-  !side matrices
+!side matrices
   ALLOCATE(HDG_Vol_N(iElem)%Smat(nGP_face(Nloc),nGP_face(Nloc),6,6))
 END DO !iElem
 
@@ -538,7 +538,7 @@ DO iElem=1,PP_nElems
   Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
 
-CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
+  CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 
 ! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
 DO iElem = 1, PP_nElems
@@ -674,7 +674,7 @@ DO SideID=1,nSides
 END DO
 
 ! 3.1.6) Add each FPC to the DOFs
-IF(UseFPC) THEN
+IF(UseFPC)THEN
   DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
     LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs + iUniqueFPCBC - 1
   END DO
@@ -1085,70 +1085,70 @@ ELSE
 END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 
 #if defined(PARTICLES)
-! Check if all FPCs have already been found
+  ! Check if all FPCs have already been found
 IF(.NOT.(ALL(FPC%BConProc)))THEN
 
   ! Check whether this information has already been created before to skip the costly search below
   !CALL ReadFPCCommunicationFromH5()
 
-  ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
-  ! element that has at least one side, which is an FPC
-  ! 4.1.) Each processor loops over all of his elements
-  iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
+    ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
+    ! element that has at least one side, which is an FPC
+    ! 4.1.) Each processor loops over all of his elements
+    iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
 
-    iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
-                          SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
-                          SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-    iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
-                              BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
-                              BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-    ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
-    ! Loop ALL compute-node elements (use global element index)
-    iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
-      iGlobElem = GetGlobalElemID(iCNElem)
+      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+      ! Loop ALL compute-node elements (use global element index)
+      iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
+        iGlobElem = GetGlobalElemID(iCNElem)
 
-      ! Skip my own elements as they have already been tested when the local sides are checked
-      IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
+        ! Skip my own elements as they have already been tested when the local sides are checked
+        IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
 
-      ! Check if one of the six sides of the compute-node element is a FPC
-      ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
-      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-        ! Get BC index of the global side index
-        BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
-        ! Only check BC sides with BC index > 0
-        IF(BCIndex.GT.0)THEN
-          ! Get boundary type
-          BCType = BoundaryType(BCIndex,BC_TYPE)
-          ! Check if FPC has been found
-          IF(BCType.EQ.BCTypeFPC)THEN
+        ! Check if one of the six sides of the compute-node element is a FPC
+        ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+          ! Get BC index of the global side index
+          BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+          ! Only check BC sides with BC index > 0
+          IF(BCIndex.GT.0)THEN
+            ! Get boundary type
+            BCType = BoundaryType(BCIndex,BC_TYPE)
+            ! Check if FPC has been found
+            IF(BCType.EQ.BCTypeFPC)THEN
 
-            ! Check if the BC can be reached
-            iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
-                                      SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
-                                      SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
-            iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
-                                          BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
-                                          BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+              ! Check if the BC can be reached
+              iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                        SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
 
-            ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+              ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
             ! TODO: what about periodic vectors?
-            IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
-              BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
-              IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
-              iUniqueFPCBC = FPC%Group(BCState,2)
-              ! Flag the i-th FPC
+              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+                BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
+                IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+                iUniqueFPCBC = FPC%Group(BCState,2)
+                ! Flag the i-th FPC
               FPC%BConProc(iUniqueFPCBC) = .TRUE.
-              ! Check if all FPCs have been found -> exit complete loop
+                ! Check if all FPCs have been found -> exit complete loop
               IF(ALL(FPC%BConProc)) EXIT iElemLoop
-              ! Go to next element
-              CYCLE iCNElemLoop
-            END IF ! VECNORM( ...
-          END IF ! BCType.EQ.BCTypeFPC
-        END IF ! BCIndex.GT.0
-      END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-    END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
-  END DO iElemLoop ! iElem = 1, nElems
+                ! Go to next element
+                CYCLE iCNElemLoop
+              END IF ! VECNORM( ...
+            END IF ! BCType.EQ.BCTypeFPC
+          END IF ! BCIndex.GT.0
+        END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+      END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
+    END DO iElemLoop ! iElem = 1, nElems
 END IF ! .NOT.(ALL(FPC%BConProc))
 #endif /*defined(PARTICLES)*/
 
@@ -1925,9 +1925,9 @@ INTEGER            :: iUniqueFPCBC
 !===================================================================================================================================
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-      ! Broadcast from root to other processors on the sub-communicator
+    ! Broadcast from root to other processors on the sub-communicator
     CALL MPI_BCAST(FPC%Charge(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, 0, FPC%COMM(iUniqueFPCBC)%UNICATOR, IERROR)
-    END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 END SUBROUTINE SynchronizeChargeOnFPC
 
@@ -1950,9 +1950,9 @@ INTEGER            :: iUniqueEPCBC
 !===================================================================================================================================
 DO iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
   IF(EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-      ! Broadcast from root to other processors on the sub-communicator
+    ! Broadcast from root to other processors on the sub-communicator
     CALL MPI_BCAST(EPC%Voltage(iUniqueEPCBC), 1, MPI_DOUBLE_PRECISION, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
-    END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
+  END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
 END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 END SUBROUTINE SynchronizeVoltageOnEPC
 #endif /*USE_MPI*/
@@ -2151,21 +2151,21 @@ IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
     DO iElem = 1, nElems
       U_N(iElem)%Dt(:,:,:,:) = U_N(iElem)%E(:,:,:,:)
     END DO ! iElem = 1, nElems
-  ELSE
+ELSE
     ! Store E^n+1 at the end of the time step and subtract E^n to calculate the difference
     IF(DoDielectric)THEN
-      DO iElem=1,PP_nElems
+  DO iElem=1,PP_nElems
         IF(isDielectricElem(iElem)) THEN
           DO iDir = 1, 3
             U_N(iElem)%Dt(iDir,:,:,:) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)&
                 *eps0*(U_N(iElem)%E(iDir,:,:,:)-U_N(iElem)%Dt(iDir,:,:,:)) / dt
           END DO ! iDir = 1, 3
-        ELSE
+          ELSE
           U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
         END IF ! isDielectricElem(iElem)
       END DO ! iElem=1,PP_nElems
-    ELSE
-      DO iElem=1,PP_nElems
+            ELSE
+    DO iElem=1,PP_nElems
         U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
       END DO ! iElem=1,PP_nElems
     END IF ! DoDielectric
@@ -2175,7 +2175,7 @@ IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
     IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL(.TRUE.)
 #endif /*defined(PARTICLES)*/
   END IF ! mode.EQ.1
-END IF
+    END IF
 
 END SUBROUTINE CalculateElectricTimeDerivative
 
@@ -2208,7 +2208,7 @@ LOGICAL          :: UpdatePhiF
 !     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
 DO SideID=1,nBCSides
   ! Get the local element index
-  ElemID = SideToElem(S2E_ELEM_ID,SideID)
+    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   ! Get local polynomial degree of the element
   Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
   ! Get particle boundary index

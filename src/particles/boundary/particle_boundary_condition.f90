@@ -294,7 +294,7 @@ USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Intersection   ,ONLY: IntersectionWithWall, ParticleThroughSideCheck3DFast
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared, SideInfo_Shared, ElemSideNodeID_Shared, NodeCoords_Shared
-USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies,PDM
+USE MOD_Particle_Vars           ,ONLY: PartState,LastPartPos,Species,PartSpecies
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame,InRotRefFrame,PartVeloRotRef
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide, GlobalSide2SurfSide

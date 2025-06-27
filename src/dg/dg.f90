@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_DG
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! Contains the initialization of the DG global variables
 ! Computes the different DG spatial operators/residuals(Ut) using U
@@ -26,35 +27,13 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-INTERFACE FillIni
-  MODULE PROCEDURE FillIni
-END INTERFACE
-
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitDG
-  MODULE PROCEDURE InitDG
-END INTERFACE
-
-#if !(USE_HDG)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-INTERFACE DGTimeDerivative_weakForm
-  MODULE PROCEDURE DGTimeDerivative_weakForm
-END INTERFACE
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-#endif /*USE_HDG*/
-
-INTERFACE FinalizeDG
-  MODULE PROCEDURE FinalizeDG
-END INTERFACE
-
 PUBLIC::InitDG,FinalizeDG
 #if !(USE_HDG)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_MPI
 PUBLIC::InitDGExchange
 #endif /*USE_MPI*/
 PUBLIC::DGTimeDerivative_weakForm
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -81,8 +60,6 @@ USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
-!USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
-USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,DGExchange
 #endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars      ,ONLY: Ut_N
@@ -97,9 +74,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: Nloc,iElem,iSide
-#if USE_MPI
-INTEGER           :: iNbProc
-#endif /*USE_MPI*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone) CALL abort(__STAMP__,&
     'InitDG not ready to be called or already called.')
@@ -115,7 +89,6 @@ DO Nloc=Nmin,Nmax
                    DGB_N(Nloc)%D, DGB_N(Nloc)%D_T, DGB_N(Nloc)%D_Hat, DGB_N(Nloc)%D_Hat_T, DGB_N(Nloc)%L_HatMinus, DGB_N(Nloc)%L_HatPlus )
 END DO
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_LOADBALANCE
 ! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
@@ -210,7 +183,6 @@ DO iSide = 1, nSides
 END DO ! iSide = 1, nSides
 #endif /*!(USE_HDG)*/
 
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 DGInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -225,18 +197,12 @@ SUBROUTINE InitDGBasis(N_in,xGP,wGP,L_Minus,L_Plus,D,D_T,D_Hat,D_Hat_T,L_HatMinu
 USE MOD_Globals
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix,LagrangeInterpolationPolys
-#if USE_HDG
-USE MOD_Interpolation_Vars ,ONLY: Nmax
-
-#if USE_MPI
-USE MOD_PreProc
-USE MOD_MPI_Vars           ,ONLY: nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
-USE MOD_MPI                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides, offSetElem
-USE MOD_Interpolation_Vars ,ONLY: NInfo,PREF_VDM,N_Inter
-#endif /*USE_MPI*/
-#endif /*USE_HDG*/
+! #if USE_HDG
+! #if USE_MPI
+! USE MOD_PreProc
+! USE MOD_MPI_Vars           ,ONLY: nNbProcs
+! #endif /*USE_MPI*/
+! #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -264,7 +230,7 @@ INTEGER                                    :: iMass
 #if USE_HDG
 #if USE_MPI
 !REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
-INTEGER                 :: iSide, i,nRecVal, nSendVal, Nloc, iNbProc, NSideMax, NSideMin, p, q, SideID_end, SideID_start
+! INTEGER                 :: iSide, i,nRecVal, nSendVal, Nloc, iNbProc, NSideMax, NSideMin, p, q, SideID_end, SideID_start
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -307,7 +273,6 @@ END SUBROUTINE InitDGBasis
 
 
 #if !(USE_HDG)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_MPI
 !==================================================================================================================================
 !> Initialize DGExchange before initialization of dielectric
@@ -540,7 +505,6 @@ CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*!(USE_HDG)*/
 
 
@@ -639,4 +603,5 @@ SDEALLOCATE(Ut_N)
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_DG

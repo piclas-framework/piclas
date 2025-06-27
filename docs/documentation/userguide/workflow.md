@@ -16,14 +16,13 @@ The first set of options describe general CMake behaviour:
     * Sanitize: Sanitizer compiler for even more detailed error messages during code development.
     * Nitro: Fast compiler option `-Ofast` for even more speed but at the cost of accuracy.
 
-* ``CMAKE_HOSTNAME``: This will display the host name of the machine you are compiling on.
-
 * ``CMAKE_INSTALL_PREFIX``: If “make install” is invoked or INSTALL is built, this directory is prepended onto all install directories
 This variable defaults to /usr/local on UNIX.
 
 For some external libraries and programs that **PICLas** uses, the following options apply:
 
-* ``CTAGS_PATH``: This variable specifies the Ctags install directory, an optional program used to jump between tags in the source file.
+* `PICLAS_CTAGS`: Enables the generation of `ctags.txt` file to be used by your IDE to jump between tags in the source file.
+  * ``CTAGS_PATH``: Specifies the Ctags install directory, hidden by default in the advanced options
 
 * `LIBS_BUILD_HOPR`: Enable the compilation of the mesh pre-processor HOPR during the PICLas compilation. The executable `hopr` will be placed in the build/bin/ folder next to the other executables. For more details, on the utilization of HOPR, see {ref}`sec:mesh-generation`.
 
@@ -33,7 +32,10 @@ For some external libraries and programs that **PICLas** uses, the following opt
 will be built and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
 * ``HDF5_DIR``: If you want to use a pre-built HDF5 library that has been built using the CMake system, this directory should contain
-the CMake configuration file for HDF5 (optional).
+the CMake configuration file for HDF5 (optional, advanced).
+
+* ``LIBS_USE_PETSC``: Enables the utilization of PETSc for the electrostatic field solver
+  * ``LIBS_BUILD_PETSC``: PICLas will download and build PETSc (including MUMPS, Hypre, ScaLAPACK, METIS, and ParMETIS)
 
 * ``PICLAS_MEASURE_MPI_WAIT``: Measure the time that is spent in MPI_WAIT() and output info to MPIW8Time.csv and MPIW8TimeProc.csv
 
@@ -50,9 +52,6 @@ the CMake configuration file for HDF5 (optional).
   * ``PICLAS_COMM_TYPE_NODE``: creates one shared memory domain per X numbers of MPI threads defined by ``PICLAS_SHARED_MEMORY_CORES``
     * ``PICLAS_SHARED_MEMORY_CORES``: Number of MPI threads per virtual node (default is 2). Assumes that all MPI threads run on the
       same physical node.
-
-Some settings are not shown in the graphical user interface, but can be changed via command line
-
 * ``PICLAS_INSTRUCTION``: Processor instruction settings (mainly depending on the hardware on which the compilation process is
   performed or the target hardware where piclas will be executed). This variable is set automatically depending on the machine where
   piclas is compiled. CMake prints the value of this parameter during configuration
@@ -60,15 +59,15 @@ Some settings are not shown in the graphical user interface, but can be changed 
       -- Compiling Nitro/Release/Profile with [GNU] (v12.2.0) fortran compiler using PICLAS_INSTRUCTION [-march=native] instructions.
 
   When compiling piclas on one machine and executing the code on a different one, the instruction setting should be set to
-  `generic`. This can be accomplished by running
+  `generic` or the appropriate options for the specific architecture. This can be accomplished by running
 
-      cmake -DPICLAS_INSTRUCTION=-mtune=generic
+      cmake -DPICLAS_INSTRUCTION='-mtune=generic' ..
 
-  To reset the instruction settings, run cmake again but with
+  Note that the availability of the options depends on the utilized compiler and its version ([List of the options for GCC](https://gcc.gnu.org/onlinedocs/gcc/x86-Options.html)). To reset the instruction settings, run cmake again but with
 
-      -DPICLAS_INSTRUCTION=
+      cmake -DPICLAS_INSTRUCTION= ..
 
-  which resorts to using the automatic determination depending on the detected machine.
+  which resorts to using the automatic determination depending on the detected machine. If you want to optimize the code for the current local architecture set the instructions to `-march=native -mtune=native`.
 
 (sec:solver-settings)=
 ## Solver settings
@@ -76,15 +75,16 @@ Some settings are not shown in the graphical user interface, but can be changed 
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
 
 * ``PICLAS_TIMEDISCMETHOD``: Time integration method
-    * Leapfrog: 2nd order when only electric fields are relevant (poisson solver)
-    * Boris-Leapfrog: 2nd order for electric and magnetic fields (poisson solver)
-    * Higuera-Cary: 2nd order for electric and magnetic fields (poisson solver)
+    * Leapfrog: 2nd order when only electric fields are relevant (Poisson solver)
+    * Boris-Leapfrog: 2nd order for electric and magnetic fields (Poisson solver)
+    * Higuera-Cary: 2nd order for electric and magnetic fields (Poisson solver)
     * RK3: Runge-Kutta 3rd order in time
     * RK4: Runge-Kutta 4th order in time
-    * RK14: Low storage Runge-Kutta 14 stages version - Niegemann et al 2012
+    * RK14: Low storage Runge-Kutta 4, 14 stages version {cite}`Niegemann2012`
     * DSMC: Direct Simulation Monte Carlo, Section {ref}`sec:DSMC`
     * FP-Flow: Fokker-Planck-based collision operator, Section {ref}`sec:FP-Flow`
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
+    * Radiation: Radiation and radiation transport solver, Section {ref}`sec:Radiation`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
     * maxwell: Solution of the full Maxwell's equations for an electromagnetic simulation
     * poisson: Solution of the Poisson's equation for an electrostatic simulation
@@ -102,7 +102,7 @@ cell contains $(N+1)^3$ collocation points to represent the solution.
 The options EQNSYSNAME, POLYNOMIAL_DEGREE and NODETYPE can be ignored for a DSMC simulation. For parallel computation the following
 flags should be configured:
 
-* ``LIBS_USE_MPI``: Enabling parallel computation. For a detailed description of the installation of MPI, please refer to refer to
+* ``LIBS_USE_MPI``: Enabling parallel computation. For a detailed description of the installation of MPI, please refer to
                     Section {ref}`sec:installing-mpi`.
 * ``PICLAS_LOADBALANCE``: Enable timer-based load-balancing by automatic determination of workload weights for each simulation
                           element.
@@ -197,7 +197,7 @@ must be compiled with `PICLAS_MPI=ON`. Parallel execution is then controlled usi
 
     mpirun -np [no. processors] piclas parameter.ini [DSMC.ini] [restart_file.h5]
 
-The grid elements are organized along a space-filling curved, which gives a unique one-dimensional element list. In a parallel run,
+The grid elements are organized along a space-filling curve, which gives a unique one-dimensional element list. In a parallel run,
 the mesh is simply divided into parts along the space filling curve. Thus, domain decomposition is done *fully automatic* and is
 not limited by e.g. an integer factor between the number of cores and elements. The only limitation is that the number of cores
 may not exceed the number of elements.

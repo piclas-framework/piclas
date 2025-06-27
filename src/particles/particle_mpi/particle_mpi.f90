@@ -732,19 +732,6 @@ USE MOD_Particle_Vars          ,ONLY: Pt_temp
 #if USE_HDG
 USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
-#if defined(ROS) || defined(IMPA)
-USE MOD_Mesh_Vars              ,ONLY: OffSetElem
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK,R_PartXK
-USE MOD_Particle_Vars          ,ONLY: PartStateN,PartStage,PartDtFrac,PartQ
-USE MOD_Particle_MPI_Vars      ,ONLY: PartCommSize0
-USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-USE MOD_Timedisc_Vars          ,ONLY: iStage
-#endif /*ROS or IMPA*/
-#if defined(IMPA)
-USE MOD_Particle_Vars          ,ONLY: F_PartX0,F_PartXk,Norm_F_PartX0,Norm_F_PartXK,Norm_F_PartXK_old,DoPartInNewton
-USE MOD_Particle_Vars          ,ONLY: PartDeltaX,PartLambdaAccept
-USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
-#endif /*IMPA*/
 USE MOD_DSMC_Symmetry          ,ONLY: AdjustParticleWeight
 USE MOD_part_tools             ,ONLY: ParticleOnProc, InRotRefFrameCheck
 !USE MOD_PICDepo_Tools          ,ONLY: DepositParticleOnNodes

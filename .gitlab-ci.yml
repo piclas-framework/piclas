@@ -125,6 +125,7 @@ stages:
   - reggie_nightly_special
   - reggie_nightly
   - reggie_weekly
+  - reggie_tutorials
   - deploy
   - appimage
 
@@ -233,6 +234,68 @@ stages:
 
 .defaults_poisson_weekly: &defaults_poisson_weekly
   <<: *defaults_poisson
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for drift_diffusion tests
+.defaults_drift_diffusion: &defaults_drift_diffusion
+  extends: .default_param
+  needs: [build_drift_diffusion]
+  artifacts:
+    paths:
+      - build_drift_diffusion
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DD"
+      paths:
+        - build_drift_diffusion
+      policy: pull
+
+.defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_drift_diffusion_nightly: &defaults_drift_diffusion_nightly
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_drift_diffusion_weekly: &defaults_drift_diffusion_weekly
+  <<: *defaults_drift_diffusion
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for DVM tests
+.defaults_DVM: &defaults_DVM
+  extends: .default_param
+  needs: [build_DVM]
+  artifacts:
+    paths:
+      - build_DVM
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM"
+      paths:
+        - build_DVM
+      policy: pull
+
+.defaults_DVM_checkin: &defaults_DVM_checkin
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_DVM_nightly: &defaults_DVM_nightly
+  <<: *defaults_DVM
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_DVM_weekly: &defaults_DVM_weekly
+  <<: *defaults_DVM
   rules:
     - if: '$DO_WEEKLY'
 
@@ -515,6 +578,36 @@ build_DSMC:
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
 
+build_drift_diffusion:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_drift_diffusion]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DD"
+      paths: [build_drift_diffusion]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_drift_diffusion ; cd build_drift_diffusion
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
+
+build_DVM:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_DVM]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM"
+      paths: [build_DVM]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_DVM ; cd build_DVM
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
+
 build_hopr:
   extends: .default_build_param
   artifacts:
@@ -669,6 +762,17 @@ poisson_petsc_debug:
   script:
     - cd build_poisson_petsc_debug_RK3 ; reggie ../regressioncheck/CHE_poisson -e ./bin/piclas
 
+drift_diffusion:
+  <<: *defaults_drift_diffusion_checkin
+  stage: reggie_checkin
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/CHE_drift_diffusion_explicit-FV -e ./bin/piclas
+
+discrete_velocity:
+  <<: *defaults_DVM_checkin
+  stage: reggie_checkin
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
@@ -705,11 +809,17 @@ CHE_FPFlow:
   script:
     - cd build ; reggie ../regressioncheck/CHE_FPFlow
 
-CHE_poisson_p_adaption:
+CHE_poisson_p_adaption_release:
   <<: *defaults_poisson_petsc_checkin
   stage: reggie_feature_checkin
   script:
     - cd build_poisson_petsc_release_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
+
+CHE_poisson_p_adaption_debug:
+  <<: *defaults_poisson_petsc_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build_poisson_petsc_debug_Leapfrog ; reggie ../regressioncheck/CHE_poisson_p_adaption -e ./bin/piclas
 
 CHE_poisson_periodic:
   <<: *defaults_checkin
@@ -1124,6 +1234,24 @@ NIG_Radiation:
   script:
     - cd build ; reggie ../regressioncheck/NIG_Radiation
 
+NIG_drift_diffusion:
+  <<: *defaults_drift_diffusion_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/NIG_drift_diffusion_explicit-FV
+
+NIG_DVM:
+  <<: *defaults_DVM_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/NIG_DVM
+
+NIG_convtest_DVM:
+  <<: *defaults_DVM_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/NIG_convtest_DVM
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
@@ -1251,9 +1379,24 @@ WEK_BGKFlow:
   script:
     - cd build ;  reggie ../regressioncheck/WEK_BGKFlow
 
+WEK_DVM:
+  <<: *defaults_DVM_weekly
+  stage: reggie_weekly
+  script:
+    - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+WEK_drift_diffusion:
+  <<: *defaults_drift_diffusion_weekly
+  stage: reggie_tutorials
+  script:
+    - cd build_drift_diffusion ; reggie ../regressioncheck/WEK_drift_diffusion_explicit-FV
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Compile the userguide and developer guide
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------V
 documentation:
   extends: .default_build_param
   stage: build

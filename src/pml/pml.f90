@@ -28,25 +28,7 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-INTERFACE InitPML
-  MODULE PROCEDURE InitPML
-END INTERFACE
-INTERFACE FinalizePML
-  MODULE PROCEDURE FinalizePML
-END INTERFACE
-INTERFACE PMLTimeRamping
-  MODULE PROCEDURE PMLTimeRamping
-END INTERFACE
-INTERFACE CalcPMLSource
-  MODULE PROCEDURE CalcPMLSource
-END INTERFACE
-INTERFACE PMLTimeDerivative
-  MODULE PROCEDURE PMLTimeDerivative
-END INTERFACE
-
-PUBLIC::InitPML,FinalizePML,PMLTimeRamping,CalcPMLSource,PMLTimeDerivative
-!===================================================================================================================================
-PUBLIC::DefineParametersPML
+PUBLIC::InitPML,FinalizePML,PMLTimeRamping,CalcPMLSource,PMLTimeDerivative,DefineParametersPML
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 CONTAINS
@@ -276,13 +258,13 @@ DO iPMLElem=1,nPMLElems
   iElem = PMLToElem(iPMLElem)
   Nloc  = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-    DO m=1,8
+  DO m=1,8
       U_N(iElem)%Ut(m,i,j,k) = U_N(iElem)%Ut(m,i,j,k) - PMLTimeRamp*(&
           PML(iPMLElem)%zeta(1,i,j,k)*U_N(iElem)%U2(m*3-2,i,j,k) +&   ! = 1,4,7,10,13,16,19,22
           PML(iPMLElem)%zeta(2,i,j,k)*U_N(iElem)%U2(m*3-1,i,j,k) +&   ! = 2,5,8,11,12,17,20,23
           PML(iPMLElem)%zeta(3,i,j,k)*U_N(iElem)%U2(m*3  ,i,j,k) )    ! = 3,6,9,12,15,18,21,24
-    END DO
-  END DO; END DO; END DO !nPMLElems,k,j,i
+  END DO
+END DO; END DO; END DO !nPMLElems,k,j,i
 END DO
 END SUBROUTINE CalcPMLSource
 
@@ -295,10 +277,14 @@ SUBROUTINE PMLTimeDerivative()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_DG_Vars       ,ONLY: U_N,N_DG_Mapping
-USE MOD_PML_Vars      ,ONLY: nPMLElems,PMLToElem,PMLnVar
+USE MOD_PML_Vars,      ONLY: nPMLElems,PMLToElem,PMLnVar
 USE MOD_PML_Vars      ,ONLY: PML,PMLTimeRamp
 USE MOD_Mesh_Vars     ,ONLY: N_VolMesh,offSetElem
-USE MOD_Equation_Vars ,ONLY: fDamping
+#if (USE_FV) && !(USE_HDG)
+USE MOD_Equation_vars_FV,ONLY: fDamping
+#else
+USE MOD_Equation_Vars, ONLY: fDamping
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -315,9 +301,9 @@ DO iPMLElem=1,nPMLElems
   iElem = PMLToElem(iPMLElem)
   Nloc  = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-    DO iPMLVar=1,PMLnVar
+  DO iPMLVar=1,PMLnVar
       U_N(iElem)%U2t(iPMLVar,i,j,k) = - U_N(iElem)%U2t(iPMLVar,i,j,k) * N_VolMesh(iElem)%sJ(i,j,k)
-    END DO
+  END DO
   END DO; END DO; END DO; ! k,j,i
 END DO ! nPMLElems
 

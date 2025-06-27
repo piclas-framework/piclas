@@ -24,13 +24,6 @@ PRIVATE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE
-INTERFACE ExchangeVolMesh
-  MODULE PROCEDURE ExchangeVolMesh
-END INTERFACE
-
-INTERFACE ExchangeMetrics
-  MODULE PROCEDURE ExchangeMetrics
-END INTERFACE
 
 PUBLIC::ExchangeVolMesh
 PUBLIC::ExchangeMetrics
@@ -49,7 +42,9 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh,offSetElem
 USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
+#if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*#if !(USE_FV) || (USE_HDG)*/
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -74,7 +69,11 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Allocate old distribution of data with size nElemsOld
   ALLOCATE(VolMesh(16,0:NMax,0:NMax,0:NMax,nElemsOld))
   DO iElem = 1, nElemsOld
+#if !(USE_FV) || (USE_HDG)
     Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
     IF(Nloc.EQ.Nmax)THEN
       VolMesh( 1:3 ,:,:,:,iElem) = N_VolMesh(iElem)%Elem_xGP(      :,:,:,:)
       VolMesh( 4:6 ,:,:,:,iElem) = N_VolMesh(iElem)%XCL_N(         :,:,:,:)
@@ -121,7 +120,11 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Extract data
   ALLOCATE(N_VolMesh(1:nElems))
   DO iElem = 1, nElems
+#if !(USE_FV) || (USE_HDG)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
     ALLOCATE(N_VolMesh(iElem)%Elem_xGP(      3,0:Nloc,0:Nloc,0:Nloc))
     ALLOCATE(N_VolMesh(iElem)%XCL_N(         3,0:Nloc,0:Nloc,0:Nloc))
     ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
@@ -171,7 +174,9 @@ USE MOD_Mesh_Vars          ,ONLY: NGeo,XCL_NGeo
 USE MOD_Mesh_Vars          ,ONLY: dXCL_NGeo
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh2
+#if !(USE_FV) || (USE_HDG)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*#if !(USE_FV) || (USE_HDG)*/
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -324,7 +329,11 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Allocate old distribution of data with size nElemsOld
   ALLOCATE(JaCL_N(3,3,0:NMax,0:NMax,0:NMax,nElemsOld))
   DO iElem = 1, nElemsOld
+#if !(USE_FV) || (USE_HDG)
     Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
     IF(Nloc.EQ.Nmax)THEN
       JaCL_N(:,:,:,:,:,iElem) = N_VolMesh2(iElem)%JaCL_N(:,:,:,:,:)
     ELSE
@@ -361,7 +370,11 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! Extract data
   ALLOCATE(N_VolMesh2(1:nElems))
   DO iElem = 1, nElems
+#if !(USE_FV) || (USE_HDG)
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
     ALLOCATE(N_VolMesh2(iElem)%JaCL_N(3,3,0:Nloc,0:Nloc,0:Nloc))
     DO k=0,Nloc
       DO j=0,Nloc

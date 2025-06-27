@@ -230,9 +230,6 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDirichletDeposition
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
 USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -750,13 +747,11 @@ USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,St
 USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDLPerSide
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
-USE MOD_Mesh_Vars              ,ONLY: ElemToSide,nSides,offSetElem,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide,offSetElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,U_N
-USE MOD_Particle_Boundary_Vars ,ONLY: GlobalSide2SurfSide
-USE MOD_Particle_Boundary_Vars ,ONLY: nComputeNodeSurfSides
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: UseH5IOLoadBalance
@@ -767,7 +762,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
-INTEGER             :: iSide,Nloc,NonUniqueGlobalSideID,iSurfSide,iNode
+INTEGER             :: iSide,Nloc,iNode
 REAL,DIMENSION(3)   :: NormVec,x
 REAL,DIMENSION(4,6) :: distances
 !===================================================================================================================================
@@ -1671,7 +1666,7 @@ SUBROUTINE BuildParticleBoundaryRotPeriodic(notMappedTotal)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound,nRotPeriodicSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide,MaxNumRotPeriodicNeigh
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
@@ -1679,6 +1674,7 @@ USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
 #if USE_MPI
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
 USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2RotPeriodicSide_Shared,SurfSide2RotPeriodicSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: Rot2Glob_temp_Shared,Rot2Glob_temp_Shared_Win

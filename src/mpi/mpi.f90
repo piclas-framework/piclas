@@ -19,7 +19,7 @@ MODULE MOD_MPI
 ! MODULES
 #if USE_MPI
 USE mpi_f08
-#endif
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
@@ -28,32 +28,9 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitMPI
-  MODULE PROCEDURE InitMPI
-END INTERFACE
-
 PUBLIC::InitMPI
 
 #if USE_MPI
-INTERFACE InitMPIvars
-  MODULE PROCEDURE InitMPIvars
-END INTERFACE
-
-INTERFACE FinishExchangeMPIData
-  MODULE PROCEDURE FinishExchangeMPIData
-END INTERFACE
-
-INTERFACE FinalizeMPI
-  MODULE PROCEDURE FinalizeMPI
-END INTERFACE
-
-#if USE_HDG
-!no interface for reshape inout vector
-INTERFACE Mask_MPIsides
-  MODULE PROCEDURE Mask_MPIsides
-END INTERFACE
-#endif /*USE_HDG*/
-
 INTERFACE StartReceiveMPIData
   MODULE PROCEDURE StartReceiveMPIData0D
   MODULE PROCEDURE StartReceiveMPIData2D
@@ -65,21 +42,16 @@ INTERFACE StartSendMPIData
 END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
-#if USE_HDG
-PUBLIC :: StartReceiveMPISurfDataType
-PUBLIC :: StartSendMPISurfDataType,FinishExchangeMPISurfDataType
-PUBLIC :: Mask_MPIsides
-#else
+#if !(USE_HDG)
 PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric,StartReceiveMPIDataTypeDielectric
-#endif /*USE_HDG*/
+#endif /*!(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 PUBLIC :: StartExchange_DG_Elems
 PUBLIC :: StartReceiveMPIDataInt,StartSendMPIDataInt
-#endif
-PUBLIC :: DefineParametersMPI
-#if defined(MEASURE_MPI_WAIT)
-PUBLIC :: OutputMPIW8Time
-#endif /*defined(MEASURE_MPI_WAIT)*/
+#endif /*USE_MPI*/
+PUBLIC::DefineParametersMPI
 !===================================================================================================================================
 
 CONTAINS
@@ -142,7 +114,7 @@ ELSE
   IF(.NOT.initDone) CALL MPI_INIT(iError)
   IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_INITIALIZED',iError)
   ! General communicator
-  CALL MPI_COMM_DUP (MPI_COMM_WORLD,MPI_COMM_PICLAS,iError)
+  CALL MPI_COMM_DUP(MPI_COMM_WORLD,MPI_COMM_PICLAS,iError)
   IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_COMM_DUP',iError)
   MPI_COMM_LOC = MPI_COMM_PICLAS
 END IF
@@ -178,6 +150,9 @@ USE MOD_MPI_Shared_Vars    ,ONLY: nProcessors_Global
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_FV
+USE MOD_MPI_FV             ,ONLY: InitMPIvarsFV
+#endif /*USE_FV*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -189,6 +164,9 @@ IMPLICIT NONE
 INTEGER :: color,groupsize
 !===================================================================================================================================
 IF(.NOT.InterpolationInitIsDone) CALL Abort(__STAMP__,'InitMPITypes called before InitInterpolation')
+#if USE_FV
+CALL InitMPIvarsFV()
+#endif /*USE_FV*/
 ALLOCATE(SendRequest_U(nNbProcs)     )
 ALLOCATE(SendRequest_U2(nNbProcs)     )
 ALLOCATE(SendRequest_GEO(nNbProcs)     )
@@ -339,7 +317,7 @@ INTEGER,INTENT(IN)  :: UpperBound                                             !<
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
-REAL,INTENT(OUT)    :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
+REAL,INTENT(OUT)              :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound) !< the complete face data (for inner, BC and MPI sides).
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -366,9 +344,9 @@ SUBROUTINE StartReceiveMPIDataType(MPIRequest, SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-#if !(USE_HDG)
+#if !(USE_HDG) && !(PP_TimeDiscMethod==700)
 USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
-#endif /*!(USE_HDG)*/
+#endif /*!(USE_HDG) && !(PP_TimeDiscMethod==700)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -403,59 +381,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIDataType
 
 
-#if USE_HDG
-!===================================================================================================================================
-!> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
-!===================================================================================================================================
-SUBROUTINE StartReceiveMPISurfDataType(MPIRequest, SendID, mode)
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_MPI_Vars
-USE MOD_HDG_Vars, ONLY: UseNSideMin
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)  :: SendID                                                 !< defines the send / receive direction -> 1=send MINE
-                                                                              !< / receive YOUR, 3=send YOUR / receive MINE
-INTEGER,INTENT(IN)  :: mode
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    IF (mode.EQ.1) THEN
-      nRecVal = DataSizeSurfRecMax(iNbProc,SendID)
-      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
-    ELSEIF (mode.EQ.8) THEN
-      IF(UseNSideMin)THEN
-        nRecVal = DataSizeSurfRecMin(iNbProc,SendID)**2
-      ELSE
-        nRecVal = DataSizeSurfRecMax(iNbProc,SendID)**2
-      END IF
-      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv2(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
-    ELSE
-      IF(UseNSideMin)THEN
-        nRecVal = DataSizeSurfRecMin(iNbProc,SendID)
-      ELSE
-        nRecVal = DataSizeSurfRecMax(iNbProc,SendID)
-      END IF
-      CALL MPI_IRECV(SurfExchange(iNbProc)%SurfDataRecv(1:nRecVal),nRecVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
-    END IF
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_IRECV',iError)
-  ELSE
-    MPIRequest(iNbProc)=MPI_REQUEST_NULL
-  END IF
-END DO !iProc=1,nNBProcs
-END SUBROUTINE StartReceiveMPISurfDataType
-#else
+#if !(USE_HDG)
 !===================================================================================================================================
 !> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
 !===================================================================================================================================
@@ -495,7 +421,7 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIDataTypeDielectric
-#endif /*USE_MPI*/
+#endif /*!(USE_HDG)*/
 
 
 !===================================================================================================================================
@@ -551,7 +477,7 @@ INTEGER, INTENT(IN)          :: firstDim,LowerBound,UpperBound
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)
-REAL, INTENT(IN)             :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
+REAL, INTENT(IN)              :: FaceData(firstDim,0:PP_N,0:PP_N,LowerBound:UpperBound)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
@@ -570,127 +496,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData2D
 
 
-#if USE_HDG
-!===================================================================================================================================
-!> See above, but for for send direction (type-based p-adaption).
-!===================================================================================================================================
-SUBROUTINE StartSendMPISurfDataType(MPIRequest,SendID, mode, iVar)
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_MPI_Vars
-USE MOD_DG_Vars   ,ONLY: U_Surf_N,DG_Elems_slave
-USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
-USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N,UseNSideMin
-USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)          :: SendID
-INTEGER, INTENT(IN)          :: mode
-INTEGER, INTENT(IN), OPTIONAL:: ivar
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-TYPE(MPI_Request), INTENT(OUT)         :: MPIRequest(nNbProcs)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                      :: i,p,q,r,iSide,Nloc
-!==================================================================================================================================
-DO iNbProc=1,nNbProcs
-
-
-  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    ! Exchange surface elments on Nmax
-    IF (mode.EQ.1) THEN
-      nSendVal     = DataSizeSurfSendMax(iNbProc,SendID)
-      SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
-      SideID_end   = OffsetMPISides_send(iNbProc,SendID)
-      i = 1
-      DO iSide = SideID_start, SideID_end
-        Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        DO p = 0, Nloc
-          DO q = 0, Nloc
-            SurfExchange(iNbProc)%SurfDataSend(i) = N_SurfMesh(iSide)%SurfElem(p,q)
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
-      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
-    ELSEIF(mode.EQ.8)THEN
-      ! Exchange HDG solver variables on Nmin
-      IF(UseNSideMin)THEN
-        nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)**2
-      ELSE
-        nSendVal     = DataSizeSurfSendMax(iNbProc,SendID)**2
-      END IF
-      SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
-      SideID_end   = OffsetMPISides_send(iNbProc,SendID)
-      i = 1
-      DO iSide = SideID_start, SideID_end
-        IF(UseNSideMin)THEN
-          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        ELSE
-          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        END IF
-        DO p = 1, (Nloc+1)**2
-          DO q = 1, (Nloc+1)**2
-            SurfExchange(iNbProc)%SurfDataSend2(i) = HDG_Surf_N(iSide)%Precond(p,q)
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
-      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend2(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
-    ELSE
-      ! Exchange HDG solver variables on Nmin
-      IF(UseNSideMin)THEN
-        nSendVal     = DataSizeSurfSendMin(iNbProc,SendID)
-      ELSE
-        nSendVal     = DataSizeSurfSendMax(iNbProc,SendID)
-      END IF
-      SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
-      SideID_end   = OffsetMPISides_send(iNbProc,SendID)
-      i = 1
-      DO iSide = SideID_start, SideID_end
-        IF(UseNSideMin)THEN
-          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        ELSE
-          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        END IF
-        DO p = 0, Nloc
-          DO q = 0, Nloc
-            r=p*(Nloc+1) + q+1
-            IF (mode.EQ.2) THEN
-              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%lambda(iVar,r)
-            ELSEIF (mode.EQ.3) THEN
-              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%mv(iVar,r)
-            ELSEIF (mode.EQ.4) THEN
-              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%RHS_face(iVar,r)
-            ELSEIF (mode.EQ.5) THEN
-              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%V(iVar,r)
-            ELSEIF (mode.EQ.6) THEN
-              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%Z(iVar,r)
-            ELSEIF (mode.EQ.7) THEN
-              SurfExchange(iNbProc)%SurfDataSend(i) = HDG_Surf_N(iSide)%InvPrecondDiag(r)
-            ENDIF
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
-      CALL MPI_ISEND(SurfExchange(iNbProc)%SurfDataSend(1:nSendVal),nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
-    END IF
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_ISEND',iError)
-  ELSE
-    MPIRequest(iNbProc)=MPI_REQUEST_NULL
-  END IF
-END DO !iProc=1,nNBProcs
-END SUBROUTINE StartSendMPISurfDataType
-#endif /*USE_HDG*/
-
-
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !===================================================================================================================================
 !> See above, but for for send direction (type-based p-adaption).
 !===================================================================================================================================
@@ -843,6 +649,7 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataTypeDielectric
 #endif /*not USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 
 !==================================================================================================================================
@@ -911,7 +718,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)          :: SendID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-TYPE(MPI_Request), INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request), INTENT(INOUT) :: SendRequest(nNbProcs),RecRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if defined(MEASURE_MPI_WAIT)
@@ -1033,120 +840,12 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataInt
 
 
+
 #if USE_HDG
-!===================================================================================================================================
-!> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
-!> SendRequest, RecRequest: communication handles
-!> SendID: defines the send / receive direction -> 1=send MINE / receive YOUR  2=send YOUR / receive MINE
-!===================================================================================================================================
-SUBROUTINE FinishExchangeMPISurfDataType(SendRequest,RecRequest,SendID, mode, iVar)
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_MPI_Vars
-USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
-USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N,UseNSideMin
-USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)          :: SendID, mode
-INTEGER, INTENT(IN), OPTIONAL:: iVar
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-TYPE(MPI_Request), INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbProcs)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)               :: CounterStart,CounterEnd
-REAL(KIND=8)                  :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-INTEGER                       :: i,p,q,r,iSide,Nloc
-!===================================================================================================================================
-! Check receive operations first
-DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
-  END IF
-END DO !iProc=1,nNBProcs
-
-! Check send operations
-DO iNbProc=1,nNbProcs
-  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
-  END IF
-END DO !iProc=1,nNBProcs
-
-! Unroll data
-DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    SideID_start = OffsetMPISides_rec(iNbProc-1,SendID)+1
-    SideID_end   = OffsetMPISides_rec(iNbProc,SendID)
-
-    i = 1
-    IF(mode.EQ.1)THEN
-      DO iSide = SideID_start, SideID_end
-        Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        DO p = 0, Nloc
-          DO q = 0, Nloc
-            N_SurfMesh(iSide)%SurfElem(p,q) = SurfExchange(iNbProc)%SurfDataRecv(i)
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
-    ELSEIF(mode.EQ.8)THEN
-      DO iSide = SideID_start, SideID_end
-        IF(UseNSideMin)THEN
-          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        ELSE
-          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        END IF
-        DO p = 1, (Nloc+1)**2
-          DO q = 1, (Nloc+1)**2
-            HDG_Surf_N(iSide)%Precond(p,q) = SurfExchange(iNbProc)%SurfDataRecv2(i)
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
-    ELSE
-      DO iSide = SideID_start, SideID_end
-        IF(UseNSideMin)THEN
-          Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        ELSE
-          Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-        END IF
-        DO p = 0, Nloc
-          DO q = 0, Nloc
-            r=p*(Nloc+1) + q+1
-            IF (mode.EQ.2) THEN
-              HDG_Surf_N(iSide)%lambda(iVar,r)    = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ELSEIF (mode.EQ.3) THEN
-              HDG_Surf_N(iSide)%mv(iVar,r)        = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ELSEIF (mode.EQ.4) THEN
-              HDG_Surf_N(iSide)%RHS_face(iVar,r)  = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ELSEIF (mode.EQ.5) THEN
-              HDG_Surf_N(iSide)%V(iVar,r)         = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ELSEIF (mode.EQ.6) THEN
-              HDG_Surf_N(iSide)%Z(iVar,r)         = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ELSEIF (mode.EQ.7) THEN
-              HDG_Surf_N(iSide)%InvPrecondDiag(r) = SurfExchange(iNbProc)%SurfDataRecv(i)
-            ENDIF
-            i = i + 1
-          END DO ! q = 0, N_slave
-        END DO ! p = 0, N_slave
-      END DO ! iSide = SideID_start, SideID_end
-    END IF ! SendID.EQ.2
-
-  END IF
-END DO !iProc=1,nNBProcs
-
-END SUBROUTINE FinishExchangeMPISurfDataType
 #endif /*USE_HDG*/
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
 !> SendRequest, RecRequest: communication handles
@@ -1354,168 +1053,8 @@ END DO !iProc=1,nNBProcs
 
 END SUBROUTINE FinishExchangeMPIDataTypeDielectric
 #endif /*not USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
-
-#if USE_HDG
-!===================================================================================================================================
-!> communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
-!> Select between different modes:
-!> 1: mv (MatVec in hdg.f90)
-!> 2: RHS_face  (HDGLinear and HDGNewton in hdg.f90)
-!> 3: InvPrecondDiag (BuildPrecond in elem_mat.f90)
-!> 4: Precond (BuildPrecond in elem_mat.f90)
-!===================================================================================================================================
-SUBROUTINE Mask_MPIsides(mode, iVar)
-! MODULES
-USE MOD_GLobals
-USE MOD_MPI_Vars
-USE MOD_Mesh_Vars ,ONLY: nSides
-USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR,nMPIsides,nMPIsides_MINE
-USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N
-!USE MOD_MPI       ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType
-
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-CHARACTER(LEN=*),INTENT(IN) :: mode     !< Select mv, RHS_face, InvPrecondDiag or Precond
-INTEGER, INTENT(IN), OPTIONAL :: iVar
-!INTEGER,INTENT(IN   )       :: firstdim !< size of first dimention in array to be sent
-!REAL   ,INTENT(INOUT) :: v(firstdim,nGP_face, nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!REAL    :: vbuf(firstdim,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf, sendmode, iSide
-!===================================================================================================================================
-
-startbuf = nSides-nMPISides+1
-endbuf   = nSides-nMPISides+nMPISides_MINE
-
-SELECT CASE(TRIM(mode))
-CASE('mv') ! Originally: CALL Mask_MPIsides(1,mv)
-
-  ! HDG_Surf_N(SideID)%mv(iVar,:)
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%buf(iVar,:) = HDG_Surf_N(iSide)%mv(iVar,:)
-    END DO
-  END IF
-  sendmode = 3
-  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
-  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=iVar)
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%mv(iVar,:) = HDG_Surf_N(iSide)%mv(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
-    END DO
-  END IF
-  IF(nMPIsides_YOUR.GT.0) THEN
-    DO iSide = nSides-nMPIsides_YOUR+1, nSides
-      HDG_Surf_N(iSide)%mv(iVar,:) = 0.
-    END DO
-  END IF
-
-CASE('Z')
-
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%buf(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:)
-    END DO
-  END IF
-  sendmode = 6
-  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
-  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=iVar)
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%Z(iVar,:) = HDG_Surf_N(iSide)%Z(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
-    END DO
-  END IF
-  IF(nMPIsides_YOUR.GT.0) THEN
-    DO iSide = nSides-nMPIsides_YOUR+1, nSides
-      HDG_Surf_N(iSide)%Z(iVar,:) = 0.
-    END DO
-  END IF
-
-CASE('RHS_face') ! Originally: CALL Mask_MPIsides(PP_nVar,RHS_face)
-
-  ! HDG_Surf_N(SideID)%RHS_face(iVar,:)
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%buf(iVar,:) = HDG_Surf_N(iSide)%RHS_face(iVar,:)
-    END DO
-  END IF
-  sendmode = 4
-  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
-  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=iVar)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=iVar)
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%RHS_face(iVar,:) = HDG_Surf_N(iSide)%RHS_face(iVar,:) + HDG_Surf_N(iSide)%buf(iVar,:)
-    END DO
-  END IF
-  IF(nMPIsides_YOUR.GT.0) THEN
-    DO iSide = nSides-nMPIsides_YOUR+1, nSides
-      HDG_Surf_N(iSide)%RHS_face(iVar,:) = 0.
-    END DO
-  END IF
-
-CASE('Precond') ! CALL Mask_MPIsides(nGP_face,Precond) for PrecondType=1
-
-  ! HDG_Surf_N(SideID)%Precond
-  ! NSideMin = N_SurfMesh(SideID)%NSideMin
-  ! ALLOCATE(HDG_Surf_N(SideID)%Precond(nGP_face(NSideMin),nGP_face(NSideMin)))
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%buf2(:,:) = HDG_Surf_N(iSide)%Precond(:,:)
-    END DO
-  END IF
-  sendmode = 8
-  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
-  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=1)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=1)
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%Precond(:,:) = HDG_Surf_N(iSide)%Precond(:,:) + HDG_Surf_N(iSide)%buf2(:,:)
-    END DO
-  END IF
-  IF(nMPIsides_YOUR.GT.0) THEN
-    DO iSide = nSides-nMPIsides_YOUR+1, nSides
-      HDG_Surf_N(iSide)%Precond(:,:) = 0.
-    END DO
-  END IF
-
-CASE('InvPrecondDiag') ! Originally: CALL Mask_MPIsides(1,InvPrecondDiag) for PrecondType=2
-
-  ! HDG_Surf_N(SideID)%InvPrecondDiag
-  ! NSideMin = N_SurfMesh(SideID)%NSideMin
-  ! ALLOCATE(HDG_Surf_N(SideID)%InvPrecondDiag(nGP_face(NSideMin)))
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%buf(1,:) = HDG_Surf_N(iSide)%InvPrecondDiag(:)
-    END DO
-  END IF
-  sendmode = 7
-  CALL StartReceiveMPISurfDataType(RecRequest_U , 2 , sendmode)
-  CALL StartSendMPISurfDataType(  SendRequest_U , 2 , sendmode , iVar=1)
-  CALL FinishExchangeMPISurfDataType(SendRequest_U, RecRequest_U, 2, sendmode, iVar=1)
-  IF(nMPIsides_MINE.GT.0) THEN
-    DO iSide = startbuf, endbuf
-      HDG_Surf_N(iSide)%InvPrecondDiag(:) = HDG_Surf_N(iSide)%InvPrecondDiag(:) + HDG_Surf_N(iSide)%buf(1,:)
-    END DO
-  END IF
-  IF(nMPIsides_YOUR.GT.0) THEN
-    DO iSide = nSides-nMPIsides_YOUR+1, nSides
-      HDG_Surf_N(iSide)%InvPrecondDiag(:) = 0.
-    END DO
-  END IF
-
-END SELECT
-
-END SUBROUTINE Mask_MPIsides
-#endif /*USE_HDG*/
 
 !----------------------------------------------------------------------------------------------------------------------------------!
 !> Finalize DG MPI-Stuff, deallocate arrays with neighbor connections, etc.
@@ -1528,6 +1067,9 @@ USE MOD_MPI_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_FV
+USE MOD_MPI_FV             ,ONLY: FinalizeMPIFV
+#endif /*USE_FV*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1545,6 +1087,9 @@ SDEALLOCATE(offsetMPISides_YOUR)
 SDEALLOCATE(NbProc)
 
 ! requires knowledge of number of MPI neighbors
+#if USE_FV
+CALL FinalizeMPIFV()
+#endif /*USE_FV*/
 SDEALLOCATE(SendRequest_U)
 SDEALLOCATE(SendRequest_U2)
 SDEALLOCATE(SendRequest_Flux)
@@ -1577,342 +1122,5 @@ END IF
 
 END SUBROUTINE FinalizeMPI
 #endif /*USE_MPI*/
-
-
-#if defined(MEASURE_MPI_WAIT)
-!===================================================================================================================================
-!> Root writes measured MPI_WAIT() times to disk
-!===================================================================================================================================
-SUBROUTINE OutputMPIW8Time()
-! MODULES
-USE MOD_Globals
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeGlobal      , MPIW8TimeProc      , MPIW8TimeField      , MPIW8Time      , MPIW8TimeBaS
-USE MOD_MPI_Vars          ,ONLY: MPIW8CountGlobal , MPIW8CountProc , MPIW8CountField , MPIW8Count , MPIW8CountBaS
-USE MOD_MPI_Vars          ,ONLY: MPIW8TimeSim,MPIW8TimeMM, MPIW8CountMM
-USE MOD_StringTools       ,ONLY: INTTOSTR
-#if defined(PARTICLES)
-USE MOD_Particle_MPI_Vars ,ONLY: MPIW8TimePart,MPIW8CountPart
-#endif /*defined(PARTICLES)*/
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT / OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-LOGICAL                                :: WriteHeader
-INTEGER                                :: ioUnit,i
-CHARACTER(LEN=150)                     :: formatStr
-CHARACTER(LEN=22),PARAMETER            :: outfile    ='MPIW8Time.csv'
-CHARACTER(LEN=22),PARAMETER            :: outfilePerc='MPIW8TimePercent.csv'
-CHARACTER(LEN=22),PARAMETER            :: outfileProc='MPIW8TimeProc'
-CHARACTER(LEN=30)                      :: outfileProc_loc
-CHARACTER(LEN=10)                      :: hilf
-INTEGER,PARAMETER                      :: nTotalVars =2*MPIW8SIZE+2
-CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNames(nTotalVars)=(/ CHARACTER(LEN=255) :: &
-    'nProcessors'                 , &
-    'WallTimeSim'                 , &
-    'Barrier-and-Sync'            , &
-    'Barrier-and-Sync-Counter'    , &
-    'RAM-Measure-Reduce'          , &
-    'RAM-Measure-Reduce-Counter'    &
-#if USE_HDG
-   ,'HDG-SendLambda'              , & ! (1)
-    'HDG-SendLambda-Counter'      , & ! (1)
-    'HDG-ReceiveLambda'           , & ! (2)
-    'HDG-ReceiveLambda-Counter'   , & ! (2)
-    'HDG-Broadcast'               , & ! (3)
-    'HDG-Broadcast-Counter'       , & ! (3)
-    'HDG-Allreduce'               , & ! (4)
-    'HDG-Allreduce-Counter'         & ! (4)
-#else
-   ,'DGSEM-Send'                  , &     ! (1)
-    'DGSEM-Send-Counter'          , &     ! (1)
-    'DGSEM-Receive'               , &     ! (2)
-    'DGSEM-Receive-Counter'         &     ! (2)
-#endif /*USE_HDG*/
-#if defined(PARTICLES)
-   ,'SendNbrOfParticles'          , & ! (1)
-    'SendNbrOfParticles-Counter'  , & ! (1)
-    'RecvNbrOfParticles'          , & ! (2)
-    'RecvNbrOfParticles-Counter'  , & ! (2)
-    'SendParticles'               , & ! (3)
-    'SendParticles-Counter'       , & ! (3)
-    'RecvParticles'               , & ! (4)
-    'RecvParticles-Counter'       , & ! (4)
-    'EmissionParticles'           , & ! (5)
-    'EmissionParticles-Counter'   , & ! (5)
-    'PIC-depo-Wait'               , & ! (6)
-    'PIC-depo-Wait-Counter'         & ! (6)
-#endif /*defined(PARTICLES)*/
-    /)
-! CHARACTER(LEN=255),DIMENSION(nTotalVars) :: StrVarNamesProc(nTotalVars)=(/ CHARACTER(LEN=255) :: &
-!     'Rank'                  &
-! #if defined(PARTICLES)
-!    ,'SendNbrOfParticles'  , &
-!     'RecvNbrOfParticles'  , &
-!     'SendParticles'       , &
-!     'RecvParticles'         &
-! #endif /*defined(PARTICLES)*/
-!     /)
-CHARACTER(LEN=255)         :: tmpStr(nTotalVars)
-CHARACTER(LEN=1000)        :: tmpStr2
-CHARACTER(LEN=1),PARAMETER :: delimiter=","
-REAL                       :: TotalSimTime,MPIW8TimeSimeGlobal,TotalCounter
-!===================================================================================================================================
-MPIW8Time(                1:1)                              = MPIW8TimeBaS
-MPIW8Count(               1:1)                              = MPIW8CountBaS
-MPIW8Time(                2:2)                              = MPIW8TimeMM
-MPIW8Count(               2:2)                              = MPIW8CountMM
-MPIW8Time(                3:MPIW8SIZEFIELD+2)               = MPIW8TimeField
-MPIW8Count(               3:MPIW8SIZEFIELD+2)               = MPIW8CountField
-#if defined(PARTICLES)
-MPIW8Time( MPIW8SIZEFIELD+3:MPIW8SIZEFIELD+MPIW8SIZEPART+2) = MPIW8TimePart
-MPIW8Count(MPIW8SIZEFIELD+3:MPIW8SIZEFIELD+MPIW8SIZEPART+2) = MPIW8CountPart
-#endif /*defined(PARTICLES)*/
-
-! Collect and output measured MPI_WAIT() times
-IF(MPIroot)THEN
-  ALLOCATE(MPIW8TimeProc(MPIW8SIZE*nProcessors))
-  ALLOCATE(MPIW8CountProc(MPIW8SIZE*nProcessors))
-  CALL MPI_REDUCE(MPIW8TimeSim , MPIW8TimeSimeGlobal , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
-  CALL MPI_REDUCE(MPIW8Time    , MPIW8TimeGlobal     , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
-  CALL MPI_REDUCE(MPIW8Count   , MPIW8CountGlobal    , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
-
-  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPIW8TimeProc  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_PICLAS , iError)
-  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , MPIW8CountProc , MPIW8SIZE , MPI_INTEGER8         , 0 , MPI_COMM_PICLAS , iError)
-ELSE
-  CALL MPI_REDUCE(MPIW8TimeSim , 0 , 1         , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
-  CALL MPI_REDUCE(MPIW8Time    , 0 , MPIW8SIZE , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
-  CALL MPI_REDUCE(MPIW8Count   , 0 , MPIW8SIZE , MPI_INTEGER8         , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
-
-  CALL MPI_GATHER(MPIW8Time  , MPIW8SIZE , MPI_DOUBLE_PRECISION , 0              , 0         , MPI_DOUBLE_PRECISION , 0 , MPI_COMM_PICLAS , iError)
-  CALL MPI_GATHER(MPIW8Count , MPIW8SIZE , MPI_INTEGER8         , 0              , 0         , MPI_INTEGER8         , 0 , MPI_COMM_PICLAS , iError)
-END IF
-
-! --------------------------------------------------
-! Only MPI root outputs the data to file
-! --------------------------------------------------
-IF(.NOT.MPIRoot)RETURN
-
-! --------------------------------------------------
-! Output file 1 of 3: MPIW8Time.csv
-! --------------------------------------------------
-! Either create new file or add info to existing file
-WriteHeader = .TRUE.
-IF(FILEEXISTS(outfile)) WriteHeader = .FALSE.
-
-IF(WriteHeader)THEN
-  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),STATUS="UNKNOWN")
-  tmpStr=' '
-  DO i=1,nTotalVars
-    WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
-  END DO
-  WRITE(formatStr,'(A1)')'('
-  DO i=1,nTotalVars
-    IF(i.EQ.nTotalVars)THEN ! skip writing "," and the end of the line
-      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
-    ELSE
-      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
-    END IF
-  END DO
-
-  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
-  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
-  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
-  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
-
-  CLOSE(ioUnit)
-END IF ! WriteHeader
-
-IF(FILEEXISTS(outfile))THEN
-  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfile),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
-  WRITE(tmpStr2,formatStr)                                  &
-      " ",REAL(nProcessors)                                ,& !     'nProcessors'
-      delimiter,MPIW8TimeSimeGlobal                        ,& !     'WallTimeSim'
-      delimiter,MPIW8TimeGlobal(1)                         ,& !     'Barrier-and-Sync'
-      delimiter,REAL(MPIW8CountGlobal(1))                  ,& !     'Barrier-and-Sync-Counter'
-      delimiter,MPIW8TimeGlobal(2)                         ,& !     'RAM-Measure-Reduce'
-      delimiter,REAL(MPIW8CountGlobal(2))                  ,& !     'RAM-Measure-Reduce-Counter'
-      delimiter,MPIW8TimeGlobal(3)                         ,& ! (1) 'HDG-SendLambda'    or 'DGSEM-Send'
-      delimiter,REAL(MPIW8CountGlobal(3))                  ,& ! (1) 'HDG-SendLambda-Counter'    or 'DGSEM-Send-Counter'
-      delimiter,MPIW8TimeGlobal(4)                         ,& ! (2) 'HDG-ReceiveLambda' or 'DGSEM-Receive'
-      delimiter,REAL(MPIW8CountGlobal(4))                   & ! (2) 'HDG-ReceiveLambda-Counter' or 'DGSEM-Receive-Counter'
-#if USE_HDG
-     ,delimiter,MPIW8TimeGlobal(5)                         ,& ! (3) 'HDG-Broadcast'
-      delimiter,REAL(MPIW8CountGlobal(5))                  ,& ! (3) 'HDG-Broadcast-Counter'
-      delimiter,MPIW8TimeGlobal(6)                         ,& ! (4) 'HDG-Allreduce'
-      delimiter,REAL(MPIW8CountGlobal(6))                   & ! (4) 'HDG-Allreduce-Counter'
-#endif /*USE_HDG*/
-#if defined(PARTICLES)
-     ,delimiter,MPIW8TimeGlobal(      MPIW8SIZEFIELD+2+1)  ,& ! (1) 'SendNbrOfParticles'
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+1)) ,& ! (1) 'SendNbrOfParticles-Counter'
-      delimiter,MPIW8TimeGlobal(      MPIW8SIZEFIELD+2+2)  ,& ! (2) 'RecvNbrOfParticles'
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+2)) ,& ! (2) 'RecvNbrOfParticles-Counter'
-      delimiter,MPIW8TimeGlobal(      MPIW8SIZEFIELD+2+3)  ,& ! (3) 'SendParticles'
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+3)) ,& ! (3) 'SendParticles-Counter'
-      delimiter,MPIW8TimeGlobal(      MPIW8SIZEFIELD+2+4)  ,& ! (4) 'RecvParticles'
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+4)) ,& ! (4) 'RecvParticles-Counter'
-      delimiter,MPIW8TimeGlobal(      MPIW8SIZEFIELD+2+5)  ,& ! (5) 'EmissionParticles'
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+5)) ,& ! (5) 'EmissionParticles-Counter'
-      delimiter,MPIW8TimeGlobal(      MPIW8SIZEFIELD+2+6)  ,& ! (6) 'PIC-depo-Wait'
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+6))  & ! (6) 'PIC-depo-Wait-Counter'
-#endif /*defined(PARTICLES)*/
-  ; ! this is required for terminating the "&" when particles=off
-  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-  CLOSE(ioUnit)
-ELSE
-  WRITE(UNIT_StdOut,'(A)')TRIM(outfile)//" does not exist. Cannot write MPI_WAIT wall time info!"
-END IF
-
-! --------------------------------------------------
-! Output file 2 of 3: MPIW8Time.csv
-! --------------------------------------------------
-! Either create new file or add info to existing file
-WriteHeader = .TRUE.
-IF(FILEEXISTS(outfilePerc)) WriteHeader = .FALSE.
-
-IF(WriteHeader)THEN
-  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfilePerc),STATUS="UNKNOWN")
-  tmpStr=""
-  DO i=1,nTotalVars
-    WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
-  END DO
-  WRITE(formatStr,'(A1)')'('
-  DO i=1,nTotalVars
-    IF(i.EQ.nTotalVars)THEN ! skip writing "," and the end of the line
-      WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
-    ELSE
-      WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
-    END IF
-  END DO
-
-  WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
-  WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
-  tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
-  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
-
-  CLOSE(ioUnit)
-END IF ! WriteHeader
-
-IF(FILEEXISTS(outfilePerc))THEN
-  OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfilePerc),POSITION="APPEND",STATUS="OLD")
-  WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
-  !TotalSimTime = MPIW8TimeSim*REAL(nProcessors)
-  TotalSimTime = MPIW8TimeSimeGlobal*0.01         ! Convert to [%]
-  TotalCounter = REAL(SUM(MPIW8CountGlobal))*0.01 ! Convert to [%]
-  WRITE(tmpStr2,formatStr)                              &
-      " ",REAL(nProcessors)                            ,&
-      delimiter,100.                                   ,& ! MPIW8TimeSim*nProcessors / TotalSimTime
-      delimiter,      MPIW8TimeGlobal(1) /TotalSimTime ,&
-      delimiter,REAL(MPIW8CountGlobal(1))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(2) /TotalSimTime ,&
-      delimiter,REAL(MPIW8CountGlobal(2))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(3) /TotalSimTime ,&
-      delimiter,REAL(MPIW8CountGlobal(3))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(4) /TotalSimTime ,&
-      delimiter,REAL(MPIW8CountGlobal(4))/TotalCounter  &
-#if USE_HDG
-     ,delimiter,      MPIW8TimeGlobal(5) /TotalSimTime ,&
-      delimiter,REAL(MPIW8CountGlobal(5))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(6) /TotalSimTime ,&
-      delimiter,REAL(MPIW8CountGlobal(6))/TotalCounter  &
-#endif /*USE_HDG*/
-#if defined(PARTICLES)
-     ,delimiter,      MPIW8TimeGlobal(MPIW8SIZEFIELD+2+1) /TotalSimTime        ,&
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+1))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(MPIW8SIZEFIELD+2+2) /TotalSimTime        ,&
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+2))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(MPIW8SIZEFIELD+2+3) /TotalSimTime        ,&
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+3))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(MPIW8SIZEFIELD+2+4) /TotalSimTime        ,&
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+4))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(MPIW8SIZEFIELD+2+5) /TotalSimTime        ,&
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+5))/TotalCounter ,&
-      delimiter,      MPIW8TimeGlobal(MPIW8SIZEFIELD+2+6) /TotalSimTime        ,&
-      delimiter,REAL(MPIW8CountGlobal(MPIW8SIZEFIELD+2+6))/TotalCounter  &
-#endif /*defined(PARTICLES)*/
-  ; ! this is required for terminating the "&" when particles=off
-  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-  CLOSE(ioUnit)
-ELSE
-  WRITE(UNIT_StdOut,'(A)')TRIM(outfilePerc)//" does not exist. Cannot write MPI_WAIT wall time info!"
-END IF
-
-! --------------------------------------------------
-! Output file 3 of 3: MPIW8TimeProc-XXX.csv
-! --------------------------------------------------
-! Cannot append to proc file, iterate name  -000.csv, -001.csv, -002.csv
-WRITE(UNIT=hilf,FMT='(A1,I3.3,A4)') '-',0,'.csv'
-outfileProc_loc=TRIM(outfileProc)//'-'//TRIM(ADJUSTL(INTTOSTR(nProcessors)))
-DO WHILE(FILEEXISTS(TRIM(outfileProc_loc)//TRIM(hilf)))
-  i = i + 1
-  WRITE(UNIT=hilf,FMT='(A1,I3.3,A4)') '-',i,'.csv'
-END DO
-outfileProc_loc=TRIM(outfileProc_loc)//TRIM(hilf)
-
-! Write the file header
-OPEN(NEWUNIT=ioUnit,FILE=TRIM(outfileProc_loc),STATUS="UNKNOWN")
-tmpStr=' '
-DO i=1,nTotalVars
-  WRITE(tmpStr(i),'(A)')delimiter//'"'//TRIM(StrVarNames(i))//'"'
-END DO
-WRITE(formatStr,'(A1)')'('
-DO i=1,nTotalVars
-  IF(i.EQ.nTotalVars)THEN ! skip writing "," and the end of the line
-    WRITE(formatStr,'(A,A1,I2)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i))
-  ELSE
-    WRITE(formatStr,'(A,A1,I2,A1)')TRIM(formatStr),'A',LEN_TRIM(tmpStr(i)),','
-  END IF
-END DO
-
-WRITE(formatStr,'(A,A1)')TRIM(formatStr),')' ! finish the format
-WRITE(tmpStr2,formatStr)tmpStr               ! use the format and write the header names to a temporary string
-tmpStr2(1:1) = " "                           ! remove possible delimiter at the beginning (e.g. a comma)
-WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2))    ! clip away the front and rear white spaces of the temporary string
-
-! Output the processor wait times
-WRITE(formatStr,'(A2,I2,A14,A1)')'(',nTotalVars,CSVFORMAT,')'
-DO i = 0,nProcessors-1
-  WRITE(tmpStr2,formatStr)                                            &
-            " ",REAL(i)                                              ,&
-      delimiter,MPIW8TimeSim                                         ,&
-      delimiter,      MPIW8TimeProc(i*MPIW8SIZE+1)                   ,&
-      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+1))                  ,&
-      delimiter,      MPIW8TimeProc(i*MPIW8SIZE+2)                   ,&
-      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+2))                  ,&
-      delimiter,      MPIW8TimeProc(i*MPIW8SIZE+2)                   ,&
-      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+2))                  ,&
-      delimiter,      MPIW8TimeProc(i*MPIW8SIZE+4)                   ,&
-      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+4))                   &
-#if USE_HDG
-     ,delimiter,      MPIW8TimeProc(i*MPIW8SIZE+5)                   ,&
-      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+5))                  ,&
-      delimiter,      MPIW8TimeProc(i*MPIW8SIZE+6)                   ,&
-      delimiter,REAL(MPIW8CountProc(i*MPIW8SIZE+6))                   &
-#endif /*USE_HDG*/
-#if defined(PARTICLES)
-     ,delimiter,      MPIW8TimeProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+1)  ,&
-      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+1)) ,&
-      delimiter,      MPIW8TimeProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+2)  ,&
-      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+2)) ,&
-      delimiter,      MPIW8TimeProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+3)  ,&
-      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+3)) ,&
-      delimiter,      MPIW8TimeProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+4)  ,&
-      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+4)) ,&
-      delimiter,      MPIW8TimeProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+5)  ,&
-      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+5)) ,&
-      delimiter,      MPIW8TimeProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+6)  ,&
-      delimiter,REAL(MPIW8CountProc(MPIW8SIZEFIELD+2+i*MPIW8SIZE+6))  &
-#endif /*defined(PARTICLES)*/
-  ; ! this is required for terminating the "&" when particles=off
-  WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
-END DO
-CLOSE(ioUnit)
-
-DEALLOCATE(MPIW8TimeProc, MPIW8CountProc)
-
-END SUBROUTINE OutputMPIW8Time
-#endif /*defined(MEASURE_MPI_WAIT)*/
 
 END MODULE MOD_MPI
