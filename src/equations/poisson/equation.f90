@@ -153,7 +153,7 @@ USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Equation_Vars
 USE MOD_HDG_vars
-USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs, offSetElem
+USE MOD_Mesh_Vars          ,ONLY: BoundaryName,BoundaryType,nBCs
 USE MOD_ReadInTools        ,ONLY: GETREALARRAY,GETREAL,GETINT,CountOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -169,7 +169,6 @@ INTEGER            :: nRefStateMax
 INTEGER            :: nLinState,nLinStateMax
 INTEGER,PARAMETER  :: BCTypeRefstate(1:4)=(/5,51,52,60/)
 CHARACTER(LEN=32)  :: hilf
-INTEGER            :: Nloc,iElem
 !===================================================================================================================================
 
 ! Sanity Check BCs

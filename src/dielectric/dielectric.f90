@@ -592,8 +592,8 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars, ONLY:isDielectricElem,DielectricEpsR
 USE MOD_Equation_Vars   ,ONLY: chi
-USE MOD_Mesh_Vars       ,ONLY: nInnerSides, offSetElem
-USE MOD_Mesh_Vars,       ONLY:ElemToSide
+USE MOD_Mesh_Vars       ,ONLY: offSetElem
+! USE MOD_Mesh_Vars,       ONLY:ElemToSide,nInnerSides
 USE MOD_DG_Vars         ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -603,8 +603,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER :: i,j,k,iElem,Nloc
-INTEGER :: p,q,flip,locSideID,SideID
-REAL    :: Invdummy(3,3)
+! INTEGER :: p,q,flip,locSideID,SideID
+! REAL    :: Invdummy(3,3)
 !===================================================================================================================================
 DO iElem=1,PP_nElems
   ! cycle the loop if no dielectric element is connected to the side

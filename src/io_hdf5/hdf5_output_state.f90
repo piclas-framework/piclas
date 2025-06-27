@@ -49,6 +49,7 @@ USE MOD_Globals
 USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Gradients              ,ONLY: GetGradients
 USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 #endif
 #if !(USE_FV) || (USE_HDG)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
@@ -56,7 +57,7 @@ USE MOD_DG_Vars                ,ONLY: U_N
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: offsetElem
 #if USE_FV
 #if USE_HDG
 USE MOD_Equation_Vars          ,ONLY: StrVarNames
@@ -115,7 +116,7 @@ USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPoten
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_vars                ,ONLY: N_DG_Mapping,nDofsMapping
 #endif /*!(PP_TimeDiscMethod==700)*/
-USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM,Nmax
+USE MOD_Interpolation_Vars     ,ONLY: Nmax
 USE MOD_Analyze_Vars           ,ONLY: OutputTimeFixed
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
@@ -153,19 +154,18 @@ INTEGER                        :: nVarOut, NOut
 INTEGER                        :: iElem, Nloc
 REAL                           :: StartT,EndT,OutputTime_loc,PreviousTime_loc
 LOGICAL                        :: usePreviousTime_loc,InitialAutoRestart
-REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 ! p-adaption output
 REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
 INTEGER                        :: iDOF, nDOFOutput, offsetDOF
 #if defined(PARTICLES) || USE_HDG
 CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
-INTEGER                        :: nVar
 #endif /*defined(PARTICLES)*/
 #ifdef PARTICLES
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 #if USE_FV
+REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
 #endif
 #ifdef discrete_velocity
@@ -1126,7 +1126,7 @@ SUBROUTINE WriteTimeAverage(MeshFileName,OutputTime,PreviousTime,VarNamesAvg,Var
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars            ,ONLY: offsetElem,nGlobalElems,nElems
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems
 USE MOD_DG_vars              ,ONLY: N_DG_Mapping,nDofsMapping
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
 USE MOD_Timeaverage_Vars

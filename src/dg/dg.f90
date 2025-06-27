@@ -60,8 +60,6 @@ USE MOD_LoadBalance_Vars   ,ONLY: UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 USE MOD_MPI                ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
-!USE MOD_MPI_Vars           ,ONLY: SendRequest_U,RecRequest_U,SendRequest_U2,RecRequest_U2
-USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,DGExchange
 #endif /*USE_MPI*/
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
 USE MOD_TimeDisc_Vars      ,ONLY: Ut_N
@@ -76,9 +74,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER           :: Nloc,iElem,iSide
-#if USE_MPI
-INTEGER           :: iNbProc
-#endif /*USE_MPI*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.(.NOT.MeshInitIsDone).OR.(.NOT.RestartInitIsDone).OR.DGInitIsDone) CALL abort(__STAMP__,&
     'InitDG not ready to be called or already called.')
@@ -202,17 +197,12 @@ SUBROUTINE InitDGBasis(N_in,xGP,wGP,L_Minus,L_Plus,D,D_T,D_Hat,D_Hat_T,L_HatMinu
 USE MOD_Globals
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
 USE MOD_Basis              ,ONLY: PolynomialDerivativeMatrix,LagrangeInterpolationPolys
-#if USE_HDG
-USE MOD_Interpolation_Vars ,ONLY: Nmax
-
-#if USE_MPI
-USE MOD_PreProc
-USE MOD_MPI_Vars           ,ONLY: nNbProcs, DataSizeSurfRecMax, DataSizeSurfSendMax, DataSizeSurfRecMin, DataSizeSurfSendMin
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,nSides, offSetElem
-USE MOD_Interpolation_Vars ,ONLY: NInfo,PREF_VDM,N_Inter
-#endif /*USE_MPI*/
-#endif /*USE_HDG*/
+! #if USE_HDG
+! #if USE_MPI
+! USE MOD_PreProc
+! USE MOD_MPI_Vars           ,ONLY: nNbProcs
+! #endif /*USE_MPI*/
+! #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -240,7 +230,7 @@ INTEGER                                    :: iMass
 #if USE_HDG
 #if USE_MPI
 !REAL                                       :: Geotemp(10,0:PP_N,0:PP_N,1:nSides)
-INTEGER                 :: iSide, i,nRecVal, nSendVal, Nloc, iNbProc, NSideMax, NSideMin, p, q, SideID_end, SideID_start
+! INTEGER                 :: iSide, i,nRecVal, nSendVal, Nloc, iNbProc, NSideMax, NSideMin, p, q, SideID_end, SideID_start
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !===================================================================================================================================

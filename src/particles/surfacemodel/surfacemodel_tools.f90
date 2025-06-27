@@ -96,8 +96,11 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Vars           ,ONLY: PDM, UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars           ,ONLY: PDM
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -277,10 +280,13 @@ USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame,InRotRefFrame,PartVeloRotR
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Vars           ,ONLY: PDM, RotRefFrameOmega,UseRotRefSubCycling,nSubCyclingSteps
+USE MOD_Particle_Vars           ,ONLY: RotRefFrameOmega,UseRotRefSubCycling,nSubCyclingSteps
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+#if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
+USE MOD_Particle_Vars           ,ONLY: PDM
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -520,10 +526,9 @@ USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_Particle_Mesh_Vars        ,ONLY: BoundsOfElem_Shared
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcEnergyViolationSEE
-USE MOD_SurfaceModel_Vars         ,ONLY: SurfModSEEFitCoeff, ImpactWeight
+USE MOD_SurfaceModel_Vars         ,ONLY: ImpactWeight
 USE MOD_Particle_Vars             ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars             ,ONLY: dt,RKdtFrac
-USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

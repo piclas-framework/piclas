@@ -228,7 +228,7 @@ SUBROUTINE CalcCellLocNodeVolumes()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Interpolation_Vars ,ONLY: N_Inter, NMin, NMax
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
@@ -248,8 +248,6 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!REAL                             :: xGP_loc(0:1),DetJac(1,0:1,0:1,0:1)
-!REAL                             :: DetLocal(1,0:NMax,0:NMax,0:NMax)
 INTEGER                          :: i,j,k,firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
@@ -257,10 +255,10 @@ INTEGER                          :: MessageSize
 #endif
 INTEGER                          :: NodeID(1:8)
 INTEGER                          :: Nloc
-TYPE tVdm_BGFieldIn_BGField
-  REAL, ALLOCATABLE                     :: Vdm(:,:)
-END TYPE tVdm_BGFieldIn_BGField
-TYPE(tVdm_BGFieldIn_BGField),ALLOCATABLE    :: Vdm_loc(:)
+! TYPE tVdm_BGFieldIn_BGField
+!   REAL, ALLOCATABLE                     :: Vdm(:,:)
+! END TYPE tVdm_BGFieldIn_BGField
+! TYPE(tVdm_BGFieldIn_BGField),ALLOCATABLE    :: Vdm_loc(:)
 !===================================================================================================================================
 NodeVolumeLoc = 0.
 #if USE_MPI

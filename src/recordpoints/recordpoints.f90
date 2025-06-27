@@ -291,13 +291,12 @@ SUBROUTINE RecordPoints(t,forceSampling)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Timedisc_Vars     ,ONLY: dt
-USE MOD_TimeDisc_Vars     ,ONLY: tAnalyze,iter
-USE MOD_Analyze_Vars      ,ONLY: Analyze_dt,FieldAnalyzeStep
+USE MOD_TimeDisc_Vars    ,ONLY: iter
+USE MOD_Analyze_Vars     ,ONLY: Analyze_dt,FieldAnalyzeStep
 USE MOD_RecordPoints_Vars,ONLY: RP_Data
 USE MOD_RecordPoints_Vars,ONLY: RP_Buffersize,RP_MaxBufferSize,RP_SamplingOffset,iSample
 USE MOD_RecordPoints_Vars,ONLY: nRP
-USE MOD_Timedisc_Vars,    ONLY: dt
+USE MOD_Timedisc_Vars    ,ONLY: dt
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -363,8 +362,7 @@ USE MOD_Timedisc_Vars          ,ONLY: dt
 #if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
 #endif /*!(PP_TimeDiscMethod==700)*/
-USE MOD_RecordPoints_Vars ,ONLY: RP_Data,RP_ElemID
-USE MOD_RecordPoints_Vars ,ONLY: RP_Buffersize,RP_MaxBuffersize,iSample
+USE MOD_RecordPoints_Vars ,ONLY: RP_ElemID
 USE MOD_RecordPoints_Vars ,ONLY: L_xi_RP,L_eta_RP,L_zeta_RP,nRP
 USE MOD_Mesh_Vars         ,ONLY: offSetElem
 ! IMPLICIT VARIABLE HANDLING
@@ -424,6 +422,9 @@ DO iRP=1,nRP
   END DO !k
 END DO ! iRP
 
+! Surpress compiler warning
+RETURN
+L_eta_zeta_RP = t
 END SUBROUTINE EvalRecordPoints
 
 

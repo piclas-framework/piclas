@@ -54,7 +54,7 @@ SUBROUTINE InitInterfaces
 ! MODULES
 USE MOD_Preproc
 USE MOD_globals
-USE MOD_Mesh_Vars        ,ONLY: nSides,N_SurfMesh,NGeo,MortarType
+USE MOD_Mesh_Vars        ,ONLY: nSides,N_SurfMesh,MortarType
 #if ! (USE_HDG) && !(USE_FV)
 USE MOD_PML_vars         ,ONLY: DoPML,isPMLFace
 #endif /*NOT HDG*/

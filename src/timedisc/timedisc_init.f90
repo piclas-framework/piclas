@@ -94,7 +94,6 @@ SUBROUTINE InitTimeDisc()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars     ,ONLY: nElems, offSetElem
 USE MOD_ReadInTools   ,ONLY: GetReal,GetInt, GETLOGICAL
 USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStepUser
 USE MOD_TimeDisc_Vars ,ONLY: CFLScale,dt,TimeDiscInitIsDone,RKdtFrac,RKdtFracTotal,dtWeight
@@ -109,12 +108,9 @@ USE MOD_PML_Vars               ,ONLY: PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: Nloc,iElem
 !===================================================================================================================================
 IF(TimeDiscInitIsDone)THEN
    SWRITE(*,*) "InitTimeDisc already called."
