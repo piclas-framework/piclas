@@ -828,7 +828,7 @@ SUBROUTINE fillMeshInfo()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
-USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
+USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide
 USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
@@ -840,7 +840,7 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName,nBCSides
 #endif /*USE_HDG && USE_LOADBALANCE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
@@ -861,15 +861,12 @@ INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
 ! LOCAL VARIABLES
 TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide,mSide
-INTEGER             :: iElem,LocSideID,nSides_flip(0:4),SideID
-INTEGER             :: nSides_MortarType(1:3),iMortar
-INTEGER             :: ilocSide,locMortarSide,SideID2
+INTEGER             :: iElem,LocSideID,nSides_flip(0:4),SideID,nSides_MortarType(1:3),iMortar
 #if USE_MPI
 INTEGER             :: dummy(0:4)
 #endif
 #if USE_HDG && USE_LOADBALANCE
-INTEGER           :: BCType,nMortars
-INTEGER           :: HDGSides
+INTEGER           :: BCType,nMortars,ilocSide,locMortarSide,SideID2,HDGSides
 CHARACTER(3)      :: hilf
 #endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================

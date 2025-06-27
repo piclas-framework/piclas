@@ -88,13 +88,13 @@ DO SideID=firstSideID,lastSideID
     IF(DoPML)THEN
       IF(isPMLElem(ElemID))THEN
         ASSOCIATE( U2t => U_N(ElemID)%U2t(:,:,:,:) )
-          CALL CalcSurfIntPML(Ut,U2t,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc),flip,ElemID,locSideID)
+          CALL CalcSurfIntPML(Ut,U2t,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc),flip,locSideID)
         END ASSOCIATE
       ELSE
-        CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
+        CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar,0:Nloc,0:Nloc),Flip,locSideID)
       END IF
     ELSE
-      CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
+      CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Slave(1:PP_nVar,0:Nloc,0:Nloc),Flip,locSideID)
     END IF
   END ASSOCIATE
 END DO ! SideID=1,nSides
@@ -103,7 +103,7 @@ DO SideID=firstSideID,lastSideID
   ! master side, flip=0
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  flip      = 0  
+  flip      = 0
   IF(ElemID.LT.0) CYCLE ! if master is MPI side
   Nloc      = N_DG_Mapping(2,ElemID+offSetElem)
   ASSOCIATE( Ut         => U_N(ElemID)%Ut(:,:,:,:) ,&
@@ -112,20 +112,20 @@ DO SideID=firstSideID,lastSideID
     IF(DoPML)THEN
       IF(isPMLElem(ElemID))THEN
         ASSOCIATE( U2t => U_N(ElemID)%U2t(:,:,:,:) )
-          CALL CalcSurfIntPML(Ut,U2t,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc),flip,ElemID,locSideID)
+          CALL CalcSurfIntPML(Ut,U2t,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc),flip,locSideID)
         END ASSOCIATE
       ELSE
-        CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
+        CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:Nloc,0:Nloc),Flip,locSideID)
       END IF
     ELSE
-      CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:Nloc,0:Nloc),Flip,ElemID,locSideID)
+      CALL CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,U_Surf_N(SideID)%Flux_Master(1:PP_nVar,0:Nloc,0:Nloc),Flip,locSideID)
     END IF
   END ASSOCIATE
 END DO ! SideID=1,nSides
 
 END SUBROUTINE SurfInt
 
-SUBROUTINE CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,Flux,flip,ElemID,locSideID)
+SUBROUTINE CalcSurfInt(Ut,L_hatMinus,L_hatPlus,Nloc,Flux,flip,locSideID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -139,7 +139,7 @@ REAL,INTENT(INOUT) :: Ut(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)
 REAL,INTENT(IN)    :: L_hatMinus(0:Nloc)
 REAL,INTENT(IN)    :: L_hatPlus(0:Nloc)
 REAL,INTENT(IN)    :: Flux(1:PP_nVar,0:Nloc,0:Nloc)
-INTEGER,INTENT(IN) :: flip,ElemID,locSideID!,SideID
+INTEGER,INTENT(IN) :: flip,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -475,13 +475,12 @@ L_hatPlusN  = L_HatPlus(Nloc)
 END SUBROUTINE CalcSurfInt
 
 
-SUBROUTINE CalcSurfIntPML(Ut,U2t,L_hatMinus,L_hatPlus,Nloc,Flux,flip,ElemID,locSideID)
+SUBROUTINE CalcSurfIntPML(Ut,U2t,L_hatMinus,L_hatPlus,Nloc,Flux,flip,locSideID)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_PML_Vars ,ONLY: PMLnVar,ElemToPML
-USE MOD_DG_Vars  ,ONLY: U_N
+USE MOD_PML_Vars ,ONLY: PMLnVar
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -492,7 +491,7 @@ REAL,INTENT(INOUT) :: U2t(1:PMLnVar,0:Nloc,0:Nloc,0:Nloc)
 REAL,INTENT(IN)    :: L_hatMinus(0:Nloc)
 REAL,INTENT(IN)    :: L_hatPlus(0:Nloc)
 REAL,INTENT(IN)    :: Flux(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
-INTEGER,INTENT(IN) :: flip,ElemID,locSideID
+INTEGER,INTENT(IN) :: flip,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

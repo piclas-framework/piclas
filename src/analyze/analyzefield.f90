@@ -382,7 +382,7 @@ USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,isPoyntingIntSide,SideIDToP
 USE MOD_Interpolation_Vars ,ONLY: N_inter
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_Globals_Vars       ,ONLY: smu0
-USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,Dielectric_MuR_Master_inv,DoDielectric
+USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,DoDielectric
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -584,40 +584,40 @@ END DO  ! p - Nloc
 END SUBROUTINE PoyntingVector
 
 
-PPURE SUBROUTINE PoyntingVectorDielectric(Uface_in,Sloc,mu_r_inv)
-!===================================================================================================================================
-!> Calculate the Poynting Vector on a certain face for dielectric properties (consider mu_r here, but not mu0)
-!>
-!> ATTENTION: permeability is not applied here due to performance gain
-!> Definition: S = E x H = 1/(mu_r*mu_0) * ( E x H )
-!> Here      : S = 1/mu_r * E x B (i.e. mu0 is applied later)
-!===================================================================================================================================
-! MODULES
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)       :: Uface_in(PP_nVar,0:PP_N,0:PP_N)
-REAL,INTENT(IN)       :: mu_r_inv(0:PP_N,0:PP_N)         ! 1/mu_r for every face DOF (may vary on face depending on position)
-!                                                        ! (isotropic property for permittivity)
-!----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)      :: Sloc(1:3,0:PP_N,0:PP_N)
-!----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER               :: p,q
-!===================================================================================================================================
-
-! calculate the Poynting vector at each node, additionally the abs of the Poynting vector only based on E
-DO p = 0,PP_N
-  DO q = 0,PP_N
-    Sloc(1,p,q)  = (  Uface_in(2,p,q)*Uface_in(6,p,q) - Uface_in(3,p,q)*Uface_in(5,p,q) ) * mu_r_inv(p,q)
-    Sloc(2,p,q)  = ( -Uface_in(1,p,q)*Uface_in(6,p,q) + Uface_in(3,p,q)*Uface_in(4,p,q) ) * mu_r_inv(p,q)
-    Sloc(3,p,q)  = (  Uface_in(1,p,q)*Uface_in(5,p,q) - Uface_in(2,p,q)*Uface_in(4,p,q) ) * mu_r_inv(p,q)
-  END DO ! q - PP_N
-END DO  ! p - PP_N
-
-END SUBROUTINE PoyntingVectorDielectric
+! PPURE SUBROUTINE PoyntingVectorDielectric(Uface_in,Sloc,mu_r_inv)
+! !===================================================================================================================================
+! !> Calculate the Poynting Vector on a certain face for dielectric properties (consider mu_r here, but not mu0)
+! !>
+! !> ATTENTION: permeability is not applied here due to performance gain
+! !> Definition: S = E x H = 1/(mu_r*mu_0) * ( E x H )
+! !> Here      : S = 1/mu_r * E x B (i.e. mu0 is applied later)
+! !===================================================================================================================================
+! ! MODULES
+! ! IMPLICIT VARIABLE HANDLING
+! IMPLICIT NONE
+! !----------------------------------------------------------------------------------------------------------------------------------
+! ! INPUT VARIABLES
+! REAL,INTENT(IN)       :: Uface_in(PP_nVar,0:PP_N,0:PP_N)
+! REAL,INTENT(IN)       :: mu_r_inv(0:PP_N,0:PP_N)         ! 1/mu_r for every face DOF (may vary on face depending on position)
+! !                                                        ! (isotropic property for permittivity)
+! !----------------------------------------------------------------------------------------------------------------------------------
+! ! OUTPUT VARIABLES
+! REAL,INTENT(OUT)      :: Sloc(1:3,0:PP_N,0:PP_N)
+! !----------------------------------------------------------------------------------------------------------------------------------
+! ! LOCAL VARIABLES
+! INTEGER               :: p,q
+! !===================================================================================================================================
+!
+! ! calculate the Poynting vector at each node, additionally the abs of the Poynting vector only based on E
+! DO p = 0,PP_N
+!   DO q = 0,PP_N
+!     Sloc(1,p,q)  = (  Uface_in(2,p,q)*Uface_in(6,p,q) - Uface_in(3,p,q)*Uface_in(5,p,q) ) * mu_r_inv(p,q)
+!     Sloc(2,p,q)  = ( -Uface_in(1,p,q)*Uface_in(6,p,q) + Uface_in(3,p,q)*Uface_in(4,p,q) ) * mu_r_inv(p,q)
+!     Sloc(3,p,q)  = (  Uface_in(1,p,q)*Uface_in(5,p,q) - Uface_in(2,p,q)*Uface_in(4,p,q) ) * mu_r_inv(p,q)
+!   END DO ! q - PP_N
+! END DO  ! p - PP_N
+!
+! END SUBROUTINE PoyntingVectorDielectric
 
 
 SUBROUTINE GetPoyntingIntPlane()
@@ -835,7 +835,7 @@ SUBROUTINE AllocatePoyntingVector()
 ! MODULES
 USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
-USE MOD_Analyze_Vars       ,ONLY: Poynting,SideIDToPoyntingSide,isPoyntingIntSide
+USE MOD_Analyze_Vars       ,ONLY: Poynting,isPoyntingIntSide
 USE MOD_Interpolation_Vars ,ONLY: NMax
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave,N_DG_Mapping
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,PREF_VDM

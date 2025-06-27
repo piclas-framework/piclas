@@ -101,9 +101,6 @@ USE MOD_TimeDisc_Vars ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_TimeDisc_Vars ,ONLY: ManualTimeStep,useManualTimestep
 USE MOD_TimeDisc_Vars ,ONLY: TEnd
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)|| (PP_TimeDiscMethod==6)
-!USE MOD_TimeDisc_Vars          ,ONLY: U2t_temp
-USE MOD_PML_Vars               ,ONLY: nPMLElems
-USE MOD_PML_Vars               ,ONLY: PMLnVar
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

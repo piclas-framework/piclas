@@ -60,7 +60,6 @@ USE MOD_Particle_Vars             ,ONLY: UseCircularInflow
 USE MOD_Dielectric_Vars           ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars                 ,ONLY: DSMC, SamplingActive
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfCollCounter, SurfAnalyzeCount, SurfAnalyzeNumOfAds, SurfAnalyzeNumOfDes
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput
 USE MOD_SurfaceModel_Tools        ,ONLY: MaxwellScattering, SurfaceModelParticleEmission
 USE MOD_SurfaceModel_Chemistry    ,ONLY: SurfaceModelChemistry, SurfaceModelEventProbability
 USE MOD_SEE                       ,ONLY: SecondaryElectronEmissionYield
@@ -71,6 +70,9 @@ USE MOD_part_operations           ,ONLY: RemoveParticle, CreateParticle
 USE MOD_part_tools                ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF, VeloFromDistribution, GetParticleWeight
 USE MOD_PICDepo_Vars              ,ONLY: DoDeposition
 USE MOD_Part_Operations           ,ONLY: UpdateBPO
+#if USE_HDG
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -96,8 +98,11 @@ REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of 
 REAL               :: ChargeRefl                      !< Charge of reflected particle
 REAL               :: MPF                             !< macro-particle factor (temporary)
 REAL               :: ChargeHole                      !< Charge of SEE electrons holes
-INTEGER            :: iProd,iNewPart,NewPartID
+INTEGER            :: iProd
+#if USE_HDG
+INTEGER            :: iNewPart,NewPartID
 REAL               :: NewVelo(3), NewPos(1:3)
+#endif /*USE_HDG*/
 !===================================================================================================================================
 !===================================================================================================================================
 ! 0.) Initial surface pre-treatment

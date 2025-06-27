@@ -257,7 +257,7 @@ SUBROUTINE Flux_Mortar(doMPISides)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Mortar_Vars, ONLY: N_Mortar
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides, offSetElem,SideToElem
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,offSetElem,SideToElem
 USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,N_Mesh
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 USE MOD_DG_Vars,     ONLY: N_DG_Mapping, U_Surf_N

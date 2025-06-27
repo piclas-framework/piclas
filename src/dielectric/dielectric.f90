@@ -388,7 +388,7 @@ SUBROUTINE SetDielectricFaceProfile()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    , ONLY: isDielectricElem,ElemToDielectric, DielectricSurf, DielectricVol, DielectricVolDummy
-USE MOD_Mesh_Vars          , ONLY: nSides, SideToElem, nElems, offSetElem
+USE MOD_Mesh_Vars          , ONLY: nSides, nElems, offSetElem
 USE MOD_DG_Vars            , ONLY: DG_Elems_master, DG_Elems_slave, N_DG_Mapping
 USE MOD_ProlongToFace      , ONLY: ProlongToFace_TypeBased
 USE MOD_FillMortar         , ONLY: U_Mortar
@@ -411,7 +411,7 @@ IMPLICIT NONE
 #if USE_MPI
 INTEGER           :: p,q
 #endif /*USE_MPI*/
-INTEGER           :: N_master, N_slave, locSideID, iElem, flip, iSide, Nloc
+INTEGER           :: N_master, N_slave, iElem, iSide, Nloc
 REAL              :: dummy,MinSlave,MinMaster
 !===================================================================================================================================
 ! General workflow:

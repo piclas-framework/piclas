@@ -146,9 +146,7 @@ USE MOD_ReadInTools
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCs,BC
 USE MOD_Globals_Vars       ,ONLY: EpsMach
-USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
 USE MOD_Mesh               ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Utils              ,ONLY: RootsOfBesselFunctions
 USE MOD_ReadInTools        ,ONLY: PrintOption
@@ -1831,4 +1829,3 @@ END IF
 END SUBROUTINE ExactFunc_TE_Circular_Waveguide
 
 END MODULE MOD_Equation
-

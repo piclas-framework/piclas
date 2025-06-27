@@ -52,7 +52,7 @@ USE MOD_PreProc
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DGB_N,U_N
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: Nmax
-USE MOD_PML_Vars           ,ONLY: DoPML,ElemToPML,isPMLElem
+USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
 USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Flux               ,ONLY: EvalFlux3D,EvalFlux3DDielectric              ! computes volume fluxes in local coordinates
 ! IMPLICIT VARIABLE HANDLING
@@ -70,7 +70,7 @@ REAL,DIMENSION(PP_nVar)                           :: fTilde,gTilde,hTilde ! auxi
 INTEGER                                           :: i,j,k,iElem
 INTEGER                                           :: l                    ! row index for matrix vector product
 INTEGER                                           :: firstElemID, lastElemID
-INTEGER                                           :: Nloc,iPMLElem
+INTEGER                                           :: Nloc
 !===================================================================================================================================
 
 IF(dofirstElems)THEN

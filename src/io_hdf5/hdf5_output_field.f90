@@ -520,12 +520,11 @@ SUBROUTINE WritePMLzetaGlobalToHDF5()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_PML_Vars             ,ONLY: PMLzeta0,PML,ElemToPML,isPMLElem
-USE MOD_Mesh_Vars            ,ONLY: MeshFile,nGlobalElems,offsetElem,nElems
+USE MOD_Mesh_Vars            ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_io_HDF5
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
-USE MOD_PML_Vars             ,ONLY: nPMLElems,PMLToElem
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
 USE MOD_DG_vars              ,ONLY: N_DG_Mapping,nDofsMapping
 USE MOD_HDF5_Output_ElemData ,ONLY: WriteAdditionalElemData
@@ -638,10 +637,9 @@ SUBROUTINE WritePMLDataToHDF5(FileName)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_Mesh_Vars          ,ONLY: offsetElem,nGlobalElems,nElems
+USE MOD_Mesh_Vars          ,ONLY: offsetElem,nElems
 USE MOD_PML_Vars           ,ONLY: DoPML,PMLnVar,isPMLElem
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping,nDofsMapping
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM,Nmax
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
