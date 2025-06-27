@@ -73,8 +73,8 @@ USE MOD_RecordPoints         ,ONLY: InitRecordPoints
 USE MOD_Equation_FV          ,ONLY: InitEquation_FV
 USE MOD_FV                   ,ONLY: InitFV
 #endif
-#if !(USE_FV) || (USE_HDG)
 #if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
+#if !(USE_FV) || (USE_HDG)
 USE MOD_Equation             ,ONLY: InitEquation
 USE MOD_DG                   ,ONLY: InitDG
 USE MOD_Dielectric           ,ONLY: InitDielectric
@@ -85,9 +85,9 @@ USE MOD_PML                  ,ONLY: InitPML
 USE MOD_DG                   ,ONLY: InitDGExchange
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*!(USE_FV) || (USE_HDG)*/
 USE MOD_GetBoundaryFlux      ,ONLY: InitBC
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Mortar               ,ONLY: InitMortar
 USE MOD_Analyze              ,ONLY: InitAnalyze
 USE MOD_Restart_Vars         ,ONLY: N_Restart,RestartNullifySolution
@@ -170,7 +170,9 @@ CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIvars()
 #endif /*USE_MPI*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL InitBC()
+#endif /*!(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)*/
 #if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 CALL InitRecordPoints()
 #endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
@@ -248,7 +250,6 @@ USE MOD_Equation_FV                ,ONLY: FinalizeEquation_FV
 USE MOD_FV                         ,ONLY: FinalizeFV
 #endif /*USE_FV*/
 USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
-USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
 USE MOD_Mortar                     ,ONLY: FinalizeMortar
 #if !(USE_FV) || (USE_HDG)
 USE MOD_Equation                   ,ONLY: FinalizeEquation
@@ -278,6 +279,7 @@ USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
 USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
 USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -348,7 +350,6 @@ CALL FinalizeHDG()
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 CALL FinalizeEquation()
 #endif /*!(USE_FV) || (USE_HDG)*/
-CALL FinalizeBC()
 CALL FinalizeInterpolation(IsLoadBalance)
 CALL FinalizeRestart()
 CALL FinalizeMesh()
@@ -362,6 +363,7 @@ CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
 CALL FinalizeParticleAnalyze()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+CALL FinalizeBC()
 CALL FinalizeDeposition()
 CALL FinalizePICInterpolation()
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -398,7 +400,7 @@ ParticleMPIInitIsDone=.FALSE.
 CALL FinalizeRadiation()
 CALL FinalizeRadiationTransport()
 CALL FinalizePhotonSurfSample()
-#endif
+#endif /*PP_TimeDiscMethod==600*/
 #endif /*PARTICLES*/
 
 CALL FinalizeInterfaces()
