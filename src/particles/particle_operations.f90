@@ -170,7 +170,7 @@ USE MOD_Particle_Sampling_Vars    ,ONLY: UseAdaptiveBC, AdaptBCPartNumOut
 USE MOD_Particle_Vars             ,ONLY: UseNeutralization, NeutralizationSource, NeutralizationBalance,nNeutralizationElems
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartOut,PartEkinOut,CalcSurfFluxInfo
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 #if defined(LSERK)
 USE MOD_Particle_Vars             ,ONLY: Pt_temp

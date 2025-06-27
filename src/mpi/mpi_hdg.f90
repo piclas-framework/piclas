@@ -260,7 +260,7 @@ SUBROUTINE StartSendMPISurfDataType(MPIRequest,SendID, mode, iVar)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars   ,ONLY: U_Surf_N,DG_Elems_slave
+USE MOD_DG_Vars   ,ONLY: DG_Elems_slave
 USE MOD_Mesh_Vars ,ONLY: N_SurfMesh
 USE MOD_HDG_Vars  ,ONLY: HDG_Surf_N,UseNSideMin
 USE MOD_DG_Vars   ,ONLY: DG_Elems_master,DG_Elems_slave

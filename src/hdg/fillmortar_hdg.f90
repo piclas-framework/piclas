@@ -207,7 +207,7 @@ SUBROUTINE BigToSmallMortar_HDG(nVar_in,DoV)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mortar_Vars        ,ONLY: N_Mortar
-USE MOD_Mesh_Vars          ,ONLY: MortarType,MortarInfo,firstMortarInnerSide,lastMortarInnerSide,nSides,N_SurfMesh
+USE MOD_Mesh_Vars          ,ONLY: MortarType,MortarInfo,firstMortarInnerSide,lastMortarInnerSide,N_SurfMesh
 USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N
 USE MOD_Interpolation_Vars ,ONLY: NMax
 ! IMPLICIT VARIABLE HANDLING
@@ -417,7 +417,7 @@ SUBROUTINE SmallToBigMortar_HDG(nVar_in,DoVZorMV)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mortar_Vars, ONLY: N_Mortar
-USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides,firstMortarInnerSide,lastMortarInnerSide,N_SurfMesh
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,firstMortarInnerSide,lastMortarInnerSide,N_SurfMesh
 USE MOD_HDG_Vars,    ONLY: HDG_Surf_N
 USE MOD_Interpolation_Vars ,ONLY: NMax
 ! IMPLICIT VARIABLE HANDLING

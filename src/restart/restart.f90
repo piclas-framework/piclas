@@ -118,8 +118,11 @@ IMPLICIT NONE
 #if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
 #endif /*USE_LOADBALANCE*/
-LOGICAL                     :: FileVersionExists,DG_SolutionExists,WriteSuccessful
+LOGICAL                     :: FileVersionExists,WriteSuccessful
 INTEGER                     :: FileVersionHDF5Int
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+LOGICAL                     :: DG_SolutionExists
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(__STAMP__,'InitRestart not ready to be called or already called.',999,999.)

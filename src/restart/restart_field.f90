@@ -107,7 +107,7 @@ USE MOD_HDG_Vars               ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
 USE MOD_HDG_Vars               ,ONLY: MaskedSide
-USE MOD_HDG_Vars_PETSc         ,ONLY: PETScSolution,nPETScUniqueSides,OffsetGlobalPETScDOF
+USE MOD_HDG_Vars_PETSc         ,ONLY: PETScSolution,OffsetGlobalPETScDOF
 #endif
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh
 #else /*USE_HDG*/

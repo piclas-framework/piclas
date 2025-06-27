@@ -253,8 +253,8 @@ USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
 USE MOD_Mortar                     ,ONLY: FinalizeMortar
 #if !(USE_FV) || (USE_HDG)
 USE MOD_Equation                   ,ONLY: FinalizeEquation
-USE MOD_DG                         ,ONLY: FinalizeDG
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_DG                         ,ONLY: FinalizeDG
 USE MOD_Dielectric                 ,ONLY: FinalizeDielectric
 #if !(USE_HDG)
 USE MOD_PML                        ,ONLY: FinalizePML
@@ -330,17 +330,13 @@ CALL FinalizeAnalyze()
 #if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 CALL FinalizeRecordPoints()
 #endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !(PP_TimeDiscMethod==700)
-#endif /*!(PP_TimeDiscMethod==700)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_FV
 CALL FinalizeFV()
 CALL FinalizeEquation_FV()
 #endif
 #if !(USE_FV) || (USE_HDG)
-CALL FinalizeDG()
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+CALL FinalizeDG()
 CALL FinalizeDielectric()
 #if !(USE_HDG)
 CALL FinalizePML()

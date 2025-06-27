@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_DG
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! Contains the initialization of the DG global variables
 ! Computes the different DG spatial operators/residuals(Ut) using U
@@ -26,35 +27,13 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
-INTERFACE FillIni
-  MODULE PROCEDURE FillIni
-END INTERFACE
-
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitDG
-  MODULE PROCEDURE InitDG
-END INTERFACE
-
-#if !(USE_HDG)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-INTERFACE DGTimeDerivative_weakForm
-  MODULE PROCEDURE DGTimeDerivative_weakForm
-END INTERFACE
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
-#endif /*USE_HDG*/
-
-INTERFACE FinalizeDG
-  MODULE PROCEDURE FinalizeDG
-END INTERFACE
-
 PUBLIC::InitDG,FinalizeDG
 #if !(USE_HDG)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_MPI
 PUBLIC::InitDGExchange
 #endif /*USE_MPI*/
 PUBLIC::DGTimeDerivative_weakForm
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -115,7 +94,6 @@ DO Nloc=Nmin,Nmax
                    DGB_N(Nloc)%D, DGB_N(Nloc)%D_T, DGB_N(Nloc)%D_Hat, DGB_N(Nloc)%D_Hat_T, DGB_N(Nloc)%L_HatMinus, DGB_N(Nloc)%L_HatPlus )
 END DO
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_LOADBALANCE
 ! Not "LB via MPI" means during 1st initialisation
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
@@ -210,7 +188,6 @@ DO iSide = 1, nSides
 END DO ! iSide = 1, nSides
 #endif /*!(USE_HDG)*/
 
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 DGInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT DG DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -306,7 +283,6 @@ END SUBROUTINE InitDGBasis
 
 
 #if !(USE_HDG)
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if USE_MPI
 !==================================================================================================================================
 !> Initialize DGExchange before initialization of dielectric
@@ -539,7 +515,6 @@ CALL LBSplitTime(LB_PARTCOMM,tLBStart)
 #endif /*defined(PARTICLES) && defined(LSERK)*/
 
 END SUBROUTINE DGTimeDerivative_weakForm
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*!(USE_HDG)*/
 
 
@@ -638,4 +613,5 @@ SDEALLOCATE(Ut_N)
 DGInitIsDone = .FALSE.
 END SUBROUTINE FinalizeDG
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_DG
