@@ -101,6 +101,13 @@ DO SideID=firstSideID,lastSideID
                                     + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                     + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
       END IF
+      IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+        ! rotational energy reduced distribution
+        Uface_slave(Sp%nVarErotStart+upos,0,0,SideID) = Uvol(Sp%nVarErotStart+upos,0,0,0,ElemID) &
+                                    + Gradient_elem(1,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                    + Gradient_elem(2,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                    + Gradient_elem(3,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+      END IF
     END DO; END DO; END DO
     vFirstID = vFirstID + Sp%nVar
     END ASSOCIATE
@@ -148,6 +155,13 @@ DO SideID=firstSideID,lastSideID
                                       + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
                                       + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                       + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+        END IF
+        IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+        ! rotational energy reduced distribution
+          Uface_master(Sp%nVarErotStart+upos,0,0,SideID) = Uvol(Sp%nVarErotStart+upos,0,0,0,ElemID) &
+                                      + Gradient_elem(1,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                      + Gradient_elem(2,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                      + Gradient_elem(3,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
         END IF
       END DO; END DO; END DO
       vFirstID = vFirstID + Sp%nVar

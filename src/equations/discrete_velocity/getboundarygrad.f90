@@ -141,10 +141,16 @@ CASE(3) ! specular reflection
         IF (DVMDim.LT.3) THEN
           gradU(Sp%nVarReduced+upos) = 2.*(UPrim_master(Sp%nVarReduced+upos) - UPrim_boundary(Sp%nVarReduced+upos_sp))! - MovTerm)
         END IF
+        IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+          gradU(Sp%nVarErotStart+upos)=2.*(UPrim_master(Sp%nVarErotStart+upos) - UPrim_boundary(Sp%nVarErotStart+upos_sp))! + MovTerm
+        END IF
       ELSE
         gradU(upos) = 2.*gradUinside(upos)
         IF (DVMDim.LT.3) THEN
           gradU(Sp%nVarReduced+upos) = 2.*gradUinside(Sp%nVarReduced+upos)
+        END IF
+        IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+          gradU(Sp%nVarErotStart+upos) = 2.*gradUinside(Sp%nVarErotStart+upos)
         END IF
       END IF
     END DO; END DO; END DO
@@ -174,28 +180,36 @@ CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
   vFirstID=1
   vLastID=0
   DO iSpec = 1,DVMnSpecies
-    vLastID = vLastID + DVMSpecData(iSpec)%nVar
+    ASSOCIATE(Sp => DVMSpecData(iSpec))
+    vLastID = vLastID + Sp%nVar
     MacroVal(:) = RefState_FV(:,iSpec,BCState)
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
     CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),fplus(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
-    DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
-      upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2) + vFirstID-1
-      vnormal = DVMSpecData(iSpec)%Velos(iVel,1)*NormVec(1) &
-              + DVMSpecData(iSpec)%Velos(jVel,2)*NormVec(2) &
-              + DVMSpecData(iSpec)%Velos(kVel,3)*NormVec(3)
+    DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+      upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID-1
+      vnormal = Sp%Velos(iVel,1)*NormVec(1) &
+              + Sp%Velos(jVel,2)*NormVec(2) &
+              + Sp%Velos(kVel,3)*NormVec(3)
       IF (vnormal.LT.0.) THEN
         gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos))
         IF (DVMDim.LT.3) THEN
-          gradU(DVMSpecData(iSpec)%nVarReduced+upos) = 2.*(UPrim_master(DVMSpecData(iSpec)%nVarReduced+upos) - UPrim_boundary(DVMSpecData(iSpec)%nVarReduced+upos))
+          gradU(Sp%nVarReduced+upos) = 2.*(UPrim_master(Sp%nVarReduced+upos) - UPrim_boundary(Sp%nVarReduced+upos))
+        END IF
+        IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+          gradU(Sp%nVarErotStart+upos)=2.*(UPrim_master(Sp%nVarErotStart+upos) - UPrim_boundary(Sp%nVarErotStart+upos))
         END IF
       ELSE
         gradU(upos) = 2.*gradUinside(upos)
         IF (DVMDim.LT.3) THEN
-          gradU(DVMSpecData(iSpec)%nVarReduced+upos) = 2.*gradUinside(DVMSpecData(iSpec)%nVarReduced+upos)
+          gradU(Sp%nVarReduced+upos) = 2.*gradUinside(Sp%nVarReduced+upos)
+        END IF
+        IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+          gradU(Sp%nVarErotStart+upos) = 2.*gradUinside(Sp%nVarErotStart+upos)
         END IF
       END IF
     END DO; END DO; END DO
-    vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+    vFirstID = vFirstID + Sp%nVar
+    END ASSOCIATE
   END DO
 
 CASE(14) ! diffusive order 1

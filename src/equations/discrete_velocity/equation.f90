@@ -167,8 +167,8 @@ DO iSpec = 1, DVMnSpecies
   Sp%nVarReduced      = Sp%nVelos(1)*Sp%nVelos(2)*Sp%nVelos(3) !number of velocity points, potentially using reduced distribution
   Sp%nVar             = Sp%nVarReduced
   IF (DVMDim.LT.3) Sp%nVar = Sp%nVar + Sp%nVarReduced ! variables for translational energy reduced distribution
-  IF ((DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20).AND.DVMBGKModel.EQ.1) THEN
-     ! variables for rotational energy reduced distribution (only for ESBGK)
+  IF ((DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20)) THEN
+     ! variables for rotational energy reduced distribution
     Sp%nVar = Sp%nVar + Sp%nVarReduced
     Sp%nVarErotStart = Sp%nVarReduced
     IF (DVMDim.LT.3) Sp%nVarErotStart = Sp%nVarErotStart + Sp%nVarReduced

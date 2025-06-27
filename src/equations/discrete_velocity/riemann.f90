@@ -117,6 +117,12 @@ REAL                                             :: ErelaxRot_L(DVMnSpecies),Ere
                                                     0.5*((Velo+abs(Velo))*Utemp_L(DVMSpecData(iSpec)%nVarReduced+upos) &
                                                        + (Velo-abs(Velo))*Utemp_R(DVMSpecData(iSpec)%nVarReduced+upos))
           END IF
+          IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
+            ! rotational energy reduced distribution
+            F(vFirstID+DVMSpecData(iSpec)%nVarErotStart+upos-1,Count_1,Count_2) = &
+                                                    0.5*((Velo+abs(Velo))*Utemp_L(DVMSpecData(iSpec)%nVarErotStart+upos) &
+                                                       + (Velo-abs(Velo))*Utemp_R(DVMSpecData(iSpec)%nVarErotStart+upos))
+          END IF
         END DO; END DO; END DO;
         DEALLOCATE(fTarget_L)
         DEALLOCATE(fTarget_R)

@@ -119,7 +119,6 @@ DO iSpec=1, DVMnSpecies
       thermalcond(iSpec) = 0.25 * 15. * mu(iSpec) * BoltzmannConst / Sp%Mass
     END IF
   END IF
-  IF (PRESENT(Erot)) Erot(iSpec) = densErot(iSpec)/dens(iSpec)
 
   rhoTotal = rhoTotal + Sp%Mass*dens(iSpec)
   dens(total) = dens(total) + dens(iSpec)
@@ -131,7 +130,7 @@ DO iSpec=1, DVMnSpecies
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
 END DO
-IF (PRESENT(Erot)) Erot(total) = densErot(total)/dens(total)
+IF (PRESENT(Erot)) Erot(:) = densErot(:)/dens(:)
 IF (PRESENT(charge)) RETURN
 
 uVelo(1:3,total) = rhoU(1:3,total)/rhoTotal
