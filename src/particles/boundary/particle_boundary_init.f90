@@ -230,9 +230,6 @@ USE MOD_PICDepo_Vars           ,ONLY: DoDirichletDeposition
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
 USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/

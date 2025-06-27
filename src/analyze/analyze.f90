@@ -584,7 +584,7 @@ USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,Outpu
 USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars             ,ONLY: iter
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 USE MOD_RecordPoints              ,ONLY: RecordPoints
 #endif
 USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
