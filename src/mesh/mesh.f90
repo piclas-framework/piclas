@@ -32,6 +32,7 @@ PUBLIC::DefineParametersMesh
 PUBLIC::Set_N_DG_Mapping
 #endif /*!(PP_TimeDiscMethod==700)*/
 
+INTEGER,PARAMETER :: PRM_P_ADAPTION_DBG2 = -2 ! Debugging
 INTEGER,PARAMETER :: PRM_P_ADAPTION_DBG  = -1 ! Debugging
 INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
@@ -662,6 +663,18 @@ CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
 CALL AddToElemData(ElementOutNloc,'Nloc',IntArray=N_DG)
 
 SELECT CASE(pAdaptionType)
+CASE(PRM_P_ADAPTION_DBG2) ! Debugging
+  ! Nloc = 2,3,4,5
+  DO iElem=1,nElems
+    N_DG(iElem) = 2
+    IF (iElem+offsetElem.eq.1) THEN
+      N_DG(iElem) = 4
+    ELSEIF (iElem+offsetElem.eq.2) THEN
+      N_DG(iElem) = 5
+    ELSEIF (iElem+offsetElem.eq.4) THEN
+      N_DG(iElem) = 3
+    END IF ! iElem+offset
+  END DO
 CASE(PRM_P_ADAPTION_DBG) ! Debugging
   ! Nloc = 2 for all elements, except for iGlogalElemID=1,6,10
   DO iElem=1,nElems
