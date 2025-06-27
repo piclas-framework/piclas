@@ -32,6 +32,7 @@ PUBLIC::DefineParametersMesh
 PUBLIC::Set_N_DG_Mapping
 #endif /*!(PP_TimeDiscMethod==700)*/
 
+INTEGER,PARAMETER :: PRM_P_ADAPTION_DBG  = -1 ! Debugging
 INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
 INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
 INTEGER,PARAMETER :: PRM_P_ADAPTION_NPB  = 2  ! Elements with non-periodic boundary sides get NMax
@@ -625,6 +626,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,rea
 USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
 USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
 USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT/OUTPUT VARIABLES
@@ -660,13 +662,25 @@ CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
 CALL AddToElemData(ElementOutNloc,'Nloc',IntArray=N_DG)
 
 SELECT CASE(pAdaptionType)
+CASE(PRM_P_ADAPTION_DBG) ! Debugging
+  ! Nloc = 2 for all elements, except for iGlogalElemID=1,6,10
+  DO iElem=1,nElems
+    N_DG(iElem) = 2
+    IF (iElem+offsetElem.eq.1) THEN
+      N_DG(iElem) = 1
+    ELSEIF (iElem+offsetElem.eq.6) THEN
+      N_DG(iElem) = 1
+    ELSEIF (iElem+offsetElem.eq.10) THEN
+      N_DG(iElem) = 1
+    END IF ! iElem+offset
+  END DO
 CASE(PRM_P_ADAPTION_ZERO)
   N_DG = PP_N ! By default, the initial degree is set to PP_N
 CASE(PRM_P_ADAPTION_RDN) ! Random between NMin and NMax
   DO iElem=1,nElems
     CALL RANDOM_NUMBER(RandVal)
     N_DG(iElem) = NMin + INT(RandVal*(NMax-NMin+1))
-END DO
+  END DO
 CASE(PRM_P_ADAPTION_NPB) ! Non-periodic BCs are set to NMax
   ! Get depth of increased polynomial degree
   pAdaptionBCLevel = GETINTFROMSTR('pAdaptionBCLevel')
