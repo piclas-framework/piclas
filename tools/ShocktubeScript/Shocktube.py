@@ -1,5 +1,5 @@
 #==================================================================================================================================
-# Copyright (c) 2010 - 2024 Prof. Claus-Dieter Munz and Prof. Stefanos Fasoulas
+# Copyright (c) 2010 - 2025 Raphael Tietz
 #
 # This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
