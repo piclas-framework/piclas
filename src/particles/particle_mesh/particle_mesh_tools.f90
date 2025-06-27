@@ -272,6 +272,11 @@ DO iLocSide=1,nlocSides
     END IF
   END IF
 END DO
+
+! Surpress compiler warning
+RETURN
+IF(PRESENT(Det_Out)) Det_Out = 0.0
+
 END SUBROUTINE ParticleInsideQuad2D
 
 SUBROUTINE ParticleInsideQuad1D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
@@ -316,6 +321,9 @@ DO iLocSide=1,nlocSides
   IF (iSide.EQ.2) EXIT
 END DO
 IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
+! Surpress compiler warning
+RETURN
+IF(PRESENT(Det_Out)) Det_Out = 0.0
 END SUBROUTINE ParticleInsideQuad1D
 
 
@@ -1581,7 +1589,7 @@ DO iElem = 1,nElems
         Elem_xGP_Shared (:,r+offSetDof) = N_VolMesh(iElem)%Elem_xGP (:,i,j,k)
       END DO
     END DO
-  END DO  
+  END DO
   dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 

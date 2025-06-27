@@ -73,7 +73,6 @@ USE MOD_MPI_HDG            ,ONLY: Mask_MPIsides
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge,eps0
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 USE MOD_HDG_Tools          ,ONLY: CG_solver,DisplayConvergence
-USE MOD_Mortar_Vars        ,ONLY: N_Mortar
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -102,7 +101,7 @@ PetscScalar, POINTER :: lambda_pointer(:)
 KSPConvergedReason   :: reason
 PetscInt             :: iterations
 PetscReal            :: petscnorm
-INTEGER              :: ElemID,iBCSide,PETScLocalID
+INTEGER              :: ElemID,iBCSide
 INTEGER              :: DOF_start, DOF_stop
 REAL                 :: timeStartPiclas,timeEndPiclas
 INTEGER              :: jLocSide
@@ -110,7 +109,7 @@ REAL                 :: Smatloc(nGP_face(NMax),nGP_face(NMax))
 INTEGER              :: iUniqueFPCBC
 #endif /*USE_PETSC*/
 INTEGER              :: iMortar, iType
-INTEGER              :: iGP, jGP, ip, iq, jp, jq
+! INTEGER              :: iGP, jGP, ip, iq, jp, jq
 REAL                 :: chitens_face(3,3)
 !===================================================================================================================================
 ! Dummy for chitens_face(:,:,p,q,SideID)

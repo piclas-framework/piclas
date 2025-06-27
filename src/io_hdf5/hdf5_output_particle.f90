@@ -60,7 +60,7 @@ USE MOD_io_HDF5
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars    ,ONLY: NodeSourceExtGlobal
-USE MOD_Mesh_Vars          ,ONLY: MeshFile,nGlobalElems,offsetElem,nElems
+USE MOD_Mesh_Vars          ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_Globals_Vars       ,ONLY: ProjectName
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
@@ -614,7 +614,7 @@ REAL,INTENT(IN),OPTIONAL       :: PreviousTime
 ! LOCAL VARIABLES
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames2(:)
 INTEGER(KIND=IK)               :: locnPart,offsetnPart
-INTEGER(KIND=IK)               :: iPart,globnPart(6)
+INTEGER(KIND=IK)               :: globnPart(6)
 CHARACTER(LEN=255)             :: FileName,PreviousFileName
 REAL                           :: PreviousTime_loc
 REAL                           :: StartT,EndT
@@ -1528,13 +1528,13 @@ SUBROUTINE WriteElectroMagneticPICFieldToHDF5()
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: ProjectName
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nGlobalElems, nElems,MeshFile,N_VolMesh
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,MeshFile,N_VolMesh
 USE MOD_Output_Vars            ,ONLY: UserBlockTmpFile,userblock_total_len
 USE MOD_Interpolation_Vars     ,ONLY: NodeType
 USE MOD_PICInterpolation_tools ,ONLY: GetExternalFieldAtParticle,GetEMField
 USE MOD_Restart_Vars           ,ONLY: RestartTime
-USE MOD_Interpolation_Vars     ,ONLY: N_Inter,InterpolationInitIsDone,Nmax,Nmin
-USE MOD_DG_Vars                ,ONLY: nDofsMapping,N_DG_Mapping,N_DG
+USE MOD_Interpolation_Vars     ,ONLY: N_Inter,Nmax,Nmin
+USE MOD_DG_Vars                ,ONLY: nDofsMapping,N_DG_Mapping
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
 USE MOD_IO_HDF5                ,ONLY: ElementOutNloc
 ! IMPLICIT VARIABLE HANDLING
@@ -1547,7 +1547,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)             :: FileName
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames(:)
-INTEGER                        :: nVal
 INTEGER,PARAMETER              :: nVarOut=6
 REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
 REAL                           :: StartT,EndT

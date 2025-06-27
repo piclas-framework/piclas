@@ -1895,7 +1895,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 !USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------

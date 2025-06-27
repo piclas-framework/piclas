@@ -642,7 +642,7 @@ USE MOD_Particle_Mesh_Vars          ,ONLY: ElemMidPoint_Shared,ElemToElemMapping
 USE MOD_Mesh_Tools                  ,ONLY: GetGlobalElemID
 USE MOD_Particle_Mesh_Vars          ,ONLY: NodeCoords_Shared
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: SFNorm
-USE MOD_Interpolation_Vars          ,ONLY: Nmax,Nmin
+USE MOD_Interpolation_Vars          ,ONLY: Nmax
 USE MOD_DG_Vars                     ,ONLY: N_DG_Mapping
 #if USE_MPI
 USE MOD_Globals                     ,ONLY: IERROR
