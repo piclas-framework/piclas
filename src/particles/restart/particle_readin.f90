@@ -48,39 +48,43 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC,Part
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,Species
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PS_N
 ! Restart
-USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,InterpolateSolution,RestartNullifySolution
-USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
+USE MOD_Restart_Vars           ,ONLY: RestartFile,RestartNullifySolution,DoMacroscopicRestart
 ! HDG
 #if USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
 #endif /*USE_HDG*/
 ! LoadBalance
 #if USE_LOADBALANCE
-USE MOD_Interpolation_Vars     ,ONLY: NMax
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
-USE MOD_LoadBalance_Vars       ,ONLY: NodeSourceExtEquiLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
+USE MOD_LoadBalance_Vars       ,ONLY: NodeSourceExtEquiLB
+USE MOD_Interpolation_Vars     ,ONLY: NMax
 USE MOD_Particle_Vars          ,ONLY: DelayTime
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_PICDepo_Vars           ,ONLY: PS_N
 USE MOD_TimeDisc_Vars          ,ONLY: time
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PS_N
+USE MOD_Restart_Vars           ,ONLY: InterpolateSolution,N_Restart
 USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM
 USE MOD_Interpolation_Vars     ,ONLY: N_Inter
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -95,30 +99,33 @@ INTEGER,PARAMETER                  :: ELEM_LastPartInd  = 2
 ! Counters
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart
 INTEGER                            :: iElem
-INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
+INTEGER                            :: FirstElemInd,LastelemInd
 INTEGER                            :: MaxQuantNum,iPolyatMole,iSpec,iVar,MaxElecQuant,iRead
 ! VarNames
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 LOGICAL,ALLOCATABLE                :: VariableMapped(:)
 ! HDF5 checkes
-LOGICAL                            :: VibQuantDataExists,changedVars,DGSourceExists
+LOGICAL                            :: VibQuantDataExists,changedVars
 LOGICAL                            :: ElecDistriDataExists,AD_DataExists
 LOGICAL                            :: FileVersionExists
 REAL                               :: FileVersionHDF5Real
 INTEGER                            :: FileVersionHDF5Int
 INTEGER                            :: PartDataSize_HDF5              ! number of entries in each line of PartData
-REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: PartSource(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: PartSourceTmp(:,:,:,:,:)
 ! Temporary arrays
 INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
 #if USE_LOADBALANCE
 ! LoadBalance
 INTEGER(KIND=IK)                   :: PartRank
-INTEGER                            :: offsetPartSend,offsetPartRecv,CNElemID
+INTEGER                            :: offsetPartSend,offsetPartRecv
 INTEGER,PARAMETER                  :: N_variables=1
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 REAL,ALLOCATABLE                   :: NodeSourceExtEquiLBTmp(:,:,:,:,:)
 INTEGER                            :: NodeID(1:8)
+INTEGER                            :: CNElemID
+REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSource(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSourceTmp(:,:,:,:,:)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_MPI
 ! MPI
 INTEGER                            :: iProc
@@ -134,8 +141,12 @@ TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 CHARACTER(LEN=32)                  :: hilf
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:),PartSourceloc(:,:,:,:)
+LOGICAL                            :: DGSourceExists
+INTEGER                            :: i,j,k
 INTEGER                            :: Nloc
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -485,6 +496,7 @@ ELSE
   ! ------------------------------------------------
 ! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
   IF(.NOT.RestartNullifySolution)THEN ! Use the solution in the restart file
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
     !-- read PartSource if relaxation is performed (might be needed for RecomputeEFieldHDG)
     IF (DoDeposition .AND. RelaxDeposition) THEN
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
@@ -547,6 +559,7 @@ ELSE
       END IF ! DGSourceExists
       CALL CloseDataFile()
     END IF ! DoDeposition .AND. RelaxDeposition
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
   END IF ! IF(.NOT. RestartNullifySolution)
 
   IF (DoMacroscopicRestart) RETURN

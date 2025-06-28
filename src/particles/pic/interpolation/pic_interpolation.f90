@@ -110,7 +110,9 @@ SUBROUTINE InitializeParticleInterpolation
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Particle_Vars         ,ONLY: PDM
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_PICInterpolation_Vars
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if USE_LOADBALANCE
@@ -124,8 +126,10 @@ USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 INTEGER                   :: ALLOCSTAT
 REAL                      :: scaleExternalField
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
@@ -365,6 +369,7 @@ END SELECT
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE ReadVariableExternalField()
 !===================================================================================================================================
 ! ATTENTION: The external field needs to be defined on equidistant data-points as either .csv or .h5 file
@@ -488,6 +493,7 @@ END IF
 
 LBWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
 END SUBROUTINE ReadVariableExternalFieldFromCSV
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 
 SUBROUTINE GetTimeDependentBGField()

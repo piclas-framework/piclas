@@ -709,7 +709,11 @@ DO iLocSide=2,5
     DO iMortar=1,4
       SideID2=nbSideIDs(iMortar)
       IF(SideID2.LT.1) CYCLE ! for MPI sides some sides are built from the inside and for type 2/3 there are only 2 neighbours
+#if (PP_TimeDiscMethod==700)
+      NSideMortar = PP_N
+#else
       NSideMortar = MAX(DG_Elems_slave(SideID2),DG_Elems_master(SideID2))
+#endif /*(PP_TimeDiscMethod==700)*/
       IF (Nloc.EQ.NSideMortar) THEN
         N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar)
         CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(1:3,1:3,0:Nloc,0:Nloc,iMortar),&
