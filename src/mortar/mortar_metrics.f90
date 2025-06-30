@@ -66,6 +66,7 @@ USE MOD_Preproc
 USE MOD_Mortar,      ONLY: MortarBasis_BigToSmall
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Interpolation_Vars,ONLY: NodeType
+USE MOD_DG_Vars     ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -78,7 +79,7 @@ REAL,INTENT(OUT)   :: Mortar_xGP( 3,0:Nloc,0:Nloc,4) !< mortarized face xGP
 INTEGER,INTENT(OUT):: nbSideID(4)                    !< index of neighbour sideIDs
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER  :: p,q,dir1,dir2,iNb,jNb,ind,SideIDMortar
+INTEGER  :: p,q,dir1,dir2,iNb,jNb,ind,SideIDMortar, NSideMortar
 REAL     :: M_0_12(0:Nloc,0:Nloc,2),M_0_12_h(0:Nloc,0:Nloc,2)
 REAL     :: Mortar_Ja2(1:3,1:3,0:Nloc,0:Nloc)
 REAL     :: Mortar_xGP2 (  1:3,0:Nloc,0:Nloc)
@@ -112,7 +113,8 @@ CASE(1) !1->4
     !now in eta
     DO jNb=1,2
       ind=iNb+2*(jNb-1)
-      IF(MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0) CYCLE !no slave sides (MPI)
+      NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)))
+      IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LT.NSideMortar)) CYCLE !no slave sides (MPI)
       nbSideID(ind)=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
 
       DO p=0,Nloc
@@ -128,7 +130,8 @@ CASE(1) !1->4
 
 CASE(2) !1->2 in eta
   DO jNb=1,2
-    IF(MortarInfo(E2S_FLIP,jNb,SideIDMortar).GT.0) CYCLE !no slave sides (MPI)
+    NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)))
+    IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LT.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(jNb)=MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)
 
     DO p=0,Nloc
@@ -143,7 +146,8 @@ CASE(2) !1->2 in eta
 
 CASE(3) !1->2 in xi
   DO iNb=1,2
-    IF(MortarInfo(E2S_FLIP,iNb,SideIDMortar).GT.0) CYCLE !no slave sides (MPI)
+    NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)))
+    IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LT.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(iNb)=MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)
 
     DO q=0,Nloc

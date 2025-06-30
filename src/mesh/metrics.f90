@@ -55,6 +55,9 @@ PUBLIC::BuildElem_xGP
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
+#if USE_MPI
+PUBLIC::CommSurfMetrics
+#endif
 !==================================================================================================================================
 
 CONTAINS
@@ -540,7 +543,6 @@ DO iLocSide=2,5
   ! Use maximum polynomial degree of master/slave sides
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-  !WRITE (*,*) "Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem) =", Nloc,NSideMax,ElemToSide(E2S_FLIP,iLocSide,iElem)
 
   ! TODO: maybe this has to be done differently between HDG and Maxwell
   IF(Nloc.LT.NSideMax)THEN
@@ -548,13 +550,11 @@ DO iLocSide=2,5
     ! Do not cycle here when exact flux is used because NormVec is then not built for loc.LT.NSideMax sides
 !    IF(.NOT.DoExactFlux)&
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
-!    CYCLE
+    CYCLE
   ELSE
     IF(DG_Elems_master(SideID).EQ.DG_Elems_slave(SideID).AND.(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) ) CYCLE ! only master sides with flip=0
     IF(ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) flipSide=.TRUE.
   END IF
-  !IF (ElemToSide(E2S_FLIP,iLocSide,iElem).NE.0) CYCLE
-  !Nloc = NSideMax
 #else
   Nloc = PP_N
 #endif /*!(PP_TimeDiscMethod==700)*/
@@ -577,10 +577,6 @@ DO iLocSide=2,5
   ! slave sides with higher polynomial degree
   IF(flipSide)THEN
     flip = SideToElem(S2E_FLIP,SideID)
-    !WRITE (*,*) "SideID,ilocside,Nloc,MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID)) =", SideID,ilocside,Nloc,MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
-    !WRITE (*,*) "flip =", flip
-    !WRITE (*,*) "flip,ElemToSide(E2S_FLIP,iLocSide,iElem) =", flip,ElemToSide(E2S_FLIP,iLocSide,iElem)
-    !read*
     tmpflip(1:3 , 0:Nloc , 0:Nloc) = tmp(1:3 , 0:Nloc , 0:Nloc)
     SELECT CASE(flip)
       !CASE(0) ! master side
@@ -714,47 +710,12 @@ DO iLocSide=2,5
 #else
       NSideMortar = MAX(DG_Elems_slave(SideID2),DG_Elems_master(SideID2))
 #endif /*(PP_TimeDiscMethod==700)*/
-      IF (Nloc.EQ.NSideMortar) THEN
-        N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar)
-        CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(1:3,1:3,0:Nloc,0:Nloc,iMortar),&
-                               N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
-                               N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
-      ELSE IF (NSideMortar.GT.NLoc) THEN
-        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
-                 Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar), Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar))
-        N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar)
-        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
-                 Mortar_Ja(1:3,1,0:Nloc,0:Nloc,iMortar), Mortar_Ja_loc(1:3,1,0:NSideMortar,0:NSideMortar))
-        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
-                 Mortar_Ja(1:3,2,0:Nloc,0:Nloc,iMortar), Mortar_Ja_loc(1:3,2,0:NSideMortar,0:NSideMortar))
-        CALL ChangeBasis2D(3, NLoc, NSideMortar, PREF_VDM(NLoc, NSideMortar)%Vdm, &
-                 Mortar_Ja(1:3,3,0:Nloc,0:Nloc,iMortar), Mortar_Ja_loc(1:3,3,0:NSideMortar,0:NSideMortar))
-        CALL SurfMetricsFromJa(NSideMortar,NormalDir,TangDir,NormalSign,Mortar_Ja_loc(1:3,1:3,0:NSideMortar,0:NSideMortar),&
-                               N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
-                               N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
-      ELSE IF (NSideMortar.LT.NLoc) THEN
-!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
-!                Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar), Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar))
-!        ! Switch back to nodal basis but cut-off the higher-order DOFs (go from N_master to N_master)
-!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
-!                Mortar_xGP(1:3, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar))
-!        N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP_loc(1:3,0:NSideMortar,0:NSideMortar)
-!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
-!                Mortar_Ja(1:3,1,0:Nloc,0:Nloc,iMortar), Mortar_Ja(1:3,1,0:Nloc,0:Nloc,iMortar))
-!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
-!                Mortar_Ja(1:3,2,0:Nloc,0:Nloc,iMortar), Mortar_Ja(1:3,2,0:Nloc,0:Nloc,iMortar))
-!        CALL ChangeBasis2D(3, NLoc, NLoc, N_Inter(NLoc)%sVdm_Leg, &
-!                Mortar_Ja(1:3,3,0:Nloc,0:Nloc,iMortar), Mortar_Ja(1:3,3,0:Nloc,0:Nloc,iMortar))
-!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
-!                Mortar_Ja(1:3,1, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_Ja_loc(1:3,1,0:NSideMortar,0:NSideMortar))
-!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
-!                Mortar_Ja(1:3,2, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_Ja_loc(1:3,2,0:NSideMortar,0:NSideMortar))
-!        CALL ChangeBasis2D(3, NSideMortar, NSideMortar, N_Inter(NSideMortar)%Vdm_Leg, &
-!                Mortar_Ja(1:3,3, 0:NSideMortar, 0:NSideMortar ,iMortar), Mortar_Ja_loc(1:3,3,0:NSideMortar,0:NSideMortar))
-!        CALL SurfMetricsFromJa(NSideMortar,NormalDir,TangDir,NormalSign,Mortar_Ja_loc(1:3,3,0:NSideMortar,0:NSideMortar),&
-!                               N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
-!                               N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
-      END IF
+      IF(Nloc.LT.NSideMortar) CYCLE
+      N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar)
+      CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(1:3,1:3,0:Nloc,0:Nloc,iMortar),&
+                             N_SurfMesh(SideID2)%NormVec(:,:,:),N_SurfMesh(SideID2)%TangVec1(:,:,:),&
+                             N_SurfMesh(SideID2)%TangVec2(:,:,:),N_SurfMesh(SideID2)%SurfElem(:,:))
+
     END DO ! iMortar=1,4
 
   END IF ! MortarType(1,SideID).GT.0
@@ -834,5 +795,44 @@ DO q=0,Nloc; DO p=0,Nloc
 END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa
 
+#if USE_MPI
+!==================================================================================================================================
+!> Computes surface normal and tangential vectors and surface area from surface metrics Ja_Face.
+!==================================================================================================================================
+SUBROUTINE CommSurfMetrics()
+! MODULES
+USE MOD_MPI_Vars
+USE MOD_MPI                ,ONLY:StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
+!----------------------------------------------------------------------------------------------------------------------------------
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!==================================================================================================================================
+CALL StartReceiveMPIDataType(RecRequest_U,SendID=10)
+CALL StartSendMPIDataType(SendRequest_U,SendID=10)
+CALL FinishExchangeMPIDataType(SendRequest_U,RecRequest_U,SendID=10)
+
+CALL StartReceiveMPIDataType(RecRequest_U,SendID=11)
+CALL StartSendMPIDataType(SendRequest_U,SendID=11)
+CALL FinishExchangeMPIDataType(SendRequest_U,RecRequest_U,SendID=11)
+
+CALL StartReceiveMPIDataType(RecRequest_U,SendID=12)
+CALL StartSendMPIDataType(SendRequest_U,SendID=12)
+CALL FinishExchangeMPIDataType(SendRequest_U,RecRequest_U,SendID=12)
+
+CALL StartReceiveMPIDataType(RecRequest_U,SendID=13)
+CALL StartSendMPIDataType(SendRequest_U,SendID=13)
+CALL FinishExchangeMPIDataType(SendRequest_U,RecRequest_U,SendID=13)
+
+DO iNbProc=1,nNbProcs
+  DEALLOCATE(DGExchange(iNbProc)%FaceDataRecvVec)
+  DEALLOCATE(DGExchange(iNbProc)%FaceDataSendVec)
+  DEALLOCATE(DGExchange(iNbProc)%FaceDataRecvSurf)
+  DEALLOCATE(DGExchange(iNbProc)%FaceDataSendSurf)
+END DO !iProc=1,nNBProcs
+END SUBROUTINE CommSurfMetrics
+#endif
 
 END MODULE MOD_Metrics

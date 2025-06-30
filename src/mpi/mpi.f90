@@ -359,17 +359,31 @@ INTEGER,INTENT(IN)  :: SendID                                                 !<
 TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)                                   !< communication handles
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER             :: SendIDLoc
 !===================================================================================================================================
+IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13)) THEN
+  SendIDLoc = 2
+ELSE
+  SendIDLoc = SendID
+END IF
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+  IF(nMPISides_rec(iNbProc,SendIDLoc).GT.0)THEN
     ! Send slave U or Flux when no PML is active
-    IF(SendID.EQ.2.OR.(.NOT.DoPML))THEN
-      nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendID)
+    IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12)) THEN
+      nRecVal = 3*DataSizeSideRec(iNbProc,SendIDLoc)
+      CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvVec,nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+    ELSE IF(SendID.EQ.13) THEN
+      nRecVal = DataSizeSideRec(iNbProc,SendIDLoc)
+      CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvSurf,nRecVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
+    ELSE IF(SendID.EQ.2.OR.(.NOT.DoPML))THEN
+      nRecVal = PP_nVar*DataSizeSideRec(iNbProc,SendIDLoc)
       ! FaceDataRecvU(1:PP_nVar,1:DataSizeSideRec(iNbProc,SendID))
       CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvU,nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
     ELSE
-      nRecVal = (PP_nVar+PMLnVar)*DataSizeSideRec(iNbProc,SendID)
+      nRecVal = (PP_nVar+PMLnVar)*DataSizeSideRec(iNbProc,SendIDLoc)
       ! FaceDataRecvFlux(1:PP_nVar+PMLnVar,1:DataSizeSideRec(iNbProc,SendID))
       CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvFlux,nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
@@ -507,7 +521,8 @@ SUBROUTINE StartSendMPIDataType(MPIRequest,SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
+USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave, DG_Elems_master
+USE MOD_Mesh_Vars,ONLY: N_SurfMesh
 #if !(USE_HDG)
 USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
 #endif /*!(USE_HDG)*/
@@ -521,15 +536,76 @@ INTEGER, INTENT(IN)          :: SendID
 TYPE(MPI_Request), INTENT(OUT)         :: MPIRequest(nNbProcs)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                      :: i,p,q,iSide,N_slave
+INTEGER                      :: i,p,q,iSide,N_slave, SendIDLoc
 !===================================================================================================================================
+IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13)) THEN
+  SendIDLoc = 2
+ELSE
+  SendIDLoc = SendID
+END IF
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
-    SideID_start = OffsetMPISides_send(iNbProc-1,SendID)+1
-    SideID_end   = OffsetMPISides_send(iNbProc,SendID)
+  IF(nMPISides_send(iNbProc,SendIDLoc).GT.0)THEN
+    SideID_start = OffsetMPISides_send(iNbProc-1,SendIDLoc)+1
+    SideID_end   = OffsetMPISides_send(iNbProc,SendIDLoc)
 
     i = 1
-    IF(SendID.EQ.2)THEN
+   IF (SendID.EQ.10) THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%NormVec(1:3,p,q) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
+      ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)   
+   ELSE IF (SendID.EQ.11) THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%TangVec1(1:3,p,q) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
+      ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)   
+   ELSE IF (SendID.EQ.12) THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%TangVec2(1:3,p,q) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
+      ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError) 
+   ELSE IF (SendID.EQ.13) THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            DGExchange(iNbProc)%FaceDataSendSurf(i) = N_SurfMesh(iSide)%SurfElem(p,q) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      nSendVal = DataSizeSideSend(iNbProc,SendIDLoc)
+      ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendSurf,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)     
+   ELSE IF(SendID.EQ.2)THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
@@ -539,7 +615,7 @@ DO iNbProc=1,nNbProcs
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
       END DO ! iSide = SideID_start, SideID_end
-      nSendVal = PP_nVar*DataSizeSideSend(iNbProc,SendID)
+      nSendVal = PP_nVar*DataSizeSideSend(iNbProc,SendIDLoc)
       ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
       CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendU,nSendVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
@@ -554,7 +630,7 @@ DO iNbProc=1,nNbProcs
             END DO ! q = 0, N_slave
           END DO ! p = 0, N_slave
         END DO ! iSide = SideID_start, SideID_end
-        nSendVal = (PP_nVar+PMLnVar)*DataSizeSideSend(iNbProc,SendID)
+        nSendVal = (PP_nVar+PMLnVar)*DataSizeSideSend(iNbProc,SendIDLoc)
         ! FaceDataSendFlux(1:PP_nVar+PMLnVar,1:DataSizeSideSend(iNbProc,SendID))
         CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendFlux,nSendVal,MPI_DOUBLE_PRECISION,  &
                         nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
@@ -569,7 +645,7 @@ DO iNbProc=1,nNbProcs
             END DO ! q = 0, N_slave
           END DO ! p = 0, N_slave
         END DO ! iSide = SideID_start, SideID_end
-        nSendVal = PP_nVar*DataSizeSideSend(iNbProc,SendID)
+        nSendVal = PP_nVar*DataSizeSideSend(iNbProc,SendIDLoc)
         ! FaceDataSendFlux(1:PP_nVar+PMLnVar,1:DataSizeSideSend(iNbProc,SendID))
         CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendU,nSendVal,MPI_DOUBLE_PRECISION,  &
                         nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
@@ -858,7 +934,8 @@ SUBROUTINE FinishExchangeMPIDataType(SendRequest,RecRequest,SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
+USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave, DG_Elems_master
+USE MOD_Mesh_Vars,ONLY: N_SurfMesh
 #if !(USE_HDG)
 USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
 #endif /*!(USE_HDG)*/
@@ -876,15 +953,21 @@ TYPE(MPI_Request), INTENT(INOUT)       :: SendRequest(nNbProcs),RecRequest(nNbPr
 INTEGER(KIND=8)               :: CounterStart,CounterEnd
 REAL(KIND=8)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
-INTEGER                       :: i,p,q,iSide,N_slave
+INTEGER                       :: i,p,q,iSide,N_slave, SendIDLoc
 !===================================================================================================================================
 #if defined(MEASURE_MPI_WAIT)
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
+IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13)) THEN
+  SendIDLoc = 2
+ELSE
+  SendIDLoc = SendID
+END IF
+
 ! Check receive operations first
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
+  IF(nMPISides_rec(iNbProc,SendIDLoc).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
     IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
   END IF
@@ -899,7 +982,7 @@ END DO !iProc=1,nNBProcs
 
 ! Check send operations
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
+  IF(nMPISides_send(iNbProc,SendIDLoc).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
     IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
   END IF
@@ -913,12 +996,56 @@ END DO !iProc=1,nNBProcs
 
 ! Unroll data
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
-    SideID_start = OffsetMPISides_rec(iNbProc-1,SendID)+1
-    SideID_end   = OffsetMPISides_rec(iNbProc,SendID)
+  IF(nMPISides_rec(iNbProc,SendIDLoc).GT.0)THEN
+    SideID_start = OffsetMPISides_rec(iNbProc-1,SendIDLoc)+1
+    SideID_end   = OffsetMPISides_rec(iNbProc,SendIDLoc)
 
     i = 1
-    IF(SendID.EQ.2)THEN
+    IF(SendID.EQ.10)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            IF (N_slave.GT.DG_Elems_master(iSide)) &
+              N_SurfMesh(iSide)%NormVec(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE IF(SendID.EQ.11)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            IF (N_slave.GT.DG_Elems_master(iSide)) &
+              N_SurfMesh(iSide)%TangVec1(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE IF(SendID.EQ.12)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            IF (N_slave.GT.DG_Elems_master(iSide)) &
+              N_SurfMesh(iSide)%TangVec2(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE IF(SendID.EQ.13)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            IF (N_slave.GT.DG_Elems_master(iSide)) &
+              N_SurfMesh(iSide)%SurfElem(p,q) = DGExchange(iNbProc)%FaceDataRecvSurf(i) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE IF(SendID.EQ.2)THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
