@@ -180,14 +180,26 @@ REAL,INTENT(INOUT) :: SurfElem(                     0:N_max   ,0:N_max)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE   :: Uloc(:,:,:),Fluxloc(:,:,:),Fluxdie(:,:,:)
-INTEGER            :: p,q
+INTEGER            :: p,q,nVarLoc
 !===================================================================================================================================
+! Check if PML is active
+nVarLoc = PP_nVar
+IF (PMLnVar.GT.0) THEN
+  ! Check if side is PML to PML or PML to vacuum interface
+  IF (InterfaceRiemann(SideID).EQ.RIEMANN_PML) THEN
+    nVarLoc = PP_nVar+PMLnVar
+  END IF ! InterfaceRiemann(SideID)
+ELSE
 
+END IF ! PMLnVar.GT.0
+
+
+! Check polynomial degree of both sides of the Riemann problem
 IF(N_master.EQ.N_slave) THEN ! both sides have the same polynomial degree, nothing to be done
-  CALL Riemann(N_master, Flux_Master, Flux_Slave, U_Master, U_Slave, NormVec, SideID)
+  CALL Riemann(N_master, nVarLoc, Flux_Master(1:nVarLoc,:,:), Flux_Slave(1:nVarLoc,:,:), U_Master, U_Slave, NormVec, SideID)
 
   DO q=0,N_master; DO p=0,N_master
-    Flux_Master(:,p,q)=Flux_Master(:,p,q)*SurfElem(p,q)
+    Flux_Master(1:nVarLoc,p,q)=Flux_Master(1:nVarLoc,p,q)*SurfElem(p,q)
   END DO; END DO
 
   SELECT CASE(InterfaceRiemann(SideID))
@@ -195,28 +207,28 @@ IF(N_master.EQ.N_slave) THEN ! both sides have the same polynomial degree, nothi
     ! use non-conserving fluxes (two different fluxes for master and slave side)
     ! slaves sides have already been calculated
     DO q=0,N_slave; DO p=0,N_slave
-      Flux_Slave(:,p,q)=Flux_Slave(:,p,q)*SurfElem(p,q)
+      Flux_Slave(1:nVarLoc,p,q)=Flux_Slave(1:nVarLoc,p,q)*SurfElem(p,q)
     END DO; END DO
   CASE DEFAULT
     ! 4. copy flux from master side to slave side: DO not change sign
-    Flux_Slave(:,:,:) = Flux_Master(:,:,:)
+    Flux_Slave(1:nVarLoc,:,:) = Flux_Master(1:nVarLoc,:,:)
   END SELECT
 
 ELSEIF(N_master.GT.N_slave) THEN
-  ALLOCATE(Uloc(   PP_nVar        ,0:N_master,0:N_master))
-  ALLOCATE(Fluxloc(PP_nVar+PMLnVar,0:N_master,0:N_master))
+  ALLOCATE(Uloc(   PP_nVar,0:N_master,0:N_master))
+  ALLOCATE(Fluxloc(nVarLoc,0:N_master,0:N_master))
   CALL ChangeBasis2D(PP_nVar, N_slave, N_master, PREF_VDM(N_slave,N_master)%Vdm, &
            U_Slave(1:PP_nVar , 0:N_slave  , 0:N_slave)   , &
               Uloc(1:PP_nVar , 0:N_master , 0:N_master))
-  CALL Riemann(N_master, Flux_Master, Fluxloc, U_Master, Uloc, NormVec, SideID)
+  CALL Riemann(N_master, nVarLoc, Flux_Master(1:nVarLoc,:,:), Fluxloc, U_Master, Uloc, NormVec, SideID)
 
   DO q=0,N_master; DO p=0,N_master
-    Flux_Master(:,p,q)=Flux_Master(:,p,q)*SurfElem(p,q)
+    Flux_Master(1:nVarLoc,p,q)=Flux_Master(1:nVarLoc,p,q)*SurfElem(p,q)
   END DO; END DO
 
   SELECT CASE(InterfaceRiemann(SideID))
   CASE(RIEMANN_DIELECTRIC2VAC_NC,RIEMANN_VAC2DIELECTRIC_NC)
-    ALLOCATE(Fluxdie(PP_nVar+PMLnVar,0:N_master,0:N_master))
+    ALLOCATE(Fluxdie(nVarLoc,0:N_master,0:N_master))
     ! use non-conserving fluxes (two different fluxes for master and slave side)
     ! slaves sides have already been calculated
     DO q=0,N_master; DO p=0,N_master
@@ -224,52 +236,53 @@ ELSEIF(N_master.GT.N_slave) THEN
     END DO; END DO
 
     !transform the slave side to the same degree as the master: switch to Legendre basis
-    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_master, N_master,N_Inter(N_master)%sVdm_Leg,Fluxloc(1:PP_nVar+PMLnVar,0:N_master,0:N_master), Fluxdie(1:PP_nVar+PMLnVar,0:N_master,0:N_master))
+    CALL ChangeBasis2D(nVarLoc, N_master, N_master,N_Inter(N_master)%sVdm_Leg,Fluxloc(1:nVarLoc,0:N_master,0:N_master), Fluxdie(1:nVarLoc,0:N_master,0:N_master))
     !Fluxdie(:, N_slave+1:N_master,         0:N_master) = 0.0 ! set unnecessary modes to zero
     !Fluxdie(:,         0:N_master, N_slave+1:N_master) = 0.0 ! set unnecessary modes to zero
     ! switch back to nodal basis
-    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_slave , N_slave, N_Inter(N_slave)%Vdm_Leg  ,Fluxdie(1:PP_nVar+PMLnVar,0:N_slave,0:N_slave),Flux_Slave(1:PP_nVar+PMLnVar,0:N_slave,0:N_slave))
+    CALL ChangeBasis2D(nVarLoc, N_slave , N_slave, N_Inter(N_slave)%Vdm_Leg  ,Fluxdie(1:nVarLoc,0:N_slave,0:N_slave),Flux_Slave(1:nVarLoc,0:N_slave,0:N_slave))
   CASE DEFAULT
     ! 4. copy flux from master side to slave side: DO not change sign
     !Flux_Slave(:,:,:,SideID) = Flux_master(:,:,:,SideID)
 
     !transform the slave side to the same degree as the master: switch to Legendre basis
-    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_master,N_master,N_Inter(N_master)%sVdm_Leg,Flux_Master(1:PP_nVar+PMLnVar,0:N_master,0:N_master), Fluxloc(1:PP_nVar+PMLnVar,0:N_master,0:N_master))
+    CALL ChangeBasis2D(nVarLoc, N_master,N_master,N_Inter(N_master)%sVdm_Leg,Flux_Master(1:nVarLoc,0:N_master,0:N_master), Fluxloc(1:nVarLoc,0:N_master,0:N_master))
     !Fluxdie(:, N_slave+1:N_master,         0:N_master) = 0.0 ! set unnecessary modes to zero
     !Fluxdie(:,         0:N_master, N_slave+1:N_master) = 0.0 ! set unnecessary modes to zero
     ! switch back to nodal basis
-    CALL ChangeBasis2D(PP_nVar+PMLnVar, N_slave ,N_slave ,N_Inter(N_slave)%Vdm_Leg  ,    Fluxloc(1:PP_nVar+PMLnVar,0:N_slave,0:N_slave),Flux_Slave(1:PP_nVar+PMLnVar,0:N_slave,0:N_slave))
+    CALL ChangeBasis2D(nVarLoc, N_slave ,N_slave ,N_Inter(N_slave)%Vdm_Leg  ,    Fluxloc(1:nVarLoc,0:N_slave,0:N_slave),Flux_Slave(1:nVarLoc,0:N_slave,0:N_slave))
   END SELECT
 ELSE ! N_slave > N_master
-  ALLOCATE(Uloc(   PP_nVar        ,0:N_slave,0:N_slave))
-  ALLOCATE(Fluxloc(PP_nVar+PMLnVar,0:N_slave,0:N_slave))
+  ALLOCATE(Uloc(   PP_nVar,0:N_slave,0:N_slave))
+  ALLOCATE(Fluxloc(nVarLoc,0:N_slave,0:N_slave))
+  Fluxloc = 0.
   CALL ChangeBasis2D(PP_nVar, N_master, N_slave, PREF_VDM(N_master,N_slave)%Vdm, &
           U_Master(1:PP_nVar , 0:N_master , 0:N_master) , &
               Uloc(1:PP_nVar , 0:N_slave  , 0:N_slave))
-  CALL Riemann(N_slave, Fluxloc, Flux_Slave, Uloc, U_Slave, NormVec, SideID)
+  CALL Riemann(N_slave, nVarLoc, Fluxloc, Flux_Slave(1:nVarLoc,:,:), Uloc, U_Slave, NormVec, SideID)
 
   DO q=0,N_slave; DO p=0,N_slave
     Fluxloc(:,p,q)=Fluxloc(:,p,q)*SurfElem(p,q)
   END DO; END DO
 
-  ALLOCATE(Fluxdie(PP_nVar+PMLnVar,0:N_slave,0:N_slave))
+  ALLOCATE(Fluxdie(nVarLoc,0:N_slave,0:N_slave))
   !transform the slave side to the same degree as the master: switch to Legendre basis
-  CALL ChangeBasis2D(PP_nVar+PMLnVar, N_slave,N_slave, N_Inter(N_slave)%sVdm_Leg,Fluxloc(1:PP_nVar+PMLnVar,0:N_slave,0:N_slave),      Fluxdie(1:PP_nVar+PMLnVar,0:N_slave,0:N_slave))
+  CALL ChangeBasis2D(nVarLoc, N_slave,N_slave, N_Inter(N_slave)%sVdm_Leg,Fluxloc(1:nVarLoc,0:N_slave,0:N_slave),      Fluxdie(1:nVarLoc,0:N_slave,0:N_slave))
   !Fluxdie(:, N_slave+1:N_slave,         0:N_slave) = 0.0 ! set unnecessary modes to zero
   !Fluxdie(:,         0:N_slave, N_slave+1:N_slave) = 0.0 ! set unnecessary modes to zero
   ! switch back to nodal basis
-  CALL ChangeBasis2D(PP_nVar+PMLnVar,N_master,N_master,N_Inter(N_master)%Vdm_Leg,Fluxdie(1:PP_nVar+PMLnVar,0:N_master,0:N_master),Flux_Master(1:PP_nVar+PMLnVar,0:N_master,0:N_master))
+  CALL ChangeBasis2D(nVarLoc,N_master,N_master,N_Inter(N_master)%Vdm_Leg,Fluxdie(1:nVarLoc,0:N_master,0:N_master),Flux_Master(1:nVarLoc,0:N_master,0:N_master))
 
   SELECT CASE(InterfaceRiemann(SideID))
   CASE(RIEMANN_DIELECTRIC2VAC_NC,RIEMANN_VAC2DIELECTRIC_NC)
     ! use non-conserving fluxes (two different fluxes for master and slave side)
     ! slaves sides have already been calculated
     DO q=0,N_slave; DO p=0,N_slave
-      Flux_Slave(:,p,q)=Flux_Slave(:,p,q)*SurfElem(p,q)
+      Flux_Slave(1:nVarLoc,p,q)=Flux_Slave(1:nVarLoc,p,q)*SurfElem(p,q)
     END DO; END DO
   CASE DEFAULT
     ! 4. copy flux from master side to slave side: DO not change sign
-    Flux_Slave(:,:,:) = Fluxloc(:,:,:)
+    Flux_Slave(1:nVarLoc,:,:) = Fluxloc(1:nVarLoc,:,:)
   END SELECT
 END IF
 SDEALLOCATE(Uloc)

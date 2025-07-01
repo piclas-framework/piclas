@@ -59,7 +59,7 @@ PUBLIC::Riemann,RiemannVacuum,RiemannPML,Exactflux,RiemannDielectric,RiemannDiel
 
 CONTAINS
 
-SUBROUTINE Riemann(Nloc,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
+SUBROUTINE Riemann(Nloc,nVarLoc,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,SideID)
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -80,14 +80,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)   :: Nloc
+INTEGER,INTENT(IN)   :: nVarLoc
 INTEGER,INTENT(IN)   :: SideID
 REAL,INTENT(IN)      :: NormVec(PP_nVar,0:Nloc,0:Nloc)
 REAL,INTENT(IN)      :: U_master(PP_nVar,0:Nloc,0:Nloc)
 REAL,INTENT(IN)      :: U_slave (PP_nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)   :: Flux_Master(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
-REAL,INTENT(INOUT)   :: Flux_Slave(1:PP_nVar+PMLnVar,0:Nloc,0:Nloc)
+REAL,INTENT(INOUT)   :: Flux_Master(1:nVarLoc,0:Nloc,0:Nloc)
+REAL,INTENT(INOUT)   :: Flux_Slave( 1:nVarLoc,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL,ALLOCATABLE      :: DieLoc(:,:,:), DieTmp(:,:,:)
