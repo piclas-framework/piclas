@@ -264,7 +264,9 @@ dirPm2iSide(1,3) = ZETA_MINUS
 dirPm2iSide(2,3) = ZETA_PLUS
 
 ! -------------------------------------------------------------------------------------------------
-! TODO NSideMin - N_SurfMesh: Fill NSide. I do not know if it is a good idea to do that here...
+! Fill NSide for each side.
+! For Mortars, DG_Elems_slave(iSide) = -1 for the large mortar side.
+! -> Loop over all large mortar sides and fill NSide with the min/max of all shared sides.
 DO iSide = 1, nSides
   IF(UseNSideMin) THEN
     NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
@@ -314,9 +316,6 @@ DO iNbProc=1,nNbProcs
   ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMax(iNbProc,:))))
   ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMax(iNbProc,:))))
 END DO !iProc=1,nNBProcs
-CALL StartReceiveMPISurfDataType(RecRequest_Geo, 1, 1)
-CALL StartSendMPISurfDataType(SendRequest_Geo,1,1)
-CALL FinishExchangeMPISurfDataType(SendRequest_Geo,RecRequest_Geo,1, 1)
 DO iNbProc=1,nNbProcs
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataRecv)
   DEALLOCATE(SurfExchange(iNbProc)%SurfDataSend)
@@ -335,18 +334,6 @@ END DO !iProc=1,nNBProcs
 #endif /*USE_MPI*/
 
 ! -------------------------------------------------------------------------------------------------
-! 3. Build SurfElemMin for all sides (including Mortar sides)
-DO iSide = 1, nSides
-  ! Get SurfElemMin
-  NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-  IF(NSideMax.EQ.NSideMin)THEN
-    N_SurfMesh(iSide)%SurfElemMin(:,:) = N_SurfMesh(iSide)%SurfElem(:,:)
-  ELSE
-    CALL ChangeBasis2D(1,NSideMax,NSideMin,PREF_VDM(NSideMax,NSideMin)%Vdm,N_SurfMesh(iSide)%SurfElem(0:NSideMax,0:NSideMax), &
-                                                                          N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
-  END IF ! NSideMax.EQ.NSideMin
-END DO ! iSide = 1, nSides
 
 
 ! 4. Initialize BR electron fluid model
@@ -475,7 +462,7 @@ END DO
 IF(nNeumannBCsides.GT.0)THEN
   DO iNeumannBCsides = 1, nNeumannBCsides
     SideID = NeumannBC(iNeumannBCsides)
-    Nloc = DG_Elems_master(SideID)
+    Nloc = N_SurfMesh(SideID)%NSide
     ALLOCATE(HDG_Surf_N(SideID)%qn_face(PP_nVar, nGP_face(Nloc)))
   END DO ! iNeumannBCsides = 1, nNeumannBCsides
   END IF
@@ -489,8 +476,8 @@ DO Nloc = 1, NMax
     DO i=0,Nloc
       N_Inter(Nloc)%LL_minus(i,j) = N_Inter(Nloc)%L_minus(i)*N_Inter(Nloc)%L_minus(j)
       N_Inter(Nloc)%LL_plus(i,j)  = N_Inter(Nloc)%L_plus(i)*N_Inter(Nloc)%L_plus(j)
-END DO
-END DO
+    END DO
+  END DO
 
   ALLOCATE(N_Inter(Nloc)%Lomega_m(0:Nloc))
   ALLOCATE(N_Inter(Nloc)%Lomega_p(0:Nloc))
@@ -511,8 +498,8 @@ END DO !s
   DO k=0,Nloc
     DO j=0,Nloc
       DO i=0,Nloc
-    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
-    N_Inter(Nloc)%wGP_vol(r)=N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)
+        r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+        N_Inter(Nloc)%wGP_vol(r)=N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)
       END DO
     END DO
   END DO !i,j,k
@@ -538,7 +525,7 @@ DO iElem=1,PP_nElems
   Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
 
-  CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
+CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 
 ! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
 DO iElem = 1, PP_nElems

@@ -492,13 +492,13 @@ IF (ABS(meshMode).GT.1) THEN
     ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:N_max,0:N_max))
     ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:N_max,0:N_max))
-    ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+    !!!ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
     N_SurfMesh(iSide)%Face_xGP = 0.
     N_SurfMesh(iSide)%NormVec  = 0.
     N_SurfMesh(iSide)%TangVec1 = 0.
     N_SurfMesh(iSide)%TangVec2 = 0.
     N_SurfMesh(iSide)%SurfElem = 0.
-    N_SurfMesh(iSide)%SurfElemMin= 0.
+    !!!N_SurfMesh(iSide)%SurfElemMin= 0.
   END DO ! iSide = 1, nSides
 
 #if !(USE_FV) || (USE_HDG)

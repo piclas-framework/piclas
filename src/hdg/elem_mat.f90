@@ -54,6 +54,7 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: N_Mesh
+USE MOD_ProlongToFace      ,ONLY:ProlongToFace_Side
 #ifdef VDM_ANALYTICAL
 USE MOD_Mathtools          ,ONLY: INVERSE_LU
 #else
@@ -84,6 +85,7 @@ REAL                 :: Ktilde(3,3)
 REAL                 :: Stmp1(nGP_vol(Nmax),nGP_face(Nmax)), Stmp2(nGP_face(Nmax),nGP_face(Nmax))
 INTEGER              :: idx(3),jdx(3),gdx(3)
 REAL                 :: time0, time
+REAL                 :: SurfElemLoc(0:Nmax,0:Nmax,6), Ja_tmp(3,0:NMax,0:NMax), Ja_vol(3,0:NMax,0:NMax,0:NMax)
 !===================================================================================================================================
 
 IF(DoDisplayIter)THEN
@@ -100,6 +102,23 @@ DO iElem=1,PP_nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   SideID(:)=ElemToSide(E2S_SIDE_ID,:,iElem)
   Flip(:)  =ElemToSide(E2S_FLIP,:,iElem)
+
+  ! Calculate SurfElem
+  DO iLocSide=1,6
+    iSide = SideID(iLocSide)
+    SELECT CASE(iLocSide)
+      CASE(XI_MINUS,XI_PLUS)
+        Ja_vol(:,0:Nloc,0:Nloc,0:Nloc) = N_VolMesh(iElem)%Metrics_fTilde
+      CASE(ETA_MINUS,ETA_PLUS)
+        Ja_vol(:,0:Nloc,0:Nloc,0:Nloc) = N_VolMesh(iElem)%Metrics_gTilde
+      CASE(ZETA_MINUS,ZETA_PLUS)
+        Ja_vol(:,0:Nloc,0:Nloc,0:Nloc) = N_VolMesh(iElem)%Metrics_hTilde
+    END SELECT
+    CALL ProlongToFace_Side(3,Nloc,iLocSide,Flip(iLocSide),Ja_vol(:,0:Nloc,0:Nloc,0:Nloc),Ja_tmp(:,0:Nloc,0:Nloc))
+    DO q=0,Nloc; DO p=0,Nloc
+      SurfElemLoc(p,q,iLocSide) = SQRT(SUM(Ja_tmp(:,p,q)**2))
+    END DO; END DO
+  END DO
 
   ! Loop over the Gauss points with indexes (g1,g2,g3); for each
   ! point, compute all the i,j contributions in the local matrices.
@@ -131,13 +150,7 @@ DO iElem=1,PP_nElems
                      l1=> N_Mesh(Nloc)%VolToSideIJKA(1,g1,g2,g3,Flip(iLocSide),iLocSide), &
                      l2=> N_Mesh(Nloc)%VolToSideIJKA(2,g1,g2,g3,Flip(iLocSide),iLocSide)  )
               iSide = SideID(iLocSide)
-              ! TODO NSideMin - SurfElemMin
-              NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-              IF(Nloc.EQ.NSideMax)THEN
-                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElem(p,q)
-              ELSE
-                Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*N_SurfMesh(iSide)%SurfElemMin(p,q)
-              END IF
+              Taus(pm(iLocSide),SideDir(iLocSide))=N_Inter(Nloc)%wGP(l1)*N_Inter(Nloc)%wGP(l2)*SurfElemLoc(p,q,iLocSide)
            END ASSOCIATE
          END DO !iLocSide
 
@@ -287,14 +300,7 @@ DO iElem=1,PP_nElems
     ! then combined with to Smat  = Smat - F
     DO q=0,Nloc; DO p=0,Nloc
       i=q*(Nloc+1)+p+1
-      iSide = SideID(jLocSide)
-      ! TODO NSideMin - SurfElemMin
-      NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
-      IF(Nloc.EQ.NSideMax)THEN
-        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElem(p,q)
-      ELSE
-        Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*N_SurfMesh(iSide)%SurfElemMin(p,q)
-      END IF
+      Fdiag_i = - Tau(ielem)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)*SurfElemLoc(p,q,jLocSide)
       HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) = HDG_Vol_N(iElem)%Smat(i,i,jLocSide,jLocSide) -Fdiag_i
     END DO; END DO !p,q
 
