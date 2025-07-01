@@ -361,7 +361,7 @@ TYPE(MPI_Request),INTENT(OUT) :: MPIRequest(nNbProcs)                           
 ! LOCAL VARIABLES
 INTEGER             :: SendIDLoc
 !===================================================================================================================================
-IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13)) THEN
+IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13).OR.(SendID.EQ.14)) THEN
   SendIDLoc = 2
 ELSE
   SendIDLoc = SendID
@@ -369,7 +369,7 @@ END IF
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendIDLoc).GT.0)THEN
     ! Send slave U or Flux when no PML is active
-    IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12)) THEN
+    IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.14)) THEN
       nRecVal = 3*DataSizeSideRec(iNbProc,SendIDLoc)
       CALL MPI_IRECV(DGExchange(iNbProc)%FaceDataRecvVec,nRecVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
@@ -538,7 +538,7 @@ TYPE(MPI_Request), INTENT(OUT)         :: MPIRequest(nNbProcs)
 ! LOCAL VARIABLES
 INTEGER                      :: i,p,q,iSide,N_slave, SendIDLoc
 !===================================================================================================================================
-IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13)) THEN
+IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13).OR.(SendID.EQ.14)) THEN
   SendIDLoc = 2
 ELSE
   SendIDLoc = SendID
@@ -605,6 +605,20 @@ DO iNbProc=1,nNbProcs
       ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
       CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendSurf,nSendVal,MPI_DOUBLE_PRECISION,  &
                       nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)     
+   ELSE IF (SendID.EQ.14) THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%Face_xGP(1:3,p,q) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+      nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
+      ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
+      CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError) 
    ELSE IF(SendID.EQ.2)THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
@@ -959,7 +973,7 @@ INTEGER                       :: i,p,q,iSide,N_slave, SendIDLoc
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13)) THEN
+IF((SendID.EQ.10).OR.(SendID.EQ.11).OR.(SendID.EQ.12).OR.(SendID.EQ.13).OR.(SendID.EQ.14)) THEN
   SendIDLoc = 2
 ELSE
   SendIDLoc = SendID
@@ -1041,6 +1055,17 @@ DO iNbProc=1,nNbProcs
           DO q = 0, N_slave
             IF (N_slave.GT.DG_Elems_master(iSide)) &
               N_SurfMesh(iSide)%SurfElem(p,q) = DGExchange(iNbProc)%FaceDataRecvSurf(i) 
+            i = i + 1
+          END DO ! q = 0, N_slave
+        END DO ! p = 0, N_slave
+      END DO ! iSide = SideID_start, SideID_end
+    ELSE IF(SendID.EQ.14)THEN
+      DO iSide = SideID_start, SideID_end
+        N_slave = DG_Elems_slave(iSide)
+        DO p = 0, N_slave
+          DO q = 0, N_slave
+            IF (N_slave.GT.DG_Elems_master(iSide)) &
+              N_SurfMesh(iSide)%Face_xGP(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
