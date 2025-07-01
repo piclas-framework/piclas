@@ -120,7 +120,7 @@ CASE(1) !1->4
 #else
       NSideMortar = PP_N
 #endif /*!(PP_TimeDiscMethod==700)*/
-      IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LT.NSideMortar)) CYCLE !no slave sides (MPI)
+      IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
       nbSideID(ind)=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
 
       DO p=0,Nloc
@@ -141,7 +141,7 @@ CASE(2) !1->2 in eta
 #else
     NSideMortar = PP_N
 #endif /*!(PP_TimeDiscMethod==700)*/
-    IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LT.NSideMortar)) CYCLE !no slave sides (MPI)
+    IF((MortarInfo(E2S_FLIP,jNb,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(jNb)=MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)
 
     DO p=0,Nloc
@@ -161,7 +161,7 @@ CASE(3) !1->2 in xi
 #else
     NSideMortar = PP_N
 #endif /*!(PP_TimeDiscMethod==700)*/
-    IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LT.NSideMortar)) CYCLE !no slave sides (MPI)
+    IF((MortarInfo(E2S_FLIP,iNb,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(iNb)=MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)
 
     DO q=0,Nloc
