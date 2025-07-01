@@ -55,9 +55,9 @@ PUBLIC::BuildElem_xGP
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
-#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 PUBLIC::CommSurfMetrics
-#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 !==================================================================================================================================
 
 CONTAINS
@@ -796,7 +796,7 @@ END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa
 
 
-#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 !==================================================================================================================================
 !> Computes surface normal and tangential vectors and surface area from surface metrics Ja_Face.
 !==================================================================================================================================
@@ -834,6 +834,6 @@ DO iNbProc=1,nNbProcs
   DEALLOCATE(DGExchange(iNbProc)%FaceDataSendSurf)
 END DO !iProc=1,nNBProcs
 END SUBROUTINE CommSurfMetrics
-#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 END MODULE MOD_Metrics
