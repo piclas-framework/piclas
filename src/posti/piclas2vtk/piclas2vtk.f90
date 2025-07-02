@@ -1100,13 +1100,13 @@ ASSOCIATE (&
         CALL ReadArray(TRIM(DGSolutionDataset),2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(1:nVar_Solution,1:nDOF))
         ! Read nVar_Solution+1:nVar_Source
         IF(DGSourceExists) &
-          CALL ReadArray('DG_Source',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Solution+1:nVar_Source,1:nDOF))
+          CALL ReadArray('DG_Source',2,(/4_IK,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Solution+1:nVar_Source,1:nDOF))
         ! Read nVar_Source+1:nVar_TD
         IF(DGTimeDerivativeExists) &
-          CALL ReadArray('DG_TimeDerivative',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Source+1:nVar_TD,1:nDOF))
+          CALL ReadArray('DG_TimeDerivative',2,(/3_IK,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_Source+1:nVar_TD,1:nDOF))
         ! Read nVar_TD+1:nVar_State
         IF(DGSourceExtExists) &
-          CALL ReadArray('DG_SourceExt',2,(/nVar_Solution,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_TD+1:nVar_State,1:nDOF))
+          CALL ReadArray('DG_SourceExt',2,(/1_IK,nDOF/),offsetElem,2, RealArray=U_N_2D(nVar_TD+1:nVar_State,1:nDOF))
       ELSEIF(nDims.EQ.5) THEN
       SDEALLOCATE(U)
       ALLOCATE(U(nVar_State,0:N_State,0:N_State,0:N_State,nElems))
