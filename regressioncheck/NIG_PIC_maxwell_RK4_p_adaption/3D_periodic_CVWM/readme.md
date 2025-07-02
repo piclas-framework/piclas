@@ -18,3 +18,5 @@
       VarNameFluc     = ElectricFieldZ
       VarNameFluc     = ElectricFieldMagnitude
       VarNameFluc     = ChargeDensity-Spec01
+- the "external" run is deactivated as it requires the functionality of a changing Nloc, which is not implemented yet.
+  The polynomial degree must not change over time. Activacte as soon as this feature is implemented.
