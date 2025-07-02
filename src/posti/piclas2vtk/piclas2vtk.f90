@@ -1173,6 +1173,8 @@ IF(NlocFound) THEN
   DO iElem = 1,nElems
     Nloc = Nloc_Visu(iElem)
     ALLOCATE(ElemLocal(iElem)%U_Visu(nVar_State,0:Nloc,0:Nloc,0:Nloc))
+    ! Must be nullified to prevent possible Floating point exception in WRITE(ivtk) REAL(ElemLocal(iElem)%U_Visu...
+    ElemLocal(iElem)%U_Visu = 0.0
   END DO
   ! Write solution into element-local array
   IF(nDims.EQ.2) THEN
