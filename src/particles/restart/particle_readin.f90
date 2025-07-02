@@ -122,7 +122,6 @@ INTEGER,PARAMETER                  :: N_variables=1
 REAL,ALLOCATABLE                   :: NodeSourceExtEquiLBTmp(:,:,:,:,:)
 INTEGER                            :: NodeID(1:8)
 INTEGER                            :: CNElemID
-REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: PartSource(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: PartSourceTmp(:,:,:,:,:)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
@@ -142,6 +141,7 @@ INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 CHARACTER(LEN=32)                  :: hilf
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:),PartSourceloc(:,:,:,:)
 LOGICAL                            :: DGSourceExists
 INTEGER                            :: i,j,k
