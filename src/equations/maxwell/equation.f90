@@ -1277,7 +1277,7 @@ SUBROUTINE GetWaveGuideRadius(DoSide)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars            ,ONLY: DG_Elems_master
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
 USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
 USE MOD_Equation_Vars      ,ONLY: TERadius
 #if (PP_NodeType==1)
@@ -1311,9 +1311,9 @@ TERadius=0.
 Radius   =0.
 DO iSide=1,nSides
   IF(.NOT.DoSide(iSide)) CYCLE
-  Nloc = DG_Elems_master(iSide)
+  Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
   ALLOCATE(Face_xGL(1:2,0:Nloc,0:Nloc))
-#if (PP_NodeType==1)
+#if (PP_NodeType==1) /* for Gauss-points*/
   ALLOCATE(Vdm_PolN_GL(0:Nloc,0:Nloc))
   ! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
   ! radius requires GL-points
@@ -1323,7 +1323,7 @@ DO iSide=1,nSides
   !CALL InitializeVandermonde(Nloc,Nloc,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
   CALL InitializeVandermonde(Nloc,Nloc,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_tmp,Vdm_PolN_GL)
   CALL ChangeBasis2D(2,Nloc,Nloc,Vdm_PolN_GL,N_SurfMesh(iSide)%Face_xGP(1:2,0:Nloc,0:Nloc),Face_xGL(1:2,0:Nloc,0:Nloc))
-#else
+#else /* for Gauss-Lobatto-points*/
   Face_xGL(1:2,:,:)=N_SurfMesh(iSide)%Face_xGP(1:2,:,:)
 #endif
   DO q=0,Nloc
@@ -1377,7 +1377,7 @@ LOGICAL,ALLOCATABLE :: isExactFluxFace(:)     ! true if iFace is a Face located 
 !                                             ! ExactFlux region
 INTEGER,ALLOCATABLE :: ExactFluxToElem(:),ExactFluxToFace(:),ExactFluxInterToFace(:) ! mapping to total element/face list
 INTEGER,ALLOCATABLE :: ElemToExactFlux(:),FaceToExactFlux(:),FaceToExactFluxInter(:) ! mapping to ExactFlux element/face list
-REAL                :: InterFaceRegion(6)
+REAL                :: InterFaceRegion(6),d
 INTEGER             :: nExactFluxElems,nExactFluxFaces,nExactFluxInterFaces
 INTEGER             :: iElem,iSide,SideID,nExactFluxMasterInterFaces,sumExactFluxMasterInterFaces
 !===================================================================================================================================
@@ -1388,19 +1388,26 @@ IF(ExactFluxDir.LE.0)THEN
 END IF
 ExactFluxPosition    = GETREAL('ExactFluxPosition') ! initialize empty to force abort when values is not supplied
 ! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of ExactFluxDir
+#if (PP_NodeType==1) /* for Gauss-points*/
+d = 0.0
+#else /*for Gauss-Lobatto-points*/
+! For Gauss-Lobatto, add a small distance because the xGP are now on the interfaces between the elements
+! Scale with ExactFluxPosition
+d = 1e-8*ExactFluxPosition
+#endif
 SELECT CASE(ABS(ExactFluxDir))
 CASE(1) ! x
-  InterFaceRegion(1:6)=(/-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+InterFaceRegion(1:6)=(/-HUGE(1.) , ExactFluxPosition + d , -HUGE(1.) , HUGE(1.)              , -HUGE(1.) , HUGE(1.)/)
 CASE(2) ! y
-  InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.)/)
+InterFaceRegion(1:6)=(/-HUGE(1.) , HUGE(1.)              , -HUGE(1.) , ExactFluxPosition + d , -HUGE(1.) , HUGE(1.)/)
 CASE(3) ! z
-  InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition/)
+InterFaceRegion(1:6)=(/-HUGE(1.) , HUGE(1.)              , -HUGE(1.) , HUGE(1.)              , -HUGE(1.) , ExactFluxPosition + d/)
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,' Unknown exact flux direction: ExactFluxDir=',IntInfo=ExactFluxDir)
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
-CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.FALSE.)
+CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
 
 ! find all faces in the ExactFlux region
 CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem,info_opt='find all faces in the ExactFlux region')
