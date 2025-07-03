@@ -434,7 +434,7 @@ Weight = 0.
 WeightProd = 0.
 NumEduct = 2; NumProd = 2; SumWeightProd = 0.
 
-!..Get the index of react1 and the react2
+! Get the index of reactants from the collision pair
 IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
   ReactInx(1) = Coll_pData(iPair)%iPart_p1
   ReactInx(2) = Coll_pData(iPair)%iPart_p2
@@ -454,6 +454,7 @@ IF(VarTimeStep%UseSpeciesSpecific) THEN
   END IF
 END IF
 
+! Third reactant is available: set the species and number of reactants and products in case of recombination and exchange (3 -> 3)
 IF(EductReac(3).NE.0) THEN
   NumEduct = 3
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
@@ -470,14 +471,21 @@ END IF
 DO iPart = 1, NumEduct
   Weight(iPart) = GetParticleWeight(ReactInx(iPart))
 END DO
+
+! Set the particle weights of the products (they are equal to the weights of the reactants except in the case of a recombination)
 IF ((usevMPF).AND.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
+  ! Set the weight of the non-reacting collision partner
   WeightProd(2) = Weight(3)
+  ! Calculate the new mass-weighted weight
   PartMPF(ReactInx(1)) = (Species(EductReac(1))%MassIC*PartMPF(ReactInx(1)) + Species(EductReac(2))%MassIC*PartMPF(ReactInx(2))) &
     /(Species(EductReac(1))%MassIC+Species(EductReac(2))%MassIC)
+  ! Get the weight in case of variable time step in combination with vMPF
   WeightProd(1) = GetParticleWeight(ReactInx(1))
 ELSE
   WeightProd = Weight
 END IF
+
+! Add reactants to the counter of outgoing particles
 IF(CalcPartBalance) THEN
   IF(.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon'))THEN
     DO iPart = 1, NumEduct
@@ -488,6 +496,7 @@ IF(CalcPartBalance) THEN
   END IF
 END IF
 
+! Calculate the reduced mass (Special case: photo-ionization, where the other reactant is a photon)
 IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon'))THEN
   MassRed = 0.
 ELSE
