@@ -455,10 +455,10 @@ IF(VarTimeStep%UseSpeciesSpecific) THEN
 END IF
 
 IF(EductReac(3).NE.0) THEN
+  NumEduct = 3
   IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     EductReac(3) = PartSpecies(ReactInx(3))
     ProductReac(2) = PartSpecies(ReactInx(3))
-    NumEduct = 3
   END IF
   IF(ProductReac(3).NE.0) THEN
     PartSpecies(ReactInx(3)) = ProductReac(3)
