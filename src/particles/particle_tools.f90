@@ -732,7 +732,7 @@ IF (DoCellLocalWeighting) THEN
 
   ELSE
     MPFSum = 0.
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
     DO iNode = 1, 8
       norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
       IF(norm.GT.0.)THEN
