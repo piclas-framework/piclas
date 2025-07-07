@@ -138,7 +138,7 @@ IF(useRelativeAbortCrit) AbortCrit2=Norm_R2*EpsCG**2
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-IF(PrecondType.NE.0) THEN
+IF((PrecondType.EQ.1).OR.(PrecondType.EQ.2)) THEN
   CALL ApplyPrecond(iVar,.TRUE.) ! ApplyPrecond(R,V)
 ELSE
   DO SideID = 1, nSides
@@ -205,7 +205,7 @@ DO iteration=1,MaxIterCG
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart) ! Start time measurement
 #endif /*USE_LOADBALANCE*/
-  IF(PrecondType.NE.0) THEN
+  IF((PrecondType.EQ.1).OR.(PrecondType.EQ.2)) THEN
     CALL ApplyPrecond(iVar,.FALSE.) ! ApplyPrecond(R,Z)
   ELSE
     DO SideID = 1, nSides
