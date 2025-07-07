@@ -894,7 +894,7 @@ IF(ProductReac(3).NE.0) THEN
     ! === 4 Products ============================================================================= !
     ! FracMassCent's and reduced mass are calculated for the pseudo-molecule (1-3) and the pseudo-molecule (2-4)
     CALL CalcPseudoScatterVars_4Prod(ProductReac(1),ProductReac(3),ProductReac(2),ProductReac(4),FracMassCent1,FracMassCent2, &
-          MassRed, Weight)
+          MassRed, WeightProd)
 
     ! Distribute the remaining collision energy
     Coll_pData(iPair)%CRela2 = 2. * Coll_pData(iPair)%Ec / MassRed
