@@ -702,7 +702,7 @@ REAL                 :: PosIn, RelPos, TempPartPos(3)
 REAL                 :: PartDistDepo(8), DistSum, norm, MPFSum
 LOGICAL              :: SucRefPos
 REAL                 :: alpha1, alpha2, alpha3
-INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale
+INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale, NodeIDUni(1:8)
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 !===================================================================================================================================
 
@@ -733,6 +733,7 @@ IF (DoCellLocalWeighting) THEN
   ELSE
     MPFSum = 0.
     NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
+    NodeIDUni = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
     DO iNode = 1, 8
       norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
       IF(norm.GT.0.)THEN
@@ -745,7 +746,7 @@ IF (DoCellLocalWeighting) THEN
     END DO
     DistSum = SUM(PartDistDepo(1:8))
     DO iNode = 1, 8
-      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*PartWeightAtNode(1,NodeID(iNode))
+      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*PartWeightAtNode(1,NodeIDUni(iNode))
     END DO
     CalcVarWeightMPF = MPFSum
   END IF
