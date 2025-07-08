@@ -97,7 +97,7 @@ DO iElem = 1, nElems
             IF (DoRadialWeighting) THEN
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
             ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
-              PosVar = (/0.0,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
+              PosVar = (/(Bounds(2,1)+Bounds(1,1))*0.5,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcVarWeightMPF(PosVar,iElem)
             END IF
             IF(UseVarTimeStep) THEN
