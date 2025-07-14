@@ -59,7 +59,7 @@ REAL                                             :: ErelaxRot_L(DVMnSpecies),Ere
   DO Count_2=0,0
     DO Count_1=0,0
       n_loc(:)=nv(:,Count_1,Count_2)
-      IF (DVMColl) THEN
+      IF (DVMColl.AND.DVMMethod.GT.0) THEN
         CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1,MassDensity=rho_L,PrandtlNumber=Pr_L,Erot=Erot_L)
         CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1,MassDensity=rho_R,PrandtlNumber=Pr_R,Erot=Erot_R)
         CALL MoleculeRelaxEnergy(ErelaxTrans_L,ErelaxRot_L,MacroVal_L(5,DVMnSpecies+1),ERot_L(1:DVMnSpecies),Pr_L)
@@ -91,7 +91,7 @@ REAL                                             :: ErelaxRot_L(DVMnSpecies),Ere
         ALLOCATE(fTarget_R(DVMSpecData(iSpec)%nVar))
         ALLOCATE(UTemp_L(DVMSpecData(iSpec)%nVar))
         ALLOCATE(UTemp_R(DVMSpecData(iSpec)%nVar))
-        IF (DVMColl) THEN
+        IF (DVMColl.AND.DVMMethod.GT.0) THEN
           CALL TargetDistribution(MacroVal_L(:,DVMnSpecies+1),fTarget_L,iSpec,MacroVal_L(1,iSpec),rho_L,Pr_L,ErelaxTrans_L,ErelaxRot_L(iSpec))
           CALL TargetDistribution(MacroVal_R(:,DVMnSpecies+1),fTarget_R,iSpec,MacroVal_R(1,iSpec),rho_R,Pr_R,ErelaxTrans_R,ErelaxRot_R(iSpec))
           IF (dt.EQ.0.) THEN
@@ -101,7 +101,7 @@ REAL                                             :: ErelaxRot_L(DVMnSpecies),Ere
             UTemp_L = gamma_L*U_L(vFirstID:vLastID,Count_1,Count_2) + (1.-gamma_L)*fTarget_L
             UTemp_R = gamma_R*U_R(vFirstID:vLastID,Count_1,Count_2) + (1.-gamma_R)*fTarget_R
           END IF
-        ELSE ! no collisions
+        ELSE ! first order method or no collisions
           UTemp_L = U_L(vFirstID:vLastID,Count_1,Count_2)
           UTemp_R = U_R(vFirstID:vLastID,Count_1,Count_2)
         END IF

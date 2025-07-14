@@ -36,6 +36,7 @@ SUBROUTINE ProlongToFace_FV(Uvol,Uface_master,Uface_slave,doMPISides)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
+USE MOD_FV_Vars,            ONLY: doFVReconstruct
 USE MOD_Gradient_Vars,      ONLY: Grad_dx_master, Grad_dx_slave, Gradient_elem
 USE MOD_Mesh_Vars,          ONLY: nSides, SideToElem
 USE MOD_Mesh_Vars,          ONLY: firstBCSide,firstInnerSide, lastInnerSide
@@ -84,41 +85,51 @@ DO SideID=firstSideID,lastSideID
   ! neighbor side !ElemID=-1 if not existing
   ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
+    IF (doFVReconstruct) THEN
 #ifdef discrete_velocity
-  !DVM specific reconstruction
-  vFirstID = 0
-  DO iSpec=1,DVMnSpecies
-    ASSOCIATE(Sp => DVMSpecData(iSpec))
-    DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
-      upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-      Uface_slave(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
-                                    + Gradient_elem(1,upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
-                                    + Gradient_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
-                                    + Gradient_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
-      IF (DVMDim.LT.3) THEN
-        Uface_slave(Sp%nVarReduced+upos,0,0,SideID) = Uvol(Sp%nVarReduced+upos,0,0,0,ElemID) &
-                                    + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
-                                    + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
-                                    + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
-      END IF
-      IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
-        ! rotational energy reduced distribution
-        Uface_slave(Sp%nVarErotStart+upos,0,0,SideID) = Uvol(Sp%nVarErotStart+upos,0,0,0,ElemID) &
-                                    + Gradient_elem(1,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
-                                    + Gradient_elem(2,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
-                                    + Gradient_elem(3,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
-      END IF
-    END DO; END DO; END DO
-    vFirstID = vFirstID + Sp%nVar
-    END ASSOCIATE
-  END DO
-#else
-  Uface_slave(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
-                            + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_slave(1,SideID) &
-                            + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_slave(2,SideID) &
-                            + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_slave(3,SideID)
+      IF (DVMColl) THEN
+        !DVM specific reconstruction
+        vFirstID = 0
+        DO iSpec=1,DVMnSpecies
+          ASSOCIATE(Sp => DVMSpecData(iSpec))
+          DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+            upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+            Uface_slave(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+                                          + Gradient_elem(1,upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                          + Gradient_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                          + Gradient_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+            IF (DVMDim.LT.3) THEN
+              Uface_slave(Sp%nVarReduced+upos,0,0,SideID) = Uvol(Sp%nVarReduced+upos,0,0,0,ElemID) &
+                                          + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                          + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                          + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+            END IF
+            IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+              ! rotational energy reduced distribution
+              Uface_slave(Sp%nVarErotStart+upos,0,0,SideID) = Uvol(Sp%nVarErotStart+upos,0,0,0,ElemID) &
+                                          + Gradient_elem(1,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
+                                          + Gradient_elem(2,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
+                                          + Gradient_elem(3,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
+            END IF
+          END DO; END DO; END DO
+          vFirstID = vFirstID + Sp%nVar
+          END ASSOCIATE
+        END DO
+      ELSE
+#endif /*discrete_velocity*/
+      Uface_slave(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
+                                + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_slave(1,SideID) &
+                                + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_slave(2,SideID) &
+                                + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_slave(3,SideID)
+#ifdef discrete_velocity
+      END IF !DVMColl
 #endif
+    ELSE
+      ! no reconstruction, just copy
+      Uface_slave(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID)
+    END IF
 #ifdef drift_diffusion
+  ! Electric field is only copied, reconstruction only for e- density
   Uface_slave(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID)
 #endif
 END DO
@@ -138,6 +149,7 @@ END IF
 DO SideID=firstSideID,lastSideID
   ElemID    = SideToElem(S2E_ELEM_ID,SideID)
   IF (ElemID.LT.0) CYCLE !for small mortar sides without info on big master element
+    IF (doFVReconstruct) THEN
 #ifdef discrete_velocity
   IF (DVMColl) THEN
     !DVM specific reconstruction
@@ -176,7 +188,12 @@ DO SideID=firstSideID,lastSideID
 #ifdef discrete_velocity
   END IF !DVMColl
 #endif
+    ELSE
+      ! no reconstruction, just copy
+      Uface_master(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID)
+    END IF
 #ifdef drift_diffusion
+  ! Electric field is only copied, reconstruction only for e- density
   Uface_master(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID)
 #endif
 END DO !SideID

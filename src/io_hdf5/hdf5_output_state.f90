@@ -86,6 +86,7 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
+USE MOD_FV_Vars                ,ONLY: doFVReconstruct
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
 USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE
@@ -160,7 +161,8 @@ REAL,ALLOCATABLE               :: CPPDataHDF5(:,:)
 REAL                           :: StartT,EndT
 
 #if USE_FV
-REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
+REAL,ALLOCATABLE               :: Ureco(:,:,:,:,:)
+INTEGER(KIND=IK)               :: N_FV
 #endif
 #ifdef PP_POIS
 REAL                           :: Utemp(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
@@ -179,7 +181,7 @@ REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
 REAL                           :: MacroVal(DVMnMacro,DVMnSpecies+1)
-REAL                           :: Udvm(1:(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
+REAL,ALLOCATABLE               :: Udvm(:,:,:,:,:)
 REAL                           :: tau,dtMV
 INTEGER                        :: i,j,k,iElem,iSpec
 INTEGER(KIND=IK)               :: nValDVM
@@ -252,12 +254,21 @@ IF(.NOT.DoWriteStateToHDF5) RETURN
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
 GETTIME(StartT)
 
+#if USE_FV
+IF (doFVReconstruct) THEN
+  N_FV = INT(PP_1,IK)
+ELSE
+  N_FV = 0_IK
+ENDIF
+ALLOCATE(Ureco(PP_nVar_FV,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
+#endif /*USE_FV*/
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 IF(InitialAutoRestart) THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
 #if USE_HDG
 #ifdef discrete_velocity
-  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+5,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.TRUE.)
+  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+5,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=N_FV,ContainerName='DVM_Solution',HDGFV=.TRUE.)
 #elif PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #elif PP_nVar==3
@@ -266,14 +277,14 @@ IF(InitialAutoRestart) THEN
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif
 #elif (defined(discrete_velocity))
-  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.FALSE.)
+  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameIn=FileName,NIn=N_FV,ContainerName='DVM_Solution',HDGFV=.FALSE.)
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameIn=FileName)
 #endif /*USE_HDG*/
 ELSE
 #if USE_HDG
 #ifdef discrete_velocity
-  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+5,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.TRUE.)
+  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+5,[StrVarNames,StrVarNames_FV],MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=N_FV,ContainerName='DVM_Solution',HDGFV=.TRUE.)
 #elif PP_nVar==1
   CALL GenerateFileSkeleton('State',4,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #elif PP_nVar==3
@@ -282,7 +293,7 @@ ELSE
   CALL GenerateFileSkeleton('State',7,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif
 #elif (defined(discrete_velocity))
-  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=PP_1,ContainerName='DVM_Solution',HDGFV=.FALSE.)
+  CALL GenerateFileSkeleton('State',(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,StrVarNames_FV,MeshFileName,OutputTime_loc,FileNameOut=FileName,NIn=N_FV,ContainerName='DVM_Solution',HDGFV=.FALSE.)
 #else
   CALL GenerateFileSkeleton('State',PP_nVar,StrVarNames,MeshFileName,OutputTime_loc,FileNameOut=FileName)
 #endif /*USE_HDG*/
@@ -309,9 +320,6 @@ PP_nVarTmp = INT(PP_nVar,IK)
 PP_nVarTmp_FV = INT(PP_nVar_FV,IK)
 #endif
 ASSOCIATE (&
-#if USE_FV
-      N_FV              => INT(PP_1,IK)               ,&
-#endif /*USE_FV*/
       N                 => INT(PP_N,IK)               ,&
       nGlobalElems      => INT(nGlobalElems,IK)       ,&
       PP_nElems         => INT(PP_nElems,IK)          ,&
@@ -557,19 +565,25 @@ ASSOCIATE (&
 #endif /*PP_POIS*/
 
 #if USE_FV
+  IF (doFVReconstruct) THEN
   ! reconstruct solution using gradients, as done during simulation
-  CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
-  CALL ProlongToOutput(U_FV,Ureco)
+    CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
+    CALL ProlongToOutput(U_FV,Ureco)
+  ELSE
+    ! first order solution
+    Ureco = U_FV
+  END IF
 #ifdef discrete_velocity
   IF (time.EQ.0.) THEN
     dtMV = 0.
   ELSE
     dtMV = dt
   ENDIF
+  ALLOCATE(Udvm(1:(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
   DO iElem=1,INT(PP_nElems)
-    DO k=0,PP_1
-      DO j=0,PP_1
-        DO i=0,PP_1
+    DO k=0,N_FV
+      DO j=0,N_FV
+        DO i=0,N_FV
           CALL MacroValuesFromDistribution(MacroVal,Ureco(:,i,j,k,iElem),dtMV,tau,1,Erot=Erot)
           DO iSpec=1,DVMnSpecies+1 !n species + total values
             Udvm((DVMnMacro+DVMnInnerE)*(iSpec-1)+1:(DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE,i,j,k,iElem) = MacroVal(1:DVMnMacro,iSpec)
@@ -596,6 +610,7 @@ ASSOCIATE (&
       offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
       collective=.TRUE.,RealArray=Ureco)
 #endif
+  SDEALLOCATE(Ureco)
 #endif /*USE_FV*/
 
 

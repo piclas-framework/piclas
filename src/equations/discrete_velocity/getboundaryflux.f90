@@ -134,8 +134,8 @@ INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0)
 INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFirstID, vLastID
-REAL                                 :: MacroVal(DVMnMacro), tau, prefac, vnormal
-REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr
+REAL                                 :: MacroVal(DVMnMacro), vnormal
+REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr,tau,prefac
 REAL                                 :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
 !==================================================================================================================================
 DO iBC=1,nBCs
@@ -249,17 +249,19 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       DO q=0,0; DO p=0,0
-        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
-        IF (dt.EQ.0.) THEN
-          prefac = 1.
-        ELSE
-          SELECT CASE(DVMMethod)
-          CASE(1)
-            prefac = 2.*tau*(1.-EXP(-dt/tau/2.))/dt ! f from f2~
-          CASE(2)
-            prefac = 2.*tau/(2.*tau+dt/2.)
-          END SELECT
+        IF (DVMMethod.GT.0) THEN
+          CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+          CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
+          IF (dt.EQ.0.) THEN
+            prefac = 1.
+          ELSE
+            SELECT CASE(DVMMethod)
+            CASE(1)
+              prefac = 2.*tau*(1.-EXP(-dt/tau/2.))/dt ! f from f2~
+            CASE(2)
+              prefac = 2.*tau/(2.*tau+dt/2.)
+            END SELECT
+          END IF
         END IF
         vFirstID=1
         vLastID=0

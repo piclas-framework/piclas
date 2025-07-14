@@ -32,6 +32,7 @@ REAL,ALLOCATABLE                      :: U_master_FV(:,:,:,:),U_slave_FV(:,:,:,:
 REAL,ALLOCATABLE                      :: Flux_Master_FV(:,:,:,:)
 REAL,ALLOCATABLE                      :: Flux_Slave_FV(:,:,:,:)
 
+LOGICAL                               :: doFVReconstruct=.TRUE.
 LOGICAL                               :: FVInitIsDone=.FALSE.
 !===================================================================================================================================
 END MODULE MOD_FV_Vars

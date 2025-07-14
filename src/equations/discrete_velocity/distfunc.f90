@@ -239,7 +239,7 @@ IF (PRESENT(PrandtlNumber)) PrandtlNumber = Prandtl
 Macroval(6:11,total)  = PressTens(1:6,total)
 MacroVal(12:14,total) = Heatflux(1:3,total)
 
-IF (DVMColl.AND.tDeriv.GT.0.) THEN
+IF (DVMColl.AND.DVMMethod.GT.0.AND.tDeriv.GT.0.) THEN
   IF(tilde.EQ.1) THEN ! higher moments from f~
     SELECT CASE(DVMMethod)
     CASE(1) !EDDVM
@@ -877,7 +877,7 @@ SUBROUTINE MaxwellScatteringDVM(iSpec,fBoundary,U,NormVec,prefac,MacroVal,densSp
 ! Gets accurate density for the half maxwellian at diffusive boundaries
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMnMacro
+USE MOD_Equation_Vars_FV         ,ONLY: DVMSpecData, DVMnMacro, DVMMethod
 USE MOD_PreProc
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
@@ -895,9 +895,13 @@ REAL                                 :: fRelaxed(DVMSpecData(iSpec)%nVar)
 INTEGER                              :: iVel, jVel, kVel, upos
 !===================================================================================================================================
 
-CALL TargetDistribution(MacroVal, fRelaxed, iSpec, densSpec, MassDensity, PrandtlNumber,ErelaxTrans,ErelaxRot)
-
-fRelaxed = U*prefac + fRelaxed*(1.-prefac)
+IF (DVMMethod.GT.0) THEN
+  CALL TargetDistribution(MacroVal, fRelaxed, iSpec, densSpec, MassDensity, PrandtlNumber,ErelaxTrans,ErelaxRot)
+  fRelaxed = U*prefac + fRelaxed*(1.-prefac)
+ELSE
+  ! first order method
+  fRelaxed = U
+END IF
 
 Sin = 0.
 Sout = 0.
@@ -958,14 +962,21 @@ DO iElem =1, nElems
         DVMMomentSave(DVMnMacro+3,:,iElem) = Pr
         IF (DVMnInnerE.GT.0) DVMInnerESave(1,1:DVMnSpecies+1,iElem) = Erot(1:DVMnSpecies+1)
         SELECT CASE(DVMMethod)
-        CASE(1)
+        CASE(0) !First order
+          relaxFac = tDeriv/tau
+          IF (CHECKEXP(relaxFac)) THEN
+            prefac = EXP(-relaxFac)
+          ELSE
+            prefac = 0.
+          END IF
+        CASE(1) !EDDVM
           relaxFac = tDeriv/tau/2.
           IF (CHECKEXP(3.*relaxFac)) THEN
             prefac = (EXP(-relaxFac)-EXP(-3.*relaxFac))/(1.-EXP(-relaxFac))/2.
           ELSE
             prefac = 0.
           END IF
-        CASE(2)
+        CASE(2) !DUGKS
           prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
         END SELECT
       CASE(2) ! f2^ -----> f^     (tDeriv=dt/2)

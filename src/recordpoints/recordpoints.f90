@@ -386,7 +386,7 @@ DO iRP=1,nRP
       l_eta_zeta_RP=l_eta_RP(j,iRP)*l_zeta_RP(k,iRP)
       DO i=0,PP_N
 #ifdef discrete_velocity
-        IF (t.GT.0..AND.DVMColl) THEN
+        IF (t.GT.0..AND.DVMColl.AND.DVMMethod.GT.0) THEN
           CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
           CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroVal(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
           SELECT CASE(DVMMethod)

@@ -117,7 +117,7 @@ ALLOCATE(Flux_Slave_FV (1:PP_nVar_FV,0:0,0:0,1:nSides))
 Flux_Master_FV=0.
 Flux_Slave_FV=0.
 
-CALL InitGradients(PP_nVar_FV)
+IF (doFVReconstruct) CALL InitGradients(PP_nVar_FV)
 
 FVInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT FV DONE!'
@@ -142,8 +142,7 @@ SUBROUTINE FV_main(t,tStage,doSource)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_FV_Vars           ,ONLY: U_FV,Ut_FV,Flux_Master_FV,Flux_Slave_FV
-USE MOD_FV_Vars           ,ONLY: U_master_FV,U_slave_FV
+USE MOD_FV_Vars
 USE MOD_SurfInt           ,ONLY: SurfInt
 USE MOD_Prolong_FV        ,ONLY: ProlongToFace_FV
 USE MOD_Gradients         ,ONLY: GetGradients
@@ -193,7 +192,7 @@ REAL                            :: tLBStart
 !===================================================================================================================================
 
 !> 1.) Compute the FV solution gradients (LB times are measured inside GetGradients)
-CALL GetGradients(U_FV(:,0,0,0,:),output=.FALSE.) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
+IF (doFVReconstruct) CALL GetGradients(U_FV(:,0,0,0,:),output=.FALSE.) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)

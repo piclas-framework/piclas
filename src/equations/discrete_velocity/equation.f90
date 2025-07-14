@@ -65,7 +65,7 @@ CALL prms%CreateLogicalOption(  'DVM-Species[$]-DoOverwriteParameters', 'Flag to
 CALL prms%CreateRealOption(     'DVM-Species[$]-omegaVHS',      'Variable Hard Sphere parameter', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-T_Ref',         'VHS reference temperature', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-d_Ref',         'VHS reference diameter', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'DVM-Species[$]-Z_Rot',         'Rotational collision number', '5.' numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-Z_Rot',         'Rotational collision number', '5.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Mass',          'Molecular mass', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Charge',          'Electrical charge', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'DVM-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
@@ -90,6 +90,7 @@ CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'/
                                                      '5: SkewNormal BGK (SNBGK)'//&
                                                      '6: Grad 13 BGK', '1')
 CALL prms%CreateIntOption(      'DVM-Method',        'Select the DVM model:\n'//&
+                                                     '0: First order DVM\n'//&
                                                      '1: Exponential differencing (EDDVM)\n'//&
                                                      '2: DUGKS')
 CALL prms%CreateIntOption(      'IniRefState-FV',  'Refstate required for initialization.')
@@ -109,6 +110,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY : BoltzmannConst
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: nElems
+USE MOD_FV_Vars,            ONLY: doFVReconstruct
 USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT,GETLOGICAL, CountOption
 USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights, GaussHermiteNodesAndWeights, NewtonCotesNodesAndWeights
@@ -286,6 +288,9 @@ END IF
 doCalcSource=.TRUE.
 
 SELECT CASE (DVMMethod)
+CASE(0)
+  LBWRITE(UNIT_stdOut,*)'Method: First order DVM'
+  doFVReconstruct=.FALSE. ! no reconstruction for first order DVM
 CASE(1)
   LBWRITE(UNIT_stdOut,*)'Method: Exponential Differencing DVM'
 CASE(2)
