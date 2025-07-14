@@ -65,6 +65,7 @@ CALL prms%CreateLogicalOption(  'DVM-Species[$]-DoOverwriteParameters', 'Flag to
 CALL prms%CreateRealOption(     'DVM-Species[$]-omegaVHS',      'Variable Hard Sphere parameter', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-T_Ref',         'VHS reference temperature', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-d_Ref',         'VHS reference diameter', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-Z_Rot',         'Rotational collision number', '5.' numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Mass',          'Molecular mass', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Charge',          'Electrical charge', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'DVM-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
@@ -431,8 +432,10 @@ DO iSpec = 1, DVMnSpecies
   IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
     ! diatomic molecule (not more for now)
     Sp%Xi_Rot              = 2
+    Sp%Z_Rot               = GETREAL('DVM-Species'//TRIM(hilf)//'-Z_Rot')
   ELSE
     Sp%Xi_Rot              = 0
+    Sp%Z_Rot               = 1.
   END IF
   END ASSOCIATE
 END DO ! iSpec

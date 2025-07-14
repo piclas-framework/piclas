@@ -67,6 +67,7 @@ TYPE tSpeciesData
   REAL            :: R_S
   INTEGER         :: InterID
   INTEGER         :: Xi_Rot
+  REAL            :: Z_Rot
   INTEGER         :: nVar
   INTEGER         :: nVarReduced
   INTEGER         :: nVarErotStart

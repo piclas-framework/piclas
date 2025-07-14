@@ -337,7 +337,7 @@ USE MOD_Globals_Vars             ,ONLY: BoltzmannConst
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: TempTrans, Erot(DVMnSpecies), Prandtl!, Zrot
+REAL,INTENT(IN)                 :: TempTrans, Erot(DVMnSpecies), Prandtl
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                 :: ErelaxTrans,ErelaxRot(DVMnSpecies)
@@ -354,8 +354,7 @@ IF (DVMnInnerE.EQ.0) RETURN
 DO iSpec = 1, DVMnSpecies
   ASSOCIATE(Sp => DVMSpecData(iSpec))
   IF (Sp%Xi_Rot.GT.0) THEN
-    !print*,Prandtl
-    EdiffRot = 30.*(TempTrans*BoltzmannConst*Sp%Xi_Rot/2.-Erot(iSpec))/(4.-2.*Sp%omegaVHS)/(6.-2.*Sp%omegaVHS)/Prandtl/5. !Zrot(iSpec)
+    EdiffRot = 30.*(TempTrans*BoltzmannConst*Sp%Xi_Rot/2.-Erot(iSpec))/(4.-2.*Sp%omegaVHS)/(6.-2.*Sp%omegaVHS)/Prandtl/Sp%Z_Rot
     ! change this to include actual multispecies collfreq
     ErelaxRot(iSpec) = Erot(iSpec) + EdiffRot
     ErelaxTrans = ErelaxTrans - EdiffRot
