@@ -49,7 +49,7 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime,InitialAutoRest
 USE MOD_PreProc
 USE MOD_Globals
 #if USE_FV
-USE MOD_FV_Vars                ,ONLY: U_FV
+USE MOD_FV_Vars                ,ONLY: U_FV,doFVReconstruct
 USE MOD_Gradients              ,ONLY: GetGradients
 USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 #endif
@@ -86,7 +86,6 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 USE MOD_Equation_Vars          ,ONLY: E,Phi
 #endif /*PP_POIS*/
 #ifdef discrete_velocity
-USE MOD_FV_Vars                ,ONLY: doFVReconstruct
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
 USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE
