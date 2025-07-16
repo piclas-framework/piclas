@@ -706,7 +706,7 @@ USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInR
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -718,7 +718,7 @@ INTEGER,INTENT(IN)  :: iSpec, iInit
 INTEGER,INTENT(OUT) :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,iPart,GlobalElemID,PositionNbr
+INTEGER           :: iElem,iPart,GlobalElemID,PositionNbr,CNElemID
 REAL              :: iRan, RandomPos(3), MPF
 REAL              :: PartDens(1:3) ! dummy vector because the routine can only return vector values
 LOGICAL           :: InsideFlag
@@ -764,12 +764,12 @@ NbrOfParticle = 0
 MPF = Species(iSpec)%MacroParticleFactor
 
 DO iElem = 1, nElems
+  GlobalElemID = iElem + offsetElem
   ! Do not emit particles in dielectrics
   IF(DoDielectric)THEN
-    IF(DielectricNoParticles.AND.isDielectricElem(iElem)) CYCLE
+    CNElemID = GetCNElemID(GlobalElemID)
+    IF(DielectricNoParticles.AND.isDielectricElem_Shared(CNElemID)) CYCLE
   END IF ! DoDielectric
-
-  GlobalElemID = iElem + offsetElem
 
   SELECT CASE(EmissionDistributionDim)
   CASE(1) ! 1D

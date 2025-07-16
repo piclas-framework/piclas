@@ -459,7 +459,8 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
-USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, CollisMode
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
@@ -486,6 +487,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
+INTEGER             :: CNElemID
 REAL                :: v_thermal, dtVar
 REAL                :: StartT,EndT
 !===================================================================================================================================
@@ -570,9 +572,8 @@ IF(DoDielectric)THEN
   IF(DielectricNoParticles)THEN
     DO iPart = 1,PDM%ParticleVecLength
       ! Remove particles in dielectric elements
-      IF(isDielectricElem(PEM%LocalElemID(iPart)))THEN
-        PDM%ParticleInside(iPart) = .FALSE.
-      END IF
+      CNElemID = GetCNElemID(PEM%GlobalElemID(iPart))
+      IF(isDielectricElem_Shared(CNElemID)) PDM%ParticleInside(iPart) = .FALSE.
     END DO
   END IF
 END IF

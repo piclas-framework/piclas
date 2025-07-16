@@ -53,14 +53,14 @@ CONTAINS
 
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
-SUBROUTINE WriteDielectricGlobalToHDF5()
+SUBROUTINE WriteDielectricGlobalToHDF5(isDielectricElem)
 !===================================================================================================================================
 ! write DielectricGlobal field to HDF5 file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars      ,ONLY: DielectricVol,isDielectricElem,ElemToDielectric
+USE MOD_Dielectric_Vars      ,ONLY: DielectricVol,ElemToDielectric
 USE MOD_Mesh_Vars            ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_io_HDF5
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
@@ -73,6 +73,7 @@ USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN)  :: isDielectricElem(1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -572,7 +573,7 @@ iDOF = 0
 IF(.NOT.ALMOSTZERO(PMLzeta0))THEN
   DO iElem=1,nElems
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  IF(isPMLElem(iElem))THEN
+    IF(isPMLElem(iElem))THEN
       DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
         iDOF = iDOF + 1
         U_N_2D_local(1:nVarOut,iDOF) = PML(ElemToPML(iElem))%zeta(1:nVarOut,i,j,k)/PMLzeta0
@@ -582,11 +583,11 @@ IF(.NOT.ALMOSTZERO(PMLzeta0))THEN
         iDOF = iDOF + 1
         U_N_2D_local(1:nVarOut,iDOF) = 0.0
       END DO; END DO; END DO
-    END IF ! isDielectricElem(iElem)
+    END IF ! isPMLElem(iElem)
   END DO ! iElem=1,nElems
 ELSE
   U_N_2D_local = 0.0
-    END IF
+END IF
 
 SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE PMLZetaGlobal TO HDF5 FILE...'
 GETTIME(StartT)
@@ -594,12 +595,12 @@ OutputTime=0.0
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 CALL GenerateFileSkeleton('PMLZetaGlobal',nVarOut,StrVarNames,TRIM(MeshFile),OutputTime,FileNameOut=FileName)
 #if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif
 IF(MPIRoot)THEN
   CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_PICLAS)
   CALL WriteAttributeToHDF5(File_ID,'VarNamesPMLzetaGlobal',nVarOut,StrArray=StrVarNames)
-CALL CloseDataFile()
+  CALL CloseDataFile()
 END IF ! MPIRoot
 
 ! Write 'Nloc' array to the .h5 file, which is required for 2D DG_Solution conversion in piclas2vtk
@@ -710,7 +711,7 @@ DO iElem=1,nElems
       iDOF = iDOF + 1
       U_N_2D_local(1:PMLnVar,iDOF) = 0.0
     END DO; END DO; END DO
-  END IF ! isDielectricElem(iElem)
+  END IF ! isPMLElem(iElem)
 END DO ! iElem=1,nElems
 
 IF(MPIRoot) THEN

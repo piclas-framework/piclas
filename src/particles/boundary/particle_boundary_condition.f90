@@ -45,10 +45,10 @@ USE MOD_Globals                  ,ONLY: abort
 USE MOD_Mesh_Tools               ,ONLY: GetCNSideID
 USE MOD_Part_Operations          ,ONLY: RemoveParticle
 USE MOD_Particle_Surfaces        ,ONLY: CalcNormAndTangTriangle,CalcNormAndTangBilinear,CalcNormAndTangBezier
-USE MOD_Particle_Vars            ,ONLY: PartSpecies,PDM,PEM,Species
+USE MOD_Particle_Vars            ,ONLY: PartSpecies,PDM,Species
 USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo, CountNbrOfLostParts, NbrOfLostParticles
 USE MOD_Part_Tools               ,ONLY: StoreLostParticleProperties
-USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem
+USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem_Shared
 USE MOD_Particle_Mesh_Vars
 USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
@@ -56,10 +56,10 @@ USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_SurfaceModel             ,ONLY: SurfaceModelling
 USE MOD_SurfaceModel_Tools       ,ONLY: PerfectReflection
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
+USE MOD_Mesh_Tools               ,ONLY: GetCNElemID
 #ifdef CODE_ANALYZE
 USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
 USE MOD_Mesh_Vars                ,ONLY: NGeo
-USE MOD_Mesh_Tools               ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared
 #endif /* CODE_ANALYZE */
@@ -79,7 +79,7 @@ INTEGER,INTENT(INOUT)                :: ElemID ! Global element index
 LOGICAL,INTENT(OUT)                  :: crossedBC
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: CNSideID
+INTEGER                              :: CNSideID, CNElemID
 REAL                                 :: n_loc(1:3)
 #ifdef CODE_ANALYZE
 REAL                                 :: v1(3),v2(3)
@@ -187,14 +187,15 @@ ASSOCIATE( iPartBound => PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)
     CALL RotPeriodicBoundary(iPart,SideID,ElemID)
     ! Sanity check: During rotational periodic movement, particles may enter a dielectric. Unfortunately, they must be deleted
     IF(DoDielectric)THEN
-      IF(PDM%ParticleInside(iPart).AND.(isDielectricElem(PEM%LocalElemID(iPart))))THEN
+      CNElemID = GetCNElemID(ElemID)
+      IF(PDM%ParticleInside(iPart).AND.(isDielectricElem_Shared(CNElemID)))THEN
         IF(CountNbrOfLostParts)THEN
           CALL StoreLostParticleProperties(iPart,ElemID,PartMissingType_opt=PartBound%RotPeriodicBC)
           NbrOfLostParticles=NbrOfLostParticles+1
         END IF ! CountNbrOfLostParts
         CALL RemoveParticle(iPart,BCID=iPartBound)
-      END IF ! PDM%ParticleInside(iPart).AND.(isDielectricElem(PEM%LocalElemID(iPart)))
-    END IF ! DoDdielectric
+      END IF ! PDM%ParticleInside(iPart).AND.(isDielectricElem_Shared(CNElemID))
+    END IF ! DoDielectric
   !-----------------------------------------------------------------------------------------------------------------------------------
   CASE(7) ! PartBound%RotPeriodicInterPlaneBC
   !-----------------------------------------------------------------------------------------------------------------------------------

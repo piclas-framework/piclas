@@ -706,6 +706,8 @@ PPURE SUBROUTINE CalcKineticEnergy(Ekin)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
@@ -714,7 +716,7 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 #if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
-USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -724,7 +726,7 @@ IMPLICIT NONE
 REAL,INTENT(OUT)                :: Ekin(nSpecAnalyze)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,ElemID
+INTEGER                         :: i,ElemID,CNElemID
 REAL(KIND=8)                    :: partV2, GammaFac
 REAL                            :: Ekin_loc
 !===================================================================================================================================
@@ -740,7 +742,8 @@ IF (nSpecAnalyze.GT.1) THEN
 #endif /*USE_HDG*/
       IF(DoDielectric)THEN
         IF(DielectricNoParticles)THEN
-          IF(isDielectricElem(ElemID)) CYCLE
+          CNElemID = GetCNElemID(ElemID+offSetElem)
+          IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))
@@ -792,7 +795,8 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 #endif /*USE_HDG*/
       IF(DoDielectric)THEN
         IF(DielectricNoParticles)THEN
-          IF(isDielectricElem(ElemID)) CYCLE
+          CNElemID = GetCNElemID(ElemID+offSetElem)
+          IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))
@@ -838,6 +842,8 @@ PPURE SUBROUTINE CalcKineticEnergyAndMaximum(Ekin,EkinMax)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
+USE MOD_Mesh_Vars             ,ONLY: offSetElem
+USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Globals_Vars          ,ONLY: c2, c2_inv, RelativisticLimit
 USE MOD_Particle_Vars         ,ONLY: PartState, PartSpecies, Species, PDM, nSpecies, PEM
 USE MOD_PARTICLE_Vars         ,ONLY: usevMPF
@@ -846,7 +852,7 @@ USE MOD_part_tools            ,ONLY: GetParticleWeight
 #if !(USE_HDG) && !(USE_FV)
 USE MOD_PML_Vars              ,ONLY: DoPML,isPMLElem
 #endif /*USE_HDG*/
-USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars       ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -857,7 +863,7 @@ REAL,INTENT(OUT)                :: Ekin(nSpecAnalyze)
 REAL,INTENT(OUT)                :: EkinMax(nSpecies)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,ElemID
+INTEGER                         :: i,ElemID,CNElemID
 REAL(KIND=8)                    :: partV2, GammaFac
 REAL                            :: Ekin_loc
 !===================================================================================================================================
@@ -876,7 +882,8 @@ IF (nSpecAnalyze.GT.1) THEN
 #endif /*USE_HDG*/
       IF(DoDielectric)THEN
         IF(DielectricNoParticles)THEN
-          IF(isDielectricElem(ElemID)) CYCLE
+          CNElemID = GetCNElemID(ElemID+offSetElem)
+          IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))
@@ -921,7 +928,8 @@ ELSE ! nSpecAnalyze = 1 : only 1 species
 #endif /*USE_HDG*/
       IF(DoDielectric)THEN
         IF(DielectricNoParticles)THEN
-          IF(isDielectricElem(ElemID)) CYCLE
+          CNElemID = GetCNElemID(ElemID+offSetElem)
+          IF(isDielectricElem_Shared(CNElemID)) CYCLE
         END IF ! DielectricNoParticles
       ENDIF
       partV2 = DOTPRODUCT(PartState(4:6,i))

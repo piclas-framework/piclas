@@ -1120,7 +1120,8 @@ USE MOD_Dielectric_vars    ,ONLY: DielectricVol
 USE MOD_Globals_Vars       ,ONLY: smu0
 #endif /*PP_nVar=8*/
 USE MOD_Globals_Vars       ,ONLY: eps0
-USE MOD_Dielectric_vars    ,ONLY: isDielectricElem,DielectricVol,ElemToDielectric
+USE MOD_Dielectric_vars    ,ONLY: isDielectricElem_Shared,DielectricVol,ElemToDielectric
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 #if !(USE_HDG)
 #endif /*PP_nVar=8*/
@@ -1147,7 +1148,7 @@ REAL,INTENT(OUT)                :: WMag,Wpsi,Wphi
 #endif /*PP_nVar=8*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,Nloc
+INTEGER           :: iElem,Nloc,CNElemID
 INTEGER           :: i,j,k
 REAL              :: WEl_tmp, WMag_tmp, E_abs
 #if !(USE_HDG)
@@ -1177,10 +1178,10 @@ DO iElem=1,nElems
   !--- Calculate and save volume of element iElem
   WEl_tmp=0.
   WMag_tmp=0.
+  CNElemID = GetCNElemID(iElem+offSetElem)
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ASSOCIATE( wGP => N_Inter(Nloc)%wGP )
-
-  IF(isDielectricElem(iElem))THEN
+  IF(isDielectricElem_Shared(CNElemID))THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if USE_HDG
   ASSOCIATE( Ex  => U_N(iElem)%E(1,i,j,k) ,&
@@ -1338,9 +1339,10 @@ SUBROUTINE SetDielectricFaceProfileForPoynting()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars ,ONLY: Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_inv
-USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricVol
-USE MOD_Mesh_Vars       ,ONLY: nSides
+USE MOD_Dielectric_Vars ,ONLY: isDielectricElem_Shared,ElemToDielectric,DielectricVol
+USE MOD_Mesh_Vars       ,ONLY: nSides,offSetElem
 USE MOD_ProlongToFace   ,ONLY: ProlongToFace
+USE MOD_Mesh_Tools      ,ONLY: GetCNElemID
 #if USE_MPI
 USE MOD_MPI_Vars
 USE MOD_MPI             ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
@@ -1362,7 +1364,7 @@ REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Mas
 REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides)                 :: Dielectric_dummy_Slave2
 INTEGER                                                  :: I,J,iSide
 #endif /*USE_MPI*/
-INTEGER                                                  :: iElem
+INTEGER                                                  :: iElem,CNElemID
 !===================================================================================================================================
 ! General workflow:
 ! 1.  Initialize dummy arrays for Elem/Face
@@ -1386,7 +1388,8 @@ Dielectric_dummy_Slave   = -1.
 
 ! 2.  Fill dummy element values for non-Dielectric sides
 DO iElem=1,PP_nElems
-  IF(isDielectricElem(iElem))THEN
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  IF(isDielectricElem_Shared(CNElemID))THEN
     ! set only the first dimension to 1./MuR (the rest are dummies)
     Dielectric_dummy_elem(1,0:PP_N,0:PP_N,0:PP_N,(iElem))=1.0 / DielectricVol(ElemToDielectric(iElem))%DielectricMu(0:PP_N,0:PP_N,0:PP_N)
   ELSE

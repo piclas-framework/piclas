@@ -12,7 +12,6 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-
 MODULE MOD_Dielectric
 !===================================================================================================================================
 ! Dielectric material handling in Maxwell's (maxwell dielectric) or Poisson's (HDG dielectric) equations
@@ -70,7 +69,9 @@ END SUBROUTINE DefineParametersDielectric
 
 SUBROUTINE InitDielectric()
 !===================================================================================================================================
-!  Initialize perfectly matched layer
+!> Read-in of dielectric variables and definition of the dielectric elements in local isDielectricElem(1:nElems) through parameter-
+!> defined region or zone definition from the mesh. Compute-node roots receive the information in isDielectricElem_Global(1:nGlobalElems)
+!> For the MPI case, the final isDielectricElem_Shared array is built at the end of InitParticleMesh
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -87,6 +88,13 @@ USE MOD_Equation_Vars     ,ONLY: c_corr
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_Mesh_Vars        ,ONLY: nGlobalElems
+USE MOD_MPI_Vars         ,ONLY: offsetElemMPI
+USE MOD_MPI_Shared_Vars  ,ONLY: myComputeNodeRank,ComputeNodeRootRank,nComputeNodeProcessors
+USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -95,7 +103,11 @@ USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,iZone
+INTEGER             :: iElem,iZone
+LOGICAL,ALLOCATABLE :: isDielectricElem(:)
+#if USE_MPI
+INTEGER             :: iProc,ElemPerProc(0:nComputeNodeProcessors-1),offsetElemPerProc(0:nComputeNodeProcessors-1)
+#endif /*USE_MPI*/
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
@@ -199,7 +211,7 @@ END IF ! DielectricNbrOfZones.GT.0
 ! find all faces in the Dielectric region
 CALL FindInterfacesInRegion(isDielectricFace,isDielectricInterFace,isDielectricElem,info_opt='find all faces in the Dielectric region')
 
-! Get number of Dielectric Elems, Faces and Interfaces. Create Mappngs Dielectric <-> physical region
+! Get number of Dielectric Elems, Faces and Interfaces. Create Mappings Dielectric <-> physical region
 CALL CountAndCreateMappings('Dielectric',&
                             isDielectricElem      , isDielectricFace      , isDielectricInterFace       , &
                             nDielectricElems      , nDielectricFaces      , nDielectricInterFaces       , &
@@ -216,14 +228,14 @@ CALL SetDielectricVolumeProfile()
 #if !(USE_HDG)
 #if !(USE_FV)
   ! Determine dielectric Values on faces and communicate them: only for Maxwell
-  CALL SetDielectricFaceProfile()
+  CALL SetDielectricFaceProfile(isDielectricElem)
 #endif /*USE_FV*/
 #else /*if USE_HDG*/
   ! Set HDG diffusion tensor 'chitens' on faces
-  CALL SetDielectricFaceProfile_HDG()
+  CALL SetDielectricFaceProfile_HDG(isDielectricElem)
   !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
-    ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on wheter
-    ! the dielectric reagion is inside the sphere or outside: currently one reagion is assumed vacuum
+    ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on whether
+    ! the dielectric region is inside the sphere or outside: currently one region is assumed vacuum
     IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
       DielectricRatio=DielectricEpsR
     ELSE ! dielectric elements outside of sphere, hence, the inverse value is taken
@@ -235,7 +247,32 @@ CALL SetDielectricVolumeProfile()
 #endif /*USE_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell
-CALL WriteDielectricGlobalToHDF5()
+CALL WriteDielectricGlobalToHDF5(isDielectricElem)
+
+! Create a shared array isDielectricElem_Shared, required in GetBoundaryInteraction to check whether particles have been moved inside
+! a dielectric element (RotPeriodicBoundary), here only the temporary isDielectricElem_Global is populated by each compute-node root
+#if USE_MPI
+! Get the elements and offsets per compute node
+DO iProc = 0,nComputeNodeProcessors-1
+  ElemPerProc(iProc) = offsetElemMPI(ComputeNodeRootRank+iProc+1) - offsetElemMPI(ComputeNodeRootRank+iProc)
+  offsetElemPerProc(iProc) = offsetElemMPI(ComputeNodeRootRank+iProc)
+END DO
+! Only CN root initializes the large array
+IF (myComputeNodeRank.EQ.0) THEN
+  ALLOCATE(isDielectricElem_Global(nGlobalElems))
+  isDielectricElem_Global = .FALSE.
+END IF
+! Get the information from all compute-node process on to the respective compute-node root
+CALL MPI_GATHERV(isDielectricElem,nElems,MPI_LOGICAL,isDielectricElem_Global,ElemPerProc,offsetElemPerProc,MPI_LOGICAL,0,MPI_COMM_SHARED,iError)
+! Compute-node roots exchange their information
+IF (myComputeNodeRank.EQ.0) CALL MPI_ALLREDUCE(MPI_IN_PLACE,isDielectricElem_Global,nGlobalElems,MPI_LOGICAL,MPI_LOR,MPI_COMM_LEADERS_SHARED,iError)
+! Population of the isDielectricElem_Shared(1:nComputeNodeTotalElems) array is done at the end of InitParticleMesh, after BuildBGMAndIdentifyHaloRegion
+#else
+ALLOCATE(isDielectricElem_Shared(1:nElems))
+isDielectricElem_Shared(1:nElems) = isDielectricElem(1:nElems)
+#endif  /*USE_MPI*/
+
+DEALLOCATE(isDielectricElem)
 
 DielectricInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT Dielectric DONE!'
@@ -370,7 +407,7 @@ END SUBROUTINE SetDielectricVolumeProfile
 
 
 #if !(USE_HDG) && !(USE_FV)
-SUBROUTINE SetDielectricFaceProfile()
+SUBROUTINE SetDielectricFaceProfile(isDielectricElem)
 !===================================================================================================================================
 !> Set the dielectric factor 1./SQRT(EpsR*MuR) for each face DOF in the array "Dielectric_Master".
 !> Only the array "Dielectric_Master" is used in the Riemann solver, as only the master calculates the flux array
@@ -387,7 +424,7 @@ SUBROUTINE SetDielectricFaceProfile()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars    , ONLY: isDielectricElem,ElemToDielectric, DielectricSurf, DielectricVol, DielectricVolDummy
+USE MOD_Dielectric_Vars    , ONLY: ElemToDielectric, DielectricSurf, DielectricVol, DielectricVolDummy
 USE MOD_Mesh_Vars          , ONLY: nSides, nElems, offSetElem
 USE MOD_DG_Vars            , ONLY: DG_Elems_master, DG_Elems_slave, N_DG_Mapping
 USE MOD_ProlongToFace      , ONLY: ProlongToFace_TypeBased
@@ -404,6 +441,7 @@ USE MOD_MPI                , ONLY: FinishExchangeMPIDataTypeDielectric
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN):: isDielectricElem(1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -583,14 +621,14 @@ END SUBROUTINE SetDielectricFaceProfile
 
 
 #if USE_HDG
-SUBROUTINE SetDielectricFaceProfile_HDG()
+SUBROUTINE SetDielectricFaceProfile_HDG(isDielectricElem)
 !===================================================================================================================================
 ! set the dielectric factor EpsR for each face DOF in the array "chitens" (constant. on the diagonal matrix)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY:isDielectricElem,DielectricEpsR
+USE MOD_Dielectric_Vars, ONLY: DielectricEpsR
 USE MOD_Equation_Vars   ,ONLY: chi
 USE MOD_Mesh_Vars       ,ONLY: offSetElem
 ! USE MOD_Mesh_Vars,       ONLY:ElemToSide,nInnerSides
@@ -599,6 +637,7 @@ USE MOD_DG_Vars         ,ONLY: N_DG_Mapping
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+LOGICAL,INTENT(IN):: isDielectricElem(1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -676,6 +715,10 @@ SUBROUTINE FinalizeDielectric()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Dielectric_Vars
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -695,12 +738,18 @@ SDEALLOCATE(DielectricToFace)
 SDEALLOCATE(FaceToDielectricInter)
 SDEALLOCATE(DielectricInterToFace)
 SDEALLOCATE(FaceToDielectric)
-SDEALLOCATE(isDielectricElem)
 SDEALLOCATE(isDielectricFace)
 SDEALLOCATE(isDielectricInterFace)
 SDEALLOCATE(DielectricZoneID)
 SDEALLOCATE(DielectricZoneEpsR)
 SDEALLOCATE(DielectricZoneMuR)
+
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+CALL UNLOCK_AND_FREE(isDielectricElem_Shared_Win)
+#endif /*USE_MPI*/
+ADEALLOCATE(isDielectricElem_Shared)
+
 END SUBROUTINE FinalizeDielectric
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 

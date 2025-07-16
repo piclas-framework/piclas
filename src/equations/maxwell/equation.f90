@@ -1037,7 +1037,8 @@ USE MOD_PreProc
 USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
 USE MOD_PICDepo_Vars      ,ONLY: PS_N,DoDeposition
-USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricVol,ElemToDielectric
+USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem_Shared,ElemToDielectric,DielectricVol,ElemToDielectric
+USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars         ,ONLY: N_VolMesh, offSetElem
 #if defined(LSERK)
@@ -1054,7 +1055,7 @@ REAL,INTENT(IN)                 :: t,coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem,iDielectricElem
+INTEGER                         :: i,j,k,iElem,iDielectricElem,CNElemID
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
@@ -1069,9 +1070,10 @@ eps0inv = 1./eps0
 IF(DoDeposition)THEN
   IF(DoDielectric)THEN
     DO iElem=1,PP_nElems
-      iDielectricElem = ElemToDielectric(iElem)
       Nloc = N_DG_Mapping(2,iElem+offSetElem)
-      IF(isDielectricElem(iElem)) THEN ! Element is in an dielectric region
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      IF(isDielectricElem_Shared(CNElemID)) THEN ! Element is in an dielectric region
+        iDielectricElem = ElemToDielectric(iElem)
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
           PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
           !  Get PartSource from Particles
