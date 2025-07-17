@@ -104,20 +104,13 @@ INTEGER            :: iNewPart,NewPartID
 REAL               :: NewVelo(3), NewPos(1:3)
 #endif /*USE_HDG*/
 !===================================================================================================================================
-!===================================================================================================================================
-! 0.) Initial surface pre-treatment
-!===================================================================================================================================
-!---- Treatment of adaptive and porous boundary conditions (deletion of particles in case of circular inflow or porous BC)
+! Initialize variables before
 SpecularReflectionOnly = .FALSE.
-IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(PartID,SideID)
-IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflectionOnly)
-
 locBCID        = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 PartSpecImpact = PartSpecies(PartID)
 ProductSpec(1) = PartSpecImpact
 ProductSpec(2) = 0
 ProductSpecNbr = 0
-
 ! Store info of impacting particle for possible surface charging
 PartPosImpact(1:3) = LastPartPos(1:3,PartID)+TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
 ! Storing weighting factor for energy check after emission
@@ -130,9 +123,14 @@ IF(DoDielectricSurfaceCharge.AND.PartBound%Dielectric(locBCID)) THEN ! Surface c
   ChargeImpact = Species(PartSpecImpact)%ChargeIC*ImpactWeight
 END IF
 !===================================================================================================================================
+! 0.) Initial surface pre-treatment for circular inflow and porous boundary conditions: possible deletion of particles
+!===================================================================================================================================
+IF(UseCircularInflow) CALL SurfaceFluxBasedBoundaryTreatment(PartID,SideID)
+IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflectionOnly)
+!===================================================================================================================================
 ! 1.) Count and sample the properties BEFORE the surface interaction
 !===================================================================================================================================
-! Counter for surface analyze
+! Counter for surface analyze (includes impacts due to porous BC and circular inflow)
 IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(PartSpecImpact) + 1
 ! Sampling
 DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
