@@ -184,9 +184,10 @@ USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
-USE MOD_Dielectric_Vars        ,ONLY: isDielectricElem_Shared, isDielectricElem_Global
-USE MOD_Dielectric_Vars        ,ONLY: isDielectricElem_Shared_Win
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared,isDielectricElem_Global,isDielectricElem_Shared_Win
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
@@ -220,7 +221,9 @@ CHARACTER(LEN=2) :: tmpStr
 #endif /*CODE_ANALYZE*/
 CHARACTER(3)      :: hilf
 #if USE_MPI
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 INTEGER           :: iCNElem, iGlobElem
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /* USE_MPI */
 !===================================================================================================================================
 
@@ -495,21 +498,25 @@ ELSE
 END IF
 
 #if USE_MPI
-! Populate the isDielectricElem_Shared array, utilized in the GetBoundaryInteraction to check whether particles have been moved
-! inside a dielectric element (RotPeriodicBoundary), which requires the information whether the new element is within a dielectric
-CALL Allocate_Shared((/nComputeNodeTotalElems/),isDielectricElem_Shared_Win,isDielectricElem_Shared)
-CALL MPI_WIN_LOCK_ALL(0,isDielectricElem_Shared_Win,IERROR)
-! Compute-node root populates the shared array
-IF (myComputeNodeRank.EQ.0) THEN
-  DO iCNElem = 1,nComputeNodeTotalElems
-    iGlobElem = GetGlobalElemID(iCNElem)
-    isDielectricElem_Shared(iCNElem) = isDielectricElem_Global(iGlobElem)
-  END DO
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+IF(DoDielectric) THEN
+  ! Populate the isDielectricElem_Shared array, utilized in the GetBoundaryInteraction to check whether particles have been moved
+  ! inside a dielectric element (RotPeriodicBoundary), which requires the information whether the new element is within a dielectric
+  CALL Allocate_Shared((/nComputeNodeTotalElems/),isDielectricElem_Shared_Win,isDielectricElem_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,isDielectricElem_Shared_Win,IERROR)
+  ! Compute-node root populates the shared array
+  IF (myComputeNodeRank.EQ.0) THEN
+    DO iCNElem = 1,nComputeNodeTotalElems
+      iGlobElem = GetGlobalElemID(iCNElem)
+      isDielectricElem_Shared(iCNElem) = isDielectricElem_Global(iGlobElem)
+    END DO
+  END IF
+  ! Synchronize shared array
+  CALL BARRIER_AND_SYNC(isDielectricElem_Shared_Win,MPI_COMM_SHARED)
+  ! Deallocate temporary array
+  IF (myComputeNodeRank.EQ.0) DEALLOCATE(isDielectricElem_Global)
 END IF
-! Synchronize shared array
-CALL BARRIER_AND_SYNC(isDielectricElem_Shared_Win,MPI_COMM_SHARED)
-! Deallocate temporary array
-IF (myComputeNodeRank.EQ.0) DEALLOCATE(isDielectricElem_Global)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /*USE_MPI*/
 
 ParticleMeshInitIsDone=.TRUE.

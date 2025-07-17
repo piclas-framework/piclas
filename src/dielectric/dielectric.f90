@@ -114,7 +114,7 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
 !===================================================================================================================================
 ! Readin
 !===================================================================================================================================
-DoDielectric                     = GETLOGICAL('DoDielectric','.FALSE.')
+DoDielectric                     = GETLOGICAL('DoDielectric')
 IF(.NOT.DoDielectric) THEN
   LBWRITE(UNIT_stdOut,'(A)') ' Dielectric region deactivated. '
   nDielectricElems=0
@@ -219,6 +219,11 @@ CALL CountAndCreateMappings('Dielectric',&
                             FaceToDielectric      , DielectricToFace      , & ! these two are allocated
                             FaceToDielectricInter , DielectricInterToFace , & ! these two are allocated
                             DisplayInfo=.TRUE.)
+
+! Sanity check: have any dielectric elements been defined?
+IF(nDielectricElems.LT.1) THEN
+  CALL abort(__STAMP__,'ERROR: DoDielectric = TRUE but no dielectric elements have been defined, neither through zone nor regions!')
+END IF
 
 ! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell + HDG
 ! for HDG the volume field is not used, only for output in .h5 file for checking if the region is used correctly
