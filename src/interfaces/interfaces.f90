@@ -54,12 +54,11 @@ SUBROUTINE InitInterfaces
 ! MODULES
 USE MOD_Preproc
 USE MOD_globals
-USE MOD_Mesh_Vars        ,ONLY: nSides,N_SurfMesh,MortarType,offSetElem
-USE MOD_Mesh_Tools       ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars        ,ONLY: nSides,N_SurfMesh,MortarType
 #if ! (USE_HDG) && !(USE_FV)
 USE MOD_PML_vars         ,ONLY: DoPML,isPMLFace
 #endif /*NOT HDG*/
-USE MOD_Dielectric_vars  ,ONLY: DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem_Shared,DielectricFluxNonConserving
+USE MOD_Dielectric_vars  ,ONLY: DoDielectric,isDielectricFace,isDielectricInterFace,isDielectricElem,DielectricFluxNonConserving
 USE MOD_Interfaces_Vars  ,ONLY: InterfaceRiemann,InterfacesInitIsDone
 USE MOD_Globals          ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
@@ -122,8 +121,7 @@ DO SideID=1,nSides
           IF(MortarType(1,SideID).EQ.0) THEN
             ! small mortar slave sides have no corresponding master element
             IF(SideToElem(S2E_NB_ELEM_ID,SideID).GT.0) THEN
-              CNElemID = GetCNElemID(SideToElem(S2E_NB_ELEM_ID,SideID)+offSetElem)
-              IF(isDielectricElem_Shared(CNElemID))THEN
+              IF(isDielectricElem(SideToElem(S2E_NB_ELEM_ID,SideID)))THEN
                 ! am1) big elem is PHYSICAL and small slave DIELECTRIC
                 IF(DielectricFluxNonConserving)THEN
                   InterfaceRiemann(SideID)=RIEMANN_VAC2DIELECTRIC_NC ! use two different Riemann solvers
@@ -145,8 +143,7 @@ DO SideID=1,nSides
             InterfaceRiemann(SideID)=-1
           END IF
         ELSE
-          CNElemID = GetCNElemID(ElemID+offSetElem)
-          IF(isDielectricElem_Shared(CNElemID))THEN
+          IF(isDielectricElem(ElemID))THEN
             ! a1) master is DIELECTRIC and slave PHYSICAL
             IF(DielectricFluxNonConserving)THEN ! use one flux (conserving) or two fluxes (non-conserving) at the interface
               InterfaceRiemann(SideID)=RIEMANN_DIELECTRIC2VAC_NC ! use two different Riemann solvers

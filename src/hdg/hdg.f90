@@ -2107,8 +2107,7 @@ USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 USE MOD_Analyze_Vars           ,ONLY: FieldAnalyzeStep
 USE MOD_DG_Vars                ,ONLY: U_N
-USE MOD_Dielectric_vars        ,ONLY: DoDielectric,isDielectricElem_Shared,ElemToDielectric,DielectricVol
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Dielectric_vars        ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricVol
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages
 #endif /*(PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)*/
@@ -2121,7 +2120,7 @@ INTEGER,INTENT(IN) :: mode !< 1: store E^n at the beginning of the time step
                            !< 2: store E^n+1 at the end of the time step and subtract E^n to calculate the difference
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iDir,iElem,CNElemID
+INTEGER           :: iDir,iElem
 !===================================================================================================================================
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 IF((iStage.NE.1).AND.(iStage.NE.nRKStages)) RETURN
@@ -2141,15 +2140,14 @@ IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
     ! Store E^n+1 at the end of the time step and subtract E^n to calculate the difference
     IF(DoDielectric)THEN
       DO iElem=1,PP_nElems
-        CNElemID = GetCNElemID(iElem+offSetElem)
-        IF(isDielectricElem_Shared(CNElemID)) THEN
+        IF(isDielectricElem(iElem)) THEN
           DO iDir = 1, 3
             U_N(iElem)%Dt(iDir,:,:,:) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)&
                 *eps0*(U_N(iElem)%E(iDir,:,:,:)-U_N(iElem)%Dt(iDir,:,:,:)) / dt
           END DO ! iDir = 1, 3
         ELSE
           U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
-        END IF ! isDielectricElem_Shared(CNElemID)
+        END IF ! isDielectricElem(iElem)
       END DO ! iElem=1,PP_nElems
     ELSE
       DO iElem=1,PP_nElems

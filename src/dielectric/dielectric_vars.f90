@@ -34,8 +34,11 @@ LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for us
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag
 LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=T).
-LOGICAL,ALLOCATABLE :: isDielectricElem_Global(:)     ! True if element is located within the dielectric, temporary on the compute-node root (1:nGlobalElems)
+LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if local element is located within the dielectric
+#ifdef PARTICLES
+LOGICAL,ALLOCATABLE :: isDielectricElem_Global(:)     ! Same but for the global elements, temporary on the compute-node root (1:nGlobalElems)
 LOGICAL,ALLOCPOINT  :: isDielectricElem_Shared(:)     ! Same but for the compute-node element, built for check during tracking (1:nComputeNodeTotalElems)
+#endif /*PARTICLES*/
 #if USE_MPI
 TYPE(MPI_Win)       :: isDielectricElem_Shared_Win
 #endif /*USE_MPI*/

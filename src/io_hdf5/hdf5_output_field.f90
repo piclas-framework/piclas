@@ -53,14 +53,14 @@ CONTAINS
 
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
-SUBROUTINE WriteDielectricGlobalToHDF5(isDielectricElem)
+SUBROUTINE WriteDielectricGlobalToHDF5()
 !===================================================================================================================================
 ! write DielectricGlobal field to HDF5 file
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Dielectric_Vars      ,ONLY: DielectricVol,ElemToDielectric
+USE MOD_Dielectric_Vars      ,ONLY: isDielectricElem,DielectricVol,ElemToDielectric
 USE MOD_Mesh_Vars            ,ONLY: MeshFile,offsetElem,nElems
 USE MOD_io_HDF5
 USE MOD_ChangeBasis          ,ONLY: ChangeBasis3D
@@ -73,7 +73,6 @@ USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)  :: isDielectricElem(1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

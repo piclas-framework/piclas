@@ -53,7 +53,7 @@ USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DGB_N,U_N
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_Interpolation_Vars ,ONLY: Nmax
 USE MOD_PML_Vars           ,ONLY: DoPML,isPMLElem
-USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem_Shared
+USE MOD_Dielectric_Vars    ,ONLY: DoDielectric,isDielectricElem
 USE MOD_Flux               ,ONLY: EvalFlux3D,EvalFlux3DDielectric              ! computes volume fluxes in local coordinates
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 ! IMPLICIT VARIABLE HANDLING
@@ -91,8 +91,7 @@ DO iElem=firstElemID,lastElemID
              !g => g(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)  ,&
              !h => h(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc)  )
     IF(DoDielectric)THEN
-      CNElemID = GetCNElemID(iElem+offSetElem)
-      IF(isDielectricElem_Shared(CNElemID)) THEN ! 1.) PML version - PML element
+      IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
         CALL EvalFlux3DDielectric(Nloc,iElem,f(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),g(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),h(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
       ELSE
         CALL EvalFlux3D(Nloc,iElem,f(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),g(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc),h(1:PP_nVar,0:Nloc,0:Nloc,0:Nloc))
