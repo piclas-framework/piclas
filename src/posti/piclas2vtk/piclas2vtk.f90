@@ -318,8 +318,11 @@ DO iArgs = iArgsStart,nArgs
     CALL OpenDataFile(MeshFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
     CALL ReadAttribute(File_ID,'nUniqueNodes',1,IntScalar=nUniqueNodes)
     CALL CloseDataFile()
+    IF(nUniqueNodes.EQ.0) CALL abort(__STAMP__,'ERROR: Something is wrong with the mesh, nUniqueNodes is zero!')
     ALLOCATE(ElemUniqueNodeID(1:8,1:nGlobalElems))
+    ElemUniqueNodeID = 0
     ALLOCATE(NodeCoords_Connect(1:3,1:nUniqueNodes))
+    NodeCoords_Connect = 0
     DO iElem = 1, nGlobalElems
       DO iNode = 1,8
         ElemUniqueNodeID(iNode,iElem)=ABS(NodeInfo_Shared(ElemNodeID_Shared(iNode,iElem)))
@@ -421,6 +424,8 @@ IF(ReadMeshFinished)THEN
   ADEALLOCATE(ElemNodeID_Shared)
 END IF ! ReadMeshFinished
 
+SDEALLOCATE(NodeCoords_Connect)
+SDEALLOCATE(ElemUniqueNodeID)
 
 ! Measure processing duration
 GETTIME(Time)
