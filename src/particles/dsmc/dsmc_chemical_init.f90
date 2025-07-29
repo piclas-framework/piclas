@@ -291,7 +291,7 @@ ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
 ChemReac%CrossSection = 0.
 
-IF (BGGas%NumberOfSpecies.GT.0) THEN
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.BGGas%UseDistribution)) THEN
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
       ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
