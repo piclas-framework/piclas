@@ -519,10 +519,10 @@ IF(AdaptBCAverageValBC) THEN
               ! Calculate the average number density
               IF(usevMPF) THEN
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF)
+                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF)
               ELSE
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
+                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
                     * Species(iSpec)%MacroParticleFactor
               END IF
               IF(AdaptBCMeanValues(7,iSpec,iSF).GT.1) THEN
