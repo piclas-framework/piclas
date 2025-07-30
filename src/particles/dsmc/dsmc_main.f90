@@ -48,7 +48,7 @@ USE MOD_DSMC_Analyze          ,ONLY: SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Species, PartSpecies, UseGranularSpecies
 USE MOD_DSMC_ParticlePairing  ,ONLY: DSMC_pairing_standard, DSMC_pairing_octree, DSMC_pairing_quadtree, DSMC_pairing_dotree
-USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues
+USE MOD_Particle_Vars         ,ONLY: WriteMacroSurfaceValues, UseStateBGDistri
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
@@ -89,63 +89,65 @@ END IF
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 IF (CollisMode.NE.0) THEN
-  DO iElem = 1, nElems ! element/cell main loop
-    IF(PRESENT(DoElement)) THEN
-      IF (.NOT.DoElement(iElem)) CYCLE
-    END IF
-    nPart = PEM%pNumber(iElem)
-    ! Are there granular species
-    IF(UseGranularSpecies) THEN
-      ! Get real nPart without granular species
-      iPart = PEM%pStart(iElem)
-      nPartTemp = nPart
-      DO iLoop = 1, nPart
-        IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-          nPartTemp = nPartTemp - 1
-        END IF
-        iPart = PEM%pNext(iPart)
-      END DO
-      nPart = nPartTemp
-    END IF
-    IF (nPart.LT.1) CYCLE
-    IF(DSMC%CalcQualityFactors) THEN
-      DSMC%CollProbMax = 0.0; DSMC%CollProbSum = 0.0;DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
-      DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
-      IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
-      DSMC%CalcVibProb = 0.
-    END IF
-    CALL InitCalcVibRelaxProb()
-    IF(BGGas%NumberOfSpecies.GT.0) THEN
-      ! Decide between MCC and DSMC-based background gas
-      IF(UseMCC) THEN
-        CALL MonteCarloCollision(iElem)
-      ELSE
-        CALL DSMC_pairing_bggas(iElem)
+  IF(.NOT.UseStateBGDistri) THEN
+    DO iElem = 1, nElems ! element/cell main loop
+      IF(PRESENT(DoElement)) THEN
+        IF (.NOT.DoElement(iElem)) CYCLE
       END IF
-    ELSE IF (nPart.GT.1) THEN
-      IF (DSMC%UseOctree) THEN
-        ! On-the-fly cell refinement and pairing within subcells
-        IF(Symmetry%Order.EQ.3) THEN
-          CALL DSMC_pairing_octree(iElem)
-        ELSE IF(Symmetry%Order.EQ.2) THEN
-          CALL DSMC_pairing_quadtree(iElem)
+      nPart = PEM%pNumber(iElem)
+      ! Are there granular species
+      IF(UseGranularSpecies) THEN
+        ! Get real nPart without granular species
+        iPart = PEM%pStart(iElem)
+        nPartTemp = nPart
+        DO iLoop = 1, nPart
+          IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+            nPartTemp = nPartTemp - 1
+          END IF
+          iPart = PEM%pNext(iPart)
+        END DO
+        nPart = nPartTemp
+      END IF
+      IF (nPart.LT.1) CYCLE
+      IF(DSMC%CalcQualityFactors) THEN
+        DSMC%CollProbMax = 0.0; DSMC%CollProbSum = 0.0;DSMC%CollProbMean = 0.0; DSMC%CollProbMeanCount = 0; DSMC%CollSepDist = 0.0; DSMC%CollSepCount = 0
+        DSMC%MeanFreePath = 0.0; DSMC%MCSoverMFP = 0.0
+        IF(DSMC%RotRelaxProb.GT.2) DSMC%CalcRotProb = 0.
+        DSMC%CalcVibProb = 0.
+      END IF
+      CALL InitCalcVibRelaxProb()
+      IF(BGGas%NumberOfSpecies.GT.0) THEN
+        ! Decide between MCC and DSMC-based background gas
+        IF(UseMCC) THEN
+          CALL MonteCarloCollision(iElem)
         ELSE
-          CALL DSMC_pairing_dotree(iElem)
+          CALL DSMC_pairing_bggas(iElem)
         END IF
-      ELSE ! NOT DSMC%UseOctree
-        ! Standard pairing of particles within a cell
-        CALL DSMC_pairing_standard(iElem)
-      END IF ! DSMC%UseOctree
-    ELSE ! less than 2 particles
-      IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(PEM%pStart(iElem)) = 0
-      CYCLE ! next element
-    END IF
-    CALL FinalizeCalcVibRelaxProb(iElem)
-    IF(DSMC%CalcQualityFactors) CALL SummarizeQualityFactors(iElem)
+      ELSE IF (nPart.GT.1) THEN
+        IF (DSMC%UseOctree) THEN
+          ! On-the-fly cell refinement and pairing within subcells
+          IF(Symmetry%Order.EQ.3) THEN
+            CALL DSMC_pairing_octree(iElem)
+          ELSE IF(Symmetry%Order.EQ.2) THEN
+            CALL DSMC_pairing_quadtree(iElem)
+          ELSE
+            CALL DSMC_pairing_dotree(iElem)
+          END IF
+        ELSE ! NOT DSMC%UseOctree
+          ! Standard pairing of particles within a cell
+          CALL DSMC_pairing_standard(iElem)
+        END IF ! DSMC%UseOctree
+      ELSE ! less than 2 particles
+        IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(PEM%pStart(iElem)) = 0
+        CYCLE ! next element
+      END IF
+      CALL FinalizeCalcVibRelaxProb(iElem)
+      IF(DSMC%CalcQualityFactors) CALL SummarizeQualityFactors(iElem)
 #if USE_LOADBALANCE
-    CALL LBElemSplitTime(iElem,tLBStart)
+      CALL LBElemSplitTime(iElem,tLBStart)
 #endif /*USE_LOADBALANCE*/
-  END DO ! iElem Loop
+    END DO ! iElem Loop
+  END IF ! UseStateBGDistri
 END IF ! CollisMode.NE.0
 
 IF(PDM%ParticleVecLength.GT.PDM%MaxParticleNumber) THEN

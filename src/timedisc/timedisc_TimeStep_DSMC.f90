@@ -42,6 +42,7 @@ USE MOD_Particle_Vars            ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVe
 USE MOD_Particle_Vars            ,ONLY: WriteMacroSurfaceValues, Species, PartSpecies
 USE MOD_Particle_Vars            ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_Particle_Vars            ,ONLY: UseSplitAndMerge
+USE MOD_Particle_Vars            ,ONLY: UseStateBGDistri
 USE MOD_DSMC_Vars                ,ONLY: DSMC, CollisMode, AmbipolElecVelo
 USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
@@ -127,6 +128,7 @@ CALL LBStartTime(tLBStart)
 
 DO iPart=1,PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
+    IF((UseStateBGDistri).AND.(Species(PartSpecies(iPart))%InterID.NE.100)) CYClE
     ! Variable time step: getting the right time step for the particle (can be constant across an element)
     IF (UseVarTimeStep) THEN
       dtVar = dt * PartTimeStep(iPart)
@@ -218,38 +220,42 @@ END IF
 
 IF(DSMC%UseOctree)THEN
   ! Case Symmetry%Order=1 is performed in DSMC main
-  IF(Symmetry%Order.EQ.2)THEN
-    DO iPart=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        ! Store reference position in LastPartPos array to reduce memory demand
-        CALL GeoCoordToMap2D(PartState(1:2,iPart), LastPartPos(1:2,iPart), PEM%LocalElemID(iPart))
-      END IF
-    END DO
-  ELSEIF(Symmetry%Order.EQ.3) THEN
-    DO iPart=1,PDM%ParticleVecLength
-      IF (PDM%ParticleInside(iPart)) THEN
-        ! Store reference position in LastPartPos array to reduce memory demand
-        CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
-      END IF
-    END DO
-  END IF ! Symmetry%Order.EQ.2
+  IF(.NOT.UseStateBGDistri) THEN
+    IF(Symmetry%Order.EQ.2)THEN
+      DO iPart=1,PDM%ParticleVecLength
+        IF (PDM%ParticleInside(iPart)) THEN
+          ! Store reference position in LastPartPos array to reduce memory demand
+          CALL GeoCoordToMap2D(PartState(1:2,iPart), LastPartPos(1:2,iPart), PEM%LocalElemID(iPart))
+        END IF
+      END DO
+    ELSEIF(Symmetry%Order.EQ.3) THEN
+      DO iPart=1,PDM%ParticleVecLength
+        IF (PDM%ParticleInside(iPart)) THEN
+          ! Store reference position in LastPartPos array to reduce memory demand
+          CALL GetPositionInRefElem(PartState(1:3,iPart),LastPartPos(1:3,iPart),PEM%GlobalElemID(iPart))
+        END IF
+      END DO
+    END IF ! Symmetry%Order.EQ.2
+  END IF ! UseStateBGDistri
 END IF ! DSMC%UseOctree
 
 IF(UseRotRefFrame) THEN
-  DO iPart = 1,PDM%ParticleVecLength
-    IF(PDM%ParticleInside(iPart)) THEN
-      IF(InRotRefFrameCheck(iPart)) THEN
-        ! Particle moved into the rotational frame of reference, initialize velocity
-        IF(.NOT.PDM%InRotRefFrame(iPart)) THEN
-          PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+  IF(.NOT.UseStateBGDistri) THEN
+    DO iPart = 1,PDM%ParticleVecLength
+      IF(PDM%ParticleInside(iPart)) THEN
+        IF(InRotRefFrameCheck(iPart)) THEN
+          ! Particle moved into the rotational frame of reference, initialize velocity
+          IF(.NOT.PDM%InRotRefFrame(iPart)) THEN
+            PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
+          END IF
+        ELSE
+          ! Particle left (or never was in) the rotational frame of reference
+          PartVeloRotRef(1:3,iPart) = 0.
         END IF
-      ELSE
-        ! Particle left (or never was in) the rotational frame of reference
-        PartVeloRotRef(1:3,iPart) = 0.
+        PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
       END IF
-      PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
-    END IF
-  END DO
+    END DO
+  END IF ! UseStateBGDistri
 END IF
 
 CALL DSMC_main()

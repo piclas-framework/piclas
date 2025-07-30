@@ -317,6 +317,7 @@ LOGICAL               :: UseGravitation     ! Flag for taking gravity into accou
 REAL                  :: GravityDir(3)      ! Direction of gravity force
 LOGICAL               :: SkipGranularUpdate ! Flag to skip granular species position, velocity and temperature update
                                             ! used only for benchmark TC
+LOGICAL               :: UseStateBGDistri   ! Flag for using a fix background distribution (given by the state file)
 REAL                  :: ForceAverage(5)
 REAL                  :: SumForceAverage(5)
 

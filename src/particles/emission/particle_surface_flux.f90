@@ -84,6 +84,7 @@ REAL                        :: tLBStart
 IF(ParticleWeighting%UseSubdivision) ParticleWeighting%PartInsSide = 0
 
 DO iSpec=1,nSpecies
+  IF((UseStateBGDistri).AND.(Species(iSpec)%InterID.NE.100)) CYClE
   IF(useDSMC) THEN
     IF (DSMC%DoAmbipolarDiff) THEN
       IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
