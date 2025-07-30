@@ -313,8 +313,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
-
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_LOGICAL_1
 
@@ -382,7 +385,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_LOGICAL_2
 
@@ -450,7 +457,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_1
 
@@ -519,7 +530,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_2
 
@@ -588,7 +603,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_3
 
@@ -657,7 +676,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_4
 
@@ -780,9 +803,14 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_1
+
 
 SUBROUTINE Allocate_Shared_Real_1_nValINT8(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
@@ -845,7 +873,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE Allocate_Shared_Real_1_nValINT8
 
@@ -911,7 +943,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE Allocate_Shared_Int_1_nValINT8
 
@@ -977,7 +1013,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE Allocate_Shared_Int_1_nValKIND_DataPointKIND2
 
@@ -1045,7 +1085,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_2
 
@@ -1114,7 +1158,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_3
 
@@ -1183,7 +1231,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_4
 
@@ -1325,7 +1377,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_6
 

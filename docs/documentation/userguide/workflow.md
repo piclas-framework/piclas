@@ -31,7 +31,7 @@ For some external libraries and programs that **PICLas** uses, the following opt
 * ``LIBS_BUILD_HDF5``: This will be set to ON if no pre-built HDF5 installation was found on your machine. In this case a HDF5 version
 will be built and used instead. For a detailed description of the installation of HDF5, please refer to Section {ref}`sec:hdf5-installation`.
 
-  * ``HDF5_DIR``: If you want to use a pre-built HDF5 library that has been built using the CMake system, this directory should contain
+* ``HDF5_DIR``: If you want to use a pre-built HDF5 library that has been built using the CMake system, this directory should contain
 the CMake configuration file for HDF5 (optional, advanced).
 
 * ``LIBS_USE_PETSC``: Enables the utilization of PETSc for the electrostatic field solver
@@ -42,9 +42,8 @@ the CMake configuration file for HDF5 (optional, advanced).
 * ``PICLAS_BUILD_POSTI``: Enables the compilation of additional tools and activates the following options:
   * ``POSTI_BUILD_SUPERB``: Enables the compilation of **superB**, which is allows the computation of magnetic fields based on an
   input of coils and permanent magnets, see Section {ref}`sec:superB`
-  * ``POSTI_BUILD_VISU``: Enables the compilation of the post-processing tool **piclas2vtk**, which enables the conversion of
+  * ``POSTI_BUILD_PICLAS2VTK``: Enables the compilation of the post-processing tool **piclas2vtk**, which enables the conversion of
   output files into the VTK format
-  * ``POSTI_USE_PARAVIEW``: Enables the compilation of the ParaView plugin, which enables the direct read-in of output files within ParaView
 
 * ``PICLAS_SHARED_MEMORY``: Split type for creating new communicators based on colors and keys (requires MPI 3 or higher).
   Options with the prefix OMPI_ are specific to Open MPI.
@@ -87,8 +86,8 @@ Before setting up a simulation, the code must be compiled with the desired param
     * BGK-Flow: Bhatnagar-Gross-Krook collision operator, Section {ref}`sec:BGK-Flow`
     * Radiation: Radiation and radiation transport solver, Section {ref}`sec:Radiation`
 * ``PICLAS_EQNSYSNAME``: Equation system to be solved
-    * maxwell: Electromagnetic
-    * poisson: Electrostatic
+    * maxwell: Solution of the full Maxwell's equations for an electromagnetic simulation
+    * poisson: Solution of the Poisson's equation for an electrostatic simulation
 * ``PICLAS_POLYNOMIAL_DEGREE``: Defines the polynomial degree of the solution. The order of convergence follows as $N+1$. Each grid
 cell contains $(N+1)^3$ collocation points to represent the solution.
 * ``PICLAS_NODETYPE``: The nodal collocation points used during the simulation

@@ -52,7 +52,7 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
-USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef, PDM
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_DSMC_Vars             ,ONLY: DSMC, PartStateIntEn, PolyatomMolDSMC, CollInf
 USE MOD_TimeDisc_Vars         ,ONLY: dt
 USE MOD_BGK_Vars              ,ONLY: SpecBGK, BGKDoVibRelaxation, BGKMovingAverage
@@ -296,7 +296,7 @@ IF(UseRotRefFrame) THEN
   ! Resetting the velocity in the rotational frame of reference for particles that underwent a relaxation
   DO iLoop = 1, nRelax
     iPart = iPartIndx_NodeRelax(iLoop)
-    IF(PDM%InRotRefFrame(iPart)) THEN
+    IF(InRotRefFrame(iPart)) THEN
       PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
     END IF
   END DO

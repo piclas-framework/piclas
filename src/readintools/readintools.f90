@@ -2462,11 +2462,11 @@ END IF
 #endif /*USE_LOADBALANCE*/
 
 ! set length of name
-WRITE(fmtName,*) prms%maxNameLen
+WRITE(fmtName,'(I0)') MAX(1,prms%maxNameLen)
 
 ! Set format and length for value
 Counter=0
-WRITE(fmtValue,*) prms%maxValueLen
+WRITE(fmtValue,'(I0)') prms%maxValueLen
 fmtValue=ADJUSTL(fmtValue)
 IF(PRESENT(RealOpt))THEN
   IF(prms%maxValueLen.GE.23)THEN

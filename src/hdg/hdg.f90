@@ -37,7 +37,7 @@ INTERFACE FinalizeHDG
 END INTERFACE
 
 PUBLIC :: InitHDG,FinalizeHDG
-PUBLIC :: HDG, RestartHDG
+PUBLIC :: HDG, RecomputeEFieldHDG
 PUBLIC :: DefineParametersHDG
 #if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
@@ -45,6 +45,9 @@ PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
  PUBLIC :: SynchronizeBV
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI */
+#if defined(PARTICLES)
+PUBLIC :: CalculatePhiAndEFieldFromCurrentsVDL
+#endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
 
@@ -52,7 +55,7 @@ CONTAINS
 
 #if USE_HDG
 !===================================================================================================================================
-!> Define parameters for HDG (Hubridized Discontinous Galerkin)
+!> Define parameters for HDG (Hybridized Discontinuous Galerkin)
 !===================================================================================================================================
 SUBROUTINE DefineParametersHDG()
 ! MODULES
@@ -71,7 +74,7 @@ CALL prms%CreateLogicalOption('NewtonAdaptStartValue'  ,'Initial recomputation o
 CALL prms%CreateIntOption(    'AdaptIterNewtonToLinear','Maximum number of iterations where the exact source derivative is used before it is switched to the linearization', '100')
 CALL prms%CreateIntOption(    'MaxIterNewton'          ,'Maximum number of iterations in the Newton solver', '10000')
 CALL prms%CreateRealOption(   'EpsNonLinear'           ,'Abort residual of the Newton solver', '1.0E-6')
-CALL prms%CreateIntOption(    'PrecondType'            ,'Preconditioner type\n 0: no preconditioner\n 1: Side-block SPD preconditioner matrix (already Cholesky decomposed)\n 2: Inverse of diagonal preconditioned', '2')
+CALL prms%CreateIntOption(    'PrecondType'            ,'Preconditioner type\n 0: no preconditioner\n 1: Side-block SPD preconditioner matrix (already Cholesky decomposed)\n 2: Inverse of diagonal preconditioned')
 CALL prms%CreateRealOption(   'epsCG'                  ,'Abort residual of the CG solver', '1.0E-6')
 CALL prms%CreateIntOption(    'OutIterCG'              ,'Number of iteration steps between output of CG solver info to std out', '1')
 CALL prms%CreateLogicalOption('useRelativeAbortCrit'   ,'Switch between relative and absolute abort criterion', '.FALSE.')
@@ -82,6 +85,7 @@ CALL prms%CreateIntOption(    'HDGSkipInit'            ,'Number of time step ite
 CALL prms%CreateRealOption(   'HDGSkip_t0'             ,'Time during which HDGSkipInit is used instead of HDGSkip (if HDGSkip > 0)', '0.')
 CALL prms%CreateLogicalOption('HDGDisplayConvergence'  ,'Display divergence criteria: Iterations, RunTime and Residual', '.FALSE.')
 CALL prms%CreateRealArrayOption( 'EPC-Resistance'      , 'Vector (length corresponds to the number of EPC boundaries) with the resistance for each EPC in Ohm', no=0)
+CALL prms%CreateLogicalOption('HDGNSideMin'            ,'Use the minimum polynomial degree at the sides for the HDG solver', '.FALSE.')
 #if defined(PARTICLES)
 CALL prms%CreateLogicalOption(  'UseBiasVoltage'              , 'Activate usage of bias voltage adjustment (for specific boundaries only)', '.FALSE.')
 CALL prms%CreateIntOption(      'BiasVoltage-NPartBoundaries' , 'Number of particle boundaries where the total ion excess is to be calculated for bias voltage model')
@@ -106,37 +110,41 @@ SUBROUTINE InitHDG()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Interpolation_Vars    ,ONLY: xGP,wGP,L_minus,L_plus
 USE MOD_Basis                 ,ONLY: PolynomialDerivativeMatrix
-USE MOD_Interpolation_Vars    ,ONLY: wGP
+USE MOD_Interpolation_Vars    ,ONLY: N_Inter,NMax
+USE MOD_ChangeBasis           ,ONLY: ChangeBasis2D
 USE MOD_Elem_Mat              ,ONLY: Elem_Mat,BuildPrecond
 USE MOD_ReadInTools           ,ONLY: GETLOGICAL,GETREAL,GETINT
-USE MOD_Mesh_Vars             ,ONLY: sJ,nBCSides
+USE MOD_Mesh_Vars             ,ONLY: nBCSides,N_SurfMesh
 USE MOD_Mesh_Vars             ,ONLY: BoundaryType,nSides,BC
-USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides
-USE MOD_Mesh_Vars             ,ONLY: DoSwapMesh
-USE MOD_ChangeBasis           ,ONLY: ChangeBasis2D
+USE MOD_Mesh_Vars             ,ONLY: nGlobalMortarSides,nMortarMPISides,N_VolMesh
+USE MOD_Mesh_Vars             ,ONLY: offSetElem,ElemToSide
 USE MOD_Basis                 ,ONLY: InitializeVandermonde,LegendreGaussNodesAndWeights,BarycentricWeights
 USE MOD_FillMortar_HDG        ,ONLY: InitMortar_HDG
 USE MOD_HDG_Vars              ,ONLY: BRNbrOfRegions,ElemToBRRegion,RegionElectronRef
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 #if defined(PARTICLES)
 USE MOD_Part_BR_Elecron_Fluid ,ONLY: UpdateNonlinVolumeFac
 USE MOD_Restart_Vars          ,ONLY: DoRestart
 #endif /*defined(PARTICLES)*/
+#if USE_MPI
+USE MOD_MPI_HDG               ,ONLY: StartReceiveMPISurfDataType, StartSendMPISurfDataType, FinishExchangeMPISurfDataType
+USE MOD_MPI_Vars
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 USE PETSc
 USE MOD_HDG_Vars_PETSc
 USE MOD_Mesh_Vars             ,ONLY: nMPISides_YOUR
 #if USE_MPI
 USE MOD_MPI                   ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
-USE MOD_MPI_Vars
 #endif /*USE_MPI*/
+USE MOD_Elem_Mat              ,ONLY: PETScFillSystemMatrix
+#endif /*USE_PETSC*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-#endif /*USE_PETSC*/
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -144,21 +152,26 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID
+INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide, iUniqueFPCBC
 INTEGER           :: BCType,BCState
-REAL              :: D(0:PP_N,0:PP_N)
+REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
 #if USE_PETSC
 PetscErrorCode    :: ierr
+PetscInt          :: major,minor,subminor,release
+IS                :: PETScISLocal, PETScISGlobal
 INTEGER           :: iProc
-INTEGER           :: OffsetPETScSideMPI(nProcessors)
-INTEGER           :: OffsetPETScSide
-INTEGER           :: PETScLocalID
-INTEGER           :: MortarSideID,iMortar
-INTEGER           :: locSide,nMortarMasterSides,nMortars
-!INTEGER           :: nAffectedBlockSides
-INTEGER,ALLOCATABLE :: indx(:)
+INTEGER             :: iLocalPETScDOF,iDOF
+INTEGER             :: OffsetCounter
+INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
+#if USE_MPI
+INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 #endif
+#endif
+INTEGER           :: locSide,nMortars
+INTEGER           :: MortarSideID,iMortar
+REAL              :: StartT,EndT
+CHARACTER(100)    :: hilf
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -166,11 +179,27 @@ IF(HDGInitIsDone)THEN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT HDG...'
+GETTIME(StartT)
 
+! ----------------------------------------------------------------------------------------------------------------------------------
+! MAIN STEPS
+! ----------------------------------------------------------------------------------------------------------------------------------
+!  1. Calculate number of gauss points in sides and volumes for each PP_N
+!  2. Allocate SurfExchange for communicating surface information with variable PP_N
+!  3. Build SurfElemMin for all sides (including Mortar sides)
+!  4. Initialize BR electron fluid model
+!  5. Init mortar stuff
+!  6. BCs, the first
+!  7. Init floating potentials, electric potentials and bias voltage
+!  8. BCs the second...
+!  9. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
+! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
+! 11. Build Preconditioner
+! 12. Initialize PETSc
+! ----------------------------------------------------------------------------------------------------------------------------------
+
+! (0. Read generic HDG Settings)
 HDGDisplayConvergence = GETLOGICAL('HDGDisplayConvergence')
-
-nGP_vol  = (PP_N+1)**3
-nGP_face = (PP_N+1)**2
 
 HDGSkip = GETINT('HDGSkip')
 IF (HDGSkip.GT.0) THEN
@@ -180,16 +209,141 @@ ELSE
   HDGSkip=0
 END IF
 
-HDGNonLinSolver = -1 ! init
-
+! Read in CG parameters (also used for PETSc)
 #if USE_PETSC
-! initialize PETSc stuff!
-PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
+PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
+#ifdef PETSC_HAVE_HYPRE
+hilf = '(built with Hypre and'
+#else
+hilf = '(built without Hypre and'
 #endif
+#ifdef PETSC_HAVE_MUMPS
+hilf = TRIM(hilf)//' with Mumps)'
+#else
+hilf = TRIM(hilf)//' without Mumps)'
+#endif
+LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor,' '//TRIM(hilf)
+PrecondType          = GETINT('PrecondType','1')
+#else
+LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: CG '
+PrecondType          = GETINT('PrecondType','2')
+#endif /*USE_PETSC*/
+epsCG                = GETREAL('epsCG')
+OutIterCG            = GETINT('OutIterCG')
+useRelativeAbortCrit = GETLOGICAL('useRelativeAbortCrit')
+MaxIterCG            = GETINT('MaxIterCG')
+ExactLambda          = GETLOGICAL('ExactLambda')
+UseNSideMin          = GETLOGICAL('HDGNSideMin')
 
+! Initialize element containers
+ALLOCATE(HDG_Vol_N(1:PP_nElems))
+ALLOCATE(HDG_Surf_N(1:nSides))
+
+ALLOCATE(MaskedSide(1:nSides))
+MaskedSide=0
+
+!mappings (Only used in ELEM_MAT!)
+sideDir(  XI_MINUS)=1
+sideDir(   XI_PLUS)=1
+sideDir( ETA_MINUS)=2
+sideDir(  ETA_PLUS)=2
+sideDir(ZETA_MINUS)=3
+sideDir( ZETA_PLUS)=3
+pm(  XI_MINUS)=1
+pm(   XI_PLUS)=2
+pm( ETA_MINUS)=1
+pm(  ETA_PLUS)=2
+pm(ZETA_MINUS)=1
+pm( ZETA_PLUS)=2
+
+dirPm2iSide(1,1) = XI_MINUS
+dirPm2iSide(2,1) = XI_PLUS
+dirPm2iSide(1,2) = ETA_MINUS
+dirPm2iSide(2,2) = ETA_PLUS
+dirPm2iSide(1,3) = ZETA_MINUS
+dirPm2iSide(2,3) = ZETA_PLUS
+
+! -------------------------------------------------------------------------------------------------
+! Fill NSide for each side.
+! For Mortars, DG_Elems_slave(iSide) = -1 for the large mortar side.
+! -> Loop over all large mortar sides and fill NSide with the min/max of all shared sides.
+DO iSide = 1, nSides
+  IF(UseNSideMin) THEN
+    NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    N_SurfMesh(iSide)%NSide = NSideMin
+  ElSE
+    NSideMax = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    N_SurfMesh(iSide)%NSide = NSideMax
+  END IF
+END DO
+
+! Mortars: Get minimum/maximum of all sides the Mortar interface
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide  = MortarType(2,MortarSideID)
+  NSide = N_SurfMesh(MortarSideID)%NSide
+  DO iMortar = 1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+    IF(UseNSideMin) THEN
+      NSide = MIN(NSide,N_SurfMesh(SideID)%NSide)
+    ELSE
+      NSide = MAX(NSide,N_SurfMesh(SideID)%NSide)
+    END IF
+  END DO !iMortar
+
+  N_SurfMesh(MortarSideID)%NSide = NSide
+  DO iMortar = 1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
+    N_SurfMesh(SideID)%NSide = NSide
+  END DO !iMortar
+END DO !MortarSideID
+
+
+! -------------------------------------------------------------------------------------------------
+! 1. Calculate number of gauss points in sides and volumes for each PP_N
+ALLOCATE(nGP_vol(1:NMax))
+ALLOCATE(nGP_face(1:NMax))
+DO Nloc = 1, NMax
+  nGP_vol(Nloc)  = (Nloc+1)**3
+  nGP_face(Nloc) = (Nloc+1)**2
+END DO ! Nloc = 1, NMax
+
+! -------------------------------------------------------------------------------------------------
+! 2. Allocate SurfExchange for communicating surface information with variable PP_N
+#if USE_MPI
+ALLOCATE(SurfExchange(nNbProcs))
+DO iNbProc=1,nNbProcs
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMax(iNbProc,:))))
+  ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMax(iNbProc,:))))
+END DO !iProc=1,nNBProcs
+DO iNbProc=1,nNbProcs
+  DEALLOCATE(SurfExchange(iNbProc)%SurfDataRecv)
+  DEALLOCATE(SurfExchange(iNbProc)%SurfDataSend)
+  IF(UseNSideMin)THEN
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMin( iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMin(iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv2(MAXVAL(DataSizeSurfRecMin( iNbProc,:))**2))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend2(MAXVAL(DataSizeSurfSendMin(iNbProc,:))**2))
+  ELSE
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv(MAXVAL(DataSizeSurfRecMax( iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend(MAXVAL(DataSizeSurfSendMax(iNbProc,:))))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataRecv2(MAXVAL(DataSizeSurfRecMax( iNbProc,:))**2))
+    ALLOCATE(SurfExchange(iNbProc)%SurfDataSend2(MAXVAL(DataSizeSurfSendMax(iNbProc,:))**2))
+  END IF
+END DO !iProc=1,nNBProcs
+#endif /*USE_MPI*/
+
+! -------------------------------------------------------------------------------------------------
+
+
+! 4. Initialize BR electron fluid model
+HDGNonLinSolver = -1 ! init
 #if defined(PARTICLES)
 ! BR electron fluid model
 IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so far -> non-linear HDG-sources!
+#if USE_PETSC
+  CALL CollectiveStop(__STAMP__,' HDG with BR electron fluid (non-linear HDG solver) is not implemented with PETSc')
+#endif /*USE_PETSC*/
   HDGNonLinSolver=GETINT('HDGNonLinSolver')
 
   IF (HDGNonLinSolver.EQ.1) THEN
@@ -200,7 +354,11 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
     AdaptIterNewtonToLinear = GETINT('AdaptIterNewtonToLinear')
     IF (NewtonExactSourceDeriv) NewtonAdaptStartValue=.TRUE.
     IF (DoRestart) NewtonAdaptStartValue=.FALSE.
-    ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
+    !ALLOCATE(NonlinVolumeFac(nGP_vol,PP_nElems))
+    DO iElem=1,PP_nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(HDG_Vol_N(iElem)%NonlinVolumeFac(nGP_vol(Nloc)))
+    END DO
 
     ! Set NonlinVolumeFac = RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0) for each element.
     ! Set zero if
@@ -216,30 +374,15 @@ IF (BRNbrOfRegions .GT. 0) THEN !Regions only used for Boltzmann Electrons so fa
 END IF
 #endif /*defined(PARTICLES)*/
 
-!CG parameters
-#if USE_PETSC
-LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: PETSc '
-#else
-LBWRITE(UNIT_stdOut,'(A)') ' Method for HDG solver: CG '
-#endif /*USE_PETSC*/
-PrecondType          = GETINT('PrecondType')
-epsCG                = GETREAL('epsCG')
-OutIterCG            = GETINT('OutIterCG')
-useRelativeAbortCrit = GETLOGICAL('useRelativeAbortCrit')
-MaxIterCG            = GETINT('MaxIterCG')
-
-ExactLambda          = GETLOGICAL('ExactLambda')
-
-ALLOCATE(MaskedSide(1:nSides))
-MaskedSide=0
-
+! 5. Init mortar stuff
 IF(nGlobalMortarSides.GT.0)THEN !mortar mesh
   IF(nMortarMPISides.GT.0) CALL abort(__STAMP__,&
   "nMortarMPISides >0: HDG mortar MPI implementation relies on big sides having always only master sides (=> nMortarMPISides=0 )")
-END IF !mortarMesh
 
 CALL InitMortar_HDG()
+END IF !mortarMesh
 
+! 6. BCs, the first
 !boundary conditions
 nDirichletBCsides=0
 nNeumannBCsides  =0
@@ -259,6 +402,7 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 
+! 7. Init floating potentials, electric potentials and bias voltage
 ! Conductor: Initialize floating boundary condition
 CALL InitFPC()
 
@@ -273,30 +417,24 @@ CALL InitEPC()
 CALL InitBV()
 #endif /*defined(PARTICLES)*/
 
+! 8. BCs the second...
 ! Get the global number of Dirichlet boundaries. If there are none, the potential of a single DOF must be set.
 #if USE_MPI
   CALL MPI_ALLREDUCE(nDirichletBCsides , nDirichletBCsidesGlobal , 1 , MPI_INTEGER , MPI_MAX , MPI_COMM_PICLAS , IERROR)
 #else
   nDirichletBCsidesGlobal = nDirichletBCsides
 #endif /*USE_MPI*/
-#if USE_PETSC
-IF(nDirichletBCsidesGlobal.EQ.0) THEN
-#else
-IF(MPIroot .AND. (nDirichletBCsidesGlobal.EQ.0)) THEN
-#endif
-  SetZeroPotentialDOF = .TRUE.
-ELSE
-  SetZeroPotentialDOF = .FALSE.
-END IF
+
+ZeroPotentialSide = -1
+IF(mpiRoot.AND.nDirichletBCsidesGlobal==0) ZeroPotentialSide = ElemToSide(E2S_SIDE_ID,1,1)
 
 IF(nDirichletBCsides.GT.0)ALLOCATE(DirichletBC(nDirichletBCsides))
 IF(nNeumannBCsides  .GT.0)THEN
   ALLOCATE(NeumannBC(nNeumannBCsides))
-  ALLOCATE(qn_face(PP_nVar, nGP_face,nNeumannBCsides))
 END IF
 IF(nConductorBCsides.GT.0)ALLOCATE(ConductorBC(nConductorBCsides))
 #if (PP_nVar!=1)
-  IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face,nDirichletBCsides))
+  IF(nDirichletBCsides.GT.0)ALLOCATE(qn_face_MagStat(PP_nVar, nGP_face(PP_N),nDirichletBCsides))
 #endif
 nDirichletBCsides=0
 nNeumannBCsides  =0
@@ -321,217 +459,424 @@ DO SideID=1,nBCSides
   END SELECT ! BCType
 END DO
 
-#if USE_PETSC
-! Create PETSc Mappings
-OffsetPETScSide=0
-#if USE_MPI
-! Count all Mortar slave sides and remove them from PETSc vector
-! TODO How to compute those
-nMortarMasterSides = 0
-DO SideID=1,nSides
-  IF(SmallMortarInfo(SideID).EQ.1) THEN
-    nMortarMasterSides = nMortarMasterSides + 1
+IF(nNeumannBCsides.GT.0)THEN
+  DO iNeumannBCsides = 1, nNeumannBCsides
+    SideID = NeumannBC(iNeumannBCsides)
+    Nloc = N_SurfMesh(SideID)%NSide
+    ALLOCATE(HDG_Surf_N(SideID)%qn_face(PP_nVar, nGP_face(Nloc)))
+  END DO ! iNeumannBCsides = 1, nNeumannBCsides
   END IF
-END DO
-nPETScUniqueSides = nSides-nDirichletBCSides-nMPISides_YOUR-nMortarMasterSides-nConductorBCsides
-CALL MPI_ALLGATHER(nPETScUniqueSides,1,MPI_INTEGER,OffsetPETScSideMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
-DO iProc=1, myrank
-  OffsetPETScSide = OffsetPETScSide + OffsetPETScSideMPI(iProc)
-END DO
-nPETScUniqueSidesGlobal = SUM(OffsetPETScSideMPI) + FPC%nUniqueFPCBounds
-#endif
 
-ALLOCATE(PETScGlobal(nSides))
-ALLOCATE(PETScLocalToSideID(nPETScUniqueSides+nMPISides_YOUR))
-PETScGlobal=-1
-PETScLocalToSideID=-1
-PETScLocalID=0 ! = nSides-nDirichletBCSides
-DO SideID=1,nSides!-nMPISides_YOUR
-  IF(MaskedSide(SideID).GT.0) CYCLE
-  PETScLocalID=PETScLocalID+1
-  PETScLocalToSideID(PETScLocalID)=SideID
-  PETScGlobal(SideID)=PETScLocalID+OffsetPETScSide-1 ! PETSc arrays start at 0!
-END DO
-! Set the Global PETSc Sides of small mortar sides equal to the big mortar side
-DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
-  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-  locSide=MortarType(2,MortarSideID)
-  DO iMortar=1,nMortars
-    SideID= MortarInfo(MI_SIDEID,iMortar,locSide) !small SideID
-    PETScGlobal(SideID)=PETScGlobal(MortarSideID)
-  END DO !iMortar
-END DO
-#if USE_MPI
-CALL StartReceiveMPIDataInt(1,PETScGlobal,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataInt(   1,PETScGlobal,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-#endif
-#endif
-
-!mappings
-sideDir(  XI_MINUS)=1
-sideDir(   XI_PLUS)=1
-sideDir( ETA_MINUS)=2
-sideDir(  ETA_PLUS)=2
-sideDir(ZETA_MINUS)=3
-sideDir( ZETA_PLUS)=3
-pm(  XI_MINUS)=1
-pm(   XI_PLUS)=2
-pm( ETA_MINUS)=1
-pm(  ETA_PLUS)=2
-pm(ZETA_MINUS)=1
-pm( ZETA_PLUS)=2
-
-dirPm2iSide(1,1) = XI_MINUS
-dirPm2iSide(2,1) = XI_PLUS
-dirPm2iSide(1,2) = ETA_MINUS
-dirPm2iSide(2,2) = ETA_PLUS
-dirPm2iSide(1,3) = ZETA_MINUS
-dirPm2iSide(2,3) = ZETA_PLUS
-
-ALLOCATE(delta(0:PP_N,0:PP_N))
-delta=0.
-DO i=0,PP_N
-  delta(i,i)=1.
-END DO !i
-
-ALLOCATE(LL_minus(0:PP_N,0:PP_N))
-ALLOCATE(LL_plus( 0:PP_N,0:PP_N))
-DO j=0,PP_N
-  DO i=0,PP_N
-    LL_minus(i,j) = L_minus(i)*L_minus(j)
-    LL_plus(i,j)  = L_plus(i)*L_plus(j)
+! 9. Initialize interpolation variables for each Polynomial degree (Also fill HDG_Vol_N further)
+! Initialize interpolation variables
+DO Nloc = 1, NMax
+  ALLOCATE(N_Inter(Nloc)%LL_minus(0:Nloc,0:Nloc))
+  ALLOCATE(N_Inter(Nloc)%LL_plus( 0:Nloc,0:Nloc))
+  DO j=0,Nloc
+    DO i=0,Nloc
+      N_Inter(Nloc)%LL_minus(i,j) = N_Inter(Nloc)%L_minus(i)*N_Inter(Nloc)%L_minus(j)
+      N_Inter(Nloc)%LL_plus(i,j)  = N_Inter(Nloc)%L_plus(i)*N_Inter(Nloc)%L_plus(j)
+    END DO
   END DO
-END DO
 
-ALLOCATE(Lomega_m(0:PP_N))
-ALLOCATE(Lomega_p(0:PP_N))
+  ALLOCATE(N_Inter(Nloc)%Lomega_m(0:Nloc))
+  ALLOCATE(N_Inter(Nloc)%Lomega_p(0:Nloc))
 ! Compute a lifting matrix scaled by the Gaussian weights
-Lomega_m = - L_minus/wGP
-Lomega_p = + L_plus/wGP
-ALLOCATE(Domega(0:PP_N,0:PP_N))
+  N_Inter(Nloc)%Lomega_m = - N_Inter(Nloc)%L_minus/N_Inter(Nloc)%wGP
+  N_Inter(Nloc)%Lomega_p = + N_Inter(Nloc)%L_plus/N_Inter(Nloc)%wGP
+  ALLOCATE(N_Inter(Nloc)%Domega(0:Nloc,0:Nloc))
 ! Compute Differentiation matrix D for given Gausspoints (1D)
-CALL PolynomialDerivativeMatrix(PP_N,xGP,D)
-! Compute a Differentiation mtarix scaled by the Gaussian weigths
-DO j=0,PP_N
-  DO i=0,PP_N
-    Domega(i,j) = wGP(i)/wGP(j)*D(i,j)
+  CALL PolynomialDerivativeMatrix(Nloc,N_Inter(Nloc)%xGP,D(0:Nloc,0:Nloc))
+  ! Compute a Differentiation matrix scaled by the Gaussian weights
+  DO j=0,Nloc
+    DO i=0,Nloc
+      N_Inter(Nloc)%Domega(i,j) = N_Inter(Nloc)%wGP(i)/N_Inter(Nloc)%wGP(j)*D(i,j)
   END DO !r
 END DO !s
 
-ALLOCATE(InvDhat(nGP_vol,nGP_vol,PP_nElems))
-ALLOCATE(wGP_vol(nGP_vol))
-DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-  r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-  wGP_vol(r)=wGP(i)*wGP(j)*wGP(k)
-END DO; END DO; END DO !i,j,k
+  ALLOCATE(N_Inter(Nloc)%wGP_vol(nGP_vol(Nloc)))
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+        N_Inter(Nloc)%wGP_vol(r)=N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)
+      END DO
+    END DO
+  END DO !i,j,k
+END DO ! Nloc = 1, NMax
 
-ALLOCATE(JwGP_vol(nGP_vol,PP_nElems))
 DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    JwGP_vol(r,iElem)=wGP_vol(r)/sJ(i,j,k,iElem) !omega*J
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ALLOCATE(HDG_Vol_N(iElem)%InvDhat(nGP_vol(Nloc),nGP_vol(Nloc)))
+  ALLOCATE(HDG_Vol_N(iElem)%JwGP_vol(nGP_vol(Nloc)))
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    HDG_Vol_N(iElem)%JwGP_vol(r)=N_Inter(Nloc)%wGP_vol(r)/N_VolMesh(iElem)%sJ(i,j,k) !omega*J
   END DO; END DO; END DO !i,j,k
-END DO !iElem
 
-
-ALLOCATE(Ehat(nGP_face,nGP_vol,6,PP_nElems))
+  ALLOCATE(HDG_Vol_N(iElem)%Ehat(nGP_face(Nloc),nGP_vol(Nloc),6))
 !side matrices
-ALLOCATE(Smat(nGP_face,nGP_face,6,6,PP_nElems))
-
-#if USE_PETSC
-ALLOCATE(Smat_BC(nGP_face,nGP_face,6,nDirichletBCSides))
-Smat_BC = 0.
-
-PetscCallA(MatCreate(PETSC_COMM_WORLD,Smat_petsc,ierr))
-PetscCallA(MatSetBlockSize(Smat_petsc,nGP_face,ierr))
-PetscCallA(MatSetSizes(Smat_petsc,PETSC_DECIDE,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,nPETScUniqueSidesGlobal*nGP_Face,ierr))
-PetscCallA(MatSetType(Smat_petsc,MATSBAIJ,ierr)) ! Symmetric sparse (mpi) matrix
-!! TODO Set preallocation row wise
-!! 1 Big mortar side is affected by 6 + 4*4 = 22 other sides...
-!! TODO Does this require communication over all procs? Global number of sides associated with the i-th FPC
-!IF(FPC%nFPCBounds.GT.0)THEN
-!  ALLOCATE(FPC%GroupGlobal(1:FPC%nFPCBounds))
-!  FPC%GroupGlobal(1:FPC%nFPCBounds) = FPC%Group(1:FPC%nFPCBounds,3)
-!  ! TODO is this allreduce required?
-!  !CALL MPI_ALLREDUCE(FPC%Group(1:FPC%nFPCBounds,3),FPC%GroupGlobal(1:FPC%nFPCBounds), FPC%nFPCBounds, MPI_DOUBLE_PRECISION, MPI_SUM, MPI_COMM_PICLAS, IERROR)
-!  nAffectedBlockSides = MAXVAL(FPC%GroupGlobal(:))
-!  DEALLOCATE(FPC%GroupGlobal)
-!  nAffectedBlockSides = MAX(22,nAffectedBlockSides*6)
-!ELSE
-!  nAffectedBlockSides = 22
-!END IF ! FPC%nFPCBounds
-!!IPWRITE(UNIT_StdOut,*) "nAffectedBlockSides =", nAffectedBlockSides
-PetscCallA(MatSEQSBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatMPISBAIJSetPreallocation(Smat_petsc,nGP_face,22,PETSC_NULL_INTEGER,22-1,PETSC_NULL_INTEGER,ierr))
-PetscCallA(MatZeroEntries(Smat_petsc,ierr))
-#endif
+  ALLOCATE(HDG_Vol_N(iElem)%Smat(nGP_face(Nloc),nGP_face(Nloc),6,6))
+END DO !iElem
 
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
 DO iElem=1,PP_nElems
-  Tau(iElem)=2./((SUM(JwGP_vol(:,iElem)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
+  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
 
-IF(.NOT.DoSwapMesh)THEN ! can take very long, not needed for swap mesh run as only the state file is converted
-  CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
-END IF
+CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
 
+! 10. Allocate and zero missing HDG_VOL_N and HDG_Surf_N stuff
+DO iElem = 1, PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ALLOCATE(HDG_Vol_N(iElem)%RHS_vol(PP_nVar, nGP_vol(Nloc)))
+  HDG_Vol_N(iElem)%RHS_vol=0.
+END DO ! iElem = 1, PP_nElems
+
+DO SideID = 1, nSides
+  NSide = N_SurfMesh(SideID)%NSide
+  ALLOCATE(HDG_Surf_N(SideID)%lambda(PP_nVar,nGP_face(NSide)))
+  HDG_Surf_N(SideID)%lambda=0.
+  ALLOCATE(HDG_Surf_N(SideID)%RHS_face(PP_nVar,nGP_face(NSide)))
+  HDG_Surf_N(SideID)%RHS_face=0.
+  ALLOCATE(HDG_Surf_N(SideID)%mv(PP_nVar,nGP_face(NSide)))
+  HDG_Surf_N(SideID)%mv=0.
+  ALLOCATE(HDG_Surf_N(SideID)%R(PP_nVar,nGP_face(NSide)))
+  HDG_Surf_N(SideID)%R=0.
+  ALLOCATE(HDG_Surf_N(SideID)%V(PP_nVar,nGP_face(NSide)))
+  HDG_Surf_N(SideID)%V=0.
+  ALLOCATE(HDG_Surf_N(SideID)%Z(PP_nVar,nGP_face(NSide)))
+  HDG_Surf_N(SideID)%Z=0.
+#if USE_MPI
+  ALLOCATE(HDG_Surf_N(SideID)%buf(PP_nVar,nGP_face(NSide)))
+  HDG_Surf_N(SideID)%buf=0.
 #if USE_PETSC
-PetscCallA(KSPCreate(PETSC_COMM_WORLD,ksp,ierr))
-PetscCallA(KSPSetOperators(ksp,Smat_petsc,Smat_petsc,ierr))
-
-IF(PrecondType.GE.10) THEN
-  PetscCallA(KSPSetType(ksp,KSPPREONLY,ierr)) ! Exact solver
-ELSE
-  PetscCallA(KSPSetType(ksp,KSPCG,ierr)) ! CG solver for sparse symmetric positive definite matrix
-
-  PetscCallA(KSPSetInitialGuessNonzero(ksp,PETSC_TRUE, ierr))
-
-  PetscCallA(KSPSetNormType(ksp, KSP_NORM_UNPRECONDITIONED, ierr))
-  PetscCallA(KSPSetTolerances(ksp,1.E-20,epsCG,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
-END IF
+#else
+  IF(PrecondType.EQ.1)THEN
+    ALLOCATE(HDG_Surf_N(SideID)%buf2(nGP_face(NSide),nGP_face(NSide)))
+    HDG_Surf_N(SideID)%buf2=0.
+  END IF ! PrecondType.EQ.1
+#endif /*USE_PETSC*/
 #endif
+END DO ! SideID = 1, nSides
 
+! 11. Build Preconditioner
+! Requires HDG_Surf_N(SideID)%buf
+#if !USE_PETSC
 CALL BuildPrecond()
-
-ALLOCATE(lambda(PP_nVar,nGP_face,nSides))
-lambda=0.
-ALLOCATE(RHS_vol(PP_nVar, nGP_vol,PP_nElems))
-RHS_vol=0.
-
-#if USE_PETSC
-! allocate RHS & lambda vectors
-PetscCallA(VecCreate(PETSC_COMM_WORLD,lambda_petsc,ierr))
-PetscCallA(VecSetBlockSize(lambda_petsc,nGP_face,ierr))
-PetscCallA(VecSetSizes(lambda_petsc,PETSC_DECIDE,nPETScUniqueSidesGlobal*nGP_Face,ierr))
-PetscCallA(VecSetType(lambda_petsc,VECSTANDARD,ierr))
-PetscCallA(VecSetUp(lambda_petsc,ierr))
-PetscCallA(VecDuplicate(lambda_petsc,RHS_petsc,ierr))
-
-! Create scatter context to access local values from global petsc vector
-PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,lambda_local_petsc,ierr))
-PetscCallA(ISCreateStride(PETSC_COMM_SELF,nPETScUniqueSides*nGP_face,0,1,idx_local_petsc,ierr))
-PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,nPETScUniqueSides,PETScGlobal(PETScLocalToSideID(1:nPETScUniqueSides)),PETSC_COPY_VALUES,idx_global_petsc,ierr))
-PetscCallA(VecScatterCreate(lambda_petsc,idx_global_petsc,lambda_local_petsc,idx_local_petsc,scatter_petsc,ierr))
-
-IF(UseFPC)THEN
-  PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,lambda_local_conductors_petsc,ierr))
-  PetscCallA(ISCreateStride(PETSC_COMM_SELF,nGP_face*FPC%nUniqueFPCBounds,0,1,idx_local_conductors_petsc,ierr))
-  ALLOCATE(indx(FPC%nUniqueFPCBounds))
-  DO i=1,FPC%nUniqueFPCBounds
-    indx(i) = nPETScUniqueSidesGlobal-FPC%nUniqueFPCBounds+i-1
-  END DO
-  PetscCallA(ISCreateBlock(PETSC_COMM_WORLD,nGP_face,FPC%nUniqueFPCBounds,indx,PETSC_COPY_VALUES,idx_global_conductors_petsc,ierr))
-  DEALLOCATE(indx)
-  PetscCallA(VecScatterCreate(lambda_petsc,idx_global_conductors_petsc,lambda_local_conductors_petsc,idx_local_conductors_petsc,scatter_conductors_petsc,ierr))
-END IF
 #endif
 
+#if USE_PETSC
+! -------------------------------------------------------------------------------------------------
+! 12. Initialize PETSc
+! -------------------------------------------------------------------------------------------------
+! Steps:
+! 3.1) Create PETSc mappings to build the global system
+! 3.2) Initialize PETSc objects
+
+! 3.1) Create PETSc mappings to build the global system
+! 3.1.1) Calculate nLocalPETScDOFs without nMPISides_YOUR to compute nGlobalPETScDOFs
+nLocalPETScDOFs = 0
+DO SideID=1,nSides-nMPISides_YOUR
+  IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + small mortar sides
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSide)
+END DO
+
+! 3.1.2) Calculate nGlobalPETScDOFs
+! This is the total number of PETScDOFs
+#if USE_MPI
+CALL MPI_ALLGATHER(nLocalPETScDOFs,1,MPI_INTEGER,PETScDOFOffsetsMPI,1,MPI_INTEGER,MPI_COMM_PICLAS,IERROR)
+nGlobalPETScDOFs = SUM(PETScDOFOffsetsMPI)
+#else
+nGlobalPETScDOFs = nLocalPETScDOFs
+#endif
+
+! 3.1.3) Calculate OffsetGlobalPETScDOF(SideID)
+! This is the GlobalPETScDOF of the first DOF of the side with given SideID
+OffsetCounter = 0
+#if USE_MPI
+DO iProc=1, myrank
+  OffsetCounter = OffsetCounter + PETScDOFOffsetsMPI(iProc)
+END DO
+#endif
+ALLOCATE(OffsetGlobalPETScDOF(nSides))
+DO SideID=1,nSides-nMPISides_YOUR
+  IF(MaskedSide(SideID).NE.0) CYCLE ! Skip Dirichlet + Small mortar sides
+  OffsetGlobalPETScDOF(SideID) = OffsetCounter
+  OffsetCounter = OffsetCounter + nGP_face(N_SurfMesh(SideID)%NSide)
+END DO
+
+! 3.1.3.1 Mortars: Small mortar sides have the same DOFs as the big side
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide  = MortarType(2,MortarSideID)
+  DO iMortar = 1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,locSide)
+    OffsetGlobalPETScDOF(SideID) = OffsetGlobalPETScDOF(MortarSideID)
+  END DO !iMortar
+END DO !MortarSideID
+
+#if USE_MPI
+CALL StartReceiveMPIDataInt(1,OffsetGlobalPETScDOF,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataInt(   1,OffsetGlobalPETScDOF,1,nSides,SendRequest_U,SendID=1) ! Send MINE
+CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
+#endif
+
+! 4.2.4.3) ZeroPotential
+ZeroPotentialDOF = -1
+IF(nDirichletBCsidesGlobal==0) THEN
+  IF(mpiRoot) ZeroPotentialDOF = OffsetGlobalPETScDOF(ZeroPotentialSide)
+#if USE_MPI
+  CALL MPI_BCAST(ZeroPotentialDOF,1,MPI_INTEGER,0,MPI_COMM_PICLAS,IERROR)
+#endif
+END IF
+
+! 3.1.3.5) Add All Small Mortar Sides to nLocalPETScDOFs
+DO MortarSideID=firstMortarInnerSide,lastMortarInnerSide
+  nMortars = MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(MortarSideID)%NSide) * nMortars
+END DO !MortarSideID
+
+! 3.1.4) Sum up YOUR sides for nLocalPETScDOFs
+! The full nLocalPETScDOFs is used to compute the Scatter context
+#if USE_MPI
+! 4. Add the nMPISides_YOUR to nLocalPETScDOFs
+DO SideID=nSides-nMPISides_YOUR+1,nSides
+  IF(MaskedSide(SideID).GT.0) CYCLE
+  nLocalPETScDOFs = nLocalPETScDOFs + nGP_face(N_SurfMesh(SideID)%NSide)
+END DO
+#endif
+
+! 3.1.5) Create localToGlobalPETScDOF(iLocalPETScDOF) mapping
+! The mapping is used to create the PETSc Scatter context to extract the local solution from the global solution vector
+ALLOCATE(localToGlobalPETScDOF(nLocalPETScDOFs+FPC%nUniqueFPCBounds))
+iLocalPETScDOF = 0
+DO SideID=1,nSides
+  IF(MaskedSide(SideID).GT.0) CYCLE
+  DO iDOF=1,nGP_face(N_SurfMesh(SideID)%NSide)
+    iLocalPETScDOF = iLocalPETScDOF + 1
+    LocalToGlobalPETScDOF(iLocalPETScDOF) = OffsetGlobalPETScDOF(SideID) + iDOF - 1
+  END DO
+END DO
+
+! 3.1.6) Add each FPC to the DOFs
+IF(UseFPC)THEN
+  DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
+    LocalToGlobalPETScDOF(nLocalPETScDOFs+iUniqueFPCBC) = nGlobalPETScDOFs + iUniqueFPCBC - 1
+  END DO
+  nLocalPETScDOFs = nLocalPETScDOFs + FPC%nUniqueFPCBounds
+  nGlobalPETScDOFs = nGlobalPETScDOFs + FPC%nUniqueFPCBounds
+END IF
+
+! ------------------------------------------------------
+! 3.2) Initialize PETSc Objects
+PetscCallA(PetscInitialize(PETSC_NULL_CHARACTER,ierr))
+
+! 3.2.1) Set up and fill System matrix
+PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
+PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
+PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matrix
+! Conservative guess for the number of nonzeros: With mortars at most 12 sides with Nmax.
+PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
+PetscCallA(MatSetOption(PETScSystemMatrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)) ! Column oriented for more convenient set up
+
+CALL PETScFillSystemMatrix()
+
+! 3.2.2) Set up Solver
+CALL PETScSetSolver()
+
+! 3.2.3) Set up RHS and solution vectors
+PetscCallA(VecCreate(PETSC_COMM_WORLD,PETScSolution,ierr))
+PetscCallA(VecSetSizes(PETScSolution,PETSC_DECIDE,nGlobalPETScDOFs,ierr))
+PetscCallA(VecSetType(PETScSolution,VECSTANDARD,ierr))
+PetscCallA(VecSetUp(PETScSolution,ierr))
+PetscCallA(VecDuplicate(PETScSolution,PETScRHS,ierr))
+
+! 3.2.4) Set up Scatter stuff
+PetscCallA(VecCreateSeq(PETSC_COMM_SELF,nLocalPETScDOFs,PETScSolutionLocal,ierr))
+! Create a PETSc Vector 0:(nLocalPETScDOFs-1)
+PetscCallA(ISCreateStride(PETSC_COMM_SELF,nLocalPETScDOFs,0,1,PETScISLocal,ierr))
+! Create a PETSc Vector of the Global DOF IDs
+PetscCallA(ISCreateGeneral(PETSC_COMM_WORLD,nLocalPETScDOFs,localToGlobalPETScDOF,PETSC_COPY_VALUES,PETScISGlobal,ierr))
+! Create a scatter context to extract the local dofs
+PetscCallA(VecScatterCreate(PETScSolution,PETScISGlobal,PETScSolutionLocal,PETScISLocal,PETScScatter,ierr))
+
+! (Delete local allocated vectors)
+DEALLOCATE(localToGlobalPETScDOF)
+! Clean-up local PETSc objects
+PetscCallA(ISDestroy(PETScISLocal,ierr))
+PetscCallA(ISDestroy(PETScISGlobal,ierr))
+#endif
+
+GETTIME(EndT)
 HDGInitIsDone = .TRUE.
-LBWRITE(UNIT_stdOut,'(A)')' INIT HDG DONE!'
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' INIT HDG'
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitHDG
+
+
+#if USE_PETSC
+SUBROUTINE PETScSetSolver()
+!===================================================================================================================================
+!> Set the solver and/or preconditioner combination in PETSc
+!> Iterative solvers
+!>    1: CG + Block Jacobi
+!>    2: Pipelined CG + Block Jacobi
+!>    3: GMRES + BoomerAMG (with hypre) or Block Jacobi (built-in)
+!> Direct solvers
+!>    10: CHOLESKY (requires the MUMPS package to support the matrix type)
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_HDG_Vars
+USE PETSc
+USE MOD_HDG_Vars_PETSc
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+PetscErrorCode      :: ierr
+PC                  :: pc
+Mat                 :: F
+CHARACTER(LEN=100)  :: ksp_type, pc_type, mat_type
+!===================================================================================================================================
+PetscCallA(KSPCreate(PETSC_COMM_WORLD,PETScSolver,ierr))
+PetscCallA(KSPSetOperators(PETScSolver,PETScSystemMatrix,PETScSystemMatrix,ierr))
+
+PetscCallA(KSPGetPC(PETScSolver,pc,ierr))
+! Set the tolerances defaults: rtol=1e-5, atol=1e-50, dtol=1e5, maxits=1e4
+! ASSOCIATE( rtol => PETSC_DEFAULT_REAL )
+ASSOCIATE( rtol => 1e-16, atol => epsCG )
+SELECT CASE(PrecondType)
+CASE(0)
+  ! ====== Iterative solver: Conjugate Gradient
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: None
+  PetscCallA(PCSetType(pc,PCNONE,ierr))
+CASE(1)
+  ! ====== Iterative solver: Conjugate Gradient
+  PetscCallA(KSPSetType(PETScSolver,KSPCG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+CASE(2)
+  ! ====== Iterative solver: Pipelined Conjugate Gradient (only a single non-blocking communication instead of 2 blocking compared to KSPCG)
+  PetscCallA(KSPSetType(PETScSolver,KSPPIPECG,ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  ! Tolerances defaults: rtol=1e-5, atol=1e-50, dtol=1e5, maxits=1e4
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+CASE(3)
+  ! ====== Iterative solver: Flexible Generalized Minimal Residual method
+  PetscCallA(KSPSetType(PETScSolver,KSPFGMRES, ierr))
+  ! Number of iterations at which the solver restarts [default = 30]: "A larger restart parameter generally leads to faster convergence
+  ! of GMRES but the memory usage is higher than with a smaller restart parameter, as is the average time to perform each iteration.
+  ! For more ill-conditioned problems a larger restart value may be necessary." https://petsc.org/release/manualpages/KSP/KSPGMRESSetRestart/
+  PetscCallA(KSPGMRESSetRestart(PETScSolver, 100, ierr))
+  PetscCallA(KSPSetInitialGuessNonzero(PETScSolver,PETSC_TRUE, ierr))
+  PetscCallA(KSPSetNormType(PETScSolver, KSP_NORM_UNPRECONDITIONED, ierr))
+  PetscCallA(KSPSetTolerances(PETScSolver,rtol,atol,PETSC_DEFAULT_REAL,MaxIterCG,ierr))
+#ifdef PETSC_HAVE_HYPRE
+  ! ===  Preconditioner: BoomerAMG
+  PetscCallA(PCSetType(pc, PCHYPRE, ierr))
+  PetscCallA(PCHYPRESetType(pc, "boomeramg", ierr))
+  ! BoomerAMG options
+  ! Strong threshold for coarsening: greater value means more coarsening; default = 0.25, which is only sufficient for 2D
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_strong_threshold", "0.7", ierr))
+  ! Coarsening strategy: HMIS coarsening
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_coarsen_type", "HMIS", ierr))
+  ! Maximum number of levels (default: 25)
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_max_levels", "25", ierr))
+  ! Number of coarsening levels for "aggressive coarsening"
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_agg_nl", "4", ierr))
+  ! Number of pathways within a coarsening level: 1 is most agressive value; balance between the number of levels and paths
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_agg_num_paths", "5", ierr))
+  ! Interpolation type
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_interp_type", "ext+i", ierr))
+  ! Coarsen during the interpolation
+  PetscCallA(PetscOptionsSetValue(PETSC_NULL_OPTIONS, "-pc_hypre_boomeramg_truncfactor", "0.3", ierr))
+  PetscCallA(PCSetFromOptions(pc,ierr))
+#else /*NOT PETSC_HAVE_HYPRE*/
+  ! ===  Preconditioner: Block Jacobi
+  PetscCallA(PCSetType(pc,PCBJACOBI,ierr))
+#endif /*PETSC_HAVE_HYPRE*/
+#ifdef PETSC_HAVE_MUMPS
+CASE(10)
+  ! ====== Direct solver: Cholesky
+  PetscCallA(KSPSetType(PETScSolver,KSPPREONLY,ierr))
+  PetscCallA(PCSetType(pc,PCCHOLESKY,ierr))
+  ! PETSc will most likely use MUMPS anyway
+  PetscCallA(PCFactorSetMatSolverType(pc,MATSOLVERMUMPS,ierr))
+  PetscCallA(PCFactorSetUpMatSolverType(pc,ierr))
+  ! We need to get the internal matrix to set its options
+  PetscCallA(PCFactorGetMatrix(pc,F,ierr))
+#if USE_DEBUG
+  ! Increase MUMPS diagnostics level: Errors, warnings, and main statistics printed.
+  PetscCallA(MatMumpsSetIcntl(F, 4, 2, ierr))
+#endif /*USE_DEBUG*/
+  ! === Compression
+  ! Enable BLR compression with automatic settings: showed better performance for initial factorization and better memory footprint
+  PetscCallA(MatMumpsSetIcntl(F, 35, 1, ierr))
+  ! ! Enable BLR compression of the contribution blocks, reducing the memory consumption at the cost of some additional operations
+  ! ! during factorization
+  ! PetscCallA(MatMumpsSetIcntl(F, 37, 1, ierr))
+  ! === Parallel ordering: select one of the following or let PETSc decide (recommended)
+  ! PetscCallA(MatMumpsSetIcntl(F, 28, 2, ierr))
+  ! ! Use PT-SCOTCH for ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 1, ierr))
+  ! ! Use ParMetis for parallel ordering
+  ! PetscCallA(MatMumpsSetIcntl(F, 29, 2, ierr))
+
+  ! === Memory handling
+  ! Workspace allocation: Allow 2x estimated memory (default is at 35%)
+  PetscCallA(MatMumpsSetIcntl(F,14,100,ierr))
+  ! ! Limit to 2GB per process, or default (=0): each processor will allocate workspace based on the estimates computed during the analysis
+  ! PetscCallA(MatMumpsSetIcntl(F,23,2000,ierr))
+#endif /*PETSC_HAVE_MUMPS*/
+CASE DEFAULT
+  SWRITE(*,*) 'PrecondType:', PrecondType
+  CALL CollectiveStop(__STAMP__,'ERROR in PETScSetSolver: Unknown option! Direct solver (10) is only available with MUMPS.')
+END SELECT
+END ASSOCIATE
+
+! Get solver and preconditioner types
+PetscCallA(KSPGetType(PETScSolver, ksp_type, ierr))
+PetscCallA(PCGetType(pc, pc_type, ierr))
+
+! Reuse preconditioner (might be unneccessary since the system matrix remains the same during the simulation)
+PetscCallA(KSPSetReusePreconditioner(PETScSolver, PETSC_TRUE, ierr))
+
+! If using direct solver, print factorization type
+IF (TRIM(ksp_type) .EQ. 'preonly') THEN
+  ! Print factorization details when using Cholesky/LU
+  IF ((TRIM(pc_type) .EQ. 'cholesky') .OR. (TRIM(pc_type) .EQ. 'lu')) then
+    PetscCallA(PCFactorGetMatrix(pc, F, ierr))
+    PetscCallA(MatGetType(F, mat_type, ierr))
+    LBWRITE(UNIT_stdOut,'(A)') ' | Direct solver: '//TRIM(pc_type)//', using factorization type: '//TRIM(mat_type)
+  END IF
+ELSE
+  LBWRITE(UNIT_stdOut,'(A)') ' | Iterative solver: '//TRIM(ksp_type)//' with '//TRIM(pc_type)//' preconditioning'
+END IF
+
+END SUBROUTINE PETScSetSolver
+#endif /*USE_PETSC*/
 
 
 !===================================================================================================================================
@@ -562,9 +907,12 @@ USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
 USE MOD_Globals            ,ONLY: ElementOnProc
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
-USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 USE MOD_Mesh_Vars          ,ONLY: nElems, offsetElem
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 #endif /*USE_MPI && defined(PARTICLES)*/
+#if USE_MPI
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
+#endif /*USE_MPI*/
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 IMPLICIT NONE
@@ -577,7 +925,6 @@ INTEGER             :: BCType,BCState,iUniqueFPCBC
 INTEGER             :: SideID,iBC
 #if USE_MPI
 INTEGER             :: color,WithSides
-LOGICAL,ALLOCATABLE :: BConProc(:)
 #if defined(PARTICLES)
 INTEGER             :: iElem,iCNElem
 REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
@@ -586,6 +933,7 @@ INTEGER             :: iGlobElem,BCIndex,iSide
 #endif /*defined(PARTICLES)*/
 #endif /*USE_MPI*/
 CHARACTER(5)        :: hilf,hilf2
+REAL                :: StartT,EndT
 !===================================================================================================================================
 
 ! Get global number of FPC boundaries in [1:nBCs], they might belong to the same group (will be reduced to "nUniqueFPCBounds" below)
@@ -604,6 +952,13 @@ END DO
 IF(FPC%nFPCBounds.EQ.0) RETURN ! Already determined in HDG initialization
 
 UseFPC = .TRUE.
+
+#if !(USE_PETSC)
+CALL CollectiveStop(__STAMP__,'FPC model requires compilation with LIBS_USE_PETSC=ON')
+#endif /*!(USE_PETSC)*/
+
+GETTIME(StartT)
+LBWRITE(UNIT_stdOut,'(A)')' | INIT FPC ...'
 
 ALLOCATE(FPC%Group(1:FPC%nFPCBounds,3))
 FPC%Group = 0 ! Initialize
@@ -696,12 +1051,15 @@ END DO ! SideID=1,nBCSides
 
 #if USE_MPI
 ! 4.0) Check if field BC is on current proc (or MPI root)
-ALLOCATE(BConProc(FPC%nUniqueFPCBounds))
-BConProc = .FALSE.
-IF(MPIRoot)THEN
-  BConProc = .TRUE.
-ELSE
+ALLOCATE(FPC%BConProc(FPC%nUniqueFPCBounds))
+FPC%BConProc = .FALSE.
 
+! Check if single-node or multi-node run
+IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  ! For single-node execution, simply add all processes to the communicators and do not bother measuring the distance as the gain
+  ! in performance is negligible here
+  FPC%BConProc = .TRUE.
+ELSE
   ! Check local sides
   DO SideID=1,nBCSides
     iBC    = BC(SideID)
@@ -709,12 +1067,17 @@ ELSE
     IF(BCType.NE.BCTypeFPC) CYCLE ! Skip non-FPC boundaries
     BCState = BoundaryType(iBC,BC_STATE) ! BCState corresponds to iFPC
     iUniqueFPCBC = FPC%Group(BCState,2)
-    BConProc(iUniqueFPCBC) = .TRUE.
+    FPC%BConProc(iUniqueFPCBC) = .TRUE.
   END DO ! SideID=1,nBCSides
+END IF ! nComputeNodeProcessors.EQ.nProcessors_Global
 
 #if defined(PARTICLES)
   ! Check if all FPCs have already been found
-  IF(.NOT.(ALL(BConProc)))THEN
+IF(.NOT.(ALL(FPC%BConProc)))THEN
+
+  ! Check whether this information has already been created before to skip the costly search below
+  !CALL ReadFPCCommunicationFromH5()
+
     ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
     ! element that has at least one side, which is an FPC
     ! 4.1.) Each processor loops over all of his elements
@@ -756,14 +1119,15 @@ ELSE
                                             BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
 
               ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+            ! TODO: what about periodic vectors?
               IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
                 BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
                 IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
                 iUniqueFPCBC = FPC%Group(BCState,2)
                 ! Flag the i-th FPC
-                BConProc(iUniqueFPCBC) = .TRUE.
+              FPC%BConProc(iUniqueFPCBC) = .TRUE.
                 ! Check if all FPCs have been found -> exit complete loop
-                IF(ALL(BConProc)) EXIT iElemLoop
+              IF(ALL(FPC%BConProc)) EXIT iElemLoop
                 ! Go to next element
                 CYCLE iCNElemLoop
               END IF ! VECNORM( ...
@@ -772,16 +1136,31 @@ ELSE
         END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
       END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
     END DO iElemLoop ! iElem = 1, nElems
-  END IF ! .NOT.(ALL(BConProc))
+END IF ! .NOT.(ALL(FPC%BConProc))
 #endif /*defined(PARTICLES)*/
 
-END IF ! MPIRoot
+#if USE_MPI
+! Store FPC%BConProc information to skip the costly search above for the next run of the same setup. Store the info before adding
+! the MPIRoot by force in the next step.
+! CALL WriteFPCCommunicationToH5()
+
+! Store similar to FPCDataHDF5
+! 1.) nProcessors
+! 2.) nFPCs
+! 3.) halo_eps as integer value
+! and check when reading that the value are unchanged or less procs, smaller halo_eps is still okay
+#endif /*USE_MPI*/
+
+! Storing the FPC info requires that the MPIRoot also takes part in the search even though it is not required as the MPIRoot is
+! always part of the communicator anyway as the MPIRoot writes the FPC charge/potential information to the .csv file.
+! The MPIRoot is part of all communicators
+IF(MPIRoot) FPC%BConProc = .TRUE.
 
 ! 5.) Create MPI sub-communicators
 ALLOCATE(FPC%COMM(FPC%nUniqueFPCBounds))
 DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   ! create new communicator
-  color = MERGE(iUniqueFPCBC, MPI_UNDEFINED, BConProc(iUniqueFPCBC))
+  color = MERGE(iUniqueFPCBC, MPI_UNDEFINED, FPC%BConProc(iUniqueFPCBC))
 
   ! set communicator id
   FPC%COMM(iUniqueFPCBC)%ID=iUniqueFPCBC
@@ -790,7 +1169,7 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
   CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, FPC%COMM(iUniqueFPCBC)%UNICATOR, iError)
 
   ! Find my rank on the shared communicator, comm size and proc name
-  IF(BConProc(iUniqueFPCBC))THEN
+  IF(FPC%BConProc(iUniqueFPCBC))THEN
     CALL MPI_COMM_RANK(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%MyRank, iError)
     CALL MPI_COMM_SIZE(FPC%COMM(iUniqueFPCBC)%UNICATOR, FPC%COMM(iUniqueFPCBC)%nProcs, iError)
 
@@ -802,9 +1181,9 @@ DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
           WRITE(UNIT_StdOut,'(A,I0,A,I0,A,I0)') ' Floating boundary condition: Emission-Communicator ',iUniqueFPCBC,' on ',&
               FPC%COMM(iUniqueFPCBC)%nProcs,' procs for BCState ',FPC%BCState(iUniqueFPCBC)
     END IF
-  END IF ! BConProc(iUniqueFPCBC)
+  END IF ! FPC%BConProc(iUniqueFPCBC)
 END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-DEALLOCATE(BConProc)
+DEALLOCATE(FPC%BConProc)
 
 ! Get the number of procs that actually have a local BC side that is an FPC (required for voltage output to .csv)
 ! Procs might have zero FPC sides but are in the group because 1.) MPIRoot or 2.) the FPC is in the halo region
@@ -834,6 +1213,10 @@ END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
 
 ! When restarting, load the deposited charge on each FPC from the .h5 state file
 CALL ReadFPCDataFromH5()
+
+GETTIME(EndT)
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' | INIT FPC'
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 END SUBROUTINE InitFPC
 
@@ -1470,7 +1853,7 @@ IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
 IF(MPIRoot)THEN
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
   ! Check old parameter name
-  ContainerName='ElectricPotenitalCondition'
+  ContainerName='ElectricPotentialCondition'
   CALL DatasetExists(File_ID,TRIM(ContainerName),EPCExists)
   ! Check for new parameter name
   IF(EPCExists)THEN
@@ -1566,9 +1949,9 @@ END SUBROUTINE SynchronizeVoltageOnEPC
 !> HDG solver for linear or non-linear systems
 !===================================================================================================================================
 #if defined(PARTICLES)
-SUBROUTINE HDG(t,U_out,iter,ForceCGSolverIteration_opt)
+SUBROUTINE HDG(t,iter,ForceCGSolverIteration_opt,RecomputeLambda_opt)
 #else
-SUBROUTINE HDG(t,U_out,iter)
+SUBROUTINE HDG(t,iter,RecomputeLambda_opt)
 #endif /*defined(PARTICLES)*/
 ! MODULES
 #if USE_MPI
@@ -1584,16 +1967,14 @@ USE MOD_TimeDisc_Vars   ,ONLY: iStage
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars   ,ONLY: iStage,nRKStages
 #endif
-USE MOD_TimeDisc_Vars   ,ONLY: dt,dt_Min
-USE MOD_Equation_Vars   ,ONLY: E,Et
-USE MOD_Globals_Vars    ,ONLY: eps0
+USE MOD_TimeDisc_Vars   ,ONLY: dt
 USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
-USE MOD_Analyze_Vars    ,ONLY: FieldAnalyzeStep
-USE MOD_Dielectric_vars ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps
 #endif /*(USE_HDG && (PP_nVar==1))*/
 #if defined(PARTICLES)
 USE MOD_HDG_Vars        ,ONLY: UseEPC,EPC
+USE MOD_HDG_NonLinear   ,ONLY: HDGNewton
 #endif /*defined(PARTICLES)*/
+USE MOD_HDG_Linear      ,ONLY: HDGLinear
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -1602,54 +1983,39 @@ INTEGER(KIND=8),INTENT(IN)  :: iter
 #if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
 #endif /*defined(PARTICLES)*/
+LOGICAL,INTENT(IN),OPTIONAL :: RecomputeLambda_opt        ! Is set true during restart and is used to skip the calculation of dD/dt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if defined(PARTICLES)
 LOGICAL :: ForceCGSolverIteration_loc
 INTEGER :: iUniqueEPCBC
 #endif /*defined(PARTICLES)*/
-#if (USE_HDG && (PP_nVar==1))
-INTEGER           :: iDir,iElem
-#endif /*(USE_HDG && (PP_nVar==1))*/
-! REAL              :: maxphi
-#if USE_MPI
-#endif /*USE_MPI*/
+LOGICAL :: RecomputeLambda_loc
 !===================================================================================================================================
 #ifdef EXTRAE
 CALL extrae_eventandcounters(int(9000001), int8(4))
 #endif /*EXTRAE*/
 
-! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Store E^n here
-#if (USE_HDG && (PP_nVar==1))
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-  IF (iStage.EQ.1) THEN
-#endif
-  IF(CalcElectricTimeDerivative)THEN
-    ! iter is incremented after this function and then checked in analyze routine with iter+1
-    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
-      ! Store old E-field
-      Et(:,:,:,:,:) = E(:,:,:,:,:)
-    END IF
-  END IF ! CalcElectricTimeDerivative
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+IF (PRESENT(RecomputeLambda_opt)) THEN; RecomputeLambda_loc = RecomputeLambda_opt
+ELSE;                                   RecomputeLambda_loc = .FALSE.
 END IF
-#endif
+
+#if (USE_HDG && (PP_nVar==1))
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Store E^n here
+IF(CalcElectricTimeDerivative.AND.(.NOT.RecomputeLambda_loc)) CALL CalculateElectricTimeDerivative(iter,1)
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 ! Check whether the solver should be skipped in this iteration
-IF (iter.GT.0 .AND. HDGSkip.NE.0) THEN
+IF ((iter.GT.0).AND.( HDGSkip.NE.0)) THEN
   IF (t.LT.HDGSkip_t0) THEN
     IF (MOD(iter,INT(HDGSkipInit,8)).NE.0) RETURN
   ELSE
     IF (MOD(iter,INT(HDGSkip,8)).NE.0) RETURN
   END IF
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-  IF (iStage.GT.1) THEN
-    RETURN
-  END IF
+  IF (iStage.GT.1) RETURN
 #endif
 END IF
 
@@ -1671,7 +2037,7 @@ END IF
           CALL MPI_REDUCE(EPC%ChargeProc(iUniqueEPCBC), 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, EPC%COMM(iUniqueEPCBC)%UNICATOR, IERROR)
         END IF ! MPIRoot
         EPC%Charge(iUniqueEPCBC) = EPC%Charge(iUniqueEPCBC) + EPC%ChargeProc(iUniqueEPCBC)
-      END IF ! comm.NE.MPI_COMM_NULL
+      END IF ! EPC%COMM(iUniqueEPCBC)%UNICATOR.NE.MPI_COMM_NULL
     END DO ! iUniqueEPCBC = 1, EPC%nUniqueEPCBounds
 #endif /*USE_MPI*/
     IF(MPIRoot) EPC%Charge(:) = EPC%Charge(:) + EPC%ChargeProc(:)
@@ -1705,51 +2071,22 @@ IF(UseBRElectronFluid) THEN
     ELSE;                                          ForceCGSolverIteration_loc = .FALSE.
     END IF
 
-    CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
+    !CALL HDGNewton(t, U_out, iter, ForceCGSolverIteration_loc)
+    CALL HDGNewton(t, iter, ForceCGSolverIteration_loc)
   ELSE
     CALL CollectiveStop(__STAMP__,'Defined HDGNonLinSolver not implemented (HDGFixPoint has been removed!) HDGNonLinSolver = ',&
     IntInfo=HDGNonLinSolver)
   END IF
 ELSE
 #endif /*defined(PARTICLES)*/
-  CALL HDGLinear(t,U_out)
+  CALL HDGLinear(t)
 #if defined(PARTICLES)
 END IF
 #endif /*defined(PARTICLES)*/
 
-! Debugging
-!maxphi = maxval(lambda)
-!CALL MPI_ALLREDUCE(MPI_IN_PLACE,maxphi,1,MPI_DOUBLE_PRECISION,MPI_MAX,MPI_COMM_PICLAS,iError)
-!IF(myrank.eq.0)THEN
-!  IPWRITE(UNIT_StdOut,*) "iter,t,maxval(lambda) =", iter,t,maxphi
-!END IF ! myrank.eq.0
-
-! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
 #if (USE_HDG && (PP_nVar==1))
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-IF (iStage.EQ.nRKStages) THEN
-#endif
-  IF(CalcElectricTimeDerivative)THEN
-    ! iter is incremented after this function and then checked in analyze routine with iter+1
-    IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.(MOD(iter+1,FieldAnalyzeStep).EQ.0))THEN
-      IF(DoDielectric)THEN
-        DO iElem=1,PP_nElems
-          IF(isDielectricElem(iElem)) THEN
-            DO iDir = 1, 3
-              Et(iDir,:,:,:,iElem) = DielectricEps(:,:,:,ElemToDielectric(iElem))*eps0*(E(iDir,:,:,:,iElem)-Et(iDir,:,:,:,iElem)) / dt
-            END DO ! iDir = 1, 3
-          ELSE
-            Et(:,:,:,:,iElem) = eps0*(E(:,:,:,:,iElem)-Et(:,:,:,:,iElem)) / dt
-          END IF ! isDielectricElem(iElem)
-        END DO ! iElem=1,PP_nElems
-      ELSE
-        Et(:,:,:,:,:) = eps0*(E(:,:,:,:,:)-Et(:,:,:,:,:)) / dt
-      END IF ! DoDielectric
-    END IF
-  END IF ! CalcElectricTimeDerivative
-#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
-END IF
-#endif
+! Calculate temporal derivate of D in last iteration before Analyze_dt is reached: Use E^n+1 here and calculate the derivative dD/dt
+IF(CalcElectricTimeDerivative.AND.(.NOT.RecomputeLambda_loc)) CALL CalculateElectricTimeDerivative(iter,2)
 #endif /*(USE_HDG && (PP_nVar==1))*/
 
 #ifdef EXTRAE
@@ -1758,1514 +2095,186 @@ CALL extrae_eventandcounters(int(9000001), int8(0))
 END SUBROUTINE HDG
 
 
+#if (USE_HDG && (PP_nVar==1))
 !===================================================================================================================================
-!> Linear HDG solver
+!> Calculates the temporal derivate of the electric displacement field strength
 !===================================================================================================================================
-SUBROUTINE HDGLinear(time,U_out)
+SUBROUTINE CalculateElectricTimeDerivative(iter,mode)
 ! MODULES
-USE MOD_Globals
 USE MOD_PreProc
-USE MOD_HDG_Vars
-USE MOD_Equation           ,ONLY: CalcSourceHDG,ExactFunc
-USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Equation_Vars      ,ONLY: chitens_face
-USE MOD_Mesh_Vars          ,ONLY: Face_xGP,BoundaryType,nSides,BC
-USE MOD_Mesh_Vars          ,ONLY: ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Elem_Mat           ,ONLY: PostProcessGradient
-USE MOD_FillMortar_HDG     ,ONLY: SmallToBigMortar_HDG
-#if (PP_nVar==1)
-USE MOD_Equation_Vars      ,ONLY: E
-#elif (PP_nVar==3)
-USE MOD_Equation_Vars      ,ONLY: B
-#else
-USE MOD_Equation_Vars      ,ONLY: B, E
-#endif
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime,LBSplitTime
-#endif /*USE_LOADBALANCE*/
-#if USE_PETSC
-USE PETSc
-USE MOD_HDG_Vars_PETSc
-USE MOD_Mesh_Vars          ,ONLY: SideToElem
-#if USE_MPI
-USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_MPI_Vars
-#endif
-USE MOD_FillMortar_HDG     ,ONLY: BigToSmallMortar_HDG
-#endif
-USE MOD_Globals_Vars    ,ONLY: ElementaryCharge,eps0
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)     :: time !time
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: i,j,k,r,p,q,iElem, iVar!,iter
-INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
-REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
-REAL    :: rtmp(nGP_vol)
-!LOGICAL :: converged
-#if (PP_nVar!=1)
-REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
-#endif
-#if USE_LOADBALANCE
-REAL    :: tLBStart
-#endif /*USE_LOADBALANCE*/
-#if USE_PETSC
-PetscErrorCode       :: ierr
-PetscScalar, POINTER :: lambda_pointer(:)
-KSPConvergedReason   :: reason
-PetscInt             :: iterations
-PetscReal            :: petscnorm
-INTEGER              :: ElemID,iBCSide,PETScLocalID
-INTEGER              :: PETScID_start, PETScID_stop
-REAL                 :: timeStartPiclas,timeEndPiclas
-REAL                 :: RHS_conductor(nGP_face)
-#endif
-#if USE_PETSC
-INTEGER              :: iUniqueFPCBC
-#endif /*USE_PETSC*/
-!===================================================================================================================================
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-DO iVar = 1, PP_nVar
-  !Dirichlet boundary conditions
-#if (PP_nVar!=1)
-  IF (iVar.EQ.4) THEN
-#endif
-  DO BCsideID=1,nDirichletBCSides
-    SideID=DirichletBC(BCsideID)
-    BCType =BoundaryType(BC(SideID),BC_TYPE)
-    BCState=BoundaryType(BC(SideID),BC_STATE)
-    SELECT CASE(BCType)
-    CASE(2) ! exact BC = Dirichlet BC !! ExactFunc via BCState (time is optional)
-      ! Determine the exact BC state
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time)
-      END DO; END DO !p,q
-    CASE(4) ! exact BC = Dirichlet BC !! Zero potential
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-       lambda(iVar,r:r,SideID)=0.
-      END DO; END DO !p,q
-    CASE(5,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
-      END DO; END DO !p,q
-    CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (without zero crossing)
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(iVar,r:r,SideID),t=time,iRefState=BCState)
-      END DO; END DO !p,q
-    CASE(7) ! exact BC = Dirichlet BC !! ExactFunc via LinState (time is optional)for linear potential function
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
-      END DO; END DO !p,q
-    CASE(8) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        CALL ExactFunc(-4,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,BCState=BCState)
-      END DO; END DO !p,q
-    CASE(50) ! exact BC = Dirichlet BC !! ExactFunc via DC bias voltage
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        CALL ExactFunc(-5,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,BCState=BCState)
-      END DO; END DO !p,q
-    END SELECT ! BCType
-  END DO !BCsideID=1,nDirichletBCSides
-#if (PP_nVar!=1)
-  END IF
-#endif
-
-  !neumann BC
-  DO BCsideID=1,nNeumannBCSides
-    SideID=NeumannBC(BCsideID)
-    BCType =BoundaryType(BC(SideID),BC_TYPE)
-    BCState=BoundaryType(BC(SideID),BC_STATE)
-    SELECT CASE(BCType)
-    CASE(10) !neumann q=0 !! Zero gradient
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        qn_face(iVar,r,BCSideID)= 0.
-      END DO; END DO !p,q
-    CASE(11) !neumann q*n=1 !test
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        qn_face(iVar,r,BCSideID)=SUM((/1.,1.,1./)  &
-                            *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
-      END DO; END DO !p,q
-    CASE(12) !neumann q*n=1 !test
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        qn_face(iVar,r,BCSideID)=SUM((/-1.45e7,1.,1./)  &
-                            *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
-      END DO; END DO !p,q
-    END SELECT ! BCType
-  END DO !BCsideID=1,nNeumannBCSides
-
-!for magnetostatic only neumann
-#if (PP_nVar!=1)
-  IF (iVar.LT.4) THEN
-    DO BCsideID=1,nDirichletBCSides
-!      SideID=DirichletBC(BCsideID)
-      DO q=0,PP_N; DO p=0,PP_N
-        r=q*(PP_N+1) + p+1
-        qn_face_MagStat(iVar,r,BCSideID)= 0.
-      END DO; END DO !p,q
-    END DO !BCsideID=1,nDirichletBCSides
-  END IF
-#endif
-
-  ! Floating boundary BCs
-#if USE_PETSC
-  IF(UseFPC)THEN
-#if USE_MPI
-    ! Communicate the accumulated charged on each BC to all processors on the communicator
-    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR)
-        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-          CALL MPI_ALLREDUCE(MPI_IN_PLACE, FPC%ChargeProc(iUniqueFPCBC), 1, MPI_DOUBLE_PRECISION, MPI_SUM, COMM, IERROR)
-          FPC%Charge(iUniqueFPCBC) = FPC%Charge(iUniqueFPCBC) + FPC%ChargeProc(iUniqueFPCBC)
-        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
-      END ASSOCIATE
-    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-#else
-    FPC%Charge = FPC%Charge + FPC%ChargeProc
-#endif /*USE_MPI*/
-    FPC%ChargeProc = 0.
-    ! Apply charge to RHS, which this is done below: RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
-
-  END IF ! UseFPC
-#endif /*USE_PETSC*/
-
-  ! Set potential to zero
-  IF(SetZeroPotentialDOF) lambda(iVar,1,1) = 0.
-END DO
-
-!volume source (volume RHS of u system)
-DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem))
-  END DO; END DO; END DO !i,j,k
-  DO iVar = 1, PP_nVar
-    RHS_Vol(iVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(iVar,:,iElem)
-  END DO
-END DO !iElem
-
-!replace lambda with exact function (debugging)
-IF(ExactLambda)THEN
-  DO SideID=1,nSides
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      CALL ExactFunc(IniExactFunc,Face_xGP(:,p,q,SideID),lambda( 1:PP_nVar,r,SideID))
-    END DO; END DO !p,q
-  END DO
-END IF
-
-!prepare RHS_face ( RHS for lamdba system.)
-DO iVar = 1, PP_nVar
-  RHS_face(iVar,:,:)=0.
-  DO iElem=1,PP_nElems
-    !rtmp=MATMUL(InvDhat(:,:,iElem),-RHS_loc(:,iElem))
-    CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                               -RHS_vol(iVar,:,iElem),1,0., &
-                               rtmp(:),1)
-
-    DO iLocSide=1,6
-      SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      CALL DGEMV('N',nGP_face,nGP_vol,1., &
-                          Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          rtmp,1,1.,& !add to RHS_face
-                          RHS_face(iVar,:,SideID),1)
-    END DO
-  END DO !iElem
-END DO !ivar
-
-!add Neumann
-DO BCsideID=1,nNeumannBCSides
-  SideID=NeumannBC(BCsideID)
-  RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
-END DO
-
-#if USE_PETSC
-! add Dirichlet contribution
-DO iBCSide=1,nDirichletBCSides
-  BCSideID=DirichletBC(iBCSide)
-  ElemID    = SideToElem(S2E_ELEM_ID,BCSideID)
-  DO iLocSide=1,6
-    SideID = ElemToSide(E2S_SIDE_ID,iLocSide,ElemID)
-    IF(PETScGlobal(SideID).EQ.-1) CYCLE
-    CALL DGEMV('N',nGP_face,nGP_face,-1., &
-                          Smat_BC(:,:,iLocSide,iBCSide), nGP_face, &
-                          lambda(1,:,BCSideID),1,1.,& !add to RHS_face
-                          RHS_face(1,:,SideID),1)
-  END DO
-END DO
-#endif
-
-#if (PP_nVar!=1)
-DO iVar = 1, PP_nVar
-  IF (iVar.LT.4) THEN
-    DO BCsideID=1,nDirichletBCSides
-      SideID=DirichletBC(BCsideID)
-      RHS_face(iVar,:,SideID)=RHS_face(iVar,:,SideID)+qn_face_MagStat(iVar,:,BCSideID)
-    END DO !BCsideID=1,nDirichletBCSides
-  END IF
-END DO
-#endif
-
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-CALL Mask_MPIsides(PP_nVar,RHS_face)
-#endif /*USE_MPI*/
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-
-! SOLVE
-DO iVar=1, PP_nVar
-
-#if USE_PETSC
-  ! Fill right hand side
-  PetscCallA(VecZeroEntries(RHS_petsc,ierr))
-  TimeStartPiclas=PICLASTIME()
-  DO PETScLocalID=1,nPETScUniqueSides
-    SideID=PETScLocalToSideID(PETScLocalID)
-    !VecSetValuesBlockedLocal somehow not working...
-    PetscCallA(VecSetValuesBlocked(RHS_petsc,1,PETScGlobal(SideID),RHS_face(1,:,SideID),INSERT_VALUES,ierr))
-  END DO
-  ! The MPIRoot process has charge and voltage of all FPCs, there, this process sets all conductor RHS information
-  IF(MPIRoot)THEN
-    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-      RHS_conductor(:)=0.
-      RHS_conductor(1)=FPC%Charge(iUniqueFPCBC)/eps0
-      PetscCallA(VecSetValuesBlocked(RHS_petsc,1,nPETScUniqueSidesGlobal-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,RHS_conductor,INSERT_VALUES,ierr))
-    END DO !iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-  END IF ! MPIRoot
-
-  ! Reset the RHS of the first DOF if ZeroPotential must be set
-  IF(MPIroot .AND. SetZeroPotentialDOF) THEN
-    PetscCallA(VecSetValue(RHS_petsc,0,0,INSERT_VALUES,ierr))
-  END IF
-
-  PetscCallA(VecAssemblyBegin(RHS_petsc,ierr))
-  PetscCallA(VecAssemblyEnd(RHS_petsc,ierr))
-
-  ! Calculate lambda
-  PetscCallA(KSPSolve(ksp,RHS_petsc,lambda_petsc,ierr))
-  TimeEndPiclas=PICLASTIME()
-  PetscCallA(KSPGetIterationNumber(ksp,iterations,ierr))
-  PetscCallA(KSPGetConvergedReason(ksp,reason,ierr))
-  PetscCallA(KSPGetResidualNorm(ksp,petscnorm,ierr))
-  ! reason - negative value indicates diverged, positive value converged, see KSPConvergedReason
-  !  -2: KSP_DIVERGED_NULL
-  !  -3: KSP_DIVERGED_ITS            -> Ran out of iterations before any convergence criteria was reached
-  !  -4: KSP_DIVERGED_DTOL           -> norm(r) >= dtol*norm(b)
-  !  -5: KSP_DIVERGED_BREAKDOWN      -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
-  !  -6: KSP_DIVERGED_BREAKDOWN_BICG -> Breakdown in the Krylov method: the method could not continue to enlarge the Krylov space
-  !  -7: KSP_DIVERGED_NONSYMMETRIC   -> It appears the operator or preconditioner is not symmetric and this Krylov method
-  !  -8: KSP_DIVERGED_INDEFINITE_PC  -> It appears the preconditioner is indefinite
-  !  -9: KSP_DIVERGED_NANORINF
-  ! -10: KSP_DIVERGED_INDEFINITE_MAT
-  ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
-  ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
-  IF(reason.LT.0)THEN
-    SWRITE(*,*) 'Attention: PETSc not converged! Reason: ', reason
-  END IF
-  IF(MPIroot) CALL DisplayConvergence(TimeEndPiclas-TimeStartPiclas, iterations, petscnorm)
-
-  ! Fill element local lambda for post processing
-  PetscCallA(VecScatterBegin(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecScatterEnd(scatter_petsc, lambda_petsc, lambda_local_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-  PetscCallA(VecGetArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
-  DO PETScLocalID=1,nPETScUniqueSides
-    SideID=PETScLocalToSideID(PETScLocalID)
-    PETScID_start=1+(PETScLocalID-1)*nGP_face
-    PETScID_stop=PETScLocalID*nGP_face
-    lambda(1,:,SideID) = lambda_pointer(PETScID_start:PETScID_stop)
-  END DO
-  PetscCallA(VecRestoreArrayReadF90(lambda_local_petsc,lambda_pointer,ierr))
-
-  ! Fill Conductor lambda
-  IF(UseFPC)THEN
-    PetscCallA(VecScatterBegin(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-    PetscCallA(VecScatterEnd(scatter_conductors_petsc, lambda_petsc, lambda_local_conductors_petsc, INSERT_VALUES, SCATTER_FORWARD,ierr))
-    PetscCallA(VecGetArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-    FPC%VoltageProc = 0. ! nullify just to be safe
-    ! TODO multiple conductors
-    DO BCsideID=1,nConductorBCsides
-      SideID=ConductorBC(BCSideID)
-      BCState=BoundaryType(BC(SideID),BC_STATE)
-      DO i=1,nGP_face
-        lambda(1,:,SideID) = lambda_pointer(1 + (FPC%Group(BCState,2) - 1) * nGP_face)
-      END DO
-      ! Copy the value to the FPC container for output to .csv (only mpi root does this)
-      FPC%VoltageProc(FPC%Group(BCState,2)) = lambda(1,1,SideID)
-    END DO
-#if USE_MPI
-    ! Sum the voltages across each sub-group and divide by the size of the group to get the voltage. This is required if the MPI
-    ! root is not connected to every FPC (which is usually the case)
-    !
-    ! 1. Communicate the accumulated voltage (should be the same on each proc that has such a BC) on each BC to all processors on the
-    ! communicator
-    FPC%Voltage = 0.
-    DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-      ASSOCIATE( COMM => FPC%COMM(iUniqueFPCBC)%UNICATOR )
-        IF(FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
-          ASSOCIATE( VoltageProc => FPC%VoltageProc(iUniqueFPCBC), Voltage => FPC%Voltage(iUniqueFPCBC) )
-            IF(MPIroot)THEN
-              CALL MPI_REDUCE(VoltageProc, Voltage, 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, iError)
-            ELSE
-              CALL MPI_REDUCE(VoltageProc, 0      , 1 ,MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IError)
-            END IF ! MPIroot
-          END ASSOCIATE
-        END IF ! FPC%COMM(iUniqueFPCBC)%UNICATOR.NE.MPI_COMM_NULL
-      END ASSOCIATE
-    END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-
-    ! 2. Divide by group size (procs that have an actual FPC BC side -> FPC%COMM(iUniqueFPCBC)%nProcsWithSides).
-    !    The MPI root process definitely has the size of each group, which is at least 1.
-    IF(MPIRoot)THEN
-      DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-        FPC%Voltage(iUniqueFPCBC) = FPC%Voltage(iUniqueFPCBC) / REAL(FPC%COMM(iUniqueFPCBC)%nProcsWithSides)
-      END DO ! iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-    END IF ! MPIRoot
-#else
-    FPC%Voltage = FPC%VoltageProc
-#endif /*USE_MPI*/
-    PetscCallA(VecRestoreArrayReadF90(lambda_local_conductors_petsc,lambda_pointer,ierr))
-  END IF ! UseFPC
-
-  ! PETSc Calculate lambda at small mortars from big mortars
-  CALL BigToSmallMortar_HDG(1,lambda)
-#if USE_MPI
-  CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-  CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-  CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-#endif
-#else
-  CALL CG_solver(RHS_face(iVar,:,:),lambda(iVar,:,:),iVar)
-#endif
-  !POST PROCESSING
-
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  !post processing:
-  DO iElem=1,PP_nElems
-    ! for post-proc
-    DO iLocSide=1,6
-      SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      CALL DGEMV('T',nGP_face,nGP_vol,1., &
-                          Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          lambda(iVar,:,SideID),1,1.,& !add to RHS_face
-                          RHS_vol(iVar,:,iElem),1)
-    END DO
-    !U_out(:,iElem)=MATMUL(InvDhat(:,:,iElem),-RHS_loc(:,iElem))
-    CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                               -RHS_vol(iVar,:,iElem),1,0., &
-                               U_out(iVar,:,iElem),1)
-  END DO !iElem
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-END DO !iVar
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-#if (PP_nVar==1)
-  CALL PostProcessGradient(U_out(1,:,:),lambda(1,:,:),E)
-#elif (PP_nVar==3)
-  DO iVar=1, PP_nVar
-    CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
-  END DO
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
-    B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
-    B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
-  END DO; END DO; END DO !i,j,k
-#else
-  DO iVar=1, 3
-    CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
-  END DO
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
-    B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
-    B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
-  END DO; END DO; END DO !i,j,k
-  CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
-#endif
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-END SUBROUTINE HDGLinear
-
-
-!===================================================================================================================================
-!> HDG non-linear solver via Newton's method
-!===================================================================================================================================
-#if defined(PARTICLES)
-SUBROUTINE HDGNewton(time,U_out,td_iter,ForceCGSolverIteration_opt)
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_HDG_Vars
-USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
-USE MOD_FillMortar_HDG         ,ONLY: SmallToBigMortar_HDG
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: DoPrintConvInfo
-#else
-USE MOD_TimeDisc_Vars          ,ONLY: IterDisplayStep,DoDisplayIter
-#endif
+USE MOD_Mesh_Vars              ,ONLY: nElems,offSetElem
 USE MOD_Globals_Vars           ,ONLY: eps0
-USE MOD_Equation_Vars          ,ONLY: chitens_face
-USE MOD_Mesh_Vars              ,ONLY: Face_xGP,BoundaryType,nSides,BC
-USE MOD_Mesh_Vars              ,ONLY: ElemToSide,NormVec,SurfElem
-USE MOD_Interpolation_Vars     ,ONLY: wGP
-USE MOD_Elem_Mat               ,ONLY: PostProcessGradient, Elem_Mat,BuildPrecond
-USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
-#if (PP_nVar==1)
-USE MOD_Equation_Vars          ,ONLY: E
-#endif
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
-USE MOD_HDG_Vars               ,ONLY: ElemToBRRegion,RegionElectronRef
+USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
+USE MOD_Analyze_Vars           ,ONLY: FieldAnalyzeStep
+USE MOD_DG_Vars                ,ONLY: U_N
+USE MOD_Dielectric_vars        ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricVol
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages
+#endif /*(PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)*/
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)     :: time !time
-INTEGER(KIND=8),INTENT(IN)  :: td_iter
-#if defined(PARTICLES)
-LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only BR electron fluid)
-#endif /*defined(PARTICLES)*/
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: i,j,k,r,p,q,iElem, iter,RegionID
-INTEGER :: BCsideID,BCType,BCState,SideID,iLocSide
-REAL    :: RHS_face(PP_nVar,nGP_face,nSides)
-REAL    :: rtmp(nGP_vol),Norm_r2!,Norm_r2_old
-LOGICAL :: converged, beLinear
-LOGICAL :: warning_linear
-REAL    :: warning_linear_phi
-#if (PP_nVar!=1)
-REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
-#endif
-#if USE_LOADBALANCE
-REAL    :: tLBStart
-#endif /*USE_LOADBALANCE*/
-!===================================================================================================================================
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-#if (PP_nVar!=1)
-  CALL CollectiveStop(__STAMP__,'Nonlinear Newton solver only available with EQ-system Poisson!')
-#endif
-Norm_r2=0.
-
-!Dirichlet boundary conditions
-DO BCsideID=1,nDirichletBCSides
-  SideID=DirichletBC(BCsideID)
-  BCType =BoundaryType(BC(SideID),BC_TYPE)
-  BCState=BoundaryType(BC(SideID),BC_STATE)
-  SELECT CASE(BCType)
-  CASE(2) ! exact BC = Dirichlet BC !! ExactFunc via BCState (time is optional)
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      CALL ExactFunc(BCState,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),time)
-    END DO; END DO !p,q
-  CASE(4) ! exact BC = Dirichlet BC !! Zero potential
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      lambda(PP_nVar,r:r,SideID)= 0.
-    END DO; END DO !p,q
-  CASE(5) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (with zero crossing)
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      CALL ExactFunc(-1,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
-    END DO; END DO !p,q
-  CASE(6) ! exact BC = Dirichlet BC !! ExactFunc via RefState (time is optional) for reference state (without zero crossing)
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      CALL ExactFunc(-2,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iRefState=BCState)
-    END DO; END DO !p,q
-  CASE(7) ! exact BC = Dirichlet BC !! ExactFunc via LinState (time is optional)for linear potential function
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      CALL ExactFunc(-3,Face_xGP(:,p,q,SideID),lambda(PP_nVar,r:r,SideID),t=time,iLinState=BCState)
-    END DO; END DO !p,q
-    CASE(8,50,51,52,60) ! exact BC = Dirichlet BC !! ExactFunc via electric potential and decharing of a surface
-      CALL abort(__STAMP__,'Dirichlet BC=8,50,51,52,60 model not implemented for HDG Newton!')
-  END SELECT ! BCType
-END DO !BCsideID=1,nDirichletBCSides
-
-!neumann BC
-DO BCsideID=1,nNeumannBCSides
-  SideID=NeumannBC(BCsideID)
-  BCType =BoundaryType(BC(SideID),BC_TYPE)
-  BCState=BoundaryType(BC(SideID),BC_STATE)
-  SELECT CASE(BCType)
-  CASE(10) !neumann q=0 !! Zero gradient
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      qn_face(PP_nVar,r,BCSideID)= 0.
-    END DO; END DO !p,q
-  CASE(11) !neumann q*n=1 !test
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      qn_face(PP_nVar,r,BCSideID)=SUM((/1.,1.,1./)  &
-                          *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
-    END DO; END DO !p,q
-  CASE(12) !neumann q*n=1 !test
-    DO q=0,PP_N; DO p=0,PP_N
-      r=q*(PP_N+1) + p+1
-      qn_face(PP_nVar,r,BCSideID)=SUM((/-1.45e7,1.,1./)  &
-                          *MATMUL(chitens_face(:,:,p,q,SideID),NormVec(:,p,q,SideID)))*SurfElem(p,q,SideID)*wGP(p)*wGP(q)
-    END DO; END DO !p,q
-  END SELECT ! BCType
-END DO !BCsideID=1,nNeumannBCSides
-
-warning_linear=.FALSE.
-DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear,warning_linear_phi)
-  END DO; END DO; END DO !i,j,k
-  RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
-END DO !iElem
-IF (warning_linear) THEN
-  SWRITE(*,'(A,ES10.2E3)') 'WARNING: during iteration at least one DOF resulted in a phi > phi_max.\n'//&
-    '=> Increase Part-RegionElectronRef#-PhiMax if already steady! Phi-Phi_ref=',warning_linear_phi
-END IF
-
-!prepare RHS_face ( RHS for lambda system.)
-RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
-
-RHS_face(PP_nVar,:,:) =0.
-DO iElem=1,PP_nElems
-  CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                             -RHS_vol(PP_nVar,:,iElem),1,0., &
-                             rtmp(:),1)
-  DO iLocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-    CALL DGEMV('N',nGP_face,nGP_vol,1., &
-                        Ehat(:,:,iLocSide,iElem), nGP_face, &
-                        rtmp,1,1.,& !add to RHS_face
-                        RHS_face(PP_nVar,:,SideID),1)
-  END DO
-END DO !iElem
-
-
-DO BCsideID=1,nNeumannBCSides
-  SideID=NeumannBC(BCsideID)
-  RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
-END DO
-
-#if USE_LOADBALANCE
-CALL LBSplitTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-#if USE_MPI
-CALL Mask_MPISides(PP_nVar,RHS_Face)
-#endif /*USE_MPI*/
-CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
-
-#if USE_LOADBALANCE
-CALL LBSplitTime(LB_DGCOMM,tLBStart)
-#endif /*USE_LOADBALANCE*/
-
-
-! SOLVE
-CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
-IF(PRESENT(ForceCGSolverIteration_opt))THEN
-  IF(ForceCGSolverIteration_opt)THEN
-    ! Due to the removal of electrons during restart
-    converged=.false.
-    SWRITE(UNIT_StdOut,*) "Forcing initial CG solver to iterate by setting converged=F (Norm_r2=",Norm_r2,")"
-  END IF ! ForceCGSolverIteration_opt
-END IF ! ForceCGSolverIteration_opt
-IF (converged) THEN
-#if defined(IMPA) || defined(ROS)
-  IF(DoPrintConvInfo)THEN
-    SWRITE(*,*) 'IMPA || ROS - HDGNewton: Newton Iteration has converged in 0 steps...'
-  END IF
-#else
-  SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in 0 steps...'
-#endif
-ELSE
-  CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
-
-  !post processing:
-  DO iElem=1,PP_nElems
-    ! for post-proc
-    DO iLocSide=1,6
-      SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-      CALL DGEMV('T',nGP_face,nGP_vol,1., &
-                          Ehat(:,:,iLocSide,iElem), nGP_face, &
-                          lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_face
-                          RHS_vol(PP_nVar,:,iElem),1)
-    END DO
-    CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                               -RHS_vol(PP_nVar,:,iElem),1,0., &
-                               U_out(PP_nVar,:,iElem),1)
-  END DO !iElem
-
-  IF(NewtonAdaptStartValue) THEN
-    IF ((.NOT.DoRestart.AND.ALMOSTEQUAL(time,0.)).OR.(DoRestart.AND.ALMOSTEQUAL(time,RestartTime))) THEN
-      DO iElem=1,PP_nElems
-        RegionID=ElemToBRRegion(iElem)
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-          IF (NewtonExactSourceDeriv) THEN
-            NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &
-                         * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
-          ELSE
-            NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-          END IF
-        END DO; END DO; END DO !i,j,k
-      END DO !iElem
-      CALL Elem_Mat(td_iter)
-      CALL BuildPrecond()
-    END IF
-  END IF
-
-  converged =.false.
-  beLinear=.false.
-  AdaptIterNewton = AdaptIterNewtonOld
-  DO iter=1,MaxIterNewton
-
-    IF (.NOT.beLinear) THEN
-      IF ((iter.EQ.AdaptIterNewtonToLinear)) THEN !.OR.(iter.GT.3*AdaptIterNewtonOld)) THEN
-                                                 !removed second cond. to ensure fast convergence with very small AdaptIterNewton
-        IF(MPIroot) WRITE(*,*) 'Info: Solver not converging with exact source derivative, switching to linearization (The linear way, baby)'
-        DO iElem=1,PP_nElems
-          RegionID=ElemToBRRegion(iElem)
-          DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-            r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-            NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-          END DO; END DO; END DO !i,j,k
-        END DO !iElem
-        CALL Elem_Mat(td_iter)
-        CALL BuildPrecond()
-        AdaptIterNewton = 0
-        beLinear=.true.
-      END IF
-    END IF
-
-    IF (AdaptIterNewton.GT.0) THEN
-      IF (MOD(iter,AdaptIterNewton).EQ.0) THEN
-        DO iElem=1,PP_nElems
-          RegionID=ElemToBRRegion(iElem)
-          DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-            r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-            IF (NewtonExactSourceDeriv) THEN
-              NonlinVolumeFac(r,iElem) = RegionElectronRef(1,RegionID)/ (RegionElectronRef(3,RegionID)*eps0) &
-                         * EXP( (U_out(1,r,iElem)-RegionElectronRef(2,RegionID)) / RegionElectronRef(3,RegionID) )
-            ELSE
-              NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
-            END IF
-          END DO; END DO; END DO !i,j,k
-        END DO !iElem
-        CALL Elem_Mat(td_iter)
-        CALL BuildPrecond()
-      END IF
-    END IF
-    !volume source (volume RHS of u system)
-    !SWRITE(*,*) '!!!!!!!!!!!!!!!!!', iter
-
-    warning_linear=.FALSE.
-    DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-        r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-        CALL CalcSourceHDG(i,j,k,iElem,RHS_vol(1:PP_nVar,r,iElem),U_out(1,r,iElem),warning_linear,warning_linear_phi)
-      END DO; END DO; END DO !i,j,k
-      RHS_Vol(PP_nVar,:,iElem)=-JwGP_vol(:,iElem)*RHS_vol(PP_nVar,:,iElem)
-    END DO !iElem
-    IF (warning_linear) THEN
-      !SWRITE(*,'(A,F5.2,A,F5.2,A)') 'HDGNewton WARNING: during iteration at least one DOF resulted in a phi > phi_max. '//&
-        !'=> Increase Part-RegionElectronRef#-PhiMax if already steady! Phi-Phi_ref=',warning_linear_phi,'(Phi_ref=',RegionElectronRef(2,RegionID),')'
-      SWRITE(*,'(A,ES10.2E3)') 'HDGNewton WARNING: at least one DOF resulted in phi > phi_max. '//&
-        'Increase Part-RegionElectronRef#-PhiMax to shift the ref. point! Phi-Phi_ref=',warning_linear_phi!,' (Phi_ref=',RegionElectronRef(2,RegionID),')'
-    END IF
-
-    !prepare RHS_face ( RHS for lamdba system.)
-    RHS_vol(PP_nVar,:,:)=RHS_vol(PP_nVar,:,:)+JwGP_vol(:,:)*U_out(PP_nVar,:,:)*NonlinVolumeFac(:,:)
-
-    RHS_face(PP_nVar,:,:) =0.
-    DO iElem=1,PP_nElems
-      CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                                 -RHS_vol(PP_nVar,:,iElem),1,0., &
-                                 rtmp(:),1)
-      DO iLocSide=1,6
-        SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-        CALL DGEMV('N',nGP_face,nGP_vol,1., &
-                            Ehat(:,:,iLocSide,iElem), nGP_face, &
-                            rtmp,1,1.,& !add to RHS_face
-                            RHS_face(PP_nVar,:,SideID),1)
-      END DO
-    END DO !iElem
-
-    !add Neumann
-    DO BCsideID=1,nNeumannBCSides
-      SideID=NeumannBC(BCsideID)
-      RHS_face(:,:,SideID)=RHS_face(:,:,SideID)+qn_face(:,:,BCSideID)
-    END DO
-
-
-#if USE_MPI
-  CALL Mask_MPIsides(PP_nVar,RHS_face)
-#endif /*USE_MPI*/
-  CALL SmallToBigMortar_HDG(PP_nVar,RHS_face(1:PP_nVar,1:nGP_Face,1:nSides))
-
-    ! SOLVE
-    CALL CheckNonLinRes(RHS_face(1,:,:),lambda(1,:,:),converged,Norm_r2)
-    IF (converged) THEN
-#if defined(IMPA) || defined(ROS)
-      IF(DoPrintConvInfo)THEN
-        SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
-      END IF
-#else
-      IF(DoDisplayIter)THEN
-        IF(HDGDisplayConvergence.AND.(MOD(td_iter,IterDisplayStep).EQ.0)) THEN
-          SWRITE(*,*) 'HDGNewton: Newton Iteration has converged in ',iter,' steps...'
-        END IF
-      END IF
-#endif
-      EXIT
-    ELSE IF (iter.EQ.MaxIterNewton) THEN
-      IPWRITE(UNIT_StdOut,*) "Norm_r2       =", Norm_r2
-      IPWRITE(UNIT_StdOut,*) "iter          =", iter
-      IPWRITE(UNIT_StdOut,*) "MaxIterNewton =", MaxIterNewton
-      CALL abort(__STAMP__,'HDGNewton: Newton Iteration has NOT converged!')
-    END IF
-
-    CALL CG_solver(RHS_face(PP_nVar,:,:),lambda(PP_nVar,:,:))
-
-    !post processing:
-    DO iElem=1,PP_nElems
-      ! for post-proc
-      DO iLocSide=1,6
-        SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
-        CALL DGEMV('T',nGP_face,nGP_vol,1., &
-                            Ehat(:,:,iLocSide,iElem), nGP_face, &
-                            lambda(PP_nVar,:,SideID),1,1.,& !add to RHS_vol
-                            RHS_vol(PP_nVar,:,iElem),1)
-      END DO
-      CALL DSYMV('U',nGP_vol,1., InvDhat(:,:,iElem),nGP_vol, &
-                                 -RHS_vol(PP_nVar,:,iElem),1,0., &
-                                 U_out(PP_nVar,:,iElem),1)
-    END DO !iElem
-  END DO
-END IF
-
-#if (PP_nVar==1)
-CALL PostProcessGradient(U_out(PP_nVar,:,:),lambda(PP_nVar,:,:),E)
-#endif
-
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart)
-#endif /*USE_LOADBALANCE*/
-END SUBROUTINE HDGNewton
-
-
-!===================================================================================================================================
-!> Determine the residual of the HDG solution
-!===================================================================================================================================
-SUBROUTINE CheckNonLinRes(RHS,lambda,converged,Norm_R2)
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_HDG_Vars  ,ONLY: nGP_face
-USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
-USE MOD_Mesh_Vars ,ONLY: nSides
-#if USE_MPI
-USE MOD_Mesh_Vars ,ONLY: nMPISides_YOUR
-#endif /*USE_MPI*/
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars  ,ONLY: MPIW8TimeField,MPIW8CountField
-#endif /*defined(MEASURE_MPI_WAIT)*/
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)    :: RHS(nGP_face*nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(INOUT)    :: lambda(nGP_face*nSides)
-LOGICAL, INTENT(INOUT) :: converged
-REAL, INTENT(OUT)      :: Norm_r2
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(nGP_face*nSides) :: R
-INTEGER                         :: VecSize
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-!===================================================================================================================================
-#if USE_MPI
-! without MPI_YOUR sides for vector_dot_product!!!
-  VecSize=(nSides-nMPIsides_YOUR)*nGP_face
-#else
-  VecSize=nSides*nGP_face
-#endif /*USE_MPI*/
-  CALL EvalResidual(RHS,lambda,R)
-
-  CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
-!  print*, Norm_R2
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-#if USE_MPI
-  IF(MPIroot) converged=(Norm_R2.LT.EpsNonLinear**2)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
-#else
-  converged=(Norm_R2.LT.EpsNonLinear**2)
-#endif /*USE_MPI*/
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
-#endif /*defined(MEASURE_MPI_WAIT)*/
-END SUBROUTINE CheckNonLinRes
-#endif /*defined(PARTICLES)*/
-
-
-!===================================================================================================================================
-!> Continuous Gradient solver
-!===================================================================================================================================
-SUBROUTINE CG_solver(RHS,lambda,iVar)
-! MODULES
-USE MOD_Globals
-USE MOD_Preproc
-USE MOD_HDG_Vars           ,ONLY: nGP_face,HDGDisplayConvergence,iteration
-USE MOD_HDG_Vars           ,ONLY: EpsCG,MaxIterCG,PrecondType,useRelativeAbortCrit,OutIterCG
-USE MOD_TimeDisc_Vars      ,ONLY: iter,IterDisplayStep
-USE MOD_Mesh_Vars          ,ONLY: nSides
-#if USE_MPI
-USE MOD_Mesh_Vars          ,ONLY: nMPISides_YOUR
-#endif /*USE_MPI*/
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
-#endif /*defined(MEASURE_MPI_WAIT)*/
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)    :: RHS(nGP_face*nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(INOUT) :: lambda(nGP_face*nSides)
-INTEGER, INTENT(IN),OPTIONAL::iVar
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(nGP_face*nSides) :: V,Z,R
-REAL                            :: AbortCrit2
-REAL                            :: omega,rr,vz,rz1,rz2,Norm_r2
-REAL                            :: timestartCG,timeEndCG
-INTEGER                         :: VecSize
-LOGICAL                         :: converged
-#if USE_LOADBALANCE
-REAL                            :: tLBStart
-#endif /*USE_LOADBALANCE*/
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-!===================================================================================================================================
-IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
-  SWRITE(UNIT_StdOut,'(132("-"))')
-  SWRITE(*,*)'CG solver start'
-END IF
-TimeStartCG=PICLASTIME()
-#if USE_MPI
-! without MPI_YOUR sides for vector_dot_product!!!
-VecSize=(nSides-nMPIsides_YOUR)*nGP_face
-#else
-VecSize=nSides*nGP_face
-#endif /*USE_MPI*/
-IF(PRESENT(iVar)) THEN
-  CALL EvalResidual(RHS,lambda,R,iVar)
-ELSE
-  CALL EvalResidual(RHS,lambda,R)
-END IF
-
-CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-IF(useRelativeAbortCrit)THEN
-#if USE_MPI
-  IF(MPIroot) converged=(Norm_R2.LT.1e-16)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
-#else
-  converged=(Norm_R2.LT.1e-16)
-#endif /*USE_MPI*/
-ELSE
-#if USE_MPI
-  IF(MPIroot) converged=(Norm_R2.LT.EpsCG**2)
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
-#else
-  converged=(Norm_R2.LT.EpsCG**2)
-#endif /*USE_MPI*/
-END IF
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-IF(converged) THEN !converged
-!  SWRITE(*,*)'CG not needed, residual already =0'
-!  SWRITE(UNIT_StdOut,'(132("-"))')
-    TimeEndCG=PICLASTIME()
-    iteration = 0
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
-  RETURN
-END IF !converged
-AbortCrit2=EpsCG**2
-IF(useRelativeAbortCrit) AbortCrit2=Norm_R2*EpsCG**2
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-IF(PrecondType.NE.0) THEN
-  CALL ApplyPrecond(R,V)
-ELSE
-  V(:)=R(:)
-END IF
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-CALL VectorDotProduct(VecSize,R(1:VecSize),V(1:VecSize),rz1) !Z=V
-
-! Conjugate Gradient
-!IF(MPIroot) print*, '!!!!!!!!!!!!!!!!!!!!!!'
-!IF(MPIroot) print*, iVar
-DO iteration=1,MaxIterCG
-  ! matrix vector
-  IF(PRESENT(iVar)) THEN
-    CALL MatVec(V,Z, iVar)
-  ELSE
-    CALL MatVec(V,Z)
-  END IF
-
-  CALL VectorDotProduct(VecSize,V(1:VecSize),Z(1:VecSize),vz)
-
-  omega=rz1/vz
-
-  lambda=lambda+omega*V
-  R=R-omega*Z
-  CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),rr)
-  IF(ISNAN(rr)) CALL abort(__STAMP__,'HDG solver residual rr = NaN for CG iteration =', IntInfoOpt=iteration)
-#if USE_MPI
-  IF(MPIroot) converged=(rr.LT.AbortCrit2)
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-  CALL MPI_BCAST(converged,1,MPI_LOGICAL,0,MPI_COMM_PICLAS,iError)
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(3)  = MPIW8TimeField(3) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(3) = MPIW8CountField(3) + 1_8
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-#else
-  converged=(rr.LT.AbortCrit2)
-#endif /*USE_MPI*/
-  IF(converged) THEN !converged
-    TimeEndCG=PICLASTIME()
-    CALL EvalResidual(RHS,lambda,R)
-    CALL VectorDotProduct(VecSize,R(1:VecSize),R(1:VecSize),Norm_R2) !Z=V (function contains ALLREDUCE)
-    IF(MPIroot) CALL DisplayConvergence(TimeEndCG-TimeStartCG, iteration, SQRT(Norm_R2))
-    RETURN
-  END IF !converged
-
-  IF (MOD(iteration , MAX(INT(REAL(MaxIterCG)/REAL(OutIterCG)),1) ).EQ.0) THEN
-    SWRITE(*,'(2(A,I0),2(A,G0))') 'CG solver reached ',iteration, ' of ',MaxIterCG, ' iterations with res = ',rr, ' > ',AbortCrit2
-  END IF
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  IF(PrecondType.NE.0) THEN
-    CALL ApplyPrecond(R,Z)
-  ELSE
-    Z(:)=R(:)
-  END IF
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-  CALL VectorDotProduct(VecSize,R(1:VecSize),Z(1:VecSize),rz2)
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-  V=Z+(rz2/rz1)*V
-  rz1=rz2
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-END DO ! iteration
-SWRITE(*,*)'CG solver not converged in ',iteration, 'iterations!!'
-SWRITE(UNIT_StdOut,'(132("-"))')
-
-END SUBROUTINE CG_solver
-
-
-!===================================================================================================================================
-!> Set the global convergence properties of the HDG (CG) Solver and print then to StdOut)
-!===================================================================================================================================
-SUBROUTINE DisplayConvergence(ElapsedTime, iteration, Norm)
-! MODULES
-USE MOD_HDG_Vars      ,ONLY: HDGDisplayConvergence,HDGNorm,RunTime,RunTimePerIteration,iterationTotal,RunTimeTotal
-USE MOD_Globals       ,ONLY: UNIT_StdOut
-USE MOD_TimeDisc_Vars ,ONLY: iter,IterDisplayStep
 !----------------------------------------------------------------------------------------------------------------------------------!
-IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-REAL,INTENT(IN)     :: ElapsedTime
-INTEGER,INTENT(IN)  :: iteration
-REAL,INTENT(IN)     :: Norm
+INTEGER(KIND=8),INTENT(IN)  :: iter
+INTEGER,INTENT(IN) :: mode !< 1: store E^n at the beginning of the time step
+                           !< 2: store E^n+1 at the end of the time step and subtract E^n to calculate the difference
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER           :: iDir,iElem
 !===================================================================================================================================
-RunTime = ElapsedTime
-RunTimeTotal = RunTimeTotal + RunTime
-IF(iteration.GT.0)THEN
-  iterationTotal = iterationTotal + iteration
-  RunTimePerIteration = RunTime/REAL(iteration)
-ELSE
-  RunTimePerIteration = 0.
-END IF ! iteration.GT.0
-HDGNorm = Norm
-
-IF(HDGDisplayConvergence.AND.(MOD(iter,IterDisplayStep).EQ.0)) THEN
-  WRITE(UNIT_StdOut,'(A,1X,I0,A,I0,A)')                '#iterations          :    ',iteration,' (',iterationTotal,' total)'
-  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3,A,ES25.14E3,A)')  'RunTime           [s]:',RunTime,' (',RunTimeTotal,' total)'
-  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')                'RunTime/iteration [s]:',RunTimePerIteration
-  !WRITE(UNIT_StdOut,'(A,1X,ES16.7)')'RunTime/iteration/DOF[s]:',(TimeEndCG-TimeStartCG)/REAL(iteration*PP_nElems*nGP_vol)
-  WRITE(UNIT_StdOut,'(A,1X,ES25.14E3)')                'Final Residual       :',HDGNorm
-  WRITE(UNIT_StdOut,'(132("-"))')
-END IF
-END SUBROUTINE DisplayConvergence
-
-
-!===================================================================================================================================
-!>
-!===================================================================================================================================
-SUBROUTINE EvalResidual(RHS,lambda,R,iVar)
-! MODULES
-USE MOD_Globals
-USE MOD_HDG_Vars           ,ONLY: nGP_face,nDirichletBCSides,DirichletBC,SetZeroPotentialDOF
-USE MOD_Mesh_Vars          ,ONLY: nSides
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL, INTENT(IN)    :: RHS(nGP_face,nSides)
-REAL, INTENT(INOUT) :: lambda(nGP_face,nSides)
-INTEGER, INTENT(IN),OPTIONAL::iVar
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)   :: R(nGP_face,nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL                :: mv(nGP_face,nSides)
-INTEGER             :: BCsideID
-!===================================================================================================================================
-IF(PRESENT(iVar)) THEN
-  CALL MatVec(lambda,mv,iVar)
-ELSE
-  CALL MatVec(lambda,mv)
-END IF
-R=RHS-mv
-
-!set mv on Dirichlet BC to zero!
-#if (PP_nVar!=1)
-IF (iVar.EQ.4) THEN
-#endif
-! TODO direkt als RHS vorgeben! nicht erst hier für PETSC Problem NICHT mehr symmetrisch!
-  ! Dirichlet BCs
-  DO BCsideID=1,nDirichletBCSides
-    R(:,DirichletBC(BCsideID))=0.
-  END DO ! SideID=1,nSides
-
-  ! Set residual to zero
-  IF(SetZeroPotentialDOF) R(1,1) = 0.
-
-#if (PP_nVar!=1)
-END IF
+#if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
+IF((iStage.NE.1).AND.(iStage.NE.nRKStages)) RETURN
 #endif
 
-
-END SUBROUTINE EvalResidual
-
-
-!===================================================================================================================================
-!> Performs matrix-vector multiplication for lambda system
-!>   Parallel Mortar concept:
-!>   1) MORTAR, BigToSmall: interpolate lambda from  big to small (small master sides)
-!>   2) send lambda from master MPI sides to slave MPI sides (includes small mortar master sides)
-!>   3) compute matrix-vector product locally on each proc, in mv array
-!>   4) call mask_MPIsides: send  mv contribution from slave MPI sides to master MPI sides and add to master MPI sides
-!>   5) MORTAR, SmallToBig: add contribution of finalized small mortar sides to big mortar, via Transpose of interpolation operator
-!===================================================================================================================================
-SUBROUTINE MatVec(lambda, mv, iVar)
-! MODULES
-USE MOD_Globals
-USE MOD_HDG_Vars          ,ONLY: Smat,nGP_face,nDirichletBCSides,DirichletBC,SetZeroPotentialDOF
-USE MOD_Mesh_Vars         ,ONLY: nSides, SideToElem, ElemToSide, nMPIsides_YOUR
-USE MOD_FillMortar_HDG    ,ONLY: BigToSmallMortar_HDG,SmallToBigMortar_HDG
-#if USE_MPI
-USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_HDG_Vars          ,ONLY: Mask_MPIsides
-#endif /*USE_MPI*/
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBSplitTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(INOUT) :: lambda(nGP_face, nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT) :: mv(nGP_face, nSides)
-INTEGER, INTENT(IN),OPTIONAL::iVar
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: firstSideID, lastSideID
-INTEGER :: BCsideID,SideID, ElemID, locSideID
-INTEGER :: jLocSide,jSideID(6)
-#if USE_LOADBALANCE
-REAL    :: tLBStart
-#endif /*USE_LOADBALANCE*/
-#if PP_nVar==1
-INTEGER           :: dummy
-#endif /*PP_nVar==1*/
-!===================================================================================================================================
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-CALL BigToSmallMortar_HDG(1,lambda)
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-CALL StartReceiveMPIData(1,lambda,1,nSides, RecRequest_U,SendID=1) ! Receive YOUR
-CALL StartSendMPIData(   1,lambda,1,nSides,SendRequest_U,SendID=1) ! Send MINE
-#endif /*USE_MPI*/
-
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-firstSideID = 1
-lastSideID = nSides-nMPIsides_YOUR
-
-mv=0.
-
-DO SideID=firstSideID,lastSideID
-  !master element
-  locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-    jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
-    DO jLocSide = 1,6
-      CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv
-                        mv(:,jSideID(jLocSide)),1)
-    END DO !jLocSide
-  END IF !locSideID.NE.-1
-  ! neighbour element
-  locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-  IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-    jSideID(:)=ElemToSide(E2S_SIDE_ID,:,ElemID)
-    DO jLocSide = 1,6
-      CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv
-                        mv(:,jSideID(jLocSide)),1)
-    END DO !jLocSide
-  END IF !locSideID.NE.-1
-  !add mass matrix
-END DO ! SideID=1,nSides
-!SWRITE(*,*)'DEBUG---------------------------------------------------------'
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-
-#if USE_MPI
-! Finish lambda communication
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-firstSideID=nSides-nMPIsides_YOUR+1
-lastSideID =nSides
-DO SideID=firstSideID,lastSideID
-  !master element
-  locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
-  IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
-    jSideID(:) = ElemToSide(E2S_SIDE_ID,:,ElemID)
-    DO jLocSide = 1,6
-      CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv
-                        mv(:,jSideID(jLocSide)),1)
-    END DO !jLocSide
-  END IF !locSideID.NE.-1
-  ! neighbour element
-  locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
-  IF(locSideID.NE.-1)THEN
-    ElemID    = SideToElem(S2E_NB_ELEM_ID,SideID)
-    jSideID(:)=ElemToSide(E2S_SIDE_ID,:,ElemID)
-    DO jLocSide = 1,6
-      CALL DGEMV('N',nGP_face,nGP_face,1., &
-                        Smat(:,:,jLocSide,locSideID,ElemID), nGP_face, &
-                        lambda(:,SideID),1,1.,& !add to mv
-                        mv(:,jSideID(jLocSide)),1)
-    END DO !jLocSide
-  END IF !locSideID.NE.-1
-  !add mass matrix
-END DO ! SideID=1,nSides
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-CALL Mask_MPIsides(1,mv)
-#endif /*USE_MPI*/
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-CALL SmallToBigMortar_HDG(1,mv)
-
-#if (PP_nVar!=1)
-IF (iVar.EQ.4) THEN
-#endif
-
-  !set mv on Dirichlet BC to zero!
-  DO BCsideID=1,nDirichletBCSides
-    mv(:,DirichletBC(BCsideID))=0.
-  END DO ! SideID=1,nSides
-
-  ! Set potential to zero
-  IF(SetZeroPotentialDOF) mv(1,1) = 0.
-
-#if (PP_nVar!=1)
-END IF
-#endif
-
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-
-! Suppress compiler warning
-RETURN
-#if PP_nVar==1
-dummy=iVar
-#endif /*PP_nVar==1*/
-
-END SUBROUTINE MatVec
-
-
-!===================================================================================================================================
-!> Computes Dot Product for vectors a and b: resu=a.b
-!===================================================================================================================================
-SUBROUTINE VectorDotProduct(dim1,A,B,Resu)
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Timers ,ONLY: LBStartTime,LBPauseTime
-#endif /*USE_LOADBALANCE*/
-#if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI_Vars           ,ONLY: MPIW8TimeField,MPIW8CountField
-#endif /*defined(MEASURE_MPI_WAIT)*/
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN):: dim1
-REAL,INTENT(IN)   :: A(dim1)
-REAL,INTENT(IN)   :: B(dim1)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(OUT)  :: Resu
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER           :: i
-#if USE_MPI
-REAL              :: ResuSend
-#endif
-#if USE_LOADBALANCE
-REAL              :: tLBStart
-#endif /*USE_LOADBALANCE*/
-#if defined(MEASURE_MPI_WAIT)
-INTEGER(KIND=8)   :: CounterStart,CounterEnd
-REAL(KIND=8)      :: Rate
-#endif /*defined(MEASURE_MPI_WAIT)*/
-!===================================================================================================================================
-
-#if USE_LOADBALANCE
-CALL LBStartTime(tLBStart) ! Start time measurement
-#endif /*USE_LOADBALANCE*/
-Resu=0.
-DO i=1,dim1
-  Resu=Resu + A(i)*B(i)
-END DO
-#if USE_LOADBALANCE
-CALL LBPauseTime(LB_DG,tLBStart) ! Pause/Stop time measurement
-#endif /*USE_LOADBALANCE*/
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterStart)
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-#if USE_MPI
-  ResuSend=Resu
-  CALL MPI_ALLREDUCE(ResuSend,Resu,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COMM_PICLAS,iError)
-#endif
-
-#if defined(MEASURE_MPI_WAIT)
-  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
-  MPIW8TimeField(4)  = MPIW8TimeField(4) + REAL(CounterEnd-CounterStart,8)/Rate
-  MPIW8CountField(4) = MPIW8CountField(4) + 1_8
-#endif /*defined(MEASURE_MPI_WAIT)*/
-
-END SUBROUTINE VectorDotProduct
-
-
-!===================================================================================================================================
-!> Apply the block-diagonal preconditioner for the lambda system
-!===================================================================================================================================
-SUBROUTINE ApplyPrecond(R, V)
-! MODULES
-USE MOD_Globals
-USE MOD_HDG_Vars  ,ONLY: nGP_face, Precond, PrecondType,InvPrecondDiag
-USE MOD_HDG_Vars  ,ONLY: MaskedSide
-USE MOD_Mesh_Vars ,ONLY: nSides
-USE MOD_Mesh_Vars ,ONLY: nMPIsides_YOUR
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN) :: R(nGP_face, nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT) :: V(nGP_face, nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER :: firstSideID, lastSideID, SideID, igf
-!===================================================================================================================================
-firstSideID = 1
-lastSideID = nSides-nMPIsides_YOUR
-
-SELECT CASE(PrecondType)
-CASE(0)
-  ! do nothing, should not be called
-CASE(1) !apply side-block SPD Preconditioner matrix, already Cholesky decomposed
-  DO SideID=firstSideID,lastSideID
-    IF(MaskedSide(sideID).GT.0) THEN
-      V(:,SideID)=0.
+! iter is incremented after this function and then checked in analyze routine with iter+1
+IF( ( ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR. & ! Analysis dt
+      ALMOSTEQUAL(dt,dt_Min(DT_END)).OR.     & ! tEnd is reached
+      (MOD(iter+1,FieldAnalyzeStep).EQ.0)    & ! Field analysis is reached
+    ) .OR. DoVirtualDielectricLayer)THEN       ! Exception: VDL requires analysis in every time step (integration of ODE)
+  IF(mode.EQ.1)THEN
+    ! Store E^n at the beginning of the time step
+    DO iElem = 1, nElems
+      U_N(iElem)%Dt(:,:,:,:) = U_N(iElem)%E(:,:,:,:)
+    END DO ! iElem = 1, nElems
+  ELSE
+    ! Store E^n+1 at the end of the time step and subtract E^n to calculate the difference
+    IF(DoDielectric)THEN
+      DO iElem=1,PP_nElems
+        IF(isDielectricElem(iElem)) THEN
+          DO iDir = 1, 3
+            U_N(iElem)%Dt(iDir,:,:,:) = DielectricVol(ElemToDielectric(iElem))%DielectricEps(:,:,:)&
+                *eps0*(U_N(iElem)%E(iDir,:,:,:)-U_N(iElem)%Dt(iDir,:,:,:)) / dt
+          END DO ! iDir = 1, 3
+        ELSE
+          U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
+        END IF ! isDielectricElem(iElem)
+      END DO ! iElem=1,PP_nElems
     ELSE
-      ! solve the preconditioner linear system
-      CALL solveSPD(nGP_face,Precond(:,:,SideID),1,R(:,SideID), V(:,SideID))
-    END IF !maskedSide
-  END DO ! SideID=1,nSides
-CASE(2)
-  DO SideID=firstSideID,lastSideID
-    IF(MaskedSide(sideID).GT.0) THEN
-      V(:,SideID)=0.
-    ELSE
-      ! apply inverse of diagonal preconditioned
-      DO igf = 1, nGP_face
-        V(igf, SideID) = InvPrecondDiag(igf,SideID)*R(igf,SideID)
-      END DO ! igf
-    END IF !maskedSide
-  END DO ! SideID=1,nSides
-END SELECT ! PrecondType
-END SUBROUTINE ApplyPrecond
+      DO iElem=1,PP_nElems
+        U_N(iElem)%Dt(:,:,:,:) = eps0*(U_N(iElem)%E(:,:,:,:)-U_N(iElem)%Dt(:,:,:,:)) / dt
+      END DO ! iElem=1,PP_nElems
+    END IF ! DoDielectric
+#if defined(PARTICLES)
+    ! Calculate the electric VDL surface potential from the particle and electric displacement current
+    IF(DoVirtualDielectricLayer) CALL CalculatePhiAndEFieldFromCurrentsVDL(.TRUE.)
+#endif /*defined(PARTICLES)*/
+  END IF ! mode.EQ.1
+END IF
+
+END SUBROUTINE CalculateElectricTimeDerivative
 
 
-
+#if defined(PARTICLES)
 !===================================================================================================================================
-!> Solve a symmetrical positive definite linear system of dimension dims
+!> description
 !===================================================================================================================================
-SUBROUTINE solveSPD(dimA,A,nRHS,RHS, X)
+SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL(UpdatePhiF)
 ! MODULES
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals_Vars           ,ONLY: eps0
+USE MOD_TimeDisc_Vars          ,ONLY: dt
+USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC
+USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
+USE MOD_PICDepo_Vars           ,ONLY: PS_N
+USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound
+USE MOD_ProlongToFace          ,ONLY: ProlongToFace_Side
 IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN):: dimA
-REAL,INTENT(IN)   :: A(dimA, dimA)
-INTEGER,INTENT(IN):: nRHS
-REAL,INTENT(IN)   :: RHS(dimA,nRHS)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL,INTENT(INOUT):: X(dimA,nRHS)
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: lapack_info
+INTEGER          :: ElemID,SideID,ilocSide,Nloc,iPartBound,p,q
+REAL,ALLOCATABLE :: jface(:,:,:)
+REAL             :: coeff
+LOGICAL          :: UpdatePhiF
 !===================================================================================================================================
-X = RHS
-CALL DPOTRS('U',dimA,nRHS,A,dimA,X,dimA,lapack_info)
-!IF (lapack_info .NE. 0) THEN
-!  STOP 'LAPACK ERROR IN SOLVE CHOLESKY!'
-!END IF
-END SUBROUTINE solveSPD
+! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!     interpolate the vector field E = (/Ex, Ey, Ez/) to the boundary face
+DO SideID=1,nBCSides
+  ! Get the local element index
+    ElemID    = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get local polynomial degree of the element
+  Nloc   = N_DG_Mapping(2,ElemID+offSetElem)
+  ! Get particle boundary index
+  iPartBound = PartBound%MapToPartBC(BC(SideID))
+
+  ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
+  IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
+
+    ! Allocate jface depending on the local polynomial degree
+    ALLOCATE(jface(1:3,0:Nloc,0:Nloc))
+    ! Get local side index
+    ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+
+    IF(UpdatePhiF)THEN
+      ! Calculate coefficient
+      coeff = (PartBound%ThicknessVDL(iPartBound)*dt)/(eps0*PartBound%PermittivityVDL(iPartBound))
+
+      ! Update PhiF:  PhiF_From_Currents: PhiF^n - PhiF^n-1 = -(d*dt)/(eps0*epsR)*(jp+jD)
+      U_N(ElemID)%PhiF(1:3,:,:,:) = U_N(ElemID)%PhiF(1:3,:,:,:) &
+                                  - coeff * ( PS_N(ElemID)%PartSource(1:3,:,:,:) + U_N(ElemID)%Dt(1:3,:,:,:) )
+    END IF ! UpdatePhiF
+    !WRITE (*,*) "XXXX: jp + jD =", MAXVAL(ABS(PS_N(ElemID)%PartSource(1:3,:,:,:))), MAXVAL(ABS(U_N(ElemID)%Dt(1:3,:,:,:)))
+
+    ! Prolong-to-face depending on orientation in reference element
+    CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%PhiF(1:3,0:Nloc,0:Nloc,0:Nloc), jface(1:3,0:Nloc,0:Nloc))
+
+    !IF(UpdatePhiF) WRITE (*,*) "time   , N_SurfVDL(SideID)%U(9,0,0) =", time, N_SurfVDL(SideID)%U(9,0,0)
+
+    ! 2.) Apply the normal vector to get the flux over the boundary face
+    DO q=0,Nloc
+      DO p=0,Nloc
+        ASSOCIATE( normal => N_SurfMesh(SideID)%NormVec(1:3,p,q), j => jface(1:3,p,q), PhiF => N_SurfVDL(SideID)%U(9,p,q))
+          ! j_normal = <j,normal> with normal inverted
+          !jface(1,p,q) = DOT_PRODUCT(j,-normal)
+          PhiF = DOT_PRODUCT(j,-normal)
+        END ASSOCIATE
+      END DO ! p
+    END DO ! q
+
+    ! 3.) Get E from Phi_F
+    DO q=0,Nloc
+      DO p=0,Nloc
+        ASSOCIATE(      E => N_SurfVDL(SideID)%U(10:12,p,q)     ,&
+                   normal => N_SurfMesh(SideID)%NormVec(1:3,p,q),&
+                        j => jface(1,p,q)                       ,&
+                     PhiF => N_SurfVDL(SideID)%U(9,p,q)         )
+          ! Reconstruct Phi_F from the current density and the (uncorrected) electric displacement fields in each element
+          ! PhiF_From_Currents: PhiF^n - PhiF^n-1 = -(d*dt)/(eps0*epsR)*(jp+jD)
+          !PhiF = j
+
+          ! Reconstruct E from Phi_Max via E = Phi/d
+          E =  PhiF/PartBound%ThicknessVDL(iPartBound)*normal
+
+        END ASSOCIATE
+      END DO ! p
+    END DO ! q
+    !WRITE (*,*) "N_SurfVDL(SideID)%U(9,:,:) =", N_SurfVDL(SideID)%U(9,:,:)
+    !IF(UpdatePhiF)THEN WRITE (*,*) "time+dt, N_SurfVDL(SideID)%U(9,0,0) =", time+dt, N_SurfVDL(SideID)%U(9,0,0)
+    DEALLOCATE(jface)
+  END IF ! PartBound%ThicknessVDL(iPartBound).GT.0.0
+END DO ! SideID=1,nBCSides
+
+END SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL
+#endif /*defined(PARTICLES)*/
+#endif /*(USE_HDG && (PP_nVar==1))*/
 
 
 !===================================================================================================================================
 !> During restart, recalculate the gradient of the HDG solution
 !===================================================================================================================================
-SUBROUTINE RestartHDG(U_out)
+SUBROUTINE RecomputeEFieldHDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
-USE MOD_Elem_Mat      ,ONLY: PostProcessGradient
+USE MOD_Elem_Mat      ,ONLY: PostProcessGradientHDG
 USE MOD_Basis         ,ONLY: getSPDInverse
 #if USE_MPI
 USE MOD_MPI_Vars
 #endif /*USE_MPI*/
 #if (PP_nVar==1)
-USE MOD_Equation_Vars ,ONLY: E
+!USE MOD_Equation_Vars ,ONLY: E
 #elif (PP_nVar==3)
 USE MOD_Equation_Vars ,ONLY: B
 #else
@@ -3273,39 +2282,42 @@ USE MOD_Equation_Vars ,ONLY: B, E
 #endif
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,INTENT(INOUT)  :: U_out(PP_nVar,nGP_vol,PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 #if (PP_nVar!=1)
-REAL    :: BTemp(3,3,nGP_vol,PP_nElems)
+REAL    :: BTemp(3,3,nGP_vol(PP_N),PP_nElems)
 #endif
 !===================================================================================================================================
 
 #if (PP_nVar==1)
-  CALL PostProcessGradient(U_out(1,:,:),lambda(1,:,:),E)
+  CALL PostProcessGradientHDG()
 #elif (PP_nVar==3)
-  DO iVar=1, PP_nVar
-    CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
-  END DO
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
-    B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
-    B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
-  END DO; END DO; END DO !i,j,k
+  ! NOT IMPLEMENTED
+  CALL abort(__STAMP__,"ERROR: Functionality not implemented!")
+  ! DO iVar=1, PP_nVar
+  !   CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
+  ! END DO
+  ! DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  !   r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+  !   B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
+  !   B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
+  !   B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
+  ! END DO; END DO; END DO !i,j,k
 #else
-  DO iVar=1, 3
-    CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
-  END DO
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-    B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
-    B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
-    B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
-  END DO; END DO; END DO !i,j,k
-  CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
+  ! NOT IMPLEMENTED
+  CALL abort(__STAMP__,"ERROR: Functionality not implemented!")
+  ! DO iVar=1, 3
+  !   CALL PostProcessGradient(U_out(iVar,:,:),lambda(iVar,:,:),BTemp(iVar,:,:,:))
+  ! END DO
+  ! DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  !   r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
+  !   B(1,i,j,k,:) = BTemp(3,2,r,:) - BTemp(2,3,r,:)
+  !   B(2,i,j,k,:) = BTemp(1,3,r,:) - BTemp(3,1,r,:)
+  !   B(3,i,j,k,:) = BTemp(2,1,r,:) - BTemp(1,2,r,:)
+  ! END DO; END DO; END DO !i,j,k
+  ! CALL PostProcessGradient(U_out(4,:,:),lambda(4,:,:),E)
 #endif
-END SUBROUTINE RestartHDG
+END SUBROUTINE RecomputeEFieldHDG
 #endif /*USE_HDG*/
 
 
@@ -3316,6 +2328,7 @@ SUBROUTINE FinalizeHDG()
 ! MODULES
 USE MOD_Globals
 USE MOD_HDG_Vars
+USE MOD_Interpolation_Vars ,ONLY: NMax
 #if USE_PETSC
 USE petsc
 USE MOD_HDG_Vars_PETSc
@@ -3323,9 +2336,13 @@ USE MOD_HDG_Vars_PETSc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
-USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem,nSides,SideToNonUniqueGlobalSide,N_SurfMesh
 USE MOD_Mesh_Tools         ,ONLY: LambdaSideToMaster,GetMasteriLocSides
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_MPI_Vars           ,ONLY: SurfExchange
+#endif /*USE_MPI*/
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -3341,42 +2358,43 @@ INTEGER             :: iSide
 #if USE_MPI
 INTEGER             :: iBC
 #endif /*USE_MPI*/
+INTEGER           :: Nloc
 !===================================================================================================================================
 HDGInitIsDone = .FALSE.
 #if USE_PETSC
-PetscCallA(KSPDestroy(ksp,ierr))
-PetscCallA(MatDestroy(Smat_petsc,ierr))
-PetscCallA(VecDestroy(lambda_petsc,ierr))
-PetscCallA(VecDestroy(RHS_petsc,ierr))
+PetscCallA(KSPDestroy(PETScSolver,ierr))
+PetscCallA(MatDestroy(PETScSystemMatrix,ierr))
+PetscCallA(VecDestroy(PETScSolution,ierr))
+PetscCallA(VecDestroy(PETScSolutionLocal,ierr))
+PetscCallA(VecScatterDestroy(PETScScatter,ierr))
+PetscCallA(VecDestroy(PETScRHS,ierr))
 PetscCallA(PetscFinalize(ierr))
-SDEALLOCATE(PETScGlobal)
-SDEALLOCATE(PETScLocalToSideID)
-SDEALLOCATE(Smat_BC)
 SDEALLOCATE(SmallMortarType)
+SDEALLOCATE(OffsetGlobalPETScDOF)
 #endif
-SDEALLOCATE(NonlinVolumeFac)
+!SDEALLOCATE(NonlinVolumeFac)
 SDEALLOCATE(DirichletBC)
 SDEALLOCATE(NeumannBC)
-SDEALLOCATE(qn_face)
+SDEALLOCATE(HDG_Vol_N)
 SDEALLOCATE(qn_face_MagStat)
-SDEALLOCATE(delta)
-SDEALLOCATE(LL_minus)
-SDEALLOCATE(LL_plus)
-SDEALLOCATE(Lomega_m)
-SDEALLOCATE(Lomega_p)
-SDEALLOCATE(Domega)
-SDEALLOCATE(InvDhat)
-SDEALLOCATE(wGP_vol)
-SDEALLOCATE(JwGP_vol)
-SDEALLOCATE(Ehat)
-SDEALLOCATE(Smat)
+!SDEALLOCATE(delta)
+!SDEALLOCATE(LL_minus)
+!SDEALLOCATE(LL_plus)
+!SDEALLOCATE(Lomega_m)
+!SDEALLOCATE(Lomega_p)
+!SDEALLOCATE(Domega)
+!SDEALLOCATE(InvDhat)
+!SDEALLOCATE(wGP_vol)
+!SDEALLOCATE(JwGP_vol)
+!SDEALLOCATE(Ehat)
+!SDEALLOCATE(Smat)
 SDEALLOCATE(Tau)
-SDEALLOCATE(RHS_vol)
-SDEALLOCATE(Precond)
-SDEALLOCATE(InvPrecondDiag)
+!SDEALLOCATE(RHS_vol)
+!SDEALLOCATE(Precond)
+!SDEALLOCATE(InvPrecondDiag)
 SDEALLOCATE(MaskedSide)
 SDEALLOCATE(SmallMortarInfo)
-SDEALLOCATE(IntMatMortar)
+!SDEALLOCATE(IntMatMortar)
 
 #if USE_LOADBALANCE
 ! MPIRoot does not deallocate during load balance because this process sends the info to the other processors via the respective
@@ -3440,19 +2458,20 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   ! Store lambda solution on global non-unique array for MPI communication
   ASSOCIATE( firstSide => ElemInfo_Shared(ELEM_FIRSTSIDEIND,offsetElem+1) + 1       ,&
              lastSide  => ElemInfo_Shared(ELEM_LASTSIDEIND ,offsetElem    + nElems) )
-    ALLOCATE(lambdaLB(PP_nVar,nGP_face,firstSide:lastSide))
+    ALLOCATE(lambdaLB(PP_nVar,nGP_face(NMax)+1,firstSide:lastSide)) ! +1 comes from the NSideMin info that is sent additionally
+    ! TODO NSideMin - What?
     lambdaLB=0.
   END ASSOCIATE
   IF(nProcessors.GT.1) CALL GetMasteriLocSides()
   DO iSide = 1, nSides
     NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(1,iSide)
 
-    CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+    CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
     ! Check if the same global unique side is encountered twice and store both global non-unique side IDs in the array
     ! SideToNonUniqueGlobalSide(1:2,iSide)
     IF(SideToNonUniqueGlobalSide(2,iSide).NE.-1)THEN
       NonUniqueGlobalSideID = SideToNonUniqueGlobalSide(2,iSide)
-      CALL LambdaSideToMaster(iSide,lambdaLB(:,:,NonUniqueGlobalSideID))
+      CALL LambdaSideToMaster(1,iSide,lambdaLB(:,:,NonUniqueGlobalSideID),N_SurfMesh(iSide)%NSide)
     END IF ! SideToNonUniqueGlobalSide(1,iSide).NE.-1
 
   END DO ! iSide = 1, nSides
@@ -3461,7 +2480,22 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-SDEALLOCATE(lambda)
+!SDEALLOCATE(lambda)
+SDEALLOCATE(HDG_Surf_N)
+SDEALLOCATE(nGP_vol)
+SDEALLOCATE(nGP_face)
+#if USE_MPI
+SDEALLOCATE(SurfExchange)
+#endif /*USE_MPI*/
+DO Nloc = 1, NMax
+  DEALLOCATE(N_Inter(Nloc)%LL_minus)
+  DEALLOCATE(N_Inter(Nloc)%LL_plus)
+  DEALLOCATE(N_Inter(Nloc)%Lomega_m)
+  DEALLOCATE(N_Inter(Nloc)%Lomega_p)
+  DEALLOCATE(N_Inter(Nloc)%Domega)
+  DEALLOCATE(N_Inter(Nloc)%wGP_vol)
+END DO
+
 END SUBROUTINE FinalizeHDG
 
 

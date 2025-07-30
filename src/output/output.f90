@@ -51,15 +51,6 @@ INTERFACE InitOutput
   MODULE PROCEDURE InitOutput
 END INTERFACE
 
-INTERFACE PrintStatusLine
-  MODULE PROCEDURE PrintStatusLine
-END INTERFACE
-
-INTERFACE PrintStatusLineRadiation
-  MODULE PROCEDURE PrintStatusLineRadiation
-END INTERFACE
-
-
 PUBLIC:: InitOutput
 PUBLIC:: PrintStatusLine
 PUBLIC:: DefineParametersOutput
@@ -178,7 +169,7 @@ SUBROUTINE PrintStatusLine(t,dt,tStart,tEnd,mode)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Output_Vars , ONLY: doPrintStatusLine
-USE MOD_TimeDisc_Vars,ONLY: time_start
+USE MOD_TimeDisc_Vars,ONLY: time_start,tWallRemaining
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -215,6 +206,7 @@ IF(MPIroot)THEN
   time_remaining = time_remaining - time_start
   IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
   percent = percent*100.
+  tWallRemaining = time_remaining/3600.0
   secs = MOD(time_remaining,60.)
   time_remaining = time_remaining / 60
   mins = MOD(time_remaining,60.)
@@ -249,6 +241,7 @@ SUBROUTINE PrintStatusLineRadiation(t,tStart,tEnd,Phot,outputrank)
 ! MODULES                                                                                                                          !
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_TimeDisc_Vars ,ONLY: tWallRemaining
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -278,6 +271,7 @@ IF(myRank.EQ.visRank)THEN
   CALL CPU_TIME(time_remaining)
   IF (percent.GT.0.0) time_remaining = time_remaining/percent - time_remaining
   percent =  percent*100.
+  tWallRemaining = time_remaining/3600.0
   secs = MOD(time_remaining,60.)
   time_remaining = time_remaining / 60
   mins = MOD(time_remaining,60.)
@@ -287,14 +281,14 @@ IF(myRank.EQ.visRank)THEN
   !days = MOD(time_remaining,365.) ! Use this if years are also to be displayed
   days = time_remaining
   IF (Phot) THEN
-    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,F6.2,A5,A1)',ADVANCE='NO') &
         '  Photon = ', t,'  TotalPhotons = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-        REPEAT('☄️ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
+        REPEAT('☄️ ',CEILING(percent/2)),REPEAT('  ',INT((100.0-percent)/2)),'| [ ',percent,'% ]  ',&
         ACHAR(13) ! ACHAR(13) is carriage return
   ELSE
-    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,I3,A4,A1)',ADVANCE='NO') &
+    WRITE(UNIT_stdOut,'(A,E10.4,A,E10.4,A,A,I6,A1,I0.2,A1,I0.2,A1,I0.2,A,A,A,A4,F6.2,A5,A1)',ADVANCE='NO') &
         '  Elem = ', t,'  TotalElems = ', tEnd, ' ', ' eta = ',INT(days),':',INT(hours),':',INT(mins),':',INT(secs),'     |',&
-        REPEAT('☢ ',CEILING(percent/4)),REPEAT('  ',INT((100-percent)/4)),'| [ ',NINT(percent),'% ] ',&
+        REPEAT('☢ ',CEILING(percent/2)),REPEAT('  ',INT((100.0-percent)/2)),'| [ ',percent,'% ]  ',&
         ACHAR(13) ! ACHAR(13) is carriage return
   END IF
 #ifdef INTEL

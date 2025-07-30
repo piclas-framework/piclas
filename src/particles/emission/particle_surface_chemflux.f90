@@ -48,7 +48,7 @@ USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemMidPoint_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, nPartIn, PartEkinIn
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure   ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Timedisc_Vars           ,ONLY: dt
 USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize
@@ -725,9 +725,9 @@ PartState(4:6,PartID) = Vec3D(1:3)
 
 IF(UseRotRefFrame) THEN
   ! Detect if particle is within a RotRefDomain
-  PDM%InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
+  InRotRefFrame(PartID) = InRotRefFrameCheck(PartID)
   ! Initialize velocity in the rotational frame of reference
-  IF(PDM%InRotRefFrame(PartID)) THEN
+  IF(InRotRefFrame(PartID)) THEN
     PartVeloRotRef(1:3,PartID) = PartState(4:6,PartID) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PartID))
   END IF
 END IF

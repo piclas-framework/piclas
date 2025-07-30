@@ -55,7 +55,8 @@ SUBROUTINE InitTimeAverage()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools,    ONLY: CountOption,GETSTR,GETLOGICAL,GETINT
-USE MOD_Mesh_Vars,      ONLY: nElems
+USE MOD_Mesh_Vars        ,ONLY: nElems,offSetElem
+USE MOD_DG_Vars          ,ONLY: N_DG_Mapping
 USE MOD_Timeaverage_Vars
 USE MOD_Equation_Vars,  ONLY: StrVarNames
 #ifdef PARTICLES
@@ -67,7 +68,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iVar,iVar2
+INTEGER                        :: iVar,iVar2,iElem,Nloc
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesAvgIni(:), VarNamesAvgList(:), VarNamesFlucList(:)
 CHARACTER(LEN=255),ALLOCATABLE :: VarNamesFlucIni(:)
 LOGICAL,ALLOCATABLE            :: hasAvgVars(:)
@@ -207,7 +208,14 @@ IF(DoDeposition.AND.(.NOT.RelaxDeposition))THEN ! compute powerdensity only if p
     END IF
     iCounter=iCounter+9
   END DO
-  IF(nSpecPowerDensity.GT.0) ALLOCATE(PowerDensity(1:7,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems,1:nSpecPowerDensity))
+  IF(nSpecPowerDensity.GT.0) THEN
+    ALLOCATE(PowerDensity_N(nElems))
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(PowerDensity_N(iElem)%U(1:7,0:Nloc,0:Nloc,0:Nloc,1:nSpecPowerDensity))
+      PowerDensity_N(iElem)%U = 0.
+    END DO !iElem = 1, nElems
+  END IF
 END IF
 #endif /*PARTICELS*/
 
@@ -270,9 +278,24 @@ DO iVar=1,nMaxVarFluc
 END DO
 
 ! Allocate arrays
-ALLOCATE(UAvg(nVarAvg,0:PP_N,0:PP_N,0:PP_N,nElems),UFluc(nVarFluc,0:PP_N,0:PP_N,0:PP_N,nElems))
-UAvg = 0.
-UFluc = 0.
+IF (nVarAvg.GT.0) THEN
+  ALLOCATE(UAvg_N(1:nElems))
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(UAvg_N(iElem)%U(nVarAvg,0:Nloc,0:Nloc,0:Nloc))
+    UAvg_N(iElem)%U = 0.
+    ALLOCATE(UAvg_N(iElem)%Tmp(nVarAvg,0:Nloc,0:Nloc,0:Nloc))
+    UAvg_N(iElem)%Tmp = 0.
+  END DO !iElem = 1, nElems
+END IF ! nVarAvg.GT.0
+IF (nVarFluc.GT.0) THEN
+  ALLOCATE(UFluc_N(1:nElems))
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(UFluc_N(iElem)%U(nVarFluc,0:Nloc,0:Nloc,0:Nloc))
+    UFluc_N(iElem)%U = 0.
+  END DO !iElem = 1, nElems
+END IF ! nVarFluc.GT.0
 dtOld=0.
 dtAvg=0.
 iterAvg=1
@@ -314,14 +337,11 @@ SUBROUTINE CalcTimeAverage(Finalize,dt,t,tPrevious)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars                ,ONLY: U
+USE MOD_DG_Vars                ,ONLY: U_N
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
 USE MOD_HDF5_Output_State      ,ONLY: WriteTimeAverage
-USE MOD_Equation_Vars          ,ONLY: E
-USE MOD_Timeaverage_Vars       ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
-                               ,VarnamesAvgOut,VarNamesFlucOut,iterAvg,nSkipAvg
+USE MOD_Timeaverage_Vars
 #ifdef PARTICLES
-USE MOD_Timeaverage_Vars       ,ONLY: PowerDensity,DoPowerDensity
 USE MOD_Particle_Vars          ,ONLY: nSpecies
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcPowerDensity
 #endif /*Particles*/
@@ -336,7 +356,6 @@ REAL,INTENT(IN)                 :: tPrevious              !< previous average ti
 ! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem,iVar
 REAL                            :: dtStep
-REAL                            :: tmpVars(nVarAvg,0:PP_N,0:PP_N,0:PP_N)
 #ifdef PARTICLES
 INTEGER                         :: iSpec,iSpec2,iCounter
 #endif /*Particles*/
@@ -354,29 +373,28 @@ dtStep = (dtOld+dt)*0.5
 IF(Finalize) dtStep = dt*0.5
 dtAvg  = dtAvg+dtStep
 dtOld  = dt
-tmpVars=0. !initialize for case that CalcAvg is T (defined just by name in ini), but not actually calculated (i.e., when DoPowerDensity=F)
 
 #ifdef PARTICLES
-IF(ANY(DoPowerDensity))THEN
-  CALL CalcPowerDensity()
-END IF
+IF(ANY(DoPowerDensity)) CALL CalcPowerDensity()
 #endif /*Particles*/
 
 DO iElem=1,nElems
+  ! Initialize for case that CalcAvg is T (defined just by name in ini), but not actually calculated (i.e., when DoPowerDensity=F)
+  UAvg_N(iElem)%Tmp = 0.
 
   ! Compute time averaged variables and fluctuations of these variables
   ! loop over all variables
   DO iVar=1,1
-    IF(CalcAvg(1)) tmpVars(iAvg(1),:,:,:) = U(1,:,:,:,iElem)
+    IF(CalcAvg(1)) UAvg_N(iElem)%Tmp(iAvg(1),:,:,:) = U_N(iElem)%U(1,:,:,:)
   END DO ! iVar=1,PP_nVar
-  IF(CalcAvg(2)) tmpVars(iAvg(2),:,:,:) = E(1,:,:,:,iElem)
-  IF(CalcAvg(3)) tmpVars(iAvg(3),:,:,:) = E(2,:,:,:,iElem)
-  IF(CalcAvg(4)) tmpVars(iAvg(4),:,:,:) = E(3,:,:,:,iElem)
+  IF(CalcAvg(2)) UAvg_N(iElem)%Tmp(iAvg(2),:,:,:) = U_N(iElem)%E(1,:,:,:)
+  IF(CalcAvg(3)) UAvg_N(iElem)%Tmp(iAvg(3),:,:,:) = U_N(iElem)%E(2,:,:,:)
+  IF(CalcAvg(4)) UAvg_N(iElem)%Tmp(iAvg(4),:,:,:) = U_N(iElem)%E(3,:,:,:)
 
   ! ElectricFieldMagnitude
   IF(CalcAvg(5))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      tmpVars(iAvg(5),i,j,k)=SQRT(SUM(E(1:3,i,j,k,iElem)**2))
+      UAvg_N(iElem)%Tmp(iAvg(5),i,j,k)=VECNORM(U_N(iElem)%E(1:3,i,j,k)) ! SQRT(SUM(U_N(iElem)%E(1:3,i,j,k)**2))
     END DO; END DO; END DO
   END IF
 
@@ -388,24 +406,24 @@ DO iElem=1,nElems
     IF(DoPowerDensity(iSpec))THEN
       iSpec2=iSpec2+1
       ! PowerDensity 1:3
-      IF(CalcAvg(iCounter+1)) tmpVars(iAvg(iVar+1),:,:,:) = PowerDensity(1,:,:,:,iElem,iSpec2)
-      IF(CalcAvg(iCounter+2)) tmpVars(iAvg(iVar+2),:,:,:) = PowerDensity(2,:,:,:,iElem,iSpec2)
-      IF(CalcAvg(iCounter+3)) tmpVars(iAvg(iVar+3),:,:,:) = PowerDensity(3,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+1)) UAvg_N(iElem)%Tmp(iAvg(iVar+1),:,:,:) = PowerDensity_N(iElem)%U(1,:,:,:,iSpec2)
+      IF(CalcAvg(iCounter+2)) UAvg_N(iElem)%Tmp(iAvg(iVar+2),:,:,:) = PowerDensity_N(iElem)%U(2,:,:,:,iSpec2)
+      IF(CalcAvg(iCounter+3)) UAvg_N(iElem)%Tmp(iAvg(iVar+3),:,:,:) = PowerDensity_N(iElem)%U(3,:,:,:,iSpec2)
       ! Mag(PowerDensity)
       IF(CalcAvg(iCounter+4))THEN
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          tmpVars(iAvg(iVar+4),i,j,k) = SQRT(DOT_PRODUCT(PowerDensity(1:3,i,j,k,iElem,iSpec2),PowerDensity(1:3,i,j,k,iElem,iSpec2)))
+          UAvg_N(iElem)%Tmp(iAvg(iVar+4),i,j,k) = VECNORM(PowerDensity_N(iElem)%U(1:3,i,j,k,iSpec2))
         END DO; END DO; END DO
       END IF
-      IF(CalcAvg(iCounter+5)) tmpVars(iAvg(iVar+5),:,:,:) = PowerDensity(4,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+5)) UAvg_N(iElem)%Tmp(iAvg(iVar+5),:,:,:) = PowerDensity_N(iElem)%U(4,:,:,:,iSpec2)
       ! CurrentDensity 1:3
-      IF(CalcAvg(iCounter+6)) tmpVars(iAvg(iVar+6),:,:,:) = PowerDensity(5,:,:,:,iElem,iSpec2)
-      IF(CalcAvg(iCounter+7)) tmpVars(iAvg(iVar+7),:,:,:) = PowerDensity(6,:,:,:,iElem,iSpec2)
-      IF(CalcAvg(iCounter+8)) tmpVars(iAvg(iVar+8),:,:,:) = PowerDensity(7,:,:,:,iElem,iSpec2)
+      IF(CalcAvg(iCounter+6)) UAvg_N(iElem)%Tmp(iAvg(iVar+6),:,:,:) = PowerDensity_N(iElem)%U(5,:,:,:,iSpec2)
+      IF(CalcAvg(iCounter+7)) UAvg_N(iElem)%Tmp(iAvg(iVar+7),:,:,:) = PowerDensity_N(iElem)%U(6,:,:,:,iSpec2)
+      IF(CalcAvg(iCounter+8)) UAvg_N(iElem)%Tmp(iAvg(iVar+8),:,:,:) = PowerDensity_N(iElem)%U(7,:,:,:,iSpec2)
       ! Mag(CurrentDensity)
       IF(CalcAvg(iCounter+9))THEN
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          tmpVars(iAvg(iVar+9),i,j,k) = SQRT(DOT_PRODUCT(PowerDensity(5:7,i,j,k,iElem,iSpec2),PowerDensity(5:7,i,j,k,iElem,iSpec2)))
+          UAvg_N(iElem)%Tmp(iAvg(iVar+9),i,j,k) = VECNORM(PowerDensity_N(iElem)%U(5:7,i,j,k,iSpec2))
         END DO; END DO; END DO
       END IF
     END IF
@@ -414,20 +432,24 @@ DO iElem=1,nElems
 #endif /*Particles*/
 
   ! compute average
-  UAvg(:,:,:,:,iElem)= UAvg (:,:,:,:,iElem) + tmpVars(1:nVarAvg,:,:,:)*dtStep
-  IF(nVarFluc.GT.0)&
-    UFluc(1:nVarFlucHasAvg,:,:,:,iElem) = UFluc(1:nVarFlucHasAvg,:,:,:,iElem) + &
-                                 tmpVars(FlucAvgMap(1,1:nVarFlucHasAvg),:,:,:)*tmpVars(FlucAvgMap(2,1:nVarFlucHasAvg),:,:,:)*dtStep
+  UAvg_N(iElem)%U(:,:,:,:) = UAvg_N(iElem)%U(:,:,:,:) + UAvg_N(iElem)%Tmp(1:nVarAvg,:,:,:)*dtStep
+  IF(nVarFluc.GT.0) UFluc_N(iElem)%U(1:nVarFlucHasAvg,:,:,:) = UFluc_N(iElem)%U(1:nVarFlucHasAvg,:,:,:)      &
+                                                             + UAvg_N(iElem)%Tmp(FlucAvgMap(1,1:nVarFlucHasAvg),:,:,:) &
+                                                             * UAvg_N(iElem)%Tmp(FlucAvgMap(2,1:nVarFlucHasAvg),:,:,:)*dtStep
 
 END DO ! iElem
 
 ! Calc time average and write solution to file
 IF(Finalize)THEN
-  UAvg =UAvg /dtAvg
-  UFluc=UFluc/dtAvg
-  CALL WriteTimeAverage(TRIM(MeshFile),t,tPrevious,VarNamesAvgOut,VarNamesFlucOut,UAvg,UFluc,dtAvg,nVarAvg,nVarFluc)
-  UAvg=0.
-  UFluc=0.
+  DO iElem=1,nElems
+    UAvg_N( iElem)%U = UAvg_N( iElem)%U/dtAvg
+    IF(nVarFluc.GT.0) UFluc_N(iElem)%U = UFluc_N(iElem)%U/dtAvg
+  END DO ! iElem
+  CALL WriteTimeAverage(TRIM(MeshFile),t,tPrevious,VarNamesAvgOut,VarNamesFlucOut,nVarAvg,nVarFluc)
+  DO iElem=1,nElems
+    UAvg_N( iElem)%U = 0.0
+    IF(nVarFluc.GT.0) UFluc_N(iElem)%U = 0.0
+  END DO ! iElem
   dtAvg=0.
   dtOld=0.
 END IF
@@ -451,13 +473,13 @@ SDEALLOCATE(CalcAvg)
 SDEALLOCATE(CalcFluc)
 SDEALLOCATE(iAvg)
 SDEALLOCATE(iFluc)
-SDEALLOCATE(UAvg)
-SDEALLOCATE(UFluc)
+SDEALLOCATE(UAvg_N)
+SDEALLOCATE(UFluc_N)
 SDEALLOCATE(VarNamesAvgOut)
 SDEALLOCATE(VarNamesFlucOut)
 #ifdef PARTICLES
 SDEALLOCATE(DoPowerDensity)
-SDEALLOCATE(PowerDensity)
+SDEALLOCATE(PowerDensity_N)
 #endif /*PARTICLES*/
 SDEALLOCATE(FlucAvgMap)
 END SUBROUTINE FinalizeTimeAverage

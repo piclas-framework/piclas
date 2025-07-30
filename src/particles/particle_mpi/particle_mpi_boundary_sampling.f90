@@ -48,6 +48,7 @@ SUBROUTINE InitSurfCommunication()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Globals
+USE MOD_Mesh_Vars               ,ONLY: ELEM_RANK
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs

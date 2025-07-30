@@ -40,15 +40,21 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,nElems
+USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh,offSetElem
+USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
+#if !(USE_FV) || (USE_HDG)
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*#if !(USE_FV) || (USE_HDG)*/
+USE MOD_Interpolation_Vars ,ONLY: Nmax
 !----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE                   :: Elem_xGP_LB(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: VolMesh(:,:,:,:,:),VolMesh_LB(:,:,:,:,:)
 ! Custom data type
+INTEGER                            :: Nloc,i,j,k,iElem
 INTEGER                            :: MPI_LENGTH(1)
 TYPE(MPI_Datatype)                 :: MPI_STRUCT,MPI_TYPE(1)
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
@@ -57,30 +63,92 @@ REAL                               :: StartT,EndT,WallTime
 !==================================================================================================================================
 
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  ! SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift volume coordinates during loadbalance...'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Exchange N_VolMesh between processes during loadbalance...'
   GETTIME(StartT)
 
-  ALLOCATE(Elem_xGP_LB   (3,0:PP_N,0:PP_N,0:PP_N,nElems))
+  ! Allocate old distribution of data with size nElemsOld
+  ALLOCATE(VolMesh(16,0:NMax,0:NMax,0:NMax,nElemsOld))
+  DO iElem = 1, nElemsOld
+#if !(USE_FV) || (USE_HDG)
+    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
+    IF(Nloc.EQ.Nmax)THEN
+      VolMesh( 1:3 ,:,:,:,iElem) = N_VolMesh(iElem)%Elem_xGP(      :,:,:,:)
+      VolMesh( 4:6 ,:,:,:,iElem) = N_VolMesh(iElem)%XCL_N(         :,:,:,:)
+      VolMesh( 7:9 ,:,:,:,iElem) = N_VolMesh(iElem)%Metrics_fTilde(:,:,:,:)
+      VolMesh(10:12,:,:,:,iElem) = N_VolMesh(iElem)%Metrics_gTilde(:,:,:,:)
+      VolMesh(13:15,:,:,:,iElem) = N_VolMesh(iElem)%Metrics_hTilde(:,:,:,:)
+      VolMesh(16   ,:,:,:,iElem) = N_VolMesh(iElem)%sJ(              :,:,:)
+    ELSE
+      VolMesh(:,:,:,:,iElem) = 0.
+      DO k=0,Nloc
+        DO i=0,Nloc
+          DO j=0,Nloc
+            VolMesh( 1:3 ,i,j,k,iElem) = N_VolMesh(iElem)%Elem_xGP(      :,i,j,k)
+            VolMesh( 4:6 ,i,j,k,iElem) = N_VolMesh(iElem)%XCL_N(         :,i,j,k)
+            VolMesh( 7:9 ,i,j,k,iElem) = N_VolMesh(iElem)%Metrics_fTilde(:,i,j,k)
+            VolMesh(10:12,i,j,k,iElem) = N_VolMesh(iElem)%Metrics_gTilde(:,i,j,k)
+            VolMesh(13:15,i,j,k,iElem) = N_VolMesh(iElem)%Metrics_hTilde(:,i,j,k)
+            VolMesh(16   ,i,j,k,iElem) = N_VolMesh(iElem)%sJ(              i,j,k)
+          END DO
+        END DO
+      END DO
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
+
+  ! Allocate new distribution of data with size nElems
+  ALLOCATE(VolMesh_LB(16,0:NMax,0:NMax,0:NMax,nElems))
   ASSOCIATE (&
           counts_send  => INT(MPInElemSend     ) ,&
           disp_send    => INT(MPIoffsetElemSend) ,&
           counts_recv  => INT(MPInElemRecv     ) ,&
           disp_recv    => INT(MPIoffsetElemRecv))
-    ! Communicate Elem_xGP over MPI
-    MPI_LENGTH       = 3*(PP_N+1)**3
+    ! Communicate VolMesh over MPI
+    MPI_LENGTH       = 16*(Nmax+1)**3
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-    CALL MPI_ALLTOALLV(Elem_xGP,counts_send,disp_send,MPI_STRUCT,Elem_xGP_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    CALL MPI_ALLTOALLV(VolMesh,counts_send,disp_send,MPI_STRUCT,VolMesh_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
-  DEALLOCATE(Elem_xGP)
-  CALL MOVE_ALLOC(Elem_xGP_LB,Elem_xGP)
+  CALL MOVE_ALLOC(VolMesh_LB,VolMesh)
+
+  DEALLOCATE(N_VolMesh) ! N_VolMesh(1:nElemsOld)
+  ! Extract data
+  ALLOCATE(N_VolMesh(1:nElems))
+  DO iElem = 1, nElems
+#if !(USE_FV) || (USE_HDG)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
+    ALLOCATE(N_VolMesh(iElem)%Elem_xGP(      3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%XCL_N(         3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:Nloc,0:Nloc,0:Nloc))
+    ALLOCATE(N_VolMesh(iElem)%sJ            (  0:Nloc,0:Nloc,0:Nloc))
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
+          N_VolMesh(iElem)%Elem_xGP(      :,i,j,k) = VolMesh( 1:3 ,i,j,k,iElem)
+          N_VolMesh(iElem)%XCL_N(         :,i,j,k) = VolMesh( 4:6 ,i,j,k,iElem)
+          N_VolMesh(iElem)%Metrics_fTilde(:,i,j,k) = VolMesh( 7:9 ,i,j,k,iElem)
+          N_VolMesh(iElem)%Metrics_gTilde(:,i,j,k) = VolMesh(10:12,i,j,k,iElem)
+          N_VolMesh(iElem)%Metrics_hTilde(:,i,j,k) = VolMesh(13:15,i,j,k,iElem)
+          N_VolMesh(iElem)%sJ(              i,j,k) = VolMesh(16   ,i,j,k,iElem)
+        END DO
+      END DO
+    END DO
+  END DO ! iElem = 1, nElems
+  DEALLOCATE(VolMesh)
 
   GETTIME(EndT)
   WallTime = EndT-StartT
-  ! CALL DisplayMessageAndTime(WallTime,'DONE',DisplayDespiteLB=.TRUE.,DisplayLine=.FALSE.)
+  CALL DisplayMessageAndTime(WallTime,'DONE',DisplayDespiteLB=.TRUE.,DisplayLine=.FALSE.)
 END IF
 
 END SUBROUTINE ExchangeVolMesh
@@ -96,14 +164,20 @@ USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 ! USE MOD_LoadBalance_Vars   ,ONLY: MPInSideSend,MPInSideRecv,MPIoffsetSideSend,MPIoffsetSideRecv
-USE MOD_Mesh_Vars          ,ONLY: nElems,NGeo!,Elem_xGP,nSides
-USE MOD_Mesh_Vars          ,ONLY: JaCL_N,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,XCL_N!,dXCL_N
+USE MOD_Mesh_Vars          ,ONLY: nElems,NGeo,offSetElem
+USE MOD_LoadBalance_Vars   ,ONLY: nElemsOld,offsetElemOld
+!USE MOD_Mesh_Vars          ,ONLY: JaCL_N,Metrics_fTilde,Metrics_gTilde,Metrics_hTilde,XCL_N!,dXCL_N
 ! USE MOD_Mesh_Vars          ,ONLY: Face_xGP,NormVec,TangVec1,TangVec2,SurfElem,Ja_Face
-USE MOD_Mesh_Vars          ,ONLY: sJ!,detJac_Ref
+!USE MOD_Mesh_Vars          ,ONLY: sJ!,detJac_Ref
 USE MOD_Mesh_Vars          ,ONLY: NGeo,XCL_NGeo
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: dXCL_NGeo
 #endif /*PARTICLES*/
+USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh2
+#if !(USE_FV) || (USE_HDG)
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*#if !(USE_FV) || (USE_HDG)*/
+USE MOD_Interpolation_Vars ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -111,13 +185,15 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 ! Elements
-REAL,ALLOCATABLE                   :: XCL_N_LB(         :,:,:,:,:)
+!REAL,ALLOCATABLE                   :: XCL_N_LB(         :,:,:,:,:)
+!REAL,ALLOCATABLE                   :: XCL_N   (         :,:,:,:,:)
 ! REAL,ALLOCATABLE                   :: dXCL_N_LB(      :,:,:,:,:,:)
 REAL,ALLOCATABLE                   :: JaCL_N_LB(      :,:,:,:,:,:)
-REAL,ALLOCATABLE                   :: Metrics_fTilde_LB(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: Metrics_gTilde_LB(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: Metrics_hTilde_LB(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: sJ_LB            (  :,:,:,:)
+REAL,ALLOCATABLE                   :: JaCL_N   (      :,:,:,:,:,:)
+!REAL,ALLOCATABLE                   :: Metrics_Tilde_LB(:,:,:,:,:)
+!REAL,ALLOCATABLE                   :: Metrics_Tilde   (:,:,:,:,:)
+!REAL,ALLOCATABLE                   :: sJ_LB            (  :,:,:,:)
+!REAL,ALLOCATABLE                   :: sJ               (  :,:,:,:)
 REAL,ALLOCATABLE                   :: XCL_NGeo_LB(      :,:,:,:,:)
 #ifdef PARTICLES
 REAL,ALLOCATABLE                   :: dXCL_NGeo_LB(   :,:,:,:,:,:)
@@ -131,6 +207,7 @@ REAL,ALLOCATABLE                   :: dXCL_NGeo_LB(   :,:,:,:,:,:)
 ! REAL,ALLOCATABLE                   :: SurfElem_LB    (    :,:,:)
 ! REAL,ALLOCATABLE                   ::      Ja_Face_LB(:,:,:,:,:)
 ! Custom data type
+INTEGER                            :: Nloc,i,j,k,iElem
 INTEGER                            :: MPI_LENGTH(1)
 TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
@@ -139,27 +216,58 @@ REAL                               :: StartT,EndT,WallTime
 ! !===================================================================================================================================
 !
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift mesh metrics during loadbalance...'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift Ngeo mesh metrics and N_VolMesh2 during loadbalance...'
   GETTIME(StartT)
 
-  ! volume data
-  ALLOCATE(       XCL_N_LB(  3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-  ASSOCIATE (&
-          counts_send  => INT(MPInElemSend     ) ,&
-          disp_send    => INT(MPIoffsetElemSend) ,&
-          counts_recv  => INT(MPInElemRecv     ) ,&
-          disp_recv    => INT(MPIoffsetElemRecv))
-    ! Communicate dXCL_N over MPI
-    MPI_LENGTH       = 3*(PP_N+1)**3
-    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
-    MPI_TYPE         = MPI_DOUBLE_PRECISION
-    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
-    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-
-    CALL MPI_ALLTOALLV(XCL_N,counts_send,disp_send,MPI_STRUCT,XCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-  END ASSOCIATE
-  DEALLOCATE(XCL_N)
-  CALL MOVE_ALLOC(XCL_N_LB,XCL_N)
+!  ! Allocate old distribution of data with size nElemsOld
+!  ALLOCATE(XCL_N(3,0:NMax,0:NMax,0:NMax,nElemsOld))
+!  DO iElem = 1, nElemsOld
+!    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+!    IF(Nloc.EQ.Nmax)THEN
+!      XCL_N(:,:,:,:,iElem) = N_VolMesh(iElem)%XCL_N(:,:,:,:)
+!    ELSE
+!      XCL_N(:,:,:,:,iElem) = 0.
+!      DO k=0,Nloc
+!        DO i=0,Nloc
+!          DO j=0,Nloc
+!            XCL_N(:,i,j,k,iElem) = N_VolMesh(iElem)%XCL_N(:,i,j,k)
+!          END DO
+!        END DO
+!      END DO
+!    END IF ! Nloc.Eq.Nmax
+!  END DO ! iElem = 1, nElems
+!
+!  ! Allocate new distribution of data with size nElems
+!  ALLOCATE(XCL_N_LB(3,0:NMax,0:NMax,0:NMax,nElems))
+!  ASSOCIATE (&
+!          counts_send  => INT(MPInElemSend     ) ,&
+!          disp_send    => INT(MPIoffsetElemSend) ,&
+!          counts_recv  => INT(MPInElemRecv     ) ,&
+!          disp_recv    => INT(MPIoffsetElemRecv))
+!    ! Communicate XCL_N over MPI
+!    MPI_LENGTH       = 3*(Nmax+1)**3
+!    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+!    MPI_TYPE         = MPI_DOUBLE_PRECISION
+!    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+!    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+!
+!    CALL MPI_ALLTOALLV(XCL_N,counts_send,disp_send,MPI_STRUCT,XCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+!  END ASSOCIATE
+!  CALL MOVE_ALLOC(XCL_N_LB,XCL_N)
+!
+!  ! Extract data
+!  DO iElem = 1, nElems
+!    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+!    ALLOCATE(N_VolMesh(iElem)%XCL_N(3,0:Nloc,0:Nloc,0:Nloc))
+!    DO k=0,Nloc
+!      DO j=0,Nloc
+!        DO i=0,Nloc
+!          N_VolMesh(iElem)%XCL_N(:,i,j,k) = XCL_N(1:3,i,j,k,iElem)
+!        END DO
+!      END DO
+!    END DO
+!  END DO ! iElem = 1, nElems
+!  DEALLOCATE(XCL_N)
 
   ! ALLOCATE(      dXCL_N_LB(3,3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
   ! ASSOCIATE (&
@@ -167,8 +275,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   !         disp_send    => INT(MPIoffsetElemSend) ,&
   !         counts_recv  => INT(MPInElemRecv     ) ,&
   !         disp_recv    => INT(MPIoffsetElemRecv))
-  !   ! Communicate dXCL_N over MPI
   !   MPI_LENGTH       = 3*3*(PP_N+1)**3
+  !   ! Communicate dXCL_N over MPI
   !   MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
   !   MPI_TYPE         = MPI_DOUBLE_PRECISION
   !   CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
@@ -185,7 +293,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
           disp_send    => INT(MPIoffsetElemSend) ,&
           counts_recv  => INT(MPInElemRecv     ) ,&
           disp_recv    => INT(MPIoffsetElemRecv))
-    ! Communicate JaCL_N over MPI
+    ! Communicate XCL_NGeo over MPI
     MPI_LENGTH       = 3*(NGeo+1)**3
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
@@ -204,7 +312,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
           disp_send    => INT(MPIoffsetElemSend) ,&
           counts_recv  => INT(MPInElemRecv     ) ,&
           disp_recv    => INT(MPIoffsetElemRecv))
-    ! Communicate JaCL_N over MPI
+    ! Communicate dXCL_NGeo over MPI
     MPI_LENGTH       = 3*3*(NGeo+1)**3
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
@@ -217,14 +325,38 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   CALL MOVE_ALLOC(dXCL_NGeo_LB,dXCL_NGeo)
 #endif /*PARTICLES*/
 
-  ALLOCATE(      JaCL_N_LB(3,3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
+
+  ! Allocate old distribution of data with size nElemsOld
+  ALLOCATE(JaCL_N(3,3,0:NMax,0:NMax,0:NMax,nElemsOld))
+  DO iElem = 1, nElemsOld
+#if !(USE_FV) || (USE_HDG)
+    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
+    IF(Nloc.EQ.Nmax)THEN
+      JaCL_N(:,:,:,:,:,iElem) = N_VolMesh2(iElem)%JaCL_N(:,:,:,:,:)
+    ELSE
+      JaCL_N(:,:,:,:,:,iElem) = 0.
+      DO k=0,Nloc
+        DO i=0,Nloc
+          DO j=0,Nloc
+            JaCL_N(:,:,i,j,k,iElem) = N_VolMesh2(iElem)%JaCL_N(:,:,i,j,k)
+          END DO
+        END DO
+      END DO
+    END IF ! Nloc.Eq.Nmax
+  END DO ! iElem = 1, nElems
+
+  ! Allocate new distribution of data with size nElems
+  ALLOCATE(JaCL_N_LB(3,3,0:NMax,0:NMax,0:NMax,nElems))
   ASSOCIATE (&
           counts_send  => INT(MPInElemSend     ) ,&
           disp_send    => INT(MPIoffsetElemSend) ,&
           counts_recv  => INT(MPInElemRecv     ) ,&
           disp_recv    => INT(MPIoffsetElemRecv))
     ! Communicate JaCL_N over MPI
-    MPI_LENGTH       = 3*3*(PP_N+1)**3
+    MPI_LENGTH       = 3*3*(Nmax+1)**3
     MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
@@ -232,54 +364,135 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
 
     CALL MPI_ALLTOALLV(JaCL_N,counts_send,disp_send,MPI_STRUCT,JaCL_N_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
   END ASSOCIATE
-  DEALLOCATE(JaCL_N)
   CALL MOVE_ALLOC(JaCL_N_LB,JaCL_N)
 
-  ASSOCIATE (&
-          counts_send  => INT(MPInElemSend     ) ,&
-          disp_send    => INT(MPIoffsetElemSend) ,&
-          counts_recv  => INT(MPInElemRecv     ) ,&
-          disp_recv    => INT(MPIoffsetElemRecv))
-    ! Communicate metrics over MPI
-    MPI_LENGTH       = 3*(PP_N+1)**3
-    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
-    MPI_TYPE         = MPI_DOUBLE_PRECISION
-    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
-    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+  DEALLOCATE(N_VolMesh2) ! N_VolMesh2(1:nElemsOld)
+  ! Extract data
+  ALLOCATE(N_VolMesh2(1:nElems))
+  DO iElem = 1, nElems
+#if !(USE_FV) || (USE_HDG)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+    Nloc = PP_N
+#endif /*#if !(USE_FV) || (USE_HDG)*/
+    ALLOCATE(N_VolMesh2(iElem)%JaCL_N(3,3,0:Nloc,0:Nloc,0:Nloc))
+    DO k=0,Nloc
+      DO j=0,Nloc
+        DO i=0,Nloc
+          N_VolMesh2(iElem)%JaCL_N(:,:,i,j,k) = JaCL_N(1:3,1:3,i,j,k,iElem)
+        END DO
+      END DO
+    END DO
+  END DO ! iElem = 1, nElems
+  DEALLOCATE(JaCL_N)
 
-    ALLOCATE(Metrics_fTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_fTilde,counts_send,disp_send,MPI_STRUCT,Metrics_fTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-    DEALLOCATE(Metrics_fTilde)
-    CALL MOVE_ALLOC(Metrics_fTilde_LB,Metrics_fTilde)
+!  ! Allocate old distribution of data with size nElemsOld
+!  ALLOCATE(Metrics_Tilde(9,0:NMax,0:NMax,0:NMax,nElemsOld))
+!  DO iElem = 1, nElemsOld
+!    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+!    IF(Nloc.EQ.Nmax)THEN
+!      Metrics_Tilde(1:3,:,:,:,iElem) = N_VolMesh(iElem)%Metrics_fTilde(:,:,:,:)
+!      Metrics_Tilde(4:6,:,:,:,iElem) = N_VolMesh(iElem)%Metrics_gTilde(:,:,:,:)
+!      Metrics_Tilde(7:9,:,:,:,iElem) = N_VolMesh(iElem)%Metrics_hTilde(:,:,:,:)
+!    ELSE
+!      Metrics_Tilde(:,:,:,:,iElem) = 0.
+!      DO k=0,Nloc
+!        DO i=0,Nloc
+!          DO j=0,Nloc
+!            Metrics_Tilde(1:3,i,j,k,iElem) = N_VolMesh(iElem)%Metrics_fTilde(:,i,j,k)
+!            Metrics_Tilde(4:6,i,j,k,iElem) = N_VolMesh(iElem)%Metrics_gTilde(:,i,j,k)
+!            Metrics_Tilde(7:9,i,j,k,iElem) = N_VolMesh(iElem)%Metrics_hTilde(:,i,j,k)
+!          END DO
+!        END DO
+!      END DO
+!    END IF ! Nloc.Eq.Nmax
+!  END DO ! iElem = 1, nElems
+!
+!  ! Allocate new distribution of data with size nElems
+!  ALLOCATE(Metrics_Tilde_LB(9,0:NMax,0:NMax,0:NMax,nElems))
+!  ASSOCIATE (&
+!          counts_send  => INT(MPInElemSend     ) ,&
+!          disp_send    => INT(MPIoffsetElemSend) ,&
+!          counts_recv  => INT(MPInElemRecv     ) ,&
+!          disp_recv    => INT(MPIoffsetElemRecv))
+!    ! Communicate Metrics_Tilde over MPI
+!    MPI_LENGTH       = 9*(Nmax+1)**3
+!    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+!    MPI_TYPE         = MPI_DOUBLE_PRECISION
+!    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+!    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+!
+!    CALL MPI_ALLTOALLV(Metrics_Tilde,counts_send,disp_send,MPI_STRUCT,Metrics_Tilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+!  END ASSOCIATE
+!  CALL MOVE_ALLOC(Metrics_Tilde_LB,Metrics_Tilde)
+!
+!  ! Extract data
+!  DO iElem = 1, nElems
+!    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+!    ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
+!    ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
+!    ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:Nloc,0:Nloc,0:Nloc))
+!    DO k=0,Nloc
+!      DO j=0,Nloc
+!        DO i=0,Nloc
+!          N_VolMesh(iElem)%Metrics_fTilde(:,i,j,k) = Metrics_Tilde(1:3,i,j,k,iElem)
+!          N_VolMesh(iElem)%Metrics_gTilde(:,i,j,k) = Metrics_Tilde(4:6,i,j,k,iElem)
+!          N_VolMesh(iElem)%Metrics_hTilde(:,i,j,k) = Metrics_Tilde(7:9,i,j,k,iElem)
+!        END DO
+!      END DO
+!    END DO
+!  END DO ! iElem = 1, nElems
+!  DEALLOCATE(Metrics_Tilde)
 
-    ALLOCATE(Metrics_gTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_gTilde,counts_send,disp_send,MPI_STRUCT,Metrics_gTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-    DEALLOCATE(Metrics_gTilde)
-    CALL MOVE_ALLOC(Metrics_gTilde_LB,Metrics_gTilde)
-
-    ALLOCATE(Metrics_hTilde_LB(3,0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_hTilde,counts_send,disp_send,MPI_STRUCT,Metrics_hTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-    DEALLOCATE(Metrics_hTilde)
-    CALL MOVE_ALLOC(Metrics_hTilde_LB,Metrics_hTilde)
-  END ASSOCIATE
-
-  ALLOCATE(sJ_LB            (  0:PP_N   ,0:PP_N   ,0:PP_N   ,nElems))
-  ASSOCIATE (&
-          counts_send  => INT(MPInElemSend     ) ,&
-          disp_send    => INT(MPIoffsetElemSend) ,&
-          counts_recv  => INT(MPInElemRecv     ) ,&
-          disp_recv    => INT(MPIoffsetElemRecv))
-    ! Communicate scaled Jacobians over MPI
-    MPI_LENGTH       = (PP_N+1)**3
-    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
-    MPI_TYPE         = MPI_DOUBLE_PRECISION
-    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
-    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-
-    CALL MPI_ALLTOALLV(sJ,counts_send,disp_send,MPI_STRUCT,sJ_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-  END ASSOCIATE
-  DEALLOCATE(sJ)
-  CALL MOVE_ALLOC(sJ_LB,sJ)
+!  ! Allocate old distribution of data with size nElemsOld
+!  ALLOCATE(sJ(0:NMax,0:NMax,0:NMax,nElemsOld))
+!  DO iElem = 1, nElemsOld
+!    Nloc = N_DG_Mapping(2,iElem+offSetElemOld)
+!    IF(Nloc.EQ.Nmax)THEN
+!      sJ(:,:,:,iElem) = N_VolMesh(iElem)%sJ(:,:,:)
+!    ELSE
+!      sJ(:,:,:,iElem) = 0.
+!      DO k=0,Nloc
+!        DO i=0,Nloc
+!          DO j=0,Nloc
+!            sJ(i,j,k,iElem) = N_VolMesh(iElem)%sJ(i,j,k)
+!          END DO
+!        END DO
+!      END DO
+!    END IF ! Nloc.Eq.Nmax
+!  END DO ! iElem = 1, nElems
+!
+!  ! Allocate new distribution of data with size nElems
+!  ALLOCATE(sJ_LB(0:NMax,0:NMax,0:NMax,nElems))
+!  ASSOCIATE (&
+!          counts_send  => INT(MPInElemSend     ) ,&
+!          disp_send    => INT(MPIoffsetElemSend) ,&
+!          counts_recv  => INT(MPInElemRecv     ) ,&
+!          disp_recv    => INT(MPIoffsetElemRecv))
+!    ! Communicate sJ over MPI
+!    MPI_LENGTH       = (Nmax+1)**3
+!    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
+!    MPI_TYPE         = MPI_DOUBLE_PRECISION
+!    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
+!    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
+!
+!    CALL MPI_ALLTOALLV(sJ,counts_send,disp_send,MPI_STRUCT,sJ_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+!  END ASSOCIATE
+!  CALL MOVE_ALLOC(sJ_LB,sJ)
+!
+!  ! Extract data
+!  DO iElem = 1, nElems
+!    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+!    ALLOCATE(N_VolMesh(iElem)%sJ(0:Nloc,0:Nloc,0:Nloc))
+!    DO k=0,Nloc
+!      DO j=0,Nloc
+!        DO i=0,Nloc
+!          N_VolMesh(iElem)%sJ(i,j,k) = sJ(i,j,k,iElem)
+!        END DO
+!      END DO
+!    END DO
+!  END DO ! iElem = 1, nElems
+!  DEALLOCATE(sJ)
 
   ! ! surface data
   ! ASSOCIATE (&

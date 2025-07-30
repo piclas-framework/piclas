@@ -156,17 +156,19 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Globals
 USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, UseVarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
-USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_RotRelaxQuantPoly, DSMC_VibRelaxPoly, DSMC_RotRelaxDatabasePoly
-USE MOD_DSMC_Relaxation       ,ONLY: DSMC_RotRelaxDiaQuant, DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
-USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
+USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_VibRelaxPoly
+USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
+USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec,VelocityCOMBackscatter
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_MCC_Vars              ,ONLY: UseMCC, SpecXSec
 USE MOD_MCC_XSec              ,ONLY: XSec_CalcElecRelaxProb, XSec_ElectronicRelaxation
 USE MOD_MCC_Vars              ,ONLY: XSec_Relaxation
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb, CalcCollRates
+USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals               ,ONLY: unit_stdout,myrank
@@ -192,6 +194,9 @@ INTEGER                       :: iCase, iSpec1, iSpec2, iPart1, iPart2, iElem ! 
 ! variables for electronic level relaxation and transition
 INTEGER                       :: ElecLevelRelax
 LOGICAL                       :: DoElec1, DoElec2
+! backscatter
+LOGICAL                       :: PerformBackScatter
+REAL                          :: CrossSection, MacroParticleFactor
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
@@ -336,7 +341,19 @@ IF (DSMC%ElectronicModel.EQ.3) THEN
   END IF
 END IF
 
-  FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+
+! Determine whether a backscattering will be performed (MCC)
+PerformBackScatter = .FALSE.
+IF(UseMCC) THEN
+  IF(SpecXSec(iCase)%UseBackScatterXSec) THEN
+    CALL RANDOM_NUMBER(iRan)
+    CrossSection = InterpolateCrossSection(SpecXSec(iCase)%BackXSecData,SpecXSec(iCase)%CollEnergy)
+    IF(CrossSection/SpecXSec(iCase)%CrossSection.GT.iRan) THEN
+      PerformBackScatter = .TRUE.
+    END IF
+  END IF
+END IF
 
 IF (DSMC%ReservoirSimu) THEN
   IF(CalcRelaxProb) THEN
@@ -344,6 +361,16 @@ IF (DSMC%ReservoirSimu) THEN
       IF(DoVib2) THEN
         SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
       END IF
+    END IF
+  END IF
+  IF(CalcCollRates) THEN
+    IF(PerformBackScatter) THEN
+      IF(usevMPF) THEN
+        MacroParticleFactor = 1.
+      ELSE
+        MacroParticleFactor = Species(iSpec1)%MacroParticleFactor
+      END IF
+      SpecXSec(iCase)%BackNumColl = SpecXSec(iCase)%BackNumColl + GetParticleWeight(iPart1) * MacroParticleFactor
     END IF
   END IF
   ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
@@ -456,7 +483,12 @@ END IF
   VeloMz = FracMassCent1 * PartState(6,iPart1) + FracMassCent2 * PartState(6,iPart2)
 
   Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/ReducedMass
-  cRelaNew(1:3) = PostCollVec(iPair)
+
+  IF(PerformBackScatter) THEN
+    cRelaNew(1:3) = VelocityCOMBackscatter(iPair)
+  ELSE
+    cRelaNew(1:3) = PostCollVec(iPair)
+  END IF
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
@@ -875,8 +907,8 @@ USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
 USE MOD_Particle_Vars         ,ONLY: PartState
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
-USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -964,7 +996,7 @@ END SELECT
 ! Rotational frame of reference
 IF(UseRotRefFrame) THEN
   ! Transform the new velocity in the inertial frame and reset the velocity in the rotational frame
-  IF(PDM%InRotRefFrame(iPart1)) THEN
+  IF(InRotRefFrame(iPart1)) THEN
     PartVeloRotRef(1:3,iPart1) = PartState(4:6,iPart1) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart1))
     PartVeloRotRef(1:3,iPart2) = PartState(4:6,iPart2) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart2))
   END IF
@@ -1009,7 +1041,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, iSpec
+INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, iSpec, CNElemID
 REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
 LOGICAL,ALLOCATABLE           :: PerformReaction(:)
@@ -1023,7 +1055,8 @@ ALLOCATE(PerformReaction(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  Volume = ElemVolume_Shared(CNElemID)
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum

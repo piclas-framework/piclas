@@ -22,91 +22,130 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
-! SwapMesh
-!-----------------------------------------------------------------------------------------------------------------------------------
-LOGICAL           :: DoSwapMesh                   !< flag for SwapMesh routines
-CHARACTER(LEN=255):: SwapMeshExePath              !< path to swapmesh binary
-INTEGER           :: SwapMeshLevel                !< 0: initial grid, 1: first swap mesh, 2: second swap mesh
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! basis
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: NGeo                        !< polynomial degree of geometric transformation
 INTEGER          :: NGeoRef                     !< polynomial degree of geometric transformation
 INTEGER          :: NGeoElevated                !< polynomial degree of elevated geometric transformation
 REAL,ALLOCATABLE :: Xi_NGeo(:)                  !< 1D equidistant point positions for curved elements (during readin)
-REAL             :: DeltaXi_NGeo
-REAL,ALLOCATABLE :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
-REAL,ALLOCATABLE :: Vdm_N_EQ(:,:)               !< Vandermonde mapping from NodeType to equidistant (visu) node set
-REAL,ALLOCATABLE :: Vdm_GL_N(:,:)               !< Vandermonde mapping from Gauss-Lobatto (analyze) to NodeType node set
-REAL,ALLOCATABLE :: Vdm_N_GL(:,:)               !< Vandermonde mapping from NodeType to Gauss-Lobatto (analyze) node set
+!REAL,ALLOCATABLE :: Vdm_EQ_N(:,:)               !< Vandermonde mapping from equidistant (visu) to NodeType node set
+!REAL,ALLOCATABLE :: Vdm_N_EQ(:,:)               !< Vandermonde mapping from NodeType to equidistant (visu) node set
+!REAL,ALLOCATABLE :: Vdm_N_GL(:,:)               !< Vandermonde mapping from NodeType to Gauss-Lobatto (analyze) node set
 ! check if these arrays are still used
-REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
-REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
-REAL,ALLOCATABLE :: Vdm_CLNGeo_GaussN(:,:)
-REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
-REAL,ALLOCATABLE :: DCL_NGeo(:,:)
-REAL,ALLOCATABLE :: DCL_N(:,:)
-REAL,ALLOCATABLE :: Vdm_CLN_N(:,:)
-REAL,ALLOCATABLE :: XCL_N(:,:,:,:,:)             !< mapping X(xi) P\in N
+!REAL,ALLOCATABLE :: Vdm_CLN_GaussN(:,:)
+!REAL,ALLOCATABLE :: Vdm_CLNGeo_CLN(:,:)
+!REAL,ALLOCATABLE :: Vdm_NGeo_CLNGeo(:,:)
+!REAL,ALLOCATABLE :: DCL_NGeo(:,:)
+!REAL,ALLOCATABLE :: DCL_N(:,:)
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! will be used in the future
-REAL,ALLOCATABLE,TARGET :: NodeCoords(:,:,:,:,:) !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
-REAL,ALLOCATABLE,TARGET :: Elem_xGP(:,:,:,:,:)          !< XYZ positions (first index 1:3) of the volume Gauss Point
-REAL,ALLOCATABLE :: Face_xGP(:,:,:,:)            !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
-REAL,DIMENSION(6):: xyzMinMax                    !< from Face_xGP points determined maximum domain extension (min/max of domain)
-LOGICAL          :: GetMeshMinMaxBoundariesIsDone!< don't call twice the calculation of xyzMinMax
-REAL,ALLOCATABLE,DIMENSION(:,:):: ElemBaryNGeo   !< element local basis: origin
-!-----------------------------------------------------------------------------------------------------------------------------------
-! Metrics on GaussPoints
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
-REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:,:)
-REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:,:)
-REAL,ALLOCATABLE,TARGET :: sJ(:,:,:,:)               !< 1/DetJac for each Gauss Point
+LOGICAL                         :: readFEMconnectivity           !< Activate reading the FEM connectivity arrays EdgeInfo, EdgeConnectInfo, VertexInfo and VertexConnectInfo from the mesh file
+INTEGER                         :: ELEM_RANK                     !< moved here from piclas.h because it is variable now
+INTEGER                         :: ELEM_HALOFLAG                 !< moved here from piclas.h because it is variable now
+REAL,ALLOCATABLE,TARGET         :: NodeCoords(:,:,:,:,:)         !< XYZ positions (equidistant,NGeo) of element interpolation points from meshfile
+REAL,DIMENSION(6)               :: xyzMinMax                     !< from Face_xGP points determined maximum domain extension (min/max of domain)
+LOGICAL                         :: GetMeshMinMaxBoundariesIsDone !< don't call twice the calculation of xyzMinMax
+REAL,ALLOCATABLE,DIMENSION(:,:) :: ElemBaryNGeo                  !< element local basis: origin
+
+
+
+
+
+TYPE, PUBLIC :: Mesh
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! mapping from GaussPoints to Side or Neighbor Volume
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  INTEGER,ALLOCATABLE :: VolToSideA(:,:,:,:,:,:)
+  INTEGER,ALLOCATABLE :: VolToSideIJKA(:,:,:,:,:,:)
+  INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and reverse
+
+END TYPE Mesh
+
+TYPE(Mesh),ALLOCATABLE  :: N_Mesh(:)        !< Array to store Mesh metrics object "Mesh" for every Polynomial degree
+
+
+TYPE, PUBLIC :: VolMesh
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! GLOBAL VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: Elem_xGP(:,:,:,:) !< XYZ positions (first index 1:3) of the volume Gauss Point
+
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Metrics on GaussPoints
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: XCL_N(:,:,:,:)          !< mapping X(xi) P\in N
+  REAL,ALLOCATABLE :: Metrics_fTilde(:,:,:,:) !< Metric Terms (first indices 3) on each GaussPoint
+  REAL,ALLOCATABLE :: Metrics_gTilde(:,:,:,:)
+  REAL,ALLOCATABLE :: Metrics_hTilde(:,:,:,:)
+  REAL,ALLOCATABLE :: chitens(:,:,:,:,:)
+  REAL,ALLOCATABLE :: sJ(:,:,:)               !< 1/DetJac for each Gauss Point
+
+END TYPE VolMesh
+
+TYPE(VolMesh),ALLOCATABLE,TARGET  :: N_VolMesh(:) !< Array to store Mesh metrics object "VolMesh"
+
+
+TYPE, PUBLIC :: VolMesh2
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! Metrics on GaussPoints
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: dXCL_N(:,:,:,:,:)       !< Jacobi matrix of the mapping P\in NGeo
+  REAL,ALLOCATABLE :: JaCL_N(:,:,:,:,:)       !< metric terms P\in N
+END TYPE VolMesh2
+
+TYPE(VolMesh2),ALLOCATABLE,TARGET  :: N_VolMesh2(:) !< Array to store Mesh metrics object "VolMesh"
+
+
+!TYPE(VolMesh),POINTER  :: N_VolMesh_Shared(:) !< Array to store Mesh metrics object "VolMesh"
+
+TYPE, PUBLIC :: SurfMesh
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! GLOBAL VARIABLES
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE        :: Face_xGP(:,:,:)   !< XYZ positions (first index 1:3) of the Boundary Face Gauss Point
+
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  ! surface vectors
+  !-----------------------------------------------------------------------------------------------------------------------------------
+  REAL,ALLOCATABLE :: NormVec(:,:,:)   !< normal vector for each side       (1:3,0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: TangVec1(:,:,:)  !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: TangVec2(:,:,:)  !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
+  REAL,ALLOCATABLE :: SurfElem(:,:)    !< surface area for each side        (    0:N,0:N,nSides)
+
+  INTEGER          :: NSide
+
+END TYPE SurfMesh
+
+TYPE(SurfMesh),ALLOCATABLE  :: N_SurfMesh(:)        !< Array to store Mesh metrics object "SurfMesh"
+
+REAL,ALLOCATABLE :: detJac_Ref(:,:,:,:,:)  !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
+
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! PIC - for Newton localisation of particles in curved Elements
 !-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE    :: wBaryCL_NGeo(:)
-!< #ifdef PARTICLES
-REAL,ALLOCATABLE    :: wBaryCL_NGeo1(:)
-REAL,ALLOCATABLE    :: XiCL_NGeo1(:)
-REAL,ALLOCATABLE    :: Vdm_CLNGeo1_CLNGeo(:,:)
-!< #endif /*PARTICLES*/
+REAL,ALLOCATABLE        :: wBaryCL_NGeo(:)
+REAL,ALLOCATABLE        :: wBaryCL_NGeo1(:)
+REAL,ALLOCATABLE        :: XiCL_NGeo1(:)
+REAL,ALLOCATABLE        :: Vdm_CLNGeo1_CLNGeo(:,:)
 REAL,ALLOCATABLE        :: XiCL_NGeo(:)
 REAL,ALLOCATABLE,TARGET :: XCL_NGeo(:,:,:,:,:)
 REAL,ALLOCATABLE,TARGET :: dXCL_NGeo(:,:,:,:,:,:) !< jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: dXCL_N(:,:,:,:,:,:)    !< jacobi matrix of the mapping P\in NGeo
-REAL,ALLOCATABLE        :: detJac_Ref(:,:,:,:,:)  !< determinant of the mesh Jacobian for each Gauss point at degree 3*NGeo
-REAL,ALLOCATABLE        :: JaCL_N(:,:,:,:,:,:)    !< metric terms P\in N
-!-----------------------------------------------------------------------------------------------------------------------------------
-! surface vectors
-!-----------------------------------------------------------------------------------------------------------------------------------
-REAL,ALLOCATABLE :: NormVec(:,:,:,:)              !< normal vector for each side       (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec1(:,:,:,:)             !< tangential vector 1 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: TangVec2(:,:,:,:)             !< tangential vector 3 for each side (1:3,0:N,0:N,nSides)
-REAL,ALLOCATABLE :: SurfElem(:,:,:)               !< surface area for each side        (    0:N,0:N,nSides)
-REAL,ALLOCATABLE :: Ja_Face(:,:,:,:,:)            !< surface  metrics for each side
-REAL,ALLOCATABLE :: nVecLoc(:,:,:,:,:)            !< element local normal vector       (1:3,0:N,0:N,1:6,1:nElems)
-REAL,ALLOCATABLE :: SurfLoc(:,:,:,:)              !< element local surface element     (    0:N,0:N,1:6,1:nElems)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! mapping from GaussPoints to Side or Neighbor Volume
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,ALLOCATABLE :: VolToSideA(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE :: VolToSideIJKA(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE :: VolToSide2A(:,:,:,:,:)
-INTEGER,ALLOCATABLE :: CGNS_VolToSideA(:,:,:,:,:)
-INTEGER,ALLOCATABLE :: CGNS_SideToVol2A(:,:,:,:)
-INTEGER,ALLOCATABLE :: SideToVolA(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE :: SideToVol2A(:,:,:,:,:)
-INTEGER,ALLOCATABLE :: FS2M(:,:,:,:)     !< flip slave side to master and reverse
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! mapping from element to sides and sides to element
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER,ALLOCATABLE :: ElemInfo(:,:)           !< array containing the node and side connectivity of the elements as stored in the
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideInfo(:,:)           !< array containing the connectivity, flip,... of the sides as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: EdgeInfo(:,:)           !< array containing the FEMID and connectivity of the edges as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: EdgeConnectInfo(:,:)    !< array containing the nbElemID and locEdgeID of the sides as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: VertexInfo(:,:)         !< array containing the FEMID and connectivity of the vertices as stored in the
+                                               !< mesh file
+INTEGER,ALLOCATABLE :: VertexConnectInfo(:,:)  !< array containing the nbElemID and locNodeID of the vertices as stored in the
                                                !< mesh file
 INTEGER,ALLOCATABLE :: SideToNonUniqueGlobalSide(:,:)     !< maps the local SideIDs to global SideIDs (for parallel HDG load balance currently)
 INTEGER,ALLOCATABLE :: ElemToSide(:,:,:) !< SideID    = ElemToSide(E2S_SIDE_ID,ZETA_PLUS,iElem)
@@ -126,6 +165,8 @@ INTEGER,PARAMETER :: TangDirs(6)   = (/ 1 , 3 , 2 , 3 , 2 , 1 /) !< first tangen
 REAL   ,PARAMETER :: NormalSigns(6)= (/-1.,-1., 1., 1.,-1., 1./) !< normal vector sign for element local side
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTEGER          :: nGlobalElems=0          !< number of elements in mesh
+INTEGER(KIND=8)  :: nGlobalDOFs=0           !< number of DOF in mesh (depends on the polynomial degree in each element)
+INTEGER          :: NMaxGlobal,NMinGlobal   !< global min/max polynomial degree that is actually present (not the theoretical limits)
 INTEGER          :: nElems=0                !< number of local elements
 INTEGER          :: offsetElem=0            !< for MPI, until now=0 Elems pointer array range: [offsetElem+1:offsetElem+nElems]
 INTEGER          :: nSides=0                !< =nInnerSides+nBCSides+nMPISides
@@ -142,10 +183,15 @@ INTEGER          :: nAnalyzeSides=0         !< marker for each side (BC,analyze 
 INTEGER          :: nMPISides=0             !< number of MPI sides in mesh
 INTEGER          :: nMPISides_MINE=0        !< number of MINE MPI sides (on local processor)
 INTEGER          :: nMPISides_YOUR=0        !< number of YOUR MPI sides (on neighbour processors)
-INTEGER          :: nNodes=0                !< SIZE of Nodes pointer array, number of unique nodes
 INTEGER          :: nBCs=0                  !< number of BCs in mesh
 INTEGER          :: nUserBCs=0              !< number of BC in inifile
 LOGICAL          :: ChangedPeriodicBC       !< is set true if BCs are changed from periodic to non-periodic (default is false)
+INTEGER          :: nFEMEdges
+INTEGER          :: nFEMVertices
+INTEGER          :: nFEMEdgeConnections
+INTEGER          :: nFEMVertexConnections
+INTEGER          :: nNonUniqueGlobalEdges
+INTEGER          :: nNonUniqueGlobalVertices
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Define index ranges for all sides in consecutive order for easier access
 INTEGER             :: firstBCSide             !< First SideID of BCs (in general 1)
@@ -394,14 +440,6 @@ DO iElem=FirstElemInd,LastElemInd
   DEALLOCATE(aElem)
 END DO
 DEALLOCATE(Elems)
-
-! Free the node pointer
-DO iNode=1,nNodes
-  IF(ASSOCIATED(Nodes(iNode)%np))THEN
-    DEALLOCATE(Nodes(iNode)%np)
-  END IF
-END DO
-!DEALLOCATE(Nodes)
 
 END SUBROUTINE deleteMeshPointer
 

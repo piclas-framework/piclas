@@ -430,6 +430,7 @@ ELSE
   AcceptedParts=-1
   AcceptedParts(0)=0
   DO i = 1,chunkSize
+    ! For TriaTracking, this routine calls ParticleInsideQuad3D() and for Tracing/RefMapping it calls GetPositionInRefElem()
     AcceptedParts(i) = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend),doHALO=.FALSE.)
     IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
   END DO
@@ -443,6 +444,7 @@ ELSE
       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
       PDM%ParticleInside(ParticleIndexNbr)=.TRUE.
       PEM%GlobalElemID(ParticleIndexNbr) = AcceptedParts(i)
+      PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
       IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:DimSend,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),AcceptedParts(i))
       PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
       PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
@@ -493,10 +495,10 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition, BuildTransGaussNums2
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -596,8 +598,6 @@ CASE('maxwell_distribution_1D')
        PartState(4,PositionNbr) = PartState(4,PositionNbr) + iRanPart(1,iPart)*maxwellfac
     END IF
   END DO
-CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
-  ! do nothing
 CASE('photon_SEE_energy')
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
@@ -609,7 +609,7 @@ CASE('photon_SEE_energy')
         ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
 
           ! 1. Store the particle information in PartStateBoundary.h5
-          IF(DoBoundaryParticleOutputHDF5) THEN
+          IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputEmission(PartBCIndex)) THEN
             IF(usevMPF)THEN
               MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
             ELSE
@@ -665,9 +665,9 @@ IF(UseRotRefFrame) THEN
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
-      PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+      InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
       ! Initialize velocity in the rotational frame of reference
-      IF(PDM%InRotRefFrame(PositionNbr)) THEN
+      IF(InRotRefFrame(PositionNbr)) THEN
         PartVeloRotRef(1:3,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
       END IF
     END IF
@@ -699,16 +699,14 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
-USE MOD_Basis                  ,ONLY: BarycentricWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Mesh_Vars              ,ONLY: Elem_xGP,sJ
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -720,7 +718,7 @@ INTEGER,INTENT(IN)  :: iSpec, iInit
 INTEGER,INTENT(OUT) :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,iPart,GlobalElemID,PositionNbr
+INTEGER           :: iElem,iPart,GlobalElemID,PositionNbr,CNElemID
 REAL              :: iRan, RandomPos(3), MPF
 REAL              :: PartDens(1:3) ! dummy vector because the routine can only return vector values
 LOGICAL           :: InsideFlag
@@ -754,10 +752,11 @@ DO Nloc = PP_N, EmissionDistributionN
   ALLOCATE(NED(Nloc)%Coords_NAnalyze(3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(NED(Nloc)%xIP_VISU(0:Nloc))
   ALLOCATE(NED(Nloc)%wIP_VISU(0:Nloc))
-  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:Nloc))
+  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:PP_N))
 
   ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
   CALL GetVandermonde(PP_N, NodeType, Nloc, NodeTypeVISU, NED(Nloc)%Vdm_N_EQ_emission, modal=.FALSE.)
+  ! Required only for integration
   CALL GetNodesAndWeights(Nloc, NodeTypeVISU, NED(Nloc)%xIP_VISU, wIP=NED(Nloc)%wIP_VISU)
 END DO ! Nloc = 1, EmissionDistributionN
 
@@ -765,12 +764,12 @@ NbrOfParticle = 0
 MPF = Species(iSpec)%MacroParticleFactor
 
 DO iElem = 1, nElems
+  GlobalElemID = iElem + offsetElem
   ! Do not emit particles in dielectrics
   IF(DoDielectric)THEN
-    IF(DielectricNoParticles.AND.isDielectricElem(iElem)) CYCLE
+    CNElemID = GetCNElemID(GlobalElemID)
+    IF(DielectricNoParticles.AND.isDielectricElem_Shared(CNElemID)) CYCLE
   END IF ! DoDielectric
-
-  GlobalElemID = iElem + offsetElem
 
   SELECT CASE(EmissionDistributionDim)
   CASE(1) ! 1D
@@ -778,11 +777,11 @@ DO iElem = 1, nElems
   CASE(2) ! 2D
 
     ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-    CALL ChangeBasis3D(3, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, Elem_xGP(1:3,:,:,:,iElem), &
+    CALL ChangeBasis3D(3, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:), &
                                                        NED(EmissionDistributionN)%Coords_NAnalyze(1:3,:,:,:))
 
     ! Interpolate the Jacobian to the equidistant grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-    CALL ChangeBasis3D(1, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, 1./sJ(:,:,:,iElem), &
+    CALL ChangeBasis3D(1, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, 1./N_VolMesh(iElem)%sJ(:,:,:), &
                                                        NED(EmissionDistributionN)%J_NAnalyze(1:1,:,:,:))
 
     ! Integrate the density with the highest polynomial degree and calculate the average number of particles for the whole cell
@@ -838,10 +837,10 @@ DO iElem = 1, nElems
       ! Check if already calculated
       IF(Nred.NE.EmissionDistributionN)THEN
         ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-        CALL ChangeBasis3D(3, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, Elem_xGP(1:3,:,:,:,iElem), NED(Nred)%Coords_NAnalyze(1:3,:,:,:))
+        CALL ChangeBasis3D(3, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:), NED(Nred)%Coords_NAnalyze(1:3,:,:,:))
 
         ! Interpolate the Jacobian to the equidistant grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-        CALL ChangeBasis3D(1, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, 1./sJ(:,:,:,iElem), NED(Nred)%J_NAnalyze(1:1,:,:,:))
+        CALL ChangeBasis3D(1, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, 1./N_VolMesh(iElem)%sJ(:,:,:), NED(Nred)%J_NAnalyze(1:1,:,:,:))
       END IF ! Nred.NE.EmissionDistributionN
 
       ! Loop over all interpolation points

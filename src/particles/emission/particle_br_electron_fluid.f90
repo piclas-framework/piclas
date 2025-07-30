@@ -181,6 +181,9 @@ BRNbrOfRegions = GETINT('BRNbrOfRegions','0')
 UseBRElectronFluid = .FALSE. ! Initialize
 CalcBRVariableElectronTemp = .FALSE. ! Initialize
 IF(BRNbrOfRegions.GT.0)THEN
+#if USE_PETSC
+  CALL CollectiveStop(__STAMP__,' HDG with BR electron fluid (non-linear HDG solver) is not implemented with PETSc')
+#endif /*USE_PETSC*/
   UseBRElectronFluid = .TRUE.
 
   !--- Set BR electron region(s)
@@ -563,9 +566,9 @@ USE MOD_Globals_Vars          ,ONLY: ElementaryCharge,BoltzmannConst
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
-USE MOD_DG_Vars               ,ONLY: U
-USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_Mesh_Vars             ,ONLY: Elem_xGP,sJ
+USE MOD_DG_Vars               ,ONLY: U_N
+USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
+USE MOD_Mesh_Vars             ,ONLY: N_VolMesh
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 USE MOD_Particle_Analyze_Vars ,ONLY: ElectronDensityCell,ElectronTemperatureCell
 ! IMPLICIT VARIABLE HANDLING
@@ -593,12 +596,12 @@ DO iBRElem = 1, nBRAverageElems
   ! phi: integrate over cell volume and divide by cell volume to get the integral average value
   phiElem=0.
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-  CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+  CALL ChangeBasis3D(3,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:),Coords_NAnalyze(1:3,:,:,:))
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./N_VolMesh(iElem)%sJ(:,:,:)
+  CALL ChangeBasis3D(1,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
   ! Interpolate the solution to the analyze grid
-  CALL ChangeBasis3D(PP_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,U(1:PP_nVar,:,:,:,iElem),U_NAnalyze(1:PP_nVar,:,:,:))
+  CALL ChangeBasis3D(PP_nVar,PP_N,NAnalyze,N_InterAnalyze(PP_N)%Vdm_GaussN_NAnalyze,U_N(iElem)%U(1:PP_nVar,:,:,:),U_NAnalyze(1:PP_nVar,:,:,:))
   DO m=0,NAnalyze
     DO l=0,NAnalyze
       DO k=0,NAnalyze
@@ -797,6 +800,7 @@ ASSOCIATE( tBR2Kin => BRConvertFluidToElectronsTime ,&
       SwitchToBR=.TRUE.! check if a switch happens now to update the variable reference electron temperature
       IF((.NOT.BRConvertModelRepeatedly).AND.(BRConvertMode.EQ.-1))tBR2Kin = -1.0 ! deactivate BR -> kin
       ! Recompute lambda: force iteration
+      ! RecomputeLambda() calls HDG(), which calls HDGLinear() that calculates U_N(iElem)%U, which requires HDG_Vol_N(iElem)%RHS_vol
       !CALL  RecomputeLambda(time)
       ! Deactivate Null-Collision
       XSec_NullCollision = .FALSE.
@@ -935,7 +939,7 @@ LOGICAL,INTENT(IN)             :: CreateFromRestartFile
 ! LOCAL VARIABLES
 !REAL,DIMENSION(1,1:PP_nElems)  :: ElectronDensityCell,ElectronTemperatureCell
 REAL,ALLOCATABLE               :: ElectronDensityCell(:,:),ElectronTemperatureCell(:,:)
-INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID
+INTEGER                        :: ElemCharge,ElecSpecIndx,iSpec,iElem,iPart,ParticleIndexNbr,RegionID,CNElemID
 REAL                           :: PartPosRef(1:3),ElemTemp
 CHARACTER(32)                  :: hilf
 CHARACTER(1)                   :: hilf2
@@ -1014,7 +1018,8 @@ DO iElem=1,PP_nElems
 
   ! Set electron charge number for each cell
   IF(CreateFromRestartFile)THEN
-    ElemCharge=NINT(ElectronDensityCell(1,iElem)*ElemVolume_Shared(GetCNElemID(iElem+offSetElem))/MPF)
+    CNElemID = GetCNElemID(iElem+offSetElem)
+    ElemCharge=NINT(ElectronDensityCell(1,iElem)*ElemVolume_Shared(CNElemID)/MPF)
   ELSE
     RegionID=ElemToBRRegion(iElem)
     CALL CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
@@ -1124,7 +1129,7 @@ END SUBROUTINE MapBRRegionToElem
 SUBROUTINE UpdateNonlinVolumeFac(NullifyField)
 ! MODULES
 USE MOD_PreProc
-USE MOD_HDG_Vars     ,ONLY: NonlinVolumeFac,RegionElectronRef,ElemToBRRegion
+USE MOD_HDG_Vars     ,ONLY: HDG_Vol_N,RegionElectronRef,ElemToBRRegion
 USE MOD_Globals_Vars ,ONLY: eps0
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1136,13 +1141,15 @@ LOGICAL,INTENT(IN)      :: NullifyField !< Set NonlinVolumeFac = 0 if this varia
 INTEGER           :: i,j,k,r,iElem,RegionID
 !===================================================================================================================================
 IF(NullifyField) THEN
-  NonlinVolumeFac = 0.
+  DO iElem=1,PP_nElems
+    HDG_Vol_N(iElem)%NonlinVolumeFac = 0.
+  END DO !iElem
 ELSE
   DO iElem=1,PP_nElems
     RegionID=ElemToBRRegion(iElem)
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
       r=k*(PP_N+1)**2+j*(PP_N+1) + i+1
-      NonlinVolumeFac(r,iElem)=RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
+      HDG_Vol_N(iElem)%NonlinVolumeFac(r) = RegionElectronRef(1,RegionID) / (RegionElectronRef(3,RegionID)*eps0)
     END DO; END DO; END DO !i,j,k
   END DO !iElem
 END IF ! NewtonAdaptStartValue

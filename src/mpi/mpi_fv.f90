@@ -14,7 +14,7 @@
 
 MODULE MOD_MPI_FV
 !===================================================================================================================================
-! Add comments please!
+! Module containing subroutines and functions that are required only for Finite Volume (FV) methods
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
@@ -30,7 +30,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 #if USE_MPI
 #if USE_FV
-PUBLIC::StartReceiveMPIDataFV,StartSendMPIDataFV
+PUBLIC::InitMPIvarsFV,StartReceiveMPIDataFV,StartSendMPIDataFV,FinalizeMPIFV
 #endif /*USE_FV*/
 #endif /*USE_MPI*/
 !===================================================================================================================================
@@ -39,6 +39,38 @@ CONTAINS
 
 #if USE_MPI
 #if USE_FV
+!===================================================================================================================================
+!> Allocates the required send/receive buffers for FV
+!===================================================================================================================================
+SUBROUTINE InitMPIvarsFV()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+ALLOCATE(SendRequest_gradUx(nNbProcs))
+ALLOCATE(SendRequest_gradUy(nNbProcs))
+ALLOCATE(SendRequest_gradUz(nNbProcs))
+ALLOCATE(RecRequest_gradUx(nNbProcs))
+ALLOCATE(RecRequest_gradUy(nNbProcs))
+ALLOCATE(RecRequest_gradUz(nNbProcs))
+SendRequest_gradUx = MPI_REQUEST_NULL
+SendRequest_gradUy = MPI_REQUEST_NULL
+SendRequest_gradUz = MPI_REQUEST_NULL
+RecRequest_gradUx  = MPI_REQUEST_NULL
+RecRequest_gradUy  = MPI_REQUEST_NULL
+RecRequest_gradUz  = MPI_REQUEST_NULL
+END SUBROUTINE InitMPIvarsFV
+
+
 !===================================================================================================================================
 !> Subroutine does the receive operations for the single value face data that has to be exchanged between processors.
 !===================================================================================================================================
@@ -113,6 +145,32 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataFV
+
+
+!===================================================================================================================================
+!> Deallocates the required send/receive buffers for FV
+!===================================================================================================================================
+SUBROUTINE FinalizeMPIFV()
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_MPI_Vars
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+SDEALLOCATE(SendRequest_gradUx)
+SDEALLOCATE(SendRequest_gradUy)
+SDEALLOCATE(SendRequest_gradUz)
+SDEALLOCATE(RecRequest_gradUx)
+SDEALLOCATE(RecRequest_gradUy)
+SDEALLOCATE(RecRequest_gradUz)
+END SUBROUTINE FinalizeMPIFV
 #endif /*USE_FV*/
 #endif /*USE_MPI*/
 

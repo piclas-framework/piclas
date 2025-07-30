@@ -129,9 +129,6 @@ USE MOD_Particle_Mesh_Vars,     ONLY:ElemBaryNGeo_Shared
 USE MOD_Particle_Tracking_Vars, ONLY:TrackingMethod
 USE MOD_Particle_Vars,          ONLY:PEM,PDM,LastPartPos,PartState
 USE MOD_TimeDisc_Vars,          ONLY:iStage
-#ifdef IMPA
-USE MOD_Particle_Vars,          ONLY:PartIsImplicit,PartDtFrac
-#endif /*IMPA*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -153,10 +150,6 @@ IF(   (LastPartPos(1,PartID).GT.GEO%xmaxglob) &
   .OR.(LastPartPos(3,PartID).GT.GEO%zmaxglob) &
   .OR.(LastPartPos(3,PartID).LT.GEO%zminglob) ) THEN
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' ParticleInside ', PDM%ParticleInside(PartID)
-#ifdef IMPA
-  IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PartIsImplicit ', PartIsImplicit(PartID)
-  IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(PartID)
-#endif /*IMPA*/
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PDM%IsNewPart ', PDM%IsNewPart(PartID)
   IPWRITE(UNIt_stdOut,'(I0,A18,1X,A18,1X,A18)')                  '    min ', ' value ', ' max '
   IPWRITE(UNIt_stdOut,'(I0,A2,1X,E27.16,1X,E27.16,1X,E27.16)') ' x', GEO%xminglob, LastPartPos(1,PartID), GEO%xmaxglob
@@ -173,10 +166,6 @@ IF(   (PartState(1,PartID).GT.GEO%xmaxglob) &
   .OR.(PartState(3,PartID).GT.GEO%zmaxglob) &
   .OR.(PartState(3,PartID).LT.GEO%zminglob) ) THEN
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' ParticleInside ', PDM%ParticleInside(PartID)
-#ifdef IMPA
-      IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                        ' PartIsImplicit ', PartIsImplicit(PartID)
-      IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                   ' PartDtFrac ', PartDtFrac(PartID)
-#endif /*IMPA*/
   IPWRITE(UNIt_stdOut,'(I0,A18,3(1X,E27.16))')                  ' LastPartPos    ', LastPartPos(1:3,PartID)
   IPWRITE(UNIt_stdOut,'(I0,A18,3(1X,E27.16))')                  ' Velocity       ', PartState(4:6,PartID)
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PDM%IsNewPart ', PDM%IsNewPart(PartID)

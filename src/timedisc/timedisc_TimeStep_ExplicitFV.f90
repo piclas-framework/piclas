@@ -67,7 +67,6 @@ USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux, DoForceFreeSurfaceFlux, DoF
 #endif /*PARTICLES*/
 #if USE_HDG
 USE MOD_HDG                    ,ONLY: HDG
-USE MOD_DG_Vars                ,ONLY: U
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
@@ -94,7 +93,7 @@ IF ((IniExactFunc_FV.EQ.3).AND.(iter.EQ.0)) CALL InsertNewIons(init=IniExactFunc
 
 ! Electric field calculation
 #if USE_HDG
-CALL HDG(time,U,iter)
+CALL HDG(time,iter)
 #endif
 
 #ifdef PARTICLES

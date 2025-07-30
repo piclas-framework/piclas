@@ -11,7 +11,7 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-
+#if USE_SUPER_B
 PROGRAM SuperB_standalone
 !===================================================================================================================================
 !> Standalone version of SuperB for the calculation of magnetic fields
@@ -23,7 +23,6 @@ USE MOD_Globals!               ,ONLY: CollectiveStop
 USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
-USE MOD_SuperB_Vars           ,ONLY: BGFieldTDep
 USE MOD_Globals_Vars          ,ONLY: ParameterFile
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Interpolation         ,ONLY: InitInterpolation
@@ -36,7 +35,7 @@ USE MOD_Output                ,ONLY: DefineParametersOutput
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
 USE MOD_Equation              ,ONLY: DefineParametersEquation
 USE MOD_Equation              ,ONLY: InitEquation
-USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
+USE MOD_Interpolation_Vars    ,ONLY: N_BG
 USE MOD_Mesh                  ,ONLY: InitMesh
 #ifdef PARTICLES
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
@@ -127,7 +126,7 @@ CALL InitIOHDF5()
 CALL InitGlobals()
 #ifdef PARTICLES
 Symmetry%Order = 3
-#endif
+#endif /*PARTICLES*/
 #if USE_MPI
 CALL InitMPIShared()
 #endif /*USE_MPI*/
@@ -146,9 +145,7 @@ CALL InitMesh(3) ! 0: only read and build Elem_xGP,
 CALL SuperB()
 
 ! Deallocation of BGField
-SDEALLOCATE(BGFieldTDep)
-SDEALLOCATE(BGField)
-SDEALLOCATE(BGFieldAnalytic)
+SDEALLOCATE(N_BG)
 ! Finalize SuperB
 CALL FinalizeSuperB()
 CALL FinalizeMesh()
@@ -163,6 +160,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 ! We also have to finalize MPI itself here
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) STOP 'MPI finalize error'
-#endif
+#endif /*USE_MPI*/
 
 END PROGRAM SuperB_standalone
+#endif /*USE_SUPER_B*/

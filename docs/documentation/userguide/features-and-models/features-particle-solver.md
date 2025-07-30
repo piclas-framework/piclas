@@ -372,6 +372,10 @@ The basic functionality of both routines is verified during the nightly regressi
 It is important to note that the variable `Part-SpeciesX-vMPFMergeThreshold` might be initially ignored, when using cell-local particle emission and `Part-SpeciesX-vMPFSplitThreshold` is set, as
 described in Section {ref}`sec:particle-cell-local`. In this case, the split threshold variable will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the given number density and cell volume.
 
+An additional option is available for simulations utilizing a secondary electron emission (SEE) model, as described in Section {ref}`sec:BC-see`. The SEE models 3, 4, 12, and 13 support the emission of only a single secondary, weighted according to the calculated yield. This feature can be enabled per boundary:
+
+    Part-Boundary1-SurfMod-vMPF = T
+
 ## Virtual Cell Merge
 
 In the case of very complex geometries, very small cells can sometimes be created to represent the geometry, in which, however, only very few particles are present. This results in a very large statistical noise in these cells and the collision process is only inadequately covered due to the poor statistics. In this case, cells can be virtually merged with neighbouring cells during the runtime using predefined parameters. The merged cells are then treated as one large cell. This means that DSMC collision pairings and the BGK relaxation process are performed with all particles within the merged cell, i.e. all particles of the individual cells. The averaging then also takes place for all particles in the merged cell and all individual cells then receive the values of the merged cell in the output.

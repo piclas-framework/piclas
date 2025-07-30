@@ -146,6 +146,10 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcXiVib
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
 USE MOD_io_hdf5
 USE MOD_HDF5_input              ,ONLY: ReadAttribute, DatasetExists, AttributeExists
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst,Joule2eV
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -287,7 +291,7 @@ ALLOCATE(ChemReac%TLU_FileName(ChemReac%NumOfReact))
 ALLOCATE(ChemReac%CrossSection(ChemReac%NumOfReact))
 ChemReac%CrossSection = 0.
 
-IF (BGGas%NumberOfSpecies.GT.0) THEN
+IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.BGGas%UseDistribution)) THEN
   DO iSpec = 1, nSpecies
     IF(BGGas%BackgroundSpecies(iSpec)) THEN
       ! Background gas: Calculation of the mean vibrational quantum number of diatomic molecules
@@ -296,6 +300,8 @@ IF (BGGas%NumberOfSpecies.GT.0) THEN
           IF(DSMC%VibAHO) THEN ! AHO
             CALL CalcXiVib(SpecDSMC(iSpec)%Init(1)%TVib, iSpec, XiVibTotal=ChemReac%MeanXiVib_PerIter(iSpec))
           ELSE ! SHO
+            IF(ABS(SpecDSMC(iSpec)%Init(1)%TVib).LE.0.0) CALL ABORT(__STAMP__,'Error: Initial vibrational temperature of species '//TRIM(Species(iSpec)%Name)//' is zero!')
+            IF(ABS(SpecDSMC(iSpec)%CharaTVib).LE.0.0) CALL ABORT(__STAMP__,'Error: CharaTVib of species '//TRIM(Species(iSpec)%Name)//' is zero!')
             BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
               + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
             BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
@@ -443,7 +449,14 @@ DO iReac = 1, ChemReac%NumOfReact
       IF(.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)) CALL abort(&
         __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
-  END DO
+
+  END DO ! iSpec=1, nSpecies
+
+  ! Display info
+  WRITE(UNIT=hilf,FMT='(I0)') iReac
+  LBWRITE(UNIT_stdOut,'(A)')' | Automatically determined Enthalpy of reaction for reaction '//TRIM(hilf)//':'
+  CALL PrintOption('ChemReac%EForm(iReac)  [K]','CALCUL.',RealOpt=ChemReac%EForm(iReac)/BoltzmannConst)
+  CALL PrintOption('converted to [eV]'         ,'CALCUL.',RealOpt=ChemReac%EForm(iReac)*Joule2eV)
 END DO ! iReac = 1, ChemReac%NumOfReact
 
 ! Photoionization

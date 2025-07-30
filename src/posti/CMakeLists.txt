@@ -1,14 +1,27 @@
 # =========================================================================
 # POSTI
 # =========================================================================
+# Deactivate superB when using DVM
+IF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
+  SET(ACTIVATE_SUPER_B OFF)
+ELSE()
+  IF(PICLAS_BUILD_POSTI)
+    SET(ACTIVATE_SUPER_B ON)
+  ELSE()
+    SET(ACTIVATE_SUPER_B OFF)
+  ENDIF()
+ENDIF()
 
-CMAKE_DEPENDENT_OPTION(POSTI_BUILD_SUPERB     "Build the superB tool for creating external magnetic field configurations"              ON "PICLAS_BUILD_POSTI" OFF)
+CMAKE_DEPENDENT_OPTION(POSTI_BUILD_SUPERB     "Build the superB tool for creating external magnetic field configurations"              ON "ACTIVATE_SUPER_B" OFF)
 CMAKE_DEPENDENT_OPTION(POSTI_BUILD_PICLAS2VTK "Build the piclas to VTK converter"                                                      ON "PICLAS_BUILD_POSTI" OFF)
 CMAKE_DEPENDENT_OPTION(POSTI_BUILD_DMD        "Build the DMD tool"                                                                     OFF "PICLAS_BUILD_POSTI" OFF)
 
 # Add CMakeLists
 IF(POSTI_BUILD_SUPERB)
   INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/src/posti/superB/CMakeLists.txt)
+  ADD_DEFINITIONS(-DUSE_SUPER_B=1)
+ELSE()
+  ADD_DEFINITIONS(-DUSE_SUPER_B=0)
 ENDIF()
 
 IF(POSTI_BUILD_PICLAS2VTK)

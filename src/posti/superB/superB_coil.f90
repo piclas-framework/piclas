@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_SuperB_Coil
+#if USE_SUPER_B
 !===================================================================================================================================
 !> Contains the calculation of the magnetic field of coils
 !===================================================================================================================================
@@ -356,10 +357,11 @@ USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Preproc
 USE MOD_SuperB_Vars
-USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
-USE MOD_Interpolation_Vars ,ONLY: BGField
+USE MOD_Mesh_Vars          ,ONLY: nElems, offSetElem, N_VolMesh
+USE MOD_Interpolation_Vars ,ONLY: N_BG
 USE MOD_Globals_Vars       ,ONLY: mu0
 USE MOD_SuperB_Tools       ,ONLY: CalcErrorSuperB
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -369,7 +371,7 @@ INTEGER, INTENT(IN) :: iCoil
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem, i, j, k, iPoint
+INTEGER             :: iElem, i, j, k, iPoint, Nloc
 REAL                :: segmentLength, segmentToDOFLengthP3, currentDirection(3), segmentPosition(3), segmentToDOF(3), BFieldTemp(3)
 CHARACTER(LEN=40)   :: formatStr
 INTEGER             :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
@@ -378,7 +380,8 @@ SWRITE(UNIT_stdOut,'(A)') '...Calculation of the B-Field'
 
 ! Iterate over all DOFs
 DO iElem=1,nElems
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
     ! Iterate over the coil segements
     DO iPoint=1,CoilInfo(iCoil)%NumNodes-1
       currentDirection(:)  = CoilNodes(:,iPoint + 1) - CoilNodes(:,iPoint)
@@ -386,7 +389,7 @@ DO iElem=1,nElems
       segmentLength        = SQRT(currentDirection(1)**2 + currentDirection(2)**2 + currentDirection(3)**2)
       currentDirection(:)  = currentDirection(:) / segmentLength
 
-      segmentToDOF(:)      = Elem_xGP(:,i,j,k,iElem) - segmentPosition(:)
+      segmentToDOF(:)      = N_VolMesh(iElem)%Elem_xGP(:,i,j,k) - segmentPosition(:)
       segmentToDOFLengthP3 = SQRT(segmentToDOF(1)**2 + segmentToDOF(2)**2 + segmentToDOF(3)**2)**3
 
       ! Calculate the cross product between the currentDirection and the segmentToDOF vectors
@@ -397,7 +400,7 @@ DO iElem=1,nElems
       BFieldTemp(:)        = BFieldTemp(:) * mu0 * CoilInfo(iCoil)%Current * segmentLength /&
           (4 * PI * segmentToDOFLengthP3)
 
-      BGField(1:3,i,j,k,iElem) = BGField(1:3,i,j,k,iElem) + BFieldTemp(:)
+      N_BG(iElem)%BGField(1:3,i,j,k) = N_BG(iElem)%BGField(1:3,i,j,k) + BFieldTemp(:)
     END DO
   END DO; END DO; END DO
 END DO
@@ -441,9 +444,11 @@ SUBROUTINE Jefimenko(iCoil, timestep, iTimePoint)
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: nElems, Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Globals_Vars       ,ONLY: mu0, c
-USE MOD_SuperB_Vars        ,ONLY: CoilInfo, CurrentInfo, CoilNodes, BGFieldTDep
+USE MOD_SuperB_Vars        ,ONLY: CoilInfo, CurrentInfo, CoilNodes
+USE MOD_Interpolation_Vars ,ONLY: N_BG
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 !USE MOD_Interpolation_Vars  ,ONLY: BGField
 ! IMPLICIT VARIABLE HANDLING
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -456,7 +461,7 @@ INTEGER, INTENT(IN) :: iTimePoint
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: current, timedercurrent, segmentLength, segmentToDOFLength
-INTEGER             :: iElem, i, j, k, iPoint
+INTEGER             :: iElem, i, j, k, iPoint, Nloc
 REAL                :: currentDirection(3), segmentPosition(3), segmentToDOF(3), BFieldTemp(3)
 REAL                :: omega
 !===================================================================================================================================
@@ -477,7 +482,8 @@ END ASSOCIATE
 
 ! Iterate over all DOFs
 DO iElem=1,nElems
-  DO i=0,PP_N; DO j=0,PP_N; DO k=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO i=0,Nloc; DO j=0,Nloc; DO k=0,Nloc
     ! Iterate over the coil segments
     DO iPoint=1,CoilInfo(iCoil)%NumNodes-1
       currentDirection(:)  = CoilNodes(:,iPoint + 1) - CoilNodes(:,iPoint)
@@ -485,7 +491,7 @@ DO iElem=1,nElems
       segmentLength        = SQRT(currentDirection(1)**2 + currentDirection(2)**2 + currentDirection(3)**2)
       currentDirection(:)  = currentDirection(:) / segmentLength
 
-      segmentToDOF(:)      = Elem_xGP(:,i,j,k,iElem) - segmentPosition(:)
+      segmentToDOF(:)      = N_VolMesh(iElem)%Elem_xGP(:,i,j,k) - segmentPosition(:)
       segmentToDOFLength   = SQRT(segmentToDOF(1)**2 + segmentToDOF(2)**2 + segmentToDOF(3)**2)
 
       ! Calculate the cross product between the currentDirection and the segmentToDOF vectors
@@ -496,7 +502,7 @@ DO iElem=1,nElems
       BFieldTemp(:)        = BFieldTemp(:) * mu0 * (current / segmentToDOFLength**3 +&
           timedercurrent / (segmentToDOFLength**2 * c)) * segmentLength / (4 * PI)
 
-      BGFieldTDep(:,i,j,k,iElem,iTimePoint) = BGFieldTDep(:,i,j,k,iElem,iTimePoint) + BFieldTemp(:)
+      N_BG(iElem)%BGFieldTDep(:,i,j,k,iTimePoint) = N_BG(iElem)%BGFieldTDep(:,i,j,k,iTimePoint) + BFieldTemp(:)
     END DO
   END DO; END DO; END DO
 END DO
@@ -556,6 +562,6 @@ WRITE(1112,*)''
 CLOSE(1112)
 
 END SUBROUTINE WriteCoilVTK
-
+#endif /* USE_SUPER_B */
 
 END MODULE MOD_SuperB_Coil

@@ -1,3 +1,6 @@
+# TODO: Is this still required? Where does it need to go?
+SET(FORCE_VDM_ANALYTICAL OFF)
+
 # =========================================================================
 # After settings specific compilers, enable named languages for cmake
 # =========================================================================
@@ -8,8 +11,20 @@ MARK_AS_ADVANCED(FORCE C_PATH CXX_PATH Fortran_PATH)
 # =========================================================================
 # Set machine-specific definitions and settings
 # =========================================================================
+# HLRS Vulcan
+IF (CMAKE_FQDN_HOST MATCHES "^cl[0-9]fr")
+  MESSAGE(STATUS "Compiling on Vulcan for AMD EPYC Genoa")
+  # Overwrite compiler target architecture
+  IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
+    SET(PICLAS_INSTRUCTION "-march=znver4 -mtune=znver4" CACHE STRING "Compiler optimization options")
+  ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
+    SET(PICLAS_INSTRUCTION "-xCORE-AVX2" CACHE STRING "Compiler optimization options")
+  ENDIF()
+  # Set LUSTRE definition to account for filesystem and MPI implementation
+  ADD_COMPILE_DEFINITIONS(LUSTRE)
+
 # SuperMUC
-IF (CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$")
+ELSEIF (CMAKE_FQDN_HOST MATCHES "sng\.lrz\.de$")
   MESSAGE(STATUS "Compiling on SuperMUC")
   # Overwrite compiler target architecture
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU" OR CMAKE_Fortran_COMPILER_ID MATCHES "Flang")
@@ -38,7 +53,6 @@ ELSEIF(CMAKE_FQDN_HOST MATCHES "^(prandtl|grafik.*)\.iag\.uni\-stuttgart\.de")
   # Set LUSTRE definition to account for filesystem
   ADD_COMPILE_DEFINITIONS(LUSTRE)
 
-# Generic machine
 ELSE()
   MESSAGE(STATUS "Compiling on a generic machine [${CMAKE_HOSTNAME}]")
   # Set compiler target architecture
@@ -49,7 +63,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-MESSAGE(STATUS "Compiling with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using [${PICLAS_INSTRUCTION}] instruction")
+MESSAGE(STATUS "Compiling Nitro/Release/Profile with [${CMAKE_Fortran_COMPILER_ID}] (v${CMAKE_Fortran_COMPILER_VERSION}) fortran compiler using PICLAS_INSTRUCTION [${PICLAS_INSTRUCTION}] instructions.")
 
 # =========================================================================
 # CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
@@ -222,9 +236,9 @@ MARK_AS_ADVANCED(FORCE CMAKE_Fortran_FLAGS_PROFILE)
 MARK_AS_ADVANCED(FORCE CMAKE_Fortran_FLAGS_NOGPROFILE)
 MARK_AS_ADVANCED(FORCE CMAKE_Fortran_FLAGS_DEBUG)
 MARK_AS_ADVANCED(FORCE CMAKE_Fortran_FLAGS_SANITIZE)
-SET(CMAKE_Fortran_FLAGS            "${CMAKE_Fortran_FLAGS}"            CACHE STRING "Default compiler flags"    FORCE)
-SET(CMAKE_Fortran_FLAGS_RELEASE    "${CMAKE_Fortran_FLAGS_RELEASE}"    CACHE STRING "Release compiler flags"    FORCE)
-SET(CMAKE_Fortran_FLAGS_PROFILE    "${CMAKE_Fortran_FLAGS_PROFILE}"    CACHE STRING "Profile compiler flags"    FORCE)
+SET(CMAKE_Fortran_FLAGS            "${CMAKE_Fortran_FLAGS}"            CACHE STRING "Default compiler flags"  FORCE)
+SET(CMAKE_Fortran_FLAGS_RELEASE    "${CMAKE_Fortran_FLAGS_RELEASE}"    CACHE STRING "Release compiler flags"  FORCE)
+SET(CMAKE_Fortran_FLAGS_PROFILE    "${CMAKE_Fortran_FLAGS_PROFILE}"    CACHE STRING "Profile compiler flags"  FORCE)
 SET(CMAKE_Fortran_FLAGS_NOGPROFILE "${CMAKE_Fortran_FLAGS_NOGPROFILE}" CACHE STRING "NoGProfile compiler flags" FORCE)
-SET(CMAKE_Fortran_FLAGS_DEBUG      "${CMAKE_Fortran_FLAGS_DEBUG}"      CACHE STRING "Debug compiler flags"      FORCE)
-SET(CMAKE_Fortran_FLAGS_SANITIZE   "${CMAKE_Fortran_FLAGS_SANITIZE}"   CACHE STRING "Sanitize compiler flags"   FORCE)
+SET(CMAKE_Fortran_FLAGS_DEBUG      "${CMAKE_Fortran_FLAGS_DEBUG}"      CACHE STRING "Debug compiler flags"    FORCE)
+SET(CMAKE_Fortran_FLAGS_SANITIZE   "${CMAKE_Fortran_FLAGS_SANITIZE}"   CACHE STRING "Sanitize compiler flags" FORCE)

@@ -85,8 +85,7 @@ USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
 ! LOCAL VARIABLES
 LOGICAL                           :: UseAdaptiveType4
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, GlobalSideID, GlobalElemID, currentBC
-INTEGER                           :: jSample, iSample, BCSideID
-INTEGER                           :: nSurfacefluxBCs
+INTEGER                           :: jSample, iSample, BCSideID, nSurfacefluxBCs, CNElemID
 #if USE_MPI
 INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
 #endif
@@ -143,7 +142,8 @@ DO iSpec=1,nSpecies
         END DO; END DO
       END IF
       ! Calculate the sum of the cell volumes adjacent to the surface flux
-      AdaptBCVolSurfaceFlux(iSpec,iSF) = AdaptBCVolSurfaceFlux(iSpec,iSF) + ElemVolume_Shared(GetCNElemID(ElemID+offsetElem))
+      CNElemID = GetCNElemID(ElemID+offsetElem)
+      AdaptBCVolSurfaceFlux(iSpec,iSF) = AdaptBCVolSurfaceFlux(iSpec,iSF) + ElemVolume_Shared(CNElemID)
       ! Only add elements once
       IF(AdaptBCMapElemToSample(ElemID).NE.0) CYCLE
       ! Add the element to the BC sampling
@@ -519,10 +519,10 @@ IF(AdaptBCAverageValBC) THEN
               ! Calculate the average number density
               IF(usevMPF) THEN
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF)
+                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF)
               ELSE
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
+                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
                     * Species(iSpec)%MacroParticleFactor
               END IF
               IF(AdaptBCMeanValues(7,iSpec,iSF).GT.1) THEN

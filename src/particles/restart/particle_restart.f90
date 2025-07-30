@@ -54,7 +54,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles,CountNbrOfLostParts
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum,NbrOfLostParticlesTotal_old
 ! Interpolation
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 ! Mesh
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -85,7 +84,7 @@ USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! Rotational frame of reference
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck, IncreaseMaxParticleNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -164,8 +163,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
         iPos = 7
         ! Rotational frame of reference: initialize logical and velocity
         IF(UseRotRefFrame) THEN
-          PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
-          IF(PDM%InRotRefFrame(iPart)) THEN
+          InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+          IF(InRotRefFrame(iPart)) THEN
             IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos).AND.readVarFromState(3+iPos)) THEN
               PartVeloRotRef(1:3,iPart) = PartData(MapPartDataToReadin(1+iPos):MapPartDataToReadin(3+iPos),offsetnPart+iLoop)
             ELSE
@@ -659,8 +658,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
           iPos = 7
           ! Rotational frame of reference
           IF(UseRotRefFrame) THEN
-            PDM%InRotRefFrame(CurrentPartNum) = InRotRefFrameCheck(CurrentPartNum)
-            IF(PDM%InRotRefFrame(CurrentPartNum)) THEN
+            InRotRefFrame(CurrentPartNum) = InRotRefFrameCheck(CurrentPartNum)
+            IF(InRotRefFrame(CurrentPartNum)) THEN
               PartVeloRotRef(1:3,CurrentPartNum) = RecBuff(1+iPos:3+iPos,iPart)
             ELSE
               PartVeloRotRef(1:3,CurrentPartNum) = 0.
@@ -774,7 +773,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             ! in the .h5 container)
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
-            PEM%LastGlobalElemID(CurrentPartNum) = -1
+            PEM%LastGlobalElemID(CurrentPartNum) = 0 ! Initialize with invalid value
             PDM%ParticleInside(CurrentPartNum)   = .FALSE.
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
 

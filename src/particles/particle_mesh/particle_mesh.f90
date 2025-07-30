@@ -86,7 +86,7 @@ CALL prms%CreateIntOption( 'PhotonModeBPO' , 'Output mode to store position, dir
                                              '1: Output the initial position of the rays and their direction vector\n'&
                                              '2: Output initial position and all calculated intersection points calculated in radtrans tracking\n'&
                                              ,'0')
-                                         CALL prms%CreateLogicalOption( 'UsePhotonTriaTracking', 'Activates usage of TriaTracking methods for photon tracking or Bilinear methods (default is True). Can only be selected when ray tracing is actually performed.','.TRUE.')
+CALL prms%CreateLogicalOption( 'UsePhotonTriaTracking', 'Activates usage of TriaTracking methods for photon tracking or Bilinear methods (default is True). Can only be selected when ray tracing is actually performed.','.TRUE.')
 CALL prms%CreateLogicalOption( 'DoBoundaryParticleOutputRay', 'Activates output of emission particles by ray tracing SEE and ray tracing volume ionization to PartStateBoundary.h5 (with negative species IDs to indicate creation)','.FALSE.')
 CALL prms%CreateIntOption(     'PartOut'&
   , 'If compiled with CODE_ANALYZE flag: For This particle number every tracking information is written as STDOUT.','0')
@@ -108,13 +108,9 @@ CALL prms%CreateIntOption(     'RefMappingGuess'&
     '2 - Xi of closest Gauss point\n'//&
     '3 - Xi of closest XCL_ngeo point\n'//&
     '4 -trival guess (0,0,0)^t')
-CALL prms%CreateRealOption(    'RefMappingEps'&
-  , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
-CALL prms%CreateIntOption(     'BezierElevation'&
-  , ' Use BezierElevation>0 to tighten the bounding box. Typical values>10','0')
-CALL prms%CreateIntOption(     'BezierSampleN'&
-  , 'TODO-DEFINE-PARAMETER\n'//&
-    'Default value: NGeo equidistant sampling of bezier surface for emission','0')
+CALL prms%CreateRealOption(    'RefMappingEps'  , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
+CALL prms%CreateIntOption(     'BezierElevation'  , ' Use BezierElevation>0 to tighten the bounding box. Typical values>10','0')
+CALL prms%CreateIntOption(     'BezierSampleN'  , 'TODO-DEFINE-PARAMETER\nDefault value: NGeo equidistant sampling of bezier surface for emission','0')
 
 CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
                                                        ' "MyRank_ElemHaloInfo"\n'//&
@@ -168,7 +164,7 @@ USE MOD_Particle_Tracking_Vars ,ONLY: MeasureTrackTime,FastPeriodic,CountNbrOfLo
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLostVecLength,PartStateLost,PartLostDataSize
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod, DisplayLostParticles
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+!USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,DepositionType
 USE MOD_ReadInTools            ,ONLY: GETREAL,GETINT,GETLOGICAL,GetRealArray, GETINTFROMSTR
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
@@ -188,10 +184,15 @@ USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared,isDielectricElem_Global,isDielectricElem_Shared_Win
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius,BuildMesh2DInfo
-USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox,BuildMesh1DInfo
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildSideOriginAndRadius,BuildLinearSideBaseVectors,BuildSideSlabAndBoundingBox
+USE MOD_Particle_Mesh_Build    ,ONLY: BuildElemDofNodeMapping,BuildMesh2DInfo,BuildMesh1DInfo
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -219,6 +220,11 @@ CHARACTER(LEN=2) :: tmpStr
 ! REAL             :: dx,dy,dz
 #endif /*CODE_ANALYZE*/
 CHARACTER(3)      :: hilf
+#if USE_MPI
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+INTEGER           :: iCNElem, iGlobElem
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /* USE_MPI */
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -241,17 +247,24 @@ END IF ! DoParticleLatencyHiding
 nSurfSampleAndTriaTracking = .FALSE. ! default
 IF((TrackingMethod.EQ.TRIATRACKING).AND.(Symmetry%Order.EQ.3).AND.(nSurfSample.GT.1)) nSurfSampleAndTriaTracking = .TRUE.
 
-! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
+! Set initial values
+BezierElevation = -1
+NGeoElevated = -1
 IF (TrackingMethod.EQ.TRACING .OR. TrackingMethod.EQ.REFMAPPING .OR. nSurfSampleAndTriaTracking .OR. UseRayTracing) THEN
   UseBezierControlPoints = .TRUE.
   ! Bezier elevation now more important than ever, also determines size of FIBGM extent
   BezierElevation = GETINT('BezierElevation')
   NGeoElevated    = NGeo + BezierElevation
 
+  ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
+  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared (requires BezierElevation)
   CALL CalcParticleMeshMetrics() ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
-  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared
-  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared)
+  CALL CalcBezierControlPoints() ! Required for BezierControlPoints3D and BezierControlPoints3DElevated (requires XCL_NGeo_Shared, requires NGeoElevated)
 ELSE
+  BezierElevation = 0
+  NGeoElevated    = NGeo + BezierElevation
+  ! Potentially curved elements. FIBGM needs to be built on BezierControlPoints rather than NodeCoords to avoid missing elements
+  CALL CalcXCL_NGeo()            ! Required for XCL_NGeo_Shared (requires BezierElevation)
   UseBezierControlPoints = .FALSE.
 END IF
 
@@ -392,6 +405,8 @@ IF(DoVirtualCellMerge) FindNeighbourElems = .TRUE.
 ! Build ConcaveElemSide_Shared, ElemSideNodeID_Shared, ElemMidPoint_Shared
 CALL InitParticleGeometry()
 
+CALL BuildElemDofNodeMapping()
+
 SELECT CASE(TrackingMethod)
   CASE(TRIATRACKING)
     CALL InitElemNodeIDs()
@@ -400,26 +415,26 @@ SELECT CASE(TrackingMethod)
 
     ! Interpolation needs coordinates in reference system
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
       ! Do not call these functions twice. This is already done above
       IF(.NOT.UseBezierControlPoints)THEN
         CALL CalcParticleMeshMetrics()   ! Required for Elem_xGP_Shared and dXCL_NGeo_Shared
-        CALL CalcXCL_NGeo()              ! Required for XCL_NGeo_Shared
       END IF ! .NOT.UseBezierControlPoints
-      CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
-    END IF ! DoInterpolation.OR.DSMC%UseOctree
+    !END IF ! DoInterpolation.OR.DSMC%UseOctree
+    ! Also required for DSMC%UseOctree
+    CALL BuildElemTypeAndBasisTria() ! Required for ElemCurved_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared. Needs XCL_NGeo_Shared
 
     IF (DoDeposition) CALL BuildEpsOneCell()
 
     IF(.NOT.UsePhotonTriaTracking)THEN
       ! Build stuff required for bilinear tracing algorithms
-      CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
+      CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared (requires NGeoElevated)
 
       ! Check the side type (planar, bilinear, curved)
       CALL IdentifyElemAndSideType() ! Builds ElemCurved_Shared, SideType_Shared, SideDistance_Shared, SideNormVec_Shared
 
       ! Get basevectors for (bi-)linear sides
-      CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
+      CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared ! (requires NGeoElevated)
     END IF ! UsePhotonTriaTracking
 
     IF(Symmetry%Order.EQ.2) THEN
@@ -429,7 +444,7 @@ SELECT CASE(TrackingMethod)
     END IF
   CASE(TRACING,REFMAPPING)
     ! Build stuff required for tracing algorithms
-    CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared
+    CALL BuildSideSlabAndBoundingBox() ! Required for SideSlabNormals_Shared, SideSlabIntervals_Shared, BoundingBoxIsEmpty_Shared (requires NGeoElevated)
 
     ! ElemNodeID_Shared required
     IF(FindNeighbourElems) CALL InitElemNodeIDs()
@@ -444,7 +459,7 @@ SELECT CASE(TrackingMethod)
     CALL BuildElementBasisAndRadius() ! Required for ElemRadiusNGeo_Shared, ElemRadius2NGeo_Shared, XiEtaZetaBasis_Shared, slenXiEtaZetaBasis_Shared
 
     ! Get basevectors for (bi-)linear sides
-    CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared
+    CALL BuildLinearSideBaseVectors() ! Required for BaseVectors0_Shared, BaseVectors1_Shared, BaseVectors2_Shared, BaseVectors3_Shared, BaseVectorsScale_Shared ! (requires NGeoElevated)
 
     IF (TrackingMethod.EQ.REFMAPPING) THEN
       ! Identify BCSides and build side origin and radius
@@ -482,6 +497,28 @@ ELSE
   END DO
 END IF
 
+#if USE_MPI
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+IF(DoDielectric) THEN
+  ! Populate the isDielectricElem_Shared array, utilized in the GetBoundaryInteraction to check whether particles have been moved
+  ! inside a dielectric element (RotPeriodicBoundary), which requires the information whether the new element is within a dielectric
+  CALL Allocate_Shared((/nComputeNodeTotalElems/),isDielectricElem_Shared_Win,isDielectricElem_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,isDielectricElem_Shared_Win,IERROR)
+  ! Compute-node root populates the shared array
+  IF (myComputeNodeRank.EQ.0) THEN
+    DO iCNElem = 1,nComputeNodeTotalElems
+      iGlobElem = GetGlobalElemID(iCNElem)
+      isDielectricElem_Shared(iCNElem) = isDielectricElem_Global(iGlobElem)
+    END DO
+  END IF
+  ! Synchronize shared array
+  CALL BARRIER_AND_SYNC(isDielectricElem_Shared_Win,MPI_COMM_SHARED)
+  ! Deallocate temporary array
+  IF (myComputeNodeRank.EQ.0) DEALLOCATE(isDielectricElem_Global)
+END IF
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*USE_MPI*/
+
 ParticleMeshInitIsDone=.TRUE.
 
 LBWRITE(UNIT_stdOut,'(A)') " InitParticleMesh: NOW CALLING deleteMeshPointer..."
@@ -503,10 +540,9 @@ USE MOD_Globals
 USE MOD_Particle_Mesh_Vars
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
-USE MOD_RayTracing_Vars        ,ONLY: UseRayTracing
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierElevation
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
+!USE MOD_PICInterpolation_Vars  ,ONLY: DoInterpolation
 #endif /*USE_MPI*/
 USE MOD_Particle_BGM           ,ONLY: FinalizeBGM
 USE MOD_Mesh_ReadIn            ,ONLY: FinalizeMeshReadin
@@ -517,7 +553,6 @@ USE MOD_MPI_Shared
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 #else
 USE MOD_LoadBalance_Vars       ,ONLY: ElemTime
 #endif /*USE_LOADBALANCE*/
@@ -735,25 +770,40 @@ SELECT CASE (TrackingMethod)
     END IF
 
     !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
-    IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
 #if USE_LOADBALANCE
       IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
         ! CalcParticleMeshMetrics()
         CALL UNLOCK_AND_FREE(XCL_NGeo_Shared_Win)
+#if USE_LOADBALANCE
+      END IF !PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+
+    !IF (DoInterpolation.OR.DSMC%UseOctree) THEN ! use this in future if possible
+    !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking) THEN
+#if USE_LOADBALANCE
+      IF (.NOT.PerformLoadBalance) THEN
+#endif /*USE_LOADBALANCE*/
+        ! CalcParticleMeshMetrics()
         CALL UNLOCK_AND_FREE(Elem_xGP_Shared_Win)
         CALL UNLOCK_AND_FREE(dXCL_NGeo_Shared_Win)
 #if USE_LOADBALANCE
       END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 
-      IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
-        ! BuildElemTypeAndBasisTria()
-        CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
-        CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
-        CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
-      END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
-    END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
+      !IF (DoInterpolation.OR.DoDeposition.OR.UseRayTracing) THEN
+      !  ! BuildElemTypeAndBasisTria()
+      !  CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
+      !  CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
+      !  CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
+      !END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing
+    !END IF ! DoInterpolation.OR.DoDeposition.OR.UseRayTracing.OR.nSurfSampleAndTriaTracking
+
+    ! Also required for DSMC%UseOctree: BuildElemTypeAndBasisTria()
+    CALL UNLOCK_AND_FREE(ElemCurved_Shared_Win)
+    CALL UNLOCK_AND_FREE(XiEtaZetaBasis_Shared_Win)
+    CALL UNLOCK_AND_FREE(slenXiEtaZetaBasis_Shared_Win)
 
     ! BuildEpsOneCell()
     IF (DoDeposition) CALL UNLOCK_AND_FREE(ElemsJ_Shared_Win)
@@ -787,6 +837,8 @@ SELECT CASE (TrackingMethod)
 #if USE_LOADBALANCE
     END IF !PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#else
+    ADEALLOCATE(Elem_xGP_Array)
 #endif /*USE_MPI*/
 
     ! Then, free the pointers or arrays
@@ -839,23 +891,14 @@ SELECT CASE (TrackingMethod)
     END IF
 
     ! BuildEpsOneCell
-    SNULLIFY(ElemsJ)
+    ADEALLOCATE(ElemsJ)
     ADEALLOCATE(ElemsJ_Shared)
 END SELECT
 
 IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
 #if USE_MPI
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-#if USE_LOADBALANCE
-  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
-  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
-  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
-#endif /*USE_LOADBALANCE*/
-    ! From InitElemNodeIDs
-    CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win)
-#if USE_LOADBALANCE
-  END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
-#endif /*USE_LOADBALANCE*/
+  CALL UNLOCK_AND_FREE(ElemNodeID_Shared_Win) ! From InitElemNodeIDs
 
   !FindNeighbourElems = .FALSE. ! THIS IS SET TO FALSE CURRENTLY in InitParticleMesh()
   ! TODO: fix when FindNeighbourElems is not always set false
@@ -870,15 +913,7 @@ IF(FindNeighbourElems.OR.TrackingMethod.EQ.TRIATRACKING)THEN
   CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #endif /*USE_MPI*/
 
-#if USE_LOADBALANCE
-  !IF(.NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge))THEN
-  ! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
-  IF(.NOT.(PerformLoadBalance.AND.DoDielectricSurfaceCharge))THEN
-#endif /*USE_LOADBALANCE*/
-      ADEALLOCATE(ElemNodeID_Shared)
-#if USE_LOADBALANCE
-  END IF ! .NOT.(PerformLoadBalance.AND.DoDeposition.AND.DoDielectricSurfaceCharge)
-#endif /*USE_LOADBALANCE*/
+  ADEALLOCATE(ElemNodeID_Shared) ! From InitElemNodeIDs
   IF(FindNeighbourElems)THEN
     ADEALLOCATE(NodeToElemMapping)
     ADEALLOCATE(NodeToElemMapping_Shared)

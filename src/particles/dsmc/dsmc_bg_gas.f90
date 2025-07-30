@@ -650,8 +650,9 @@ IF(DSMC%CalcQualityFactors) THEN
   ! Calculation of Mean Collision Probability
   IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
   ! Calculation of the mean free path
+  CNElemID = GetCNElemID(iElem+offSetElem)
   DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
-                          ElemVolume_Shared(GetCNElemID(iElem+offSetElem)), DSMC%InstantTransTemp(nSpecies+1))
+                          ElemVolume_Shared(CNElemID), DSMC%InstantTransTemp(nSpecies+1))
   ! Determination of the MCS/MFP for the case without octree
   IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath

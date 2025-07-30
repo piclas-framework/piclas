@@ -471,7 +471,7 @@ USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_HALOFLAG,ELEM_RANK
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems, nLeaderGroupProcs, nProcessors_Global
@@ -871,7 +871,7 @@ DO iElem =1, nElems
   CNElemID = GetCNElemID(iElem+offsetElem)
   ! Set the optimal MPF to zero and recalculate it based on the surrounding node values
   OptimalMPF_Shared(CNElemID) = 0.
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   DO iNode = 1, 8
     OptimalMPF_Shared(CNElemID) = OptimalMPF_Shared(CNElemID) + PartWeightAtNode(1,NodeID(iNode))
   END DO

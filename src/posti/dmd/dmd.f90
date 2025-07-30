@@ -123,11 +123,15 @@ CALL WriteDmdStateFile()
 !===================================================================================================================================
 
 CALL FinalizeDMD()
+IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
 CALL FinalizeMesh()
+IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
 GETTIME(EndT)
 #if USE_MPI
 CALL FinalizeMPI()
+IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
 CALL MPI_FINALIZE(iError)
+IPWRITE(UNIT_StdOut,'(I0,A,I0)') ': v '//TRIM(__FILE__)//' +',__LINE__
 IF(iError .NE. 0) STOP 'MPI finalize error'
 #endif
 
