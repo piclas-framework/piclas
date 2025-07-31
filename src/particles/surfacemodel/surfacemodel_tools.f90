@@ -680,7 +680,7 @@ REAL,INTENT(IN)       :: WallTemp
 INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
 REAL                  :: RanNum
 REAL                  :: VibACC, RotACC, ElecACC
-REAL                  :: ErotNew, ErotWall, EVibNew, EvibWall
+REAL                  :: ErotNew, ErotWall, EVibNew, EvibWall, EvibNewTemp
 REAL                  :: GroundLevel, VibPartitionTemp
 ! Polyatomic Molecules
 REAL                  :: VibQuantNewR
@@ -758,8 +758,19 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
           EvibWall = AHO%VibEnergy(SpecID,1)
         END IF
         ! new vibrational energy based on the vibrational accommodation coefficient
-        EvibNew = PartStateIntEn(1,PartID) + VibACC*(EvibWall-PartStateIntEn(1,PartID))
-
+        EvibNewTemp = PartStateIntEn(1,PartID) + VibACC*(EvibWall-PartStateIntEn(1,PartID))
+        ! maximum quantum number
+        VibQuant = 2
+        DO WHILE (EvibNewTemp.GE.AHO%VibEnergy(SpecID,VibQuant))
+          ! collision energy is larger than vib energy for this quantum number --> increase quantum number and try again
+          VibQuant = VibQuant + 1
+          ! exit if this quantum number is larger as the table length (dissociation level is reached)
+          IF (VibQuant.GT.AHO%NumVibLevels(SpecID)) EXIT
+        END DO
+        ! accept iQuaMax - 1 as quantum number
+        VibQuant = VibQuant - 1
+        ! vibrational energy is table value of the accepted quantum number
+        EvibNew = AHO%VibEnergy(SpecID,VibQuant)
       ELSE ! SHO
         VibQuant = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
         CALL RANDOM_NUMBER(RanNum)
