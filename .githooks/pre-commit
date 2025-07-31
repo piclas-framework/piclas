@@ -50,9 +50,12 @@ FILESUMERR=0
 FILESUMWARN=0
 EXEERR=0
 TABERR=0
+SHMPOINTERROR=0
+SPECDBERR=0
 
 EXELINE=''
 TABLINE=''
+SPECDBLINE=''
 SIZEWARNLINE=''
 SIZEDENYLINE=''
 
@@ -109,7 +112,7 @@ if [ -n "$CHANGED" ]; then
       elif [ "$FILESIZE" -gt "$SIZESINGLEWARN" ]; then
         # Warning header
         FILEWARN=1
-        SIZEWARNLINE="$LINE\n$SIZEWARNLINE"
+        SIZEWARNLINE="$LINE"
       fi
     fi
 
@@ -126,7 +129,7 @@ if [ -n "$CHANGED" ]; then
 
     # Check if file is executable
     if [ -x "$file" ]; then
-      if [ "$file" != ".githooks/pre-commit" ] && [ "$file" != "docs/documentation/buildPDF.sh" ] && [ "$file" != "docs/documentation/buildHTML.sh" ] && [ ! -f "tools/Setup_ModuleEnv/$(basename $file)" ] ; then
+      if [ "$file" != ".githooks/pre-commit" ] && [ "$file" != "docs/documentation/buildPDF.sh" ] && [ "$file" != "docs/documentation/buildHTML.sh" ] && [ ! -f "tools/Setup_ModuleEnv/$(basename "$file")" ] ; then
         # Error header
         ERROR=1
         EXEERR=1
@@ -145,7 +148,7 @@ if [ -n "$CHANGED" ]; then
     if [ "$ext" = "txt" ] || [ "$ext" = "f90" ] || [ "$ext" = "ini" ]; then
       # Use grep to find tab characters
       # -P, --perl-regexp         PATTERNS are Perl regular expressions
-      NbrOfLinesWithTabs=$(grep -P '\t' $file | wc -l)
+      NbrOfLinesWithTabs=$(grep -Pc '\t' "$file")
       if [ "${NbrOfLinesWithTabs}" -gt 0 ]; then
         LINE=$($LS_EXE -alhs "$file")
         ERROR=1
@@ -168,34 +171,70 @@ if [ -n "$CHANGED" ]; then
       fi
     fi
 
+    # Check for strings with SHM array, function pointer and a sum with a pattern similar to _Shared(GetCNElemID(ElemID+offsetElem))
+    if [ "$ext" = "f90" ]; then
+      # -i, --ignore-case         ignore case distinctions in patterns and data
+      # -r, --recursive           like --directories=recurse
+      # -P, --perl-regexp         PATTERNS are Perl regular expressions
+      # -o, --only-matching       show only nonempty parts of lines that match
+      # SHMPOINTMATCH=$(grep -iEo 'shared\((.*?get.*?\+.*?)\)' "$file")
+      SHMPOINTMATCH=$(grep -iPo '^(?!\s*!).*shared\((.*?get.*?\+.*?)\)' "$file")
+      if [ -n "${SHMPOINTMATCH}" ]; then
+        ERROR=1
+        SHMPOINTERROR=1
+        # SHMPOINTLINES="$(grep -HniE 'shared\((.*?get.*?\+.*?)\)' "$file")"
+        SHMPOINTLINES="$(grep -HniP  '^(?!\s*!).*shared\((.*?get.*?\+.*?)\)' "$file")"
+      fi
+    fi
+
+    # Check if file is SpeciesDatabase.h5, which is not allowed to be changed
+    if [ "$file" = "SpeciesDatabase.h5" ]; then
+      # Error header
+      ERROR=1
+      SPECDBERR=1
+      LINE=$($LS_EXE -alhs "$file")
+      SPECDBLINE="$LINE\n$EXELINE"
+    fi
+
   done
 
+  # Error output
   if [ $FILEERR -ne 0 ]; then
-    printf "%sThe following file(s) exceed the file size limit (%s bytes)%s\n" "${RED}" "$SIZESINGLELIMIT" "${NC}"
-    printf "%s" "${SIZEDENYLINE}"
+    printf "\n%sThe following file(s) exceed the file size limit (%s bytes)%s\n" "${RED}" "$SIZESINGLELIMIT" "${NC}"
+    printf "%s\n" "${SIZEDENYLINE}"
   fi
 
   if [ $FILEWARN -ne 0 ]; then
-    printf "${YELLOW}The following large file(s) are about to be committed (>$SIZESINGLEWARN bytes)${NC}\n"
-    printf "%s" "${SIZEWARNLINE}"
+    printf "\n${YELLOW}The following large file(s) are about to be committed (>$SIZESINGLEWARN bytes)${NC}\n"
+    printf "%s\n" "${SIZEWARNLINE}"
   fi
 
   if [ $FILESUMERR -ne 0 ]; then
-    printf "${RED}The total file size exceeds the size limit ($SIZETOTALLIMIT bytes)${NC}\n"
+    printf "\n${RED}The total file size exceeds the size limit ($SIZETOTALLIMIT bytes)${NC}\n"
   fi
 
   if [ $FILESUMWARN -ne 0 ]; then
-    printf "${YELLOW}Total file size to be committed ($FILESUM bytes)${NC}\n"
+    printf "\n${YELLOW}Total file size to be committed ($FILESUM bytes)${NC}\n"
   fi
 
   if [ "$EXEERR" -ne 0 ]; then
-    printf "${RED}The following file(s) are executable, which is not allowed. Remove the execute permission via 'chmod -x filename' to fix the files. Run 'git add' on the fixed files and then 'git commit' afterwards.${NC}\n"
-    printf "%s" "${EXELINE}"
+    printf "\n${RED}The following file(s) are executable, which is not allowed. Remove the execute permission via 'chmod -x filename' to fix the files. Run 'git add' on the fixed files and then 'git commit' afterwards.${NC}\n"
+    printf "%s\n" "${EXELINE}"
   fi
 
   if [ "$TABERR" -ne 0 ]; then
-    printf "${RED}The following file(s) contain tabs (see https://en.wikipedia.org/wiki/Tab_key), which is not allowed. Remove the tab stops from all files. Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
-    printf "%s" "${TABLINE}"
+    printf "\n${RED}The following file(s) contain tabs (see https://en.wikipedia.org/wiki/Tab_key), which is not allowed. Remove the tab stops from all files. Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "%s\n" "${TABLINE}"
+  fi
+
+  if [ "$SHMPOINTERROR" -ne 0 ]; then
+    printf "\n${RED}The following file(s) contain a combination of SHM array, function pointer and a sum, which is not allowed.\nMove the function pointer to a new line and store the index in a separate integer variable to access the SHM.\nRun 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "%s\n" "${SHMPOINTLINES}"
+  fi
+
+  if [ "$SPECDBERR" -ne 0 ]; then
+    printf "\n${RED}SpeciesDatabase.h5 has been changed, which is not allowed. Remove changes from this file (e.g. via 'git checkout SpeciesDatabase.h5'). Run 'git add' on the fixed file and 'git commit' afterwards.${NC}\n"
+    printf "%s\n" "${SPECDBLINE}"
   fi
 
   if [ "$MPICOMMWORLDERR" -ne 0 ]; then

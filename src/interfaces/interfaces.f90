@@ -27,28 +27,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitInterfaces
-  MODULE PROCEDURE InitInterfaces
-END INTERFACE
-INTERFACE FindInterfacesInRegion
-  MODULE PROCEDURE FindInterfacesInRegion
-END INTERFACE
-INTERFACE FindElementInRegion
-  MODULE PROCEDURE FindElementInRegion
-END INTERFACE
-INTERFACE CountAndCreateMappings
-  MODULE PROCEDURE CountAndCreateMappings
-END INTERFACE
-INTERFACE FinalizeInterfaces
-  MODULE PROCEDURE FinalizeInterfaces
-END INTERFACE
-INTERFACE DisplayRanges
-  MODULE PROCEDURE DisplayRanges
-END INTERFACE
-INTERFACE SelectMinMaxRegion
-  MODULE PROCEDURE SelectMinMaxRegion
-END INTERFACE
-
 PUBLIC::InitInterfaces
 PUBLIC::FindElementInRegion
 PUBLIC::FindInterfacesInRegion
@@ -74,8 +52,9 @@ SUBROUTINE InitInterfaces
 !>   - vacuum      -> dielectric   : RIEMANN_VAC2DIELECTRIC_NC = 6 ! for non-conservative fluxes (two fluxes)
 !===================================================================================================================================
 ! MODULES
+USE MOD_Preproc
 USE MOD_globals
-USE MOD_Mesh_Vars        ,ONLY: nSides,Face_xGP,NGeo,MortarType
+USE MOD_Mesh_Vars        ,ONLY: nSides,N_SurfMesh,MortarType
 #if ! (USE_HDG) && !(USE_FV)
 USE MOD_PML_vars         ,ONLY: DoPML,isPMLFace
 #endif /*NOT HDG*/
@@ -89,6 +68,9 @@ USE MOD_Mesh_Vars        ,ONLY: SideToElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if !defined(discrete_velocity)
+USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave
+#endif /*!defined(discrete_velocity)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -97,7 +79,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: SideID,ElemID
+INTEGER            :: SideID,ElemID,Nloc,CNElemID
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT INTERFACES...'
@@ -197,16 +179,21 @@ DO SideID=1,nSides
   IF(InterfaceRiemann(SideID).EQ.-2)THEN ! check if the default value remains unchanged
 #if !(USE_HDG) && !(USE_FV) /*pure Maxwell simulations*/
     IPWRITE(UNIT_StdOut,*) "DoPML                          = ", DoPML
-#endif /*NOT HDG or FV*/
+#endif /*NOT HDG and NOT FV*/
+#if !defined(discrete_velocity)
+    Nloc = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
+#else
+    Nloc = PP_N
+#endif /*!defined(discrete_velocity)*/
     IPWRITE(UNIT_StdOut,*) "DoDielectric                   = ", DoDielectric
     IPWRITE(UNIT_StdOut,*) "SideID                         = ", SideID
     IPWRITE(UNIT_StdOut,*) "MortarType(1,SideID)           = ", MortarType(1,SideID)
     IPWRITE(UNIT_StdOut,*) "InterfaceRiemann(SideID)       = ", InterfaceRiemann(SideID)
     IPWRITE(UNIT_StdOut,*) "SideToElem(S2E_ELEM_ID,SideID) = ", SideToElem(S2E_ELEM_ID,SideID)
-    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3,0,0,SideID)       = ", Face_xGP(1:3,0,0,SideID)
-    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3 , 0    , NGeo , SideID) =" , Face_xGP(1:3 , 0    , NGeo , SideID)
-    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3 , NGeo , 0    , SideID) =" , Face_xGP(1:3 , NGeo , 0    , SideID)
-    IPWRITE(UNIT_StdOut,*) "Face_xGP(1:3 , NGeo , NGeo , SideID) =" , Face_xGP(1:3 , NGeo , NGeo , SideID)
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , 0) = "   , N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , 0   )
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , Nloc) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , 0    , Nloc)
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , 0   ) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , 0   )
+    IPWRITE(UNIT_StdOut,*) "N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , Nloc) =" , N_SurfMesh(SideID)%Face_xGP(1:3 , Nloc , Nloc)
     CALL abort(__STAMP__,'Interface for Riemann solver not correctly determined (vacuum, dielectric, PML)')
   END IF
 END DO ! SideID
@@ -231,11 +218,14 @@ USE MOD_Globals         ,ONLY: abort,UNIT_stdOut
 #if USE_MPI
 USE MOD_Globals         ,ONLY: mpiroot
 #endif /*USE_MPI*/
-USE MOD_Mesh_Vars       ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars       ,ONLY: N_VolMesh, offSetElem
 USE MOD_Dielectric_Vars ,ONLY: DielectricRadiusValueB
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if !defined(discrete_velocity)
+USE MOD_DG_vars         ,ONLY: N_DG_Mapping
+#endif /*!defined(discrete_velocity)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -252,7 +242,7 @@ INTEGER,INTENT(IN),OPTIONAL            :: GeometryAxis    ! Spatial direction fo
 LOGICAL,ALLOCATABLE,INTENT(INOUT):: isElem(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iElem,i,j,k,m, dim_1, dim_2
+INTEGER             :: iElem,i,j,k,m, dim_1, dim_2, Nloc
 REAL                :: r
 REAL                :: rInterpolated
 !===================================================================================================================================
@@ -284,25 +274,38 @@ END IF
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! 1.) use standard bounding box region
 ! ----------------------------------------------------------------------------------------------------------------------------------
-! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded
-DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+! all DOF in an element must be inside the region, if one DOF is outside, the element is excluded:wqa
+DO iElem=1,PP_nElems
+#if !defined(discrete_velocity)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+  Nloc = PP_N
+#endif /*!defined(discrete_velocity)*/
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
   DO m=1,3 ! m=x,y,z
-    IF ( (Elem_xGP(m,i,j,k,iElem) .LT. region(2*m-1)) .OR. & ! 1,3,5
-         (Elem_xGP(m,i,j,k,iElem) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
+      IF ( (N_VolMesh(iElem)%Elem_xGP(m,i,j,k) .LT. region(2*m-1)) .OR. & ! 1,3,5
+           (N_VolMesh(iElem)%Elem_xGP(m,i,j,k) .GT. region(2*m)) ) THEN   ! 2,4,6 ! element is outside
           isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
     END IF
   END DO
-END DO; END DO; END DO; END DO !iElem,k,j,i
+  END DO; END DO; END DO
+END DO !iElem,k,j,i
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! 2.) Additionally check a radius (e.g. half sphere regions)
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! if option 'DoRadius' is applied, elements are double-checked if they are within a certain radius
 IF(DoRadius.AND.Radius.GT.0.0)THEN
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    r = SQRT(Elem_xGP(1,i,j,k,iElem)**2+&
-             Elem_xGP(2,i,j,k,iElem)**2+&
-             Elem_xGP(3,i,j,k,iElem)**2  )
+  DO iElem=1,PP_nElems
+#if !defined(discrete_velocity)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+    Nloc = PP_N
+#endif /*!defined(discrete_velocity)*/
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2+&
+               N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
+               N_VolMesh(iElem)%Elem_xGP(3,i,j,k)**2  )
     ! check if r is larger than the supplied value .AND.
     ! if r is not almost equal to the radius
     IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
@@ -310,7 +313,8 @@ IF(DoRadius.AND.Radius.GT.0.0)THEN
         isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
       END IF
     END IF
-  END DO; END DO; END DO; END DO !iElem,k,j,i
+    END DO; END DO; END DO
+  END DO !iElem,k,j,i
 END IF
 
 ! ----------------------------------------------------------------------------------------------------------------------------------
@@ -324,14 +328,20 @@ IF(PRESENT(GeometryName))THEN
   SELECT CASE(TRIM(GeometryName))
   CASE('FH_lens')
     ! Loop every element and compare the DOF position
-    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iElem=1,PP_nElems
+#if !defined(discrete_velocity)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+      Nloc = PP_N
+#endif /*!defined(discrete_velocity)*/
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       ! x-axis symmetric geometry: get interpolated radius of lens geometry -> r_interpolated(x)
-      CALL InterpolateGeometry(Elem_xGP(1,i,j,k,iElem),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
+        CALL InterpolateGeometry(N_VolMesh(iElem)%Elem_xGP(1,i,j,k),dim_x=1,dim_y=2,x_OUT=rInterpolated) ! Scale radius
 
       ! Calculate 2D radius for y-z-plane for comparison with interpolated lens radius
       r = SQRT(&
-          Elem_xGP(2,i,j,k,iElem)**2+&
-          Elem_xGP(3,i,j,k,iElem)**2  )
+            N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2+&
+            N_VolMesh(iElem)%Elem_xGP(3,i,j,k)**2  )
 
       ! Check if r is larger than the interpolated radius of the geometry .AND.
       ! if r is not almost equal to the radius invert the "isElem" logical value
@@ -340,7 +350,8 @@ IF(PRESENT(GeometryName))THEN
           isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
         END IF
       END IF
-    END DO; END DO; END DO; END DO !iElem,k,j,i
+      END DO; END DO; END DO
+    END DO !iElem,k,j,i
   CASE('FishEyeLens')
     ! Nothing to do, because the geometry is set by using the sphere's radius in step 2.)
   CASE('DielectricResonatorAntenna') ! Radius is checked, but only in x-y (not z)
@@ -348,15 +359,15 @@ IF(PRESENT(GeometryName))THEN
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.) and invert them
 
         ! Calculate 2D radius for x-y-plane
-        r = SQRT(Elem_xGP(1,i,j,k,iElem)**2 + Elem_xGP(2,i,j,k,iElem)**2)
+        r = SQRT(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)**2 + N_VolMesh(iElem)%Elem_xGP(2,i,j,k)**2)
 
-        ! Only perform check for elements in z = Elem_xGP(3) > 0
-        IF(Elem_xGP(3,i,j,k,iElem).GT.0.0)THEN
+        ! Only perform check for elements in z = N_VolMesh(iElem)%Elem_xGP(3) > 0
+        IF(N_VolMesh(iElem)%Elem_xGP(3,i,j,k).GT.0.0)THEN
           ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
           IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
               isElem(iElem) = .NOT.ElementIsInside ! EXCLUDE elements outside the region
           END IF ! r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3))
-        END IF ! Elem_xGP(3,i,j,k,iElem).GT.0.0
+        END IF ! N_VolMesh(iElem)%Elem_xGP(3,i,j,k).GT.0.0
       END IF ! isElem(iElem).EQV.ElementIsInside
     END DO; END DO; END DO; END DO !iElem,k,j,i
   CASE('Circle') ! Radius is checked
@@ -374,11 +385,17 @@ IF(PRESENT(GeometryName))THEN
         SWRITE(UNIT_stdOut,'(A)') ' '
         CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
     END SELECT
-    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iElem=1,PP_nElems
+#if !defined(discrete_velocity)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+      Nloc = PP_N
+#endif /*!defined(discrete_velocity)*/
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
 
         ! Calculate 2D radius for x-y-plane
-        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
+          r = SQRT(N_VolMesh(iElem)%Elem_xGP(dim_1,i,j,k)**2 + N_VolMesh(iElem)%Elem_xGP(dim_2,i,j,k)**2)
 
         ! Check if r is larger than the supplied value .AND. if r is not almost equal to the radius
         IF(r.GT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
@@ -393,7 +410,8 @@ IF(PRESENT(GeometryName))THEN
           END IF ! r.LT.DielectricRadiusValueB
         END IF ! DielectricRadiusValueB.GT.0.0
       END IF ! isElem(iElem).EQV.ElementIsInside
-    END DO; END DO; END DO; END DO !iElem,k,j,i
+      END DO; END DO; END DO
+    END DO !iElem,k,j,i
   CASE('HollowCircle') ! Inner (r.LT.DielectricRadiusValueB) and outer radius (Radius) are checked: region between is excluded
     SELECT CASE(GeometryAxis)
       CASE(1) ! x-axis
@@ -410,11 +428,17 @@ IF(PRESENT(GeometryName))THEN
         CALL abort(__STAMP__,'Error in CALL FindElementInRegion(GeometryName): GeometryAxis is wrong!')
     END SELECT
 
-    DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+    DO iElem=1,PP_nElems
+#if !defined(discrete_velocity)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+      Nloc = PP_N
+#endif /*!defined(discrete_velocity)*/
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
       IF(isElem(iElem).EQV.ElementIsInside)THEN ! only check elements that were not EXCLUDED in 1.)
 
         ! Calculate 2D radius for x-y-plane
-        r = SQRT(Elem_xGP(dim_1,i,j,k,iElem)**2 + Elem_xGP(dim_2,i,j,k,iElem)**2)
+          r = SQRT(N_VolMesh(iElem)%Elem_xGP(dim_1,i,j,k)**2 + N_VolMesh(iElem)%Elem_xGP(dim_2,i,j,k)**2)
 
         ! Check if r is smaller than the supplied value .AND. if r is not almost equal to the radius
         IF(r.LT.Radius.AND.(.NOT.ALMOSTEQUALRELATIVE(r,Radius,1e-3)))THEN
@@ -430,7 +454,8 @@ IF(PRESENT(GeometryName))THEN
           END IF ! r.LT.DielectricRadiusValueB
         END IF ! DielectricRadiusValueB.GT.0.0
       END IF ! isElem(iElem).EQV.ElementIsInside
-    END DO; END DO; END DO; END DO !iElem,k,j,i
+      END DO; END DO; END DO
+    END DO !iElem,k,j,i
   CASE('default')
     ! Nothing to do, because the geometry is set by using the box coordinates
   CASE DEFAULT
@@ -448,7 +473,7 @@ SUBROUTINE FindInterfacesInRegion(isFace,isInterFace,isElem,info_opt)
 !===================================================================================================================================
 !> Check if a face is in a special region (e.g. Dielectric) and/or connects a special region (e.g. Dielectric) to the physical
 !> region. This is used, e.g., for dielectric or PML regions
-!> indentifies the following connections and stores them in "isFace_combined"
+!> identifies the following connections and stores them in "isFace_combined"
 !> use numbering: 1: Master side is special (e.g. dielectric)
 !>                2: Slave  side is special (e.g. dielectric)
 !>                3: both sides are special (e.g. dielectric) sides
@@ -479,7 +504,7 @@ LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isFace(:)      ! True/False face: special r
 LOGICAL,ALLOCATABLE,INTENT(INOUT) :: isInterFace(:) ! True/False face: special region <-> physical region (or vice versa)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,DIMENSION(1,0:PP_N,0:PP_N,1:nSides) :: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
+REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: isFace_Slave,isFace_Master,isFace_combined ! the dimension is only used because of
                                                                                        ! the prolong to face routine and MPI logic
 INTEGER                                  :: iSide ! Side iterator
 CHARACTER(LEN=255)                       :: info  ! Output info on failure
@@ -488,8 +513,8 @@ CHARACTER(LEN=255)                       :: info  ! Output info on failure
 ! 1.  initialize Master, Slave and combined side array (it is a dummy array for which only a scalar value is communicated)
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 ! 3.  MPI: communicate slave sides to master
-! 4.  comminucate the values to the slave sides (currently done but not used anywhere)
-! 5.  calculate combinded value 'isFace_combined' which determines the type of the interface on the master side, where the
+! 4.  communicate the values to the slave sides (currently done but not used anywhere)
+! 5.  calculate combined value 'isFace_combined' which determines the type of the interface on the master side, where the
 !     information is later used when fluxes are determined
 ! 6.  loop over all sides and use the calculated value 'isFace_combined' to determine 'isFace' and 'interFace'
 
@@ -499,10 +524,10 @@ ALLOCATE(isInterFace(1:nSides))
 isFace=.FALSE.
 isInterFace=.FALSE.
 ! For MPI sides send the info to all other procs
+ALLOCATE(isFace_Slave(1,0:PP_N,0:PP_N,1:nSides),isFace_Master(1,0:PP_N,0:PP_N,1:nSides),isFace_combined(1,0:PP_N,0:PP_N,1:nSides))
 isFace_Slave    = -3.
 isFace_Master   = -3.
 isFace_combined = -3.
-
 
 ! 2.  prolong elem data 'isElem' (Integer data for true/false to side data (also handles mortar interfaces)
 CALL ProlongToFace_ElementInfo(isElem,isFace_Master,isFace_Slave,doMPISides=.FALSE.) ! Includes Mortar sides
@@ -608,6 +633,8 @@ DO iSide=1,nSides
   END IF
 END DO
 isInterFace(1:nBCSides)=.FALSE. ! BC sides cannot be interfaces!
+
+DEALLOCATE(isFace_Slave,isFace_Master,isFace_combined)
 
 END SUBROUTINE FindInterfacesInRegion
 
@@ -778,9 +805,7 @@ SUBROUTINE CountAndCreateMappings(TypeName,&
 USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: nSides,nGlobalElems
-#if USE_MPI
 USE MOD_Mesh_Vars        ,ONLY: ElemToSide
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -799,9 +824,7 @@ INTEGER,ALLOCATABLE,INTENT(INOUT) :: ElemToX(:),XToElem(:),FaceToX(:),XToFace(:)
 ! LOCAL VARIABLES
 INTEGER                           :: iElem,iSide,nGlobalSpecialElems,nGlobalFaces,nGlobalInterFaces
 INTEGER                           :: iXElem,iXFace,iXInterFace,sumGlobalFaces,sumGlobalInterFaces
-#if USE_MPI
 INTEGER                           :: SideID,nMasterfaces,nMasterInterFaces
-#endif
 !===================================================================================================================================
 ! Get number of Elems
 nFaces = 0
@@ -828,7 +851,6 @@ END DO ! iElem
 !===================================================================================================================================
 IF(PRESENT(DisplayInfo))THEN
   IF(DisplayInfo)THEN
-#if USE_MPI
     nMasterFaces      = 0
     nMasterInterFaces = 0
     DO iElem=1,nElems ! loop over all local elems
@@ -844,6 +866,7 @@ IF(PRESENT(DisplayInfo))THEN
         END IF
       END DO
     END DO
+#if USE_MPI
     sumGlobalFaces      = 0
     sumGlobalInterFaces = 0
     CALL MPI_REDUCE(nElems           ,nGlobalSpecialElems,1,MPI_INTEGER,MPI_SUM,0,MPI_COMM_PICLAS,iError)
@@ -853,6 +876,8 @@ IF(PRESENT(DisplayInfo))THEN
     nGlobalSpecialElems = nElems
     sumGlobalFaces      = nFaces
     sumGlobalInterFaces = nInterFaces
+    nGlobalFaces        = nMasterfaces
+    nGlobalInterfaces   = nMasterInterFaces
 #endif /*USE_MPI*/
     LBWRITE(UNIT_stdOut,'(A,I10,A,I10,A,F6.2,A)')&
     '  Found [',nGlobalSpecialElems,'] nGlobal'//TRIM(TypeName)//'-Elems      inside of '//TRIM(TypeName)//'-region of ['&

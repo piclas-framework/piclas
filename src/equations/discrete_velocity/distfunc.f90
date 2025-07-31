@@ -1073,8 +1073,9 @@ USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
 USE MOD_FV_Vars,        ONLY : U_FV
 #if USE_HDG
-USE MOD_Equation_Vars,  ONLY: E
-USE MOD_Interpolation_Vars,ONLY: wGP
+USE MOD_Interpolation_Vars,ONLY: N_Inter
+USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
+USE MOD_Mesh_Vars         ,ONLY: offsetElem
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1087,16 +1088,17 @@ LOGICAL, OPTIONAL             :: ploesma
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: MacroVal(DVMnMacro,DVMnSpecies+1), tau, forceTerm, forceTerm2, cVel(3), velodiff, gamma
-INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstID ,upos1,upos2
+INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstID ,upos1,upos2,Nloc
 REAL, ALLOCATABLE               :: fTarget(:)
 REAL                            :: Eloc(3)
 !===================================================================================================================================
 DO iElem =1, nElems
 #if USE_HDG
   IF (PRESENT(ploesma)) THEN
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
     Eloc = 0.
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      Eloc(1:3) = Eloc(1:3) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,iElem)/((PP_N+1.)**3) !need jacobi here for noncartesian
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      Eloc(:) = Eloc(:) + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)*U_N(iElem)%E(1:3,i,j,k)/((Nloc+1.)**3)
     END DO; END DO; END DO
   END IF
 #endif

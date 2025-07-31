@@ -4,12 +4,12 @@ import lxcat_data_parser as ldp
 
 # Input database
 # database_input = "Database_Phelps.txt"
-database_input = "Database_BiagiV71.txt"
+database_input = "turner_benchmark_he_electron_table.dat"
 # Output database
 # database_output = "LXCat_Database_Phelps_Electron_Scattering_EFFECTIVE.h5"
-database_output = "XSec_Database_Xe_Plasma.h5"
+database_output = "XSec_Database_He_Plasma.h5"
 # Species list to be included in the output database
-species_list = ["Xe"]
+species_list = ["He"]
 # Reference of the utilized database
 # reference = "Phelps database, www.lxcat.net, retrieved on February 18, 2020. LXCat is an open-access website with databases contributed by members of the scientific community."
 reference = "Biagi-v7.1 database, www.lxcat.net, retrieved on April 04, 2022. LXCat is an open-access website with databases contributed by members of the scientific community."
@@ -141,16 +141,16 @@ for current_species in species_list:
         ## Save the additional information
         dataset.attrs['Info'] = str(cross_section.info)
         dataset.attrs['Threshold [eV]'] = cross_section.threshold
+    for cross_section in sorted([cross_section for cross_section in data_spec.cross_sections if cross_section.type == ldp.CrossSectionTypes.IONIZATION],key=sort_by_threshold):
+        ## Write cross-section dataset of the current species in the HDF5 database
+        grp_reaction = grp_spec.create_group("REACTION")
+        dataset = grp_reaction.create_dataset(str(cross_section.threshold), data=cross_section.data)
+        ## Get the string of the cross section type (ELASTIC = 0, EFFECTIVE = 1, EXCITATION = 2, ATTACHMENT = 3, IONIZATION = 4)
+        type_spec = ldp.CrossSectionTypes(cross_section.type).name
+        ## Save the type of cross-section
+        dataset.attrs['Type'] = type_spec
+        ## Save the additional information
+        dataset.attrs['Info'] = str(cross_section.info)
+        dataset.attrs['Threshold [eV]'] = cross_section.threshold
 
 hdf.close()
-
-            ## FUTURE DEVELOPMENTS
-            ## Access a specific key of the info array
-            # print(cross_section.info.get('SPECIES'))
-            ## Save the mass ratio or threshold, depending on the type of the cross-section
-            # if cross_section.type == ldp.CrossSectionTypes.EFFECTIVE or cross_section.type == ldp.CrossSectionTypes.ELASTIC:
-            #     dataset.attrs['Mass ratio'] = cross_section.mass_ratio
-            # if cross_section.type == ldp.CrossSectionTypes.IONIZATION or cross_section.type == ldp.CrossSectionTypes.EXCITATION:
-            #     dataset.attrs['Threshold [eV]'] = cross_section.threshold
-
-

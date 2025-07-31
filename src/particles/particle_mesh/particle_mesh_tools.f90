@@ -272,6 +272,11 @@ DO iLocSide=1,nlocSides
     END IF
   END IF
 END DO
+
+! Surpress compiler warning
+RETURN
+IF(PRESENT(Det_Out)) Det_Out = 0.0
+
 END SUBROUTINE ParticleInsideQuad2D
 
 SUBROUTINE ParticleInsideQuad1D(PartStateLoc,GlobalElemID,InElementCheck,Det_Out)
@@ -316,6 +321,9 @@ DO iLocSide=1,nlocSides
   IF (iSide.EQ.2) EXIT
 END DO
 IF (DiffSign(1).NE.DiffSign(2)) InElementCheck = .TRUE.
+! Surpress compiler warning
+RETURN
+IF(PRESENT(Det_Out)) Det_Out = 0.0
 END SUBROUTINE ParticleInsideQuad1D
 
 
@@ -904,7 +912,7 @@ INTEGER                                  :: nLinearElemsTot,nCurvedElemsTot
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
-LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types (planar, bilinear) and whether elements are curved ...'
 
 ! elements
 #if USE_MPI
@@ -978,8 +986,8 @@ DO iCNElem=firstElem,lastElem
   XCL_NGeo1(1:3,0,0,1) = XCL_NGeoLoc(1:3, 0  , 0  ,NGeo)
   XCL_NGeo1(1:3,1,0,1) = XCL_NGeoLoc(1:3,NGeo, 0  ,NGeo)
   XCL_NGeo1(1:3,0,1,1) = XCL_NGeoLoc(1:3, 0  ,NGeo,NGeo)
-  XCL_NGeo1(1:3,1,1,1) = XCL_NGeoLoc(1:3,NGeo,NGeo,NGeo)
 
+  XCL_NGeo1(1:3,1,1,1) = XCL_NGeoLoc(1:3,NGeo,NGeo,NGeo)
   !  b) interpolate from the nodes to NGeo
   !     Compare the bi-linear mapping with the used mapping
   !     For NGeo=1, this should always be true, because the mappings are identical
@@ -1452,26 +1460,38 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
 #if USE_MPI
-INTEGER                        :: iElem
+INTEGER                :: iElem
 #endif /*USE_MPI*/
-REAL                           :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
+REAL                   :: Vdm_NGeo_CLNGeo(0:NGeo,0:NGeo)
+INTEGER                :: i
+REAL,DIMENSION(0:NGeo) :: wBary_NGeo
 !===================================================================================================================================
 
-! small wBaryCL_NGEO
-ALLOCATE( wBaryCL_NGeo1(            0:1)    ,&
-    XiCL_NGeo1(               0:1)    ,&
-    Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1)    ,&
-    ! new for curved particle sides
-Vdm_Bezier(        0:NGeo,0:NGeo) ,&
-    sVdm_Bezier(       0:NGeo,0:NGeo) ,&
-    D_Bezier(          0:NGeo,0:NGeo))
+! Equidistant-Lobatto NGeo
+ALLOCATE(Xi_NGeo(0:NGeo))
+DO i=0,NGeo
+  Xi_NGeo(i) = 2./REAL(NGeo) * REAL(i) - 1.
+END DO
+CALL BarycentricWeights(NGeo,Xi_NGeo,wBary_NGeo)
 
+! small wBaryCL_NGEO
+ALLOCATE(Vdm_CLNGeo1_CLNGeo(0:NGeo,0:1))
+
+! new for curved particle sides
+ALLOCATE( Vdm_Bezier(0:NGeo,0:NGeo))
+ALLOCATE(sVdm_Bezier(0:NGeo,0:NGeo))
+ALLOCATE(   D_Bezier(0:NGeo,0:NGeo))
+
+! XiCL_NGeo1, wBaryCL_NGeo1
+ALLOCATE(wBaryCL_NGeo1(0:1))
+ALLOCATE(XiCL_NGeo1(0:1))
 CALL ChebyGaussLobNodesAndWeights(1,XiCL_NGeo1)
 CALL BarycentricWeights(1,XiCL_NGeo1,wBaryCL_NGeo1)
-CALL InitializeVandermonde(1, NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo ,Vdm_CLNGeo1_CLNGeo)
+! Vandermonde: Vdm_CLNGeo1_CLNGeo
+CALL InitializeVandermonde(1,NGeo,wBaryCL_NGeo1,XiCL_NGeo1,XiCL_NGeo,Vdm_CLNGeo1_CLNGeo)
 ! initialize Vandermonde for Bezier basis surface representation (particle tracking with curved elements)
-CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) !CHANGETAG
-CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier)
+CALL BuildBezierVdm(NGeo,XiCL_NGeo,Vdm_Bezier,sVdm_Bezier) ! Required for FacNchooseK (requires BezierElevation)
+CALL BuildBezierDMat(NGeo,Xi_NGeo,D_Bezier) ! Required for DMat=D_Bezier (requires FacNchooseK)
 CALL InitializeVandermonde(NGeo,NGeo,wBaryCL_NGeo,Xi_NGeo,XiCL_NGeo,Vdm_NGeo_CLNGeo)
 
 #if USE_LOADBALANCE
@@ -1483,10 +1503,10 @@ IF (PerformLoadBalance) RETURN
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
 CALL Allocate_Shared((/3*  (NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/), XCL_NGeo_Shared_Win,XCL_NGeo_Array)
 CALL MPI_WIN_LOCK_ALL(0,XCL_NGeo_Shared_Win,IERROR)
-XCL_NGeo_Shared (1:3    ,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
+XCL_NGeo_Shared(1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => XCL_NGeo_Array
 
 DO iElem = 1,nElems
-  XCL_NGeo_Shared (:  ,:,:,:,offsetElem+iElem) = XCL_NGeo (:  ,:,:,:,iElem)
+  XCL_NGeo_Shared(:,:,:,:,offsetElem+iElem) = XCL_NGeo(:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 
 ! Communicate XCL and dXCL between compute node roots instead of calculating globally
@@ -1520,13 +1540,17 @@ SUBROUTINE CalcParticleMeshMetrics()
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars              ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Mesh_Vars              ,ONLY: dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
-#if USE_MPI
+USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping
 USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
+#if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
+USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping, recvcountDofs, displsDofs
+!#else
+!USE MOD_Mesh_Vars              ,ONLY: N_VolMesh_Shared
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
@@ -1536,9 +1560,9 @@ IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! LOCAL VARIABLES
-#if USE_MPI
-INTEGER                        :: iElem
-#endif /*USE_MPI*/
+!#if USE_MPI
+INTEGER                        :: iElem, Nloc, i,j,k,r, offSetDof
+!#endif /*USE_MPI*/
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -1548,15 +1572,24 @@ IF (PerformLoadBalance) RETURN
 
 #if USE_MPI
 ! This is a trick. Allocate as 1D array and then set a pointer with the proper array bounds
-CALL Allocate_Shared((/3*  (PP_N+1)*(PP_N+1)*(PP_N+1)*nGlobalElems/), Elem_xGP_Shared_Win,Elem_xGP_Array)
+CALL Allocate_Shared((/3*  nDofsMapping/), Elem_xGP_Shared_Win,Elem_xGP_Array)
 CALL Allocate_Shared((/3*3*(NGeo+1)*(NGeo+1)*(NGeo+1)*nGlobalElems/),dXCL_NGeo_Shared_Win,dXCL_NGeo_Array)
 CALL MPI_WIN_LOCK_ALL(0,Elem_xGP_Shared_Win,IERROR)
 CALL MPI_WIN_LOCK_ALL(0,dXCL_NGeo_Shared_Win,IERROR)
-Elem_xGP_Shared (1:3    ,0:PP_N,0:PP_N,0:PP_N,1:nGlobalElems) => Elem_xGP_Array
+Elem_xGP_Shared (1:3    ,1:nDofsMapping) => Elem_xGP_Array
 dXCL_NGeo_Shared(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nGlobalElems) => dXCL_NGeo_Array
 
 DO iElem = 1,nElems
-  Elem_xGP_Shared (:  ,:,:,:,offsetElem+iElem) = Elem_xGP (:  ,:,:,:,iElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  offSetDof = N_DG_Mapping(1,iElem+offSetElem)
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+        Elem_xGP_Shared (:,r+offSetDof) = N_VolMesh(iElem)%Elem_xGP (:,i,j,k)
+      END DO
+    END DO
+  END DO
   dXCL_NGeo_Shared(:,:,:,:,:,offsetElem+iElem) = dXCL_NGeo(:,:,:,:,:,iElem)
 END DO ! iElem = 1, nElems
 
@@ -1570,8 +1603,8 @@ IF (nComputeNodeProcessors.NE.nProcessors_Global .AND. myComputeNodeRank.EQ.0) T
                      , 0                             &
                      , MPI_DATATYPE_NULL             &
                      , Elem_xGP_Shared               &
-                     , 3*(PP_N+1)**3*recvcountElem   &
-                     , 3*(PP_N+1)**3*displsElem      &
+                     , 3*recvcountDofs   &
+                     , 3*displsDofs      &
                      , MPI_DOUBLE_PRECISION          &
                      , MPI_COMM_LEADERS_SHARED       &
                      , IERROR)
@@ -1590,7 +1623,20 @@ END IF
 CALL BARRIER_AND_SYNC(Elem_xGP_Shared_Win ,MPI_COMM_SHARED)
 CALL BARRIER_AND_SYNC(dXCL_NGeo_Shared_Win,MPI_COMM_SHARED)
 #else
-Elem_xGP_Shared  => Elem_xGP
+ALLOCATE(Elem_xGP_Array(3*nDofsMapping))
+Elem_xGP_Shared(1:3,1:nDofsMapping) => Elem_xGP_Array
+DO iElem = 1,nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  offSetDof = N_DG_Mapping(1,iElem+offSetElem)
+  DO k=0,Nloc
+    DO j=0,Nloc
+      DO i=0,Nloc
+        r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+        Elem_xGP_Shared(:,r+offSetDof) = N_VolMesh(iElem)%Elem_xGP(:,i,j,k)
+      END DO
+    END DO
+  END DO
+END DO ! iElem = 1, nElems
 dXCL_NGeo_Shared => dXCL_NGeo
 #endif /*USE_MPI*/
 
@@ -1658,6 +1704,8 @@ IF (myComputeNodeRank.EQ.0) THEN
   BezierControlPoints3D         = 0.
 END IF
 IF (BezierElevation.GT.0) THEN
+  ! Sanity check
+  IF(NGeoElevated.LT.0) CALL abort(__STAMP__,'NGeoElevated<0 is not allowed. Check correct initialisation of NGeoElevated.')
   CALL Allocate_Shared((/3*(NGeoElevated+1)*(NGeoElevated+1)*nNonUniqueGlobalSides/),BezierControlPoints3DElevated_Shared_Win,BezierControlPoints3DElevated_Shared)
   CALL MPI_WIN_LOCK_ALL(0,BezierControlPoints3DElevated_Shared_Win,IERROR)
   BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,1:nNonUniqueGlobalSides) => BezierControlPoints3DElevated_Shared
@@ -2075,6 +2123,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, 
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
 #if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: nNonUniqueGlobalSides, offsetComputeNodeElem, ElemInfo_Shared
@@ -2237,7 +2286,7 @@ SUBROUTINE InitVolumes_1D()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
+USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem, ELEM_HALOFLAG
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared

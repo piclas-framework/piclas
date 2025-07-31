@@ -97,7 +97,7 @@ USE MOD_ReadInTools            ,ONLY: GETINT
 USE MOD_LoadBalance_Vars       ,ONLY: LoadBalanceSample
 USE MOD_ReadInTools            ,ONLY: PrintOption
 #endif /*USE_LOADBALANCE*/
-USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars     ,ONLY: InterpolationInitIsDone
 USE MOD_Restart_Vars
 USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,GetDataProps,ReadAttribute,File_ID
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
@@ -118,11 +118,11 @@ IMPLICIT NONE
 #if USE_LOADBALANCE
 CHARACTER(20)               :: hilf
 #endif /*USE_LOADBALANCE*/
-#if USE_HDG
-LOGICAL                     :: DG_SolutionUExists
-#endif /*USE_HDG*/
-LOGICAL                     :: FileVersionExists
+LOGICAL                     :: FileVersionExists,WriteSuccessful
 INTEGER                     :: FileVersionHDF5Int
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+LOGICAL                     :: DG_SolutionExists
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !===================================================================================================================================
 IF((.NOT.InterpolationInitIsDone).OR.RestartInitIsDone)THEN
    CALL abort(__STAMP__,'InitRestart not ready to be called or already called.',999,999.)
@@ -150,28 +150,37 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   ! Read in the state file we want to restart from
   DoRestart = .TRUE.
   CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
-#ifdef PP_POIS
-#if (PP_nVar==8)
-  !The following arrays are read from the file
-  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-  !CALL ReadArray('DG_SolutionPhi',5,(/4,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
-  CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
-#else
-  !The following arrays are read from the file
-  !CALL ReadArray('DG_SolutionE',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=U)
-  !CALL ReadArray('DG_SolutionPhi',5,(/PP_nVar,PP_N+1,PP_N+1,PP_N+1,PP_nElems/),OffsetElem,5,RealArray=Phi)
-  CALL abort(__STAMP__,'InitRestart: This case is not implemented here. Fix this!')
-#endif
-#elif USE_HDG
-  CALL DatasetExists(File_ID,'DG_SolutionU',DG_SolutionUExists)
-  IF(DG_SolutionUExists)THEN
-    CALL GetDataProps('DG_SolutionU',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-  END IF
-#elif (PP_TimeDiscMethod==700) /*DVM*/
+  ! Check file version
+  CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
+  IF(FileVersionExists) CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5Real)
+  ! Check if restart file was written successfully for piclas version 3.6.0 and newer
+  IF(FileVersionExists)THEN
+    IF(FileVersionHDF5Real.GE.3.59)THEN
+      CALL DatasetExists(File_ID,'TIME',WriteSuccessful,attrib=.TRUE.)
+      IF (.NOT.WriteSuccessful) &
+        CALL Abort(__STAMP__,'Restart file missing WriteSuccessful marker. This indicates that the state file is corrupt.')
+    END IF ! FileVersionHDF5Real.GE.3.59
+  END IF ! FileVersionExists
+  N_Restart=-1
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+  CALL DatasetExists(File_ID,'DVM_Solution',DG_SolutionExists)
+#if defined(discrete_velocity) /*DVM*/
+  IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DVM_Solution')
+#endif /*DVM*/
+IF (DG_SolutionExists) THEN
   CALL GetDataProps('DVM_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-#else
+ELSE
+  CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
+  IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-#endif
+END IF ! DG_SolutionExists
+#else
+  nVar_Restart = PP_nVar
+  N_Restart = 0
+  nElems_Restart = -1
+  NodeType_Restart = 'undefined'
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+  IF(N_Restart.LT.0) CALL abort(__STAMP__,'N_Restart<0 is not allowed. Check initialization of N_Restart!',IntInfoOpt=N_Restart)
 #ifdef drift_diffusion
   SWRITE(UNIT_stdOut,'(A)') 'Init additional FV restart'
   CALL GetDataProps('DriftDiffusion_Solution',nVar_Restart_FV,N_Restart_FV,nElems_Restart_FV,NodeType_Restart_FV)
@@ -185,24 +194,20 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
       SWRITE(UNIT_StdOut,'(A,I5)')"nVar_Restart =", nVar_Restart
 #if USE_HDG
       SWRITE(UNIT_StdOut,'(A)')" HDG: Restarting from a different equation system."
-#elif (PP_TimeDiscMethod==700) /*DVM*/
+#elif defined(discrete_velocity) /*DVM*/
       SWRITE(UNIT_StdOut,'(A)')"DVM: Restarting from macroscopic values."
-#else
+#else /*NOT USE_HDG and NOT DVM*/
 #ifdef drift_diffusion
       SWRITE(UNIT_StdOut,'(A)')"Drift diffusion: Restarting..."
-#else
+#else /*NOT drift_diffusion*/
       CALL abort(__STAMP__,'PP_nVar!=nVar_Restart (Number of variables in restart file does no match the compiled equation system).')
-#endif
+#endif /*drift_diffusion*/
 #endif /*USE_HDG*/
     END IF
   END IF
   ! Read in time from restart file
   CALL ReadAttribute(File_ID,'Time',1,RealScalar=RestartTime)
-  ! check file version
-  CALL DatasetExists(File_ID,'File_Version',FileVersionExists,attrib=.TRUE.)
   IF (FileVersionExists) THEN
-    CALL ReadAttribute(File_ID,'File_Version',1,RealScalar=FileVersionHDF5Real)
-
     IF(FileVersionHDF5Real.LT.1.5)THEN
       SWRITE(UNIT_StdOut,'(A)')' '
       SWRITE(UNIT_StdOut,'(A)')' %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% '
@@ -262,13 +267,9 @@ ELSE IF (InitialAutoRestartSample.EQ.0) THEN
 END IF
 #endif /*USE_LOADBALANCE*/
 
-IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
-  InterpolateSolution=.TRUE.
-END IF
-
-IF(InterpolateSolution)THEN
-  CALL initRestartBasis(PP_N,N_Restart,xGP)
-END IF
+!IF(DoRestart .AND. (N_Restart .NE. PP_N))THEN
+!  InterpolateSolution=.TRUE.
+!END IF
 
 ! Check whether (during restart) the statefile from which the restart is performed should be deleted
 FlushInitialState = GETLOGICAL('FlushInitialState')
@@ -281,39 +282,6 @@ SWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitRestart
 
 
-SUBROUTINE InitRestartBasis(N_in,N_Restart_in,xGP)
-!===================================================================================================================================
-! Initialize all necessary information to perform the restart
-!===================================================================================================================================
-! MODULES
-USE MOD_Restart_Vars, ONLY:Vdm_GaussNRestart_GaussN
-USE MOD_Basis,        ONLY:LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,ChebyGaussLobNodesAndWeights
-USE MOD_Basis,        ONLY:BarycentricWeights,InitializeVandermonde
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                  :: N_in,N_Restart_in
-REAL,INTENT(IN),DIMENSION(0:N_in)   :: xGP
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(0:N_Restart_in)  :: xGP_Restart,wBary_Restart
-!===================================================================================================================================
-  ALLOCATE(Vdm_GaussNRestart_GaussN(0:N_in,0:N_Restart_in))
-#if (PP_NodeType==1)
-  CALL LegendreGaussNodesAndWeights(N_Restart_in,xGP_Restart)
-#elif (PP_NodeType==2)
-  CALL LegGaussLobNodesAndWeights(N_Restart_in,xGP_Restart)
-#elif (PP_NodeType==3)
-  CALL ChebyGaussLobNodesAndWeights(N_Restart_in,xGP_Restart)
-#endif
-  CALL BarycentricWeights(N_Restart_in,xGP_Restart,wBary_Restart)
-  CALL InitializeVandermonde(N_Restart_in,N_in,wBary_Restart,xGP_Restart,xGP,Vdm_GaussNRestart_GaussN)
-END SUBROUTINE InitRestartBasis
-
-
 SUBROUTINE Restart()
 !===================================================================================================================================
 ! Read in mesh (if available) and state, set time for restart
@@ -323,20 +291,17 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_Restart_Vars           ,ONLY: DoRestart,RestartTime
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Output            ,ONLY: FlushHDF5
-#ifdef PP_POIS
-USE MOD_Equation_Vars          ,ONLY: Phi
-#endif /*PP_POIS*/
 #if defined(PARTICLES)
 USE MOD_Particle_Restart       ,ONLY: ParticleRestart
 USE MOD_RayTracing             ,ONLY: RayTracing
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
 USE MOD_Restart_Tools          ,ONLY: RecomputeLambda
-USE MOD_HDG                    ,ONLY: RestartHDG
 #endif /*USE_HDG*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Restart_Field          ,ONLY: FieldRestart
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -354,7 +319,10 @@ IF(DoRestart)THEN
   GETTIME(StartT)
 
   ! Restart field arrays
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+  ! FieldRestart() -> RecomputeEFieldHDG() -> PostProcessGradientHDG(), which requires U_N(iElem)%U and HDG_Surf_N(iSide)%lambda
   CALL FieldRestart()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #ifdef PARTICLES
   ! Restart particle arrays
@@ -369,14 +337,15 @@ IF(DoRestart)THEN
   ! 1) MPI-Communication for shape-function particles
   ! 2) Deposition
   ! 3) ONE HDG solve
-  CALL  RecomputeLambda(RestartTime)
+  ! RecomputeLambda() -> HDG(), which -> HDGLinear() that calculates U_N(iElem)%U, which requires HDG_Vol_N(iElem)%RHS_vol
+  !CALL  RecomputeLambda(RestartTime) ! Is this still required? E.g. for electron fluid simulations?
 #endif /*USE_HDG*/
 
   ! Delete all files that will be rewritten
   CALL FlushHDF5(RestartTime)
 
   GETTIME(EndT)
-  CALL DisplayMessageAndTime(EndT-StartT, 'DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+  CALL DisplayMessageAndTime(EndT-StartT, 'RESTART DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 ELSE ! no restart
   ! Delete all files since we are doing a fresh start
   CALL FlushHDF5()

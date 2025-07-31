@@ -67,17 +67,18 @@ SUBROUTINE BGGas_Initialize()
 USE MOD_ReadInTools
 USE MOD_Globals
 USE MOD_io_hdf5
-USE MOD_HDF5_Input            ,ONLY: DatasetExists
-USE MOD_StringTools           ,ONLY: STRICMP
 USE MOD_DSMC_Vars             ,ONLY: BGGas
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep, SpeciesDatabase
+USE MOD_Particle_Vars         ,ONLY: PDM, Species, nSpecies, UseVarTimeStep, VarTimeStep
 USE MOD_Restart_Vars          ,ONLY: DoMacroscopicRestart, MacroRestartFileName
-#if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
 #ifdef drift_diffusion
+USE MOD_HDF5_Input            ,ONLY: DatasetExists
+USE MOD_StringTools           ,ONLY: STRICMP
+USE MOD_Particle_Vars         ,ONLY: SpeciesDatabase
 USE MOD_Transport_Data        ,ONLY: InterpolateCoefficient
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 #endif /*drift_diffusion*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -649,8 +650,9 @@ IF(DSMC%CalcQualityFactors) THEN
   ! Calculation of Mean Collision Probability
   IF(DSMC%CollProbMeanCount.GT.0) DSMC%CollProbMean = DSMC%CollProbSum / DSMC%CollProbMeanCount
   ! Calculation of the mean free path
+  CNElemID = GetCNElemID(iElem+offSetElem)
   DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
-                          ElemVolume_Shared(GetCNElemID(iElem+offSetElem)), DSMC%InstantTransTemp(nSpecies+1))
+                          ElemVolume_Shared(CNElemID), DSMC%InstantTransTemp(nSpecies+1))
   ! Determination of the MCS/MFP for the case without octree
   IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
                                                                                     / DSMC%MeanFreePath

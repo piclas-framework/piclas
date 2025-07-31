@@ -43,6 +43,9 @@ PUBLIC :: GetInterpolatedFieldPartPos
 PUBLIC :: GetEMField
 #endif
 PUBLIC :: InterpolateVariableExternalField1D
+#if USE_HDG
+PUBLIC :: GetInterpolatedPotentialPartPos
+#endif /*USE_HDG*/
 !===================================================================================================================================
 
 CONTAINS
@@ -251,6 +254,148 @@ END IF
 END FUNCTION GetInterpolatedFieldPartPos
 
 #if !(USE_FV) || (USE_HDG)
+FUNCTION GetInterpolatedPotentialPartPos(GlobalElemID,PartID)
+!===================================================================================================================================
+! Evaluate the electro-(magnetic) field using the reference position and return the field
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                ,ONLY : abort
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
+USE MOD_Particle_Vars          ,ONLY: PartPosRef,PDM,PartState,PEM
+USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
+#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
+USE MOD_Particle_Vars          ,ONLY: DoSurfaceFlux
+#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
+!----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: GlobalElemID !< Global element ID
+INTEGER,INTENT(IN) :: PartID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: GetInterpolatedPotentialPartPos(1:1)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                         :: PartPosRef_loc(1:3)
+LOGICAL                      :: SucRefPos
+#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
+LOGICAL                      :: NotMappedSurfFluxParts
+#else
+LOGICAL,PARAMETER            :: NotMappedSurfFluxParts=.FALSE.
+#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
+!===================================================================================================================================
+
+! Check Surface Flux Particles
+#if (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
+NotMappedSurfFluxParts=DoSurfaceFlux !Surfaceflux particles inserted before interpolation and tracking. Field at wall is needed!
+#endif /*(PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)*/
+
+SucRefPos = .TRUE. ! Initialize for all methods
+
+! Check if reference position is required
+IF(NotMappedSurfFluxParts .AND.(TrackingMethod.EQ.REFMAPPING))THEN
+  IF(PDM%dtFracPush(PartID)) CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),GlobalElemID)
+ELSEIF(TrackingMethod.NE.REFMAPPING)THEN
+  CALL GetPositionInRefElem(PartState(1:3,PartID),PartPosRef_loc(1:3),GlobalElemID, isSuccessful = SucRefPos)
+ELSE
+  PartPosRef_loc(1:3) = PartPosRef(1:3,PartID)
+END IF
+
+! Interpolate the field and return the vector
+IF ((.NOT.SucRefPos).AND.(TRIM(DepositionType).EQ.'cell_volweight_mean')) THEN
+  GetInterpolatedPotentialPartPos(1:1) = GetPotentialDW(PEM%LocalElemID(PartID),PartState(1:3,PartID))
+ELSE
+  GetInterpolatedPotentialPartPos(1:1) = GetPotential(PEM%LocalElemID(PartID),PartPosRef_loc(1:3))
+END IF
+END FUNCTION GetInterpolatedPotentialPartPos
+
+
+PPURE FUNCTION GetPotential(ElemID,PartPosRef_loc)
+!===================================================================================================================================
+! Evaluate the electro-(magnetic) field using the reference position and return the field
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Eval_xyz      ,ONLY: EvaluateFieldAtRefPos
+USE MOD_DG_Vars       ,ONLY: U_N, N_DG_Mapping
+USE MOD_Mesh_Vars     ,ONLY: offSetElem
+#if USE_HDG
+#if PP_nVar!=1
+USE MOD_Equation_Vars ,ONLY: B
+#endif
+#endif /*USE_HDG*/
+!----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: ElemID !< Local element ID
+REAL,INTENT(IN)    :: PartPosRef_loc(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: GetPotential(1:1)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: Nloc
+!===================================================================================================================================
+GetPotential(1:1)=0.
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+!--- evaluate at Particle position
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),1,Nloc,U_N(ElemID)%U(1:1,:,:,:),1,GetPotential(1:1),ElemID)
+END FUNCTION GetPotential
+
+
+PPURE FUNCTION GetPotentialDW(ElemID, PartPos_loc)
+!===================================================================================================================================
+! Evaluate the electro-(magnetic) field using the reference position and return the field
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_PreProc
+USE MOD_Mesh_Vars ,ONLY: N_VolMesh, offSetElem
+USE MOD_DG_Vars   ,ONLY: N_DG_Mapping, U_N
+!----------------------------------------------------------------------------------------------------------------------------------
+  IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(IN) :: ElemID !< Local element ID
+REAL,INTENT(IN)    :: PartPos_loc(1:3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL :: GetPotentialDW(1:1)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL,ALLOCATABLE :: PartDistDepo(:,:,:)
+INTEGER          :: k,l,m,Nloc
+REAL             :: norm,DistSum
+!===================================================================================================================================
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+ALLOCATE(PartDistDepo(0:Nloc,0:Nloc,0:Nloc))
+GetPotentialDW = 0.0
+PartDistDepo = 0.0
+DistSum = 0.0
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
+  norm = VECNORM(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
+  IF(norm.GT.0.)THEN
+    PartDistDepo(k,l,m) = 1./norm
+  ELSE
+    PartDistDepo(:,:,:) = 0.
+    PartDistDepo(k,l,m) = 1.
+    DistSum = 1.
+    EXIT
+  END IF ! norm.GT.0.
+  DistSum = DistSum + PartDistDepo(k,l,m)
+END DO; END DO; END DO
+
+GetPotentialDW = 0.0
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
+  GetPotentialDW(1:1) = GetPotentialDW(1:1) + PartDistDepo(k,l,m)/DistSum*U_N(ElemID)%U(1:1,k,l,m)
+END DO; END DO; END DO
+
+END FUNCTION GetPotentialDW
+
+
 PPURE FUNCTION GetEMField(ElemID,PartPosRef_loc)
 !===================================================================================================================================
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
@@ -258,20 +403,12 @@ PPURE FUNCTION GetEMField(ElemID,PartPosRef_loc)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Eval_xyz      ,ONLY: EvaluateFieldAtRefPos
-#if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U
-#endif
-#ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E
-#endif
+USE MOD_DG_Vars       ,ONLY: U_N, N_DG_Mapping
+USE MOD_Mesh_Vars     ,ONLY: offSetElem
 #if USE_HDG
-#if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
-#elif PP_nVar==3
+#if PP_nVar!=1
 USE MOD_Equation_Vars ,ONLY: B
-#else
-USE MOD_Equation_Vars ,ONLY: B,E
-#endif /*PP_nVar==1*/
+#endif
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -284,69 +421,55 @@ REAL,INTENT(IN)    :: PartPosRef_loc(1:3)
 REAL :: GetEMField(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#if defined PP_POIS || (USE_HDG && PP_nVar==4)
-REAL :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-#endif /*(PP_POIS||USE_HDG)*/
+#if (USE_HDG && PP_nVar==4)
+REAL, ALLOCATABLE :: HelperU(:,:,:,:)
+#endif /*(USE_HDG)*/
+INTEGER         :: Nloc
 !===================================================================================================================================
 GetEMField(1:6)=0.
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 !--- evaluate at Particle position
 #if (PP_nVar==8)
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetEMField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,Nloc,U_N(ElemID)%U(1:6,:,:,:),6,GetEMField(1:6),ElemID)
 #else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,U(1:6,:,:,:,ElemID),6,GetEMField(1:6),ElemID)
-#endif
-#else
-#ifdef PP_POIS
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
-#elif USE_HDG
+#if USE_HDG
 #if PP_nVar==1
 #if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
 ! Boris or HC: consider B-Field, e.g., from SuperB
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),6,GetEMField(1:6),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),6,GetEMField(1:6),ElemID)
 #else
 ! Consider only electric fields
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,E(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%E(1:3,:,:,:),3,GetEMField(1:3),ElemID)
 #endif
 #elif PP_nVar==3
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,B(1:3,:,:,:,ElemID),3,GetEMField(4:6),ElemID)
 #else
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),6,PP_N,HelperU,6,GetEMField(1:6),ElemID)
 #endif
 #else
-CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,PP_N,U(1:3,:,:,:,ElemID),3,GetEMField(1:3),ElemID)
+CALL EvaluateFieldAtRefPos(PartPosRef_loc(1:3),3,Nloc,U_N(ElemID)%U(1:3,:,:,:),3,GetEMField(1:3),ElemID)
 #endif
 #endif
 END FUNCTION GetEMField
+
 
 PPURE FUNCTION GetEMFieldDW(ElemID, PartPos_loc)
 !===================================================================================================================================
 ! Evaluate the electro-(magnetic) field using the reference position and return the field
 !===================================================================================================================================
 ! MODULES
-USE MOD_Mesh_Vars             ,ONLY: Elem_xGP
+USE MOD_Mesh_Vars             ,ONLY: N_VolMesh, offSetElem
 USE MOD_PICInterpolation_Vars ,ONLY: useBGField
-USE MOD_Interpolation_Vars    ,ONLY: BGField,BGType,BGDataSize
+USE MOD_Interpolation_Vars    ,ONLY: N_BG,BGType,BGDataSize
 USE MOD_Globals
 USE MOD_PreProc
-#if ! (USE_HDG)
-USE MOD_DG_Vars       ,ONLY: U
-#endif
-#ifdef PP_POIS
-USE MOD_Equation_Vars ,ONLY: E
-#endif
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping, U_N
 #if USE_HDG
-#if PP_nVar==1
-USE MOD_Equation_Vars ,ONLY: E
-#elif PP_nVar==3
+#if PP_nVar!=1
 USE MOD_Equation_Vars ,ONLY: B
-#else
-USE MOD_Equation_Vars ,ONLY: B,E
-#endif /*PP_nVar==1*/
+#endif
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------
   IMPLICIT NONE
@@ -359,16 +482,14 @@ REAL,INTENT(IN)    :: PartPos_loc(1:3)
 REAL :: GetEMFieldDW(1:6)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL    :: HelperU(1:6,0:PP_N,0:PP_N,0:PP_N)
-REAL    :: PartDistDepo(0:PP_N,0:PP_N,0:PP_N), DistSum
-INTEGER :: k,l,m,ind1,ind2
-REAL    :: norm
+REAL,ALLOCATABLE    :: HelperU(:,:,:,:)
+REAL,ALLOCATABLE    :: PartDistDepo(:,:,:)
+INTEGER :: k,l,m,ind1,ind2, Nloc
+REAL    :: norm, DistSum
 #if (PP_nVar==8)
 INTEGER,PARAMETER :: HelperUIndex = 6
 #else
-#ifdef PP_POIS
-INTEGER,PARAMETER :: HelperUIndex = 3
-#elif USE_HDG
+#if USE_HDG
 #if PP_nVar==1
 INTEGER,PARAMETER :: HelperUIndex = 3
 #else
@@ -379,43 +500,39 @@ INTEGER,PARAMETER :: HelperUIndex = 3
 #endif
 #endif
 !===================================================================================================================================
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+ALLOCATE(HelperU(1:6,0:Nloc,0:Nloc,0:Nloc))
+ALLOCATE(PartDistDepo(0:Nloc,0:Nloc,0:Nloc))
 GetEMFieldDW = 0.0
 PartDistDepo = 0.0
 HelperU = 0.0
 !--- evaluate at Particle position
 #if (PP_nVar==8)
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-HelperU(4:6,:,:,:) = U(4:6,:,:,:,ElemID)
+HelperU(1:6,:,:,:) = U_N(ElemID)%U(1:6,:,:,:)
 #else
-HelperU(1:6,:,:,:) = U(1:6,:,:,:,ElemID)
-#endif
-#else
-#ifdef PP_POIS
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
-#elif USE_HDG
+#if USE_HDG
 #if PP_nVar==1
 #if (PP_TimeDiscMethod==507) || (PP_TimeDiscMethod==508)
 ! Boris or HC: consider B-Field, e.g., from SuperB
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 #else
 ! Consider only electric fields
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 #endif
 #elif PP_nVar==3
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 #else
-HelperU(1:3,:,:,:) = E(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%E(1:3,:,:,:)
 HelperU(4:6,:,:,:) = B(1:3,:,:,:,ElemID)
 #endif
 #else
-HelperU(1:3,:,:,:) = U(1:3,:,:,:,ElemID)
+HelperU(1:3,:,:,:) = U_N(ElemID)%U(1:3,:,:,:)
 #endif
 #endif
 
 DistSum = 0.0
-DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-  norm = VECNORM(Elem_xGP(1:3,k,l,m, ElemID)-PartPos_loc(1:3))
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
+  norm = VECNORM(N_VolMesh(ELemID)%Elem_xGP(1:3,k,l,m)-PartPos_loc(1:3))
   IF(norm.GT.0.)THEN
     PartDistDepo(k,l,m) = 1./norm
   ELSE
@@ -424,10 +541,11 @@ DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
     DistSum = 1.
     EXIT
   END IF ! norm.GT.0.
-  DistSum = DistSum + PartDistDepo(k,l,m)
+  DistSum = DistSum + PartDistDepo(k,l,m) 
 END DO; END DO; END DO
 
-DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
+GetEMFieldDW = 0.0
+DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
   GetEMFieldDW(1:HelperUIndex) = GetEMFieldDW(1:HelperUIndex) + PartDistDepo(k,l,m)/DistSum*HelperU(1:HelperUIndex,k,l,m)
 END DO; END DO; END DO
 
@@ -446,13 +564,13 @@ IF(useBGField)THEN
     ind2 = 6
   END SELECT
   ! Add contribution of the magnetic field
-  DO k = 0, PP_N; DO l=0, PP_N; DO m=0, PP_N
-    GetEMFieldDW(ind1:ind2) = GetEMFieldDW(ind1:ind2) + PartDistDepo(k,l,m)/DistSum*BGField(1:BGDataSize,k,l,m,ElemID)
+  DO k = 0, Nloc; DO l=0, Nloc; DO m=0, Nloc
+    GetEMFieldDW(ind1:ind2) = GetEMFieldDW(ind1:ind2) + PartDistDepo(k,l,m)/DistSum*N_BG(ElemID)%BGField(1:BGDataSize,k,l,m)
   END DO; END DO; END DO
 END IF ! useBGField
 
 END FUNCTION GetEMFieldDW
-#endif
+#endif /*!(USE_FV) || (USE_HDG)*/
 
 PPURE FUNCTION InterpolateVariableExternalField1D(Pos)
 !===================================================================================================================================

@@ -60,7 +60,8 @@ USE MOD_Gradient_Vars
 #if USE_MPI
 USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_MPI_Vars
-USE MOD_MPI                   ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
+USE MOD_MPI                   ,ONLY: FinishExchangeMPIData
+USE MOD_MPI_FV                ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 #endif
@@ -151,7 +152,8 @@ USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
 USE MOD_Mesh_Vars           ,ONLY: nElems,ElemToSide
 #if USE_MPI
 USE MOD_Mesh_Vars           ,ONLY: nSides
-USE MOD_MPI                 ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
+USE MOD_MPI                 ,ONLY: FinishExchangeMPIData
+USE MOD_MPI_FV              ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV
 USE MOD_MPI_Vars
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers  ,ONLY: LBStartTime,LBSplitTime
@@ -482,4 +484,3 @@ SDEALLOCATE(Grad_SysSol_BC)
 END SUBROUTINE FinalizeGradients
 
 END MODULE MOD_Gradients
-

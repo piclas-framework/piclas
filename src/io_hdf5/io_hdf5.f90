@@ -60,7 +60,9 @@ TYPE tElementOut
   TYPE(tElementOut),POINTER             :: next         => NULL()     !< next list item
 END TYPE
 
-TYPE(tElementOut),POINTER    :: ElementOut   => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOut      => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOutRay   => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOutNloc  => NULL() !< linked list of output pointers
 
 INTERFACE InitIOHDF5
   MODULE PROCEDURE InitIOHDF5
@@ -130,9 +132,6 @@ USE MOD_ReadInTools ,ONLY: GETLOGICAL
 #if USE_MPI
 USE MOD_Globals     ,ONLY: MPIRoot
 #endif /*USE_MPI*/
-#ifdef INTEL
-USE IFPORT
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -371,8 +370,7 @@ IF(PRESENT(eval))THEN
   eout%eval       => Eval
   nOpts=nOpts+1
 ENDIF
-IF(nOpts.NE.1) CALL Abort(__STAMP__,'More then one optional argument passed to AddToElemData.')
-
+IF(nOpts.NE.1) CALL Abort(__STAMP__,'More than one optional argument passed to AddToElemData for: '//TRIM(VarName))
 END SUBROUTINE AddToElemData
 
 

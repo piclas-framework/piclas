@@ -41,7 +41,6 @@ USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time,iter
 USE MOD_TimeDisc_Vars          ,ONLY: RK_c,nRKStages
-USE MOD_DG_Vars                ,ONLY: U
 #ifdef PARTICLES
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,dt_Min,dtWeight
 USE MOD_TimeDisc_Vars          ,ONLY: RKdtFracTotal,RKdtFrac
@@ -67,15 +66,18 @@ USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,isPushParticle,Calc
 USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
+USE MOD_PICDepo                ,ONLY: DepositVirtualDielectricLayerParticles
 #endif /*PARTICLES*/
 USE MOD_HDG                    ,ONLY: HDG
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 #ifdef drift_diffusion
 USE MOD_FV_Vars                ,ONLY: U_FV, Ut_FV
 USE MOD_FV                     ,ONLY: FV_main
-#endif
+#endif /*drift_diffusion*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -121,7 +123,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
 END IF
 #endif /*PARTICLES*/
 
-CALL HDG(tStage,U,iter)
+CALL HDG(tStage,iter)
 
 #ifdef PARTICLES
 ! set last data already here, since surfaceflux moved before interpolation
@@ -220,19 +222,19 @@ IF (time.GE.DelayTime) THEN
 #if USE_MPI
   CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
+  CALL ParticleInserting() ! Do inserting before tracking as virtual particles are created, which need to be tracked and deleted
+                           ! after MPI particle send/receive in DepositVirtualDielectricLayerParticles()
   CALL PerformTracking()
-#if USE_LOADBALANCE
-  CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-  CALL ParticleInserting()
-#if USE_LOADBALANCE
-  CALL LBPauseTime(LB_EMISSION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
   CALL SendNbOfParticles() ! send number of particles
   CALL MPIParticleSend()   ! finish communication of number of particles and send particles
   CALL MPIParticleRecv()   ! finish communication
 #endif
+
+  ! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
+  ! boundary interaction, hence, do all of this after MPI communication
+  ! This must be called directly after "CALL MPIParticleRecv()" to delete the virtual particles that are created in PerformTracking()
+  IF(DoDielectricSurfaceCharge) CALL DepositVirtualDielectricLayerParticles()
 END IF
 
 #endif /*PARTICLES*/
@@ -240,7 +242,7 @@ END IF
 #ifdef drift_diffusion
 CALL FV_main(time,tStage,doSource=.FALSE.)
 U_FV = U_FV + Ut_FV*dt*RK_c(2)
-#endif
+#endif /*drift_diffusion*/
 
 ! perform RK steps
 DO iStage=2,nRKStages
@@ -262,7 +264,7 @@ DO iStage=2,nRKStages
   END IF
 #endif /*PARTICLES*/
 
-  CALL HDG(tStage,U,iter)
+  CALL HDG(tStage,iter)
 
 #ifdef PARTICLES
 #if USE_LOADBALANCE
@@ -354,33 +356,32 @@ DO iStage=2,nRKStages
 #if USE_MPI
     CALL IRecvNbofParticles() ! open receive buffer for number of particles
 #endif
+    CALL ParticleInserting()  ! Do inserting before tracking as virtual particles are created, which need to be tracked and deleted
+                              ! after MPI particle send/receive in DepositVirtualDielectricLayerParticles()
     CALL PerformTracking()
-#if USE_LOADBALANCE
-    CALL LBStartTime(tLBStart)
-#endif /*USE_LOADBALANCE*/
-    CALL ParticleInserting()
-#if USE_LOADBALANCE
-    CALL LBPauseTime(LB_EMISSION,tLBStart)
-#endif /*USE_LOADBALANCE*/
 #if USE_MPI
     CALL SendNbOfParticles() ! send number of particles
     CALL MPIParticleSend()   ! finish communication of number of particles and send particles
     CALL MPIParticleRecv()   ! finish communication
 #endif
-  END IF
+
+    ! Virtual Dielectric Layer (VDL) particles are deposited and deleted here because they might have changed the process after
+    ! boundary interaction, hence, do all of this after MPI communication
+    ! This must be called directly after "CALL MPIParticleRecv()" to delete the virtual particles that are created in PerformTracking()
+    IF(DoVirtualDielectricLayer) CALL DepositVirtualDielectricLayerParticles()
+  END IF ! time.GE.DelayTime
 #endif /*PARTICLES*/
 
 #ifdef drift_diffusion
-CALL FV_main(time,tStage,doSource=.FALSE.)
-IF (iStage.NE.nRKStages) THEN
-  U_FV = U_FV + Ut_FV*dt*(RK_c(iStage+1)-RK_c(iStage))
-ELSE
-  U_FV = U_FV + Ut_FV*dt*(1.-RK_c(nRKStages))
-END IF
+  CALL FV_main(time,tStage,doSource=.FALSE.)
+  IF (iStage.NE.nRKStages) THEN
+    U_FV = U_FV + Ut_FV*dt*(RK_c(iStage+1)-RK_c(iStage))
+  ELSE
+    U_FV = U_FV + Ut_FV*dt*(1.-RK_c(nRKStages))
+  END IF
+#endif /*drift_diffusion*/
 
-#endif
-
-END DO
+END DO ! iStage=2,nRKStages
 
 #ifdef PARTICLES
 IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL UpdateNextFreePosition()

@@ -45,7 +45,7 @@ SUBROUTINE MacroRestart_InsertParticles()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: Pi
-USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, DSMC
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, DSMC, BGGas
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_part_tools              ,ONLY: CalcRadWeightMPF,CalcVarWeightMPF,InitializeParticleMaxwell, IncreaseMaxParticleNumber
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
@@ -85,6 +85,9 @@ DO iElem = 1, nElems
     IF (Symmetry%Axisymmetric) THEN
       IF (DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) THEN
         DO iSpec = 1, nSpecies
+          ! Skip background gas species
+          IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+          ! Skip electron species with ambipolar diffusion
           IF (DSMC%DoAmbipolarDiff) THEN
             IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
           END IF
@@ -97,7 +100,7 @@ DO iElem = 1, nElems
             IF (DoRadialWeighting) THEN
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcRadWeightMPF((MaxPosTemp+MinPosTemp)*0.5,iSpec)
             ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
-              PosVar = (/0.0,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
+              PosVar = (/(Bounds(2,1)+Bounds(1,1))*0.5,(MaxPosTemp+MinPosTemp)*0.5,0.0/)
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcVarWeightMPF(PosVar,iElem)
             END IF
             IF(UseVarTimeStep) THEN
@@ -123,6 +126,9 @@ DO iElem = 1, nElems
         END DO ! nSpecies
       ELSE ! No Weighting
         DO iSpec = 1, nSpecies
+          ! Skip background gas species
+          IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+          ! Skip electron species with ambipolar diffusion
           IF (DSMC%DoAmbipolarDiff) THEN
             IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
           END IF
@@ -151,6 +157,9 @@ DO iElem = 1, nElems
     ELSE IF(Symmetry%Order.EQ.2) THEN
       Volume = (Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        ! Skip background gas species
+        IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+        ! Skip electron species with ambipolar diffusion
         IF (DSMC%DoAmbipolarDiff) THEN
           IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
         END IF
@@ -178,6 +187,9 @@ DO iElem = 1, nElems
     ELSE IF(Symmetry%Order.EQ.1) THEN
       Volume = (Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        ! Skip background gas species
+        IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+        ! Skip electron species with ambipolar diffusion
         IF (DSMC%DoAmbipolarDiff) THEN
           IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
         END IF
@@ -206,6 +218,9 @@ DO iElem = 1, nElems
 ! #################### 3D ##########################################################################################################
       Volume = (Bounds(2,3) - Bounds(1,3))*(Bounds(2,2) - Bounds(1,2))*(Bounds(2,1) - Bounds(1,1))
       DO iSpec = 1, nSpecies
+        ! Skip background gas species
+        IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+        ! Skip electron species with ambipolar diffusion
         IF (DSMC%DoAmbipolarDiff) THEN
           IF (iSpec.EQ.DSMC%AmbiDiffElecSpec) CYCLE
         END IF

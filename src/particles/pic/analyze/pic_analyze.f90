@@ -45,29 +45,23 @@ SUBROUTINE VerifyDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars             ,ONLY: nElems, sJ, Elem_xGP
-USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
+USE MOD_Mesh_Vars             ,ONLY: nElems, N_VolMesh, offSetElem
+USE MOD_Interpolation_Vars    ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
 USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies ,PartMPF,usevMPF
 USE MOD_Particle_Analyze_Vars ,ONLY: ChargeCalcDone
 USE MOD_PICDepo_Vars          ,ONLY: sfDepo3D,dimFactorSF,VerifyChargeStr,DepositionType
-#if defined(IMPA)
-USE MOD_LinearSolver_Vars     ,ONLY: ImplicitSource
-#else
-USE MOD_PICDepo_Vars          ,ONLY: PartSource
-#endif
+USE MOD_PICDepo_Vars          ,ONLY: PS_N
 USE MOD_ChangeBasis           ,ONLY: ChangeBasis3D
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
-INTEGER           :: k,l,m,i
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER           :: k,l,m,i,iElem,Nloc
 REAL              :: ChargeNumerical, ChargeLoc, ChargeAnalytical
 REAL              :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL              :: source(1,0:PP_N,0:PP_N,0:PP_N)
 REAL              :: U_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL              :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL              :: IntegrationWeight
@@ -77,18 +71,13 @@ SWRITE(UNIT_stdOut,'(A)') ' PERFORMING CHARGE DEPOSITION PLAUSIBILITY CHECK...'
 
 ChargeNumerical=0. ! Nullify
 DO iElem=1,nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-  CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+  CALL ChangeBasis3D(3,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:),Coords_NAnalyze(1:3,:,:,:))
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,1./N_VolMesh(iElem)%sJ(:,:,:),J_NAnalyze(1:1,:,:,:))
   ! Interpolate the solution to the analyze grid
-#if defined(IMPA)
-  source(1,:,:,:) = ImplicitSource(4,:,:,:,iElem)
-#else
-  source(1,:,:,:) =     PartSource(4,:,:,:,iElem)
-#endif
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,source(1,:,:,:),U_NAnalyze(1,:,:,:))
+  CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,PS_N(iElem)%PartSource(4,0:Nloc,0:Nloc,0:Nloc),U_NAnalyze(1,:,:,:))
   ChargeLoc=0. ! Nullify
   DO m=0,NAnalyze
     DO l=0,NAnalyze
@@ -151,25 +140,20 @@ SUBROUTINE CalcDepositedCharge()
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars,              ONLY:sJ
-USE MOD_Particle_Vars,          ONLY:PDM, Species, PartSpecies, usevmpf, PartMPF
-USE MOD_Interpolation_Vars,     ONLY:wGP
-USE MOD_Particle_Analyze_Vars,  ONLY:PartCharge
-USE MOD_TimeDisc_Vars,          ONLY:iter
-#if defined(IMPA)
-USE MOD_LinearSolver_Vars,      ONLY:ImplicitSource
-#else
-USE MOD_PICDepo_Vars,           ONLY:PartSource
-#endif
+USE MOD_Mesh_Vars             ,ONLY: N_VolMesh, offSetElem
+USE MOD_Particle_Vars         ,ONLY: PDM, Species, PartSpecies, usevmpf, PartMPF
+USE MOD_Interpolation_Vars    ,ONLY: N_Inter
+USE MOD_Particle_Analyze_Vars ,ONLY: PartCharge
+USE MOD_TimeDisc_Vars         ,ONLY: iter
+USE MOD_PICDepo_Vars          ,ONLY: PS_N
+USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem
-INTEGER           :: i,j,k,iPart
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER           :: i,j,k,iPart,iElem,Nloc
 REAL              :: Charge(2)
 #if USE_MPI
 REAL              :: RECBR(2)
@@ -182,18 +166,13 @@ Charge=0.
 PartCharge=0.
 IF(iter.EQ.0) RETURN
 DO iElem=1,PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! compute the deposited charge
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if defined(IMPA)
-#if USE_HDG
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(1,i,j,k,iElem) * J_N(1,i,j,k)
-#else /* DG */
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * ImplicitSource(4,i,j,k,iElem) * J_N(1,i,j,k)
-#endif
-#else
-    Charge(1) = Charge(1)+ wGP(i)*wGP(j)*wGP(k) * PartSource(4,i,j,k,iElem) * J_N(1,i,j,k)
-#endif
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    ASSOCIATE( wGPijk => N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k) ,&
+               J_Nloc => 1./N_VolMesh(iElem)%sJ(i,j,k) )
+      Charge(1) = Charge(1)+ wGPijk * PS_N(iElem)%PartSource(4,i,j,k) * J_Nloc
+    END ASSOCIATE
   END DO; END DO; END DO
 END DO
 
@@ -240,12 +219,13 @@ SUBROUTINE CalculateBRElectronsPerCell(iElem,RegionID,ElectronNumberCell)
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Preproc
-USE MOD_Mesh_Vars          ,ONLY: sJ
-USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if PP_nVar==1
-USE MOD_DG_Vars            ,ONLY: U
+USE MOD_DG_Vars            ,ONLY: U_N
 #endif
 USE MOD_HDG_Vars           ,ONLY: RegionElectronRef
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -256,19 +236,16 @@ INTEGER,INTENT(IN):: iElem, RegionID
 REAL,INTENT(OUT)  :: ElectronNumberCell
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k
-REAL              :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER           :: i,j,k,Nloc
 REAL              :: source_e
 !===================================================================================================================================
 ElectronNumberCell=0.
-J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+Nloc = N_DG_Mapping(2,iElem+offSetElem)
+DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
 #if PP_nVar==1
-  source_e = U(1,i,j,k,iElem)-RegionElectronRef(2,RegionID)
+  source_e = U_N(iElem)%U(1,i,j,k)-RegionElectronRef(2,RegionID)
 #else
-  CALL abort(&
-__STAMP__&
-,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
+  CALL abort(__STAMP__,' CalculateBRElectronsPerCell only implemented for electrostatic HDG!')
 #endif
   IF (source_e .LT. 0.) THEN
     source_e = RegionElectronRef(1,RegionID) &         !--- boltzmann relation (electrons as isothermal fluid!)
@@ -277,7 +254,8 @@ __STAMP__&
     source_e = RegionElectronRef(1,RegionID) &         !--- linearized boltzmann relation at positive exponent
     * (1. + ((source_e) / RegionElectronRef(3,RegionID)) )
   END IF
-  ElectronNumberCell = ElectronNumberCell + wGP(i)*wGP(j)*wGP(k) * source_e * J_N(1,i,j,k)
+  ElectronNumberCell = ElectronNumberCell + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k) * source_e * &
+      (1./N_VolMesh(iElem)%sJ(i,j,k))
 END DO; END DO; END DO
 ElectronNumberCell=ElectronNumberCell/ElementaryCharge
 

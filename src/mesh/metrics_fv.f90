@@ -39,18 +39,18 @@ SUBROUTINE CalcMetrics_PP_1(XCL_NGeo_Out,dXCL_NGeo_out)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems,xyzMinMax,GetMeshMinMaxBoundariesIsDone,sJ,crossProductMetrics
+USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems,xyzMinMax,GetMeshMinMaxBoundariesIsDone,crossProductMetrics
 USE MOD_Mesh_Vars_FV       ,ONLY: Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV,JaCL_N_PP_1
 USE MOD_Mesh_Vars_FV       ,ONLY: dXCL_N_PP_1
 USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref
 USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
-USE MOD_Mesh_Vars          ,ONLY: NodeCoords,Elem_xGP
+USE MOD_Mesh_Vars          ,ONLY: NodeCoords,N_VolMesh
 USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Mesh_Vars_FV       ,ONLY: XCL_N_PP_1,Vdm_CLN_N_PP_1
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
-USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType
+USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,NMin
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
@@ -133,7 +133,7 @@ Metrics_hTilde_PP_1 = 0.
 ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
 meshCheckRef=GETLOGICAL('meshCheckRef-FV','.TRUE.')
 
-ALLOCATE(    DetJac_Ref(1,0:NGeoRef,0:NGeoRef,0:NGeoRef,nElems))
+! ALLOCATE(    DetJac_Ref(1,0:NGeoRef,0:NGeoRef,0:NGeoRef,nElems))
 
 ! Initialize min/max coordinates on faces (but not during load balance restart)
 IF(.NOT.GetMeshMinMaxBoundariesIsDone)THEN
@@ -215,7 +215,7 @@ DO iElem=1,nElems
       SmallestscaledJacRef=MIN(SmallestscaledJacRef,scaledJacRef(i,j,k))
       IF(scaledJacRef(i,j,k).LT.scaledJacRefTol) THEN
         WRITE(Unit_StdOut,*) 'Too small scaled Jacobians found (CL/Gauss):', scaledJacRef(i,j,k)
-        WRITE(Unit_StdOut,*) 'Coords near:', Elem_xGP(:,INT(PP_N/2),INT(PP_N/2),INT(PP_N/2),iElem)
+        WRITE(Unit_StdOut,*) 'Coords near:',  N_VolMesh(iElem)%Elem_xGP(:,INT(NMin/2),INT(NMin/2),INT(NMin/2))
         WRITE(Unit_StdOut,*) 'This check is optional. You can disable it by setting meshCheckRef = F'
         CALL abort(__STAMP__,&
           'Scaled Jacobian in reference system lower then tolerance in global element:',iElem+offsetElem)
@@ -228,11 +228,11 @@ DO iElem=1,nElems
   CALL ChangeBasis3D(1,NgeoRef,PP_1,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:,iElem),DetJac_N_PP_1)
 
   ! assign to global Variable sJ
-  sJ(0,0,0,iElem)=1./SUM(SUM(SUM(DetJac_N_PP_1(1,:,:,:),3),2),1)
+  N_VolMesh(iElem)%sJ(0,0,0)=1./SUM(SUM(SUM(DetJac_N_PP_1(1,:,:,:),3),2),1)
 
   ! check for negative Jacobians
   IF(DetJac_N_PP_1(1,0,0,0).LE.0.)&
-    WRITE(Unit_StdOut,*) 'Negative Jacobian found on Gauss point. Coords:', Elem_xGP(:,0,0,0,iElem)
+    WRITE(Unit_StdOut,*) 'Negative Jacobian found on Gauss point. Coords:',  N_VolMesh(iElem)%Elem_xGP(:,0,0,0)
   ! check scaled Jacobians
   scaledJac(2)=MINVAL(DetJac_N_PP_1(1,:,:,:))/MAXVAL(DetJac_N_PP_1(1,:,:,:))
   IF(scaledJac(2).LT.0.01) THEN

@@ -309,6 +309,8 @@ if [ ! -e "${MODULEFILE}" ]; then
       --download-hypre \
       --download-mumps \
       --download-scalapack \
+      --download-metis \
+      --download-parmetis \
       ${BLAS_SUPPORT}
 
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
@@ -326,6 +328,8 @@ if [ ! -e "${MODULEFILE}" ]; then
       --download-hypre \
       --download-mumps \
       --download-scalapack \
+      --download-metis \
+      --download-parmetis \
       ${BLAS_SUPPORT}]$NC"
     exit
   else

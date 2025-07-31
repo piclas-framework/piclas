@@ -33,15 +33,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           BGK-Flow
                                                           ED-DVM
                                                           Explicit-FV
-                                                          CN
-                                                          ImplicitO3
-                                                          ImplicitO4
-                                                          Ascher3
-                                                          ROS2
-                                                          ROS3
-                                                          ROS4
-                                                          ROS46
-                                                          ROS6
+                                                          PLOESMA
                                                           Radiation)
 
 # =========================================================================
@@ -86,17 +78,11 @@ IF(PICLAS_INTKIND8)
    ADD_DEFINITIONS(-DINTKIND8)
 ENDIF()
 
-OPTION(PICLAS_IMPLICIT_ANALYZE "IMPLICIT_ANALYZE" OFF)
-IF(PICLAS_IMPLICIT_ANALYZE)
-  ADD_DEFINITIONS(-DIMPLICIT_ANALYZE)
-ENDIF(PICLAS_IMPLICIT_ANALYZE)
-
 # =========================================================================
 # Polynomial degree
 # =========================================================================
 SET(PICLAS_POLYNOMIAL_DEGREE "N" CACHE STRING "N: compile with variable polynomial degree. 1,2,3,...: compile with fixed polynomial degree for performance (untested).")
 ADD_DEFINITIONS(-DPP_N=${PICLAS_POLYNOMIAL_DEGREE})
-
 
 # =========================================================================
 # Node type
@@ -158,8 +144,7 @@ ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "discrete_velocity")
-  OPTION(PICLAS_DVM_PLASMA "DVM_PLASMA" OFF)
-  IF(PICLAS_DVM_PLASMA)
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
     ADD_DEFINITIONS(-Ddiscrete_velocity)
     ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
     SET(PICLAS_HDG ON)
@@ -209,7 +194,6 @@ ENDIF(PICLAS_EXTRAE)
 # =========================================================================
 # Timedisc method
 # =========================================================================
-SET(PICLAS_IMPLICIT OFF)
 IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
   IF(PICLAS_HDG)
       FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoisson.f90)
@@ -265,42 +249,6 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "DSMC")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_DSMC.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=4)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=120 -DIMPA)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO3")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=121 -DIMPA)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=122 -DIMPA)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByImplicitRK.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=123 -DIMPA)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=130 -DROS)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS3")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=131 -DROS)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=132 -DROS)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=133 -DROS)
-  SET(PICLAS_IMPLICIT ON)
-ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
-  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepByRosenbrock.f90)
-  ADD_DEFINITIONS(-DPP_TimeDiscMethod=134 -DROS)
-  SET(PICLAS_IMPLICIT ON)
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "FP-Flow")
    FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_FPFlow.f90)
    ADD_DEFINITIONS(-DPP_TimeDiscMethod=300)
@@ -316,6 +264,9 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_ExplicitFV.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=701)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_ploesma.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=702)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -340,26 +291,10 @@ IF(PICLAS_HDG)
       MESSAGE(STATUS "use HDG with RK4")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK14")
       MESSAGE(STATUS "use HDG with RK14")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "CN")
-      MESSAGE(STATUS "use HDG with CN")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO3")
-     MESSAGE(STATUS "use HDG with ImplicitO3")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ImplicitO4")
-     MESSAGE(STATUS "use HDG with ImplicitO4")
-   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Ascher3")
-     MESSAGE(STATUS "use HDG with Ascher3")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS2")
-     MESSAGE(STATUS "use HDG with ROS2")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS4")
-     MESSAGE(STATUS "use HDG with ROS4")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS46")
-     MESSAGE(STATUS "use HDG with ROS46")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ROS6")
-     MESSAGE(STATUS "use HDG with ROS6")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
      MESSAGE(STATUS "use HDG in parallel to Explicit-FV")
-  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
-     MESSAGE(STATUS "use HDG in parallel to ED-DVM")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
+     MESSAGE(STATUS "use HDG in parallel to DVM")
   ELSE()
       MESSAGE(SEND_ERROR "Unknown time discretization method for HDG.")
   ENDIF()
@@ -389,6 +324,8 @@ IF(PICLAS_FV)
     MESSAGE(STATUS "use FV with DVM")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
     MESSAGE(STATUS "use Explicit Finite Volumes")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
+    MESSAGE(STATUS "use HDG for fields and FV for DVM")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
     MESSAGE(STATUS "use HDG/FV with RK3")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
@@ -532,7 +469,6 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90)
 
-
 FILE(GLOB_RECURSE fvF90 ./src/fv/*.f90
                         ./src/gradients/*.f90
                         ./src/equations/${PICLAS_EQNSYSNAME}/*.f90)
@@ -559,36 +495,6 @@ FILE(GLOB_RECURSE hdgfvF90 ./src/hdg/*.f90
                         ./src/equations/poisson/timeavg.f90
                         ./src/equations/poisson/timeavg_vars.f90
                         ./src/equations/poisson/calctimestep.f90)
-
-
-FILE(GLOB_RECURSE implicitF90 ./src/linearsolver/linearsolver.f90
-                              ./src/linearsolver/linearsolver_vars.f90
-                              ./src/linearsolver/particlesolver.f90
-                              ./src/linearsolver/predictor.f90
-                              ./src/linearsolver/linearoperator/linearoperator.f90
-                              ./src/linearsolver/newton.f90)
-
-IF(PICLAS_EQNSYSNAME STREQUAL "maxwell_pois")
-  FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
-                               ./src/precond/precond_vars.f90
-                               ./src/precond/applypreconditioner.f90
-                               ./src/linearsolver/linearoperator/sparse_ilu.f90
-                               ./src/precond/csr/*.f90
-                               ./src/precond/ilu/*.f90
-                               ./src/precond/jacdg/*.f90
-                               ./src/precond/jac_fd/*.f90
-                               ./src/precond/jac_ex/${PICLAS_EQNSYSNAME}/*.f90)
-ELSE()
-  FILE(GLOB_RECURSE precondF90 ./src/precond/precond.f90
-                               ./src/precond/precond_vars.f90
-                               ./src/precond/applypreconditioner.f90
-                               ./src/linearsolver/linearoperator/sparse_ilu.f90
-                               ./src/precond/csr/*.f90
-                               ./src/precond/ilu/*.f90
-                               ./src/precond/jacdg/*.f90
-                               ./src/precond/jac_fd/*.f90
-                               ./src/precond/jac_ex/maxwell/*.f90)
-ENDIF()
 
 #FILE(GLOB mainF90 ./src/piclas.f90
                   #./src/piclaslib.f90)
@@ -622,21 +528,15 @@ IF(PICLAS_HDG)
     LIST(APPEND piclasF90 ${hdgfvF90})
   ELSE()
     LIST(APPEND piclasF90 ${hdgF90})
-    IF(PICLAS_IMPLICIT)
-      LIST(APPEND piclasF90 ${implicitF90})
-    ENDIF(PICLAS_IMPLICIT)
   ENDIF()
 ELSEIF(PICLAS_FV)
+  LIST(FILTER noparticlesF90 EXCLUDE REGEX ".*superb.f90$")
   LIST(APPEND piclasF90 ${fvF90})
 ELSE()
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*particle_br_electron_fluid.f90$")
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*superb.f90$")
   LIST(APPEND piclasF90 ${dgF90})
-  IF(PICLAS_IMPLICIT)
-    LIST(APPEND piclasF90 ${implicitF90})
-    LIST(APPEND piclasF90 ${precondF90})
-  ENDIF(PICLAS_IMPLICIT)
-ENDIF()
+ENDIF(PICLAS_HDG)
 
 #LIST(APPEND piclasF90 ${mainF90})
 IF (PICLAS_PARTICLES)

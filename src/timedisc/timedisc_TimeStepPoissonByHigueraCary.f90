@@ -36,7 +36,6 @@ SUBROUTINE TimeStepPoissonByHigueraCary()
 ! MODULES
 USE MOD_Globals_Vars           ,ONLY: c_inv,c2_inv
 USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM
-USE MOD_DG_Vars                ,ONLY: U
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_HDG                    ,ONLY: HDG
@@ -146,7 +145,7 @@ IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition()
 #endif /*PARTICLES*/
 
 ! HDG at x(n+1/2) gives E(x(n+1/2))
-CALL HDG(time,U,iter)
+CALL HDG(time,iter)
 
 #ifdef PARTICLES
 IF (time.GE.DelayTime) THEN

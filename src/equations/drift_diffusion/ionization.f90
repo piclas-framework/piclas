@@ -34,7 +34,6 @@ SUBROUTINE InsertNewIons(init)
 USE MOD_Globals
 USE MOD_PreProc ! PP_N
 USE MOD_FV_Vars            ,ONLY: U_FV
-USE MOD_Equation_Vars      ,ONLY: E
 USE MOD_TimeDisc_Vars      ,ONLY: dt
 USE MOD_part_operations    ,ONLY: CreateParticle
 USE MOD_Particle_Tracking  ,ONLY: ParticleInsideCheck
@@ -48,8 +47,9 @@ USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 USE MOD_part_emission_tools,ONLY: CalcVelocity_maxwell_lpn
 USE MOD_Mesh_Vars_FV       ,ONLY:Elem_xGP_FV
 USE MOD_Equation_FV        ,ONLY:ExactFunc_FV
-USE MOD_Interpolation_Vars ,ONLY: wGP
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Part_Tools         ,ONLY: UpdateNextFreePosition
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -61,7 +61,7 @@ INTEGER,OPTIONAL                     :: init
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                              :: nPart, iPart, iSpecBG, iSpecIon, iSpec, ElemID, GlobalElemID, i, j, k
+INTEGER                              :: nPart, iPart, iSpecBG, iSpecIon, iSpec, ElemID, GlobalElemID, i, j, k, Nloc
 REAL                                 :: iRan , RandomPos(1:3), DeltaPartDens, realPartNumber, Velocity(1:3)
 REAL                                 :: RotEnergy, VibEnergy, ElecEnergy, ionRate, mu, D, resu(PP_nVar_FV), E_avg(1:3)
 LOGICAL                              :: InsideFlag
@@ -80,10 +80,11 @@ DO ElemID=1,PP_nElems
     CALL ExactFunc_FV(init,0.,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
     DeltaPartDens = resu(1)
   ELSE
+    Nloc = N_DG_Mapping(2,ElemID+offSetElem)
 
     E_avg = 0.
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      E_avg(:) = E_avg(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      E_avg(:) = E_avg(:) + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)*U_N(ElemID)%E(1:3,i,j,k)/((Nloc+1.)**3)
     END DO; END DO; END DO
 
     CALL CalcDriftDiffusionCoeff(VECNORM(E_avg),BGGas%NumberDensity(iSpecBG),mu,D,ionRate)
@@ -124,7 +125,7 @@ DO ElemID=1,PP_nElems
         END IF
       END IF
 
-      CALL CreateParticle(iSpecIon,RandomPos,GlobalElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy)
+      CALL CreateParticle(iSpecIon,RandomPos,GlobalElemID,GlobalElemID,Velocity,RotEnergy,VibEnergy,ElecEnergy)
 
     END DO ! nPart
   END ASSOCIATE

@@ -23,8 +23,6 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL           :: doCalcSource             !< Swith to calculate a source term or not, automatically set by calcsource itself
-REAL              :: AdvVel(3)                !< Advection velocity
-REAL              :: DiffC                    !< Diffusion constant
 INTEGER           :: IniExactFunc_FV             !< Number of exact function used for initialization
 INTEGER           :: IniRefState_FV              !< RefState for initialization
 INTEGER           :: nRefState_FV                !< number of refstates defined in parameter file
@@ -33,9 +31,7 @@ REAL,ALLOCATABLE  :: RefState_FV(:,:,:)        !< reference state
 REAL              :: Pi
 
 #if !(USE_HDG)
-REAL                 :: c_corr
-REAL                 :: fDamping
-REAL                 :: WaveLength                             !> wave length
+! Boundary condition arrays
 INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each boundary
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 #endif

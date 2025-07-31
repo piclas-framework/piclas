@@ -175,11 +175,12 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 USE MOD_PreProc
 USE MOD_Globals           ,ONLY: vecnorm
 USE MOD_FV_Vars           ,ONLY: U_FV
-USE MOD_Equation_Vars     ,ONLY: E
 USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars         ,ONLY: BGGas
 USE MOD_Particle_Vars     ,ONLY: nSpecies
-USE MOD_Interpolation_Vars,ONLY: wGP
+USE MOD_Interpolation_Vars,ONLY: N_Inter
+USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
+USE MOD_Mesh_Vars         ,ONLY: offsetElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -190,7 +191,7 @@ REAL,INTENT(IN)                 :: t,coeff
 REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: ElemID, iSpec, i, j, k
+INTEGER                         :: ElemID, iSpec, i, j, k, Nloc
 REAL                            :: ionRate, mu, D, E_avg(1:3)
 !===================================================================================================================================
 DO iSpec = 1, nSpecies
@@ -200,9 +201,10 @@ DO iSpec = 1, nSpecies
 END DO
 
 DO ElemID = 1, PP_nElems
+  Nloc = N_DG_Mapping(2,ElemID+offSetElem)
   E_avg = 0.
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    E_avg(:) = E_avg(:) + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,ElemID)/((PP_N+1.)**3)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    E_avg(:) = E_avg(:) + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)*U_N(ElemID)%E(1:3,i,j,k)/((Nloc+1.)**3)
   END DO; END DO; END DO
 
   CALL CalcDriftDiffusionCoeff(VECNORM(E_avg),BGGas%NumberDensity(iSpec),mu,D,ionRate)

@@ -46,10 +46,12 @@ CALL prms%SetSection("Particle Analyze")
 
 CALL prms%CreateIntOption(      'Part-AnalyzeStep'        , 'Analyze is performed each Nth time step','1')
 CALL prms%CreateLogicalOption(  'CalcTotalEnergy'         , 'Calculate Total Energy. Output file is Database.csv','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcParticlePotentialEnergy'  , 'Compute the potential particle energy as sum(q_i*phi(x_i)), with electric potential phi at the position x_i and q_i as the electric charge of the i-th particle','.FALSE.')
 CALL prms%CreateLogicalOption(  'PIC-VerifyCharge'        , 'Validate the charge after each deposition and write an output in std.out','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcIonizationDegree'    , 'Compute the ionization degree in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerShapeFunction','Compute the average number of interpolation points that are used for the shape function in each cell','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     ,'Compute the plasma parameter N_D in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcPlasmaParameter'     , 'Compute the plasma parameter N_D in each cell','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcNumPlasmaParameter'  , 'Compute the numerical plasma parameter (simulation particles per Debye sphere/area/length) in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPointsPerDebyeLength', 'Compute the points per Debye length in each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcPICCFLCondition'     , 'Compute a PIC CFL condition for each cell','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcMaxPartDisplacement' , 'Compute the maximum displacement of the fastest particle relative to the cell lengths in X, Y and Z for each cell','.FALSE.')
@@ -90,14 +92,11 @@ CALL prms%CreateLogicalOption(  'CalcMeanSquaredDisplacement' , 'Calculate the m
 CALL prms%CreateLogicalOption(  'CalcSurfFluxInfo'        , 'Calculate the massflow rate [kg/s], current [A], or pressure [Pa] per species and surface flux','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCollRates'           , 'Calculate the collision rates per collision pair','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcReacRates'           , 'Calculate the reaction rate per reaction','.FALSE.')
-CALL prms%CreateLogicalOption(  'CalcShapeEfficiency'     , 'Use efficiency methods for shape functions.', '.FALSE.')
-CALL prms%CreateStringOption(   'CalcShapeEfficiencyMethod' , 'Choose between "AllParts" and '//&
-'"SomeParts", to either use all particles or a certain percentage (ShapeEfficiencyNumber) of the currently used particles','AllParts')
-CALL prms%CreateIntOption(      'ShapeEfficiencyNumber'    , 'Percentage of currently used particles is used.', '100')
 CALL prms%CreateLogicalOption(  'IsRestart'                , 'Flag, if the current calculation is a restart. ', '.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcCoupledPower'         , 'Calculate the amount of power that is coupled into charged particles during time integration' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'DisplayCoupledPower'      , 'Display coupled power in UNIT_stdOut' , '.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcEMFieldOutput', 'Output the electro-mangetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcEnergyScalingRatioVMPF', 'Calculate the domain-average energy scaling factor when using vMPF','.FALSE.')
 
 END SUBROUTINE DefineParametersParticleAnalyze
 
@@ -357,12 +356,11 @@ END IF ! MaxPartDisplacement
 
 !--------------------------------------------------------------------------------------------------------------------
 ! get more derived particle properties
-! (Note that for IMD/TTM initialization these values are calculated from the TTM grid values)
 !--------------------------------------------------------------------------------------------------------------------
 ! PointsPerDebyeLength: PPD = (p+1)*lambda_D/L_cell
 ! p:        Polynomial degree
 ! lambda_D: Debye length
-! L_cell:   Characteristic ceill length -> V_cell^(1/3)
+! L_cell:   Characteristic cell length -> V_cell^(1/3)
 CalcPointsPerDebyeLength       = GETLOGICAL('CalcPointsPerDebyeLength','.FALSE.')
 IF(CalcPointsPerDebyeLength)THEN
   ! value in 3D estimated with the characteristic length of the cell
@@ -445,9 +443,17 @@ IF(CalcPlasmaParameter)THEN
   CALL AddToElemData(ElementOut,'PlasmaParameterCell',RealArray=PlasmaParameterCell(1:PP_nElems))
 END IF
 
+! Numerical plasma parameter: simulation particles per Debye length
+CalcNumPlasmaParameter   = GETLOGICAL('CalcNumPlasmaParameter')
+IF(CalcNumPlasmaParameter)THEN
+  ALLOCATE( NumPlasmaParameterCell(1:PP_nElems) )
+  NumPlasmaParameterCell=0.0
+  CALL AddToElemData(ElementOut,'NumericalPlasmaParameterCell',RealArray=NumPlasmaParameterCell(1:PP_nElems))
+END IF
+
 ! Debye Length
 CalcDebyeLength       = GETLOGICAL('CalcDebyeLength')
-IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter.OR.CalcPICTimeStep) CalcDebyeLength=.TRUE.
+IF(CalcPointsPerDebyeLength.OR.CalcPlasmaParameter.OR.CalcPICTimeStep.OR.CalcNumPlasmaParameter) CalcDebyeLength=.TRUE.
 IF(CalcDebyeLength)THEN
   ALLOCATE( DebyeLengthCell(1:PP_nElems) )
   DebyeLengthCell=0.0
@@ -678,21 +684,10 @@ IF (CalcVelos) THEN
   END IF
 END IF
 
-!-- Shape function efficiency
-CalcShapeEfficiency = GETLOGICAL('CalcShapeEfficiency')
-IF (CalcShapeEfficiency) THEN
-  DoPartAnalyze = .TRUE.
-  CalcShapeEfficiencyMethod = GETSTR('CalcShapeEfficiencyMethod','AllParts')
-  SELECT CASE(CalcShapeEfficiencyMethod)
-  CASE('AllParts')  ! All currently available Particles are used
-  CASE('SomeParts') ! A certain percentage of currently available Particles is used
-    ShapeEfficiencyNumber = GETINT('ShapeEfficiencyNumber','100')  ! in percent
-  CASE DEFAULT
-    CALL abort(&
-        __STAMP__&
-        , ' CalcShapeEfficiencyMethod not implemented: ')
-  END SELECT
-END IF
+!-- Compute the potential particle energy as sum(q_i*phi(x_i)), with electric potential phi at
+!   the position x_i and q_i as the electric charge of the i-th particle
+CalcParticlePotentialEnergy = GETLOGICAL('CalcParticlePotentialEnergy')
+IF(CalcParticlePotentialEnergy) DoPartAnalyze = .TRUE.
 
 !-- check if total energy should be computed
 IF(DoPartAnalyze)THEN
@@ -705,6 +700,8 @@ IsRestart = GETLOGICAL('IsRestart')
 IF(CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef) DoPartAnalyze=.TRUE.
 CALL PrintOption('CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef','INFO',&
     LogOpt=CalcBRVariableElectronTemp.OR.BRAutomaticElectronRef)
+#else
+IF(CalcParticlePotentialEnergy) CALL CollectiveStop(__STAMP__,'CalcParticlePotentialEnergy=T requires PICLAS_EQNSYSNAME=poisson')
 #endif /*USE_HDG*/
 
 !-- check if magnetic field on each DG DOF of every element is to be written to .h5
@@ -713,6 +710,16 @@ CalcEMFieldOutput = GETLOGICAL('CalcEMFieldOutput')
 !-- check if drag force and mean heatflux on all granular particles should be computed
 CalcGranularDragHeat = GETLOGICAL('CalcGranularDragHeat')
 IF(CalcGranularDragHeat) DoPartAnalyze = .TRUE.
+
+!-- vMPF: check the kinetic energy scaling ratio per species
+IF(usevMPF) THEN
+  CalcEnergyScalingRatioVMPF = GETLOGICAL('CalcEnergyScalingRatioVMPF')
+  IF(CalcEnergyScalingRatioVMPF) THEN
+    DoPartAnalyze = .TRUE.
+    ALLOCATE(EnergyScalingRatioVMPF(2,nSpecies))
+    EnergyScalingRatioVMPF = 0.
+  END IF
+END IF
 
 ParticleAnalyzeInitIsDone=.TRUE.
 
@@ -736,7 +743,7 @@ USE MOD_IO_HDF5               ,ONLY: OpenDataFile,CloseDataFile,File_ID
 USE MOD_Restart_Vars          ,ONLY: RestartFile,DoRestart
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcTemp,DoPartAnalyze
 USE MOD_ReadInTools           ,ONLY: PrintOption
-USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutoamtic
+USE MOD_SurfaceModel_Vars     ,ONLY: BulkElectronTempSEE,SurfModSEEelectronTempAutomatic
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -784,7 +791,7 @@ IF(CalcBulkElectronTemp)THEN
   END DO
   IF (BulkElectronTempSpecID.EQ.-1) CALL abort(__STAMP__&
     ,'Electron species not found for bulk electron temperature calculation (CalcBulkElectronTemp set True automatically).')
-  IF(SurfModSEEelectronTempAutoamtic)THEN
+  IF(SurfModSEEelectronTempAutomatic)THEN
     IF(TRIM(velocityDistribution).NE.'')THEN
       hilf=' (used for SEE and '//TRIM(velocityDistribution)//')'
     ELSE
@@ -792,7 +799,7 @@ IF(CalcBulkElectronTemp)THEN
     END IF ! TRIM(velocityDistribution).NE.''
   ELSE
     hilf=' (used for '//TRIM(velocityDistribution)//')'
-  END IF ! SurfModSEEelectronTempAutoamtic
+  END IF ! SurfModSEEelectronTempAutomatic
   SWRITE(UNIT_stdOut,'(A,I0,A)')' Bulk electron temperature is calculated using species ',BulkElectronTempSpecID,TRIM(hilf)
 
   ! Restart: Only root reads state file to prevent access with a large number of processors
@@ -820,7 +827,7 @@ IF(CalcBulkElectronTemp)THEN
   ! Broadcast from root to other processors. Only root knows if BulkElectronTempExists=T/F so always broadcast message
   CALL MPI_BCAST(BulkElectronTemp,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iERROR)
 #endif /*USE_MPI*/
-  IF(SurfModSEEelectronTempAutoamtic) BulkElectronTempSEE = BulkElectronTemp
+  IF(SurfModSEEelectronTempAutomatic) BulkElectronTempSEE = BulkElectronTemp
 END IF ! CalcBulkElectronTemp
 
 END SUBROUTINE InitBulkElectronTemp
@@ -852,7 +859,7 @@ USE MOD_PIC_Analyze             ,ONLY: CalcDepositedCharge
 USE MOD_Restart_Vars            ,ONLY: RestartTime,DoRestart
 USE MOD_TimeDisc_Vars           ,ONLY: iter, dt, IterDisplayStep
 USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcShapeEfficiencyR,CalcKineticEnergy,CalcKineticEnergyAndMaximum
+USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumPartsOfSpec,CalcKineticEnergy,CalcKineticEnergyAndMaximum
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcNumberDensity,CalcSurfaceFluxInfo,CalcTransTemp,CalcVelocities
 USE MOD_Particle_Analyze_Output ,ONLY: DisplayCoupledPowerPart
 #if (PP_TimeDiscMethod==2 || PP_TimeDiscMethod==4 || PP_TimeDiscMethod==300 || PP_TimeDiscMethod==400 || (PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509) || PP_TimeDiscMethod==120)
@@ -865,17 +872,18 @@ USE MOD_Particle_Analyze_Tools  ,ONLY: CalcMixtureTemp, CalcRelaxProbRotVib
 #if (PP_TimeDiscMethod==4)
 USE MOD_DSMC_Vars               ,ONLY: CollInf, useDSMC, ChemReac, SpecDSMC
 USE MOD_Globals_Vars            ,ONLY: ElementaryCharge
-USE MOD_MCC_Vars                ,ONLY: SpecXSec, XSec_Relaxation
-USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates
+USE MOD_MCC_Vars                ,ONLY: UseMCC, SpecXSec, XSec_Relaxation
+USE MOD_Particle_Analyze_Tools  ,ONLY: CollRates,CalcRelaxRates,CalcRelaxRatesElec,ReacRates,CollRatesBackScatter
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: BRNbrOfRegions,CalcBRVariableElectronTemp,BRAutomaticElectronRef,RegionElectronRef
 USE MOD_Globals_Vars           ,ONLY: BoltzmannConst,ElementaryCharge
 USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPotential,CoupledPowerFrequency,CoupledPowerMode
-USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential
+USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential,CalculateParticlePotentialEnergy
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
 USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,ForceAverage, SumForceAverage
+USE MOD_Particle_Vars          ,ONLY: usevMPF
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -901,19 +909,20 @@ INTEGER             :: bgSpec
 #endif
 #if (PP_TimeDiscMethod==4)
 INTEGER             :: jSpec, iCase, iLevel
-REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:)
+REAL, ALLOCATABLE   :: CRate(:), RRate(:), VibRelaxRate(:), ElecRelaxRate(:,:), BackScatterRate(:)
 #endif
 REAL                :: PartVtrans(nSpecies,4) ! macroscopic velocity (drift velocity) A. Frohn: kinetische Gastheorie
 REAL                :: PartVtherm(nSpecies,4) ! microscopic velocity (eigen velocity) PartVtrans + PartVtherm = PartVtotal
 INTEGER             :: dir
 #if USE_HDG
+REAL                :: EpotPart(nSpecies)
 INTEGER             :: iRegions
 #endif /*USE_HDG*/
 #if USE_MPI
 REAL                :: tmpArray(1:2)
 #endif /*USE_MPI*/
 #if USE_HDG
-REAL                :: PCouplDelta
+REAL                :: PCouplDelta,SumEpotPart
 #endif /*USE_HDG*/
 REAL                :: TimeDelta
 !===================================================================================================================================
@@ -927,6 +936,12 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
         SDEALLOCATE(CRate)
         ALLOCATE(CRate(CollInf%NumCase + 1))
         CRate = 0.0
+        IF(UseMCC) THEN
+          IF(ANY(SpecXSec(:)%UseBackScatterXSec)) THEN
+            SDEALLOCATE(BackScatterRate)
+            ALLOCATE(BackScatterRate(CollInf%NumCase))
+          END IF
+        END IF
         IF(CalcRelaxProb) THEN
           ALLOCATE(VibRelaxRate(CollInf%NumCase))
           VibRelaxRate = 0.0
@@ -1037,6 +1052,20 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
         END IF
+#if USE_HDG
+        IF (CalcParticlePotentialEnergy) THEN
+          DO iSpec = 1, nSpecies
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-Epot-Spec-', iSpec
+            OutputCounter = OutputCounter + 1
+          END DO ! nSpecies
+          IF (nSpecies.GT.1) THEN
+            WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+            WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-Epot-Spec-Sum'
+            OutputCounter = OutputCounter + 1
+          END IF ! nSpecies.GT.1
+        END IF ! CalcParticlePotentialEnergy
+#endif /*USE_HDG*/
         IF (CalcLaserInteraction) THEN ! computer laser-plasma interaction
           DO iSpec=1, nSpecies
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
@@ -1250,6 +1279,17 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
             WRITE(unit_index,'(A1)',ADVANCE='NO') ','
             WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-TotalCollRate'
             OutputCounter = OutputCounter + 1
+            IF(UseMCC) THEN
+              DO iSpec = 1, nSpecies
+                DO jSpec = iSpec, nSpecies
+                  iCase = CollInf%Coll_Case(iSpec,jSpec)
+                  IF(.NOT.SpecXSec(iCase)%UseBackScatterXSec) CYCLE
+                  WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+                  WRITE(unit_index,'(I3.3,A,I3.3,A,I3.3)',ADVANCE='NO') OutputCounter,'-BackscatterCollRate', iSpec, '+', jSpec
+                  OutputCounter = OutputCounter + 1
+                END DO
+              END DO
+            END IF
           END IF
           IF(CalcRelaxProb) THEN
             IF(XSec_Relaxation) THEN
@@ -1324,6 +1364,10 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentResolvedPICTimeStep'
           OutputCounter = OutputCounter + 1
         END IF ! CalcPICTimeStep
+        IF(CalcElectronEnergy)THEN
+          WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-PercentElectronsUnder2700eV'
+          OutputCounter = OutputCounter + 1
+        END IF ! CalcElectronEnergy
         IF(CalcGranularDragHeat)THEN
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecDragForceX'
           OutputCounter = OutputCounter + 1
@@ -1334,6 +1378,16 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
           WRITE(unit_index,'(A1,I3.3,A,I3.3,A)',ADVANCE='NO') ',',OutputCounter,'-GranularSpecHeat'
           OutputCounter = OutputCounter + 1
         END IF ! CalcGranularDragHeat
+        ! Variable particle weight: output of the kinetic energy scaling ratio averaged over the whole domain per species
+        IF(usevMPF) THEN
+          IF (CalcEnergyScalingRatioVMPF) THEN
+            DO iSpec = 1, nSpecies
+              WRITE(unit_index,'(A1)',ADVANCE='NO') ','
+              WRITE(unit_index,'(I3.3,A29,I3.3)',ADVANCE='NO') OutputCounter,'-EnergyScalingRatioVMPF-Spec-', iSpec
+              OutputCounter = OutputCounter + 1
+            END DO
+          END IF
+        END IF ! CalcEnergyScalingRatioVMPF
         ! Finish the line with new line character
         WRITE(unit_index,'(A)') ''
       END IF
@@ -1379,6 +1433,18 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
     CALL CalcMixtureTemp(NumSpec,Temp,IntTemp,IntEn,TempTotal,Xi_Vib,Xi_Elec) ! contains MPI Communication
     IF(MPIRoot) ETotal = Ekin(nSpecAnalyze) + IntEn(nSpecAnalyze,1) + IntEn(nSpecAnalyze,2) + IntEn(nSpecAnalyze,3)
   END IF
+#if USE_HDG
+  IF (CalcParticlePotentialEnergy) THEN
+    CALL CalculateParticlePotentialEnergy(EpotPart)
+#if USE_MPI
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE , EpotPart , nSpecies , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    ELSE
+      CALL MPI_REDUCE(EpotPart     ,        0 , nSpecies , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    END IF
+#endif /*USE_MPI*/
+  END IF ! CalcParticlePotentialEnergy
+#endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Determine the maximal collision probability for whole reservoir and mean collision probability (only for one cell reservoirs,
 ! in case of more cells, the value of the last element of the root is shown)
@@ -1476,17 +1542,9 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
   IF(CalcGranularDragHeat) THEN
     IF(MPIRoot)THEN
       SumForceAverage = 0.0
-      CALL MPI_REDUCE(ForceAverage(1),SumForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(2),SumForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(3),SumForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(4),SumForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(5),SumForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage,SumForceAverage,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
     ELSE
-      CALL MPI_REDUCE(ForceAverage(1),ForceAverage(1),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(2),ForceAverage(2),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(3),ForceAverage(3),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(4),ForceAverage(4),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
-      CALL MPI_REDUCE(ForceAverage(5),ForceAverage(5),1,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      CALL MPI_REDUCE(ForceAverage,              0,5,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
     END IF
   END IF
 #endif /*USE_MPI*/
@@ -1591,12 +1649,16 @@ IF(CalcCoupledPower) THEN
   IF((DisplayCoupledPower).AND.(MOD(iter,IterDisplayStep).EQ.0)) CALL DisplayCoupledPowerPart()
 END IF
 !-----------------------------------------------------------------------------------------------------------------------------------
-!-----------------------------------------------------------------------------------------------------------------------------------
 ! Calculate the collision rates and reaction rate coefficients (Arrhenius-type chemistry)
 #if (PP_TimeDiscMethod==4)
   IF (DSMC%ReservoirSimu) THEN
     IF(iter.GT.0) THEN
-      IF(CalcCollRates) CALL CollRates(CRate)
+      IF(CalcCollRates) THEN
+        CALL CollRates(CRate)
+        IF(UseMCC) THEN
+          IF(ANY(SpecXSec(:)%UseBackScatterXSec)) CALL CollRatesBackScatter(BackScatterRate)
+        END IF
+      END IF
       IF(CalcRelaxProb) THEN
         CALL CalcRelaxRates(NumSpecTmp,VibRelaxRate)
         IF(DSMC%ElectronicModel.EQ.3) THEN
@@ -1610,7 +1672,19 @@ END IF
   END IF
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
-  IF (CalcShapeEfficiency) CALL CalcShapeEfficiencyR()   ! This will NOT be placed in the file but directly in "out"
+! Variable particle weight: output of the kinetic energy scaling ratio averaged over the whole domain per species
+IF(usevMPF) THEN
+  IF (CalcEnergyScalingRatioVMPF) THEN
+#if USE_MPI
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE,EnergyScalingRatioVMPF,2*nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+    ELSE
+      CALL MPI_REDUCE(EnergyScalingRatioVMPF,0,2*nSpecies,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_PICLAS, IERROR)
+      EnergyScalingRatioVMPF = 0.
+    END IF
+#endif /*USE_MPI*/
+  END IF
+END IF ! CalcEnergyScalingRatioVMPF
 !===================================================================================================================================
 ! Output Routines
 !===================================================================================================================================
@@ -1665,6 +1739,18 @@ IF (MPIRoot) THEN
     END IF ! UseCoupledPowerPotential
 #endif /*USE_HDG*/
   END IF
+#if USE_HDG
+  IF (CalcParticlePotentialEnergy) THEN
+    SumEpotPart = 0.
+    DO iSpec=1, nSpecies
+      SumEpotPart = SumEpotPart + EpotPart(iSpec)
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EpotPart(iSpec)
+    END DO
+    IF (nSpecies.GT.1) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumEpotPart
+    END IF ! nSpecies.GT.1
+  END IF ! CalcParticlePotentialEnergy
+#endif /*USE_HDG*/
   IF (CalcLaserInteraction) THEN
     DO iSpec=1, nSpecies
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EkinMax(iSpec)
@@ -1780,6 +1866,15 @@ IF (MPIRoot) THEN
       DO iCase=1, CollInf%NumCase +1
         WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', CRate(iCase)
       END DO
+      IF(UseMCC) THEN
+        DO iSpec = 1, nSpecies
+          DO jSpec = iSpec, nSpecies
+            iCase = CollInf%Coll_Case(iSpec,jSpec)
+            IF(.NOT.SpecXSec(iCase)%UseBackScatterXSec) CYCLE
+            WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', BackScatterRate(iCase)
+          END DO
+        END DO
+      END IF
     END IF
     IF(CalcRelaxProb) THEN
       IF(XSec_Relaxation) THEN
@@ -1850,6 +1945,13 @@ IF (MPIRoot) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
     END IF ! PICValidPlasmaCellSum.GT.0
   END IF ! CalcPICTimeStep
+  IF(CalcElectronEnergy)THEN
+    IF (NbrOfElemsWithElectrons(2).GT.0) THEN
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', REAL(NbrOfElemsWithElectrons(2)) / REAL(NbrOfElemsWithElectrons(1))
+    ELSE
+      WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+    END IF !  NbrOfElemsWithElectrons(2)
+  END IF ! CalcElectronEnergy
   IF(CalcGranularDragHeat) THEN
     IF(SumForceAverage(1).GT.0.0) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', SumForceAverage(2)/SumForceAverage(1)
@@ -1863,6 +1965,20 @@ IF (MPIRoot) THEN
       WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
     END IF
   END IF ! CalcGranularDragHeat
+  ! Variable particle weight: output of the kinetic energy scaling ratio averaged over the whole domain per species
+  IF(usevMPF) THEN
+    IF (CalcEnergyScalingRatioVMPF) THEN
+      DO iSpec = 1, nSpecies
+        IF(EnergyScalingRatioVMPF(2,iSpec).GT.0.0) THEN
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', EnergyScalingRatioVMPF(1,iSpec) / EnergyScalingRatioVMPF(2,iSpec)
+        ELSE
+          WRITE(unit_index,CSVFORMAT,ADVANCE='NO') ',', 0.0
+        END IF
+      END DO
+      ! Reset the sum and counter as MPIRoot, other processes nullified the variable after communincation
+      EnergyScalingRatioVMPF = 0.
+    END IF
+  END IF ! CalcEnergyScalingRatioVMPF
   ! Finish the line with new line character
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
@@ -1909,6 +2025,7 @@ ParticleAnalyzeInitIsDone = .FALSE.
 SDEALLOCATE(DebyeLengthCell)
 SDEALLOCATE(PICTimeStepCell)
 SDEALLOCATE(ElectronDensityCell)
+SDEALLOCATE(ElectronSimNumberCell)
 SDEALLOCATE(ElectronTemperatureCell)
 SDEALLOCATE(ElectronMinEnergyCell)
 SDEALLOCATE(ElectronMaxEnergyCell)
@@ -1938,6 +2055,7 @@ SDEALLOCATE(MaxPartDisplacementCellX)
 SDEALLOCATE(MaxPartDisplacementCellY)
 SDEALLOCATE(MaxPartDisplacementCellZ)
 SDEALLOCATE(PlasmaParameterCell)
+SDEALLOCATE(NumPlasmaParameterCell)
 SDEALLOCATE(QuasiNeutralityCell)
 SDEALLOCATE(PICValidPlasmaCell)
 SDEALLOCATE(IonDensityCell)
@@ -1949,6 +2067,7 @@ SDEALLOCATE(PartEkinIn)
 SDEALLOCATE(PartEkinOut)
 SDEALLOCATE(FlowRateSurfFlux)
 SDEALLOCATE(PressureAdaptiveBC)
+SDEALLOCATE(EnergyScalingRatioVMPF)
 
 IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)THEN
 #if USE_MPI

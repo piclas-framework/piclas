@@ -21,46 +21,6 @@ MODULE MOD_part_tools
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE UpdateNextFreePosition
-  MODULE PROCEDURE UpdateNextFreePosition
-END INTERFACE
-
-INTERFACE DiceUnitVector
-  MODULE PROCEDURE DiceUnitVector
-END INTERFACE
-
-INTERFACE isChargedParticle
-  MODULE PROCEDURE isChargedParticle
-END INTERFACE
-
-INTERFACE isPushParticle
-  MODULE PROCEDURE isPushParticle
-END INTERFACE
-
-INTERFACE InRotRefFrameCheck
-  MODULE PROCEDURE InRotRefFrameCheck
-END INTERFACE
-
-INTERFACE isDepositParticle
-  MODULE PROCEDURE isDepositParticle
-END INTERFACE
-
-INTERFACE isInterpolateParticle
-  MODULE PROCEDURE isInterpolateParticle
-END INTERFACE
-
-INTERFACE StoreLostParticleProperties
-  MODULE PROCEDURE StoreLostParticleProperties
-END INTERFACE
-
-INTERFACE InterpolateEmissionDistribution2D
-  MODULE PROCEDURE InterpolateEmissionDistribution2D
-END INTERFACE
-
-INTERFACE CalcPartSymmetryPos
-  MODULE PROCEDURE CalcPartSymmetryPos
-END INTERFACE
-
 ABSTRACT INTERFACE
   FUNCTION RotInitPolyRoutine(iSpec,TRot,iPart)
     INTEGER,INTENT(IN)          :: iSpec, iPart               ! index of collision pair
@@ -69,8 +29,8 @@ ABSTRACT INTERFACE
 END INTERFACE
 
 PROCEDURE(RotInitPolyRoutine),POINTER :: RotInitPolyRoutineFuncPTR !< pointer defining the function called for initial particle
-                                                                !  insertion depending on the RotRelaxModel (continous or quantized)
-                                                                !  for polyatomic molecules
+                                                                   !< insertion depending on the RotRelaxModel (continuous or quantized)
+                                                                   !< for polyatomic molecules
 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
@@ -227,9 +187,7 @@ DO i = PDM%ParticleVecLengthOld+1,PDM%maxParticleNumber
   counter = counter + 1
   PDM%nextFreePosition(counter) = i
 #ifdef CODE_ANALYZE
-  IF(PDM%ParticleInside(i)) CALL ABORT(&
-  __STAMP__&
-  ,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
+  IF(PDM%ParticleInside(i)) CALL ABORT(__STAMP__,'Particle Inside is true but outside of PDM%ParticleVecLength',IntInfoOpt=i)
 #endif
 END DO
 
@@ -242,6 +200,10 @@ PDM%nextFreePosition(counter+1:PDM%maxParticleNumber) = 0
 CALL LBPauseTime(LB_UNFP,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
+#if !(USE_MPI)
+! Suppress compiler warning
+IF(PRESENT(WithOutMPIParts)) RETURN
+#endif /*!(USE_MPI)*/
 END SUBROUTINE UpdateNextFreePosition
 
 
@@ -353,6 +315,9 @@ USE MOD_Globals                ,ONLY: abort,myrank
 USE MOD_Particle_Vars          ,ONLY: usevMPF,PartMPF,PartSpecies,Species,PartState,LastPartPos
 USE MOD_Particle_Tracking_Vars ,ONLY: PartStateLost,PartLostDataSize,PartStateLostVecLength
 USE MOD_TimeDisc_Vars          ,ONLY: time
+#if USE_HDG
+USE MOD_Particle_Vars          ,ONLY: ResetVDLSpecID
+#endif/*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! insert modules here
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -369,17 +334,23 @@ REAL                 :: MPF
 ! Temporary arrays
 REAL, ALLOCATABLE    :: PartStateLost_tmp(:,:)   ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,MPF,time,ElemID,iPart
 !                                                !                 2nd index: 1 to number of lost particles
-INTEGER              :: ALLOCSTAT
+INTEGER              :: ALLOCSTAT,SpecID
 LOGICAL              :: UsePartState_loc
 !===================================================================================================================================
 UsePartState_loc = .FALSE.
 IF (PRESENT(UsePartState_opt)) UsePartState_loc = UsePartState_opt
 
+SpecID = PartSpecies(iPart)
+#if USE_HDG
+! Check particle index for VDL particles and reset to original species index
+SpecID = ResetVDLSpecID(iPart)
+#endif /*USE_HDG*/
+
 ! Set macro particle factor
 IF (usevMPF) THEN
   MPF = PartMPF(iPart)
 ELSE
-  MPF = Species(PartSpecies(iPart))%MacroParticleFactor
+  MPF = Species(SpecID)%MacroParticleFactor
 END IF
 
 dims = SHAPE(PartStateLost)
@@ -475,11 +446,12 @@ END FUNCTION DiceUnitVector
 !===================================================================================================================================
 !> Calculation of velocity vector (Vx,Vy,Vz) sampled from given distribution function at the surface
 !===================================================================================================================================
-FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr)
+FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr,iPartBound)
 ! MODULES
 USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
-USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c
-USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS
+USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c,ElementaryCharge,PI
+USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, SurfModSEEFitCoeff
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -487,16 +459,18 @@ CHARACTER(LEN=*),INTENT(IN) :: distribution   !< Specifying keyword for velocity
 REAL,INTENT(IN)             :: Tempergy       !< Input temperature in [K] or energy in [J] or [eV] or velocity in [m/s]
 INTEGER,INTENT(IN)          :: iNewPart       !< The i-th particle that is inserted (only required for some distributions)
 INTEGER,INTENT(IN)          :: ProductSpecNbr !< Total number of particles that are inserted (only required for some distributions)
+INTEGER,INTENT(IN)          :: iPartBound     !< Boundary ID for surface-specific properties
 !-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
+! LOCAL VARIABLES
 REAL            :: VeloFromDistribution(1:3) !< Velocity vector created from specific velocity distribution function
 REAL            :: VeloABS                   !< Absolute velocity of the velocity vector
 REAL            :: RandVal                   !< Pseudo random number
 LOGICAL         :: ARM                       !< Acceptance rejection method
-REAL            :: PDF                       !< Probability density function
+REAL            :: PDF,PDF_max               !< Probability density function
 REAL            :: eps,eps2                  !< kinetic electron energy [eV]
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
+REAL            :: E_temp, E_max, W          !< Energy values [eV]
+REAL            :: Theta, Phi                !< Angles between surface normal/tangent to velocity
+REAL            :: TempErgy_temp             !< Temporary variable for energy [eV]
 !===================================================================================================================================
 !-- set velocities
 SELECT CASE(TRIM(distribution))
@@ -579,9 +553,90 @@ CASE('Morozov2004') ! Secondary electron emission (SEE) due to electron bombardm
   ! Set magnitude
   VeloFromDistribution = VeloABS*VeloFromDistribution ! VeloABS is [m/s]
 
+CASE('Chung-Everhart-cosine')
+  ! === Energy distribution, according to Chung, M. S., & Everhart, T. E. (1974). Journal of Applied Physics, 45(2), 707–709. https://doi.org/10.1063/1.1663306
+  ! Note that in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
+  ! addition and thus energy conservation violation. An output to monitor the count and energy addition per SEE event can be enabled through CalcEnergyViolationSEE = T
+  W = SurfModSEEFitCoeff(4,iPartBound)  ! [eV] Material-dependent work function
+  E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
+  PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+  ! ARM for energy distribution
+  ARM=.TRUE.
+  DO WHILE(ARM)
+    CALL RANDOM_NUMBER(RandVal)
+    E_temp = RandVal * E_max
+    PDF = 6 * W**2 * E_temp / (E_temp + W)**4
+    CALL RANDOM_NUMBER(RandVal)
+    IF ((PDF/PDF_max).GT.RandVal) ARM = .FALSE.
+  END DO
+  ! Non-relativistic calculation of the velocity magnitude
+  VeloABS = SQRT(2.0 * E_temp * ElementaryCharge / ElectronMass)
+
+  !   ! ARM for 2 or more secondary electrons, note that this is prohibitively slow for more than 3/4 electrons
+  !   IF(iNewPart.EQ.1)THEN
+  !     ! Determine all velocities for each secondary here and store them, follow-up calls only acccess BackupVeloABSArray
+  !     ALLOCATE(BackupVeloABSArray(ProductSpecNbr))
+  !     W = SurfModSEEFitCoeff(4,iPartBound)  ! [eV] Material-dependent work function
+  !     E_max = TempErgy                      ! [ev] Maximal energy limited by the energy of impacting particle
+  !     PDF_max = 81.0 / (128.0 * W)          ! PDF_max at E = W/3 (derivation of 6W^2E/(E+W)^4 == 0)
+  !     ! ARM for energy distribution
+  !     ARM=.TRUE.
+  !     DO WHILE(ARM)
+  !       CALL RANDOM_NUMBER(RandValArray)
+  !       IF(SUM(RandValArray).GT.1.0) CYCLE
+  !       E_tempArray = RandValArray * E_max
+  !       PDFArray = 6 * W**2 * E_tempArray / (E_tempArray + W)**4
+  !       CALL RANDOM_NUMBER(RandValArray)
+  !       IF (ALL((PDFArray/PDF_max).GT.RandValArray)) ARM = .FALSE.
+  !     END DO
+  !     ! Non-relativistic calculation of the velocity magnitude
+  !     BackupVeloABSArray = SQRT(2.0 * E_tempArray * ElementaryCharge / ElectronMass)
+  !     VeloABS = BackupVeloABSArray(iNewPart)
+  !   ELSE
+  !     VeloABS = BackupVeloABSArray(iNewPart)
+  !     IF(iNewPart.EQ.ProductSpecNbr) DEALLOCATE(BackupVeloABSArray)
+  !   END IF
+
+  ! === Velocity vector
+  ! Equally-distributed angle Phi [0:2*PI] for tangential component
+  CALL RANDOM_NUMBER(RandVal)
+  Phi = RandVal * 2.0 * PI
+  ! 2*sin(Theta)*cos(Theta) = sin(2*Theta) distribution of Theta [0:PI/2] for normal component using the inverse method according to Greenwood, J. (2002).
+  CALL RANDOM_NUMBER(RandVal)
+  Theta = ASIN(SQRT(RandVal))
+
+  VeloFromDistribution(1) = SIN(Theta) * COS(Phi)
+  VeloFromDistribution(2) = SIN(Theta) * SIN(Phi)
+  VeloFromDistribution(3) = COS(Theta)
+
+  VeloFromDistribution = VeloFromDistribution * VeloABS
+
+CASE('cosine')
+  IF(PartBound%SurfaceModel(iPartBound).EQ.13) THEN
+      TempErgy_temp = 2.0 !Energy in [eV], set according to Taccogna et al. (2022)
+  ELSE
+      TempErgy_temp = Tempergy !Energy in [eV]
+  END IF
+  
+  VeloABS = SQRT(2.0 * TempErgy_temp * ElementaryCharge / ElectronMass)
+
+  ! === Velocity vector
+  ! Equally-distributed angle Phi [0:2*PI] for tangential component
+  CALL RANDOM_NUMBER(RandVal)
+  Phi = RandVal * 2.0 * PI
+  ! 2*sin(Theta)*cos(Theta) = sin(2*Theta) distribution of Theta [0:PI/2] for normal component using the inverse method according to Greenwood, J. (2002).
+  CALL RANDOM_NUMBER(RandVal)
+  Theta = ASIN(SQRT(RandVal))
+
+  VeloFromDistribution(1) = SIN(Theta) * COS(Phi)
+  VeloFromDistribution(2) = SIN(Theta) * SIN(Phi)
+  VeloFromDistribution(3) = COS(Theta)
+
+  VeloFromDistribution = VeloFromDistribution * VeloABS
+
 CASE DEFAULT
 
-  CALL abort(__STAMP__,'Unknown velocity dsitribution: ['//TRIM(distribution)//']')
+  CALL abort(__STAMP__,'Unknown velocity distribution: ['//TRIM(distribution)//']')
 
 END SELECT
 
@@ -702,7 +757,7 @@ REAL                 :: PosIn, RelPos, TempPartPos(3)
 REAL                 :: PartDistDepo(8), DistSum, norm, MPFSum
 LOGICAL              :: SucRefPos
 REAL                 :: alpha1, alpha2, alpha3
-INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale
+INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale, NodeIDUni(1:8)
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 !===================================================================================================================================
 
@@ -732,7 +787,8 @@ IF (DoCellLocalWeighting) THEN
 
   ELSE
     MPFSum = 0.
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
+    NodeIDUni = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
     DO iNode = 1, 8
       norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
       IF(norm.GT.0.)THEN
@@ -745,7 +801,7 @@ IF (DoCellLocalWeighting) THEN
     END DO
     DistSum = SUM(PartDistDepo(1:8))
     DO iNode = 1, 8
-      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*PartWeightAtNode(1,NodeID(iNode))
+      MPFSum = MPFSum + PartDistDepo(iNode)/DistSum*PartWeightAtNode(1,NodeIDUni(iNode))
     END DO
     CalcVarWeightMPF = MPFSum
   END IF
@@ -2428,10 +2484,6 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 #endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
-USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2466,7 +2518,7 @@ IF(ALLOCATED(PEM%LastGlobalElemID)) CALL ChangeSizeArray(PEM%LastGlobalElemID,PD
 IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(InRotRefFrame)) CALL ChangeSizeArray(InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize,0.)
@@ -2495,29 +2547,6 @@ IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticl
 IF(ALLOCATED(PartTargetProc)) CALL ChangeSizeArray(PartTargetProc,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PartShiftVector)) CALL ChangeSizeArray(PartShiftVector,PDM%maxParticleNumber,NewSize)
 #endif
-
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) CALL ChangeSizeArray(PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(R_PartXK)) CALL ChangeSizeArray(R_PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStage)) CALL ChangeSizeArray(PartStage,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStateN)) CALL ChangeSizeArray(PartStateN,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartQ)) CALL ChangeSizeArray(PartQ,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PEM%NormVec)) CALL ChangeSizeArray(PEM%NormVec,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(PEM%PeriodicMoved)) CALL ChangeSizeArray(PEM%PeriodicMoved,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PartDtFrac)) CALL ChangeSizeArray(PartDtFrac,PDM%maxParticleNumber,NewSize,1.)
-#endif
-
-#ifdef IMPA
-IF(ALLOCATED(F_PartX0)) CALL ChangeSizeArray(F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(F_PartXk)) CALL ChangeSizeArray(F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartX0)) CALL ChangeSizeArray(Norm_F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk)) CALL ChangeSizeArray(Norm_F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk_old)) CALL ChangeSizeArray(Norm_F_PartXk_old,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartDeltaX)) CALL ChangeSizeArray(PartDeltaX,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartLambdaAccept)) CALL ChangeSizeArray(PartLambdaAccept,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(DoPartInNewton)) CALL ChangeSizeArray(DoPartInNewton,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticleNumber,NewSize,.FALSE.)
-#endif /* IMPA */
 
 !    __  __          __      __          ________  ______  ___________    ___
 !   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
@@ -2589,10 +2618,6 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 #endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
-USE MOD_TimeDisc_Vars          ,ONLY: nRKStages
-#endif
 USE MOD_MCC_Vars               ,ONLY: UseMCC
 USE MOD_DSMC_Vars              ,ONLY: BGGas
 ! IMPLICIT VARIABLE HANDLING
@@ -2664,7 +2689,7 @@ IF(ALLOCATED(PEM%LastGlobalElemID)) CALL ChangeSizeArray(PEM%LastGlobalElemID,PD
 IF(ALLOCATED(PDM%ParticleInside)) CALL ChangeSizeArray(PDM%ParticleInside,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%IsNewPart)) CALL ChangeSizeArray(PDM%IsNewPart,PDM%maxParticleNumber,NewSize,.FALSE.)
 IF(ALLOCATED(PDM%dtFracPush)) CALL ChangeSizeArray(PDM%dtFracPush,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PDM%InRotRefFrame)) CALL ChangeSizeArray(PDM%InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
+IF(ALLOCATED(InRotRefFrame)) CALL ChangeSizeArray(InRotRefFrame,PDM%maxParticleNumber,NewSize,.FALSE.)
 
 IF(ALLOCATED(PartState)) CALL ChangeSizeArray(PartState,PDM%maxParticleNumber,NewSize,0.)
 IF(ALLOCATED(LastPartPos)) CALL ChangeSizeArray(LastPartPos,PDM%maxParticleNumber,NewSize,0.)
@@ -2693,29 +2718,6 @@ IF(ALLOCATED(velocityAtTime)) CALL ChangeSizeArray(velocityAtTime,PDM%maxParticl
 IF(ALLOCATED(PartTargetProc)) CALL ChangeSizeArray(PartTargetProc,PDM%maxParticleNumber,NewSize)
 IF(ALLOCATED(PartShiftVector)) CALL ChangeSizeArray(PartShiftVector,PDM%maxParticleNumber,NewSize)
 #endif
-
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) CALL ChangeSizeArray(PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(R_PartXK)) CALL ChangeSizeArray(R_PartXK,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStage)) CALL ChangeSizeArray(PartStage,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartStateN)) CALL ChangeSizeArray(PartStateN,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartQ)) CALL ChangeSizeArray(PartQ,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PEM%NormVec)) CALL ChangeSizeArray(PEM%NormVec,PDM%maxParticleNumber,NewSize,0.)
-IF(ALLOCATED(PEM%PeriodicMoved)) CALL ChangeSizeArray(PEM%PeriodicMoved,PDM%maxParticleNumber,NewSize,.FALSE.)
-IF(ALLOCATED(PartDtFrac)) CALL ChangeSizeArray(PartDtFrac,PDM%maxParticleNumber,NewSize,1.)
-#endif
-
-#ifdef IMPA
-IF(ALLOCATED(F_PartX0)) CALL ChangeSizeArray(F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(F_PartXk)) CALL ChangeSizeArray(F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartX0)) CALL ChangeSizeArray(Norm_F_PartX0,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk)) CALL ChangeSizeArray(Norm_F_PartXk,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(Norm_F_PartXk_old)) CALL ChangeSizeArray(Norm_F_PartXk_old,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartDeltaX)) CALL ChangeSizeArray(PartDeltaX,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartLambdaAccept)) CALL ChangeSizeArray(PartLambdaAccept,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(DoPartInNewton)) CALL ChangeSizeArray(DoPartInNewton,PDM%maxParticleNumber,NewSize)
-IF(ALLOCATED(PartIsImplicit)) CALL ChangeSizeArray(PartIsImplicit,PDM%maxParticleNumber,NewSize,.FALSE.)
-#endif /* IMPA */
 
 !    __  __          __      __          ________  ______  ___________    ___
 !   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______
@@ -2792,9 +2794,6 @@ USE MOD_DSMC_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: PartShiftVector, PartTargetProc
 #endif
 USE MOD_PICInterpolation_Vars  ,ONLY: FieldAtParticle
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: PartXK, R_PartXK
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2837,9 +2836,9 @@ IF(ALLOCATED(PDM%dtFracPush)) THEN
   PDM%dtFracPush(NewID)=PDM%dtFracPush(OldID)
   PDM%dtFracPush(OldID)=.FALSE.
 END IF
-IF(ALLOCATED(PDM%InRotRefFrame)) THEN
-  PDM%InRotRefFrame(NewID)=PDM%InRotRefFrame(OldID)
-  PDM%InRotRefFrame(OldID)=.FALSE.
+IF(ALLOCATED(InRotRefFrame)) THEN
+  InRotRefFrame(NewID)=InRotRefFrame(OldID)
+  InRotRefFrame(OldID)=.FALSE.
 END IF
 
 IF(ALLOCATED(PartState)) THEN
@@ -2895,39 +2894,6 @@ IF(ALLOCATED(velocityAtTime)) velocityAtTime(:,NewID)=velocityAtTime(:,OldID)
 IF(ALLOCATED(PartTargetProc)) PartTargetProc(NewID)=PartTargetProc(OldID)
 IF(ALLOCATED(PartShiftVector)) PartShiftVector(:,NewID)=PartShiftVector(:,OldID)
 #endif
-
-#if defined(IMPA) || defined(ROS)
-IF(ALLOCATED(PartXK)) PartXK(:,NewID)=PartXK(:,OldID)
-IF(ALLOCATED(R_PartXK)) R_PartXK(:,NewID)=R_PartXK(:,OldID)
-IF(ALLOCATED(PartStage)) PartStage(:,:,NewID)=PartStage(:,:,OldID)
-IF(ALLOCATED(PartStateN)) PartStateN(:,NewID)=PartStateN(:,OldID)
-IF(ALLOCATED(PartQ)) PartQ(:,NewID)=PartQ(:,OldID)
-IF(ALLOCATED(PEM%NormVec)) THEN
-  PEM%NormVec(:,NewID)=PEM%NormVec(:,OldID)
-  PEM%NormVec(:,OldID) = 0.
-END IF
-IF(ALLOCATED(PEM%PeriodicMoved)) THEN
-  PEM%PeriodicMoved(NewID)=PEM%PeriodicMoved(OldID)
-  PEM%PeriodicMoved(OldID) = .FALSE.
-END IF
-IF(ALLOCATED(PartDtFrac)) THEN
-  PartDtFrac(NewID)=PartDtFrac(OldID)
-  PartDtFrac(OldID) = 1.
-END IF
-#endif
-
-#ifdef IMPA
-IF(ALLOCATED(F_PartX0)) F_PartX0(:,NewID)=F_PartX0(:,OldID)
-IF(ALLOCATED(F_PartXk)) F_PartXk(:,NewID)=F_PartXk(:,OldID)
-IF(ALLOCATED(Norm_F_PartX0)) Norm_F_PartX0(NewID)=Norm_F_PartX0(OldID)
-IF(ALLOCATED(Norm_F_PartXk)) Norm_F_PartXk(NewID)=Norm_F_PartXk(OldID)
-IF(ALLOCATED(Norm_F_PartXk_old)) Norm_F_PartXk_old(NewID)=Norm_F_PartXk_old(OldID)
-IF(ALLOCATED(PartDeltaX)) PartDeltaX(:,NewID)=PartDeltaX(:,OldID)
-IF(ALLOCATED(PartLambdaAccept)) PartLambdaAccept(NewID)=PartLambdaAccept(OldID)
-IF(ALLOCATED(DoPartInNewton)) DoPartInNewton(NewID)=DoPartInNewton(OldID)
-IF(ALLOCATED(PartIsImplicit)) PartIsImplicit(NewID)=PartIsImplicit(OldID)
-#endif /* IMPA */
-
 
 !    __  __          __      __          ________  ______  ___________    ___
 !   / / / /___  ____/ /___ _/ /____     /_  __/\ \/ / __ \/ ____/ ___/   /   |  ______________ ___  _______

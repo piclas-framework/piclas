@@ -63,7 +63,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local b
 
 ! XCL_NGeo and dXCL_NGeo always exist for DG mesh
 REAL,POINTER,DIMENSION(:,:,:,:,:)        :: XCL_NGeo_Shared
-REAL,POINTER,DIMENSION(:,:,:,:,:)        :: Elem_xGP_Shared
+REAL,POINTER,DIMENSION(:,:)              :: Elem_xGP_Shared
 REAL,POINTER,DIMENSION(:,:,:,:,:,:)      :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 
 ! FIBGM
@@ -83,7 +83,7 @@ LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         !> flag if an ele
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToBCSides(:,:) !> Mapping from elem to BC sides within halo eps
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) !> Metrics for BC sides, see piclas.h
 
-REAL,POINTER   ,DIMENSION(:,:,:,:)       :: ElemsJ             !> 1/DetJac for each Gauss Point
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemsJ             !> 1/DetJac for each Gauss Point
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     !> tolerance for particle in inside ref element 1+epsinCell
 
 ! Boundary sides
@@ -111,6 +111,10 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
 INTEGER,ALLOCATABLE                      :: SideInfo_Shared_tmp(:)
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared !> Contains the 8 corner nodes of an element (global "unique node IDs")
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: EdgeInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: EdgeConnectInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: VertexInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: VertexConnectInfo_Shared
 
 ! Shared arrays for halo debug information
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemHaloInfo_Shared
@@ -145,7 +149,11 @@ INTEGER,ALLOCPOINT :: GlobalSide2CNTotalSide_Shared(:)         !> Reverse Mappin
 REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 
 REAL,ALLOCPOINT    :: XCL_NGeo_Array(:)                          !> 1D array, pointer changes to proper array bounds
-REAL,ALLOCPOINT    :: Elem_xGP_Array(:)                          !> 1D array, pointer changes to proper array bounds
+#if USE_MPI
+REAL,POINTER       :: Elem_xGP_Array(:)                          !> 1D array, pointer changes to proper array bounds
+#else
+REAL,ALLOCATABLE,TARGET :: Elem_xGP_Array(:)                     !> 1D array, pointer changes to proper array bounds
+#endif /*USE_MPI*/
 REAL,ALLOCPOINT    :: dXCL_NGeo_Array(:)                         !> 1D array, pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
@@ -214,6 +222,10 @@ TYPE(MPI_Win)   :: ElemInfo_Shared_Win
 TYPE(MPI_Win)   :: SideInfo_Shared_Win
 TYPE(MPI_Win)   :: NodeInfo_Shared_Win
 TYPE(MPI_Win)   :: NodeCoords_Shared_Win
+TYPE(MPI_Win)   :: EdgeInfo_Shared_Win
+TYPE(MPI_Win)   :: EdgeConnectInfo_Shared_Win
+TYPE(MPI_Win)   :: VertexInfo_Shared_Win
+TYPE(MPI_Win)   :: VertexConnectInfo_Shared_Win
 
 TYPE(MPI_Win)   :: ElemHaloInfo_Shared_Win
 

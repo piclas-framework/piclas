@@ -12,10 +12,10 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+!===================================================================================================================================
+!> Module with routines for relaxation
+!===================================================================================================================================
 MODULE MOD_DSMC_Relaxation
-!===================================================================================================================================
-! Module with routines for relaxation
-!===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -45,12 +45,11 @@ PUBLIC :: RotRelaxDiaRoutineFuncPTR, DSMC_RotRelaxDiaContinuous, DSMC_RotRelaxDi
 
 CONTAINS
 
-
-SUBROUTINE DSMC_RotRelaxDiaQuant(iPair,iPart,FakXi)
 !===================================================================================================================================
 !> Rotational relaxation of diatomic molecules using quantized energy levels after Boyd
 !> Physics of Fluids A: Fluid Dynamics (1989-1993) 5, 2278 (1993); doi: 10.1063/1.858531
 !===================================================================================================================================
+SUBROUTINE DSMC_RotRelaxDiaQuant(iPair,iPart,FakXi)
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
@@ -105,12 +104,12 @@ PartStateIntEn( 2,iPart) = REAL(iQuant) * (REAL(iQuant) + 1.) * BoltzmannConst *
 END SUBROUTINE DSMC_RotRelaxDiaQuant
 
 
-SUBROUTINE DSMC_RotRelaxDiaContinuous(iPair,iPart,FakXi)
 !===================================================================================================================================
-!> Rotational relaxation of diatomic molecules using continous energy levels after Pfeiffer/Nizenkov
+!> Rotational relaxation of diatomic molecules using continuous energy levels after Pfeiffer/Nizenkov
 !> Physics of Fluids 28, 027103 (2016); doi: 10.1063/1.4940989
-!> Only seperate routine for function pointer with RotRelaxModel
+!> Only separate routine for function pointer with RotRelaxModel
 !===================================================================================================================================
+SUBROUTINE DSMC_RotRelaxDiaContinuous(iPair,iPart,FakXi)
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, Coll_pData, SpecDSMC
 USE MOD_Particle_Vars         ,ONLY: UseVarTimeStep, usevMPF
@@ -127,24 +126,29 @@ REAL, INTENT(IN)              :: FakXi
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                          :: LocalFakXi, iRan
+REAL                          :: LocalFakXi, iRan, CollEnergy
 INTEGER                       :: iSpec
 !===================================================================================================================================
+IF (usevMPF.OR.UseVarTimeStep) THEN
+  CollEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+ELSE
+  CollEnergy = Coll_pData(iPair)%Ec
+END IF
+
 iSpec = PartSpecies(iPart)
+
 ! fix for changed FakXi for polyatomic
 LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot
 CALL RANDOM_NUMBER(iRan)
-PartStateIntEn(2, iPart) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/LocalFakXi))
-IF(usevMPF.OR.UseVarTimeStep) THEN
-  PartStateIntEn(2, iPart) = PartStateIntEn(2, iPart) / GetParticleWeight(iPart)
-END IF
+PartStateIntEn(2, iPart) = CollEnergy * (1.0 - iRan**(1.0/LocalFakXi))
+
 END SUBROUTINE DSMC_RotRelaxDiaContinuous
 
 
+!===================================================================================================================================
+!> Performs the vibrational relaxation of diatomic molecules
+!===================================================================================================================================
 SUBROUTINE DSMC_VibRelaxDiatomic(iPair, iPart, FakXi)
-!===================================================================================================================================
-! Performs the vibrational relaxation of diatomic molecules
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars             ,ONLY: DSMC, SpecDSMC, PartStateIntEn, Coll_pData, AHO
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, PlanckConst, c
@@ -221,14 +225,14 @@ END IF
 END SUBROUTINE DSMC_VibRelaxDiatomic
 
 
+!===================================================================================================================================
+!> Computes the mean vibrational quantum number of diatomic species in a cell each iteration;
+!> ChemReac%MeanEVibQua_PerIter is required for the determination of the vibrational degree of freedom, only used for diatomic
+!> molecules. For the polyatomic case, the actual vibrational degree of freedom of each molecule is utilized and not a mean value.
+!> The values for polyatomic molecules can have a greater spread, thus a mean value can prohibit reactions of highly excited
+!> molecules at lower average temperatures.
+!===================================================================================================================================
 SUBROUTINE CalcMeanVibQuaDiatomic()
-!===================================================================================================================================
-! Computes the mean vibrational quantum number of diatomic species in a cell each iteration;
-! ChemReac%MeanEVibQua_PerIter is required for the determination of the vibrational degree of freedom, only used for diatomic
-! molecules. For the polyatomic case, the actual vibrational degree of freedom of each molecule is utilized and not a mean value.
-! The values for polyatomic molecules can have a greater spread, thus a mean value can prohibit reactions of highly excited
-! molecules at lower average temperatures.
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars,           ONLY : BoltzmannConst
@@ -251,7 +255,7 @@ DO iSpec = 1, nSpecies
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF(.NOT.SpecDSMC(iSpec)%PolyatomicMol) THEN
       ! Skip the background gas species (value initialized in dsmc_chemical_init.f90)
-      IF(BGGas%BackgroundSpecies(iSpec)) CYCLE
+      IF((BGGas%BackgroundSpecies(iSpec)).AND.(.NOT.BGGAS%UseDistribution)) CYCLE
       ! Only treat species present in the cell
       IF(CollInf%Coll_SpecPartNum(iSpec).GT.0.) THEN
         ChemReac%MeanEVib_PerIter(iSpec) = ChemReac%MeanEVib_PerIter(iSpec) / CollInf%Coll_SpecPartNum(iSpec)
@@ -288,10 +292,10 @@ END DO        ! iSpec = 1, nSpecies
 END SUBROUTINE CalcMeanVibQuaDiatomic
 
 
+!===================================================================================================================================
+!> Initialize the calculation of the variable vibrational relaxation probability in the cell for each iteration
+!===================================================================================================================================
 SUBROUTINE InitCalcVibRelaxProb()
-!===================================================================================================================================
-! Initialize the calculation of the variable vibrational relaxation probability in the cell for each iteration
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb
 USE MOD_Particle_Vars      ,ONLY: nSpecies
@@ -313,15 +317,15 @@ END IF
 END SUBROUTINE InitCalcVibRelaxProb
 
 
+!===================================================================================================================================
+!> Calculation of probability for rotational relaxation. Different Models implemented:
+!> 0 - Constant Probability
+!> 1 - No rotational relaxation. RotRelaxProb = 0
+!> 2 - Boyd for N2
+!> 3 - Zhang (Nonequilibrium Direction Dependent)
+!> 4 - Boyd for H2, J . Fluid Mech. (1994), uol. 280, p p . 41-67
+!===================================================================================================================================
 SUBROUTINE DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart, Xi_rel, ProbRot, ProbRotMax)
-!===================================================================================================================================
-! Calculation of probability for rotational relaxation. Different Models implemented:
-! 0 - Constant Probability
-! 1 - No rotational relaxation. RotRelaxProb = 0
-! 2 - Boyd for N2
-! 3 - Zhang (Nonequilibrium Direction Dependent)
-! 4 - Boyd for H2, J . Fluid Mech. (1994), uol. 280, p p . 41-67
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_Globals_Vars       ,ONLY: Pi, BoltzmannConst
@@ -403,10 +407,10 @@ END IF
 END SUBROUTINE DSMC_calc_P_rot
 
 
+!===================================================================================================================================
+!> Calculation of probability for electronic relaxation.
+!===================================================================================================================================
 SUBROUTINE DSMC_calc_P_elec(iSpec1, iSpec2, ProbElec)
-!===================================================================================================================================
-! Calculation of probability for electronic relaxation.
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY : SpecDSMC, useRelaxProbCorrFactor, DSMC
 ! IMPLICIT VARIABLE HANDLING
@@ -431,13 +435,13 @@ ProbElec = SpecDSMC(iSpec1)%ElecRelaxProb*CorrFact
 END SUBROUTINE DSMC_calc_P_elec
 
 
+!===================================================================================================================================
+!> Calculation of probability for vibrational relaxation. Different Models implemented:
+!> 0 - Constant Probability
+!> 1 - No vibrational relaxation. VibRelaxProb = 0
+!> 2 - Boyd with correction of Abe
+!===================================================================================================================================
 SUBROUTINE DSMC_calc_P_vib(iPair, iPart, iSpec, jSpec, Xi_rel, iElem, ProbVib)
-!===================================================================================================================================
-! Calculation of probability for vibrational relaxation. Different Models implemented:
-! 0 - Constant Probability
-! 1 - No vibrational relaxation. VibRelaxProb = 0
-! 2 - Boyd with correction of Abe
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals            ,ONLY: Abort
 USE MOD_Globals_Vars       ,ONLY: BoltzmannConst, PlanckConst, c, eV2Joule
@@ -565,11 +569,11 @@ END IF
 END SUBROUTINE DSMC_calc_P_vib
 
 
+!===================================================================================================================================
+!> Calculation of probability for vibrational relaxation for variable relaxation rates. This has to average over all collisions!
+!> No instantaneous variable probability calculateable
+!===================================================================================================================================
 SUBROUTINE DSMC_calc_var_P_vib(iSpec, jSpec, iPair, ProbVib)
-!===================================================================================================================================
-! Calculation of probability for vibrational relaxation for variable relaxation rates. This has to average over all collisions!
-! No instantaneous variable probability calculateable
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals      ,ONLY: Abort
 USE MOD_Globals_Vars ,ONLY: Pi, BoltzmannConst
@@ -613,10 +617,10 @@ END IF
 END SUBROUTINE DSMC_calc_var_P_vib
 
 
+!===================================================================================================================================
+!> Sums up the variable vibrational relaxation probabilities
+!===================================================================================================================================
 SUBROUTINE SumVibRelaxProb(iPair)
-!===================================================================================================================================
-! summes up the variable vibrational realaxation probabilities
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb, Coll_pData
 USE MOD_Particle_Vars      ,ONLY: PartSpecies, Species
@@ -657,10 +661,10 @@ END IF
 END SUBROUTINE SumVibRelaxProb
 
 
+!===================================================================================================================================
+!> Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
+!===================================================================================================================================
 SUBROUTINE FinalizeCalcVibRelaxProb(iElem)
-!===================================================================================================================================
-! Finalize the calculation of the variable vibrational relaxation probability in the cell for each iteration
-!===================================================================================================================================
 ! MODULES
 USE MOD_DSMC_Vars          ,ONLY: DSMC, VarVibRelaxProb
 USE MOD_Particle_Vars      ,ONLY: nSpecies

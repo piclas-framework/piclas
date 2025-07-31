@@ -40,11 +40,7 @@ END TYPE tIntersectLink
 
 CONTAINS
 
-#ifdef IMPA
-SUBROUTINE ParticleTracing(doParticle_In)
-#else
 SUBROUTINE ParticleTracing()
-#endif /*NOT IMPA*/
 !===================================================================================================================================
 !> Routine for tracking of moving particles using polynomial description of sides.
 !> Routine calculates intersection and boundary interaction for TrackingMethod = tracing
@@ -94,10 +90,6 @@ USE MOD_Eval_xyz                    ,ONLY: GetPositionInRefElem
 USE MOD_Part_Tools                  ,ONLY: StoreLostParticleProperties
 USE MOD_part_operations             ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
-#ifdef IMPA
-USE MOD_Particle_Vars               ,ONLY: PartIsImplicit,PartDtFrac
-USE MOD_Particle_Vars               ,ONLY: PartStateN
-#endif /*IMPA*/
 USE MOD_Mesh_Vars                   ,ONLY: ElemBaryNGeo
 USE MOD_Particle_Intersection       ,ONLY: OutputTrajectory
 USE MOD_Particle_Tracking_Vars      ,ONLY: PartOut,MPIRankOut
@@ -113,17 +105,10 @@ USE MOD_part_tools                  ,ONLY: ParticleOnProc
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifdef IMPA
-LOGICAL,INTENT(IN),OPTIONAL   :: doParticle_In(1:PDM%ParticleVecLength)
-#endif /*IMPA*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef IMPA
-LOGICAL                       :: doParticle
-LOGICAL                       :: doPartInExists
-#endif /*IMPA*/
 INTEGER                       :: iPart
 INTEGER                       :: ElemID,CNElemID,OldElemID,firstElem
 INTEGER                       :: ilocSide,SideID,CNSideID,flip
@@ -147,11 +132,6 @@ TYPE(tIntersectLink),POINTER    :: currentIntersect => NULL()
 TYPE(tIntersectLink),POINTER    :: tmp => NULL()
 !===================================================================================================================================
 
-#ifdef IMPA
-doPartInExists=.FALSE.
-IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
-#endif /*IMPA*/
-
 ! initialize the first and last pointer in intersection info
 IF (.NOT. ASSOCIATED(firstIntersect)) THEN
   ALLOCATE(firstIntersect)
@@ -164,16 +144,7 @@ END IF
 
 DO iPart=1,PDM%ParticleVecLength
   PartDoubleCheck=.FALSE.
-#ifdef IMPA
-  IF(doPartInExists)THEN
-    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
-  ELSE
-    DoParticle=PDM%ParticleInside(iPart)
-  END IF
-  IF(DoParticle)THEN
-#else
   IF (PDM%ParticleInside(iPart)) THEN
-#endif /*IMPA*/
 #if USE_LOADBALANCE
     CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -189,10 +160,6 @@ DO iPart=1,PDM%ParticleVecLength
         .OR.(LastPartPos(3,iPart).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,iPart),GEO%zmaxglob) &
         .OR.(LastPartPos(3,iPart).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,iPart),GEO%zminglob) ) THEN
         IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' ParticleInside ', PDM%ParticleInside(iPart)
-#ifdef IMPA
-        IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
-        IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
-#endif /*IMPA*/
         IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
         IPWRITE(UNIt_stdOut,'(I0,A18,1X,A18,1X,A18)')                  '    min ', ' value ', ' max '
         IPWRITE(UNIt_stdOut,'(I0,A2,1X,E27.16,1X,E27.16,1X,E27.16)') ' x', GEO%xminglob, LastPartPos(1,iPart), GEO%xmaxglob
@@ -377,9 +344,6 @@ DO iPart=1,PDM%ParticleVecLength
             END IF ! DisplayLostParticles
             PartIsDone=.TRUE.
             CALL RemoveParticle(iPart)
-#ifdef IMPA
-            DoParticle=.FALSE.
-#endif /*IMPA*/
             IF(CountNbrOfLostParts) THEN
               CALL StoreLostParticleProperties(iPart, ElemID)
               NbrOfLostParticles=NbrOfLostParticles+1
@@ -485,9 +449,6 @@ DO iPart=1,PDM%ParticleVecLength
 #endif /*USE_LOADBALANCE*/
           IF(crossedBC) THEN
             firstElem=ElemID
-#ifdef IMPA
-            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
-#endif /*IMPA*/
           END IF
           IF(crossedBC .OR. SwitchedElement) THEN
             IF (PartDoubleCheck) THEN
@@ -598,27 +559,13 @@ END DO ! iPart
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI*/
 DO iPart=1,PDM%ParticleVecLength
-#ifdef IMPA
-  IF(doPartInExists)THEN
-    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
-  ELSE
-    DoParticle=PDM%ParticleInside(iPart)
-  END IF
-  IF(DoParticle)THEN
-#else
   IF (PDM%ParticleInside(iPart)) THEN
-#endif /*IMPA*/
     IF( (PartState(1,iPart).GT.GEO%xmaxglob) &
     .OR.(PartState(1,iPart).LT.GEO%xminglob) &
     .OR.(PartState(2,iPart).GT.GEO%ymaxglob) &
     .OR.(PartState(2,iPart).LT.GEO%yminglob) &
     .OR.(PartState(3,iPart).GT.GEO%zmaxglob) &
     .OR.(PartState(3,iPart).LT.GEO%zminglob) ) THEN
-#ifdef IMPA
-      IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' DoParticle ', DoParticle
-      IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PartIsImplicit ', PartIsImplicit(iPart)
-      IPWRITE(UNIt_stdOut,'(I0,A18,E27.16)')                       ' PartDtFrac ', PartDtFrac(iPart)
-#endif /*IMPA*/
       IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PDM%IsNewPart ', PDM%IsNewPart(iPart)
       IPWRITE(UNIt_stdOut,'(I0,A18,3(1X,E27.16))')                  ' LastPosition   ', LastPartPos(1:3,iPart)
       IPWRITE(UNIt_stdOut,'(I0,A18,3(1X,E27.16))')                  ' Velocity       ', PartState(4:6,iPart)

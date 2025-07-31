@@ -33,6 +33,10 @@ REAL,PARAMETER        :: PP_RealTolerance = EPSILON(1.0D0) !< machine precision
 #if PP_nElems == NELEMZ
   INTEGER             :: PP_nElems = 0              ! pp preproc
 #endif
+#if USE_HDG ||defined(discrete_velocity)
+LOGICAL,PARAMETER     :: DoPML   = .FALSE.
+INTEGER,PARAMETER     :: PMLnVar = 0    ! is zero or 24 depending
+#endif /*USE_HDG ||defined(discrete_velocity)*/
 !===================================================================================================================================
 
 END MODULE MOD_PreProc

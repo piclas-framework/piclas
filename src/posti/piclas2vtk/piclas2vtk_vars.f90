@@ -32,17 +32,31 @@ IMPLICIT NONE
 REAL,ALLOCATABLE            :: NodeCoords_Connect(:,:)
 INTEGER,ALLOCATABLE         :: ElemUniqueNodeID(:,:)
 INTEGER                     :: nUniqueNodes
+INTEGER                     :: PointToCellSwitch
+INTEGER                     :: NVisuAdd
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Mapping of nodes and surface sides, required for connectivity of elements
 !----------------------------------------------------------------------------------------------------------------------------------
 INTEGER, ALLOCATABLE        :: SurfOutputSideToUniqueSide(:)
 TYPE tSurfaceConnect
   INTEGER                         :: nSurfaceNode                 !< Number of Nodes on Surface (reflective)
-  INTEGER                         :: nSurfaceOutputSides              !< Number of Sides on Surface (reflective)
+  INTEGER                         :: nSurfaceOutputSides          !< Number of Sides on Surface (reflective)
   REAL, ALLOCATABLE               :: NodeCoords(:,:)
   INTEGER, ALLOCATABLE            :: SideSurfNodeMap(:,:)         !< Mapping from glob Side to SurfaceNodeNum (1:4, nSurfaceOutputSides)
 END TYPE
+TYPE (tSurfaceConnect)            :: SurfConnect
 
-TYPE (tSurfaceConnect)               :: SurfConnect
+! p-Adaption
+TYPE tElemLocal
+  REAL,ALLOCATABLE                :: Coords_NVisu(:,:,:,:)        !< Coordinates of visualization nodes [1:3,0:NlocOut,0:NlocOut,0:NlocOut]
+  REAL,ALLOCATABLE                :: U(:,:,:,:)                   !< Read-in solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut]
+  REAL,ALLOCATABLE                :: U2(:,:,:,:,:)                !< Read-in solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut,1:nFields]
+  REAL,ALLOCATABLE                :: U_Visu(:,:,:,:)              !< Interpolated solution for visualization [1:nVar,0:NlocOut,0:NlocOut,0:NlocOut]
+END TYPE tElemLocal
+
+TYPE(tElemLocal),ALLOCATABLE      :: ElemLocal(:)                 !< Container for element-specific variables [1:nElems]
+
+INTEGER, ALLOCATABLE              :: Nloc_Visu(:)                 !< Element-local polynomial degree for visualization [1:nElems]
+
 
 END MODULE MOD_piclas2vtk_Vars

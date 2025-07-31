@@ -5,7 +5,7 @@
     - 1) Cartesian mesh with absolute tolerance 5e-13
     - 2) Deformed mesh with absolute tolerance 1e-3
     - 3) Deformed mesh and surface charge deposition with absolute tolerance 1e-1
-- The fallback in the CVWM algorithm is triggered by particles that are tracked via TriaTracking, but the RefMapping algorithm that
+- The fallback (isSuccessful = SucRefPos) in the CVWM algorithm is triggered by particles that are tracked via TriaTracking, but the RefMapping algorithm that
   is used for deposition fails to find the particle in the same element as TriaTracking due to the conflicting convex/concave side
   because one element interface is strongly deformed
   - it seems that the fallback algorithm is only triggered in the convex element (in neg x-dir) and not in the concave element (in pos x-dir)
