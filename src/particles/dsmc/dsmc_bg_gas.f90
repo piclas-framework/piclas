@@ -1216,11 +1216,14 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)                 :: hilf2
 INTEGER                       :: iElem, iSpec, bgSpec, iInit, iReg, CNElemID
+INTEGER,ALLOCATABLE           :: RegionOverlap(:)
 REAL                          :: lineVector(3), nodeVec(3), nodeRadius, nodeHeight
 !===================================================================================================================================
 LBWRITE(UNIT_stdOut,'(A)') ' INIT BACKGROUND GAS REGIONS ...'
 
 ALLOCATE(BGGas%Region(BGGas%nRegions))
+ALLOCATE(RegionOverlap(BGGas%nRegions))
+RegionOverlap = 0
 ALLOCATE(BGGas%RegionElemType(nElems))
 BGGas%RegionElemType = 0
 
@@ -1271,7 +1274,7 @@ DO iElem = 1, nElems
         .AND.(nodeRadius.GE.BGGas%Region(iReg)%Radius2IC).AND.(nodeRadius.LE.BGGas%Region(iReg)%RadiusIC)) THEN
         ! Element mid point is inside (positive region number)
         IF(BGGas%RegionElemType(iElem).NE.0) THEN
-          CALL abort(__STAMP__,'ERROR Background gas regions: Overlapping regions are not supported!')
+          RegionOverlap(BGGas%RegionElemType(iElem)) = iReg
         END IF
         BGGas%RegionElemType(iElem) = iReg
       END IF
@@ -1305,10 +1308,25 @@ DO iElem = 1, nElems
   END DO
 END DO                  ! iElem = 1, nElems
 
+#if USE_MPI
+IF(MPIRoot) THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , RegionOverlap, BGGas%nRegions, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_PICLAS, IERROR)
+ELSE ! no Root
+  CALL MPI_REDUCE(RegionOverlap, RegionOverlap, BGGas%nRegions, MPI_INTEGER, MPI_MAX, 0, MPI_COMM_PICLAS, IERROR)
+END IF
+#endif /*USE_MPI*/
+
+IF(ANY(RegionOverlap.GT.0)) THEN
+  DO iReg = 1, BGGas%nRegions
+    IF(RegionOverlap(iReg).EQ.0) CYCLE
+    LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A)') ' | Warning: Region ', iReg, ' has been (partially) overwritten by region ', RegionOverlap(iReg), '!'
+  END DO
+END IF
 ! 5) Utilizing the same routines after the initialization as the read-in distribution
 BGGas%UseDistribution = .TRUE.
 
 LBWRITE(UNIT_stdOut,'(A)') ' BACKGROUND GAS REGIONS DONE!'
+DEALLOCATE(RegionOverlap)
 
 END SUBROUTINE BGGas_InitRegions
 
