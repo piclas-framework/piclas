@@ -48,7 +48,7 @@ USE MOD_SuperB_Coil
 USE MOD_SuperB_Vars
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
-USE MOD_Interpolation_Vars    ,ONLY: BGType,BGDataSize, N_BG
+USE MOD_Interpolation_Vars    ,ONLY: BGType,BGDataSize, N_BG, BGFieldVTKOutput
 USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
@@ -64,7 +64,7 @@ INTEGER           :: iMagnet, iCoil, iTimePoint, Nloc, iElem
 REAL              :: timestep
 LOGICAL           :: BGFieldNotZero              !< flag is set true as soon as BGField is changed due to permanent magnet / coil
 TYPE tBPermMag
-  REAL,ALLOCATABLE :: Field(:,:,:,:)                                                                           !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
+  REAL,ALLOCATABLE :: Field(:,:,:,:)             !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
 END TYPE tBPermMag
 TYPE(tBPermMag),ALLOCATABLE    :: BPermMag(:)
 !===================================================================================================================================
@@ -106,9 +106,9 @@ IF(NumOfPermanentMagnets.GT.0) THEN
     PermanentMagnets(iElem)%Flag = 0
   END DO
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A)') ' Calculation of the magnetic field from permanent magnets.'
+  SWRITE(UNIT_stdOUT,'(AI0)') ' CALCULATION OF MAGNETIC FIELD FROM PERMANENT MAGNETS - TOTAL NUMBER: ', NumOfPermanentMagnets
   DO iMagnet=1,NumOfPermanentMagnets
-    SWRITE(UNIT_stdOUT,'(A,I2)',ADVANCE='NO') ' Magnet: ', iMagnet
+    SWRITE(UNIT_stdOUT,'(A,I0)',ADVANCE='NO') ' MAGNETIC POTENTIAL OF MAGNET ', iMagnet
     SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))
     CASE('cuboid')
       CALL CalculateCuboidMagneticPotential(iMagnet)
@@ -119,16 +119,16 @@ IF(NumOfPermanentMagnets.GT.0) THEN
     CASE('conic')
       CALL CalculateConicMagneticPotential(iMagnet)
     END SELECT
-    SWRITE(UNIT_stdOUT,'(A,I2,A)') '...Magnetic potential of magnet ', iMagnet, ' done!'
+    SWRITE(UNIT_stdOUT,'(A)') ' DONE!'
   END DO
 
-  SWRITE(UNIT_stdOut,'(A)') ' Calculation of the B-Field'
+  SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' CALCULATION OF B-FIELD'
   CALL CalculateGradient() ! Changes BGField from magnets
   DO iElem = 1, nElems
     BPermMag(iElem)%Field = N_BG(iElem)%BGField
     N_BG(iElem)%BGField = 0.
   END DO
-  SWRITE(UNIT_stdOut,'(A)') ' ...Done!'
+  SWRITE(UNIT_stdOut,'(A)') ' DONE!'
 
 END IF
 
@@ -137,7 +137,7 @@ END IF
 ! ------------------------------------------------------------
 IF (NumOfCoils.GT.0) THEN
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(A,I2)') 'Calculation of magnetic field from coils. Total number: ', NumOfCoils
+  SWRITE(UNIT_stdOUT,'(A,I0)') ' CALCULATION OF MAGNETIC FIELD FROM COILS - TOTAL NUMBER: ', NumOfCoils
 
   ! ------------------------------------------------------------
   ! Step 3: Calculate const. magnetic fields (not time-dependent)
@@ -147,7 +147,6 @@ IF (NumOfCoils.GT.0) THEN
     BGFieldNotZero = .TRUE.
     CALL SetUpCoils(iCoil)
     CALL BiotSavart(iCoil) ! Changes BGField from coils
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0)') '...Done coil #', iCoil," of ",NumOfCoils
   END DO
 END IF
 
@@ -174,7 +173,7 @@ IF(UseTimeDepCoil) THEN
       IF (f.GT.0.) THEN; timestep = 1./(f*REAL(nTimePoints-1))
       ELSE             ; timestep = 0.; END IF
     END ASSOCIATE
-    SWRITE(UNIT_stdOut,'(A)') '...Calculation of the B-Field'
+    SWRITE(UNIT_stdOut,'(A,I0)',ADVANCE='NO') ' CALCULATION OF TIME-DEPENDENT B-FIELD - COIL ', iCoil
     DO iTimePoint = 1, nTimePoints
       CALL Jefimenko(iCoil, timestep, iTimePoint) ! Sets BGFieldTDep(:,:,:,:,:,iTimePoint)
       ! Add contribution of other coils or magnets
@@ -185,10 +184,13 @@ IF(UseTimeDepCoil) THEN
       END IF
     END DO ! iTimePoint = 1, nTimePoints
     SDEALLOCATE(CoilNodes)
-    SWRITE(UNIT_stdOut,'(A,I0,A,I0)') '...Done coil #', iCoil," of ",NumOfCoils
+    SWRITE(UNIT_stdOut,'(A)') ' DONE!'
   END DO
 
 END IF
+
+! Output linear conductors to a single VTK file
+IF(BGFieldVTKOutput) CALL WriteLinearConductorVTK()
 
 ! ------------------------------------------------------------
 ! Step 6: Output to HDF5
@@ -204,6 +206,9 @@ DO iElem = 1, nElems
 END DO
 SDEALLOCATE(PermanentMagnets)
 SDEALLOCATE(PermanentMagnetInfo)
+DO iCoil=1,NumOfCoils
+  SDEALLOCATE(CoilInfo(iCoil)%CoilNodes)
+END DO
 SDEALLOCATE(CoilInfo)
 SDEALLOCATE(CurrentInfo)
 

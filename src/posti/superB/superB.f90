@@ -18,8 +18,7 @@ PROGRAM SuperB_standalone
 !===================================================================================================================================
 ! MODULES
 USE MOD_Commandline_Arguments
-!USE MOD_Globals               ,ONLY: doPrintHelp,iError,MPIRoot,StartTime,UNIT_stdOut,PiclasTime,SetStackSizeUnlimited
-USE MOD_Globals!               ,ONLY: CollectiveStop
+USE MOD_Globals
 USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
@@ -76,7 +75,7 @@ SWRITE(UNIT_stdOut,'(A)') "                         M=                          
 SWRITE(UNIT_stdOut,'(A)') "                        MM                                                      "
 SWRITE(UNIT_stdOut,'(A)') "                        ~~                                                      "
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.0"
+SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.1"
 SWRITE(UNIT_stdOut,'(132("="))')
 
 GETTIME(StartTime)
