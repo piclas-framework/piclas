@@ -91,7 +91,10 @@ IF ((nArgs.GT.1) .OR. ((nArgs.EQ.0).AND.(doPrintHelp.EQ.0)) ) THEN
     'or superB --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
 END IF
 
-!CALL InitDefineParameters()
+! Read-in of TimeStampLength and setting of TimeStampLenStr/TimeStampLenStr2, currently not required
+! CALL prms%CreateIntOption('TimeStampLength' , 'Length of the floating number time stamp' , '21')
+! WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
+! WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()

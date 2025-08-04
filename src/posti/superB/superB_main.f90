@@ -51,7 +51,6 @@ USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
 USE MOD_Interpolation_Vars    ,ONLY: BGType,BGDataSize, N_BG
 USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5,WriteBGFieldAnalyticToHDF5
 USE MOD_SuperB_Init           ,ONLY: InitializeSuperB
-USE MOD_Globals_Vars          ,ONLY: TimeStampLenStr,TimeStampLenStr2
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
@@ -63,15 +62,12 @@ USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
 ! LOCAL VARIABLES
 INTEGER           :: iMagnet, iCoil, iTimePoint, Nloc, iElem
 REAL              :: timestep
-INTEGER,PARAMETER :: TimeStampLength=21
 LOGICAL           :: BGFieldNotZero              !< flag is set true as soon as BGField is changed due to permanent magnet / coil
 TYPE tBPermMag
   REAL,ALLOCATABLE :: Field(:,:,:,:)                                                                           !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
 END TYPE tBPermMag
 TYPE(tBPermMag),ALLOCATABLE    :: BPermMag(:)
 !===================================================================================================================================
-WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
-WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
 ! Initialization of SuperB
 CALL InitializeSuperB()
 ! Setting the background field type, used in pic_interpolation.f90
