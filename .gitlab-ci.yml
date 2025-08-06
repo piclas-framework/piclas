@@ -438,7 +438,7 @@ reggie_download:
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
-        git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        git clone --single-branch -b feature.codecoverage git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
         if [ -d "reggie" ]; then cd reggie ; pip install -e . --break-system-packages ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi
