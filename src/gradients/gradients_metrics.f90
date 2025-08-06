@@ -76,8 +76,8 @@ DO SideID=firstSideID,lastSideID
       ! Only master coordinates in Face_xGP but need coordinates of periodic slave side for distance to slave element
       ! Currently only works for xyz-aligned periodic vectors
       DO iCoord=1,3
-        CloseToTheEdge(2*iCoord-1) = ABS(Face_xGP_FV(iCoord,0,0,SideID)-xyzMinMax(2*iCoord-1))
-        CloseToTheEdge(2*iCoord)   = ABS(Face_xGP_FV(iCoord,0,0,SideID)-xyzMinMax(2*iCoord))
+        CloseToTheEdge(2*iCoord-1) = ABS(Face_temp(iCoord)-xyzMinMax(2*iCoord-1))
+        CloseToTheEdge(2*iCoord)   = ABS(Face_temp(iCoord)-xyzMinMax(2*iCoord))
       END DO
       ! get up or get down
       PeriodicDim = MINLOC(CloseToTheEdge,1)
@@ -86,7 +86,7 @@ DO SideID=firstSideID,lastSideID
         Face_temp(PeriodicDim/2) = xyzMinMax(PeriodicDim-1)
       ! If Face_xGP close to a minimum edge, slave side is at the maximum edge
       ELSE
-        Face_temp(PeriodicDim*2-1) = xyzMinMax(PeriodicDim+1)
+        Face_temp((PeriodicDim+1)/2) = xyzMinMax(PeriodicDim+1)
       END IF
     END IF
     Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP_FV(:,0,0,0,ElemID)
