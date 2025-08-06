@@ -43,6 +43,7 @@ workflow:
 # Load modules on new boltzplatz reggie
 before_script:
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+  - export MESHESDIR=True
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
@@ -110,6 +111,13 @@ before_script:
     else
       module list || true ;
     fi
+  - if [ -n "${DO_CODE_COVERAGE}" ]; then
+      export CODE_COVERAGE=True;
+      echo "DO_CODE_COVERAGE activated. Setting CMAKE_Fortran_FLAGS to --coverage";
+      COVERAGE_CMAKE_FLAG="-DCMAKE_Fortran_FLAGS=\"--coverage\"";
+    else
+      COVERAGE_CMAKE_FLAG="";
+    fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -125,6 +133,7 @@ stages:
   - reggie_nightly_special
   - reggie_nightly
   - reggie_weekly
+  - reggie_code_coverage
   - reggie_tutorials
   - deploy
   - appimage
@@ -173,16 +182,19 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$DO_CODE_COVERAGE'
 
 .defaults_nightly: &defaults_nightly
   <<: *defaults
   rules:
     - if: '$DO_NIGHTLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 .defaults_weekly: &defaults_weekly
   <<: *defaults
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for other maxwell tests with PICLAS_DEBUG_MEMORY=ON
@@ -199,6 +211,7 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson tests
@@ -226,16 +239,19 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_nightly: &defaults_poisson_nightly
   <<: *defaults_poisson
   rules:
     - if: '$DO_NIGHTLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_weekly: &defaults_poisson_weekly
   <<: *defaults_poisson
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for drift_diffusion tests
@@ -257,16 +273,19 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$DO_CODE_COVERAGE'
 
 .defaults_drift_diffusion_nightly: &defaults_drift_diffusion_nightly
   <<: *defaults_drift_diffusion
   rules:
     - if: '$DO_NIGHTLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 .defaults_drift_diffusion_weekly: &defaults_drift_diffusion_weekly
   <<: *defaults_drift_diffusion
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DVM tests
@@ -288,16 +307,19 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$DO_CODE_COVERAGE'
 
 .defaults_DVM_nightly: &defaults_DVM_nightly
   <<: *defaults_DVM
   rules:
     - if: '$DO_NIGHTLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 .defaults_DVM_weekly: &defaults_DVM_weekly
   <<: *defaults_DVM
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
@@ -325,11 +347,13 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_petsc_nightly: &defaults_poisson_petsc_nightly
   <<: *defaults_poisson_petsc
   rules:
     - if: '$DO_NIGHTLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_petsc_weekly: &defaults_poisson_petsc_weekly
   <<: *defaults_poisson_petsc
@@ -350,6 +374,7 @@ stages:
       policy: pull
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DSMC tests (pull only)
@@ -377,16 +402,19 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
+    - if: '$DO_CODE_COVERAGE'
 
 .defaults_DSMC_nightly: &defaults_DSMC_nightly
   <<: *defaults_DSMC
   rules:
     - if: '$DO_NIGHTLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 .defaults_DSMC_weekly: &defaults_DSMC_weekly
   <<: *defaults_DSMC
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
@@ -432,7 +460,7 @@ build:
   stage: build
   script:
     - mkdir -p build ; cd build
-    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
+    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ${COVERAGE_CMAKE_FLAG} ; ninja -j0 all
 
 build_maxwell_only:
   extends: .default_build_param
@@ -447,7 +475,7 @@ build_maxwell_only:
   stage: build
   script:
     - mkdir -p build_maxwell_only ; cd build_maxwell_only
-    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -474,10 +502,10 @@ build_poisson:
   stage: build
   script:
     - mkdir -p build_poisson_release_RK3 ; cd build_poisson_release_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_RK3 ; cd build_poisson_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     # Check greater than 10, see https://regex101.com/ for details
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
@@ -487,10 +515,10 @@ build_poisson:
       fi
     - cd ..
     - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_Leapfrog ; cd build_poisson_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [ -n "$WARN" ]; then echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; fi
     # Check greater than 10, see https://regex101.com/ for details
@@ -522,20 +550,20 @@ build_poisson_petsc:
   stage: build
   script:
     - mkdir -p build_poisson_petsc_release_RK3 ; cd build_poisson_petsc_release_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
     - cd ..
 
 build_DSMC:
@@ -559,10 +587,10 @@ build_DSMC:
   stage: build
   script:
     - mkdir -p build_DSMC_release ; cd build_DSMC_release
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_DSMC_debug ; cd build_DSMC_debug
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -570,12 +598,12 @@ build_DSMC:
     - if [ -n "${DO_WEEKLY}" ]; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all ;
       fi
     - if [ -n "${DO_WEEKLY}" ]; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
-        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
+        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all ;
       fi
 
 build_drift_diffusion:
@@ -720,6 +748,7 @@ build_petsc_in_piclas:
     - $GENERATOR -j $NCORES all
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 run_build_petsc_in_piclas:
   <<: *defaults_poisson_build_petsc_lib
@@ -1075,6 +1104,7 @@ WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_L
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # Sme reggies only work on single node, e.g., ray tracing
 WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog_single_node_Release but compile everything with CMAKE_BUILD_TYPE = Debug
@@ -1088,6 +1118,7 @@ WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_P
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 WEK_PIC_poisson_Leapfrog:
   <<: *defaults_weekly
@@ -1192,6 +1223,7 @@ WEK_Photoionization_petsc_debug_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # Raytracing regression tests
 # TODO: Rename stage to WEK_ when it is finalized
@@ -1206,6 +1238,7 @@ NIG_Raytracing_release_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_NIGHTLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 WEK_Raytracing_debug_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1218,6 +1251,7 @@ WEK_Raytracing_debug_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 # TODO: Rename stage to WEK_ when it is finalized
 NIG_Raytracing_debug_Leapfrog:
@@ -1364,6 +1398,7 @@ WEK_Radiation:
     - reggie -e ./bin/piclas ${REGGIEDIR}
   rules:
     - if: '$DO_WEEKLY'
+    # - if: '$DO_CODE_COVERAGE'
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly
@@ -1388,6 +1423,35 @@ WEK_DVM:
   stage: reggie_weekly
   script:
     - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_code_coverage": Collect all coverage data
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+reggie_code_coverage:
+  extends: .defaults
+  needs: []
+  # code coverage for all reggies - needs all build jobs and all test jobs
+  stage: reggie_code_coverage
+  script:
+    - echo "Generating combined coverage report..."
+    - mkdir Coverage
+    # combine coverage reports of all builds and runs
+    - gcovr --root /src --add-tracefile "build*/output_dir/single_reports/*.json" --xml Coverage/coverage.xml --print-summary
+    # split coverage.xml file into smaller files since gitlab has a limit of 10MB per file, but seems to have no limit for number of files
+    - python tools/Coverage/split-xml-by-package.py coverage.xml Coverage
+  # regex expression the retrieve coverage percentage
+  coverage: 'lines:\s+(\d+(?:\.\d+)?)%'
+  artifacts:
+    paths:
+      - Coverage/coverage.xml
+    expire_in: 1 week
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        # use smaller files for gitlab artifacts
+        path: Coverage/cobertura*.xml
+  rules:
+    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
