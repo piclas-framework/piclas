@@ -1440,7 +1440,7 @@ reggie_code_coverage:
     # split coverage.xml file into smaller files since gitlab has a limit of 10MB per file, but seems to have no limit for number of files
     - python tools/Coverage/split-xml-by-package.py coverage.xml Coverage
   # regex expression the retrieve coverage percentage
-  coverage: 'lines:\s+(\d+(\.\d+)?)%'
+  coverage: '/lines:\s+(\d+(\.\d+)?)%/'
   artifacts:
     paths:
       - Coverage/coverage.xml
@@ -1452,6 +1452,7 @@ reggie_code_coverage:
         path: Coverage/cobertura*.xml
   rules:
     - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
     - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
