@@ -111,7 +111,9 @@ before_script:
     else
       module list || true ;
     fi
-  - if [ -n "${DO_CODE_COVERAGE}" ]; then
+  # //TODO: use coder coverage flag after testing
+  # - if [ -n "${DO_CODE_COVERAGE}" ]; then
+  - if [ "$CI_PIPELINE_SOURCE" == "push" ]; then
       export CODE_COVERAGE=True;
       echo "DO_CODE_COVERAGE activated. Setting CMAKE_Fortran_FLAGS to --coverage";
       COVERAGE_CMAKE_FLAG="-DCMAKE_Fortran_FLAGS=\"--coverage\"";
@@ -1434,11 +1436,11 @@ reggie_code_coverage:
   stage: reggie_code_coverage
   script:
     - echo "Generating combined coverage report..."
-    - mkdir Coverage
+    - mkdir -p Coverage
     # combine coverage reports of all builds and runs
     - gcovr --root /src --add-tracefile "build*/output_dir/single_reports/*.json" --xml Coverage/coverage.xml --print-summary
     # split coverage.xml file into smaller files since gitlab has a limit of 10MB per file, but seems to have no limit for number of files
-    - python tools/Coverage/split-xml-by-package.py coverage.xml Coverage
+    - python tools/Coverage/split-xml-by-package.py Coverage/coverage.xml Coverage
   # regex expression the retrieve coverage percentage
   coverage: '/lines:\s+(\d+(\.\d+)?)%/'
   artifacts:
@@ -1451,6 +1453,7 @@ reggie_code_coverage:
         # use smaller files for gitlab artifacts
         path: Coverage/cobertura*.xml
   rules:
+    # //TODO: remove checkin and push after testing
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
     - if: '$DO_CODE_COVERAGE'
