@@ -411,8 +411,7 @@ ELSE
   Ureco = U_FV
 END IF
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE(N_FV            => INT(PP_1,IK)               ,&
-          nGlobalElems    => INT(nGlobalElems,IK)       ,&
+ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK)       ,&
           PP_nElems       => INT(PP_nElems,IK)          ,&
           offsetElem      => INT(offsetElem,IK)         ,&
           PP_nVarTmp_FV   => INT(PP_nVar_FV,IK)          )
