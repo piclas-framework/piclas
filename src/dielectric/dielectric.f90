@@ -82,9 +82,12 @@ USE MOD_HDF5_Output_Fields,ONLY: WriteDielectricGlobalToHDF5
 USE MOD_Globals_Vars      ,ONLY: c
 USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
 USE MOD_Mesh_Vars         ,ONLY: nElems,ElemInfo,offsetElem
-#if ! (USE_HDG) && !(USE_FV)
+#if !(USE_HDG) && !(USE_FV)
 USE MOD_Equation_Vars     ,ONLY: c_corr
-#endif /*if not USE_HDG*/
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
+USE MOD_Equation_Vars     ,ONLY: IniExactFunc
+#endif /*USE_HDG*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -220,29 +223,25 @@ CALL CountAndCreateMappings('Dielectric',&
                             DisplayInfo=.TRUE.)
 
 ! Set the dielectric profile function EpsR,MuR=f(x,y,z) in the Dielectric region: only for Maxwell + HDG
-! for HDG the volume field is not used, only for output in .h5 file for checking if the region is used correctly
-! because in HDG only a constant profile is implemented
 CALL SetDielectricVolumeProfile()
 
 #if !(USE_HDG)
 #if !(USE_FV)
-  ! Determine dielectric Values on faces and communicate them: only for Maxwell
-  CALL SetDielectricFaceProfile()
+! Determine dielectric Values on faces and communicate them: only for Maxwell
+CALL SetDielectricFaceProfile()
 #endif /*USE_FV*/
 #else /*if USE_HDG*/
-  ! Set HDG diffusion tensor 'chitens' on faces
-  CALL SetDielectricFaceProfile_HDG()
-  !IF(ANY(IniExactFunc.EQ.(/200,300/)))THEN ! for dielectric sphere/slab case
-    ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on whether
-    ! the dielectric region is inside the sphere or outside: currently one region is assumed vacuum
-    IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
-      DielectricRatio=DielectricEpsR
-    ELSE ! dielectric elements outside of sphere, hence, the inverse value is taken
-      DielectricRatio=DielectricEpsR_inv
-    END IF
-    ! get the axial electric field strength in x-direction of the dielectric sphere setup
-    Dielectric_E_0 = GETREAL('Dielectric_E_0')
-  !END IF
+IF(ANY(IniExactFunc.EQ.(/200,300,301/)))THEN ! for dielectric sphere/slab case
+  ! set dielectric ratio e_io = eps_inner/eps_outer for dielectric sphere depending on whether
+  ! the dielectric region is inside the sphere or outside: currently one region is assumed vacuum
+  IF(useDielectricMinMax)THEN ! dielectric elements are assumed to be located inside of 'xyzMinMax'
+    DielectricRatio=DielectricEpsR
+  ELSE ! dielectric elements outside of sphere, hence, the inverse value is taken
+    DielectricRatio=DielectricEpsR_inv
+  END IF
+  ! get the axial electric field strength in x-direction of the dielectric sphere setup
+  Dielectric_E_0 = GETREAL('Dielectric_E_0')
+END IF
 #endif /*USE_HDG*/
 
 ! create a HDF5 file containing the DielectriczetaGlobal field: only for Maxwell
@@ -291,6 +290,9 @@ USE MOD_Dielectric_Vars,      ONLY: DielectricVol,DielectricNbrOfZones,Dielectri
 USE MOD_Dielectric_Vars,      ONLY: nDielectricElems,DielectricToElem
 USE MOD_Dielectric_Vars,      ONLY: DielectricRmax,DielectricEpsR,DielectricMuR,DielectricTestCase
 USE MOD_DG_Vars,              ONLY: N_DG_Mapping
+#if USE_HDG
+USE MOD_Equation_Vars         ,ONLY: chi
+#endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -301,10 +303,6 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER             :: i,j,k,iDielectricElem,Nloc,iElem,iZone
 REAL                :: r
-#if USE_HDG
-REAL                :: DielectricEpsMax,DielectricEpsMin
-REAL                :: DielectricMuMax,DielectricMuMin
-#endif /*USE_HDG*/
 !===================================================================================================================================
 ! Check if there are dielectric elements
 IF(nDielectricElems.LT.1) RETURN
@@ -373,35 +371,18 @@ DO iDielectricElem=1,nDielectricElems
            DielectricVol(iDielectricElem)%DielectricMu( 0:Nloc,0:Nloc,0:Nloc))
 END DO !iDielectricElem
 
-! check if MPI local values differ for HDG only (variable dielectric values are not implemented)
+! set volume profile for the HDG
 #if USE_HDG
-DielectricEpsMax = -HUGE(1.)
-DielectricEpsMin = HUGE(1.)
 DO iDielectricElem=1,nDielectricElems
-  DielectricEpsMax = MAX(DielectricEpsMax,MAXVAL(DielectricVol(iDielectricElem)%DielectricEps(:,:,:)))
-  DielectricEpsMin = MIN(DielectricEpsMin,MINVAL(DielectricVol(iDielectricElem)%DielectricEps(:,:,:)))
-END DO !iDielectricElem
-IF(.NOT.ALMOSTEQUALRELATIVE(DielectricEpsMax,DielectricEpsMin,1e-8))THEN
-  IF(nDielectricElems.GT.0)THEN
-    CALL abort(__STAMP__&
-        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Eps_R=',&
-    RealInfoOpt=DielectricEpsMax-DielectricEpsMin)
-  END IF
-END IF
-DielectricMuMax = -HUGE(1.)
-DielectricMuMin = HUGE(1.)
-DO iDielectricElem=1,nDielectricElems
-  DielectricMuMax = MAX(DielectricMuMax,MAXVAL(DielectricVol(iDielectricElem)%DielectricMu(:,:,:)))
-  DielectricMuMin = MIN(DielectricMuMin,MINVAL(DielectricVol(iDielectricElem)%DielectricMu(:,:,:)))
-END DO !iDielectricElem
-IF(.NOT.ALMOSTEQUALRELATIVE(DielectricMuMax,DielectricMuMin,1e-8))THEN
-  IF(nDielectricElems.GT.0)THEN
-    CALL abort(__STAMP__&
-        ,'Dielectric material values in HDG solver cannot be spatially variable because this feature is not implemented! Delta Mu_R=',&
-    RealInfoOpt=DielectricMuMax-DielectricMuMin)
-  END IF
-END IF
+  iElem = DielectricToElem(iDielectricElem)
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc ; DO j=0,Nloc ; DO i=0,Nloc
+    CALL CalcChiTens(chi(iElem)%tens(   :,:,i,j,k),&
+                     chi(iElem)%tensInv(:,:,i,j,k),DielectricVol(iDielectricElem)%DielectricEps(i,j,k))
+  END DO; END DO; END DO !i,j,k
+END DO
 #endif /*USE_HDG*/
+
 END SUBROUTINE SetDielectricVolumeProfile
 
 
@@ -619,58 +600,9 @@ END SUBROUTINE SetDielectricFaceProfile
 
 
 #if USE_HDG
-SUBROUTINE SetDielectricFaceProfile_HDG()
-!===================================================================================================================================
-! set the dielectric factor EpsR for each face DOF in the array "chitens" (constant. on the diagonal matrix)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_PreProc
-USE MOD_Dielectric_Vars, ONLY: isDielectricElem,DielectricEpsR
-USE MOD_Equation_Vars   ,ONLY: chi
-USE MOD_Mesh_Vars       ,ONLY: offSetElem
-! USE MOD_Mesh_Vars,       ONLY:ElemToSide,nInnerSides
-USE MOD_DG_Vars         ,ONLY: N_DG_Mapping
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER :: i,j,k,iElem,Nloc
-! INTEGER :: p,q,flip,locSideID,SideID
-! REAL    :: Invdummy(3,3)
-!===================================================================================================================================
-DO iElem=1,PP_nElems
-  ! cycle the loop if no dielectric element is connected to the side
-  IF(.NOT.isDielectricElem(iElem)) CYCLE
-
-  !compute field on Gauss-Lobatto points (continuous!)
-  Nloc = N_DG_Mapping(2,iElem+offSetElem)
-  DO k=0,Nloc ; DO j=0,Nloc ; DO i=0,Nloc
-    !CALL CalcChiTens(Elem_xGP(:,i,j,k,iElem),chitens(:,:,i,j,k,iElem),chitensInv(:,:,i,j,k,iElem),DielectricEpsR)
-    CALL CalcChiTens(chi(iElem)%tens(   :,:,i,j,k),&
-                     chi(iElem)%tensInv(:,:,i,j,k),DielectricEpsR)
-  END DO; END DO; END DO !i,j,k
-
-  !DO locSideID=1,6
-  !  flip=ElemToSide(E2S_FLIP,LocSideID,iElem)
-  !  SideID=ElemToSide(E2S_SIDE_ID,LocSideID,iElem)
-  !  IF(.NOT.((flip.NE.0).AND.(SideID.LE.nInnerSides)))THEN
-  !    DO q=0,PP_N; DO p=0,PP_N
-  !      !CALL CalcChiTens(Face_xGP(:,p,q),chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
-  !      CALL CalcChiTens(chitens_face(:,:,p,q,SideID),Invdummy(:,:),DielectricEpsR)
-  !    END DO; END DO !p, q
-  !  END IF
-  !END DO !locSideID
-END DO
-END SUBROUTINE SetDielectricFaceProfile_HDG
-
-
 SUBROUTINE CalcChiTens(chitens,chitensInv,DielectricEpsR)
 !===================================================================================================================================
-! calculate diffusion tensor, diffusion coefficient chi1/chi0 along B vector field plus isotropic diffusion 1.
+!> Define the eps tensor for the Poisson solver per DOF
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -689,16 +621,13 @@ REAL,INTENT(OUT),OPTIONAL       :: chitensInv(3,3)
 !===================================================================================================================================
 ! default
 chitens=0.
-chitens(1,1)=1.
-chitens(2,2)=1.
-chitens(3,3)=1.
 
-! set diffusion tensor: currently only constant distribution
+! set the principal axis of the tensor
 chitens(1,1)=DielectricEpsR
 chitens(2,2)=DielectricEpsR
 chitens(3,3)=DielectricEpsR
 
-! inverse of diffusion 3x3 tensor on each gausspoint
+! inverse of 3x3 tensor
 chitensInv(:,:)=INVERSE(chitens(:,:))
 
 END SUBROUTINE calcChiTens
