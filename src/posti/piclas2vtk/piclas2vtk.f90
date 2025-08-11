@@ -1603,7 +1603,7 @@ CHARACTER(LEN=255),INTENT(IN)   :: InputStateFile
 ! LOCAL VARIABLES
 CHARACTER(LEN=255)              :: FileString, File_Type
 CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide, Nloc
+INTEGER                         :: nDims, nVarSurf, nSurfaceSidesReadin, SideID, iSurfOutputSide, Nloc, nNodesSurf
 REAL                            :: OutputTime
 REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:,:)
 REAL,ALLOCATABLE                :: NodeCoords_visu(:,:,:,:,:)     !< Coordinates of visualization nodes
@@ -1661,7 +1661,6 @@ IF((nVarSurf.GT.0).AND.(SurfConnect%nSurfaceOutputSides.GT.0))THEN
 END IF
 
 IF(nSurfSample.GT.1) THEN
-
   ! Build interpolation basis from NodeType=GAUSS (0:Nloc) to NodeType=VISU (0:nSurfSample)
   ALLOCATE(N_Inter_Visu(Nmin:Nmax))
   ! Loop over all polynomial degrees
@@ -1687,37 +1686,27 @@ IF(nSurfSample.GT.1) THEN
         N_SurfMesh(SideID)%Face_xGP(1:3 , 0:Nloc        , 0:Nloc)       , &
                     NodeCoords_visu(1:3 , 0:nSurfSample , 0:nSurfSample , 0 , iSurfOutputSide))
   END DO
+  ! Number of nodes is calculated inside the WriteDataToVTK_PICLas routine in case of super-sampling: nSurfaceOutputSides = nSurfaceNode
+  ! Connectivity is build inside, thus no SideSurfNodeMap is required
+  nNodesSurf = SurfConnect%nSurfaceOutputSides
 ELSE
   ALLOCATE(NodeCoords_visu(1:3,0:0,0:0,0:0,1:SurfConnect%nSurfaceNode))
   NodeCoords_visu = 0.
   NodeCoords_visu(1:3,0,0,0,1:SurfConnect%nSurfaceNode) = SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode)
+  nNodesSurf = SurfConnect%nSurfaceNode
 END IF
 
-IF(TRIM(File_Type).NE.'RadiationSurfState') THEN
-  IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
-    IF(TRIM(File_Type).NE.'DVMSurfState') THEN
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
-  ELSE
-      FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfDVM',OutputTime))//'.vtu'
-    END IF
-  ELSE
-    FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfChem',OutputTime))//'.vtu'
-  END IF
-ELSE
+SELECT CASE(TRIM(File_Type))
+CASE('RadiationSurfState')
   FileString=TRIM(TRIM(ProjectName)//'_RadSurfVisu')//'.vtu'
-END IF
-!CALL WriteDataToVTK_PICLas(4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,SurfConnect%NodeCoords(1:3,1:SurfConnect%nSurfaceNode),&
-    !SurfConnect%nSurfaceOutputSides,SurfData,SurfConnect%SideSurfNodeMap(1:4,1:SurfConnect%nSurfaceOutputSides))
+CASE('DVMSurfState')
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurfDVM',OutputTime))//'.vtu'
+CASE DEFAULT
+  FileString=TRIM(TIMESTAMP(TRIM(ProjectName)//'_visuSurf',OutputTime))//'.vtu'
+END SELECT
 
-IF(nSurfSample.GT.1) THEN
-  ! Number of nodes is calculated inside the routine in case of super-sampling: nSurfaceOutputSides = nSurfaceNode
-  ! Connectivity is build inside, thus no SideSurfNodeMap is required
-  CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceOutputSides,NodeCoords_visu,&
-      SurfConnect%nSurfaceOutputSides,tempSurfData,SurfConnect%SideSurfNodeMap)
-ELSE
-  CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,SurfConnect%nSurfaceNode,NodeCoords_visu,&
-      SurfConnect%nSurfaceOutputSides,tempSurfData,SurfConnect%SideSurfNodeMap)
-END IF
+CALL WriteDataToVTK_PICLas(2,4,FileString,nVarSurf,VarNamesSurf_HDF5,nNodesSurf,NodeCoords_visu,&
+    SurfConnect%nSurfaceOutputSides,tempSurfData,SurfConnect%SideSurfNodeMap)
 
 SDEALLOCATE(VarNamesSurf_HDF5)
 SDEALLOCATE(tempSurfData)

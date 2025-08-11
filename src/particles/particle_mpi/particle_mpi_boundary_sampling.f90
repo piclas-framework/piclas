@@ -422,7 +422,7 @@ IMPLICIT NONE
 INTEGER                         :: iProc,SideID,iSpec
 INTEGER                         :: iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
-INTEGER                         :: nValues, SurfChemVarNum, SurfChemSampSize
+INTEGER                         :: nValues, SurfChemSampSize
 TYPE(MPI_Request)               :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
