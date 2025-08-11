@@ -18,7 +18,7 @@ MODULE MOD_Particle_Boundary_Vars
 ! MODULES
 #if USE_MPI
 USE MOD_Globals
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -79,10 +79,10 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)       :: SurfSide2GlobalSide_Shared
 
 #if USE_MPI
 REAL,POINTER,DIMENSION(:,:,:)           :: BoundaryWallTemp_Shared           !> Wall Temperature for Adaptive Case
-INTEGER                                 :: BoundaryWallTemp_Shared_Win
+TYPE(MPI_Win)                           :: BoundaryWallTemp_Shared_Win
 
 REAL,POINTER,DIMENSION(:,:,:)           :: SurfSideArea_Shared           !> Area of supersampled surface side
-INTEGER                                 :: SurfSideArea_Shared_Win
+TYPE(MPI_Win)                           :: SurfSideArea_Shared_Win
 
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: GlobalSide2SurfHaloSide       ! Mapping Global Side ID to Surf Halo Side ID (exists only on leader procs)
                                                                          !> 1st dim: leader rank
@@ -91,8 +91,8 @@ INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: SurfHaloSide2GlobalSide       ! Inver
                                                                          !> 1st dim: leader rank
                                                                          !> 2nd dim: Surf SideID
 
-INTEGER                                 :: GlobalSide2SurfSide_Shared_Win
-INTEGER                                 :: SurfSide2GlobalSide_Shared_Win
+TYPE(MPI_Win)                           :: GlobalSide2SurfSide_Shared_Win
+TYPE(MPI_Win)                           :: SurfSide2GlobalSide_Shared_Win
 
 TYPE tSurfaceMapping
   INTEGER,ALLOCATABLE                   :: RecvSurfGlobalID(:)
@@ -115,12 +115,12 @@ REAL,POINTER,DIMENSION(:,:,:,:,:)       :: SampWallImpactVector_Shared
 REAL,POINTER,DIMENSION(:,:,:,:)         :: SampWallImpactAngle_Shared
 REAL,POINTER,DIMENSION(:,:,:,:)         :: SampWallImpactNumber_Shared
 
-INTEGER                                 :: SampWallState_Shared_Win
-INTEGER                                 :: SampWallPumpCapacity_Shared_Win
-INTEGER                                 :: SampWallImpactEnergy_Shared_Win
-INTEGER                                 :: SampWallImpactVector_Shared_Win
-INTEGER                                 :: SampWallImpactAngle_Shared_Win
-INTEGER                                 :: SampWallImpactNumber_Shared_Win
+TYPE(MPI_Win)                           :: SampWallState_Shared_Win
+TYPE(MPI_Win)                           :: SampWallPumpCapacity_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactEnergy_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactVector_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactAngle_Shared_Win
+TYPE(MPI_Win)                           :: SampWallImpactNumber_Shared_Win
 #endif /* USE_MPI */
 
 ! ====================================================================
@@ -136,17 +136,17 @@ INTEGER,ALLOCATABLE               :: InterPlaneSideMapping(:,:)! Mapping between
 ! ====================================================================
 #if USE_MPI
 INTEGER,POINTER,DIMENSION(:)    :: SurfSide2RotPeriodicSide_Shared
-INTEGER                         :: SurfSide2RotPeriodicSide_Shared_Win
+TYPE(MPI_Win)                   :: SurfSide2RotPeriodicSide_Shared_Win
 INTEGER,POINTER,DIMENSION(:)    :: NumRotPeriodicNeigh_Shared
-INTEGER                         :: NumRotPeriodicNeigh_Shared_Win
+TYPE(MPI_Win)                   :: NumRotPeriodicNeigh_Shared_Win
 INTEGER,POINTER,DIMENSION(:)    :: Rot2Glob_temp_Shared
-INTEGER                         :: Rot2Glob_temp_Shared_Win
+TYPE(MPI_Win)                   :: Rot2Glob_temp_Shared_Win
 INTEGER,POINTER,DIMENSION(:,:)  :: RotPeriodicSideMapping_temp_Shared
-INTEGER                         :: RotPeriodicSideMapping_temp_Shared_Win
+TYPE(MPI_Win)                   :: RotPeriodicSideMapping_temp_Shared_Win
 INTEGER,POINTER,DIMENSION(:,:)  :: RotPeriodicSideMapping_Shared
-INTEGER                         :: RotPeriodicSideMapping_Shared_Win
+TYPE(MPI_Win)                   :: RotPeriodicSideMapping_Shared_Win
 REAL,POINTER,DIMENSION(:,:)     :: BoundingBox_Shared
-INTEGER                         :: BoundingBox_Shared_Win
+TYPE(MPI_Win)                   :: BoundingBox_Shared_Win
 #endif /*USE_MPI*/
 
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -166,7 +166,7 @@ INTEGER                                 :: nComputeNodeInnerBCs(2)       ! Numbe
 
 #if USE_MPI
 TYPE tMPIGROUP
-  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for surface sides (including sides inside the halo region)
+  TYPE(mpi_comm)              :: UNICATOR=MPI_COMM_NULL !< MPI communicator for surface sides (including sides inside the halo region)
   INTEGER                     :: nProcs                 !< number of MPI processes for particles
   INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE
@@ -190,10 +190,10 @@ REAL,ALLOCPOINT                         :: PorousBCSampWall_Shared(:,:)       ! 
                                                                               ! 1: Impinging particles
                                                                               ! 2: Deleted particles
 #if USE_MPI
-INTEGER                                 :: MapSurfSideToPorousSide_Shared_Win
-INTEGER                                 :: PorousBCInfo_Shared_Win
-INTEGER                                 :: PorousBCProperties_Shared_Win
-INTEGER                                 :: PorousBCSampWall_Shared_Win
+TYPE(MPI_Win)                           :: MapSurfSideToPorousSide_Shared_Win
+TYPE(MPI_Win)                           :: PorousBCInfo_Shared_Win
+TYPE(MPI_Win)                           :: PorousBCProperties_Shared_Win
+TYPE(MPI_Win)                           :: PorousBCSampWall_Shared_Win
 #endif
 
 REAL,ALLOCATABLE                        :: PorousBCSampWall(:,:)  ! Processor-local sampling of impinging and deleted particles
@@ -212,6 +212,7 @@ TYPE tPartBoundary
   INTEGER                                :: SymmetryBC              = 10 ! Same as the default ReflectiveBC but without analysis
   INTEGER                                :: SymmetryAxis            = 11 ! Symmetry axis for axisymmetric simulations (x-axis)
   INTEGER                                :: SymmetryDim             = 12 ! BC for 1D, 2D and axisymmetric simulations in the neglected dimension(s)
+  !INTEGER                                :: VDL                     = 20 ! Particles are shifted away from the wall, deposited and then deleted to form a surface charge model
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
@@ -225,6 +226,7 @@ TYPE tPartBoundary
   REAL    , ALLOCATABLE                  :: VibACC(:)
   REAL    , ALLOCATABLE                  :: RotACC(:)
   REAL    , ALLOCATABLE                  :: ElecACC(:)
+  REAL    , ALLOCATABLE                  :: DeformEnergyLoss(:)
   ! Temperature gradient across reflective BC
   REAL    , ALLOCATABLE                  :: WallTemp2(:), WallTempDelta(:)
   REAL    , ALLOCATABLE                  :: TempGradStart(:,:), TempGradEnd(:,:), TempGradVec(:,:)
@@ -267,6 +269,9 @@ TYPE tPartBoundary
                                                                           ! a non-dielectric or a between to different dielectrics
                                                                           ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
                                                                           ! (Default=FALSE.)
+  ! Virtual dielectric layer (VDL)
+  REAL    , ALLOCATABLE                  :: PermittivityVDL(:)            ! Permittivity of the virtual dielectric layer model
+  REAL    , ALLOCATABLE                  :: ThicknessVDL(:)               ! Thickness of the real dielectric layer in the virtual dielectric layer model
   ! Multi rotational periodic and interplane BCs
   LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
   LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined
@@ -288,6 +293,8 @@ TYPE tPartBoundary
   ! Boundary particle output
   LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
                                                                           ! PartDataBoundary container for writing to .h5 later
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputEmission(:) ! Include emitted particles in the PartDataBoundary container
+                                                                              ! with a negative species index
 END TYPE
 
 INTEGER                                  :: nPartBound                    ! number of particle boundaries
@@ -297,10 +304,35 @@ TYPE(tPartBoundary)                      :: PartBound                     ! Boun
 ! Boundary particle output
 LOGICAL              :: DoBoundaryParticleOutputHDF5 ! Flag set automatically if particles crossing specific  boundaries are to be saved to .h5 (position of intersection, velocity, species, internal energies)
 LOGICAL              :: DoBoundaryParticleOutputRay ! User-defined flag to output surface SEE or volume ionization emission particles to .h5 based on the ray tracing model
-REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:12,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
-INTEGER, PARAMETER   :: nVarPartStateBoundary=11
+INTEGER, PARAMETER   :: nVarPartStateBoundary=12
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
+! Virtual dielectric layer (VDL)
+LOGICAL              :: DoVirtualDielectricLayer      ! Flag set automatically if a VDL permittivity is set >= 0.0
+REAL, ALLOCATABLE    :: ElementThicknessVDL(:)        ! Thickness of first element layer at a VDL boundary
+REAL, ALLOCATABLE    :: ElementThicknessVDLPerSide(:) ! Thickness of first element layer at a VDL boundary per side to account for multiple VDLs within a single element
+REAL, ALLOCATABLE    :: StretchingFactorVDL(:)        ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
+
+TYPE, PUBLIC :: VDLSurfMesh
+  REAL,ALLOCATABLE :: U(:,:,:) !<  1: PhiF_From_E      - PhiF calculated from E (2-4)
+                               !<  2: Ex               - E-field from post-processes gradient corrected with ElementThicknessVDL and ThicknessVDL
+                               !<  3: Ey
+                               !<  4: Ez
+                               !<  5: PhiF_Max         - PhiF as Minimum/Maximum of Phi
+                               !<  6: E_From_PhiF_Maxx - E-field from PhiF_Max (Minimum/Maximum of Phi) and ThicknessVDL (thickness of the dielectric layer)
+                               !<  7: E_From_PhiF_Maxy
+                               !<  8: E_From_PhiF_Maxz
+                               !<  9: PhiF_From_Currents - PhiF calculated from the current density and the (uncorrected) electric displacement fields in each element
+                               !< 10: E_From_PhiF_From_Currentsx - E-field from PhiF_From_Currents (current density+electric displacement field) and ThicknessVDL (thickness of the dielectric layer)
+                               !< 11: E_From_PhiF_From_Currentsy
+                               !< 12: E_From_PhiF_From_Currentsz
+                               !< 13: iBC
+                               !< 14: iPartBound
+END TYPE VDLSurfMesh
+
+INTEGER,PARAMETER              :: nVarSurfData=14
+TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Electric potential and fields strength on VDL surfaces
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

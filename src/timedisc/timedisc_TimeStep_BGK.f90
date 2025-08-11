@@ -37,7 +37,7 @@ USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt, IterDisplayStep, iter, TEnd, Time
 USE MOD_Globals                ,ONLY: abort, CROSS
 USE MOD_Particle_Vars          ,ONLY: PartState, LastPartPos, PDM, PEM, DoSurfaceFlux, WriteMacroVolumeValues
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, RotRefFrameOmega, PartVeloRotRef
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_Particle_Vars          ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_DSMC_Vars              ,ONLY: DSMC, CollisMode
 USE MOD_part_tools             ,ONLY: UpdateNextFreePosition
@@ -111,7 +111,7 @@ DO iPart=1,PDM%ParticleVecLength
       PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
     END IF
     IF(UseRotRefFrame) THEN
-      IF(PDM%InRotRefFrame(iPart)) THEN
+      IF(InRotRefFrame(iPart)) THEN
         ! Midpoint method
         ! calculate the acceleration (force / mass) at the current time step
         Pt_local_old(1:3) = CalcPartRHSRotRefFrame(PartState(1:3,iPart), PartVeloRotRef(1:3,iPart))
@@ -194,14 +194,14 @@ IF(UseRotRefFrame) THEN
     IF(PDM%ParticleInside(iPart)) THEN
       IF(InRotRefFrameCheck(iPart)) THEN
         ! Particle moved into the rotational frame of reference, initialize velocity
-        IF(.NOT.PDM%InRotRefFrame(iPart)) THEN
+        IF(.NOT.InRotRefFrame(iPart)) THEN
           PartVeloRotRef(1:3,iPart) = PartState(4:6,iPart) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart))
         END IF
       ELSE
         ! Particle left (or never was in) the rotational frame of reference
         PartVeloRotRef(1:3,iPart) = 0.
       END IF
-      PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+      InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
     END IF
   END DO
 END IF

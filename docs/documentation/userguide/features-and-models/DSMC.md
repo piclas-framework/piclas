@@ -18,12 +18,10 @@ Additionally, the number of simulated physical models depending on the applicati
 
 `CollisMode = 1` can be utilized for the simulation of a non-reactive, cold atomic gas, where no chemical reactions or electronic
 excitation is expected. `CollisMode = 2` should be chosen for non-reactive diatomic gas flows to include the internal energy
-exchange (by default including the rotational and vibrational energy treatment). Finally, reactive gas flows can be simulated with
+exchange (by default including the continuous rotational and quantized vibrational energy treatment). Finally, reactive gas flows can be simulated with
 `CollisMode = 3`. The following sections describe the required definition of species parameter (Section {ref}`sec:DSMC-species`),
 the parameters for the internal energy exchange (Section {ref}`sec:DSMC-relaxation`) and chemical reactions (Section
 {ref}`sec:DSMC-chemistry`).
-
-
 
 A fixed ("manual") simulation time step $\Delta t$ is defined by
 
@@ -44,13 +42,14 @@ To define a species, its name as well as an `InteractionID` have to be defined
 During the file-based parameter read-in, name is only utilized to retrieve the electronic energy levels from an additional database.
 The interaction ID determines the type of a species as follows
 
-|   ID | Type                               |
-| ---: | ---------------------------------- |
-|    1 | Atom                               |
-|    2 | Molecule (diatomic and polyatomic) |
-|    4 | Electron                           |
-|   10 | Atomic Ion                         |
-|   20 | Molecular Ion                      |
+|   ID | Type                                                            |
+| ---: | --------------------------------------------------------------- |
+|    1 | Atom                                                            |
+|    2 | Molecule (diatomic and polyatomic)                              |
+|    4 | Electron                                                        |
+|   10 | Atomic Ion                                                      |
+|   20 | Molecular Ion                                                   |
+|  100 | Solid particle (see Section {ref}`sec:granular-flows`) |
 
 Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable
 Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega = [0,0.5]$, reference
@@ -81,7 +80,9 @@ If the previous state of the ionized species is not part of the simulation (e.g.
 state of N$_2^+$ can be set to zero, however, in that case a heat/enthalpy of formation has to be provided, which includes the
 ionization energy (as given in ATcT).
 
-Diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV]
+For the vibrational energy, two different models are available, the Simple Harmonic Oscillator (SHO) and the Anharmonic Oscillator (AHO). The default model is SHO.
+
+Here, diatomic molecular species require the definition of the characteristic temperature [K] and their dissociation energy [eV]
 (which is at the moment utilized as a first guess for the upper bound of the temperature calculation as well as the threshold
 energy for the dissociation by the Quantum-Kinetic chemistry model)
 
@@ -190,11 +191,28 @@ To achieve consistency between continuum and particle-based relaxation modelling
 
 ### Rotational Relaxation
 
-To adjust the rotational relaxation this variable has to be changed:
+The default rotational relaxation model uses a continuous treatment. For simulations involving low temperatures relative to the characteristic rotational temperatures of the species, it is possible to activate a quantized treatment of rotational degrees of freedom with DSMC. This feature is enabled with
+
+    Particles-DSMC-RotationalRelaxModel = 1     ! Default: 0 (continuous)
+
+This model requires the moments of inertia ($kgm^{2}$) for each species, which can be provided either through the unified species database or defined with
+
+    Part-Species1-MomentOfInertia = 7.198e-46
+
+for linear and spherical molecules since all moments of inertia are equal. For symmetric molecules one moment of inertia is different so two have to be defined with
+
+    Part-Species1-MomentOfInertia1 = 2.939e-47
+    Part-Species1-MomentOfInertia2 = 5.878e-47
+
+Moment of inertia data can be retrieved from the [NIST database](https://cccbdb.nist.gov) {cite}`CCCBDB-web-page`.
+Please note that the quantized model has not yet been implemented for asymmetric top molecules and it is currently not available for coupled simulations using BGK or Fokker-Planck models.
+
+To adjust the rotational relaxation probability, several options are available:
 
     Particles-DSMC-RotRelaxProb = 0.2   ! Value between 0 and 1 as a constant probability
-                                    2   ! Model by Boyd
+                                    2   ! Model by Boyd (general model)
                                     3   ! Model by Zhang
+                                    4   ! Model by Boyd (only for Hydrogen)
 
 If `RotRelaxProb` is between 0 and 1, it is set as a constant rotational relaxation probability (default = 0.2). `RotRelaxProb = 2`
 activates the variable rotational relaxation model according to Boyd {cite}`Boyd1990a`. Consequently, for each molecular species
@@ -206,16 +224,30 @@ example, nitrogen is used {cite}`Boyd1990b`.
 
 It is not recommended to use this model with the prohibiting double-relaxation selection procedure (`Particles-DSMC-SelectionProcedure = 2`). Low collision energies result in high relaxation probabilities, which can lead to cumulative collision probabilities greater than 1.
 
-If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used. However, it is only
-implemented for nitrogen and not tested. It is not recommended for use.
+If the relaxation probability is equal to 3, the relaxation model of Zhang et al. {cite}`Zhang2012` is used, which is currently only implemented for nitrogen. A relaxation probability of 4 enables the model of Boyd, which is specifically constructed for hydrogen {cite}`Boyd1994`.
+However, both of these models are not tested yet and not recommended for use.
 
 ### Vibrational Relaxation
+
+The default vibrational relaxation model is the simple harmonic osciallator (SHO) model, which is enabled per default. The anharmonic oscillator (AHO) model, using the Morse potential, can be enabled with
+
+    Particles-DSMC-VibrationalRelaxModel = 1    ! Default: 0 (SHO)
+
+It is only implemented for diatomic molecular species until now and cannot be combined with chemical reactions. PICLas utilizes a species database, which contains the AHO vibrational energy levels and spectroscopy constants $\omega_\mathrm{E}$ and $\chi_\mathrm{E}$ of the species and is located in the top folder `SpeciesDatabase.h5`. Details regarding the database can be found in Section {ref}`sec:unified-species-database`. Although not recommended, to start the simulation without the species database, the following parameters are required
+
+    Part-Species1-Vib-Anharmonic-omegaE = 167174.0
+    Part-Species1-Vib-Anharmonic-chiE = 0.009825092
+
+A comma-separated list of the anharmonic energy levels (in Joule), including the zero-point energy as first level, can be included via
+
+    Particles-DSMC-Vib-Anharmonic-Species1-Data = DSMCSpecies_AHO_vibrational_data.csv
 
 Analogous to the rotational relaxation probability, the vibrational relaxation probability is implemented. This variable has to be
 changed, if the vibrational relaxation probability should be adjusted:
 
     Particles-DSMC-VibRelaxProb = 0.004 ! Value between 0 and 1 as a constant probability
                                       2 ! Model by Boyd
+                                      3 ! Model by Bird
 
 If `VibRelaxProb` is between 0 and 1, it is used as a constant vibrational relaxation probability (default = 0.004). The variable
 vibrational relaxation model of Boyd {cite}`Boyd1990b` can be activated with `VibRelaxProb = 2`. For each molecular species pair,
@@ -252,6 +284,15 @@ $$P^{n+1}_{\mathrm{v}}= P^{n}_{\mathrm{v}}  \cdot  \alpha^{2  \cdot  n_{\mathrm{
 This model is extended to more species by calculating a separate probability for each species. An initial vibrational relaxation
 probability is set by calculating $\mathrm{INT}(1/(1-\alpha))$ vibrational relaxation probabilities for each species and cell by
 using an instantaneous translational cell temperature.
+
+The relaxation model of Bird {cite}`Bird1994` can be activated with `VibRelaxProb = 3`. With this, the relaxation probabilities are calculated from a collision temperature and the dissociation temperature, which sets a limit for the quantum number. For each species pair containing a diatomic molecule, the following parameters are required for each diatomic species, which can be found in {cite}`Carlson1994`. The parameters for N$_2$-N are shown as an example:
+
+    Part-Species1-1-VibConstant-C1 = 9.1
+    Part-Species1-2-VibConstant-C1 = 1800.0
+
+    Part-Species1-1-VibConstant-C2 = 220.0
+    Part-Species1-2-VibConstant-C2 = 73.5
+
 
 (sec:DSMC-electronic-relaxation)=
 ### Electronic Relaxation
@@ -315,8 +356,8 @@ A reaction is then defined by
 
 where the reaction model can be defined as follows
 
-|   Model   |                                   Description                                  |
-|   ----:   | -------------------------------------------------                              |
+|     Model | Description                                                                    |
+| --------: | ------------------------------------------------------------------------------ |
 |       TCE | Total Collision Energy: Arrhenius-based chemistry                              |
 |        QK | Quantum Kinetic: Threshold-based chemistry                                     |
 |      XSec | Cross-section based chemistry                                                  |
@@ -425,6 +466,72 @@ temperature, three values have to be supplied for non-linear polyatomic molecule
 supplied to consider the electronic partition function. For this purpose, the user should provide an electronic state database as
 presented in Section {ref}`sec:DSMC-electronic-relaxation`.
 
+(sec:granular-flows)=
+## Granular Flows
+
+A one-way coupling for gas-solid particle interactions is implemented in PICLas and based on {cite}`Burt2003`. This approach assumes that only the influence of the gas flow on the solid particle is considered. The following assumptions apply to this model:
+
+- Solid particles are assumed to be perfectly spherical.
+- No temperature gradient exists within the solid particles, meaning their temperature is spatially uniform.
+- The volume of solid particles is much larger than that of gas molecules. The local particle Knudsen number, defined as the ratio of the gas mean free path to the particle diameter, is on the order of one or greater. This ensures the free molecular flow regime is valid, and collisions between incoming and reflected gas molecules are neglected.
+- No mass exchange (e.g., adsorption or absorption) occurs between the gas and solid phases.
+
+### Defining Granular Flows
+
+To define a granular flow, additional parameters must be configured alongside those for a DSMC gas flow simulation. Granular species are defined similarly to gas species but the following key differences must be taken into account:
+
+Set the `InteractionID` of the granular species to 100 in order to indicate the particles as solid:
+
+    Part-Species1-InteractionID = 100
+
+Define the size in [m], mass in [kg] of the solid particle (perfectly spherical) and the weighting factor, similar to gas species using:
+
+    Part-Species1-dref
+    Part-Species1-MassIC
+    Part-Species1-MacroParticleFactor
+
+The weighting factor can differ from the weighting factor of gas species and does not depend on the usage of a variable weighting factor for gas species.
+The energy transferred from the gas flow to the solid particle depends on the thermal accommodation coefficient of the solid particle surface and is provided by the user per gas-phase species by
+
+    Part-Species2-GranularPartTau = 1.0
+
+assuming that the second species is a gas species. To correctly calculate the temperature development of granular species, specify their specific heat capacity in J/(kg K):
+
+    Part-Species1-GranularPartCsp = 765
+
+To initialize the granular particles in the simulation, they can be defined analogous to the regular species by defining a velocity magnitude and vector, insertion type, number of particles, and temperature (see Section {ref}`sec:particle-initialization-and-emission` for the available parameters). However, granular species do not have a temperature distribution, since they are modeled as solid particles with a constant temperature. Therefore, the velocity distribution will be automatically set to constant, regardless of user-input to `velocityDistribution`.
+
+### Gravitational Effects
+
+Since the dynamics of solid particles can be significantly influenced by Earth's gravity, you can enable gravitational effects using:
+
+    UseGravitation = T
+
+Additionally, define the gravity direction:
+
+    DirectionOfGravity = (/ -1.0, 0.0, 0.0 /)
+
+
+### Granular-Wall Interactions
+
+Granular particles interact with walls differently than classical DSMC particles. Granular particles are always reflected specularly but may lose energy due to deformation upon impact. The energy loss is controlled by the parameter:
+
+    Part-Boundary1-DeformEnergyLoss=0.5
+
+This parameter is defined per boundary and must be between 0 and 1. A value of 1 means complete energy loss, causing the particle to come to rest upon wall impact, while a value of 0 represents an elastic collision with no energy loss. Note that the assumption of perfectly spherical particles with a constant diameter remains valid, even when energy is lost due to deformation.
+
+### Verification of One-Way Coupling
+
+To verify the one-way coupling, the drag force and heat flux on a single solid particle in a flow were analyzed. Two new flags were introduced for this purpose. To disable particle velocity and temperature updates, use
+
+    SkipGranularUpdate = T
+
+To output the average force and heat acting on the particle, use:
+
+    CalcGranularDragHeat = T
+
+The results are written to the `PartAnalyze.csv` file.
+
 ## Additional Features
 ### Deletion of Chemistry Products
 
@@ -477,7 +584,3 @@ $$w < \frac{1}{\left(\sqrt{2}\pi d_{\mathrm{ref}}^2 n^{2/3}\right)^3},$$
 where $d_{\mathrm{ref}}$ is the reference diameter and $n$ the number density. Here, the largest number density within the
 simulation domain should be used as the worst-case. For supersonic/hypersonic flows, the conditions behind a normal shock can be
 utilized as a first guess. For a thruster/nozzle expansion simulation, the chamber or throat conditions are the limiting factor.
-
-
-
-

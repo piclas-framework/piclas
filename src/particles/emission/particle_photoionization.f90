@@ -39,7 +39,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: PI
 USE MOD_Timedisc_Vars           ,ONLY: dt,time
 USE MOD_Particle_Boundary_Vars  ,ONLY: Partbound,DoBoundaryParticleOutputRay
-USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF
+USE MOD_Particle_Vars           ,ONLY: Species, PartState, usevMPF,SpeciesOffsetVDL
 USE MOD_RayTracing_Vars         ,ONLY: Ray,UseRayTracing,RayElemEmission
 USE MOD_part_emission_tools     ,ONLY: CalcPhotonEnergy
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,UseBezierControlPoints
@@ -64,10 +64,16 @@ USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall_loc,PhotonSurfSideArea
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
+USE MOD_Particle_Boundary_Vars  ,ONLY: DoVirtualDielectricLayer
+USE MOD_Particle_Vars           ,ONLY: LastPartPos,PartSpecies
 #endif /*USE_HDG*/
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Particle_Vars           ,ONLY: nSpecies
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -78,13 +84,16 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity,vec(3)
 INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID, iSurfSide, CNElemID
-INTEGER               :: p, q, BCID, SpecID, iPart, NbrOfSEE, iSEEBC
+INTEGER               :: p, q, iPartBound, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
 REAL                  :: RandVal, RandVal2(2), xiab(1:2,1:2), nVec(3), tang1(3), tang2(3), Velo3D(3)
 #if USE_HDG
 INTEGER               :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 ! Check if ray tracing based SEE is active
 ! 1) Boundary from which rays are emitted
@@ -92,7 +101,7 @@ IF(.NOT.UseRayTracing) RETURN
 ! 2) SEE yield for any BC greater than zero
 IF(.NOT.ANY(PartBound%PhotonSEEYield(:).GT.0.)) RETURN
 
-! TODO: Copied here from InitParticleMesh, which is only build if not TriaSurfaceFlux
+! TODO: Copied here from InitParticleMesh, which is only built if not TriaSurfaceFlux
 IF(UseBezierControlPoints)THEN
   IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:Ray%nSurfSample))
   DO iSample=0,Ray%nSurfSample
@@ -145,6 +154,10 @@ IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
 TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
 
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 DO BCSideID=1,nBCSides
   locElemID = SideToElem(S2E_ELEM_ID,BCSideID)
   ! Skip elements without ionization
@@ -153,24 +166,30 @@ DO BCSideID=1,nBCSides
   SideID    = GetGlobalNonUniqueSideID(offsetElem+locElemID,iLocSide)
   iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   !SideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-  BCID = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
+  iPartBound = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
   ! Skip non-reflective BC sides
-  IF(PartBound%TargetBoundCond(BCID).NE.PartBound%ReflectiveBC) CYCLE
+  IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%ReflectiveBC) CYCLE
   ! Skip BC sides with zero yield
-  IF(PartBound%PhotonSEEYield(BCID).LE.0.) CYCLE
+  IF(PartBound%PhotonSEEYield(iPartBound).LE.0.) CYCLE
   ! Determine which species is to be inserted
-  SpecID = PartBound%PhotonSEEElectronSpecies(BCID)
+  SpecID = PartBound%PhotonSEEElectronSpecies(iPartBound)
   ! Sanity check
   IF(SpecID.EQ.0)THEN
-    IPWRITE(UNIT_StdOut,*) "BCID =", BCID
-    IPWRITE(UNIT_StdOut,*) "PartBound%PhotonSEEElectronSpecies(BCID) =", PartBound%PhotonSEEElectronSpecies(BCID)
+    IPWRITE(UNIT_StdOut,*) "iPartBound =", iPartBound
+    IPWRITE(UNIT_StdOut,*) "PartBound%PhotonSEEElectronSpecies(iPartBound) =", PartBound%PhotonSEEElectronSpecies(iPartBound)
     CALL abort(__STAMP__,'Electron species index cannot be zero!')
+  END IF ! SpecID.eq.0
+  IF(SpecID.GT.nSpecies)THEN
+    IPWRITE(UNIT_StdOut,*) "iPartBound =", iPartBound
+    IPWRITE(UNIT_StdOut,*) "PartBound%PhotonSEEElectronSpecies(iPartBound) =", PartBound%PhotonSEEElectronSpecies(iPartBound)
+    IPWRITE(UNIT_StdOut,*) "nSpecies   =", nSpecies
+    CALL abort(__STAMP__,'Electron species index cannot greater than nSpecies!')
   END IF ! SpecID.eq.0
   ! Determine which element the particles are going to be inserted
   GlobElemID = SideInfo_Shared(SIDE_ELEMID ,SideID)
   ! Determine the weighting factor of the electron species
   IF(usevMPF)THEN
-    MPF = PartBound%PhotonSEEMacroParticleFactor(BCID) ! Use SEE-specific MPF
+    MPF = PartBound%PhotonSEEMacroParticleFactor(iPartBound) ! Use SEE-specific MPF
   ELSE
     MPF = Species(SpecID)%MacroParticleFactor ! Use species MPF
   END IF ! usevMPF
@@ -180,16 +199,18 @@ DO BCSideID=1,nBCSides
       ! Calculate the number of SEEs per subside
       !E_Intensity = PhotonSampWall(2,p,q,iSurfSide) * TimeScalingFactor
       E_Intensity = PhotonSampWall_loc(p,q,BCSideID) * PhotonSurfSideArea(p,q,iSurfSide) * TimeScalingFactor
-      RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(BCID) / MPF
+      RealNbrOfSEE = E_Intensity / CalcPhotonEnergy(lambda) * PartBound%PhotonSEEYield(iPartBound) / MPF
+      ! Add random number to calculated real/float value of SEE particles and user INT()for lower-bound cut-off
       CALL RANDOM_NUMBER(RandVal)
       NbrOfSEE = INT(RealNbrOfSEE+RandVal)
+      ! NbrOfSEE: Number of particles to be inserted
       IF(NbrOfSEE.GT.0)THEN
         ! Check if photon SEE electric current is to be measured
-        IF(CalcElectronSEE)THEN
+        IF(CalcPhotonSEE)THEN
           ! Note that the negative value of the charge -q is used below
-          iSEEBC = SEE%BCIDToSEEBCID(BCID)
-          SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
-        END IF ! (NbrOfSEE.GT.0).AND.(CalcElectronSEE)
+          iSEEBC = SEE%BCIDToSEEBCID(iPartBound)
+          SEE%RealElectronOutPhoton(iSEEBC) = SEE%RealElectronOutPhoton(iSEEBC) - MPF*NbrOfSEE*Species(SpecID)%ChargeIC
+        END IF ! (NbrOfSEE.GT.0).AND.(CalcPhotonSEE)
         ! Calculate the normal & tangential vectors
         IF(UseBezierControlPoints)THEN
           ! Use Bezier polynomial
@@ -217,21 +238,22 @@ DO BCSideID=1,nBCSides
             CALL abort(__STAMP__,'Photoionization with ray tracing requires BezierControlPoints3D')
           END IF ! UseBezierControlPoints
           ! Determine particle velocity
-          CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(BCID), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
+          CALL CalcVelocity_FromWorkFuncSEE(PartBound%PhotonSEEWorkFunction(iPartBound), Species(SpecID)%MassIC, tang1, nVec, Velo3D)
           ! Move particle slightly into the domain away from the surface because TriaTracking loses the particle during restart
           ! as the InsideQuad3D test returns "not inside" for these particles and they are deleted
           CNElemID = GetCNElemID(GlobElemID)
           vec(1:3) = ElemBaryNGeo(1:3,CNElemID) - Particle_pos(1:3)
           Particle_pos(1:3) = Particle_pos(1:3) + 1e-7 * vec(1:3)
           ! Create new particle
-          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+          ! Create with PEM%LastGlobalElemID = 0 to prevent tracking directly after creation
+          CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,0,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
           ! 1. Store the particle information in PartStateBoundary.h5
           IF(DoBoundaryParticleOutputRay) CALL StoreBoundaryParticleProperties(PartID,SpecID,PartState(1:3,PartID),&
-                                                   UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=BCID,mode=2,MPF_optIN=MPF)
+                                                   UNITVECTOR(PartState(4:6,PartID)),nVec,iPartBound=iPartBound,mode=2,MPF_optIN=MPF)
 #if USE_HDG
           ! 2. Check if floating boundary conditions (FPC) are used and consider electron holes
           IF(UseFPC)THEN
-            iBC = PartBound%MapToFieldBC(BCID)
+            iBC = PartBound%MapToFieldBC(iPartBound)
             IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
             IF(BoundaryType(iBC,BC_TYPE).EQ.20)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
               BCState = BoundaryType(iBC,BC_STATE) ! State is iFPC
@@ -239,9 +261,10 @@ DO BCSideID=1,nBCSides
               FPC%ChargeProc(iUniqueFPCBC) = FPC%ChargeProc(iUniqueFPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
             END IF ! BCType.EQ.20
           END IF ! UseFPC
+
           ! 3. Check if electric potential condition (EPC) are used and consider electron holes
           IF(UseEPC)THEN
-            iBC = PartBound%MapToFieldBC(BCID)
+            iBC = PartBound%MapToFieldBC(iPartBound)
             IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
             IF(BoundaryType(iBC,BC_TYPE).EQ.8)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
               BCState = BoundaryType(iBC,BC_STATE) ! State is iEPC
@@ -249,11 +272,38 @@ DO BCSideID=1,nBCSides
               EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) - Species(SpecID)%ChargeIC * MPF ! Use negative charge!
             END IF ! BCType.EQ.8
           END IF ! UseEPC
+
+          ! 3. Check if SEE holes are to be deposited
+          IF(DoVirtualDielectricLayer)THEN
+            IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
+              ! Set velocity to zero as these virtual particles are deleted after the tracking/MPI communication step
+              Velo3D(1:3) = 0.
+
+              ! Create particle (with opposite charge by setting a nagative species index)
+              ! Create with PEM%LastGlobalElemID = GlobElemID to trigger tracking directly after creation to find a possible new host
+              ! element
+              CALL CreateParticle(SpecID,Particle_pos(1:3),GlobElemID,GlobElemID,Velo3D(1:3),0.,0.,0.,NewPartID=PartID,NewMPF=MPF)
+
+              ! Set new particle position: Shift away from face by ratio of real VDL thickness and permittivity.
+              ! Note the negative sign that is required as the normal vector points outwards has already been applied above
+              PartState(1:3,PartID) = LastPartPos(1:3,PartID) &
+                                    + (PartBound%ThicknessVDL(iPartBound)/PartBound%PermittivityVDL(iPartBound))*nVec
+
+              ! Encode species index: Set a temporarily invalid number, which holds the information that the particle has interacted with a VDL.
+              ! The Particle is removed after MPI communication because the new position might be on a different process due to the displacement
+              PartSpecies(PartID) = PartSpecies(PartID) + SpeciesOffsetVDL
+              ! Invert species index
+              PartSpecies(PartID) = -PartSpecies(PartID)
+            END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
+          END IF ! DoVirtualDielectricLayer
 #endif /*USE_HDG*/
         END DO ! iPart = 1, NbrOfSEE
       END IF ! NbrOfSEE.GT.0
     END DO ! q = 1, Ray%nSurfSample
   END DO ! p = 1, Ray%nSurfSample
+#if USE_LOADBALANCE
+CALL LBElemSplitTime(locElemID,tLBStart)
+#endif /*USE_LOADBALANCE*/
 END DO
 
 END ASSOCIATE
@@ -292,6 +342,9 @@ USE MOD_TimeDisc_Vars           ,ONLY: iStage,nRKStages,RK_c
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputRay
 USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime
+#endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Mesh_Tools     ,ONLY: ParticleInsideQuad3D
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -311,6 +364,9 @@ REAL                  :: density, NbrOfPhotons, NbrOfReactions
 REAL                  :: RandNum,RandVal(3),Xi(3)
 REAL                  :: RandomPos(1:3),MPF
 REAL                  :: RayDirection(1:3),RayBaseVector1IC(1:3),RayBaseVector2IC(1:3)
+#if USE_LOADBALANCE
+REAL                  :: tLBStart
+#endif /*USE_LOADBALANCE*/
 LOGICAL               :: positionIsInside
 !===================================================================================================================================
 
@@ -357,6 +413,10 @@ t_2 = t_2 - tShift - NbrOfRepetitions * Period
 IF(t_2.GT.2.0*tShift) t_2 = 2.0*tShift
 
 TimeScalingFactor = 0.5 * SQRT(PI) * tau * (ERF(t_2/tau)-ERF(t_1/tau))
+
+#if USE_LOADBALANCE
+CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
 
 ! Loop over the first and secondary rays
 DO iVar = 1, 2
@@ -460,7 +520,7 @@ DO iVar = 1, 2
               PDM%IsNewPart(PartID)       = .TRUE.
               PDM%dtFracPush(PartID)      = .FALSE.
               PEM%GlobalElemID(PartID)     = iGlobalElem
-              PEM%LastGlobalElemID(PartID) = iGlobalElem
+              PEM%LastGlobalElemID(PartID) = 0 ! Initialize with invalid value
               ! Create second particle (only the index and the flags/elements needs to be set)
               newPartID = GetNextFreePosition()
               IF(newPartID.GT.PDM%MaxParticleNumber)THEN
@@ -481,7 +541,7 @@ DO iVar = 1, 2
               PDM%IsNewPart(newPartID)       = .TRUE.
               PDM%dtFracPush(newPartID)      = .FALSE.
               PEM%GlobalElemID(newPartID)     = iGlobalElem
-              PEM%LastGlobalElemID(newPartID) = iGlobalElem
+              PEM%LastGlobalElemID(newPartID) = 0 ! Initialize with invalid value
               ! Pairing (first particle is the background gas species)
               Coll_pData(iPair)%iPart_p1 = PartID
               Coll_pData(iPair)%iPart_p2 = newPartID
@@ -519,6 +579,9 @@ DO iVar = 1, 2
         END DO      ! k
       END DO        ! l
     END DO          ! m
+#if USE_LOADBALANCE
+    CALL LBElemSplitTime(iElem,tLBStart)
+#endif /*USE_LOADBALANCE*/
   END DO            ! iElem = 1, nElems
 END DO              ! iVar = 1, 2
 

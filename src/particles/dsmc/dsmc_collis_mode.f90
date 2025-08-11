@@ -40,7 +40,7 @@ SUBROUTINE DSMC_Elastic_Col(iPair)
 ! Performs simple elastic collision (CollisMode = 1)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, UseVarTimeStep, Species, usevMPF
 USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -84,7 +84,7 @@ iSpec2 = PartSpecies(iPart2)
                     + Species(iSpec2)%MassIC * PartState(4:6,iPart2) * GetParticleWeight(iPart2)
 #endif /* CODE_ANALYZE */
 
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF(UseVarTimeStep.OR.usevMPF) THEN
     FracMassCent1 = Species(iSpec1)%MassIC * GetParticleWeight(iPart1) / (Species(iSpec1)%MassIC &
                   * GetParticleWeight(iPart1) + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2) / (Species(iSpec1)%MassIC  &
@@ -100,7 +100,7 @@ iSpec2 = PartSpecies(iPart2)
 
   cRelaNew(1:3) = PostCollVec(iPair)
 
- ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
+  ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2 * cRelaNew(1)
   PartState(5,iPart1) = VeloMy + FracMassCent2 * cRelaNew(2)
   PartState(6,iPart1) = VeloMz + FracMassCent2 * cRelaNew(3)
@@ -108,6 +108,7 @@ iSpec2 = PartSpecies(iPart2)
   PartState(4,iPart2) = VeloMx - FracMassCent1 * cRelaNew(1)
   PartState(5,iPart2) = VeloMy - FracMassCent1 * cRelaNew(2)
   PartState(6,iPart2) = VeloMz - FracMassCent1 * cRelaNew(3)
+
 #ifdef CODE_ANALYZE
   Momentum_new(1:3) = Species(iSpec2)%MassIC* (/VeloMx - FracMassCent1*cRelaNew(1),&
                                                 VeloMy - FracMassCent1*cRelaNew(2),&
@@ -155,17 +156,19 @@ SUBROUTINE DSMC_Relax_Col_LauxTSHO(iPair)
 ! Vibrational (of the relaxing molecule), rotational and relative translational energy (of both molecules) is redistributed (V-R-T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn, RadialWeighting
+USE MOD_Globals
+USE MOD_DSMC_Vars             ,ONLY: Coll_pData, CollInf, DSMC, SpecDSMC, PartStateIntEn
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PartState, Species, UseVarTimeStep, PEM, usevMPF
 USE MOD_DSMC_ElectronicModel  ,ONLY: ElectronicEnergyExchange, TVEEnergyExchange
-USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_RotRelaxPoly, DSMC_VibRelaxPoly
+USE MOD_DSMC_PolyAtomicModel  ,ONLY: DSMC_VibRelaxPoly
 USE MOD_DSMC_Relaxation       ,ONLY: DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
-USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec
+USE MOD_DSMC_CollisVec        ,ONLY: PostCollVec,VelocityCOMBackscatter
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_MCC_Vars              ,ONLY: UseMCC, SpecXSec
 USE MOD_MCC_XSec              ,ONLY: XSec_CalcElecRelaxProb, XSec_ElectronicRelaxation
 USE MOD_MCC_Vars              ,ONLY: XSec_Relaxation
-USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb, CalcCollRates
+USE MOD_MCC_XSec              ,ONLY: InterpolateCrossSection
 #ifdef CODE_ANALYZE
 USE MOD_Globals               ,ONLY: Abort
 USE MOD_Globals               ,ONLY: unit_stdout,myrank
@@ -191,6 +194,9 @@ INTEGER                       :: iCase, iSpec1, iSpec2, iPart1, iPart2, iElem ! 
 ! variables for electronic level relaxation and transition
 INTEGER                       :: ElecLevelRelax
 LOGICAL                       :: DoElec1, DoElec2
+! backscatter
+LOGICAL                       :: PerformBackScatter
+REAL                          :: CrossSection, MacroParticleFactor
 #ifdef CODE_ANALYZE
 REAL                          :: Energy_old,Energy_new
 REAL                          :: Weight1, Weight2
@@ -212,7 +218,7 @@ REAL                          :: Weight1, Weight2
   DoElec1 = .FALSE.
   DoElec2 = .FALSE.
 
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF (UseVarTimeStep.OR.usevMPF) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2)) &
                 / (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) + Species(iSpec2)%MassIC*GetParticleWeight(iPart2))
   ELSE
@@ -291,7 +297,7 @@ REAL                          :: Weight1, Weight2
     END IF
 
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
+    CALL DSMC_calc_P_vib(iPair, iPart1, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     IF(ProbVib1.GT.iRan) DoVib1 = .TRUE.
   END IF
 
@@ -321,7 +327,7 @@ REAL                          :: Weight1, Weight2
       DSMC%CalcRotProb(iSpec2,3) = DSMC%CalcRotProb(iSpec2,3) + 1
     END IF
     CALL RANDOM_NUMBER(iRan)
-    CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
+    CALL DSMC_calc_P_vib(iPair, iPart2, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     IF(ProbVib2.GT.iRan) DoVib2 = .TRUE.
   END IF
 
@@ -335,7 +341,19 @@ IF (DSMC%ElectronicModel.EQ.3) THEN
   END IF
 END IF
 
-  FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+FakXi = 0.5*Xi  - 1.  ! exponent factor of DOF, substitute of Xi_c - Xi_vib, laux diss page 40
+
+! Determine whether a backscattering will be performed (MCC)
+PerformBackScatter = .FALSE.
+IF(UseMCC) THEN
+  IF(SpecXSec(iCase)%UseBackScatterXSec) THEN
+    CALL RANDOM_NUMBER(iRan)
+    CrossSection = InterpolateCrossSection(SpecXSec(iCase)%BackXSecData,SpecXSec(iCase)%CollEnergy)
+    IF(CrossSection/SpecXSec(iCase)%CrossSection.GT.iRan) THEN
+      PerformBackScatter = .TRUE.
+    END IF
+  END IF
+END IF
 
 IF (DSMC%ReservoirSimu) THEN
   IF(CalcRelaxProb) THEN
@@ -343,6 +361,16 @@ IF (DSMC%ReservoirSimu) THEN
       IF(DoVib2) THEN
         SpecXSec(iCase)%VibCount = SpecXSec(iCase)%VibCount + 1.0
       END IF
+    END IF
+  END IF
+  IF(CalcCollRates) THEN
+    IF(PerformBackScatter) THEN
+      IF(usevMPF) THEN
+        MacroParticleFactor = 1.
+      ELSE
+        MacroParticleFactor = Species(iSpec1)%MacroParticleFactor
+      END IF
+      SpecXSec(iCase)%BackNumColl = SpecXSec(iCase)%BackNumColl + GetParticleWeight(iPart1) * MacroParticleFactor
     END IF
   END IF
   ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction
@@ -426,43 +454,20 @@ END IF
 !--------------------------------------------------------------------------------------------------!
 ! Rotational Relaxation
 !--------------------------------------------------------------------------------------------------!
-  IF(DoRot1) THEN
-    IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p1, FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p1)
-    ELSE
-      CALL RANDOM_NUMBER(iRan)
-      PartStateIntEn(2,Coll_pData(iPair)%iPart_p1) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p1)
-      FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-    END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
-      PartStateIntEn(2,iPart1) = PartStateIntEn(2,iPart1)/GetParticleWeight(iPart1)
-    END IF
+  IF(DoRot1)THEN
+    FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
+    CALL ProcessRotRelax(iPair, iPart1, iSpec1, FakXi)
   END IF
-
-  IF(DoRot2) THEN
-    IF(SpecDSMC(iSpec2)%PolyatomicMol.AND. &
-        (SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
-      FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
-      CALL DSMC_RotRelaxPoly(iPair, Coll_pData(iPair)%iPart_p2, FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p2)
-    ELSE
-      CALL RANDOM_NUMBER(iRan)
-      PartStateIntEn(2,Coll_pData(iPair)%iPart_p2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi))
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,Coll_pData(iPair)%iPart_p2)
-    END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
-      PartStateIntEn(2,iPart2) = PartStateIntEn(2,iPart2)/GetParticleWeight(iPart2)
-    END IF
+  IF(DoRot2)THEN
+    FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
+    CALL ProcessRotRelax(iPair, iPart2, iSpec2, FakXi)
   END IF
 
 !--------------------------------------------------------------------------------------------------!
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
 
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF (UseVarTimeStep.OR.usevMPF) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -478,7 +483,12 @@ END IF
   VeloMz = FracMassCent1 * PartState(6,iPart1) + FracMassCent2 * PartState(6,iPart2)
 
   Coll_pData(iPair)%cRela2 = 2. * Coll_pData(iPair)%Ec/ReducedMass
-  cRelaNew(1:3) = PostCollVec(iPair)
+
+  IF(PerformBackScatter) THEN
+    cRelaNew(1:3) = VelocityCOMBackscatter(iPair)
+  ELSE
+    cRelaNew(1:3) = PostCollVec(iPair)
+  END IF
 
   ! deltaV particle 1 (post collision particle 1 velocity in laboratory frame)
   PartState(4,iPart1) = VeloMx + FracMassCent2*cRelaNew(1)
@@ -531,7 +541,6 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 ! MODULES
   USE MOD_Globals,                ONLY : Abort
   USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
-  USE MOD_DSMC_Vars,              ONLY : RadialWeighting
   USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM, usevMPF, UseVarTimeStep, Species
   USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
   USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
@@ -596,7 +605,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
   Xi_rel = 2.*(2. - CollInf%omega(iSpec1,iSpec2)) ! DOF of relative motion in VHS model
   FakXi  = 0.5*Xi_rel - 1.
 
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF (UseVarTimeStep.OR.usevMPF) THEN
     ReducedMass = (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) * Species(iSpec2)%MassIC*GetParticleWeight(iPart2)) &
                 / (Species(iSpec1)%MassIC*GetParticleWeight(iPart1) + Species(iSpec2)%MassIC*GetParticleWeight(iPart2))
   ELSE
@@ -621,14 +630,14 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
 
   ! calculate probability for rotational/vibrational relaxation for both particles
   IF ((Species(iSpec1)%InterID.EQ.2).OR.(Species(iSpec1)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(iPair, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
+    CALL DSMC_calc_P_vib(iPair, iPart1, iSpec1, iSpec2, Xi_rel, iElem, ProbVib1)
     CALL DSMC_calc_P_rot(iSpec1, iSpec2, iPair, iPart1, Xi_rel, ProbRot1, ProbRotMax1)
   ELSE
     ProbVib1 = 0.
     ProbRot1 = 0.
   END IF
   IF ((Species(iSpec2)%InterID.EQ.2).OR.(Species(iSpec2)%InterID.EQ.20)) THEN
-    CALL DSMC_calc_P_vib(iPair, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
+    CALL DSMC_calc_P_vib(iPair, iPart2, iSpec2, iSpec1, Xi_rel, iElem, ProbVib2)
     CALL DSMC_calc_P_rot(iSpec2, iSpec1, iPair, iPart2, Xi_rel, ProbRot2, ProbRotMax2)
   ELSE
     ProbVib2 = 0.
@@ -785,7 +794,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
 !--------------------------------------------------------------------------------------------------!
 ! Rotational Relaxation
 !--------------------------------------------------------------------------------------------------!
-  IF(DoRot1) THEN
+  IF(DoRot1)THEN
     !check if correction term in distribution (depending on relaxation model) is needed
     IF(DSMC%RotRelaxProb.EQ.3.0) THEN
       BLCorrFact = ProbRot1 / ProbRotMax1
@@ -793,22 +802,9 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
       BLCorrFact = 1.
     END IF
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart1)*GetParticleWeight(iPart1)
-    IF(SpecDSMC(iSpec1)%PolyatomicMol.AND.(SpecDSMC(iSpec1)%Xi_Rot.EQ.3)) THEN
-      CALL DSMC_RotRelaxPoly(iPair, iPart1, FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
-    ELSE
-      CALL RANDOM_NUMBER(iRan)
-      FakXi = FakXi + 0.5*SpecDSMC(iSpec1)%Xi_Rot
-      PartStateIntEn(2,iPart1) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi)*BLCorrFact)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart1)
-      FakXi = FakXi - 0.5*SpecDSMC(iSpec1)%Xi_Rot
-    END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
-      PartStateIntEn(2,iPart1) = PartStateIntEn(2,iPart1)/GetParticleWeight(iPart1)
-    END IF
+    CALL ProcessRotRelaxGimelshein(iPair, iPart1, iSpec1, FakXi, BLCorrFact)
   END IF
-
-  IF(DoRot2) THEN
+  IF(DoRot2)THEN
     !check if correction term in distribution (depending on relaxation model) is needed
     IF(DSMC%RotRelaxProb.EQ.3.0) THEN
       BLCorrFact = ProbRot2 / ProbRotMax2
@@ -816,19 +812,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
       BLCorrFact = 1.
     END IF
     Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartStateIntEn(2,iPart2)*GetParticleWeight(iPart2)
-    IF(SpecDSMC(iSpec2)%PolyatomicMol.AND.(SpecDSMC(iSpec2)%Xi_Rot.EQ.3)) THEN
-      CALL DSMC_RotRelaxPoly(iPair, iPart2, FakXi)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
-    ELSE
-      CALL RANDOM_NUMBER(iRan)
-      FakXi = FakXi + 0.5*SpecDSMC(iSpec2)%Xi_Rot
-      PartStateIntEn(2,iPart2) = Coll_pData(iPair)%Ec * (1.0 - iRan**(1.0/FakXi)*BLCorrFact)
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2,iPart2)
-      FakXi = FakXi - 0.5*SpecDSMC(iSpec2)%Xi_Rot
-    END IF
-    IF(RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
-      PartStateIntEn(2,iPart2) = PartStateIntEn(2,iPart2)/GetParticleWeight(iPart2)
-    END IF
+    CALL ProcessRotRelaxGimelshein(iPair, iPart2, iSpec2, FakXi, BLCorrFact)
   END IF
 
 !--------------------------------------------------------------------------------------------------!
@@ -853,7 +837,7 @@ IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) RETURN
 ! Calculation of new particle velocities
 !--------------------------------------------------------------------------------------------------!
 
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF (UseVarTimeStep.OR.usevMPF) THEN
     FracMassCent1 = Species(iSpec1)%MassIC *GetParticleWeight(iPart1)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
           + Species(iSpec2)%MassIC *GetParticleWeight(iPart2))
     FracMassCent2 = Species(iSpec2)%MassIC *GetParticleWeight(iPart2)/(Species(iSpec1)%MassIC *GetParticleWeight(iPart1) &
@@ -923,9 +907,8 @@ USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
 USE MOD_DSMC_Vars             ,ONLY: DSMC
 USE MOD_Particle_Vars         ,ONLY: PartState
-USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, PDM, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting
 USE MOD_Particle_Vars         ,ONLY: usevMPF, Species, PartSpecies
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcCollRates
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -949,7 +932,7 @@ REAL                          :: MacroParticleFactor, PairWeight
 IF (DSMC%ReservoirSimu) THEN
   IF(CalcCollRates) THEN
     PairWeight = (GetParticleWeight(Coll_pData(iPair)%iPart_p1) + GetParticleWeight(Coll_pData(iPair)%iPart_p2))/2.
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    IF(usevMPF) THEN
       ! Weighting factor already included in the PairWeight
       MacroParticleFactor = 1.
     ELSE
@@ -975,6 +958,7 @@ IF(DSMC%CalcQualityFactors) THEN
   DSMC%CollSepDist = DSMC%CollSepDist + Distance
   DSMC%CollSepCount = DSMC%CollSepCount + 1
 END IF
+
 
 SELECT CASE(CollisMode)
   CASE(1) ! elastic collision
@@ -1012,7 +996,7 @@ END SELECT
 ! Rotational frame of reference
 IF(UseRotRefFrame) THEN
   ! Transform the new velocity in the inertial frame and reset the velocity in the rotational frame
-  IF(PDM%InRotRefFrame(iPart1)) THEN
+  IF(InRotRefFrame(iPart1)) THEN
     PartVeloRotRef(1:3,iPart1) = PartState(4:6,iPart1) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart1))
     PartVeloRotRef(1:3,iPart2) = PartState(4:6,iPart2) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,iPart2))
   END IF
@@ -1035,7 +1019,7 @@ SUBROUTINE ReactionDecision(iPair, RelaxToDo, iElem, NodeVolume, NodePartNum)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                 ,ONLY: Abort
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac, RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData, CollInf, ChemReac
 USE MOD_MCC_Vars                ,ONLY: SpecXSec
 USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies, PEM, UseVarTimeStep, usevMPF, VarTimeStep
 USE MOD_DSMC_ChemReact          ,ONLY: CalcReactionProb, DSMC_Chemistry
@@ -1057,7 +1041,7 @@ INTEGER, INTENT(IN), OPTIONAL :: NodePartNum
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, iSpec
+INTEGER                       :: iPart1, iPart2, nPartNode, nPair, iCase, ReacTest, iPath, ReacCounter, iSpec, CNElemID
 REAL                          :: Volume, NumDens, ReactionProb, iRan, ReactionProbSum
 REAL, ALLOCATABLE             :: ReactionProbArray(:)
 LOGICAL,ALLOCATABLE           :: PerformReaction(:)
@@ -1071,7 +1055,8 @@ ALLOCATE(PerformReaction(ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths))
 IF (PRESENT(NodeVolume)) THEN
   Volume = NodeVolume
 ELSE
-  Volume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  Volume = ElemVolume_Shared(CNElemID)
 END IF
 IF (PRESENT(NodePartNum)) THEN
   nPartNode = NodePartNum
@@ -1079,12 +1064,12 @@ ELSE
   nPartNode = PEM%pNumber(iElem)
 END IF
 nPair = INT(nPartNode/2)
-IF(RadialWeighting%DoRadialWeighting.OR.usevMPF) THEN
+IF(usevMPF) THEN
   NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume
 ELSE IF (UseVarTimeStep) THEN
-  NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(1)%MacroParticleFactor
+  NumDens = SUM(CollInf%Coll_SpecPartNum(:)) / Volume * Species(PartSpecies(iPart1))%MacroParticleFactor
 ELSE
-  NumDens = nPartNode / Volume * Species(1)%MacroParticleFactor
+  NumDens = nPartNode / Volume * Species(PartSpecies(iPart1))%MacroParticleFactor
 END IF
 ! 1.) Calculate the reaction probabilities/test whether any QK reactions are possible
 ReactionProbSum = 0.
@@ -1201,5 +1186,81 @@ END IF
 END SUBROUTINE ReactionDecision
 
 
-!--------------------------------------------------------------------------------------------------!
+SUBROUTINE ProcessRotRelax(iPair, iPart, iSpec, FakXi)
+!===================================================================================================================================
+! Routine to handle the rotational relaxation of a particle with DSMC_Relax_Col_LauxTSHO
+!===================================================================================================================================
+! MODULES
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
+USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: RotRelaxPolyRoutineFuncPTR
+USE MOD_DSMC_Relaxation         ,ONLY: RotRelaxDiaRoutineFuncPTR
+
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPair, iPart, iSpec
+REAL, INTENT(IN)              :: FakXi
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+  CALL RotRelaxPolyRoutineFuncPTR(iPair, iPart, FakXi)
+ELSE
+  CALL RotRelaxDiaRoutineFuncPTR(iPair, iPart, FakXi)
+END IF
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2, iPart) * GetParticleWeight(iPart)
+END SUBROUTINE ProcessRotRelax
+
+
+SUBROUTINE ProcessRotRelaxGimelshein(iPair, iPart, iSpec, FakXi, CorrFactor)
+!===================================================================================================================================
+! Routine to handle the rotational relaxation of a particle with DSMC_Relax_Col_Gimelshein
+! Separate routine to enhance performance of DSMC_Relax_Col_LauxTSHO since no BLCorrFact is needed there
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals                 ,ONLY: Abort
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn, DSMC
+USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, usevMPF
+USE MOD_part_tools              ,ONLY: GetParticleWeight
+USE MOD_DSMC_PolyAtomicModel    ,ONLY: RotRelaxPolyRoutineFuncPTR
+USE MOD_DSMC_Relaxation         ,ONLY: RotRelaxDiaRoutineFuncPTR
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER, INTENT(IN)           :: iPair, iPart, iSpec
+REAL, INTENT(IN)              :: FakXi, CorrFactor
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL                          :: LocalFakXi, iRan, CollEnergy
+!===================================================================================================================================
+IF(SpecDSMC(iSpec)%PolyatomicMol) THEN
+  CALL RotRelaxPolyRoutineFuncPTR(iPair, iPart, FakXi)
+ELSE
+  IF(DSMC%RotRelaxProb.EQ.3.0)THEN ! only for N2 with NDD Model
+    IF(DSMC%RotRelaxModel.NE.0)THEN
+      CALL ABORT(__STAMP__,'ERROR in ProcessRotRelaxGimelshein: Rotational relaxation model (NDD) not tested for quantized treatment of rotational relaxation')
+    ELSE
+      IF (usevMPF.OR.UseVarTimeStep) THEN
+        CollEnergy = Coll_pData(iPair)%Ec / GetParticleWeight(iPart)
+      ELSE
+        CollEnergy = Coll_pData(iPair)%Ec
+      END IF
+      CALL RANDOM_NUMBER(iRan)
+      LocalFakXi = FakXi + 0.5*SpecDSMC(iSpec)%Xi_Rot
+      PartStateIntEn(2,iPart) = CollEnergy * (1.0 - iRan**(1.0/LocalFakXi)*CorrFactor)
+    END IF
+  ELSE
+    CALL RotRelaxDiaRoutineFuncPTR(iPair, iPart, FakXi)
+  END IF
+END IF
+Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartStateIntEn(2, iPart) * GetParticleWeight(iPart)
+END SUBROUTINE ProcessRotRelaxGimelshein
+
 END MODULE MOD_DSMC_Collis

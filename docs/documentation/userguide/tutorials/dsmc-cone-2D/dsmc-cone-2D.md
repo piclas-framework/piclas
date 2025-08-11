@@ -134,15 +134,73 @@ This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format.
 
 ## Flow simulation with DSMC
 
-Install **piclas** by compiling the source code as described in Section {ref}`userguide/installation:Installation` and make sure to set the correct compile flags. For this setup, we are utilizing the regular Direct Simulation Monte Carlo (DSMC) method
+Install **piclas** by compiling the source code as described in Chapter {ref}`userguide/installation:Installation`, specifically
+described under Section {ref}`userguide/installation:Compiling the code`.
+Always build the code in a separate directory located in the piclas top level directory.
+For this DSMC tutorial, e.g., create a directory *build_DSMC* in the piclas repository by running
 
+    cd $PICLAS_PATH
+
+where the variable `$PICLAS_PATH` contains the path to the location of the piclas repository.
+If the piclas repository is located in the home directory, simply run
+
+    cd /home/$(whoami)/piclas
+
+and the create the build directory, in which the compilation process will take place
+
+    mkdir build_DSMC
+
+and the directory structure, which can be viewed via
+
+    ls -l
+
+should look like this
+
+     build_DSMC
+     cmake
+     CMakeListsLib.txt
+     CMakeListsMachine.txt
+     CMakeLists.txt
+     CONTRIBUTORS.md
+     docs
+     LICENCE.md
+     README.md
+     REFERENCE.md
+     REGGIE.md
+     regressioncheck
+     share
+     SpeciesDatabase.h5
+     src
+     tools
+     tutorials
+     unitTests
+
+Always compile the code within the *build* directory, hence, navigate to the *build_DSMC* directory before running cmake
+
+    cd build_DSMC
+
+For this specific tutorial, make sure to set the correct compile flags
+
+    PICLAS_EQNSYSNAME     = maxwell
     PICLAS_TIMEDISCMETHOD = DSMC
 
-or simply run the following command from inside the *build* directory
+or simply run the following command from inside the created *build* directory
 
-    cmake ../ -DPICLAS_TIMEDISCMETHOD=DSMC
+    cmake .. -DPICLAS_TIMEDISCMETHOD=DSMC -DPICLAS_EQNSYSNAME=maxwell
 
-to configure the build process and run `make` afterwards to build the executable. It is recommended to either utilize a separate build folder (e.g. build_DSMC/) or to delete the contents of the folder beforehand to avoid conflicts between different compiler options (e.g. the setting `PICLAS_EQNSYSNAME = poisson` from the plasma wave tutorial is in conflict with the DSMC method). An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`. The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
+to configure the build process and run
+
+    make -j
+
+afterwards to compile the executable.
+
+It is recommended to utilize a separate *build* folder whenever compiling a different solver in piclas to avoid confusion.
+Especially when switching between this DSMC tutorial and the PIC plasma wave tutorial as fundamentally different compiler settings
+are required.
+
+An overview over the available solver and discretization options is given in Section {ref}`sec:solver-settings`.
+
+The values of the general physical properties are listed in {numref}`tab:dsmc_cone_phys`.
 
 ```{table} Physical properties at the simulation start
 ---
@@ -180,7 +238,7 @@ In axially symmetrical cases, the simulation effort can be greatly reduced. For 
     Particles-Symmetry-Order         = 2
     Particles-Symmetry2DAxisymmetric = T
 
-First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the boundaries parallel to the $xy$-plane with the condition `symmetric`.
+First of all, certain requirements are placed on the grid. The $y$-axis acts as the symmetry axis, while the $x$-axis defines the radial direction. Therefore grid lies in the $xy$-plane and should have an extension of one cell in the $z$-direction, the extent in $z$-direction is irrelevant whilst it is centered on $z=0$. In addition, the boundary at $y = 0$ must be provided with the condition `symmetric_axis` and the boundaries parallel to the $xy$-plane with the condition `symmetric_dim`.
 
     Part-Boundary4-SourceName  = SYMAXIS
     Part-Boundary4-Condition   = symmetric_axis
@@ -189,23 +247,23 @@ For the `.cgns` mesh, the following commands need to be enabled:
 
     Part-nBounds               = 5
     Part-Boundary5-SourceName  = ROTSYM
-    Part-Boundary5-Condition   = symmetric
+    Part-Boundary5-Condition   = symmetric_dim
 
 For the `.msh` mesh instead, the following commands need to be enabled:
 
     Part-nBounds               = 6
     Part-Boundary5-SourceName  = lowerZ_BC
-    Part-Boundary5-Condition   = symmetric
+    Part-Boundary5-Condition   = symmetric_dim
     Part-Boundary6-SourceName  = upperZ_BC
-    Part-Boundary6-Condition   = symmetric
+    Part-Boundary6-Condition   = symmetric_dim
 
-To fully exploit rotational symmetry, a radial weighting can be enabled via `Particles-RadialWeighting = T`, which will linearly increase the weighting factor towards $y_{\text{max}}$, depending on the current $y$-position of the particle. Thereby the `Particles-RadialWeighting-PartScaleFactor` multiplied by the `MacroParticleFactor` is the weighting factor at $y_{\text{max}}$. Since this position based weighting requires an adaptive weighting factor, particle deletion and cloning is necessary. `Particles-RadialWeighting-CloneDelay` defines the number of iterations in which the information of the particles to be cloned are stored and `Particles-RadialWeighting-CloneMode = 2` ensures that the particles from this list are inserted randomly after the delay.
+To fully exploit rotational symmetry, a radial weighting can be enabled via `Part-Weight-Type = radial`, which will linearly increase the weighting factor towards $y_{\text{max}}$, depending on the current $y$-position of the particle. Thereby the `Part-Weight-Radial-ScaleFactor` multiplied by the `MacroParticleFactor` is the weighting factor at $y_{\text{max}}$. Since this position based weighting requires an adaptive weighting factor, particle deletion and cloning is necessary. `Part-Weight-CloneDelay` defines the number of iterations in which the information of the particles to be cloned are stored and `Part-Weight-CloneMode = 2` ensures that the particles from this list are inserted randomly after the delay.
 
     ! Radial Weighting
-    Particles-RadialWeighting                 = T
-    Particles-RadialWeighting-PartScaleFactor = 60
-    Particles-RadialWeighting-CloneMode       = 2
-    Particles-RadialWeighting-CloneDelay      = 5
+    Part-Weight-Type                = radial
+    Part-Weight-Radial-ScaleFactor  = 60
+    Part-Weight-CloneMode           = 2
+    Part-Weight-CloneDelay          = 5
 
 For further information see {ref}`sec:2D-axisymmetric`.
 
@@ -232,13 +290,16 @@ $t_\text{samp,start} = T_\text{end} \cdot \left(1 - f_\text{samp}\right)$
     Part-TimeFracForSampling          = 0.5
     Particles-NumberForDSMCOutputs    = 2
 
-The second method is activated via `Part-WriteMacroValues = T`. In this approach, `Part-IterationForMacroVal` defines the number of iterations that are used for one sample. After the first sample has been written, the data is discarded and the next sampling process is started. The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
+The second method is activated via `Part-WriteMacroValues = T`. In this approach, `Part-IterationForMacroVal` defines the number of iterations that are used for one sample. After the first sample has been written, the data is discarded and the next sampling process is started.
 
     Part-WriteMacroValues             = T
     Part-IterationForMacroVal         = 1250
-    doPrintStatusLine                 = T
 
 For further information see {ref}`sec:sampled-flow-field-and-surface-variables`.
+
+The `doPrintStatusLine` gives an estimated time for the simulation to be completed.
+
+    doPrintStatusLine                 = T
 
 ## Run the simulation
 
@@ -260,7 +321,7 @@ When using several cores, piclas divides the computing load by distributing the 
 
 If the conditions change, it could make sense to redistribute the computing load. An example is the build-up of a bow shock during the simulation time: While all cells have the same particle density during initialization, an imbalance will develop after a short time. The cores with cells in the area of the bow shock have significantly more computational effort, since the particle density is significantly higher. As mentioned at the beginning, **piclas** redistributes the computing load each time it is started.
 
-The parameter `Particles-MPIWeight` indicates whether the distribution should be oriented more towards a uniform distribution of the cells (values less than 1) or a uniform distribution of the particles (values greater than 1). There are options in piclas to automate this process by defining load balancing steps during a single program call. For this, load balancing must have been activated when compiling piclas (which is the default). To activate load balancing based on the number of particles, `DoLoadBalance = T` and `PartWeightLoadBalance = T` must be set. **piclas** then decides after each `Analyze_dt` whether a redistribution is required. This is done using the definable `Load DeviationThreshold`. Should the maximum relative deviation of the calculation load be greater than this value, a load balancing step is carried out. If `DoInitialAutoRestart = T` and `InitialAutoRestart-PartWeightLoadBalance = T` are set, a restart is carried out after the first `Analyze_dt` regardless of the calculated imbalance. To restrict the number of restarts, `LoadBalanceMaxSteps` limits the number of all load balancing steps to the given number.
+The parameter `Particles-MPIWeight` indicates whether the distribution should be oriented more towards a uniform distribution of the cells (values less than 1) or a uniform distribution of the particles (values greater than 1). There are options in piclas to automate this process by defining load balancing steps during a single program call. For this, load balancing must have been activated when compiling piclas (which is the default). To activate load balancing based on the number of particles, `DoLoadBalance = T` and `PartWeightLoadBalance = T` must be set. **piclas** then decides after each `Analyze_dt` whether a redistribution is required. This is done using the definable `Load DeviationThreshold`. Should the maximum relative deviation of the calculation load be greater than this value, a load balancing step is carried out. If `DoInitialAutoRestart = T` and `InitialAutoRestart-PartWeightLoadBalance = T` are set, a restart is carried out after the first `Analyze_dt` regardless of the calculated imbalance. To restrict the number of restarts, `LoadBalanceMaxSteps` limits the number of all load balancing steps to the given number. Currently, the radial weighting only supports a load balance using and HDF5 output. Therefore, the flag `UseH5IOLoadBalance` must be set.
 
     ! Load Balancing
     Particles-MPIWeight                      = 1000
@@ -269,6 +330,7 @@ The parameter `Particles-MPIWeight` indicates whether the distribution should be
     DoInitialAutoRestart                     = T
     InitialAutoRestart-PartWeightLoadBalance = T
     LoadBalanceMaxSteps                      = 2
+    UseH5IOLoadBalance                       = T
 
 Information about the imbalance are shown in the *std.out* and the *ElemTimeStatistics.csv* file.
 The default load balancing scheme will exchange the required data internally, but there is also the possibility to perform the
@@ -282,7 +344,7 @@ re-balancing step via HDF5, which will create a state file and restart from this
 
 After running a simulation, especially if done for the first time it is strongly recommended to ensure the quality of the results. For this purpose, the `Particles-DSMC-CalcQualityFactors = T` should be set, to enable the calculation of quality factors such as the maximum collision probability and the mean collision separation distance over the mean free path. All needed datasets can be found in the `*_DSMCState_*.h5` or the converted `*_visuDSMC_*.vtu`.
 
-First of all, it should be ensured that a sufficient number of simulation particles were available for the averaging, which forms the basis of the shown data. The value `*_SimPartNum` indicates the average number of simulated particles in the respective cell. For a sufficient sampling size, it should be guaranteed that at least 10 particles are in each cell, however, this number is very case-specific. The value `DSMC_MCSoverMFP` is an other indicator for the quality of the particle discretization of the simulation area. A value above 1 indicates that the mean collision separation distance is greater than the mean free path, which is a signal for too few simulation particles. For 3D simulations it is sufficient to adjust the `Part-Species[$]-MacroParticleFactor` accordingly in **parameter.ini**. In 2D axisymmetric simulations, the associated scaling factors such as `Particles-RadialWeighting-PartScaleFactor` can also be optimized (see Section {ref}`sec:2D-axisymmetric`).
+First of all, it should be ensured that a sufficient number of simulation particles were available for the averaging, which forms the basis of the shown data. The value `*_SimPartNum` indicates the average number of simulated particles in the respective cell. For a sufficient sampling size, it should be guaranteed that at least 10 particles are in each cell, however, this number is very case-specific. The value `DSMC_MCSoverMFP` is an other indicator for the quality of the particle discretization of the simulation area. A value above 1 indicates that the mean collision separation distance is greater than the mean free path, which is a signal for too few simulation particles. For 3D simulations it is sufficient to adjust the `Part-Species[$]-MacroParticleFactor` accordingly in **parameter.ini**. In 2D axisymmetric simulations, the associated scaling factors such as `Part-Weight-Radial-ScaleFactor` can also be optimized (see Section {ref}`sec:2D-axisymmetric`).
 
 Similarly, the values `DSMC_MeanCollProb` and` DSMC_MaxCollProb` should be below 1 in order to avoid nonphysical values. While the former indicates the averaged collision probability per timestep, the latter stores the maximum collision probability. If this limit is not met, more collisions should have ocurred within a time step than possible. A refinement of the time step `ManualTimeStep` in **parameter.ini** is therefore necessary. If a variable timestep is also used in the simulation, there are further options (see Section {ref}`sec:variable-time-step`).
 
@@ -319,6 +381,7 @@ Translational temperature and velocity in front of the 70° Cone, top: original 
 ### Visualizing surface variables (DSMCSurfState)
 
 For postprocessing and visualization, the parameter `TimeStampLength = 13` is set in*parameter.ini* . This limits the output filename length. This can be needed, as e.g. Paraview may sort the files incorrectly and display a faulty time solution.
+
 To visualize the data which represents the properties at closed boundaries (e.g. heat flux, force per area, etc. the *DSMCSurfState*-files are needed. They are converted using the program **piclas2vtk** into the VTK format suitable for **ParaView**, **VisIt** or many other visualization tools. Run the command
 
     ./piclas2vtk dsmc_cone_DSMCSurfState_000.00*

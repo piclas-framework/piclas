@@ -52,7 +52,9 @@ CALL prms%CreateIntOption(      'BPO-NPartBoundaries'       , 'Number of boundar
 CALL prms%CreateIntArrayOption( 'BPO-PartBoundaries'        , 'Vector (length BPO-NPartBoundaries) with the numbers of each Part-Boundary', no=0)
 CALL prms%CreateIntOption(      'BPO-NSpecies'              , 'Number of species used for CalcBoundaryParticleOutput')
 CALL prms%CreateIntArrayOption( 'BPO-Species'               , 'Vector (length BPO-NSpecies) with the corresponding Species IDs', no=0)
-CALL prms%CreateLogicalOption(  'CalcElectronSEE'         , 'Count the electron emission from BCs where SEE is active','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcCurrentSEE'            , 'Count the electron emission from BCs where SEE is active','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcEnergyViolationSEE'    , 'Count the number and amount of energy conservation violations during SEE '//&
+                                                              ' using the Chung-Everhart distribution for multiple secondaries','.FALSE.')
 
 END SUBROUTINE DefineParametersSurfModelAnalyze
 
@@ -129,7 +131,7 @@ CalcBoundaryParticleOutput = GETLOGICAL('CalcBoundaryParticleOutput')
 IF(CalcBoundaryParticleOutput) CALL InitBoundaryParticleOutput()
 
 !-- Electron SEE emission counter
-CALL InitCalcElectronSEE() ! This routine calls GETLOGICAL('CalcElectronSEE','.FALSE.')
+CALL InitCalcElectronSEE() ! This routine calls GETLOGICAL('CalcCurrentSEE','.FALSE.')
 
 SurfModelAnalyzeInitIsDone=.TRUE.
 
@@ -261,14 +263,22 @@ IF(MPIRoot)THEN
       IF(UseNeutralization)THEN ! Ion thruster neutralization current (virtual cathode electrons)
         CALL WriteDataHeaderInfo(unit_index,'NeutralizationParticles',OutputCounter)
       END IF ! UseNeutralization
-      IF(CalcElectronSEE)THEN
+      IF(CalcCurrentSEE)THEN
         DO iSEE = 1, SEE%NPartBoundaries
-          WRITE(unit_index,'(A1)',ADVANCE='NO') ','
-          WRITE(unit_index,'(I3.3,A)',ADVANCE='NO') OutputCounter,'-ElectricCurrentSEE-'//&
-              TRIM(PartBound%SourceBoundName(SEE%PartBoundaries(iSEE)))
-          OutputCounter = OutputCounter + 1
+          ASSOCIATE(BoundaryNameSEE => PartBound%SourceBoundName(SEE%PartBoundaries(iSEE)))
+            IF(CalcElectronSEE) THEN
+              CALL WriteDataHeaderInfo(unit_index,'ElectricCurrentSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+            END IF
+            IF(CalcPhotonSEE) THEN
+              CALL WriteDataHeaderInfo(unit_index,'ElectricCurrentPhotonSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+            END IF
+            IF(CalcEnergyViolationSEE) THEN
+              CALL WriteDataHeaderInfo(unit_index,'EnergyViolationRatioSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+              CALL WriteDataHeaderInfo(unit_index,'EnergyViolationAdditionSEE-'//TRIM(BoundaryNameSEE),OutputCounter)
+            END IF
+          END ASSOCIATE
         END DO ! iSEE = 1, SEE%NPartBoundaries
-      END IF ! CalcElectronSEE
+      END IF ! CalcCurrentSEE
       WRITE(unit_index,'(A)') ''
     END IF
   END IF
@@ -281,7 +291,7 @@ IF (CalcSurfCollCounter)        CALL GetCollCounter(SurfCollNum,AdsorptionNum,De
 IF (CalcPorousBCInfo)           CALL GetPorousBCInfo()
 #if USE_MPI
 IF (CalcBoundaryParticleOutput) CALL SyncBoundaryParticleOutput()
-IF (CalcElectronSEE)            CALL SyncElectronSEE()
+IF (CalcCurrentSEE)             CALL SyncElectronSEE()
 #endif /*USE_MPI*/
 !===================================================================================================================================
 ! Output Analyzed variables
@@ -333,14 +343,19 @@ IF(MPIRoot)THEN
             IF(ABS(charge).GT.0.0) TotalElectricCharge = TotalElectricCharge + BPO%RealPartOut(iBPO,iSpec)*charge
           END DO
           ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
-          IF(CalcElectronSEE)THEN
+          IF(CalcCurrentSEE)THEN
             ! Get particle boundary ID
             iPartBound = BPO%PartBoundaries(iBPO)
             ! Get SEE ID
             iSEE = SEE%BCIDToSEEBCID(iPartBound)
-            ! Add SEE current if this BC has secondary electron emission
-            IF(iSEE.GT.0) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
-          END IF ! CalcElectronSEE
+            ! Skip boundaries without SEE
+            IF(iSEE.GT.0) THEN
+              ! Add SEE current if this BC has secondary electron emission
+              IF(CalcElectronSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
+              ! Add SEE current if this BC has photon-based SEE
+              IF(CalcPhotonSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOutPhoton(iSEE)
+            END IF
+          END IF ! CalcCurrentSEE
           TotalElectricCharge = TotalElectricCharge/SurfModelAnalyzeSampleTime
 #if USE_HDG
           ! Add electric displacement current to total electric current
@@ -371,16 +386,21 @@ IF(MPIRoot)THEN
           IF(ABS(charge).GT.0.0) TotalElectricCharge = TotalElectricCharge + BPO%RealPartOut(iBPO,iSpec)*charge
         END DO
         ! Released secondary electrons (always a positive number). SEE%BCIDToSEEBCID(iPartBound) yields the iSEEBCIndex
-        IF(CalcElectronSEE)THEN
+        IF(CalcCurrentSEE)THEN
           ! Get particle boundary ID
           iPartBound2 = BPO%PartBoundaries(iBPO)
           ! Sanity Check
           IF(iPartBound.NE.iPartBound2) CALL abort(__STAMP__,'AnalyzeSurface(): Wrong particle boundary encountered!')
           ! Get SEE ID
           iSEE = SEE%BCIDToSEEBCID(iPartBound)
-          ! Add SEE current if this BC has secondary electron emission
-          IF(iSEE.GT.0) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
-        END IF ! CalcElectronSEE
+          ! Skip boundaries without SEE
+          IF(iSEE.GT.0) THEN
+            ! Add SEE current if this BC has secondary electron emission
+            IF(CalcElectronSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOut(iSEE)
+            ! Add SEE current if this BC has photon-based SEE
+            IF(CalcPhotonSEE) TotalElectricCharge = TotalElectricCharge + SEE%RealElectronOutPhoton(iSEE)
+          END IF
+        END IF ! CalcCurrentSEE
       END DO ! iBoundary = 1, BiasVoltage%NPartBoundaries
 
       ASSOCIATE( V => BiasVoltage%BVData(1), Q => BiasVoltage%BVData(2), tBV => BiasVoltage%BVData(3) )
@@ -427,18 +447,41 @@ IF(MPIRoot)THEN
 
   IF(UseNeutralization) CALL WriteDataInfo(unit_index,RealScalar=REAL(NeutralizationBalanceGlobal))
 
-  IF(CalcElectronSEE)THEN
+  IF(CalcCurrentSEE)THEN
     DO iPartBound = 1, SEE%NPartBoundaries
-      IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
-        CALL WriteDataInfo(unit_index,RealScalar=0.0)
-      ELSE
-        CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime)
-      END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
-        ! Reset MPIRoot counters after writing the data to the file,
-        ! non-MPIRoot are reset in SyncBoundaryParticleOutput()
+      IF(CalcElectronSEE) THEN
+        IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+          CALL WriteDataInfo(unit_index,RealScalar=0.0)
+        ELSE
+          CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronOut(iPartBound)/SurfModelAnalyzeSampleTime)
+        END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+        ! Reset MPIRoot counters after writing the data to the file, non-MPIRoot are reset in SyncBoundaryParticleOutput()
         SEE%RealElectronOut(iPartBound) = 0.
+      END IF
+      IF(CalcPhotonSEE) THEN
+        IF(ABS(SurfModelAnalyzeSampleTime).LE.0.0)THEN
+          CALL WriteDataInfo(unit_index,RealScalar=0.0)
+        ELSE
+          CALL WriteDataInfo(unit_index,RealScalar=SEE%RealElectronOutPhoton(iPartBound)/SurfModelAnalyzeSampleTime)
+        END IF ! ABS(SurfModelAnalyzeSampleTime).LE.0.0
+        ! Reset MPIRoot counters after writing the data to the file, non-MPIRoot are reset in SyncBoundaryParticleOutput()
+        SEE%RealElectronOutPhoton(iPartBound) = 0.
+      END IF
+      IF(CalcEnergyViolationSEE) THEN
+        IF(ABS(SEE%EventCount(iPartBound)).LE.0.0)THEN
+          CALL WriteDataInfo(unit_index,RealScalar=0.0)
+          CALL WriteDataInfo(unit_index,RealScalar=0.0)
+        ELSE
+          CALL WriteDataInfo(unit_index,RealScalar=SEE%EnergyConsViolationCount(iPartBound)/SEE%EventCount(iPartBound))
+          CALL WriteDataInfo(unit_index,RealScalar=SEE%EnergyConsViolationSum(iPartBound)/SEE%EventCount(iPartBound))
+        END IF ! ABS(SEE%EventCount(iPartBound)).LE.0.0
+        ! Reset MPIRoot counters after writing the data to the file, non-MPIRoot are reset in SyncBoundaryParticleOutput()
+        SEE%EventCount(iPartBound) = 0.
+        SEE%EnergyConsViolationCount(iPartBound) = 0.
+        SEE%EnergyConsViolationSum(iPartBound) = 0.
+      END IF
     END DO ! iPartBound = 1, SEE%NPartBoundaries
-  END IF ! CalcElectronSEE
+  END IF ! CalcCurrentSEE
   WRITE(unit_index,'(A)') ''
 #if USE_MPI
 END IF
@@ -717,13 +760,13 @@ END SUBROUTINE SyncBoundaryParticleOutput
 
 
 !===================================================================================================================================
-!> Synchronize CalcElectronSEE analyze arrays
+!> Synchronize CalcCurrentSEE analyze arrays
 !===================================================================================================================================
 #if USE_MPI
 SUBROUTINE SyncElectronSEE()
 ! MODULES
 USE MOD_Globals
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE, CalcElectronSEE, CalcPhotonSEE, CalcEnergyViolationSEE
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -735,11 +778,32 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF (MPIRoot) THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE        , SEE%RealElectronOut, SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  IF(CalcElectronSEE) CALL MPI_REDUCE(MPI_IN_PLACE, SEE%RealElectronOut         , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  IF(CalcPhotonSEE) CALL MPI_REDUCE(MPI_IN_PLACE  , SEE%RealElectronOutPhoton   , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  IF(CalcEnergyViolationSEE) THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE                  , SEE%EventCount              , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE                  , SEE%EnergyConsViolationCount, SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(MPI_IN_PLACE                  , SEE%EnergyConsViolationSum  , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  END IF
 ELSE
-  CALL MPI_REDUCE(SEE%RealElectronOut , 0                  , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
   ! Reset non MPIRoot counters, MPIRoot counters are reset after writing the data to the file
-  SEE%RealElectronOut = 0.
+  IF(CalcElectronSEE) THEN
+    CALL MPI_REDUCE(SEE%RealElectronOut     , 0             , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    SEE%RealElectronOut = 0.
+  END IF
+  IF(CalcPhotonSEE) THEN
+    CALL MPI_REDUCE(SEE%RealElectronOutPhoton , 0             , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    SEE%RealElectronOutPhoton = 0.
+  END IF
+  IF(CalcEnergyViolationSEE) THEN
+    CALL MPI_REDUCE(SEE%EventCount                            , 0             , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(SEE%EnergyConsViolationCount              , 0             , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    CALL MPI_REDUCE(SEE%EnergyConsViolationSum                , 0             , SEE%NPartBoundaries,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+    ! Reset non MPIRoot counters, MPIRoot counters are reset after writing the data to the file
+    SEE%EventCount = 0.
+    SEE%EnergyConsViolationCount = 0.
+    SEE%EnergyConsViolationSum = 0.
+  END IF
 END IF
 
 END SUBROUTINE SyncElectronSEE
@@ -771,20 +835,21 @@ USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_HDG*/
 USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides
 USE MOD_TimeDisc_Vars             ,ONLY: iter
-USE MOD_Mesh_Vars                 ,ONLY: SurfElem
-USE MOD_Interpolation_Vars        ,ONLY: wGPSurf
+USE MOD_Mesh_Vars                 ,ONLY: N_SurfMesh
+USE MOD_Interpolation_Vars        ,ONLY: N_Inter
+USE MOD_DG_Vars                   ,ONLY: DG_Elems_master,DG_Elems_slave
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iPartBound,iSpec,iBPO,iBC,BCSideID
+INTEGER           :: iPartBound,iSpec,iBPO,iBC,BCSideID,Nloc
 REAL,ALLOCATABLE  :: TotalSurfArea(:)
 CHARACTER(LEN=32) :: hilf
 !REAL              :: area
 !===================================================================================================================================
-DoSurfModelAnalyze = .TRUE.
+DoSurfModelAnalyze  = .TRUE.
 BPO%NPartBoundaries = GETINT('BPO-NPartBoundaries')
 BPO%PartBoundaries  = GETINTARRAY('BPO-PartBoundaries',BPO%NPartBoundaries)
 BPO%NSpecies        = GETINT('BPO-NSpecies')
@@ -874,6 +939,8 @@ DO iBPO = 1, BPO%NPartBoundaries
         ! Event probability model
       CASE(SEE_MODELS_ID)
         ! all secondary electron models
+      CASE (VDL_MODEL_ID)!,SEE_VDL_MODEL_ID)
+        ! VDL - virtual dielectric layer
       CASE DEFAULT
         WRITE(UNIT=hilf,FMT='(I0)') iPartBound
         CALL CollectiveStop(__STAMP__,'CalcBoundaryParticleOutput not implemented for '//&
@@ -896,7 +963,8 @@ IF(iter.EQ.0)THEN ! First iteration: Only output this information once
     iBPO = BPO%BCIDToBPOBCID(iPartBound)
     ! Check if this boundary is tracked
     IF(iBPO.GT.0)THEN
-      TotalSurfArea(iBPO) = TotalSurfArea(iBPO) + SUM(SurfElem(:,:,BCSideID)*wGPSurf(:,:))
+      Nloc = MAX(DG_Elems_master(BCSideID),DG_Elems_slave(BCSideID))
+      TotalSurfArea(iBPO) = TotalSurfArea(iBPO) + SUM(N_SurfMesh(BCSideID)%SurfElem(:,:)*N_Inter(Nloc)%wGPSurf(:,:))
     END IF ! iBPO.GT.0
   END DO ! BCSideID = 1,nBCSides
 #if USE_MPI
@@ -939,21 +1007,27 @@ SUBROUTINE InitCalcElectronSEE()
 USE MOD_Globals
 USE MOD_Globals                   ,ONLY: abort,StringBeginsWith
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcBoundaryParticleOutput,CalcElectronSEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcBoundaryParticleOutput,CalcCurrentSEE,CalcElectronSEE,CalcPhotonSEE,CalcEnergyViolationSEE
 USE MOD_Particle_Boundary_Vars    ,ONLY: nPartBound,PartBound
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,PrintOption
 USE MOD_Particle_Vars             ,ONLY: Species,nSpecies
+USE MOD_SurfaceModel_Vars         ,ONLY: SurfModEnergyDistribution
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iSEE,iPartBound,NPartBoundariesReflectiveSEE,NPartBoundariesPhotonSEE,iInit,iSpec
+INTEGER           :: iSEE,iPartBound,iInit,iSpec, PartBoundID
+INTEGER           :: NPartBoundariesReflectiveSEE,NPartBoundariesPhotonSEE
+LOGICAL           :: IsMappedBC(1:nPartBound)
 !===================================================================================================================================
 
 ! Initialize
 CalcElectronSEE = .FALSE.
+CalcPhotonSEE   = .FALSE.
+IsMappedBC      = .FALSE.
+NPartBoundariesPhotonSEE = 0
 
 ! 1) Check if secondary electron emission occurs
 ! 1.1) Count number of different SEE boundaries via reflective particle BC
@@ -963,6 +1037,8 @@ DO iPartBound=1,nPartBound
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
     SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    ! Mark BC as mapped for SEE
+    IsMappedBC(iPartBound) = .TRUE.
   END SELECT
 END DO ! iPartBound=1,nPartBound
 NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
@@ -970,40 +1046,74 @@ NPartBoundariesReflectiveSEE = SEE%NPartBoundaries
 ! 1.2) Count number of different photon SEE boundaries
 DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
-    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
-      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    PartBoundID = Species(iSpec)%Init(iInit)%PartBCIndex
+    IF(PartBoundID.GT.0)THEN
+      IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')) THEN
+        NPartBoundariesPhotonSEE = NPartBoundariesPhotonSEE + 1
+        ! Check if BC has already been flagged for regular SEE to avoid double count
+        IF(.NOT.IsMappedBC(PartBoundID)) THEN
+          SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+          IsMappedBC(PartBoundID) = .TRUE.
+        END IF
+      END IF
     END IF
   END DO
 END DO
-NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
-! 1.3) Count number of ray tracing photon SEE boundaries. WARNING: The combination of Init-based photon SEE and ray tracing photon
-!      SEE is not allowed
+! Sanity check: The combination of Init-based photon SEE and ray tracing photon SEE is not allowed
+IF(NPartBoundariesPhotonSEE.GT.0) THEN
+  IF(ANY(PartBound%PhotonSEEYield(:).GT.0.0)) CALL abort(__STAMP__,'The combination of Init-based + ray tracing photon SEE is not allowed!')
+END IF
+
+! 1.3) Count number of ray tracing photon SEE boundaries
 DO iPartBound = 1, nPartBound
   IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
-    ! Sanity checks
-    IF(NPartBoundariesPhotonSEE.GT.0) CALL abort(__STAMP__,'The combination of Init-based + ray tracing photon SEE is not allowed!')
     ! Remove the following check when the model is implemented (deposited charge holes by SEE)
     IF(PartBound%Dielectric(iPartBound)) CALL abort(__STAMP__,'Dielectric surfaces and ray tracing ist not implemented')
-    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+    NPartBoundariesPhotonSEE = NPartBoundariesPhotonSEE + 1
+    ! Check if BC has already been flagged for regular SEE to avoid double count
+    IF(.NOT.IsMappedBC(iPartBound)) THEN
+      SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+      IsMappedBC(iPartBound) = .TRUE.
+    END IF
   END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
 END DO ! iPartBound = 1, nPartBound
-NPartBoundariesPhotonSEE = SEE%NPartBoundaries - NPartBoundariesReflectiveSEE
 
 ! If not SEE boundaries exist, no measurement of the current can be performed
 IF(SEE%NPartBoundaries.EQ.0) RETURN
 
 ! Automatically activate when CalcBoundaryParticleOutput=T
 IF(CalcBoundaryParticleOutput)THEN
-  CalcElectronSEE = .TRUE.
-  CALL PrintOption('SEE current activated (CalcBoundaryParticleOutput=T): CalcElectronSEE','INFO',&
-      LogOpt=CalcElectronSEE)
+  CalcCurrentSEE = .TRUE.
+  CALL PrintOption('SEE current activated (CalcBoundaryParticleOutput=T): CalcCurrentSEE','INFO',&
+      LogOpt=CalcCurrentSEE)
 ELSE
-  CalcElectronSEE = GETLOGICAL('CalcElectronSEE','.FALSE.')
+  CalcCurrentSEE = GETLOGICAL('CalcCurrentSEE','.FALSE.')
+END IF ! CalcBoundaryParticleOutput
+
+CalcEnergyViolationSEE = GETLOGICAL('CalcEnergyViolationSEE')
+
+IF(CalcEnergyViolationSEE) THEN
+  CalcEnergyViolationSEE = .FALSE.
+  ! Sanity check: Energy violation output only with Chung-Everhart distribution
+  DO iPartBound = 1, nPartBound
+    IF(TRIM(SurfModEnergyDistribution(iPartBound)).EQ.'Chung-Everhart-cosine') CalcEnergyViolationSEE = .TRUE.
+  END DO
+  IF(CalcEnergyViolationSEE) THEN
+    ! Automatically activate CalcCurrentSEE when CalcEnergyViolationSEE=T
+    IF(.NOT.CalcCurrentSEE) THEN
+      CalcCurrentSEE = .TRUE.
+      CALL PrintOption('SEE current activated (CalcEnergyViolationSEE=T): CalcCurrentSEE','INFO',LogOpt=CalcCurrentSEE)
+    END IF
+  ELSE
+    ! Deactivate CalcEnergyViolationSEE when no SEE model uses the Chung-Everhart distribution
+    CALL PrintOption('SEE energy violation output deactivated, no SEE using the Chung-Everhart distribution: CalcEnergyViolationSEE',&
+                      'INFO',LogOpt=CalcEnergyViolationSEE)
+  END IF
 END IF ! CalcBoundaryParticleOutput
 
 ! Check if analysis has been activated
-IF(.NOT.CalcElectronSEE) RETURN
+IF(.NOT.CalcCurrentSEE) RETURN
 
 ! Automatically activate surface model analyze flag
 DoSurfModelAnalyze = .TRUE.
@@ -1012,21 +1122,27 @@ DoSurfModelAnalyze = .TRUE.
 ! 2.1) Create mapping for reactive surface SEE (non-photon impacts)
 ALLOCATE(SEE%PartBoundaries(SEE%NPartBoundaries))
 SEE%NPartBoundaries = 0
+IsMappedBC          = .FALSE.
 DO iPartBound=1,nPartBound
   IF(.NOT.PartBound%Reactive(iPartBound)) CYCLE
   SELECT CASE(PartBound%SurfaceModel(iPartBound))
   CASE(SEE_MODELS_ID)
     SEE%NPartBoundaries = SEE%NPartBoundaries + 1
     SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+    IsMappedBC(iPartBound) = .TRUE.
   END SELECT
 END DO ! iPartBound=1,nPartBound
 ! 2.2) Create mapping for photon-surface SEE (Init-based)
 DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
-    IF(Species(iSpec)%Init(iInit)%PartBCIndex.GT.0)THEN
+    PartBoundID = Species(iSpec)%Init(iInit)%PartBCIndex
+    IF(PartBoundID.GT.0)THEN
       IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
-        SEE%NPartBoundaries = SEE%NPartBoundaries + 1
-        SEE%PartBoundaries(SEE%NPartBoundaries) = Species(iSpec)%Init(iInit)%PartBCIndex
+        IF(.NOT.IsMappedBC(PartBoundID)) THEN
+          SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+          SEE%PartBoundaries(SEE%NPartBoundaries) = PartBoundID
+          IsMappedBC(PartBoundID) = .TRUE.
+        END IF
       END IF
     END IF
   END DO
@@ -1034,14 +1150,35 @@ END DO
 ! 2.3) Create mapping for photon-surface SEE (ray tracing)
 DO iPartBound = 1, nPartBound
   IF(PartBound%PhotonSEEYield(iPartBound).GT.0.0)THEN
-    SEE%NPartBoundaries = SEE%NPartBoundaries + 1
-    SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+    IF(.NOT.IsMappedBC(iPartBound)) THEN
+      SEE%NPartBoundaries = SEE%NPartBoundaries + 1
+      SEE%PartBoundaries(SEE%NPartBoundaries) = iPartBound
+      IsMappedBC(iPartBound) = .TRUE.
+    END IF
   END IF ! PartBound%PhotonSEEYield(iPartBound).GT.0.0
 END DO ! iPartBound = 1, nPartBound
 
 ! Allocate the container
-ALLOCATE(SEE%RealElectronOut(1:SEE%NPartBoundaries))
-SEE%RealElectronOut = 0.
+IF(NPartBoundariesReflectiveSEE.GT.0) THEN
+  CalcElectronSEE = .TRUE.
+  ALLOCATE(SEE%RealElectronOut(1:SEE%NPartBoundaries))
+  SEE%RealElectronOut = 0.
+END IF
+
+IF(NPartBoundariesPhotonSEE.GT.0) THEN
+  CalcPhotonSEE = .TRUE.
+  ALLOCATE(SEE%RealElectronOutPhoton(1:SEE%NPartBoundaries))
+  SEE%RealElectronOutPhoton = 0.
+END IF
+
+IF(CalcEnergyViolationSEE) THEN
+  ALLOCATE(SEE%EventCount(1:SEE%NPartBoundaries))
+  SEE%EventCount = 0.
+  ALLOCATE(SEE%EnergyConsViolationCount(1:SEE%NPartBoundaries))
+  SEE%EnergyConsViolationCount = 0.
+  ALLOCATE(SEE%EnergyConsViolationSum(1:SEE%NPartBoundaries))
+  SEE%EnergyConsViolationSum = 0.
+END IF
 
 ! 3) Create Mapping from particle BC index to SEE BC index
 ALLOCATE(SEE%BCIDToSEEBCID(1:nPartBound))
@@ -1086,11 +1223,15 @@ IF(CalcBoundaryParticleOutput)THEN
 END IF ! CalcBoundaryParticleOutput
 
 ! Electron emission counter
-IF(CalcElectronSEE)THEN
+IF(CalcCurrentSEE)THEN
   SDEALLOCATE(SEE%RealElectronOut)
+  SDEALLOCATE(SEE%RealElectronOutPhoton)
+  SDEALLOCATE(SEE%EventCount)
+  SDEALLOCATE(SEE%EnergyConsViolationCount)
+  SDEALLOCATE(SEE%EnergyConsViolationSum)
   SDEALLOCATE(SEE%PartBoundaries)
   SDEALLOCATE(SEE%BCIDToSEEBCID)
-END IF ! CalcElectronSEE
+END IF ! CalcCurrentSEE
 
 END SUBROUTINE FinalizeSurfaceModelAnalyze
 

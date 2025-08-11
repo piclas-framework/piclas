@@ -14,7 +14,7 @@
 
 MODULE MOD_RayTracing
 !===================================================================================================================================
-! Module for the main radiation transport routines
+! Module for raytracing
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -37,7 +37,14 @@ PUBLIC :: ReadRayTracingDataFromH5
 CONTAINS
 
 !===================================================================================================================================
-!> Main routine for the Radiation Transport
+!> Main routine for raytracing
+!> 0. (Restart) Read-in raytracing result from file if available (in this case, leaves routine at this point)
+!> 1. Loop over the local rays/photon
+!>    1. Determine
+!>    2. Perform tracking of each ray/photon until the final destination (PhotonTriaTracking)
+!> 2. Output of surface result
+!> 3. Read-in of surface result on the actual surface mesh of the node
+!> 4. Output of volume result
 !===================================================================================================================================
 SUBROUTINE RayTracing()
 ! MODULES
@@ -45,13 +52,14 @@ USE MOD_Globals
 USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_RayTracing_Vars         ,ONLY: RayPartBound,NumRays,Ray,RayElemPassedEnergy,RayElemSize,N_DG_Ray_loc
+USE MOD_RayTracing_Vars         ,ONLY: nRaySides,RaySide2GlobalSide
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonProps
 USE MOD_Photon_Tracking         ,ONLY: PhotonTriaTracking
 USE MOD_Mesh_Tools              ,ONLY: GetGlobalElemID
 USE MOD_Output                  ,ONLY: PrintStatusLineRadiation
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_part_emission_tools     ,ONLY: InsideQuadrilateral
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,PartBound,SurfSide2GlobalSide
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartStateBoundary,nVarPartStateBoundary
@@ -66,7 +74,6 @@ USE MOD_RayTracing_Vars         ,ONLY: RayElemPassedEnergy_Shared,RayElemPassedE
 USE MOD_Photon_TrackingVars     ,ONLY: PhotonSampWall,PhotonModeBPO
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,nElems
 USE MOD_RayTracing_Vars         ,ONLY: UseRayTracing,PerformRayTracing,RayElemEmission
-USE MOD_DSMC_Vars               ,ONLY: DSMC
 USE MOD_RayTracing_Init         ,ONLY: FinalizeRayTracing
 USE MOD_RayTracing_Vars         ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound
@@ -78,9 +85,8 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: nPartBound
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: NonUniqueGlobalSideID,iSurfSide,iBC,iPartBound
+INTEGER :: NonUniqueGlobalSideID,iRaySide,iPartBound
 INTEGER :: CNElemID, iRay, photonCount, RayVisCount, LocRayNum, RayDisp
-LOGICAL :: FoundComputeNodeSurfSide
 INTEGER :: ALLOCSTAT
 REAL    :: RectPower,SumPhotonEnACC
 REAL    :: StartT,EndT ! Timer
@@ -122,7 +128,7 @@ END DO
 IF(SumPhotonEnACC.LE.0.0) CALL CollectiveStop(__STAMP__,'The sum of all Part-Boundary[$]-PhotonEnACC is zero, which is not allowed!')
 
 GETTIME(StartT)
-SWRITE(UNIT_stdOut,'(A)') ' Start Ray Tracing Calculation ...'
+SWRITE(UNIT_stdOut,'(A)') ' Start ray tracing calculation...'
 
 ! Sanity check
 IF(nComputeNodeSurfTotalSides.EQ.0) CALL abort(__STAMP__,'nComputeNodeSurfTotalSides is zero, no surfaces for ray tracing found! ')
@@ -157,7 +163,12 @@ IF(nProcessors.GT.NumRays) CALL abort(__STAMP__,'Use more rays! Number of proces
 LocRayNum = NumRays/nProcessors
 IF(myrank.LT.MOD(NumRays,nProcessors)) LocRayNum = LocRayNum + 1
 ! Output to screen every 20 rays to show that the tool is still running
-RayDisp = MAX(1,INT(LocRayNum/100)) ! This value cannot be zero
+IF (LocRayNum.GE.1000000) THEN
+  RayDisp = INT(LocRayNum/10000)
+ELSE
+  RayDisp = INT(LocRayNum/100)
+END IF ! RayDisp.GE.10000000
+RayDisp = MAX(1,RayDisp) ! This value cannot be zero
 RectPower = Ray%IntensityAmplitude * Ray%Area / REAL(NumRays)
 
 ! This array is not de-allocated during load balance as it is only written to .h5 during WriteStateToHDF5()
@@ -175,41 +186,20 @@ DO iRay = 1, LocRayNum
   PhotonProps%PhotonDirection(1:3) = Ray%Direction ! (/0.0,0.0,-1.0/)! SetPhotonStartDirection(iCNElem, iPhotLoc, RandRot)
 
   ! Loop over all sides of a specific iPartBoundary and find the side where the ray enters the domain
-  ! count number of nSides connected to iPartBoundary BCSideID
-
   PhotonProps%ElemID = -1 ! Initialize
 
-  FoundComputeNodeSurfSide = .FALSE.
-  SurfLoop: DO iSurfSide = 1,nComputeNodeSurfTotalSides
-    NonUniqueGlobalSideID = SurfSide2GlobalSide(SURF_SIDEID,iSurfSide)
-    ! Check if the surface side has a neighbor (and is therefore an inner BCs)
-    IF(SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0) THEN ! BC side
-      ! Get field BC index of side and compare with BC index of the corresponding particle boundary index of the emission side
-      iBC = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID) ! Get field BC index from non-unique global side index
-      IF(iBC.NE.PartBound%MapToFieldBC(RayPartBound)) CYCLE SurfLoop ! Correct BC not found, check next side
-      FoundComputeNodeSurfSide = .TRUE.
-      ! Check if ray starting position is within the quadrilateral that is spanned by the four corner nodes of the side
-      IF(InsideQuadrilateral(PhotonProps%PhotonPos(1:2),NonUniqueGlobalSideID))THEN
-        ! Found CN element index
-        CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
-        ! Set global element index for current ray
-        PhotonProps%ElemID = GetGlobalElemID(CNElemID)
-        PhotonProps%PhotonEnergy = RectPower
-        EXIT SurfLoop
-      END IF ! InsideQuadrilateral(X,NonUniqueGlobalSideID)
-    END IF ! SideInfo_Shared(SIDE_NBSIDEID,NonUniqueGlobalSideID).LE.0
-  END DO SurfLoop! iSurfSide = 1,nComputeNodeSurfTotalSides
-
-  ! Sanity check: nComputeNodeSurfTotalSides > 0 and the correct PartBCIndex for those sides
-  IF(.NOT.FoundComputeNodeSurfSide)THEN
-    IPWRITE(UNIT_StdOut,*) ": nComputeNodeSurfTotalSides =", nComputeNodeSurfTotalSides
-    IPWRITE(UNIT_StdOut,*) ": RayPartBound               =", RayPartBound
-    !IPWRITE(UNIT_StdOut,'(I0,A,I0,A)') ": Set Part-Boundary",RayPartBound,"-BoundaryParticleOutput = T"
-    IF(.NOT.DSMC%CalcSurfaceVal)THEN
-      IPWRITE(UNIT_StdOut,*) ": Set Particles-DSMC-CalcSurfaceVal = T to build the mappings for SurfSide2GlobalSide(:,:)!"
-    END IF ! .NOT.DSMC%CalcSurfaceVal
-    CALL abort(__STAMP__,'No boundary found in list of nComputeNodeSurfTotalSides for defined RayPartBound!')
-  END IF ! FoundComputeNodeSurfSide
+  RaySurfLoop: DO iRaySide = 1, nRaySides
+    NonUniqueGlobalSideID = RaySide2GlobalSide(iRaySide)
+    ! Check if ray starting position is within the quadrilateral that is spanned by the four corner nodes of the side
+    IF(InsideQuadrilateral(PhotonProps%PhotonPos(1:2),NonUniqueGlobalSideID))THEN
+      ! Found CN element index
+      CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,NonUniqueGlobalSideID))
+      ! Set global element index for current ray
+      PhotonProps%ElemID = GetGlobalElemID(CNElemID)
+      PhotonProps%PhotonEnergy = RectPower
+      EXIT RaySurfLoop
+    END IF ! InsideQuadrilateral(X,NonUniqueGlobalSideID)
+  END DO RaySurfLoop! iRaySide = 1,nRaySides
 
   ! Sanity check
   IF(PhotonProps%ElemID.LE.0)THEN
@@ -254,7 +244,7 @@ CALL FinalizeRayTracing()
 PerformRayTracing = .FALSE.
 
 GETTIME(EndT)
-CALL DisplayMessageAndTime(EndT-StartT, ' DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
+CALL DisplayMessageAndTime(EndT-StartT, 'Ray tracing calculation DONE!', DisplayDespiteLB=.TRUE., DisplayLine=.FALSE.)
 
 END SUBROUTINE RayTracing
 
@@ -272,17 +262,21 @@ USE MOD_PreProc
 USE MOD_HDF5_Input             ,ONLY: ReadArray,DatasetExists,GetDataSize,nDims,HSize,File_ID
 USE MOD_Photon_TrackingVars    ,ONLY: RadiationSurfState,RadiationVolState,PhotonSampWall_loc
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5
-USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems,nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
 USE MOD_RayTracing_Vars        ,ONLY: N_DG_Ray_loc,Ray,nVarRay,U_N_Ray_loc,PREF_VDM_Ray,N_Inter_Ray,RayElemEmission
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_RayTracing_Vars        ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ
 USE MOD_Mesh_Vars              ,ONLY: nBCSides,offsetElem,SideToElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_HDF5_input             ,ONLY: ReadAttribute
 #if USE_MPI
 USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED,myComputeNodeRank
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonSampWallHDF5_Shared,PhotonSampWallHDF5_Shared_Win
 #endif /*USE_MPI*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 !#if MPI
 !#endif /*MPI*/
 IMPLICIT NONE
@@ -292,20 +286,30 @@ LOGICAL,INTENT(IN)   :: onlySurfData
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER              :: iElem,Nloc,iVar,k,l,m,iSurfSideHDF5,nSurfSidesHDF5,BCSideID,iLocSide,locElemID,GlobalSideID,SideID
-INTEGER              :: nSurfSampleHDF5
+INTEGER              :: nSurfSampleHDF5,N_HDF5
+INTEGER              :: iDOF,offsetDOF,nDOFLocal,nDOFTotal
 LOGICAL              :: ContainerExists
-REAL                 :: N_DG_Ray_locREAL(1:nElems)
-REAL                 :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
-REAL                 :: UNMax_loc(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
 INTEGER, ALLOCATABLE :: GlobalSideIndex(:)
+REAL, ALLOCATABLE    :: N_DG_Ray_locREAL(:)
+REAL, ALLOCATABLE    :: UNMax(:,:,:,:,:),UNMax_loc(:,:,:,:)
+REAL, ALLOCATABLE    :: U_N_Ray_2D_local(:,:)                     !< for read-in as 1D array per variable
+#if USE_MPI
+INTEGER              :: sendbuf,recvbuf
+#endif /*USE_MPI*/
+REAL                 :: StartT,EndT
 !===================================================================================================================================
+
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' Reading ray tracing result from file...'
+GETTIME(StartT)
 
 ! 1.) Get surface sampled values
 #if USE_MPI
 ! Only shared memory leaders load the data from .h5
 IF(myComputeNodeRank.EQ.0)THEN
+  CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS_SHARED)
+#else
+  CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.TRUE. ,readOnly=.TRUE.)
 #endif
-  CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS)
   CALL DatasetExists(File_ID,'SurfaceDataGlobalSideIndex',ContainerExists)
   IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'SurfaceDataGlobalSideIndex container not in '//TRIM(RadiationSurfState))
   CALL GetDataSize(File_ID,'SurfaceDataGlobalSideIndex',nDims,HSize,attrib=.FALSE.)
@@ -381,19 +385,31 @@ DO iSurfSideHDF5 = 1, nSurfSidesHDF5
   END DO ! BCSideID = 1,nBCSides
 END DO ! iSurfSideHDF5 = 1, nSurfSidesHDF5
 
-
 ! Check if only the surface data is to be loaded (non-restart and non-load balance case)
-IF(onlySurfData) RETURN
+IF(onlySurfData) THEN
+  GETTIME(EndT)
+  CALL DisplayMessageAndTime(EndT-StartT,' DONE!', DisplayLine=.FALSE.)
+  RETURN
+END IF
 
 ! 2. Get local element polynomial
 CALL OpenDataFile(RadiationVolState,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
-CALL DatasetExists(File_ID,'Nloc',ContainerExists)
-IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'Nloc container does not exist in '//TRIM(RadiationVolState))
+CALL DatasetExists(File_ID,'NlocRay',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'NlocRay container does not exist in '//TRIM(RadiationVolState))
 ! Array is stored as REAL value, hence, convert back to integer
-CALL ReadArray('Nloc',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=N_DG_Ray_locREAL)
+ALLOCATE(N_DG_Ray_locREAL(1:nElems))
+CALL ReadArray('NlocRay',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK),2,RealArray=N_DG_Ray_locREAL)
 N_DG_Ray_loc = INT(N_DG_Ray_locREAL)
+DEALLOCATE(N_DG_Ray_locREAL)
 ! Sanity check
 IF(ANY(N_DG_Ray_loc.LE.0)) CALL abort(__STAMP__,'N_DG_Ray_loc cannot contain zeros!')
+
+! Read HDF5
+CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
+IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
+
+! Determine size of DG_Solution
+CALL GetDataSize(File_ID,'DG_Solution',nDims,HSize)
 
 ! Get local ray tracing solution (the local DG solution in physical space)
 ALLOCATE(U_N_Ray_loc(1:nElems))
@@ -402,59 +418,104 @@ DO iElem = 1, nElems
   ALLOCATE(U_N_Ray_loc(iElem)%U(nVarRay,0:Nloc,0:Nloc,0:Nloc))
   U_N_Ray_loc(iElem)%U = 0.
 END DO ! iElem = 1, nElems
-! Associate construct for integer KIND=8 possibility
-ASSOCIATE (&
-      nVarRay8          => INT(nVarRay,IK)            ,&
-      NMax8             => INT(Ray%NMax,IK)           ,&
-      nGlobalElems      => INT(nGlobalElems,IK)       ,&
-      PP_nElems         => INT(PP_nElems,IK)          ,&
-      offsetElem        => INT(offsetElem,IK)          &
-      )
-      !Nres              => INT(N_Restart,4)           ,&
-      !Nres8             => INT(N_Restart,IK)          ,&
-  CALL DatasetExists(File_ID,'DG_Solution',ContainerExists)
-  IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'DG_Solution container does not exist in '//TRIM(RadiationVolState))
-  CALL ReadArray('DG_Solution' ,5,(/nVarRay8,NMax8+1_IK,NMax8+1_IK,NMax8+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
 
-  ! Map from NMax to local polynomial degree
+IF(nDims.EQ.2) THEN
+  ! DG_Solution has the form of (nVar,nDOF)
+  ! Find offsetDOFs for each processor
+  nDOFLocal = SUM((N_DG_Ray_loc(1:nElems)+1)**3)
+#if USE_MPI
+  sendbuf = nDOFLocal
+  recvbuf = 0
+  ! Each processors sums up the DOFs of the previous processors
+  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
+  offsetDOF   = recvbuf
+  ! Last processor (nProcessors-1) knows the total number and communicates to everybody else
+  sendbuf = offsetDOF + nDOFLocal
+  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nProcessors-1,MPI_COMM_PICLAS,iError)
+  nDOFTotal = sendbuf
+#else
+  offsetDOF   = 0
+  nDOFTotal = nDOFLocal
+#endif /*USE_MPI*/
+  IF(nDOFTotal.NE.INT(HSize(2),4)) CALL CollectiveStop(__STAMP__,'ERROR: Number of DOFs from NlocRay does not correspond to array size!')
+  ALLOCATE(U_N_Ray_2D_local(1:nVarRay,1:nDOFLocal))
+  ASSOCIATE (&
+    nVarRay8          => INT(nVarRay,IK)            ,&
+    offsetDOF         => INT(offsetDOF,IK)          ,&
+    nDOFLocal         => INT(nDOFLocal,IK)          )
+    CALL ReadArray('DG_Solution',2,(/nVarRay8,nDOFLocal/),offsetDOF,2,RealArray=U_N_Ray_2D_local(1:nVarRay,1:nDOFLocal))
+  END ASSOCIATE
+  ! Write into regular array
+  iDOF = 0
   DO iElem = 1, nElems
     Nloc = N_DG_Ray_loc(iElem)
-    ASSOCIATE( NMax => Ray%NMax)
-      IF(Nloc.EQ.NMax)THEN
-        U_N_Ray_loc(iElem)%U(1:nVarRay,0:NMax,0:NMax,0:NMax) = UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem)
-      ELSEIF(Nloc.GT.NMax)THEN
-        CALL ChangeBasis3D(nVarRay, NMax, Nloc, PREF_VDM_Ray(NMax, Nloc)%Vdm, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
-      ELSE
-        !transform the slave side to the same degree as the master: switch to Legendre basis
-        CALL ChangeBasis3D(nVarRay, NMax, NMax, N_Inter_Ray(NMax)%sVdm_Leg, UNMax(1:nVarRay,0:NMax,0:NMax,0:NMax,iElem), UNMax_loc)
-        ! switch back to nodal basis
-        CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
-      END IF ! Nloc.EQ.NMax
-    END ASSOCIATE
-
-    ! Sanity check: Very small negative numbers might occur due to the interpolation
-    DO iVar = 1, nVarRay
-      DO m=0,Nloc
-        DO l=0,Nloc
-          DO k=0,Nloc
-            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).LT.0.) U_N_Ray_loc(iElem)%U(iVar,k,l,m) = 0.0
-          END DO ! k
-        END DO ! l
-      END DO ! m
-    END DO ! iVar = 1, nVarRay
-
-    ! Check for emission elements and flag for later volume emission
-    DO iVar = 1, 2
-      DO m=0,Nloc
-        DO l=0,Nloc
-          DO k=0,Nloc
-            IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).GT.0.) RayElemEmission(iVar,iElem) = .TRUE.
-          END DO ! k
-        END DO ! l
-      END DO ! m
-    END DO ! iVar = 1, nVarRay
+    DO m=0,Nloc
+      DO l=0,Nloc
+        DO k=0,Nloc
+          iDOF = iDOF + 1
+          U_N_Ray_loc(iElem)%U(1:nVarRay,k,l,m) = U_N_Ray_2D_local(1:nVarRay,iDOF)
+        END DO ! k
+      END DO ! l
+    END DO ! m
+  END DO
+ELSEIF(nDims.EQ.5) THEN
+  ! DG_Solution has the form of (nVar,N,N,N,nGlobalElems)
+  CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
+  ALLOCATE(UNMax(    nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,PP_nElems))
+  ALLOCATE(UNMax_loc(nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5))
+  ! Associate construct for integer KIND=8 possibility
+  ASSOCIATE (&
+        nVarRay8          => INT(nVarRay,IK)            ,&
+        N_HDF58           => INT(N_HDF5,IK)             ,&
+        PP_nElems         => INT(PP_nElems,IK)          ,&
+        offsetElem        => INT(offsetElem,IK)          &
+        )
+    CALL ReadArray('DG_Solution' ,5,(/nVarRay8,N_HDF58+1_IK,N_HDF58+1_IK,N_HDF58+1_IK,PP_nElems/),OffsetElem,5,RealArray=UNMax)
+  END ASSOCIATE
+  ! Map from N_HDF5 to local polynomial degree
+  DO iElem = 1, nElems
+    Nloc = N_DG_Ray_loc(iElem)
+    IF(Nloc.EQ.N_HDF5)THEN
+      ! N stays the same
+      U_N_Ray_loc(iElem)%U(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5) = UNMax(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,iElem)
+    ELSEIF(Nloc.GT.N_HDF5)THEN
+      ! N increases
+      CALL ChangeBasis3D(nVarRay, N_HDF5, Nloc, PREF_VDM_Ray(N_HDF5, Nloc)%Vdm, UNMax(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,iElem), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+    ELSE
+      ! N is reduced
+      !transform the slave side to the same degree as the master: switch to Legendre basis
+      CALL ChangeBasis3D(nVarRay, N_HDF5, N_HDF5, N_Inter_Ray(N_HDF5)%sVdm_Leg, UNMax(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5,iElem), UNMax_loc(1:nVarRay,0:N_HDF5,0:N_HDF5,0:N_HDF5))
+      ! switch back to nodal basis
+      CALL ChangeBasis3D(nVarRay, Nloc, Nloc, N_Inter_Ray(Nloc)%Vdm_Leg, UNMax_loc(1:nVarRay,0:Nloc,0:Nloc,0:Nloc), U_N_Ray_loc(iElem)%U(1:nVarRay,0:Nloc,0:Nloc,0:Nloc))
+    END IF ! Nloc.EQ.N_HDF5
   END DO ! iElem = 1, nElems
-END ASSOCIATE
+END IF
+
+! Sanity checks
+DO iElem = 1, nElems
+  Nloc = N_DG_Ray_loc(iElem)
+  ! Sanity check: Very small negative numbers might occur due to the interpolation
+  DO iVar = 1, nVarRay
+    DO m=0,Nloc
+      DO l=0,Nloc
+        DO k=0,Nloc
+          IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).LT.0.) U_N_Ray_loc(iElem)%U(iVar,k,l,m) = 0.0
+        END DO ! k
+      END DO ! l
+    END DO ! m
+  END DO ! iVar = 1, nVarRay
+
+  ! Check for emission elements and flag for later volume emission
+  DO iVar = 1, 2
+    DO m=0,Nloc
+      DO l=0,Nloc
+        DO k=0,Nloc
+          IF(U_N_Ray_loc(iElem)%U(iVar,k,l,m).GT.0.) RayElemEmission(iVar,iElem) = .TRUE.
+        END DO ! k
+      END DO ! l
+    END DO ! m
+  END DO ! iVar = 1, nVarRay
+END DO ! iElem = 1, nElems
 
 CALL DatasetExists(File_ID,'RaySecondaryVectorX',ContainerExists)
 IF(.NOT.ContainerExists) CALL CollectiveStop(__STAMP__,'RaySecondaryVectorX container does not exist in '//TRIM(RadiationVolState))
@@ -470,6 +531,8 @@ CALL ReadArray('RaySecondaryVectorZ',2,(/1_IK,INT(nElems,IK)/),INT(offsetElem,IK
 
 CALL CloseDataFile()
 
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
 
 END SUBROUTINE ReadRayTracingDataFromH5
 
@@ -534,7 +597,7 @@ END FUNCTION SetPhotonEnergy
 
 FUNCTION SetRayPos()
 !===================================================================================================================================
-!> Calculation of the vibrational temperature (zero-point search) for the TSHO (Truncated Simple Harmonic Oscillator)
+!> Set a random initial ray/photon position on a rectangle in the xy-plane (defined by the mesh bounds in x and y) at maximum z
 !===================================================================================================================================
 ! MODULES
 USE MOD_Particle_Mesh_Vars   ,ONLY: GEO

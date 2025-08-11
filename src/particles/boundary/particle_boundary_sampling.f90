@@ -600,7 +600,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
                                               / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
         ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
-        IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
+        IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,OutputCounter) = 0.
         ! Heat flux (energy difference per second per area -> W/m2)
         MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
                                           + SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &

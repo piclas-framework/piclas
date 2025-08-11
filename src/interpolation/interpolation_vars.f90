@@ -22,21 +22,72 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
-REAL,ALLOCATABLE  :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
-REAL,ALLOCATABLE  :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
-REAL,ALLOCATABLE  :: L_PlusMinus(:,:)            !< L for boundary flux computation at both sides (-1,1)
-REAL,ALLOCATABLE  :: xGP(:)                      !< Gauss point coordinates
-REAL,ALLOCATABLE  :: wGP(:)                      !< GP integration weights
-REAL,ALLOCATABLE  :: swGP(:)                     !< 1.0/ GP integration weights
-REAL,ALLOCATABLE  :: wBary(:)                    !< barycentric weights
-REAL,ALLOCATABLE  :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
-REAL,ALLOCATABLE  :: NChooseK(:,:)               !< array n over n
-REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
-! Analyze variables 
+
+TYPE, PUBLIC :: Interpolation
+  ! reserved for Gauss Points with polynomial degree N, all allocated (0:N)
+  REAL,ALLOCATABLE  :: L_Plus(:)                   !< L for boundary flux computation at plus side  (1)
+  REAL,ALLOCATABLE  :: L_Minus(:)                  !< L for boundary flux computation at minus side (-1)
+  REAL,ALLOCATABLE  :: L_PlusMinus(:,:)            !< L for boundary flux computation at both sides (-1,1)
+  REAL,ALLOCATABLE  :: xGP(:)                      !< Gauss point coordinates
+  REAL,ALLOCATABLE  :: wGP(:)                      !< GP integration weights
+  REAL,ALLOCATABLE  :: swGP(:)                     !< 1.0/ GP integration weights
+  REAL,ALLOCATABLE  :: wBary(:)                    !< barycentric weights
+  REAL,ALLOCATABLE  :: wGPSurf(:,:)                !< wGPSurf(i,j)=wGP(i)*wGP(j)
+  REAL,ALLOCATABLE  :: NChooseK(:,:)               !< array n over n
+  REAL,ALLOCATABLE  :: Vdm_Leg(:,:), sVdm_Leg(:,:) !< Legendre Vandermonde matrix
+#if USE_HDG
+  REAL,ALLOCATABLE  :: LL_minus(:,:)
+  REAL,ALLOCATABLE  :: LL_plus(:,:)
+  REAL,ALLOCATABLE  :: Lomega_m(:)
+  REAL,ALLOCATABLE  :: Lomega_p(:)
+  REAL,ALLOCATABLE  :: Domega(:,:)
+  REAL,ALLOCATABLE  :: wGP_vol(:)
+  ! Mortar
+  REAL,ALLOCATABLE  :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
+#endif /*USE_HDG*/
+END TYPE Interpolation
+
+TYPE(Interpolation),ALLOCATABLE    :: N_Inter(:)          !< Array of prebuild interpolation matrices
+
+INTEGER            :: Nmin                         !< Minimum polynomial degree for the solution (p-adaption)
+INTEGER            :: Nmax                         !< Maximum polynomial degree for the solution (p-adaption)
+
+TYPE, PUBLIC :: pVDM
+  REAL,ALLOCATABLE   :: Vdm(:,:)                          !< Vandermonde matrix (PP_in,PP_out)
+END TYPE pVDM
+
+TYPE(pVDM),ALLOCATABLE             :: PREF_VDM(:,:)       !< Vandermonde matrices used for p-refinement and coarsening
+
+TYPE N_Type
+  ! interpolation points and derivatives on CL N
+  REAL,ALLOCATABLE    :: XCL_N(:,:,:,:)       ! mapping X(xi) P\in N
+  REAL,ALLOCATABLE    :: R_CL_N(:,:,:,:,:)    ! buffer for metric terms, uses XCL_N,dXCL_N
+  REAL,ALLOCATABLE    :: JaCL_N(:,:,:,:,:)    ! metric terms P\in N
+  ! Jacobian on CL N and NGeoRef
+  REAL,ALLOCATABLE    :: DetJac_N( :,:,:,:)
+  ! Polynomial derivation matrices
+  REAL,ALLOCATABLE    :: DCL_N(:,:)
+  ! Vandermonde matrices (N_OUT,N_IN)
+  REAL,ALLOCATABLE    :: Vdm_NgeoRef_N(:,:)
+  REAL,ALLOCATABLE    :: Vdm_CLNGeo_CLN(:,:)
+  REAL,ALLOCATABLE    :: Vdm_CLN_N(:,:)
+END TYPE N_Type
+
+TYPE(N_Type), DIMENSION(:), ALLOCATABLE :: NInfo
+
+! -------------------
+
+! Analyze variables
 INTEGER           :: NAnalyze                    !< number of analyzation points is NAnalyze+1
 REAL,ALLOCATABLE  :: wAnalyze(:)                 !< GL integration weights used for the analyze
-REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+
+TYPE N_Type_Analyze
+  ! interpolation points and derivatives on CL N
+  REAL,ALLOCATABLE  :: Vdm_GaussN_NAnalyze(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+END TYPE N_Type_Analyze
+
+TYPE(N_Type_Analyze), DIMENSION(:), ALLOCATABLE :: N_InterAnalyze
+
 REAL,ALLOCATABLE  :: Uex(:,:,:,:,:)              !< Analytic solution Uex(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze,1:nElems)
 
 !==================================================================================================================================
@@ -57,15 +108,16 @@ CHARACTER(LEN=255),PARAMETER :: NodeTypeVISU = 'VISU'                     !< equ
 !==================================================================================================================================
 ! (Magnetic) background field
 !==================================================================================================================================
-INTEGER          :: NBG                        !< Polynomial degree of BG-Field
 INTEGER          :: BGType                     !< Type of BG-Field (Electric,Magnetic,Both)
 INTEGER          :: BGDataSize                 !< Type of BG-Field (Electric,Magnetic,Both)
-REAL,ALLOCATABLE :: BGField(:,:,:,:,:)         !< BGField numerical solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
-REAL,ALLOCATABLE :: BGFieldAnalytic(:,:,:,:,:) !< BGField analytic solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
-REAL,ALLOCATABLE :: BGField_xGP(:)             !< Gauss point coordinates
-REAL,ALLOCATABLE :: BGField_wBary(:)           !< barycentric weights
 LOGICAL          :: BGFieldVTKOutput           !< Output the background field in VTK data format
-REAL,ALLOCATABLE :: PsiMag(:,:,:,:)            !< Magnetic potential [1:PP_N,1:PP_N,1:PP_N,1:nElems]
+TYPE tPsiMag
+  REAL,ALLOCATABLE :: PsiMag(:,:,:)              
+  REAL,ALLOCATABLE :: BGField(:,:,:,:)         !< BGField numerical solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
+  REAL,ALLOCATABLE :: BGFieldAnalytic(:,:,:,:) !< BGField analytic solution (1:x,0:NBG,0:NBG,0:NBG,1:PP_nElems)
+  REAL, ALLOCATABLE:: BGFieldTDep(:,:,:,:,:)   !< Time-dependent background field                                                                !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
+END TYPE tPsiMag
+TYPE(tPsiMag),ALLOCATABLE    :: N_BG(:) 
 !===================================================================================================================================
 
 LOGICAL           :: InterpolationInitIsDone = .FALSE. !< Flag whether the initialization has been completed or not

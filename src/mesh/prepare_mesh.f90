@@ -26,13 +26,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 
-INTERFACE setLocalSideIDs
-  MODULE PROCEDURE setLocalSideIDs
-END INTERFACE
-
-INTERFACE fillMeshInfo
-  MODULE PROCEDURE fillMeshInfo
-END INTERFACE
 
 PUBLIC::setLocalSideIDs,fillMeshInfo
 
@@ -83,6 +76,9 @@ USE MOD_MPI_Vars           ,ONLY: offsetMPISides_MINE,offsetMPISides_YOUR,nMPISi
 USE MOD_MPI_Vars           ,ONLY: nMPISides_rec, OffsetMPISides_rec
 USE MOD_LoadBalance_Vars   ,ONLY: writePartitionInfo,DoLoadBalance,nLoadBalanceSteps, LoadDistri, PartDistri
 #endif
+#if USE_FV
+USE MOD_Mesh_Vars_FV       ,ONLY: IsPeriodicSide
+#endif /*USE_FV*/
 IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -162,7 +158,11 @@ IF(ANY(PeriodicBCMap.EQ.-2))&
 ! and for periodic sides set BCindex of the slave side to the index of the master side using the PeriodicBCMap.
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+#if PP_dim == 3
   DO iLocSide=1,6
+#else
+  DO iLocSide=2,5
+#endif
     aSide=>aElem%Side(iLocSide)%sp
     ! LOOP over mortars, if no mortar, then LOOP is executed once
     nMortars=aSide%nMortars
@@ -210,7 +210,11 @@ nSlaveMortarMPISides_Proc=0
 #endif /*USE_MPI*/
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+#if PP_dim == 3
   DO iLocSide=1,6
+#else
+  DO iLocSide=2,5
+#endif
     aSide=>aElem%Side(iLocSide)%sp
     aSide%tmp=0
     IF(aSide%nMortars.GT.0)THEN   ! only if side has small virtual sides
@@ -261,7 +265,11 @@ iInnerSide=nBCSides+nMortarInnerSides ! inner (non-Mortar) side come next
 iMortarMPISide=nSides-nMortarMPISides ! MPI Mortar sides come last
 DO iElem=FirstElemInd,LastElemInd
   aElem=>Elems(iElem)%ep
+#if PP_dim == 3
   DO iLocSide=1,6
+#else
+  DO iLocSide=2,5
+#endif
     aSide=>aElem%Side(iLocSide)%sp
     nMortars=aSide%nMortars
     DO iMortar=0,nMortars
@@ -274,6 +282,11 @@ DO iElem=FirstElemInd,LastElemInd
             iSide=iSide+1
             aSide%SideID=iInnerSide            ! set SideID for this side
             aSide%connection%SideID=iInnerSide ! and set same SideID for connected side
+#if USE_FV
+            IF(aSide%BCIndex.GE.1) THEN
+              IF(BoundaryType(aSide%BCIndex,BC_TYPE).EQ.1) IsPeriodicSide(iInnerSide)=.TRUE.
+            END IF
+#endif
           ELSE  ! side has no connection => big Mortar or BC side
             IF(aSide%MortarType.GT.0) THEN ! if big Mortar side
               IF(aSide%tmp.EQ.-1)THEN         ! if MPI Mortar side
@@ -367,7 +380,11 @@ DO iNbProc=1,nNbProcs
   iSide=0
   DO iElem=FirstElemInd,LastElemInd
     aElem=>Elems(iElem)%ep
+#if PP_dim == 3
     DO iLocSide=1,6
+#else
+    DO iLocSide=2,5
+#endif
       aSide=>aElem%Side(iLocSide)%sp
       nMortars=aSide%nMortars
       DO iMortar=0,nMortars
@@ -396,7 +413,11 @@ DO iNbProc=1,nNbProcs
   ! again loop over all common sides with the specific neighboring processor and assign SideIDs according to the 'SideIDMap'.
   DO iElem=FirstElemInd,LastElemInd
     aElem=>Elems(iElem)%ep
+#if PP_dim == 3
     DO iLocSide=1,6
+#else
+    DO iLocSide=2,5
+#endif
       aSide=>aElem%Side(iLocSide)%sp
       nMortars=aSide%nMortars
       DO iMortar=0,nMortars
@@ -807,9 +828,9 @@ SUBROUTINE fillMeshInfo()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: tElem,tSide,Elems
-USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nBCSides,nSides
+USE MOD_Mesh_Vars        ,ONLY: nElems,offsetElem,nSides
 USE MOD_Mesh_Vars        ,ONLY: firstMortarInnerSide,lastMortarInnerSide,nMortarInnerSides,firstMortarMPISide
-USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide,ElemToElemGlob
+USE MOD_Mesh_Vars        ,ONLY: ElemToSide,SideToElem,BC,AnalyzeSide
 USE MOD_Mesh_Vars        ,ONLY: MortarType,MortarInfo,MortarSlave2MasterInfo
 #if defined(PARTICLES) || USE_HDG
 USE MOD_Mesh_Vars        ,ONLY: GlobalUniqueSideID
@@ -819,7 +840,7 @@ USE MOD_MPI_vars
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: ElemHDGSides,TotalHDGSides
-USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName
+USE MOD_Mesh_Vars        ,ONLY: BoundaryType,lastMPISide_MINE,lastInnerSide,BoundaryName,nBCSides
 #endif /*USE_HDG && USE_LOADBALANCE*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
@@ -840,15 +861,12 @@ INTEGER,INTENT(IN) :: meshMode !< 0: only read and build Elem_xGP,
 ! LOCAL VARIABLES
 TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide,mSide
-INTEGER             :: iElem,LocSideID,nSides_flip(0:4),SideID
-INTEGER             :: nSides_MortarType(1:3),iMortar
-INTEGER             :: FirstElemID,LastElemID,ilocSide,locMortarSide,NBElemID,SideID2,NBlocSideID
+INTEGER             :: iElem,LocSideID,nSides_flip(0:4),SideID,nSides_MortarType(1:3),iMortar
 #if USE_MPI
 INTEGER             :: dummy(0:4)
 #endif
 #if USE_HDG && USE_LOADBALANCE
-INTEGER           :: BCType,nMortars
-INTEGER           :: HDGSides
+INTEGER           :: BCType,nMortars,ilocSide,locMortarSide,SideID2,HDGSides
 CHARACTER(3)      :: hilf
 #endif /*USE_HDG && USE_LOADBALANCE*/
 !===================================================================================================================================
@@ -856,7 +874,11 @@ CHARACTER(3)      :: hilf
 nSides_flip=0
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     ElemToSide(E2S_SIDE_ID,LocSideID,iElem)=aSide%SideID
     ElemToSide(E2S_FLIP,LocSideID,iElem)   =aSide%Flip
@@ -867,7 +889,11 @@ END DO ! iElem
 ! Side to Element mapping, sorted by SideID
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     IF(aSide%Flip.EQ.0)THEN ! root side
       SideToElem(S2E_ELEM_ID,aSide%SideID)         = iElem ! root Element
@@ -890,7 +916,11 @@ nSides_MortarType=0
 
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     ! Set type of mortar:
     !    -1: Small side belonging to big mortar
@@ -954,7 +984,11 @@ LOGWRITE(*,*)'============================= START SIDE CHECKER =================
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
   LOGWRITE(*,*)'=============== iElem= ',iElem, '==================='
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     LOGWRITE(*,'(7(A,I4))')'globSideID= ',aSide%ind, ', flip= ',aSide%flip ,    ', SideID= ', aSide%SideID, &
              ', nbProc= ',aSide%nbProc, ', %MortarType= ',aSide%MortarType, &
@@ -976,45 +1010,6 @@ END DO ! iElem
 LOGWRITE(*,*)'============================= END SIDE CHECKER ==================='
 
 LOGWRITE_BARRIER
-
-! build global connection of elements to elements
-FirstElemID=offsetElem+1
-LastElemID=offsetElem+nElems
-ALLOCATE(ElemToElemGlob(1:4,1:6,FirstElemID:LastElemID))
-ElemToElemGlob=-1
-DO iElem=1,nElems
-  DO ilocSide=1,6
-    SideID=ElemToSide(E2S_SIDE_ID,ilocSide,iElem)
-    IF(SideID.LE.nBCSides) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=0
-    locMortarSide=MortarType(2,SideID)
-    IF(locMortarSide.EQ.-1)THEN ! normal side or small mortar side
-      NBElemID=SideToElem(S2E_NB_ELEM_ID,SideID)
-      IF(NBElemID.GT.0)THEN
-        IF(NBElemID.NE.iElem) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=offSetElem+NBElemID
-      END IF
-      NBElemID=SideToElem(S2E_ELEM_ID,SideID)
-      IF(NBElemID.GT.0)THEN
-        IF(NBElemID.NE.iElem) ElemToElemGlob(1,ilocSide,offSetElem+iElem)=offSetElem+NBElemID
-      END IF
-    ELSE ! mortar side
-      DO iMortar=1,4
-        SideID2=MortarInfo(MI_SIDEID,iMortar,locMortarSide)
-        IF(SideID2.GT.0)THEN
-          NBElemID=SideToElem(S2E_NB_ELEM_ID,SideID2)
-          IF(NBElemID.GT.0)THEN
-            ElemToElemGlob(iMortar,ilocSide,offSetElem+iElem)=offSetElem+NBElemID
-            ! mapping from small mortar side to neighbor, inverse of above
-            NBlocSideID=SideToElem(S2E_NB_LOC_SIDE_ID,SideID2)
-            ElemToElemGlob(1,NBlocSideID,offSetElem+NBElemID)=offSetElem+iElem
-          END IF
-        END IF
-      END DO ! iMortar=1,4
-    END IF ! locMortarSide
-    ! self connectivity in MPI case
-    IF(ElemToElemGlob(1,ilocSide,offSetElem+iElem).EQ.-1) ElemToElemGlob(1,ilocSide,offSetElem+iElem) = offSetElem+iElem
-  END DO ! ilocSide=1,6
-END DO ! iElem=1,PP_nElems
-
 
 #if USE_HDG && USE_LOADBALANCE
 IF(meshMode.GT.1)THEN
@@ -1042,7 +1037,7 @@ IF(meshMode.GT.1)THEN
             CALL abort(__STAMP__,'SideID.LE.nBCSides and SideID is periodic should not happen')
           CASE(HDGDIRICHLETBCSIDEIDS) ! Dirichlet
             ! do not consider this side
-          CASE(10,11) ! Neumann
+          CASE(10,11,12) ! Neumann
             HDGSides = HDGSides + 1
           CASE(20) ! FPC
             HDGSides = HDGSides + 1
@@ -1132,18 +1127,13 @@ IF(meshMode.GT.1)THEN
 END IF ! meshMode.GT.1
 #endif /*USE_HDG && USE_LOADBALANCE*/
 
-
-#if USE_MPI
-CALL exchangeElemID()
-#endif /*USE_MPI*/
-
 END SUBROUTINE fillMeshInfo
 
 
 #if USE_MPI
 SUBROUTINE exchangeFlip()
 !===================================================================================================================================
-!> This routine communicates the flip between MPI sides, as the flip determines wheter
+!> This routine communicates the flip between MPI sides, as the flip determines whether
 !> a side is a master or a slave side. The flip of MINE sides is set to zero, therefore
 !> send MINE flip to other processor, so YOUR sides get their corresponding flip>0.
 !===================================================================================================================================
@@ -1164,15 +1154,22 @@ TYPE(tElem),POINTER :: aElem
 TYPE(tSide),POINTER :: aSide
 INTEGER             :: iElem,LocSideID
 INTEGER             :: iMortar,nMortars
-INTEGER             :: Flip_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_MINE(nNBProcs))
-INTEGER             :: Flip_YOUR(offsetMPISides_YOUR(0)+1:offsetMPISides_YOUR(nNBProcs))
-INTEGER             :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+TYPE(MPI_Request)   :: SendRequest(nNbProcs),RecRequest(nNbProcs)
+INTEGER,ALLOCATABLE :: Flip_MINE(:),Flip_YOUR(:)
 !===================================================================================================================================
 IF(nProcessors.EQ.1) RETURN
+
+ALLOCATE(Flip_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_MINE(nNBProcs)))
+ALLOCATE(Flip_YOUR(offsetMPISides_YOUR(0)+1:offsetMPISides_YOUR(nNBProcs)))
+
 !fill MINE flip info
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     nMortars=aSide%nMortars
     DO iMortar=0,nMortars
@@ -1203,14 +1200,18 @@ DO iNbProc=1,nNbProcs
   END IF
 END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
-  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
-  IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(nMPISides_YOUR_Proc(iNbProc).GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
+  IF(nMPISides_MINE_Proc(iNBProc).GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
+  IF(iERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI-Error during flip-exchange. iError', iERROR)
 END DO !iProc=1,nNBProcs
 DO iElem=1,nElems
   aElem=>Elems(iElem+offsetElem)%ep
+#if PP_dim == 3
   DO LocSideID=1,6
+#else
+  DO LocSideID=2,5
+#endif
     aSide=>aElem%Side(LocSideID)%sp
     nMortars=aSide%nMortars
     DO iMortar=0,nMortars
@@ -1228,132 +1229,9 @@ DO iElem=1,nElems
   END DO ! LocSideID
 END DO ! iElem
 
+DEALLOCATE(Flip_MINE,Flip_YOUR)
+
 END SUBROUTINE exchangeFlip
-#endif
-
-
-#if USE_MPI
-SUBROUTINE exchangeElemID()
-!===================================================================================================================================
-!> This routine communicates the global-elemid between MPI interfaces
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals
-USE MOD_Mesh_Vars,ONLY:nElems,offsetElem
-USE MOD_Mesh_Vars,ONLY:tElem,tSide,Elems
-USE MOD_Mesh_Vars, ONLY:ElemToElemGlob
-USE MOD_MPI_vars
-IMPLICIT NONE
-! INPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-TYPE(tElem),POINTER :: aElem
-TYPE(tSide),POINTER :: aSide
-INTEGER             :: iElem,LocSideID
-INTEGER             :: iMortar,nMortars
-INTEGER             :: ElemID_MINE(offsetMPISides_MINE(0)+1:offsetMPISides_YOUR(nNBProcs))
-INTEGER             :: ElemID_YOUR(offsetMPISides_MINE(0)+1:offsetMPISides_YOUR(nNBProcs))
-INTEGER             :: SendRequest(nNbProcs),RecRequest(nNbProcs)
-!===================================================================================================================================
-IF(nProcessors.EQ.1) RETURN
-
-!fill MINE ElemID info
-ElemID_MINE=-1
-DO iElem=1,nElems
-  aElem=>Elems(iElem+offsetElem)%ep
-  DO LocSideID=1,6
-    aSide=>aElem%Side(LocSideID)%sp
-    nMortars=aSide%nMortars
-    DO iMortar=0,nMortars
-      IF(iMortar.GT.0) aSide=>aElem%Side(LocSideID)%sp%mortarSide(iMortar)%sp
-      IF((aSide%SideID.GT.offsetMPISides_MINE(0)       ).AND.&
-         (aSide%SideID.LE.offsetMPISides_YOUR(nNBProcs)))THEN
-        ElemID_MINE(aSide%sideID)=offSetElem+iElem
-      END IF
-    END DO ! iMortar
-  END DO ! LocSideID
-END DO ! iElem
-
-! first communication: Slave to Master
-DO iNbProc=1,nNbProcs
-  ! Start send flip from MINE
-  nSendVal    =nMPISides_send(iNBProc,2)
-  SideID_start=OffsetMPISides_send(iNbProc-1,2)+1
-  SideID_end  =OffsetMPISides_send(iNbProc,2)
-  IF(nSendVal.GT.0)THEN
-    CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
-  END IF
-  ! Start receive flip to YOUR
-  nRecVal     =nMPISides_rec(iNbProc,2)
-  SideID_start=OffsetMPISides_rec(iNbProc-1,2)+1
-  SideID_end  =OffsetMPISides_rec(iNbProc,2)
-  IF(nRecVal.GT.0)THEN
-    CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
-  END IF
-END DO !iProc=1,nNBProcs
-DO iNbProc=1,nNbProcs
-  nRecVal     =nMPISides_rec(iNbProc,2)
-  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
-  nSendVal    =nMPISides_send(iNBProc,2)
-  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
-END DO !iProc=1,nNBProcs
-
-! second communication: Master to Slave
-DO iNbProc=1,nNbProcs
-  ! Start send flip from MINE
-  nSendVal    =nMPISides_send(iNBProc,1)
-  SideID_start=OffsetMPISides_send(iNbProc-1,1)+1
-  SideID_end  =OffsetMPISides_send(iNbProc,1)
-  IF(nSendVal.GT.0)THEN
-    CALL MPI_ISEND(ElemID_MINE(SideID_start:SideID_end),nSendVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_PICLAS,SendRequest(iNbProc),iError)
-  END IF
-  ! Start receive flip to YOUR
-  nRecVal     =nMPISides_rec(iNbProc,1)
-  SideID_start=OffsetMPISides_rec(iNbProc-1,1)+1
-  SideID_end  =OffsetMPISides_rec(iNbProc,1)
-  IF(nRecVal.GT.0)THEN
-    CALL MPI_IRECV(ElemID_YOUR(SideID_start:SideID_end),nRecVal,MPI_INTEGER,  &
-                    nbProc(iNbProc),0,MPI_COMM_PICLAS,RecRequest(iNbProc),iError)
-  END IF
-END DO !iProc=1,nNBProcs
-DO iNbProc=1,nNbProcs
-  nRecVal     =nMPISides_rec(iNbProc,1)
-  IF(nRecVal.GT.0)CALL MPI_WAIT(RecRequest(iNbProc) ,MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
-  nSendVal    =nMPISides_send(iNBProc,1)
-  IF(nSendVal.GT.0)CALL MPI_WAIT(SendRequest(iNbProc),MPIStatus,iError)
-  IF(iERROR.NE.0) CALL abort(__STAMP__,' MPI-Error during ElemID-exchange. iError', iERROR)
-END DO !iProc=1,nNBProcs
-
-DO iElem=1,nElems
-  aElem=>Elems(iElem+offsetElem)%ep
-  DO LocSideID=1,6
-    aSide=>aElem%Side(LocSideID)%sp
-    nMortars=aSide%nMortars
-    DO iMortar=0,nMortars
-      IF(iMortar.GT.0) aSide=>aElem%Side(LocSideID)%sp%mortarSide(iMortar)%sp
-      IF((aSide%SideID.GT.offsetMPISides_MINE(0)       ).AND.&
-         (aSide%SideID.LE.offsetMPISides_YOUR(nNBProcs)))THEN
-        IF(iMortar.EQ.0)THEN
-          ElemToElemGlob(1,locSideID,offSetElem+iElem)=ElemID_YOUR(aside%sideID)
-        ELSE
-          ElemToElemGlob(iMortar,locSideID,offSetElem+iElem)=ElemID_YOUR(aside%sideID)
-        END IF
-      END IF
-    END DO ! iMortar
-  END DO ! LocSideID
-END DO ! iElem
-
-END SUBROUTINE exchangeElemID
 #endif
 
 

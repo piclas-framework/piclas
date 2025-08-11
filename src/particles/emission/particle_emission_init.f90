@@ -50,10 +50,6 @@ CALL prms%CreateRealOption(   'Part-Species[$]-ChargeIC', 'Particle charge of sp
 CALL prms%CreateRealOption(   'Part-Species[$]-MassIC'  , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-MacroParticleFactor' ,'Particle weighting factor: number of simulation particles per real particle for species [$]' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-TimeStepFactor' ,'Species-specific time step factor, multiplied by the ManualTimeStep [$]' , '1.', numberedmulti=.TRUE.)
-#if defined(IMPA)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
-#endif
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies', 'Flag if particle species is used for IMD coupling', '.FALSE.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("Particle Initialization (Inits)")
 
@@ -193,6 +189,8 @@ ELSE
   BGGas%NumberDensity = 0.
 END IF
 
+MPFOld = 0.0
+
 DO iSpec = 1, nSpecies
   LBWRITE (UNIT_stdOut,'(66(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -205,11 +203,14 @@ DO iSpec = 1, nSpecies
   END IF
 #endif /*USE_MPI*/
   Species(iSpec)%MacroParticleFactor   = GETREAL('Part-Species'//TRIM(hilf)//'-MacroParticleFactor')
-  IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
-    IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
+  !IF((iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
+  IF((.NOT.ALMOSTZERO(MPFOld)).AND.UseDSMC.AND.(.NOT.UsevMPF))THEN
+    IF(Species(iSpec)%InterID.NE.100) THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(Species(iSpec)%MacroParticleFactor,MPFOld,1e-5)) CALL CollectiveStop(__STAMP__,&
         'Different MPFs only allowed when using Part-vMPF=T')
+    END IF
   END IF ! (iSpec.GT.1).AND.UseDSMC.AND.(.NOT.UsevMPF)
-  MPFOld = Species(iSpec)%MacroParticleFactor
+  IF(Species(iSpec)%InterID.NE.100) MPFOld = Species(iSpec)%MacroParticleFactor
   ! Species-specific time step
   Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
@@ -222,9 +223,6 @@ DO iSpec = 1, nSpecies
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
 #endif /*!(USE_HDG) && !(PP_TimeDiscMethod==4)*/
   END IF
-#if defined(IMPA)
-  Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')
-#endif
   ALLOCATE(Species(iSpec)%Init(1:Species(iSpec)%NumberOfInits))
   DO iInit = 1, Species(iSpec)%NumberOfInits
     WRITE(UNIT=hilf2,FMT='(I0)') iInit
@@ -239,6 +237,10 @@ DO iSpec = 1, nSpecies
       ,'maxwell_lpn'))
     Species(iSpec)%Init(iInit)%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
     Species(iSpec)%Init(iInit)%VeloVecIC             = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-VeloVecIC',3)
+    ! Velocity distribution of granular species must be constant
+    IF(Species(iSpec)%InterID.EQ.100) THEN
+      Species(iSpec)%Init(iInit)%velocityDistribution  = 'constant'
+    END IF
     !--- Normalize VeloVecIC
     IF(.NOT.ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).EQ.0.)) THEN
       Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC / VECNORM(Species(iSpec)%Init(iInit)%VeloVecIC)
@@ -438,6 +440,12 @@ IF(UseEmissionDistribution.AND.(.NOT.DoRestart)) THEN
   CALL ReadUseEmissionDistribution()
 END IF
 
+#if drift_diffusion
+!-- Sanity check for drift-diffusion electron fluid model
+IF(.NOT.ANY(BGGas%BackgroundSpecies)) CALL CollectiveStop(__STAMP__,&
+  'ERROR: The drift-diffusion electron fluid model requires at least one species to be of type SpaceIC=background')
+#endif /*drift_diffusion*/
+
 END SUBROUTINE InitializeVariablesSpeciesInits
 
 
@@ -451,7 +459,8 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
-USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, CollisMode
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
@@ -478,10 +487,13 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
-REAL                :: TimeStepOverWeight, v_thermal, dtVar
+INTEGER             :: CNElemID
+REAL                :: v_thermal, dtVar
+REAL                :: StartT,EndT
 !===================================================================================================================================
 
 LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING...'
+GETTIME(StartT)
 
 CALL UpdateNextFreePosition()
 
@@ -560,9 +572,8 @@ IF(DoDielectric)THEN
   IF(DielectricNoParticles)THEN
     DO iPart = 1,PDM%ParticleVecLength
       ! Remove particles in dielectric elements
-      IF(isDielectricElem(PEM%LocalElemID(iPart)))THEN
-        PDM%ParticleInside(iPart) = .FALSE.
-      END IF
+      CNElemID = GetCNElemID(PEM%GlobalElemID(iPart))
+      IF(isDielectricElem_Shared(CNElemID)) PDM%ParticleInside(iPart) = .FALSE.
     END DO
   END IF
 END IF
@@ -585,7 +596,6 @@ IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
       ! Skip other regular surface flux and other types
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
       ! Calculate the velocity for the surface flux with the thermal velocity assuming a zero bulk velocity
-      TimeStepOverWeight = dtVar / Species(iSpec)%MacroParticleFactor
       v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
       ! Loop over sides on the surface flux
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -594,8 +604,8 @@ IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
         SampleElemID = AdaptBCMapElemToSample(ElemID)
         IF(SampleElemID.GT.0) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + INT(AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              * TimeStepOverWeight * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal)
+            AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + AdaptBCMacroVal(4,SampleElemID,iSpec) &
+              * dtVar * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal
           END DO; END DO
         END IF  ! SampleElemID.GT.0
       END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber
@@ -605,7 +615,8 @@ END IF
 
 IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()
 
-LBWRITE(UNIT_stdOut,'(A)') ' INITIAL PARTICLE INSERTING DONE!'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT,'INITIAL PARTICLE INSERTING DONE!')
 
 END SUBROUTINE InitialParticleInserting
 
@@ -821,7 +832,7 @@ SUBROUTINE DetermineInitialParticleNumber()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars        ,ONLY: PI
-USE MOD_DSMC_Vars           ,ONLY: RadialWeighting, DSMC
+USE MOD_DSMC_Vars           ,ONLY: DoRadialWeighting, DoLinearWeighting, ParticleWeighting, DSMC
 USE MOD_Particle_Mesh_Vars  ,ONLY: LocalVolume
 USE MOD_Particle_Vars       ,ONLY: Species,nSpecies,SpecReset
 USE MOD_ReadInTools
@@ -889,10 +900,14 @@ DO iSpec=1,nSpecies
         CASE DEFAULT
           CALL abort(__STAMP__,'Given velocity distribution is not supported with the SpaceIC cell_local!')
         END SELECT  ! Species(iSpec)%Init(iInit)%velocityDistribution
+        IF(DoLinearWeighting) THEN
+          Species(iSpec)%Init(iInit)%ParticleNumber=INT(Species(iSpec)%MacroParticleFactor*Species(iSpec)%Init(iInit)%ParticleNumber&
+                                                      /(ParticleWeighting%ScaleFactor),8)
+        END IF
         IF(Symmetry%Order.LE.2) THEN
           ! The radial scaling of the weighting factor has to be considered
-          IF(RadialWeighting%DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
-                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (RadialWeighting%PartScaleFactor),8)
+          IF(DoRadialWeighting) Species(iSpec)%Init(iInit)%ParticleNumber = &
+                                      INT(Species(iSpec)%Init(iInit)%ParticleNumber * 2. / (ParticleWeighting%ScaleFactor),8)
         END IF
       CASE('background')
         ! do nothing

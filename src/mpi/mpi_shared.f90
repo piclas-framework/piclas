@@ -25,6 +25,37 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
+! Overload the MPI interface as MPICH fails to provide it
+! > https://github.com/pmodels/mpich/issues/2659
+! > https://www.mpi-forum.org/docs/mpi-3.1/mpi31-report/node263.htm
+#if LIBS_MPICH_FIX_SHM_INTERFACE
+INTERFACE MPI_WIN_ALLOCATE_SHARED
+  SUBROUTINE PMPI_WIN_ALLOCATE_SHARED(SIZE, DISP_UNIT, INFO, COMM, BASEPTR, WIN, IERROR)
+      USE, INTRINSIC ::  ISO_C_BINDING, ONLY : C_PTR
+      USE mpi_f08, ONLY: MPI_Comm,MPI_Info,MPI_Win,MPI_COMM_NULL,MPI_ADDRESS_KIND
+      IMPLICIT NONE
+      INTEGER        ::  DISP_UNIT, IERROR
+      TYPE(MPI_Info) ::  INFO
+      TYPE(MPI_comm) ::  COMM
+      TYPE(MPI_Win)  ::  WIN
+      INTEGER(KIND=MPI_ADDRESS_KIND) ::  SIZE
+      TYPE(C_PTR)    ::  BASEPTR
+  END SUBROUTINE
+END INTERFACE
+
+INTERFACE MPI_WIN_SHARED_QUERY
+  SUBROUTINE PMPI_WIN_SHARED_QUERY(WIN, RANK, SIZE, DISP_UNIT, BASEPTR, IERROR)
+      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_PTR
+      USE mpi_f08, ONLY: MPI_Comm,MPI_Info,MPI_Win,MPI_COMM_NULL,MPI_ADDRESS_KIND
+      IMPLICIT NONE
+      INTEGER        :: RANK, DISP_UNIT, IERROR
+      TYPE(MPI_Win)  :: WIN
+      INTEGER(KIND=MPI_ADDRESS_KIND) :: SIZE
+      TYPE(C_PTR)    :: BASEPTR
+  END SUBROUTINE
+END INTERFACE
+#endif /*LIBS_MPICH_FIX_SHM_INTERFACE*/
+
 INTERFACE DefineParametersMPIShared
   MODULE PROCEDURE DefineParametersMPIShared
 END INTERFACE
@@ -237,7 +268,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 LOGICAL,INTENT(OUT),POINTER               :: DataPointer(:)           !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -282,8 +313,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
-
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_LOGICAL_1
 
@@ -304,7 +338,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(2)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 LOGICAL,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -351,7 +385,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_LOGICAL_2
 
@@ -372,7 +410,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -419,7 +457,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_1
 
@@ -441,7 +483,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(2)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -488,7 +530,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_2
 
@@ -510,7 +556,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(3)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:,:)       !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -557,7 +603,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_3
 
@@ -579,7 +629,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(4)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 INTEGER,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:)     !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -626,7 +676,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_INT_4
 
@@ -648,7 +702,7 @@ END SUBROUTINE ALLOCATE_SHARED_INT_4
 !!----------------------------------------------------------------------------------------------------------------------------------
 !! INPUT/OUTPUT VARIABLES
 !INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
-!INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+!TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 !INTEGER(KIND=IK),INTENT(OUT),POINTER      :: DataPointer(:)           !> Pointer to the RMA window
 !#ifdef DEBUG_MEMORY
 !CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -702,7 +756,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(1)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -749,9 +803,14 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_1
+
 
 SUBROUTINE Allocate_Shared_Real_1_nValINT8(nVal,SM_WIN,DataPointer&
 #ifdef DEBUG_MEMORY
@@ -767,7 +826,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER(KIND=SELECTED_INT_KIND(18)),INTENT(IN) :: nVal(1)           !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                 !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                 !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -814,7 +873,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE Allocate_Shared_Real_1_nValINT8
 
@@ -833,7 +896,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER(KIND=SELECTED_INT_KIND(18)),INTENT(IN) :: nVal(1)           !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                 !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                 !> Shared memory window
 INTEGER   ,INTENT(OUT),POINTER            :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -880,7 +943,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE Allocate_Shared_Int_1_nValINT8
 
@@ -899,7 +966,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER(KIND=IK),INTENT(IN)               :: nVal(1)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 INTEGER(KIND=2),INTENT(OUT),POINTER       :: DataPointer(:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -946,7 +1013,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE Allocate_Shared_Int_1_nValKIND_DataPointKIND2
 
@@ -967,7 +1038,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(2)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:)         !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -1014,7 +1085,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_2
 
@@ -1036,7 +1111,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(3)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:)       !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -1083,7 +1158,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_3
 
@@ -1105,7 +1184,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(4)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:)     !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -1152,7 +1231,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_4
 
@@ -1174,7 +1257,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(5)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:,:)   !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -1247,7 +1330,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 INTEGER,INTENT(IN)                        :: nVal(6)                  !> Local number of variables in each rank
-INTEGER,INTENT(OUT)                       :: SM_WIN                   !> Shared memory window
+TYPE(MPI_Win),INTENT(OUT)                 :: SM_WIN                   !> Shared memory window
 REAL   ,INTENT(OUT),POINTER               :: DataPointer(:,:,:,:,:,:) !> Pointer to the RMA window
 #ifdef DEBUG_MEMORY
 CHARACTER(LEN=*),INTENT(IN)               :: SM_WIN_NAME              !> Shared memory window name
@@ -1294,7 +1377,11 @@ IF (WIN_SIZE.LT.0) CALL abort(__STAMP__,'ERROR: WIN_SIZE ('//TRIM(FuncName)//') 
 
 ! SM_PTR can now be associated with a Fortran pointer and thus used to access the shared data
 CALL C_F_POINTER(SM_PTR, DataPointer, nVal)
-IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated')
+IF (.NOT.ASSOCIATED(DataPointer)) CALL abort(__STAMP__,'ERROR: Datapointer ('//TRIM(FuncName)//') could not be associated'&
+#ifdef DEBUG_MEMORY
+//' for '//TRIM(SM_WIN_NAME)//' in file '//TRIM(SM_CALL_FILE)//' in line '//TRIM(hilf)&
+#endif /*DEBUG_MEMORY*/
+)
 
 END SUBROUTINE ALLOCATE_SHARED_REAL_6
 
@@ -1313,8 +1400,8 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(INOUT)       :: SharedWindow !> Shared memory window
-INTEGER,INTENT(INOUT)       :: Communicator !> Shared memory communicator
+TYPE(MPI_Win),INTENT(INOUT) :: SharedWindow !> Shared memory window
+TYPE(mpi_comm),INTENT(INOUT):: Communicator !> Shared memory communicator
 ! LOGICAL,INTENT(IN)          :: Barrier_Opt  !
 ! LOCAL VARIABLES
 ! LOGICAL                     :: Barrier
@@ -1331,9 +1418,12 @@ CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
 CALL MPI_WIN_SYNC(SharedWindow,iError)
+IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WIN_SYNC',iError)
 ! IF (Barrier) CALL MPI_BARRIER (Communicator,iError)
-CALL MPI_BARRIER (Communicator,iError)
+CALL MPI_BARRIER(Communicator,iError)
+IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_BARRIER',iError)
 CALL MPI_WIN_SYNC(SharedWindow,iError)
+IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WIN_SYNC',iError)
 
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
@@ -1341,9 +1431,6 @@ MPIW8TimeBaS  = MPIW8TimeBaS + REAL(CounterEnd-CounterStart,8)/Rate
 MPIW8CountBaS = MPIW8CountBaS + 1_8
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-! IF(iError.NE.0)THEN
-!   CALL abort(__STAMP__,'ERROR in MPI_WIN_SYNC() for '//TRIM(SM_WIN_NAME)//': iError returned non-zero value =',IntInfoOpt=iError)
-! END IF ! iError.NE.0
 END SUBROUTINE BARRIER_AND_SYNC
 
 
@@ -1362,7 +1449,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-INTEGER,INTENT(INOUT)       :: SharedWindow !> Shared memory window
+TYPE(MPI_Win),INTENT(INOUT) :: SharedWindow !> Shared memory window
 CHARACTER(LEN=*),INTENT(IN) :: SM_WIN_NAME  !> Shared memory window name
 ! LOCAL VARIABLES
 !==================================================================================================================================

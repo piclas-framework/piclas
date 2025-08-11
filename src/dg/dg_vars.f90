@@ -10,11 +10,16 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_DG_Vars
 !===================================================================================================================================
 ! Contains global variables used by the DG modules.
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -22,33 +27,85 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-! DG basis
-REAL,ALLOCATABLE                      :: D(:,:)
-REAL,ALLOCATABLE                      :: D_T(:,:)    ! D^T
-REAL,ALLOCATABLE                      :: D_Hat(:,:)
-REAL,ALLOCATABLE                      :: D_Hat_T(:,:) ! D_Hat^T
-REAL,ALLOCATABLE                      :: L_HatMinus(:)
-REAL,ALLOCATABLE                      :: L_HatPlus(:)
-! DG solution (reference / physical)
-REAL,ALLOCATABLE,TARGET               :: U(:,:,:,:,:) ! computed from JU
-! DG time derivative
-REAL,ALLOCATABLE                      :: Ut(:,:,:,:,:)
 ! number of array items in U, Ut, gradUx, gradUy, gradUz after allocated
-INTEGER                               :: nTotalU
-INTEGER                               :: nTotal_vol    !loop i,j,k
-INTEGER                               :: nTotal_face   !loop i,j
-! interior face values for all elements
-REAL,ALLOCATABLE                      :: U_master(:,:,:,:),U_slave(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Master(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Slave(:,:,:,:)
-! face values for Riemann
-REAL,ALLOCATABLE                      :: U_Master_loc(:,:,:)
-REAL,ALLOCATABLE                      :: U_Slave_loc (:,:,:)
-REAL,ALLOCATABLE                      :: Flux_loc(:,:,:)
+!INTEGER                               :: nTotal_vol    !loop i,j,k
+!INTEGER                               :: nTotal_face   !loop i,j
 
-LOGICAL                               :: DGInitIsDone=.FALSE.
-#if defined(IMPA) || defined(ROS)
-REAL,ALLOCATABLE                      :: Un(:,:,:,:,:) ! computed from JU
+! Element local polynomial degrees
+INTEGER                               :: pAdaptionType          !< Set initial polynomial degree distribution
+INTEGER                               :: pAdaptionBCLevel       !< Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax
+INTEGER,ALLOCATABLE                   :: N_DG(:)                !< polynomial degree inside DG element,         size(nElems)
+INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping           !< N_DG_Mapping(1:3,1:nGlobalElems)
+INTEGER,ALLOCPOINT,DIMENSION(:,:)     :: N_DG_Mapping_Shared    !<              1 = global offset based on the DOFs
+                                                                !<              2 = element-local polynomial degree
+                                                                !<              3 = compute-node offset based on the DOFs
+LOGICAL                               :: NDGAllocationIsDone=.FALSE.
+INTEGER                               :: nDofsMapping           !< Number of global DOFs
+INTEGER                               :: nDofsMappingNode       !< Number of compute-node DOFs
+INTEGER,ALLOCATABLE                   :: displsDofs(:), recvcountDofs(:)
+INTEGER,ALLOCATABLE                   :: DG_Elems_master(:)     !< prolongate local polynomial degree to faces, size(nSides)
+INTEGER,ALLOCATABLE                   :: DG_Elems_slave(:)      !< prolongate local polynomial degree to faces, size(nSides)
+
+! DG basis, contains the differentiation and interpolation operators
+TYPE, PUBLIC :: DG_Basis
+  REAL,ALLOCATABLE                      :: D(:,:)               !< Differentiation matrix of size [0..N,0..N], contains the
+                                                                !< first derivative of each Lagrange polynomial at each node.
+
+  REAL,ALLOCATABLE                      :: D_T(:,:)             !< Transpose of differentiation matrix, size [0..N,0..N].
+
+  REAL,ALLOCATABLE                      :: D_Hat(:,:)           !< Differentiation matrix premultiplied by
+                                                                !< mass matrix, \f$ \hat{D} = M^{-1} D^T M \f$, size [0..N,0..N].
+
+  REAL,ALLOCATABLE                      :: D_Hat_T(:,:)         !< Transpose of differentiation matrix premultiplied by
+                                                                !< mass matrix, size [0..N,0..N].
+
+  REAL,ALLOCATABLE                      :: L_HatMinus(:)        !< Lagrange polynomials evaluated at \f$\xi=-1\f$
+                                                                !< premultiplied by mass matrix
+
+  REAL,ALLOCATABLE                      :: L_HatPlus(:)         !< Lagrange polynomials evaluated at \f$\xi=+1\f$
+                                                                !< premultiplied by mass matrix
+
+  INTEGER                               :: nDOFElem
+END TYPE DG_Basis
+
+TYPE(DG_Basis),ALLOCATABLE              :: DGB_N(:)             !< Array of precomputed DG basis tensors for variable N_DG
+
+! DG solution vol
+TYPE N_U_Vol
+  REAL,ALLOCATABLE  :: U(:,:,:,:)
+  REAL,ALLOCATABLE  :: U2(:,:,:,:)
+  REAL,ALLOCATABLE  :: Ut(:,:,:,:)
+  REAL,ALLOCATABLE  :: U2t(:,:,:,:)
+  REAL,ALLOCATABLE  :: E(:,:,:,:)
+  REAL,ALLOCATABLE  :: Dt(:,:,:,:)   ! Temporal derivative dD/dt of the electric displacement field D = epsR*eps0*E(x,y,z)
+  REAL,ALLOCATABLE  :: PhiF(:,:,:,:) ! VDL surface potential stored in volume container for restart/load balance purposes
+END TYPE N_U_Vol
+
+! DG solution (JU or U) vectors)
+TYPE(N_U_Vol),ALLOCATABLE :: U_N(:)       !< Solution variable for each equation, node and element,
+
+! DG solution face
+TYPE N_U_Surf
+  REAL,ALLOCATABLE  :: U_master(:,:,:)
+  REAL,ALLOCATABLE  :: U_slave(:,:,:)
+  REAL,ALLOCATABLE  :: Flux_Master(:,:,:)
+  REAL,ALLOCATABLE  :: Flux_Slave(:,:,:)
+END TYPE N_U_Surf
+
+! DG solution (JU or U) vectors)
+TYPE(N_U_Surf),ALLOCATABLE :: U_Surf_N(:) !< Solution variable for each equation, node and element,
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! Auxilliary variables
+LOGICAL             :: DGInitIsDone=.FALSE.
+
+#if USE_MPI
+TYPE(MPI_Win)       :: N_DG_Mapping_Shared_Win
 #endif
+
+!----------------------------------------------------------------------------------------------------------------------------------
+! HDF5 dependent variables
+INTEGER,ALLOCATABLE :: Nloc_HDF5(:) !< Array for read-in of Nloc container
+
 !===================================================================================================================================
 END MODULE MOD_DG_Vars

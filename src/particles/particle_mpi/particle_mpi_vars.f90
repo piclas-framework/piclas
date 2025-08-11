@@ -36,9 +36,9 @@ LOGICAL                                   :: AbortExchangeProcs             ! Te
 
 TYPE tPartMPIGROUP
 #if USE_MPI
-  INTEGER                                 :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
+  TYPE(mpi_comm)                          :: COMM=MPI_COMM_NULL             ! MPI communicator for PIC GTS region
+  TYPE(MPI_Request)                       :: Request                        ! MPI request for asynchronous communication
 #endif /*USE_MPI*/
-  INTEGER                                 :: Request                        ! MPI request for asynchronous communication
   INTEGER                                 :: nProcs                         ! number of MPI processes for particles
   INTEGER                                 :: MyRank                         ! MyRank of PartMPIVAR%COMM
   LOGICAL                                 :: MPIRoot                        ! Root, MPIRank=0
@@ -46,22 +46,40 @@ TYPE tPartMPIGROUP
   INTEGER,ALLOCATABLE                     :: CommToGroup(:)                 ! list containing the rank in PartMPI%COMM
 END TYPE
 
-TYPE(tPartMPIGROUP),ALLOCATABLE           :: PartMPIInitGroup(:)                   ! small communicator for initialization
+TYPE(tPartMPIGROUP),ALLOCATABLE           :: PartMPIInitGroup(:)            ! small communicator for initialization
 
 REAL                                      :: SafetyFactor                   ! Factor to scale the halo region with MPI
 REAL                                      :: halo_eps_velo                  ! halo_eps_velo
+                                                                            !
+                                                                            ! ray tracing: halo_eps_velo = 1e200
+                                                                            !    normally: halo_eps_velo = 3e8 (maximum in PIC)
+                                                                            !
 REAL                                      :: halo_eps_woshape               ! halo_eps_woshape
 REAL                                      :: halo_eps                       ! length of halo-region
+                                                                            !
+                                                                            ! single-node: halo_eps = 0
+                                                                            !  multi-node: halo_eps = halo_eps*halo_eps_velo*dt
+                                                                            !
 REAL                                      :: halo_eps2                      ! length of halo-region^2
-REAL                                      :: MPI_halo_eps                   ! If running on one node, halo_eps is meaningless.
-                                                                            ! Get a representative MPI_halo_eps for MPI proc
-                                                                            ! identification
-
+REAL                                      :: MPI_halo_eps_velo              ! Halo velocity: If running on one node, halo_eps is meaningless
+                                                                            !
+                                                                            ! halo_ep <= 0 (single-node)
+                                                                            !   halo_eps_velo == 0
+                                                                            !     MPI_halo_eps_velo = c
+                                                                            !   halo_eps_velo > 0
+                                                                            !     MPI_halo_eps_velo = halo_eps_velo
+                                                                            !
+                                                                            ! halo_ep > 0 (multi-node)
+                                                                            !   MPI_halo_eps_velo is not set
+                                                                            !
+REAL                                      :: MPI_halo_eps                   ! Halo distance: If running on one node, halo_eps is meaningless.
+                                                                            ! Get a representative MPI_halo_eps for MPI proc identification
+                                                                            !
+                                                                            ! single-node: MPI_halo_eps = MPI_halo_eps_velo*dt*SafetyFactor
+                                                                            !  multi-node: MPI_halo_eps = halo_eps
+                                                                            !
 #if USE_MPI
 INTEGER                                   :: PartCommSize                   ! Number of REAL entries for particle communication
-INTEGER                                   :: PartCommSize0                  ! Number of REAL entries for particle communication
-                                                                            ! should think about own MPI-Data-Typ
-
 TYPE tMPIMessage
   REAL,ALLOCATABLE                        :: content(:)                     ! message buffer real
   LOGICAL,ALLOCATABLE                     :: content_log(:)                 ! message buffer logical for BGM
@@ -84,8 +102,8 @@ TYPE tParticleMPIExchange
   INTEGER,ALLOCATABLE                     :: nPartsSend(:,:)                ! Only MPI neighbors
   INTEGER,ALLOCATABLE                     :: nPartsRecv(:,:)                ! Only MPI neighbors
   INTEGER                                 :: nMPIParticles                  ! Number of all received particles
-  INTEGER,ALLOCATABLE                     :: SendRequest(:,:)               ! Send request message handle 1 - Number, 2-Message
-  INTEGER,ALLOCATABLE                     :: RecvRequest(:,:)               ! Receive request message handle,  1 - Number, 2-Message
+  TYPE(MPI_Request),ALLOCATABLE           :: SendRequest(:,:)               ! Send request message handle 1 - Number, 2-Message
+  TYPE(MPI_Request),ALLOCATABLE           :: RecvRequest(:,:)               ! Receive request message handle,  1 - Number, 2-Message
   TYPE(tMPIMessage),ALLOCATABLE           :: send_message(:)                ! Message, required for particle emission
 END TYPE
 

@@ -19,11 +19,6 @@ IMPLICIT NONE
 PRIVATE
 SAVE
 
-INTERFACE InitializePiclas
-   MODULE PROCEDURE InitializePiclas
-END INTERFACE
-
-
 PUBLIC::InitializePiclas
 
 CONTAINS
@@ -48,8 +43,6 @@ USE MOD_Interpolation          ,ONLY: InitInterpolation
 USE MOD_IO_HDF5                ,ONLY: InitIOHDF5
 USE MOD_TimeDiscInit           ,ONLY: InitTime,InitTimeDisc
 USE MOD_MPI                    ,ONLY: InitMPI
-USE MOD_Mesh_Vars              ,ONLY: DoSwapMesh
-USE MOD_Mesh                   ,ONLY: SwapMesh
 #if USE_MPI
 USE MOD_MPI_Shared!            ,ONLY: InitMPIShared
 USE MOD_LoadBalance            ,ONLY: InitLoadBalance
@@ -183,18 +176,6 @@ CALL InitTimeDisc()
 
 CALL InitPiclas(IsLoadBalance=.FALSE.)
 
-! Do SwapMesh
-IF(DoSwapMesh)THEN
-  ! Measure init duration
-  GETTIME(SystemTime)
-  IF(MPIroot)THEN
-    Call SwapMesh()
-    CALL DisplayMessageAndTime(SystemTime-StartTime, 'SWAPMESH DONE! PICLAS DONE', DisplayDespiteLB=.TRUE.)
-    STOP
-  ELSE
-    CALL abort(__STAMP__,'DO NOT CALL SWAPMESH WITH MORE THAN 1 Procs!',iError,999.)
-  END IF
-END IF
 LOGWRITE_BARRIER
 
 ! The beginning of time

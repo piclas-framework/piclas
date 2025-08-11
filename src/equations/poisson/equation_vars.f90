@@ -37,16 +37,17 @@ REAL              :: eta_c      !(c_corr -1 )*c
 REAL              :: fDamping
 LOGICAL           :: DoParabolicDamping
 
-REAL,ALLOCATABLE  :: chitens(:,:,:,:,:,:)    ! diffusion 3x3 tensor on each gausspoint
-REAL,ALLOCATABLE  :: chitensInv(:,:,:,:,:,:) ! inverse of diffusion 3x3 tensor on each gausspoint
-REAL,ALLOCATABLE  :: chitens_face(:,:,:,:,:) ! diffusion 3x3 tensor on each face gausspoint
+TYPE, PUBLIC :: chiType
+  REAL,ALLOCATABLE  :: tens(:,:,:,:,:)    ! diffusion 3x3 tensor on each gausspoint
+  REAL,ALLOCATABLE  :: tensInv(:,:,:,:,:) ! inverse of diffusion 3x3 tensor on each gausspoint
+END TYPE chiType
+
+TYPE(chiType),ALLOCATABLE,TARGET  :: chi(:) !< Array to store Mesh metrics object "VolMesh"
 
 LOGICAL           :: EquationInitIsDone=.FALSE.
 INTEGER           :: alpha_shape
 REAL              :: shapeFuncPrefix
 REAL              :: rCutoff
-REAL,ALLOCATABLE  :: E(:,:,:,:,:)
-REAL,ALLOCATABLE  :: Et(:,:,:,:,:) ! temporal derivative dD/dt of the electric displacement field D = epsR*eps0*E(x,y,z)
 ! Boundary condition arrays
 REAL,ALLOCATABLE     :: BCData(:,:,:,:)
 INTEGER,ALLOCATABLE  :: nBCByType(:) ! Count number of sides of each boundary

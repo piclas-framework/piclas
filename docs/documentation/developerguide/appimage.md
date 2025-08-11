@@ -60,7 +60,7 @@ Other tools such as `piclas2vtk` and `superB` etc. are also included in the AppI
     ./piclas-ad6830c7a-x86_64.AppImage --appimage-extract
 
 The tools are located under `./squashfs-root/usr/bin/`.
-To make on those tools the main application of the AppImage, remove the AppDir folder
+To make one of those tools the main application of the AppImage, remove the AppDir folder
 
     rm -rf AppDir
 

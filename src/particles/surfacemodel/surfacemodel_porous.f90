@@ -426,7 +426,7 @@ SUBROUTINE PorousBoundaryRemovalProb_Pressure()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Vars                   ,ONLY: DSMC, RadialWeighting
+USE MOD_DSMC_Vars                   ,ONLY: DSMC
 USE MOD_Mesh_Vars                   ,ONLY: nElems,offsetElem
 USE MOD_Particle_Boundary_Vars      ,ONLY: SurfTotalSideOnNode, SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars           ,ONLY: nPorousBC, PorousBC
@@ -457,7 +457,7 @@ REAL                          :: SumPartImpinged(nPorousBC)
 
 IF (.NOT.SurfTotalSideOnNode) RETURN
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+IF(usevMPF) THEN
   partWeight = 1.
 ELSE
   partWeight = Species(1)%MacroParticleFactor
@@ -627,7 +627,7 @@ IMPLICIT NONE
 INTEGER                         :: iProc,SideID,PorousSideID,iPos
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
 INTEGER                         :: nValues
-INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
+TYPE(MPI_Request)               :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -714,12 +714,12 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     IF (SurfMapping(iProc)%nSendPorousSides.NE.0) THEN
-      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
 
     IF (SurfMapping(iProc)%nRecvPorousSides.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
   END DO ! iProc
@@ -783,7 +783,7 @@ IMPLICIT NONE
 INTEGER                             :: iProc,SideID,iPos
 INTEGER                             :: MessageSize,iSurfSide,SurfSideID,PorousSideID
 INTEGER                             :: nValues
-INTEGER                             :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
+TYPE(MPI_Request)                   :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -862,12 +862,12 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     IF (SurfMapping(iProc)%nRecvPorousSides.NE.0) THEN
-      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
 
     IF (SurfMapping(iProc)%nSendPorousSides.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
   END DO ! iProc
@@ -921,13 +921,12 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: msg_status(1:MPI_STATUS_SIZE)
 INTEGER                       :: iProc
 INTEGER                       :: LeaderID
 INTEGER                       :: iSide, iPorousSide
 INTEGER                       :: nSendPorousSidesTmp(0:nLeaderGroupProcs-1)
 INTEGER                       :: nRecvPorousSidesTmp(0:nLeaderGroupProcs-1)
-INTEGER                       :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
+TYPE(MPI_Request)             :: RecvRequest(0:nLeaderGroupProcs-1),SendRequest(0:nLeaderGroupProcs-1)
 INTEGER                       :: SendPorousGlobalID(0:nLeaderGroupProcs-1,1:nComputeNodeSurfTotalSides)
 INTEGER                       :: SampSizeAllocate
 !===================================================================================================================================
@@ -977,9 +976,9 @@ END DO
 DO iProc = 0,nLeaderGroupProcs-1
   IF (iProc.EQ.myLeaderGroupRank) CYCLE
 
-  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 
@@ -1042,12 +1041,12 @@ DO iProc = 0,nLeaderGroupProcs-1
   IF (iProc .EQ. myLeaderGroupRank) CYCLE
 
   IF (nSendPorousSidesTmp(iProc).NE.0) THEN
-    CALL MPI_WAIT(SendRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
+    CALL MPI_WAIT(SendRequest(MPIRankSurfLeader(iProc)),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 
   IF (nRecvPorousSidesTmp(iProc).NE.0) THEN
-    CALL MPI_WAIT(RecvRequest(MPIRankSurfLeader(iProc)),msg_status(:),IERROR)
+    CALL MPI_WAIT(RecvRequest(MPIRankSurfLeader(iProc)),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO

@@ -52,7 +52,7 @@ SUBROUTINE DSMC_pairing_standard(iElem)
 !> collision procedure is performed.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars         ,ONLY: PEM, VirtMergedCells, DoVirtualCellMerge
+USE MOD_Particle_Vars         ,ONLY: PEM, VirtMergedCells, DoVirtualCellMerge, Species, PartSpecies, UseGranularSpecies
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars             ,ONLY: offsetElem
@@ -66,12 +66,28 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc
+INTEGER                       :: iPart, iLoop, nPart, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc, CNElemID
 INTEGER, ALLOCATABLE          :: iPartIndx(:)                 !< List of particles in the cell required for pairing
 REAL                          :: elemVolume
+INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 nPart = PEM%pNumber(iElem)
+CNElemID = GetCNElemID(iElem+offSetElem)
+
+IF(UseGranularSpecies) THEN
+! Get real nPart without granular species
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
+
 IF (DoVirtualCellMerge) THEN
   ! 1.) Create particle index list for pairing in the case of virtually merged cells. So, all particles from the merged cells are
   !   used for the pairing and the collisions.
@@ -84,6 +100,10 @@ IF (DoVirtualCellMerge) THEN
   iPart = PEM%pStart(iElem)
   iLoopLoc = 0
   DO iLoop = 1, nPart
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     iLoopLoc = iLoopLoc + 1
     iPartIndx(iLoopLoc) = iPart
     iPart = PEM%pNext(iPart)
@@ -94,6 +114,10 @@ IF (DoVirtualCellMerge) THEN
       nPartLoc = PEM%pNumber(locElem)
       iPart = PEM%pStart(locElem)
       DO iLoop = 1, nPartLoc
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         iLoopLoc = iLoopLoc + 1
         iPartIndx(iLoopLoc) = iPart
         iPart = PEM%pNext(iPart)
@@ -101,7 +125,7 @@ IF (DoVirtualCellMerge) THEN
     END DO
     elemVolume = VirtMergedCells(iELem)%MergedVolume
   ELSE
-    elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    elemVolume = ElemVolume_Shared(CNElemID)
   END IF
 ELSE
   nPartMerged = nPart
@@ -112,11 +136,15 @@ ELSE
   !     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     iPartIndx(iLoop) = iPart
     ! Choose next particle in the element
     iPart = PEM%pNext(iPart)
   END DO
-  elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  elemVolume = ElemVolume_Shared(CNElemID)
 END IF
 
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
@@ -136,7 +164,8 @@ SUBROUTINE DSMC_pairing_octree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos, VirtMergedCells, DoVirtualCellMerge
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos, VirtMergedCells, DoVirtualCellMerge, Species
+USE MOD_Particle_Vars           ,ONLY: UseGranularSpecies
 USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
 USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
@@ -157,10 +186,24 @@ REAL                          :: SpecPartNum(nSpecies)
 TYPE(tTreeNode), POINTER      :: TreeNode
 REAL                          :: elemVolume
 LOGICAL                       :: DoMergedCell
+INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+IF(UseGranularSpecies) THEN
+! Get real nPart without granular species
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
+
 DoMergedCell = .FALSE.
 IF (DoVirtualCellMerge) THEN
   IF(VirtMergedCells(iElem)%isMerged) RETURN
@@ -175,6 +218,10 @@ IF (DoVirtualCellMerge) THEN
     iPart = PEM%pStart(iElem)
     iLoopLoc = 0
     DO iLoop = 1, nPart
+      ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+        iPart = PEM%pNext(iPart)
+      END DO
       iLoopLoc = iLoopLoc + 1
       TreeNode%iPartIndx_Node(iLoopLoc) = iPart
       iPart = PEM%pNext(iPart)
@@ -184,6 +231,10 @@ IF (DoVirtualCellMerge) THEN
       nPartLoc = PEM%pNumber(locElem)
       iPart = PEM%pStart(locElem)
       DO iLoop = 1, nPartLoc
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         iLoopLoc = iLoopLoc + 1
         TreeNode%iPartIndx_Node(iLoopLoc) = iPart
         iPart = PEM%pNext(iPart)
@@ -209,6 +260,10 @@ ELSE
   !     on the previous particle index. This mapping is done in the UpdateNextFreePosition routine.
   iPart = PEM%pStart(iElem)
   DO iLoop = 1, nPart
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     TreeNode%iPartIndx_Node(iLoop) = iPart
     iPart = PEM%pNext(iPart)
     ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
@@ -230,11 +285,19 @@ ELSE
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       IF (TrackingMethod.EQ.REFMAPPING) THEN
         DO iLoop = 1, nPart
+          ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+            iPart = PEM%pNext(iPart)
+          END DO
           TreeNode%MappedPartStates(1:3,iLoop)=PartPosRef(1:3,iPart)
           iPart = PEM%pNext(iPart)
         END DO
       ELSE ! position in reference space [-1,1] has to be computed
         DO iLoop = 1, nPart
+          ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+          DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+            iPart = PEM%pNext(iPart)
+          END DO
           ! Attention: LastPartPos is the reference position here
           TreeNode%MappedPartStates(1:3,iLoop) = LastPartPos(1:3,iPart)
           iPart = PEM%pNext(iPart)
@@ -439,14 +502,15 @@ SUBROUTINE PerformPairingAndCollision(iPartIndx_Node, PartNum, iElem, NodeVolume
 USE MOD_Globals
 USE MOD_DSMC_CollisionProb      ,ONLY: DSMC_prob_calc
 USE MOD_DSMC_Collis             ,ONLY: DSMC_perform_collision
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC,RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: Coll_pData,CollInf,CollisMode,PartStateIntEn,ChemReac,DSMC
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
 USE MOD_DSMC_Vars               ,ONLY: SelectionProc, useRelaxProbCorrFactor, iPartIndx_NodeNewElecRelax, newElecRelaxParts
 USE MOD_DSMC_Vars               ,ONLY: iPartIndx_NodeElecRelaxChem,nElecRelaxChemParts
 USE MOD_Particle_Vars           ,ONLY: PartSpecies, nSpecies, PartState, UseVarTimeStep, usevMPF
 USE MOD_DSMC_Analyze            ,ONLY: CalcGammaVib, CalcInstantTransTemp, CalcMeanFreePath, CalcInstantElecTempXi
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_DSMC_Relaxation         ,ONLY: CalcMeanVibQuaDiatomic,SumVibRelaxProb
-USE MOD_DSMC_Symmetry           ,ONLY: DSMC_2D_TreatIdenticalParticles
+USE MOD_DSMC_Symmetry           ,ONLY: DSMC_TreatIdenticalParticles
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_InsertParticles, AD_DeleteParticles
 USE MOD_DSMC_ElectronicModel    ,ONLY: LT_ElectronicEnergyExchange, LT_ElectronicExc_ConstructPartList
 USE MOD_DSMC_ElectronicModel    ,ONLY: CalcProbCorrFactorElec, LT_ElectronicEnergyExchangeChem
@@ -502,7 +566,7 @@ CollInf%Coll_CaseNum = 0
 ALLOCATE(Coll_pData(nPair))
 Coll_pData%Ec=0
 
-IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) CollInf%SumPairMPF = 0.
+IF(usevMPF.OR.UseVarTimeStep) CollInf%SumPairMPF = 0.
 
 ! 2.) Calculate cell/subcell local variables and count the number of particles per species
 DO iPart = 1, TotalPartNum
@@ -532,7 +596,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
   ! 4. Case: Needed to calculate the correction factor
   CALL CalcInstantTransTemp(iPartIndx_NodeTotal,TotalPartNum)
   IF ((DSMC%ElectronicModel.EQ.2).OR.useRelaxProbCorrFactor) CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
-  IF((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)) CALL CalcGammaVib()
+  IF(((SelectionProc.EQ.2).OR.(useRelaxProbCorrFactor)).AND..NOT.(DSMC%VibAHO)) CALL CalcGammaVib()
   IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) CALL CalcProbCorrFactorElec()
 END IF
 
@@ -561,7 +625,7 @@ DO iPair = 1, nPair
 
   iCase = CollInf%Coll_Case(cSpec1, cSpec2)
   ! Summation of the average weighting factor of the collision pairs for each case (AA, AB, BB)
-  IF(usevMPF.OR.RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
+  IF(usevMPF.OR.UseVarTimeStep) THEN
     CollInf%SumPairMPF(iCase) = CollInf%SumPairMPF(iCase) + (GetParticleWeight(Coll_pData(iPair)%iPart_p1) &
                                                         + GetParticleWeight(Coll_pData(iPair)%iPart_p2))*0.5
   END IF
@@ -589,8 +653,8 @@ IF (CollInf%ProhibitDoubleColl.AND.(nPart.EQ.1)) CollInf%OldCollPartner(iPartInd
 DO iPair = 1, nPair
   IF(.NOT.Coll_pData(iPair)%NeedForRec) THEN
     CALL SumVibRelaxProb(iPair)
-    ! 2D axisymmetric with radial weighting: split up pairs of identical particles
-    IF(RadialWeighting%DoRadialWeighting) CALL DSMC_2D_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_NodeTotal)
+    ! Particle weighting using clones: split up pairs of identical particles
+    IF(ParticleWeighting%PerformCloning) CALL DSMC_TreatIdenticalParticles(iPair, nPair, nPart, iElem, iPartIndx_NodeTotal)
     ! Calculate the collision probability and test it against a random number
     CALL DSMC_prob_calc(iElem, iPair, NodeVolume)
     CALL RANDOM_NUMBER(iRan)
@@ -622,7 +686,7 @@ IF(DSMC%CalcQualityFactors) THEN
   IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
   ! Calculate number of resolved Cells for this processor
   DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
-  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = & 
+  IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
                                                     DSMC%ResolvedCellCounter + 1
   ! Calculation of ResolvedTimestep. Number of Cells with ResolvedTimestep
   IF ((.NOT.DSMC%ReservoirSimu) .AND. (DSMC%CollProbMean .LE. 1)) THEN
@@ -762,7 +826,8 @@ SUBROUTINE DSMC_pairing_quadtree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos,VirtMergedCells, DoVirtualCellMerge
+USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies, LastPartPos,VirtMergedCells, DoVirtualCellMerge, Species
+USE MOD_Particle_Vars           ,ONLY: UseGranularSpecies
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -780,12 +845,25 @@ INTEGER                       :: iPart, iLoop, nPart, CNElemID, nPartMerged, nPa
 REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
 LOGICAL                       :: DoMergedCell
+INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(iElem+offSetElem)
 Volume = ElemVolume_Shared(CNElemID)
 SpecPartNum = 0.
 nPart = PEM%pNumber(iElem)
+IF(UseGranularSpecies) THEN
+! Get real nPart without granular species
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 DoMergedCell = .FALSE.
 IF (DoVirtualCellMerge) THEN
   IF(VirtMergedCells(iElem)%isMerged) RETURN
@@ -800,6 +878,10 @@ IF (DoVirtualCellMerge) THEN
     iPart = PEM%pStart(iElem)
     iLoopLoc = 0
     DO iLoop = 1, nPart
+      ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+        iPart = PEM%pNext(iPart)
+      END DO
       iLoopLoc = iLoopLoc + 1
       TreeNode%iPartIndx_Node(iLoopLoc) = iPart
       iPart = PEM%pNext(iPart)
@@ -809,6 +891,10 @@ IF (DoVirtualCellMerge) THEN
       nPartLoc = PEM%pNumber(locElem)
       iPart = PEM%pStart(locElem)
       DO iLoop = 1, nPartLoc
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         iLoopLoc = iLoopLoc + 1
         TreeNode%iPartIndx_Node(iLoopLoc) = iPart
         iPart = PEM%pNext(iPart)
@@ -830,6 +916,10 @@ ELSE
   iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
 
   DO iLoop = 1, nPart
+    ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+    DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+      iPart = PEM%pNext(iPart)
+    END DO
     TreeNode%iPartIndx_Node(iLoop) = iPart
     ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
     SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
@@ -847,6 +937,10 @@ ELSE
       TreeNode%PNum_Node = nPart
       iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
       DO iLoop = 1, nPart
+        ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+        DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+          iPart = PEM%pNext(iPart)
+        END DO
         ! Attention: LastPartPos is the reference position here, set in timedisc_TimeStep_DSMC.f90 / timedisc_TimeStep_BGK.f90
         TreeNode%MappedPartStates(1:2,iLoop) = LastPartPos(1:2,iPart)
         iPart = PEM%pNext(iPart)
@@ -877,7 +971,7 @@ RECURSIVE SUBROUTINE AddQuadTreeNode(TreeNode, iElem, NodeVol)
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Analyze      ,ONLY: CalcMeanFreePath
-USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, RadialWeighting, CollInf
+USE MOD_DSMC_Vars         ,ONLY: tTreeNode, DSMC, tNodeVolume, CollInf
 USE MOD_Particle_Vars     ,ONLY: nSpecies, PartSpecies, UseVarTimeStep, usevMPF
 USE MOD_DSMC_Vars         ,ONLY: ElemNodeVol
 USE MOD_part_tools        ,ONLY: GetParticleWeight
@@ -1015,7 +1109,7 @@ DO iLoop = 1, 4
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> octree
-    IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+    IF (UseVarTimeStep.OR.usevMPF) THEN
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), NodeVolumeTemp(iLoop))
     ELSE
       DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVolumeTemp(iLoop))
@@ -1057,7 +1151,7 @@ SUBROUTINE DSMC_pairing_dotree(iElem)
 ! MODULES
 USE MOD_DSMC_Analyze            ,ONLY: CalcMeanFreePath
 USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
-USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies
+USE MOD_Particle_Vars           ,ONLY: PEM, PartState, nSpecies, PartSpecies, Species, UseGranularSpecies
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -1074,6 +1168,7 @@ INTEGER, INTENT(IN)           :: iElem
 INTEGER                       :: iPart, iLoop, nPart, CNElemID
 REAL                          :: SpecPartNum(nSpecies), Volume
 TYPE(tTreeNode), POINTER      :: TreeNode
+INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 CNElemID = GetCNElemID(iElem+offSetElem)
@@ -1082,6 +1177,18 @@ SpecPartNum = 0.
 
 NULLIFY(TreeNode)
 nPart = PEM%pNumber(iElem)
+IF(UseGranularSpecies) THEN
+! Get real nPart without granular species
+  iPart = PEM%pStart(iElem)
+  nPartTemp = nPart
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      nPartTemp = nPartTemp - 1
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+  nPart = nPartTemp
+END IF
 
 ALLOCATE(TreeNode)
 ALLOCATE(TreeNode%iPartIndx_Node(nPart)) ! List of particles in the cell necessary for stat pairing
@@ -1090,6 +1197,10 @@ TreeNode%iPartIndx_Node(1:nPart) = 0
 iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
 
 DO iLoop = 1, nPart
+  ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+  DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+    iPart = PEM%pNext(iPart)
+  END DO
   TreeNode%iPartIndx_Node(iLoop) = iPart
   ! Determination of the particle number per species for the calculation of the reference diameter for the mixture
   SpecPartNum(PartSpecies(iPart)) = SpecPartNum(PartSpecies(iPart)) + GetParticleWeight(iPart)
@@ -1107,6 +1218,10 @@ IF(nPart.GE.DSMC%PartNumOctreeNodeMin) THEN
     TreeNode%PNum_Node = nPart
     iPart = PEM%pStart(iElem)                         ! create particle index list for pairing
     DO iLoop = 1, nPart
+      ! Skip granular species, DO WHILE is needed as long as nPart could be smaller than PEM%pNumber(iElem)
+      DO WHILE(Species(PartSpecies(iPart))%InterID.EQ.100)
+        iPart = PEM%pNext(iPart)
+      END DO
       CALL GeoCoordToMap1D(PartState(1,iPart), TreeNode%MappedPartStates(1,iLoop), iElem)
       iPart = PEM%pNext(iPart)
     END DO
@@ -1199,11 +1314,7 @@ DO iLoop = 1, 2
   IF((PartNumChildNode(iLoop).GE.DSMC%PartNumOctreeNodeMin).AND.(.NOT.ForceNearestNeigh)) THEN
     ! Additional check if nPart is greater than PartNumOctreeNode (default=80) or the mean free path is less than
     ! the side length of a cube (approximation) with same volume as the actual cell -> DoTree
-    ! IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep) THEN
-    !   DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop), RealParts(iLoop), Volume(iLoop))
-    ! ELSE
-      DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVol%SubNode(iLoop)%Volume)
-    ! END IF
+    DSMC%MeanFreePath = CalcMeanFreePath(SpecPartNum(:,iLoop),REAL(PartNumChildNode(iLoop)), NodeVol%SubNode(iLoop)%Volume)
     IF((DSMC%MeanFreePath.LT.(NodeVol%SubNode(iLoop)%Length)).OR.(PartNumChildNode(iLoop).GT.DSMC%PartNumOctreeNode)) THEN
       NULLIFY(TreeNode%ChildNode)
       ALLOCATE(TreeNode%ChildNode)
@@ -1299,11 +1410,12 @@ SUBROUTINE DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, Node)
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
-USE MOD_Particle_Mesh_Vars     ,ONLY: SymmetrySide
-USE MOD_Mesh_Vars,              ONLY : SurfElem, Face_xGP
 USE MOD_Preproc
-USE MOD_ChangeBasis,            ONLY : ChangeBasis2D
+USE MOD_DSMC_Vars          ,ONLY: OctreeVdm, tNodeVolume
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh, offSetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: SymmetrySide
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1315,33 +1427,34 @@ CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                 :: j, k , NumOfPoints,SideID
-REAL                                    :: DetLocal(1,0:PP_N,0:PP_N)
-REAL                                    :: FaceLocal(2,0:PP_N,0:PP_N)
+INTEGER                                 :: j, k , NumOfPoints,SideID, Nloc
+REAL, ALLOCATABLE                       :: DetLocal(:,:,:)
+REAL, ALLOCATABLE                       :: FaceLocal(:,:,:)
 REAL, ALLOCATABLE                       :: DetJac(:,:,:)
 REAL, ALLOCATABLE                       :: FacexGP(:,:,:)
 REAL, ALLOCATABLE                       :: LocalVdm(:,:)
 INTEGER                                 :: LocalDepth
 !===================================================================================================================================
-  LocalDepth = 1
-  NumOfPoints = 2**NodeDepth
-  SideID = SymmetrySide(iElem,1)
+LocalDepth = 1
+NumOfPoints = 2**NodeDepth
+SideID = SymmetrySide(iElem,1)
+Nloc = N_DG_Mapping(2, iElem+offSetElem)
+ALLOCATE(DetLocal(1,0:Nloc,0:Nloc), FaceLocal(2,0:Nloc,0:Nloc))
+DO j=0, Nloc; DO k=0, Nloc
+  DetLocal(1,j,k)=N_SurfMesh(SideID)%SurfElem(j,k)
+END DO; END DO
 
-  DO j=0, PP_N; DO k=0, PP_N
-    DetLocal(1,j,k)=SurfElem(j,k,SideID)
-  END DO; END DO
+DO j=0, Nloc; DO k=0, Nloc
+  FaceLocal(1:2,j,k) = N_SurfMesh(SideID)%Face_xGP(1:2,j,k)
+END DO; END DO
 
-  DO j=0, PP_N; DO k=0, PP_N
-    FaceLocal(1:2,j,k) = Face_xGP(1:2,j,k,SideID)
-  END DO; END DO
-
-  ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1))
-  ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:PP_N))
-  ALLOCATE(FacexGP(2,0:NumOfPoints - 1,0:NumOfPoints - 1))
-  CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm)
-  CALL ChangeBasis2D(1, PP_N, NumOfPoints - 1, LocalVdm ,DetLocal(:,:,:),DetJac(:,:,:))
-  CALL ChangeBasis2D(2, PP_N, NumOfPoints - 1, LocalVdm ,FaceLocal(:,:,:),FacexGP(:,:,:))
-  CALL AddNodeVolumes2D(NodeDepth, Node, DetJac, OctreeVdm, iElem, FacexGP)
+ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1))
+ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:Nloc))
+ALLOCATE(FacexGP(2,0:NumOfPoints - 1,0:NumOfPoints - 1))
+CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm, Nloc)
+CALL ChangeBasis2D(1, Nloc, NumOfPoints - 1, LocalVdm ,DetLocal( 1:1,0:Nloc,0:Nloc),DetJac( 1:1,0:NumOfPoints - 1,0:NumOfPoints - 1))
+CALL ChangeBasis2D(2, Nloc, NumOfPoints - 1, LocalVdm ,FaceLocal(1:2,0:Nloc,0:Nloc),FacexGP(1:2,0:NumOfPoints - 1,0:NumOfPoints - 1))
+CALL AddNodeVolumes2D(NodeDepth, Node, DetJac, OctreeVdm, iElem, FacexGP)
 
 END SUBROUTINE DSMC_CalcSubNodeVolumes2D
 
@@ -1351,82 +1464,85 @@ SUBROUTINE DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, Node)
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
-  USE MOD_Mesh_Vars,              ONLY : sJ
-  USE MOD_Preproc
-  USE MOD_ChangeBasis,            ONLY : ChangeBasis3D
+USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
+USE MOD_Mesh_Vars,              ONLY : N_VolMesh, offSetElem
+USE MOD_Preproc
+USE MOD_ChangeBasis,            ONLY : ChangeBasis3D
+USE MOD_DG_Vars,                ONLY : N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                       :: iElem
-  INTEGER, INTENT(IN)                       :: NodeDepth
-  CLASS(tNodeVolume), INTENT(INOUT)         :: Node
+INTEGER, INTENT(IN)                       :: iElem
+INTEGER, INTENT(IN)                       :: NodeDepth
+CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                                 :: j, k ,l, NumOfPoints
-  REAL                                    :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-  REAL, ALLOCATABLE                       :: DetJac(:,:,:,:)
-  REAL, ALLOCATABLE                       :: LocalVdm(:,:)
-  INTEGER                                 :: LocalDepth
+INTEGER                                 :: j, k ,l, NumOfPoints, Nloc
+REAL, ALLOCATABLE                       :: DetLocal(:,:,:,:)
+REAL, ALLOCATABLE                       :: DetJac(:,:,:,:)
+REAL, ALLOCATABLE                       :: LocalVdm(:,:)
+INTEGER                                 :: LocalDepth
 !===================================================================================================================================
-  LocalDepth = 1
-  NumOfPoints = 2**NodeDepth
+LocalDepth = 1
+NumOfPoints = 2**NodeDepth
+Nloc = N_DG_Mapping(2, iElem+offSetElem)
+ALLOCATE(DetLocal(1,0:Nloc, 0:Nloc, 0:Nloc))
+DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
+  DetLocal(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
+END DO; END DO; END DO
 
-  DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-    DetLocal(1,j,k,l)=1./sJ(j,k,l,iElem)
-  END DO; END DO; END DO
-
-  ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1,0:NumOfPoints - 1))
-  ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:PP_N))
-  CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm)
-  CALL ChangeBasis3D(1,PP_N, NumOfPoints - 1, LocalVdm, DetLocal(:,:,:,:),DetJac(:,:,:,:))
-  CALL AddNodeVolumes(NodeDepth, Node, DetJac, OctreeVdm)
+ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1,0:NumOfPoints - 1))
+ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:Nloc))
+CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm, Nloc)
+CALL ChangeBasis3D(1,Nloc, NumOfPoints - 1, LocalVdm, DetLocal(1:1,0:Nloc,0:Nloc,0:Nloc),DetJac(1:1,0:NumOfPoints-1,0:NumOfPoints-1,0:NumOfPoints-1))
+CALL AddNodeVolumes(NodeDepth, Node, DetJac, OctreeVdm)
 
 END SUBROUTINE DSMC_CalcSubNodeVolumes3D
 
-RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc)
+RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc, Nloc)
 !===================================================================================================================================
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : tOctreeVdm
-  USE MOD_Preproc
-  USE MOD_Interpolation_Vars,     ONLY : xGP, wBary
-  USE MOD_Basis,                  ONLY : InitializeVandermonde
+USE MOD_DSMC_Vars,              ONLY : tOctreeVdm
+USE MOD_Preproc
+USE MOD_Interpolation_Vars,     ONLY : N_Inter
+USE MOD_Basis,                  ONLY : InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                       :: NodeDepth
-  INTEGER, INTENT(INOUT)                    :: LocalDepth
-  REAL, INTENT(OUT)                         :: LocalVdm(0:2**NodeDepth-1,0:PP_N)
-  TYPE (tOctreeVdm), POINTER, INTENT(INOUT) :: OctreeVdmLoc
+INTEGER, INTENT(IN)                       :: NodeDepth
+INTEGER, INTENT(INOUT)                    :: LocalDepth
+INTEGER, INTENT(IN)                       :: Nloc
+REAL, INTENT(OUT)                         :: LocalVdm(0:2**NodeDepth-1,0:Nloc)
+TYPE (tOctreeVdm), POINTER, INTENT(INOUT) :: OctreeVdmLoc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                                   :: i, NodePointNum
+INTEGER                                   :: i, NodePointNum
 !===================================================================================================================================
-  IF (.NOT.ASSOCIATED(OctreeVdmLoc)) THEN
-    NULLIFY(OctreeVdmLoc)
-    ALLOCATE(OctreeVdmLoc)
-    NodePointNum = 2**LocalDepth - 1
-    ALLOCATE(OctreeVdmLoc%Vdm(0:NodePointNum, 0:PP_N), OctreeVdmLoc%xGP(0:NodePointNum))
-    DO i=0,NodePointNum
-      OctreeVdmLoc%xGP(i) = -1.0 + 2./(1.+NodePointNum) * ((REAL(i)+1.) - 0.5)
-    END DO
-    OctreeVdmLoc%wGP = 2./REAL(1.0+NodePointNum)
-    CALL InitializeVandermonde(PP_N,NodePointNum,wBary,xGP,OctreeVdmLoc%xGP,OctreeVdmLoc%Vdm)
-  END IF
-  IF (LocalDepth.EQ.NodeDepth) THEN
-    LocalVdm = OctreeVdmLoc%Vdm
-  ELSE
-    LocalDepth = LocalDepth + 1
-    CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc%SubVdm)
-  END IF
+IF (.NOT.ASSOCIATED(OctreeVdmLoc)) THEN
+  NULLIFY(OctreeVdmLoc)
+  ALLOCATE(OctreeVdmLoc)
+  NodePointNum = 2**LocalDepth - 1
+  ALLOCATE(OctreeVdmLoc%Vdm(0:NodePointNum, 0:Nloc), OctreeVdmLoc%xGP(0:NodePointNum))
+  DO i=0,NodePointNum
+    OctreeVdmLoc%xGP(i) = -1.0 + 2./(1.+NodePointNum) * ((REAL(i)+1.) - 0.5)
+  END DO
+  OctreeVdmLoc%wGP = 2./REAL(1.0+NodePointNum)
+  CALL InitializeVandermonde(Nloc,NodePointNum,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,OctreeVdmLoc%xGP,OctreeVdmLoc%Vdm)
+END IF
+IF (LocalDepth.EQ.NodeDepth) THEN
+  LocalVdm = OctreeVdmLoc%Vdm
+ELSE
+  LocalDepth = LocalDepth + 1
+  CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc%SubVdm, Nloc)
+END IF
 END SUBROUTINE InitVanderOct
 
 RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesIn)
@@ -1434,22 +1550,22 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : tOctreeVdm, tNodeVolume
+USE MOD_DSMC_Vars,              ONLY : tOctreeVdm, tNodeVolume
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                       :: NodeDepth
-  INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
-  CLASS(tNodeVolume), INTENT(INOUT)         :: Node
-  REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
-  TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
+INTEGER, INTENT(IN)                       :: NodeDepth
+INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
+CLASS(tNodeVolume), INTENT(INOUT)         :: Node
+REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
+TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER, ALLOCATABLE                       :: SubNodesOut(:)
-  INTEGER                                    :: OldNodeNum, NewNodeNum, j, VolPos(3), iNode
+INTEGER, ALLOCATABLE                       :: SubNodesOut(:)
+INTEGER                                    :: OldNodeNum, NewNodeNum, j, VolPos(3), iNode
 !===================================================================================================================================
 IF (PRESENT(SubNodesIn)) THEN
   OldNodeNum = SIZE(SubNodesIn)
@@ -1918,7 +2034,7 @@ REAL,INTENT(IN)               :: x_in(2)                               !< physic
 REAL,INTENT(INOUT)            :: xi_Out(2)  ! Interpolated Pos
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: i,j,k, iNode, SideID
+INTEGER                       :: i,j,k, iNode, SideID, CNElemID
 REAL                          :: xi(2)
 REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
 REAL, PARAMETER               :: EPS=1E-10
@@ -1930,7 +2046,8 @@ REAL                          :: T_inv(2,2), DP(2), T(2,2)
 ! 1.1.) initial guess from linear part:
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,CNElemID)+1)
 END DO
 T(:,1) = 0.5 * (P(:,2)-P(:,1))
 T(:,2) = 0.5 * (P(:,4)-P(:,1))
@@ -2002,12 +2119,13 @@ INTEGER, INTENT(IN)             :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iNode
+INTEGER                         :: SideID, iNode, CNElemID
 REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,CNElemID)+1)
 END DO
 
 MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &

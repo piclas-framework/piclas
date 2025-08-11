@@ -35,40 +35,42 @@ SUBROUTINE TimeDisc()
 USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID,WallTime,ProjectName
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: time,TEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze
+USE MOD_TimeDisc_Vars          ,ONLY: time,tEnd,dt,iter,IterDisplayStep,DoDisplayIter,dt_Min,tAnalyze,tStart
 USE MOD_TimeDisc_Vars          ,ONLY: time_start
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
+USE MOD_RecordPoints           ,ONLY: WriteRP!,RecordPoints
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
 #if USE_LOADBALANCE
 USE MOD_TimeDisc_Vars          ,ONLY: dtWeight
 #if defined(PARTICLES)
 USE MOD_Particle_Vars          ,ONLY: WriteMacroVolumeValues, WriteMacroSurfaceValues, MacroValSampTime
 #endif /*defined(PARTICLES)*/
 #endif /*USE_LOADBALANCE*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+#if !(PP_TimeDiscMethod==700)
 USE MOD_TimeAverage_vars       ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage            ,ONLY: CalcTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
+#if defined(PARTICLES) && defined(CODE_ANALYZE)
+USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
+#endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_Analyze                ,ONLY: PerformAnalyze
 USE MOD_Analyze_Vars           ,ONLY: Analyze_dt,iAnalyze,nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
 USE MOD_Restart_Vars           ,ONLY: RestartTime,RestartWallTime
 USE MOD_HDF5_Output_State      ,ONLY: WriteStateToHDF5
-USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems
-USE MOD_RecordPoints_Vars      ,ONLY: RP_onProc
-USE MOD_RecordPoints           ,ONLY: WriteRPToHDF5!,RecordPoints
+USE MOD_Mesh_Vars              ,ONLY: MeshFile,nGlobalElems,nGlobalDOFs,NMaxGlobal,NMinGlobal
 USE MOD_Restart_Vars           ,ONLY: DoRestart,FlushInitialState
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLTimeRamp
 USE MOD_PML                    ,ONLY: PMLTimeRamping
-#if USE_LOADBALANCE
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-USE MOD_Precond_Vars           ,ONLY:UpdatePrecondLB
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
-#endif /*USE_LOADBALANCE*/
-#else
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: iterationTotal,RunTimeTotal
 #endif /*USE_HDG*/
-#ifdef PP_POIS
-USE MOD_Equation               ,ONLY: EvalGradient
-#endif /*PP_POIS*/
 #if USE_MPI
 #if USE_LOADBALANCE
 USE MOD_LoadBalance            ,ONLY: LoadBalance,ComputeElemLoad
@@ -84,15 +86,15 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
+#if !(USE_FV) || (USE_HDG)
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
-USE MOD_HDF5_Output_State      ,ONLY: WriteIMDStateToHDF5
+#endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
 USE MOD_RayTracing             ,ONLY: RayTracing
 !USE MOD_PICDepo                ,ONLY: Deposition
-USE MOD_Particle_Vars          ,ONLY: DoImportIMDFile
 #if USE_MPI
 USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 #endif /*USE_MPI*/
@@ -107,9 +109,6 @@ USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif /*USE_MPI*/
-#ifdef CODE_ANALYZE
-USE MOD_PICInterpolation       ,ONLY: InitAnalyticalParticleState
-#endif /*CODE_ANALYZ*/
 #endif /*PARTICLES*/
 USE MOD_Output                 ,ONLY: PrintStatusLine
 USE MOD_TimeStep
@@ -132,7 +131,6 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL            :: tStart                   !> simulation time at the beginning of the simulation
 REAL            :: tPreviousAnalyze         !> time of previous analyze.
                                             !> Used for Nextfile info written into previous file if greater tAnalyze
 REAL            :: tPreviousAverageAnalyze  !> time of previous Average analyze.
@@ -160,14 +158,12 @@ tZero = RestartTime
 
 ! write number of grid cells and dofs only once per computation
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#GridCells : ',REAL(nGlobalElems)
-SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs      : ',REAL(nGlobalElems*(PP_N+1)**3)
+SWRITE(UNIT_stdOut,'(A13,ES16.7,A,I0,A1,I0,A,I0,A1,I0)')'#DOFs      : ',REAL(nGlobalDOFs), &
+  '   |   polynomial degree min/max : ',NMinGlobal,'/',NMaxGlobal,                              &
+  '  |   #DOFs in each element min/max : ',(NMinGlobal+1)**3,'/',(NMaxGlobal+1)**3
 SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#Procs     : ',REAL(nProcessors)
-SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs/Proc : ',REAL(nGlobalElems*(PP_N+1)**3/nProcessors)
+SWRITE(UNIT_stdOut,'(A13,ES16.7)')'#DOFs/Proc : ',REAL(nGlobalDOFs)/REAL(nProcessors)
 
-!Evaluate Gradients to get Potential in case of Restart and Poisson Calc
-#ifdef PP_POIS
-IF(DoRestart) CALL EvalGradient()
-#endif /*PP_POIS*/
 ! Write the state at time=0, i.e. the initial condition
 
 #if defined(PARTICLES) && (USE_MPI)
@@ -184,18 +180,6 @@ IF(StringBeginsWith(DepositionType,'shape_function'))THEN
 END IF
 #endif /*MPI PARTICLES*/
 
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=506)
-!  CALL IRecvNbofParticles()
-!  CALL MPIParticleSend()
-!#endif /*USE_MPI*/
-!  CALL Deposition()
-!#if USE_MPI
-!  CALL MPIParticleRecv()
-!  ! second buffer
-!  CALL Deposition()
-!#endif /*USE_MPI*/
-!#endif
-
 tStart = time
 CALL InitTimeStep() ! Initial time step calculation for dt_Min
 iter     = 0
@@ -211,10 +195,12 @@ IF(.NOT.DoRestart) CALL RayTracing()
 
 CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 ! Set specific particle position and velocity (calculated from an analytical expression)
 CALL InitAnalyticalParticleState() ! Requires dt
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #if defined(PARTICLES)
 IF(CalcPointsPerDebyeLength.OR.CalcPICTimeStep)THEN
@@ -223,12 +209,6 @@ END IF ! CalcPointsPerDebyeLength.OR.CalcPICTimeStep
 #endif
 CALL PerformAnalyze(time,FirstOrLastIter=.TRUE.,OutPutHDF5=.FALSE.)
 
-#ifdef PARTICLES
-IF(DoImportIMDFile)THEN
-  CALL WriteIMDStateToHDF5() ! Write IMD particles to state file (and TTM if it exists)
-  IF(.NOT.DoRestart) RETURN
-END IF ! DoImportIMDFile
-#endif /*PARTICLES*/
 IF((.NOT.DoRestart).OR.FlushInitialState.OR.(.NOT.FILEEXISTS(TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',time))//'.h5'))) THEN
 #if defined(PARTICLES)
   CALL FillParticleData() ! Fill the SFC-ordered particle arrays
@@ -243,7 +223,9 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
+#if !(USE_FV) || (USE_HDG)
 IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
+#endif
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -269,54 +251,35 @@ DO !iter_t=0,MaxIter
 
   CALL UpdateTimeStep()
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
   IF(doCalcTimeAverage) CALL CalcTimeAverage(.FALSE.,dt,time,tPreviousAverageAnalyze) ! tPreviousAnalyze not used if finalize_flag=false
 
-#if !(USE_HDG)
+#if !(USE_HDG) && !(USE_FV)
   IF(DoPML) CALL PMLTimeRamping(time,PMLTimeRamp)
-#else
+#endif /*!(USE_HDG) && !(USE_FV)*/
+#if USE_HDG
   IF(MPIroot)THEN
     iterationTotal = 0
     RunTimeTotal   = 0.
   END IF ! MPIroot
-#endif /*NOT USE_HDG*/
+#endif /*USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
   CALL PrintStatusLine(time,dt,tStart,tEnd,1)
 
 ! Perform Timestep using a global time stepping routine, attention: only RK3 has time dependent BC
-#if (PP_TimeDiscMethod==1)
+#if (PP_TimeDiscMethod==1) || (PP_TimeDiscMethod==2) || (PP_TimeDiscMethod==6)
   CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==2)
-  CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==3)
-  CALL TimeStepByTAYLOR()
 #elif (PP_TimeDiscMethod==4)
   CALL TimeStep_DSMC()
-#elif (PP_TimeDiscMethod==6)
-  CALL TimeStepByLSERK()
-#elif (PP_TimeDiscMethod==100)
-  CALL TimeStepByEulerImplicit() ! O1 Euler Implicit
-#elif (PP_TimeDiscMethod==120)
-  CALL TimeStepByImplicitRK() ! O3 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==121)
-  CALL TimeStepByImplicitRK() ! O3 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==122)
-  CALL TimeStepByImplicitRK() ! O4 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==123)
-  CALL TimeStepByImplicitRK() ! O3 ERK/ESDIRK Particles + ESDIRK Field
-#elif (PP_TimeDiscMethod==130)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==131)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==132)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==133)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
-#elif (PP_TimeDiscMethod==134)
-  CALL TimeStepByRosenbrock() ! linear Rosenbrock implicit
 #elif (PP_TimeDiscMethod==300)
   CALL TimeStep_FPFlow()
 #elif (PP_TimeDiscMethod==400)
   CALL TimeStep_BGK()
+#elif (PP_TimeDiscMethod==700)
+  CALL TimeStep_DVM()
+#elif (PP_TimeDiscMethod==701)
+  CALL TimeStep_ExplicitFV()
 #elif (PP_TimeDiscMethod>=500) && (PP_TimeDiscMethod<=509)
 #if USE_HDG
 #if (PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==509)
@@ -381,7 +344,7 @@ DO !iter_t=0,MaxIter
     MPIW8TimeSim = MPIW8TimeSim + (WallTimeEnd-WallTimeStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 
-#if defined(PARTICLES) && !defined(LSERK) && !defined(IMPA) && !defined(ROS)
+#if defined(PARTICLES) && !defined(LSERK)
     CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB
 #endif
 #if USE_MPI
@@ -399,9 +362,6 @@ DO !iter_t=0,MaxIter
     IF(ForceInitialLoadBalance) PerformLoadBalance=.TRUE.
     ! Do not perform a load balance restart when the last timestep is performed
     IF(finalIter) PerformLoadBalance=.FALSE.
-#if defined(maxwell) && (defined(ROS) || defined(IMPA))
-    UpdatePrecondLB=PerformLoadBalance
-#endif /*MAXWELL AND (ROS or IMPA)*/
 #endif /*USE_LOADBALANCE*/
 
 #else /*NOT USE_MPI*/
@@ -441,9 +401,13 @@ DO !iter_t=0,MaxIter
 #else
       CALL WriteStateToHDF5(TRIM(MeshFile),time,tPreviousAnalyze)
 #endif
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
       IF(doCalcTimeAverage) CALL CalcTimeAverage(.TRUE.,dt,time,tPreviousAverageAnalyze)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
       ! Write recordpoints data to hdf5
-      IF(RP_onProc) CALL WriteRPtoHDF5(tAnalyze,.TRUE.)
+      IF(RP_onProc) CALL WriteRP(tAnalyze,.TRUE.)
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
       tPreviousAnalyze        = tAnalyze
       tPreviousAverageAnalyze = tAnalyze
       SWRITE(UNIT_StdOut,'(132("-"))')
@@ -466,7 +430,7 @@ DO !iter_t=0,MaxIter
                                        ! the state file
         RestartWallTime = PICLASTIME() ! Set restart wall time if a load balance step is performed
         dtWeight        = 1.           ! is initialized in InitTimeDisc which is not called in LoadBalance, but needed for restart
-                                       ! (RestartHDG)
+                                       ! (RecomputeEFieldHDG)
       END IF
       CALL LoadBalance()
     ELSE
@@ -512,6 +476,7 @@ DO !iter_t=0,MaxIter
   GlobalNbrOfParticlesUpdated = .FALSE.
 #endif /*PARTICLES*/
 END DO ! iter_t
+
 END SUBROUTINE TimeDisc
 
 
@@ -524,19 +489,9 @@ USE MOD_Globals
 USE MOD_Globals_Vars           ,ONLY: SimulationEfficiency,PID
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: iter,dt_Min
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: totalIterLinearSolver
-#endif /*IMPA || ROS*/
 #ifdef PARTICLES
 USE MOD_Particle_Tracking_vars ,ONLY: CountNbrOfLostParts,NbrOfLostParticles,NbrOfLostParticlesTotal,NbrOfLostParticlesTotal_old
 USE MOD_Particle_Tracking_vars ,ONLY: NbrOfNewLostParticlesTotal
-#ifdef IMPA
-USE MOD_LinearSolver_vars      ,ONLY: nPartNewton
-USE MOD_LinearSolver_Vars      ,ONLY: totalFullNewtonIter
-#endif /*IMPA*/
-#if defined(IMPA) || defined(ROS)
-USE MOD_LinearSolver_Vars      ,ONLY: TotalPartIterLinearSolver
-#endif /*IMPA || ROS*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLINGDGInitIsDone
 IMPLICIT NONE
@@ -562,7 +517,7 @@ IF(CountNbrOfLostParts)THEN
   NbrOfNewLostParticlesTotal  = NbrOfLostParticlesTotal-NbrOfLostParticlesTotal_old
   NbrOfLostParticlesTotal_old = NbrOfLostParticlesTotal
 END IF
-#endif /*PARICLES*/
+#endif /*PARTICLES*/
 
 IF(MPIroot)THEN
   ! simulation time per CPUh efficiency in [s]/[CPUh]
@@ -583,38 +538,8 @@ IF(MPIroot)THEN
     WRITE(UNIT_stdOut,'(A,I0,A,I0,A1)')' Total number of lost particles : ',NbrOfLostParticlesTotal,' (difference to last output: +',&
         NbrOfNewLostParticlesTotal,')'
   END IF
-#endif /*PARICLES*/
+#endif /*PARTICLES*/
 END IF !MPIroot
-
-#if defined(IMPA) || defined(ROS)
-SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A32,I12)') ' Total iteration Linear Solver    ',totalIterLinearSolver
-TotalIterLinearSolver=0
-#endif /*IMPA && ROS*/
-
-#if defined(IMPA) && defined(PARTICLES)
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration Newton         ',nPartNewton
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
-IF(nPartNewton.GT.0)THEN
-  SWRITE(UNIT_stdOut,'(A35,F12.2)')' Average GMRES steps per Newton    ',REAL(TotalPartIterLinearSolver)&
-                                                                        /REAL(nPartNewton)
-END IF
-nPartNewTon=0
-TotalPartIterLinearSolver=0
-#if IMPA
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration outer-Newton    ',TotalFullNewtonIter
-totalFullNewtonIter=0
-#endif
-SWRITE(UNIT_stdOut,'(132("="))')
-#endif /*IMPA && PARTICLE*/
-
-#if defined(ROS) && defined(PARTICLES)
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' IMPLICIT PARTICLE TREATMENT    '
-SWRITE(UNIT_stdOut,'(A32,I12)')  ' Total iteration GMRES          ',TotalPartIterLinearSolver
-TotalPartIterLinearSolver=0
-SWRITE(UNIT_stdOut,'(132("="))')
-#endif /*IMPA && PARTICLE*/
 
 END SUBROUTINE WriteInfoStdOut
 

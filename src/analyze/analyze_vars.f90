@@ -37,7 +37,6 @@ LOGICAL           :: CalcMeshInfo                !< Output myrank, ElemID and tr
 LOGICAL           :: CalcHaloInfo                !< Output halo element information to ElemData
 INTEGER           :: AnalyzeCount                !< number of analyzes (for info)
 REAL              :: AnalyzeTime                 !< Accumulated wall time of analyzes (for info)
-REAL,ALLOCATABLE  :: S(:,:,:,:), STEM(:,:,:)     !< vector, abs for TEM waves
 LOGICAL           :: DoFieldAnalyze              !< perform analyze
 LOGICAL           :: DoMeasureAnalyzeTime        !< measure time that is spent in analyze routines and count the number of analysis
                                                  !< calls (to std out stream)
@@ -52,6 +51,7 @@ REAL              :: Wphi
 REAL              :: Wpsi
 ! magnetic field
 LOGICAL           :: OutputErrorNorms            !< print L2 norms (DG state and particles if present)
+LOGICAL           :: OutputErrorNormsPart        !< print L2 norms for particles
 #ifdef CODE_ANALYZE
 LOGICAL           :: DoCodeAnalyzeOutput         !< print code analyze info to CodeAnalyze.csv (default is TRUE)
 #endif /* CODE_ANALYZE */
@@ -72,6 +72,16 @@ REAL,ALLOCATABLE    :: PosPoyntingInt(:)      !< x- y- or z-coordinate of plane
 REAL                :: PoyntingIntCoordErr    !< tolerance in plane searching
 INTEGER             :: nPoyntingIntPlanes     !< number of planes
 REAL,ALLOCATABLE    :: PoyntingIntegral(:)    !< poyntingintegral of each plane
+
+TYPE, PUBLIC :: PoyntingType
+  REAL,ALLOCATABLE :: SurfElemwGP(:,:) !< SurfElem(:,:,SideID) * wGPSurf(:,:) on Nloc (volume polynomial degree)
+  REAL,ALLOCATABLE :: SIP(:,:)         !<
+  REAL,ALLOCATABLE :: Uface(:,:,:)     !<
+  REAL,ALLOCATABLE :: S(:,:,:)         !< vector, abs for TEM waves
+END TYPE PoyntingType
+
+TYPE(PoyntingType),ALLOCATABLE :: Poynting(:)        !< Array to store Mesh metrics object "SurfMesh"
+
 #endif
 #if USE_HDG
 LOGICAL             :: CalcAverageElectricPotential!< flag for activating the usage
@@ -98,7 +108,7 @@ TYPE(tBoundaryFieldOutput)   :: BFO
 #if USE_MPI
 TYPE tMPIGROUP
   INTEGER                     :: ID                     !< MPI communicator ID
-  INTEGER                     :: UNICATOR=MPI_COMM_NULL !< MPI communicator for electric displacement current
+  TYPE(mpi_comm)              :: UNICATOR=MPI_COMM_NULL !< MPI communicator for electric displacement current
   INTEGER                     :: nProcs                 !< number of MPI processes for particles
   INTEGER                     :: MyRank                 !< MyRank within communicator
 END TYPE

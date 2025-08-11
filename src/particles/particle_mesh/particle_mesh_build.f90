@@ -29,6 +29,7 @@ PUBLIC:: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildB
 PUBLIC:: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
 PUBLIC:: BuildSideOriginAndRadius,BuildLinearSideBaseVectors, BuildMesh2DInfo,BuildMesh1DInfo
 PUBLIC:: BuildSideSlabAndBoundingBox
+PUBLIC:: BuildElemDofNodeMapping
 !===================================================================================================================================
 
 CONTAINS
@@ -105,6 +106,9 @@ DO iElem = firstElem, lastElem
           ElemSideNodeID2D_Shared(tmpNode,iLocSide, iElem) = ElemSideNodeID_Shared(iNode,iLocSide,iElem)+1
         END IF
       END DO
+      IF(ANY(ElemSideNodeID2D_Shared(1:2,iLocSide,iElem).EQ.0)) THEN
+        CALL abort(__STAMP__,' ERROR in BuildMesh2DInfo: Mesh has potentially more than 1 element in z-direction!')
+      END IF
       EdgeVec(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,iLocSide,iElem))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,iLocSide,iElem))
       NormVec(1) = -EdgeVec(2)
       NormVec(2) = EdgeVec(1)
@@ -353,7 +357,7 @@ INTEGER                        :: firstElem, lastElem
 !===================================================================================================================================
 
 LBWRITE(UNIT_StdOut,'(132("-"))')
-LBWRITE(UNIT_StdOut,'(A)') ' Identifying side types and whether elements are curved ...'
+LBWRITE(UNIT_StdOut,'(A)') ' TriaTracking: Identifying side types and whether elements are curved ...'
 
 ! elements
 #if USE_MPI
@@ -451,14 +455,14 @@ USE MOD_PreProc
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Interpolation          ,ONLY: GetVandermonde
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeCL,NodeType
-USE MOD_Mesh_Vars              ,ONLY: sJ
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemsJ,ElemEpsOneCell
 USE MOD_Particle_Mesh_Vars     ,ONLY: RefMappingEps
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-#if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
+#if USE_MPI
 USE MOD_Mesh_Vars              ,ONLY: NGeo,NGeoRef
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems
@@ -473,6 +477,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: nComputeNodeElems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+USE MOD_Interpolation_Vars     ,ONLY: Nmax,NInfo
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping, nDofsMappingNode
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -481,21 +487,19 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                        :: iElem,firstElem,lastElem
+INTEGER                        :: iElem,firstElem,lastElem,Nloc
 REAL                           :: scaleJ,maxScaleJ
+INTEGER                        :: i,j,k,r,offSetDofNode
+INTEGER                        :: GlobalElemID,iCNElem
 #if USE_MPI
-INTEGER                        :: ElemID
-INTEGER                        :: i,j,k
 ! Vandermonde matrices
 REAL                           :: Vdm_CLNGeo_NGeoRef(0:NgeoRef,0:NGeo)
-REAL                           :: Vdm_NGeoRef_N(     0:PP_N   ,0:NGeoRef)
 ! Jacobian on CL N and NGeoRef
-REAL                           :: detJac_Ref(1  ,0:NGeoRef,0:NGeoRef,0:NGeoRef)
-REAL                           :: DetJac_N(  1  ,0:PP_N,   0:PP_N,   0:PP_N)
+REAL                           :: detJac_NGeoRef(1 , 0:NGeoRef , 0:NGeoRef , 0:NGeoRef)
+REAL                           :: detJac_NMax(   1 , 0:NMax    , 0:NMax    , 0:NMax)
 ! interpolation points and derivatives on CL N
 REAL                           :: dX_NGeoRef(3,3,0:NGeoRef,0:NGeoRef,0:NGeoRef)
 
-INTEGER                        :: ElemLocID
 #endif /*USE_MPI*/
 REAL                           :: StartT,EndT
 !===================================================================================================================================
@@ -508,14 +512,11 @@ END IF ! MPIRoot
 
 ! build sJ for all elements not on local proc
 #if USE_MPI
-CALL Allocate_Shared((/(PP_N+1)*(PP_N+1)*(PP_N+1)*nComputeNodeTotalElems/),ElemsJ_Shared_Win,ElemsJ_Shared)
+CALL Allocate_Shared((/nDofsMappingNode/),ElemsJ_Shared_Win,ElemsJ_Shared)
 CALL MPI_WIN_LOCK_ALL(0,ElemsJ_Shared_Win,IERROR)
-ElemsJ(0:PP_N,0:PP_N,0:PP_N,1:nComputeNodeTotalElems) => ElemsJ_Shared
-
-IF (myComputeNodeRank.EQ.0) THEN
-  ElemsJ_Shared = 0.
-END IF
-
+ElemsJ(1:nDofsMappingNode) => ElemsJ_Shared
+! Node-root nullifies
+IF (myComputeNodeRank.EQ.0) ElemsJ_Shared = 0.
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 
 firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
@@ -528,43 +529,63 @@ lastElem  = nElems
 #if USE_MPI
 ! Calculate sJ for elements not inside current proc, otherwise copy local values
 CALL GetVandermonde(    Ngeo   , NodeTypeCL  , NgeoRef , NodeType  , Vdm_CLNGeo_NGeoRef, modal=.FALSE.)
-CALL GetVandermonde(    NgeoRef, NodeType    , PP_N    , NodeType  , Vdm_NGeoRef_N     , modal=.TRUE.)
 
-DO iElem = firstElem,lastElem
-  ElemID    = GetGlobalElemID(iElem)
-  ElemLocID = ElemID-offsetElem
+DO iCNElem = firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iCNElem)
+  iElem        = GlobalElemID-offsetElem
+  Nloc         = N_DG_Mapping(2,GlobalElemID)
+  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
   ! element on local proc, sJ already calculated in metrics.f90
-  IF ((ElemLocID.GT.0) .AND. (ElemLocID.LE.nElems)) THEN
-    ElemsJ(:,:,:,iElem) = sJ(:,:,:,ElemLocID)
+  IF ((iElem.GT.0) .AND. (iElem.LE.nElems)) THEN
+
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+      ElemsJ(r+offSetDofNode) = N_VolMesh(iElem)%sJ(i,j,k)
+    END DO; END DO; END DO !i,j,k=0,Nloc
 
   ! element not on local proc, calculate sJ frm dXCL_NGeo_Shared
   ELSE
-    detJac_Ref = 0.
+
+    detJac_NGeoRef = 0.
     ! Compute Jacobian on NGeo and then interpolate:
     ! required to guarantee conservation when restarting with N<NGeo
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,1,:,:,:,ElemID),dX_NGeoRef(:,1,:,:,:))
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,2,:,:,:,ElemID),dX_NGeoRef(:,2,:,:,:))
-    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,3,:,:,:,ElemID),dX_NGeoRef(:,3,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,1,:,:,:,GlobalElemID),dX_NGeoRef(:,1,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,2,:,:,:,GlobalElemID),dX_NGeoRef(:,2,:,:,:))
+    CALL ChangeBasis3D(3,Ngeo,NGeoRef,Vdm_CLNGeo_NGeoRef,dXCL_NGeo_Shared(:,3,:,:,:,GlobalElemID),dX_NGeoRef(:,3,:,:,:))
     DO k=0,NGeoRef; DO j=0,NGeoRef; DO i=0,NGeoRef
-      detJac_Ref(1,i,j,k)=detJac_Ref(1,i,j,k) &
+      detJac_NGeoRef(1,i,j,k)=detJac_NGeoRef(1,i,j,k) &
         + dX_NGeoRef(1,1,i,j,k)*(dX_NGeoRef(2,2,i,j,k)*dX_NGeoRef(3,3,i,j,k) - dX_NGeoRef(3,2,i,j,k)*dX_NGeoRef(2,3,i,j,k))  &
         + dX_NGeoRef(2,1,i,j,k)*(dX_NGeoRef(3,2,i,j,k)*dX_NGeoRef(1,3,i,j,k) - dX_NGeoRef(1,2,i,j,k)*dX_NGeoRef(3,3,i,j,k))  &
         + dX_NGeoRef(3,1,i,j,k)*(dX_NGeoRef(1,2,i,j,k)*dX_NGeoRef(2,3,i,j,k) - dX_NGeoRef(2,2,i,j,k)*dX_NGeoRef(1,3,i,j,k))
     END DO; END DO; END DO !i,j,k=0,NgeoRef
 
-    ! interpolate detJac_ref to the solution points
-    CALL ChangeBasis3D(1,NgeoRef,PP_N,Vdm_NgeoRef_N,DetJac_Ref(:,:,:,:),DetJac_N)
+    ! Interpolate detJac_ref to the solution points
+    ! Fill detJac_NMax(1,0:Nloc,0:Nloc,0:Nloc), which is allocated larger to detJac_NMax(1,0:Nmax,0:Nmax,0:Nmax)
+    CALL ChangeBasis3D(1,NgeoRef,Nloc,NInfo(Nloc)%Vdm_NgeoRef_N,&
+        detJac_NGeoRef(1:1 , 0:NGeoRef , 0:NGeoRef , 0:NGeoRef) , &
+           detJac_NMax(1:1 , 0:Nloc    , 0:Nloc    , 0:Nloc))
 
     ! assign to global Variable sJ
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      ElemsJ(i,j,k,iElem)=1./DetJac_N(1,i,j,k)
-    END DO; END DO; END DO !i,j,k=0,PP_N
-  END IF
-END DO
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+      ElemsJ(r+offSetDofNode)=1./detJac_NMax(1,i,j,k)
+    END DO; END DO; END DO !i,j,k=0,Nloc
+  END IF ! ElementOnNode(GlobalElemID)
+END DO ! iCNElem = firstElem,lastElem
 
 CALL BARRIER_AND_SYNC(ElemsJ_Shared_Win,MPI_COMM_SHARED)
 #else
-ElemsJ => sJ
+ALLOCATE(ElemsJ(nDofsMappingNode))
+
+ElemsJ = 0.
+DO iElem = 1,nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  offSetDofNode= N_DG_Mapping(3,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    ElemsJ(r+offSetDofNode) = N_VolMesh(iElem)%sJ(i,j,k)
+  END DO; END DO; END DO !i,j,k=0,Nloc
+END DO ! iElem = 1,nElems
 #endif /* USE_MPI*/
 
 ! Exit routine here if TriaTracking is active
@@ -597,11 +618,14 @@ CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
 #endif /* USE_MPI*/
 
 maxScaleJ = 0.
-DO iElem = firstElem,lastElem
-  scaleJ = MAXVAL(ElemsJ(:,:,:,iElem))/MINVAL(ElemsJ(:,:,:,iElem))
-  ElemEpsOneCell(iElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
+DO iCNElem = firstElem,lastElem
+  GlobalElemID = GetGlobalElemID(iCNElem)
+  Nloc         = N_DG_Mapping(2,GlobalElemID)
+  offSetDofNode= N_DG_Mapping(3,GlobalElemID)
+  scaleJ = MAXVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))/MINVAL(ElemsJ(offSetDofNode+1:offSetDofNode+(Nloc+1)**3))
+  ElemEpsOneCell(iCNElem) = 1.0 + SQRT(3.0*scaleJ*RefMappingEps)
   maxScaleJ  =MAX(scaleJ,maxScaleJ)
-END DO ! iElem = firstElem,lastElem
+END DO ! iCNElem = firstElem,lastElem
 
 #if USE_MPI
 CALL BARRIER_AND_SYNC(ElemEpsOneCell_Shared_Win,MPI_COMM_SHARED)
@@ -1089,7 +1113,7 @@ USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeInfo_Shared
 USE MOD_Particle_Mesh_Vars ,ONLY: NodeToElemMapping,NodeToElemInfo,ElemToElemMapping,ElemToElemInfo
 #if USE_MPI
 USE MOD_Globals            ,ONLY: MPIRoot
-USE MPI
+USE mpi_f08
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
@@ -1267,9 +1291,7 @@ DO iElem = firstElem,lastElem
 
       CountElems = CountElems + 1
 
-      IF(CountElems.GT.500) CALL abort(&
-      __STAMP__&
-      ,'CountElems > 500. Inrease the number and try again!')
+      IF(CountElems.GT.500) CALL abort(__STAMP__,'CountElems > 500. Increase the number and try again!')
 
       CheckedElemIDs(CountElems) = TestElemID
       ! Note that the number of elements stored in ElemToElemMapping(2,iElem) must be shifted after communication with other procs
@@ -1448,6 +1470,78 @@ CALL BARRIER_AND_SYNC(ElemBaryNGeo_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE BuildElementOriginShared
+
+
+!================================================================================================================================
+!> Build mapping from global element to the compute node offset based on the degrees of freedom in N_DG_Mapping(3,globElemID) = offSetDOFNode
+!================================================================================================================================
+SUBROUTINE BuildElemDofNodeMapping()
+USE MOD_Globals
+USE MOD_Preproc
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_DG_Vars            ,ONLY: nDofsMappingNode, N_DG_Mapping
+#if USE_MPI
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,myComputeNodeRank
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_SHARED
+#else
+USE MOD_Mesh_Vars          ,ONLY: nElems
+USE MOD_Particle_Mesh_Vars ,ONLY: nComputeNodeElems
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!--------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+!OUTPUT VARIABLES
+!--------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                        :: iElem,globElemID, OffsetCounter, locN, locDofs
+INTEGER                        :: firstElem,lastElem
+#if USE_MPI
+INTEGER                        :: sendbuf,recvbuf,OffsetN_DG_Mapping
+#endif
+!================================================================================================================================
+#if USE_MPI
+firstElem = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))+1
+lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeTotalElems)/REAL(nComputeNodeProcessors))
+#else
+firstElem = 1
+lastElem  = nElems
+#endif /*USE_MPI*/
+
+OffsetCounter = 0
+! Loop all CN elements (iElem is CNElemID)
+DO iElem = firstElem,lastElem
+  globElemID = GetGlobalElemID(iELem)
+  locN = N_DG_Mapping(2,globElemID)
+  locDofs = (locN+1)**3
+  N_DG_Mapping(3,globElemID) = OffsetCounter
+  OffsetCounter = OffsetCounter + locDofs
+END DO ! iElem = firstElem, lastElem
+
+#if USE_MPI
+sendbuf = OffsetCounter
+recvbuf = 0
+CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_SHARED,iError)
+OffsetN_DG_Mapping   = recvbuf
+! last proc knows CN total number of connected CN elements
+sendbuf = OffsetN_DG_Mapping + OffsetCounter
+CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nComputeNodeProcessors-1,MPI_COMM_SHARED,iError)
+nDofsMappingNode = sendbuf
+
+DO iElem=firstElem,lastElem
+  globElemID = GetGlobalElemID(iELem)
+  N_DG_Mapping(3,globElemID) = N_DG_Mapping(3,globElemID) + OffsetN_DG_Mapping
+END DO
+CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#else
+nDofsMappingNode = OffsetCounter
+#endif /*USE_MPI*/
+
+END SUBROUTINE BuildElemDofNodeMapping
 
 
 SUBROUTINE BuildElementBasisAndRadius()
@@ -1805,6 +1899,8 @@ lastSide  = nNonUniqueGlobalSides
 #endif /*USE_MPI*/
 
 IF (BezierElevation.GT.0) THEN
+  ! Sanity check
+  IF(NGeoElevated.LT.0) CALL abort(__STAMP__,'NGeoElevated<0 is not allowed. Check correct initialisation of NGeoElevated.')
   DO iSide=firstSide,lastSide
     BaseVectors0(:,iSide) = (+BezierControlPoints3DElevated(:,0,0           ,iSide)+BezierControlPoints3DElevated(:,NGeoElevated,0           ,iSide)   &
                              +BezierControlPoints3DElevated(:,0,NGeoElevated,iSide)+BezierControlPoints3DElevated(:,NGeoElevated,NGeoElevated,iSide) )
@@ -1905,6 +2001,8 @@ lastSide  = nNonUniqueGlobalSides
 !#endif /*CODE_ANALYZE*/
 
 IF (BezierElevation.GT.0) THEN
+  ! Sanity check
+  IF(NGeoElevated.LT.0) CALL abort(__STAMP__,'NGeoElevated<0 is not allowed. Check correct initialisation of NGeoElevated.')
   DO iSide = firstSide,LastSide
     ! ignore sides that are not on the compute node
     ! IF (GetCNElemID(SideInfo_Shared(SIDE_ELEMID,iSide)).EQ.-1) CYCLE
@@ -1918,7 +2016,7 @@ IF (BezierElevation.GT.0) THEN
     CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3DElevated(1:3,0:NGeoElevated,0:NGeoElevated,SideID) &
                                        ,SideSlabNormals(   1:3,1:3,iSide)                                       &
                                        ,SideSlabInterVals( 1:6    ,iSide)                                       &
-                                       ,BoundingBoxIsEmpty(iSide))
+                                       ,BoundingBoxIsEmpty(iSide)) ! (requires NGeoElevated)
   END DO
 ELSE
   DO iSide=firstSide,LastSide
@@ -1934,7 +2032,7 @@ ELSE
     CALL GetSideSlabNormalsAndIntervals(BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID)                         &
                                        ,SideSlabNormals(   1:3,1:3,iSide)                                       &
                                        ,SideSlabInterVals( 1:6    ,iSide)                                       &
-                                       ,BoundingBoxIsEmpty(iSide))
+                                       ,BoundingBoxIsEmpty(iSide)) ! (requires NGeoElevated)
   END DO
 END IF
 #if USE_MPI

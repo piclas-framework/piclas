@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_PICDepo_Method
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! Module containing the different deposition methods (NGP, linear (inter-cell) weighting, shape function
 !===================================================================================================================================
@@ -28,9 +29,7 @@ PUBLIC :: DepositionMethod
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
-  SUBROUTINE DepositionMethodInterface(doParticle_In,stage_opt)
-    USE MOD_Particle_Vars ,ONLY: PDM
-    LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
+  SUBROUTINE DepositionMethodInterface(stage_opt)
     INTEGER,INTENT(IN),OPTIONAL :: stage_opt ! TODO: definition of this variable
   END SUBROUTINE
 END INTERFACE
@@ -220,7 +219,7 @@ CALL DepositionMethod_CM()
 END SUBROUTINE InitDepositionMethod
 
 
-SUBROUTINE DepositionMethod_CVW(doParticle_In, stage_opt)
+SUBROUTINE DepositionMethod_CVW(stage_opt)
 !===================================================================================================================================
 ! 'cell_volweight'
 ! Linear charge density distribution within a cell (discontinuous across cell interfaces)
@@ -229,9 +228,10 @@ SUBROUTINE DepositionMethod_CVW(doParticle_In, stage_opt)
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,PartPosRef,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
-USE MOD_PICDepo_Vars           ,ONLY: PartSource,CellVolWeight_Volumes,CellVolWeightFac
+USE MOD_PICDepo_Vars           ,ONLY: PS_N,CellVolWeight_Volumes,CellVolWeight
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBPauseTime,LBElemSplitTime,LBElemPauseTime_avg
 USE MOD_LoadBalance_Timers     ,ONLY: LBElemSplitTime_avg
@@ -245,11 +245,11 @@ USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 #if USE_MPI
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 #endif /*USE_MPI*/
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -269,7 +269,7 @@ LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
 INTEGER            :: kk, ll, mm
-INTEGER            :: iPart,iElem
+INTEGER            :: iPart,iElem,Nloc
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -290,12 +290,7 @@ END IF
 ALLOCATE(BGMSourceCellVol(SourceDim:4,0:1,0:1,0:1,1:nElems))
 BGMSourceCellVol(:,:,:,:,:) = 0.0
 DO iPart = 1,PDM%ParticleVecLength
-  ! TODO: The cycle with .AND.doParticle_In is used for analysis or IMPA
-  IF(PRESENT(doParticle_In))THEN
-    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-  ELSE
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-  END IF
+  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
   ! Don't deposit neutral particles!
   IF(.NOT.isDepositParticle(iPart)) CYCLE
   IF (usevMPF) THEN
@@ -343,14 +338,15 @@ DO iElem=1, nElems
 END DO
 
 DO iElem = 1, nElems
-  DO kk = 0, PP_N
-    DO ll = 0, PP_N
-      DO mm = 0, PP_N
-        alpha1 = CellVolWeightFac(kk)
-        alpha2 = CellVolWeightFac(ll)
-        alpha3 = CellVolWeightFac(mm)
-        PartSource(SourceDim:4,kk,ll,mm,iElem) = &
-            PartSource(SourceDim:4,kk,ll,mm,iElem) + &
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO kk = 0, Nloc
+    DO ll = 0, Nloc
+      DO mm = 0, Nloc
+        alpha1 = CellVolWeight(Nloc)%Fac(kk)
+        alpha2 = CellVolWeight(Nloc)%Fac(ll)
+        alpha3 = CellVolWeight(Nloc)%Fac(mm)
+        PS_N(iElem)%PartSource(SourceDim:4,kk,ll,mm) = &
+            PS_N(iElem)%PartSource(SourceDim:4,kk,ll,mm) + &
             BGMSourceCellVol(:,0,0,0,iElem) * (1-alpha1) * (1-alpha2) * (1-alpha3)    + &
             BGMSourceCellVol(:,0,0,1,iElem) * (1-alpha1) * (1-alpha2) *   (alpha3)    + &
             BGMSourceCellVol(:,0,1,0,iElem) * (1-alpha1) *   (alpha2) * (1-alpha3)    + &
@@ -374,7 +370,7 @@ iPart=stage_opt
 END SUBROUTINE DepositionMethod_CVW
 
 
-SUBROUTINE DepositionMethod_CVWM(doParticle_In, stage_opt)
+SUBROUTINE DepositionMethod_CVWM(stage_opt)
 !===================================================================================================================================
 ! 'cell_volweight_mean'
 ! Linear charge density distribution within a cell (continuous across cell interfaces)
@@ -388,7 +384,7 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
 USE MOD_Particle_Vars      ,ONLY: Species,PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars      ,ONLY: PartState
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, NodeInfo_Shared, NodeCoords_Shared, GEO
-USE MOD_PICDepo_Vars       ,ONLY: PartSource,CellVolWeightFac,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
+USE MOD_PICDepo_Vars       ,ONLY: PS_N,CellVolWeight,NodeSourceExt,NodeVolume,NodeSource, nDepoNodes, DepoNodetoGlobalNode
 USE MOD_PICDepo_Vars       ,ONLY: nDepoNodesTotal,Periodic_Nodes,Periodic_nNodes,Periodic_offsetNode
 #if USE_HDG
 USE MOD_PICDepo_Vars       ,ONLY: DoDirichletDeposition
@@ -409,11 +405,11 @@ USE MOD_TimeDisc_Vars      ,ONLY: dt,dt_Min
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars  ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -421,7 +417,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, ElemID
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc, ElemID
 INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -436,7 +432,7 @@ REAL               :: tLBStart
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
 INTEGER            :: iProc
-INTEGER            :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
+TYPE(MPI_Request)  :: RecvRequest(1:nNodeRecvExchangeProcs),SendRequest(1:nNodeSendExchangeProcs)
 !INTEGER            :: MessageSize
 #endif
 REAL               :: norm
@@ -473,11 +469,7 @@ END DO
 
 ! Loop all particles and deposit their charge contribution
 DO iPart=1,PDM%ParticleVecLength
-  IF(PRESENT(doParticle_In))THEN
-    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-  ELSE
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-  END IF
+  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
   IF (isDepositParticle(iPart)) THEN
     IF (usevMPF) THEN
       Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
@@ -603,11 +595,11 @@ END DO
 CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
 DO iProc = 1, nNodeSendExchangeProcs
-  CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 DO iProc = 1, nNodeRecvExchangeProcs
-  CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+  CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
 END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -650,11 +642,11 @@ IF(doCalculateCurrentDensity)THEN
   CALL SYSTEM_CLOCK(count=CounterStart)
 #endif /*defined(MEASURE_MPI_WAIT)*/
   DO iProc = 1, nNodeSendExchangeProcs
-    CALL MPI_WAIT(SendRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
   DO iProc = 1, nNodeRecvExchangeProcs
-    CALL MPI_WAIT(RecvRequest(iProc),MPISTATUS,IERROR)
+    CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
     IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
   END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -719,13 +711,14 @@ DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
   ElemID = iElem+offsetElem
   NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(ElemID)))
-  DO kk = 0, PP_N
-    DO ll = 0, PP_N
-      DO mm = 0, PP_N
-        alpha1 = CellVolWeightFac(kk)
-        alpha2 = CellVolWeightFac(ll)
-        alpha3 = CellVolWeightFac(mm)
-        Partsource(SourceDim:4,kk,ll,mm,iElem) = &
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO kk = 0, Nloc
+    DO ll = 0, Nloc
+      DO mm = 0, Nloc
+        alpha1 = CellVolWeight(Nloc)%Fac(kk)
+        alpha2 = CellVolWeight(Nloc)%Fac(ll)
+        alpha3 = CellVolWeight(Nloc)%Fac(mm)
+        PS_N(iElem)%Partsource(SourceDim:4,kk,ll,mm) = &
              NodeSource(SourceDim:4,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + &
              NodeSource(SourceDim:4,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
              NodeSource(SourceDim:4,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + &
@@ -751,16 +744,16 @@ iNode=stage_opt
 END SUBROUTINE DepositionMethod_CVWM
 
 
-SUBROUTINE DepositionMethod_CM(doParticle_In, stage_opt)
+SUBROUTINE DepositionMethod_CM(stage_opt)
 !===================================================================================================================================
-! 'cell_volweight'
-! Linear charge density distribution within a cell (discontinuous across cell interfaces)
+! 'cell_mean'
+! Constant charge density distribution within a cell (discontinuous across cell interfaces)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
 USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies,PDM,PEM,usevMPF,PartMPF
 USE MOD_Particle_Vars          ,ONLY: PartState
-USE MOD_PICDepo_Vars           ,ONLY: PartSource
+USE MOD_PICDepo_Vars           ,ONLY: PS_N
 USE MOD_Part_Tools             ,ONLY: isDepositParticle
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared
@@ -780,7 +773,6 @@ USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -797,7 +789,7 @@ LOGICAL, PARAMETER :: doCalculateCurrentDensity=.TRUE.
 LOGICAL            :: doCalculateCurrentDensity
 INTEGER            :: SourceDim
 #endif
-INTEGER            :: iPart,iElem, iDim
+INTEGER            :: iPart,iElem,iDim,CNElemID
 !===================================================================================================================================
 
 #if USE_LOADBALANCE
@@ -816,12 +808,7 @@ END IF
 #endif
 
 DO iPart = 1,PDM%ParticleVecLength
-  ! TODO: The cycle with .AND.doParticle_In is used for analysis or IMPA
-  IF(PRESENT(doParticle_In))THEN
-    IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-  ELSE
-    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-  END IF
+  IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
   ! Don't deposit neutral particles!
   IF(.NOT.isDepositParticle(iPart)) CYCLE
   IF (usevMPF) THEN
@@ -837,7 +824,8 @@ DO iPart = 1,PDM%ParticleVecLength
   iElem = PEM%LocalElemID(iPart)
   TSource(4) = Charge
   DO iDim=SourceDim,4
-    PartSource(iDim,:,:,:,iElem) = PartSource(iDim,:,:,:,iElem) + TSource(iDim)
+    !PartSource(iDim,:,:,:,iElem) = PartSource(iDim,:,:,:,iElem) + TSource(iDim)
+    PS_N(iElem)%PartSource(iDim,:,:,:) = PS_N(iElem)%PartSource(iDim,:,:,:) + TSource(iDim)
   END DO
 #if USE_LOADBALANCE
   CALL LBElemSplitTime(iElem,tLBStart) ! Split time measurement (Pause/Stop and Start again) and add time to iElem
@@ -845,7 +833,9 @@ DO iPart = 1,PDM%ParticleVecLength
 END DO
 
 DO iElem=1, nElems
-  PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  !PartSource(SourceDim:4,:,:,:,iElem) = PartSource(SourceDim:4,:,:,:,iElem) / ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  PS_N(iElem)%PartSource(SourceDim:4,:,:,:) = PS_N(iElem)%PartSource(SourceDim:4,:,:,:) / ElemVolume_Shared(CNElemID)
 END DO
 
 #if USE_LOADBALANCE
@@ -858,7 +848,7 @@ iPart=stage_opt
 END SUBROUTINE DepositionMethod_CM
 
 
-SUBROUTINE DepositionMethod_SF(doParticle_In, stage_opt)
+SUBROUTINE DepositionMethod_SF(stage_opt)
 !===================================================================================================================================
 ! 'shape_function'
 ! Smooth polynomial deposition via "shape functions" of various order in 3D
@@ -871,21 +861,24 @@ USE MOD_Particle_Vars               ,ONLY: PartState
 USE MOD_PICDepo_Shapefunction_Tools ,ONLY: calcSfSource
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID, GetGlobalElemID
 #if USE_MPI
-USE MOD_PICDepo_Vars                ,ONLY: PartSource
+!USE MOD_PICDepo_Vars                ,ONLY: PartSource
 USE MOD_MPI_Shared                  ,ONLY: BARRIER_AND_SYNC
-USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs
+USE MOD_PICDepo_Vars                ,ONLY: ShapeMapping, nShapeExchangeProcs, PS_N
 USE MOD_PICDepo_Vars                ,ONLY: SendRequest,RecvRequest
 USE MOD_Mesh_Vars                   ,ONLY: offsetElem
+USE MOD_DG_Vars                     ,ONLY: N_DG_Mapping
 #endif /*USE_MPI*/
 USE MOD_Part_Tools                  ,ONLY: isDepositParticle
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars           ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Timers          ,ONLY: LBStartTime,LBPauseTime
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN),OPTIONAL :: doParticle_In(1:PDM%ParticleVecLength) ! TODO: definition of this variable
 INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -895,12 +888,15 @@ REAL               :: Charge
 INTEGER            :: stage
 INTEGER            :: iPart
 #if USE_MPI
-INTEGER            :: iElem,iProc,locElem
+INTEGER            :: iElem,iProc,locElem, globElem, offSetDof, i,j,k,r, Nloc
 #endif
 #if defined(MEASURE_MPI_WAIT)
 INTEGER(KIND=8)    :: CounterStart,CounterEnd
 REAL(KIND=8)       :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
+#if USE_LOADBALANCE
+REAL               :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 IF (PRESENT(stage_opt)) THEN
   stage = stage_opt
@@ -915,13 +911,16 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
   END DO
 #endif
 
+#if USE_LOADBALANCE
+  CALL LBStartTime(tLBStart)
+#endif /*USE_LOADBALANCE*/
+
   DO iPart=1,PDM%ParticleVecLength
-    IF(PRESENT(doParticle_In))THEN
-      IF (.NOT.(PDM%ParticleInside(iPart).AND.doParticle_In(iPart))) CYCLE
-    ELSE
-      IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
-    END IF
+    ! Check if particle is inside the domain
+    IF (.NOT.PDM%ParticleInside(iPart)) CYCLE
+    ! Check if particle is to be deposited
     IF (.NOT.isDepositParticle(iPart)) CYCLE
+    ! Calculate the charge of the particle
     IF (usevMPF) THEN
       Charge = Species(PartSpecies(iPart))%ChargeIC*PartMPF(iPart)
     ELSE
@@ -930,12 +929,17 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
     ! Fill PartSourceProc and deposit charge in local part of PartSource(CNElem(1:nElems + offset))
     CALL calcSfSource(4,Charge,PartState(1:3,iPart),iPart,PartVelo=PartState(4:6,iPart))
   END DO
+
+#if USE_LOADBALANCE
+  CALL LBPauseTime(LB_DEPO_SF,tLBStart)
+#endif /*USE_LOADBALANCE*/
+
 #if USE_MPI
   ! Communication
   ! 1 of 2: Inner-Node Communication
   DO iProc = 1,nShapeExchangeProcs
-      CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nRecvShapeElems)&
-                    , ShapeMapping(iProc)%nRecvShapeElems*4*(PP_N+1)**3                                   &
+      CALL MPI_IRECV( ShapeMapping(iProc)%RecvBuffer(1:4,1:ShapeMapping(iProc)%nRecvShapeDofs)&
+                    , ShapeMapping(iProc)%nRecvShapeDofs*4 &
                     , MPI_DOUBLE_PRECISION                &
                     , ShapeMapping(iProc)%Rank            &
                     , 2001                                &
@@ -943,8 +947,8 @@ IF ((stage.EQ.0).OR.(stage.EQ.1)) THEN
                     , RecvRequest(iProc)                  &
                     , IERROR)
 !    IF (myComputeNodeRank.NE.0) THEN
-    CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,0:PP_N,0:PP_N,0:PP_N,1:ShapeMapping(iProc)%nSendShapeElems)                        &
-                  , ShapeMapping(iProc)%nSendShapeElems*4*(PP_N+1)**3          &
+    CALL MPI_ISEND( ShapeMapping(iProc)%SendBuffer(1:4,1:ShapeMapping(iProc)%nSendShapeDofs)                        &
+                  , ShapeMapping(iProc)%nSendShapeDofs*4   &
                   , MPI_DOUBLE_PRECISION                   &
                   , ShapeMapping(iProc)%Rank                                      &
                   , 2001                                   &
@@ -977,8 +981,18 @@ IF ((stage.EQ.0).OR.(stage.EQ.2)) THEN
 #endif /*defined(MEASURE_MPI_WAIT)*/
     IF(IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error', IERROR)
     DO iElem = 1, ShapeMapping(iProc)%nRecvShapeElems
-      locElem = ShapeMapping(iProc)%RecvShapeElemID(iElem)-offsetElem
-      PartSource(:,:,:,:,locElem) = PartSource(:,:,:,:,locElem) + ShapeMapping(iProc)%RecvBuffer(:,:,:,:,iElem)
+      globElem = ShapeMapping(iProc)%RecvShapeElemID(iElem)
+      offSetDof = ShapeMapping(iProc)%RecvShapeElemDofOffset(iElem)
+      locElem = globElem-offsetElem
+      Nloc = N_DG_Mapping(2,globElem)
+      DO k=0,Nloc
+        DO j=0,Nloc
+          DO i=0,Nloc
+            r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+            PS_N(locElem)%PartSource(:,i,j,k) = PS_N(locElem)%PartSource(:,i,j,k) +  ShapeMapping(iProc)%RecvBuffer(:,r+offSetDof)
+          END DO
+        END DO
+      END DO
     END DO
   END DO
 
@@ -1034,4 +1048,5 @@ END DO ! iDirichletBCID = 1,nDirichletBCSides
 END SUBROUTINE NullifyNodeSourceDirichletSides
 #endif /*USE_HDG*/
 
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END MODULE MOD_PICDepo_Method

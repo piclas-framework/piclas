@@ -1,12 +1,12 @@
 # Cluster Guidelines
 
-PICLas has been tested on numerous different Linux- and CPU-based clusters and is continuously been developed to run efficiently on
+PICLas has been tested on numerous different Linux- and CPU-based clusters and is continuously being developed to run efficiently on
 high-performance systems.
 
 ## Simulating at HLRS
 
-Unfortunately, the GitHub and GitLab servers are not available on machines at the HLRS, such as the Hawk, due to 
-restricted internet access. The workaround is to use ssh tunneling and proxy jump or remote forwarding to access 
+Unfortunately, the GitHub and GitLab servers are not available on machines at the HLRS due to
+restricted internet access. The workaround is to use ssh tunneling and proxy jump or remote forwarding to access
 the repositories.
 
 (sec:cloning-at-hlrs)=
@@ -65,39 +65,64 @@ in `./git/config` to the new number for git fetch/pull operations, which would t
       url = ssh://git@localhost:1827/piclas/piclas.git
       fetch = +refs/heads/*:refs/remotes/origin/*
 
-### Compiling and executing PICLas
 
-For building on the hazelhen cluster, certain modules have to be loaded and included in the .bashrc or .profile:
+(sec:modules-at-hlrs)=
+### Setting up the module environment
 
-    module unload PrgEnv-cray
-    module load PrgEnv-intel
+#### Setup for Vulcan
+
+Following modules have been loaded before compiling and within the submit script before the execution of PICLas:
+
+    module load cmake/3.22.3 hdf5/1.12.1-openmpi-4.1.2-gcc-11.2.0 mkl/2024.1
+    module load gcc/13.1.0
+
+#### Setup for Hunter (CPU only)
+
+    module swap HLRS/APU HLRS/CPU
+    module swap PrgEnv-cray PrgEnv-gnu/8.5.0
     module load cray-hdf5-parallel
 
-An example submit script for the test queue is then
+(sec:petsc-at-hlrs)=
+### Installing PETSc with restricted internet access
 
-    #!/bin/bash
-    #PBS -N Testcase
-    #PBS -M email@university.de
-    #PBS -m abe
-    #PBS -l nodes=4:ppn=24
-    #PBS -l walltime=00:24:59
-    #PBS -q test
+To utilize PETSc at the HLRS, you can download it manually to your local machine and upload to the cluster. In case the provided link does not work, check the [PETSc website](https://petsc.org/release/install/download/#doc-download) for a current download link:
 
-    # number of cores per node
-    nodecores=24
+    wget https://web.cels.anl.gov/projects/petsc/download/release-snapshots/petsc-3.21.6.tar.gz
+    scp petsc-3.21.6.tar.gz vulcan:~/.
+    ssh vulcan
+    tar xf petsc-3.21.6.tar.gz
+    cd petsc-3.21.6
 
-    # switch to submit dir
-    cd $PBS_O_WORKDIR
+You will have to manually download additional libraries for the PETSc installation. For that purpose, create a folder
 
-    # get number of total cores
-    ncores=$(cat $PBS_NODEFILE | wc -l)
+    mkdir externalpackages
 
-    module unload craype-hugepages16M
+and execute the PETSc configuration to get shown the download links in the console
 
-    # restart
-    aprun -n $ncores -N $nodecores -j 1 ./piclas parameter.ini DSMC.ini restart.h5 1>log 2>log.err
+    ./configure --with-mpi --with-debugging=0 --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 COPTFLAGS='-O3 -march=native -mtune=native' CXXOPTFLAGS='-O3 -march=native -mtune=native' FOPTFLAGS='-O3 -march=native -mtune=native' --with-packages-download-dir=externalpackages/ --download-hypre --download-mumps --download-scalapack --download-metis --download-parmetis
 
-More information on using the queue system can be found in the [HLRS wiki](https://wickie.hlrs.de/platforms/index.php/CRAY_XC40_Using_the_Batch_System).
+You should see a list with git and https links to the requested packages. After downloading the packages to your local machine and uploading them to the `externalpackages` folder, re-run the command to configure PETSc and follow the commands provided in the console, where the configuration is followed by a `make` and `make check` command. Afterwards, make sure to set the `PETSC_DIR` as provided at the end in your user profile and submit script:
 
-Section last updated: 27.03.2019
+    export PETSC_DIR=/path/to/petsc
 
+If you are having problems with MPI, `--with-mpi-dir=` can be used to point directly to the MPI installation you want to use. Additionally, if you are compiling for a specific architecture, which might be different from your login node, make sure to specify `-march=` and `-mtune=` or other necessary commands.
+
+#### Configure for Vulcan
+
+The specific PETSc configure command for the Vulcan cluster and the AMD Epyc compute nodes (`genoa` queue):
+
+    ./configure --with-mpi-dir=/opt/hlrs/non-spack/2022-02/mpi/openmpi/4.1.2-gcc-11.2.0/ --with-debugging=0 --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 COPTFLAGS='-O3 -march=znver3 -mtune=znver3' CXXOPTFLAGS='-O3 -march=znver3 -mtune=znver3' FOPTFLAGS='-O3 -march=znver3 -mtune=znver3' --with-packages-download-dir=../externalpackages/ --download-hypre --download-mumps --download-scalapack --download-metis --download-parmetis
+
+#### Configure for Hunter
+
+    ./configure --with-mpi --with-debugging=0 --with-shared-libraries=1 --with-mpi-f90module-visibility=0 --with-bison=0 COPTFLAGS='-O3 -march=znver4 -mtune=znver4' CXXOPTFLAGS='-O3 -march=znver4 -mtune=znver4' FOPTFLAGS='-O3 -march=znver4 -mtune=znver4' --with-packages-download-dir=externalpackages/ --download-hypre --download-mumps --download-scalapack --download-metis --download-parmetis
+
+### Compiling and executing PICLas
+
+After loading the required modules, the installation of PICLas can proceed as usual. To perform a calculation a job must be submitted, ideally using a submit script:
+
+    qsub submit.sh
+
+More information on using the queue system can be found in the [HLRS wiki](https://kb.hlrs.de/platforms/index.php/Platforms).
+
+Section last updated: 16.06.2025

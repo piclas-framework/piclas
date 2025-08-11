@@ -3,6 +3,7 @@
 # Script for updating the piclas version number in ./src/globals/globals_vars.f90 and .github/workflows/cmake-ninja.yml
 GLOBALS='./src/globals/globals_vars.f90'
 WORKFLOW='.github/workflows/cmake-ninja.yml'
+CMAKELISTS='CMakeLists.txt'
 
 if test -t 1; then # if terminal
   NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
@@ -42,6 +43,11 @@ if [[ ! -f ${WORKFLOW} ]]; then
   exit 1
 fi
 
+if [[ ! -f ${CMAKELISTS} ]]; then
+  echo "${RED}Could not find ${CMAKELISTS}${NC}"
+  exit 1
+fi
+
 # Major version
 CHECKMAJOR=$(grep -in "INTEGER,PARAMETER          :: MajorVersion" ${GLOBALS})
 if [[ -z ${CHECKMAJOR} ]]; then
@@ -75,8 +81,17 @@ fi
 # Complete version for AppImage container
 CHECKWORKFLOW=$(grep -in "name: piclas-binaries-v" ${WORKFLOW})
 if [[ -z ${CHECKWORKFLOW} ]]; then
-  echo "${RED}Could not 'name: piclas-binaries-v' in ${WORKFLOW}${NC}"
+  echo "${RED}Could not find 'name: piclas-binaries-v' in ${WORKFLOW} using grep${NC}"
   exit 1
 else
   sed -i "s/.*name: piclas-binaries-v.*/        name: piclas-binaries-v${1}/" ${WORKFLOW}
+fi
+
+# Update version in CMakeLists.txt
+CHECKCMAKELISTS=$(grep -in "SET(PROJECT_VER" ${CMAKELISTS})
+if [[ -z ${CHECKCMAKELISTS} ]]; then
+  echo "${RED}Could not find 'SET(PROJECT_VER' in ${CMAKELISTS} using grep${NC}"
+  exit 1
+else
+  sed -i "s/.*SET(PROJECT_VER.*/SET(PROJECT_VER  \"${1}\")/" ${CMAKELISTS}
 fi

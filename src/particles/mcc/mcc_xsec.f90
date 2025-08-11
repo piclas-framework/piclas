@@ -128,13 +128,14 @@ ELSE
   IF(DatasetFound) THEN
     SpecXSec(iCase)%UseCollXSec = .TRUE.
     SpecXSec(iCase)%CollXSec_Effective = .FALSE.
-  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found ELASTIC collision cross section.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found ELASTIC collision cross section.'
   ELSE
     LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
     RETURN
   END IF
 END IF
 
+! Elastic/effective cross-section
 IF(SpecXSec(iCase)%UseCollXSec) THEN
   ! Open the dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
@@ -147,6 +148,29 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   SpecXSec(iCase)%CollXSecData = 0.
   ! read data
   CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%CollXSecData(1:2,1:dims(2)), dims, err)
+END IF
+
+! Back-scattering cross-section
+IF (SpeciesDatabase.EQ.'none') THEN
+  dsetname = TRIM('/'//TRIM(spec_pair)//'/BACKSCATTER')
+ELSE
+  dsetname = TRIM(TRIM(spec_pair)//'/BACKSCATTER')
+END IF
+CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
+IF(DatasetFound) THEN
+  SpecXSec(iCase)%UseBackScatterXSec = .TRUE.
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found BACKSCATTER collision cross section.'
+  ! Open the dataset.
+  CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+  ! Get the file space of the dataset.
+  CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+  ! get size
+  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+  ! Read-in the effective cross-sections
+  ALLOCATE(SpecXSec(iCase)%BackXSecData(1:2,1:dims(2)))
+  SpecXSec(iCase)%BackXSecData = 0.
+  ! read data
+  CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%BackXSecData(1:2,1:dims(2)), dims, err)
 END IF
 
 ! Close the file.
@@ -477,7 +501,7 @@ SUBROUTINE XSec_CalcCollisionProb(iPair,iElem,SpecNum1,SpecNum2,CollCaseNum,Macr
 !> DSMC collision calculation probability.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas
 USE MOD_MCC_Vars              ,ONLY: SpecXSec, XSec_NullCollision
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -504,7 +528,7 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   END IF
   Weight1 = GetParticleWeight(iPart_p1)
   Weight2 = GetParticleWeight(iPart_p2)
-  IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+  IF (UseVarTimeStep.OR.usevMPF) THEN
     ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
       / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
     ReducedMassUnweighted = ReducedMass * 2. / (Weight1 + Weight2)
@@ -556,7 +580,7 @@ SUBROUTINE XSec_CalcVibRelaxProb(iPair,iElem,SpecNum1,SpecNum2,MacroParticleFact
 !> Calculate the relaxation probability using cross-section data.
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -580,7 +604,7 @@ Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%VibProb = 0.
 SumVibCrossSection = 0.
 
-IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+IF (UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
     / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
   ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
@@ -633,13 +657,12 @@ SUBROUTINE XSec_ElectronicRelaxation(iPair,iCase,iPart_p1,iPart_p2,DoElec1,DoEle
 !> 4. Count the number of relaxation process for the relaxation rate (Only with Particles-DSMCReservoirSim = T)
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, PartStateIntEn, SamplingActive
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, PEM, WriteMacroVolumeValues
 USE MOD_Particle_Analyze_Vars ,ONLY: CalcRelaxProb
 USE MOD_Particle_Vars         ,ONLY: Species, usevMPF, SampleElecExcitation, ExcitationSampleData, ExcitationLevelMapping
-USE MOD_DSMC_Vars             ,ONLY: RadialWeighting, SamplingActive
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -702,7 +725,7 @@ END IF    ! Electronic energy = 0, ground-state
 ! 4. Count the number of relaxation process for the relaxation rate and cell-local sampling
 IF(CalcRelaxProb.OR.SamplingActive.OR.WriteMacroVolumeValues) THEN
   IF(ElecLevelRelax.GT.0) THEN
-    IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+    IF(usevMPF) THEN
       ! Weighting factor already included in GetParticleWeight
       WeightedParticle = 1.
     ELSE
@@ -733,7 +756,7 @@ SUBROUTINE XSec_CalcElecRelaxProb(iPair,SpecNum1,SpecNum2,MacroParticleFactor,Vo
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, RadialWeighting
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF
 USE MOD_part_tools            ,ONLY: GetParticleWeight
@@ -756,7 +779,7 @@ Weight1 = GetParticleWeight(iPart_p1)
 Weight2 = GetParticleWeight(iPart_p2)
 SpecXSec(iCase)%ElecLevel(:)%Prob = 0.
 
-IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+IF (UseVarTimeStep.OR.usevMPF) THEN
   ReducedMass = (Species(iSpec_p1)%MassIC *Weight1  * Species(iSpec_p2)%MassIC * Weight2) &
     / (Species(iSpec_p1)%MassIC * Weight1+ Species(iSpec_p2)%MassIC * Weight2)
   ReducedMassUnweighted = ReducedMass * 2./(Weight1 + Weight2)
@@ -1247,7 +1270,7 @@ SUBROUTINE XSec_CalcReactionProb(iPair,iCase,iElem,SpecNum1,SpecNum2,MacroPartic
 ! MODULES
 USE MOD_Globals_Vars
 USE MOD_Globals               ,ONLY: abort
-USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, RadialWeighting, DSMC, PartStateIntEn
+USE MOD_DSMC_Vars             ,ONLY: SpecDSMC, Coll_pData, CollInf, BGGas, ChemReac, DSMC, PartStateIntEn
 USE MOD_MCC_Vars              ,ONLY: SpecXSec
 USE MOD_Particle_Vars         ,ONLY: PartSpecies, Species, UseVarTimeStep, usevMPF, PartTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -1291,7 +1314,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
       EZeroPoint_Educt = EZeroPoint_Educt + SpecDSMC(EductReac(2))%EZeroPoint * Weight(2)
     END IF
 
-    IF (RadialWeighting%DoRadialWeighting.OR.UseVarTimeStep.OR.usevMPF) THEN
+    IF (UseVarTimeStep.OR.usevMPF) THEN
       ReducedMass = (Species(EductReac(1))%MassIC *Weight(1) * Species(EductReac(2))%MassIC * Weight(2)) &
         / (Species(EductReac(1))%MassIC * Weight(1) + Species(EductReac(2))%MassIC * Weight(2))
       ReducedMassUnweighted = ReducedMass * 2./(Weight(1)+Weight(2))

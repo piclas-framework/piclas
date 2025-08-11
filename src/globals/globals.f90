@@ -18,7 +18,7 @@ MODULE MOD_Globals
 !===================================================================================================================================
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -39,11 +39,10 @@ LOGICAL            :: GlobalNbrOfParticlesUpdated ! When FALSE, then global numb
 LOGICAL            :: MPIRoot,MPILocalRoot
 #if USE_MPI
 !#include "mpif.h"
-INTEGER            :: MPIStatus(MPI_STATUS_SIZE)
-INTEGER            :: MPI_COMM_NODE    ! local node subgroup
-INTEGER            :: MPI_COMM_LEADERS ! all node masters
-INTEGER            :: MPI_COMM_WORKERS ! all non-master nodes
-INTEGER            :: MPI_COMM_PICLAS  ! all nodes
+TYPE(MPI_Comm)     :: MPI_COMM_NODE=MPI_COMM_NULL    ! local node subgroup
+TYPE(MPI_Comm)     :: MPI_COMM_LEADERS=MPI_COMM_NULL ! all node masters
+TYPE(MPI_Comm)     :: MPI_COMM_WORKERS=MPI_COMM_NULL ! all non-master nodes
+TYPE(MPI_Comm)     :: MPI_COMM_PICLAS  ! all nodes
 #else
 INTEGER,PARAMETER  :: MPI_COMM_PICLAS=-1 ! DUMMY when compiling single (MPI=OFF)
 INTEGER,PARAMETER  :: MPI_COMM_LEADERS=-1 ! DUMMY when compiling single (MPI=OFF)
@@ -68,31 +67,6 @@ INTEGER(KIND=IK)   :: nGlobalNbrOfParticles(6) !< 1-3: min,max,total number of s
 INTERFACE ReOpenLogFile
   MODULE PROCEDURE ReOpenLogFile
 END INTERFACE
-
-! Overload the MPI interface because MPICH fails to provide it
-! > https://github.com/pmodels/mpich/issues/2659
-! > https://www.mpi-forum.org/docs/mpi-3.1/mpi31-report/node263.htm
-#if LIBS_MPICH_FIX_SHM_INTERFACE
-INTERFACE MPI_WIN_ALLOCATE_SHARED
-  SUBROUTINE PMPI_WIN_ALLOCATE_SHARED(SIZE, DISP_UNIT, INFO, COMM, BASEPTR, WIN, IERROR)
-      USE, INTRINSIC ::  ISO_C_BINDING, ONLY : C_PTR
-      IMPORT         ::  MPI_ADDRESS_KIND
-      INTEGER        ::  DISP_UNIT, INFO, COMM, WIN, IERROR
-      INTEGER(KIND=MPI_ADDRESS_KIND) ::  SIZE
-      TYPE(C_PTR)    ::  BASEPTR
-  END SUBROUTINE
-END INTERFACE
-
-INTERFACE MPI_WIN_SHARED_QUERY
-  SUBROUTINE PMPI_WIN_SHARED_QUERY(WIN, RANK, SIZE, DISP_UNIT, BASEPTR, IERROR)
-      USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_PTR
-      IMPORT         :: MPI_ADDRESS_KIND
-      INTEGER        :: WIN, RANK, DISP_UNIT, IERROR
-      INTEGER(KIND=MPI_ADDRESS_KIND) :: SIZE
-      TYPE(C_PTR)    :: BASEPTR
-  END SUBROUTINE
-END INTERFACE
-#endif /*LIBS_MPICH_FIX_SHM_INTERFACE*/
 
 INTERFACE Abort
   MODULE PROCEDURE AbortProg
@@ -822,7 +796,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 #if USE_MPI
-INTEGER, INTENT(IN),OPTIONAL    :: Comm
+TYPE(mpi_comm),INTENT(IN),OPTIONAL :: Comm
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1003,6 +977,34 @@ REAL            :: VECNORM2D  ! Euclidean norm (length) of the vector v1
 !===================================================================================================================================
 VECNORM2D=SQRT(v1(1)*v1(1)+v1(2)*v1(2))
 END FUNCTION VECNORM2D
+
+
+PPURE FUNCTION CONDVECNORM(v1,cond)
+!===================================================================================================================================
+! Computes the Euclidean norm (length) of a vector with a condition
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)    :: v1(3)    ! Vector
+LOGICAL,INTENT(IN) :: cond(3)  ! Use this direction if true
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL            :: CONDVECNORM  ! Euclidean norm (length) of the vector v1
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER         :: i
+!===================================================================================================================================
+CONDVECNORM=0
+DO i=1,3
+  IF(cond(i))THEN
+    CONDVECNORM=CONDVECNORM+v1(i)*v1(i)
+  END IF
+END DO
+CONDVECNORM=SQRT(CONDVECNORM)
+END FUNCTION CONDVECNORM
 
 
 PPURE SUBROUTINE OrthoNormVec(v1,v2,v3)
@@ -1480,10 +1482,8 @@ END FUNCTION ElementOnProc
 PPURE LOGICAL FUNCTION ElementOnNode(GlobalElemID) RESULT(L)
 ! MODULES
 USE MOD_Preproc
-#if USE_MPI
 USE MOD_MPI_Vars        ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars ,ONLY: ComputeNodeRootRank,nComputeNodeProcessors
-#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1537,7 +1537,7 @@ END SUBROUTINE DisplayNumberOfParticles
 !===================================================================================================================================
 !> Check the current memory usage and display a message if a certain threshold is reached
 !===================================================================================================================================
-SUBROUTINE WarningMemusage(Threshold)
+SUBROUTINE WarningMemusage(Mode,Threshold)
 ! MODULES
 USE MOD_Globals_Vars    ,ONLY: memory
 #if USE_MPI
@@ -1551,7 +1551,8 @@ USE MOD_MPI_Vars        ,ONLY: MPIW8TimeMM,MPIW8CountMM
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-REAL,INTENT(IN) :: Threshold
+INTEGER,INTENT(IN)  :: Mode                     !< Select which memory is to be displayed, Total = 0 or per Node = 1
+REAL,INTENT(IN)     :: Threshold                !< Threshold for the display of a warning between 0 and 100 [%]
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CHARACTER(32) :: hilf,hilf2,hilf3
@@ -1565,6 +1566,9 @@ INTEGER(KIND=8)               :: CounterStart,CounterEnd
 REAL(KIND=8)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 !===================================================================================================================================
+IF((Mode.NE.0.).AND.(Mode.NE.1)) CALL abort(__STAMP__,'ERROR in WarningMemusage: Mode must be 0 or 1')
+IF((Threshold.GT.100.0).OR.(Threshold.LE.0.0)) CALL abort(__STAMP__,'ERROR in WarningMemusage: Threshold must be in the range 0 < X <= 100')
+
 CALL ProcessMemUsage(memory(1),memory(2),memory(3)) ! memUsed,memAvail,memTotal
 
 ! Only CN roots communicate available and total memory info (count once per node)
@@ -1583,13 +1587,15 @@ IF(nProcessors.GT.1)THEN
   END IF
 
   ! collect data from node roots on first root node
-  IF (myComputeNodeRank.EQ.0) THEN ! only leaders
-    IF (myLeaderGroupRank.EQ.0) THEN ! first node leader MUST be MPIRoot
-      CALL MPI_REDUCE(MPI_IN_PLACE , memory(1:3) , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
-    ELSE
-      CALL MPI_REDUCE(memory(1:3)       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
-    END IF ! myLeaderGroupRank.EQ.0
-  END IF ! myComputeNodeRank.EQ.0
+  IF(Mode.EQ.0) THEN
+    IF (myComputeNodeRank.EQ.0) THEN ! only leaders
+      IF (myLeaderGroupRank.EQ.0) THEN ! first node leader MUST be MPIRoot
+        CALL MPI_REDUCE(MPI_IN_PLACE , memory(1:3) , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+      ELSE
+        CALL MPI_REDUCE(memory(1:3)       , 0      , 3 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_LEADERS_SHARED , IERROR)
+      END IF ! myLeaderGroupRank.EQ.0
+    END IF ! myComputeNodeRank.EQ.0
+  END IF
 END IF ! nProcessors.EQ.1
 #if defined(MEASURE_MPI_WAIT)
 CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
@@ -1599,13 +1605,18 @@ MPIW8CountMM = MPIW8CountMM + 1_8
 #endif /*USE_MPI*/
 
 ! --------------------------------------------------
-! Only MPI root outputs the data to file
+! Only MPI root or compute-node root outputs the warning
 ! --------------------------------------------------
-IF(.NOT.MPIRoot)RETURN
+#if USE_MPI
+IF(Mode.EQ.0) THEN
+  IF(.NOT.MPIRoot) RETURN
+ELSE IF(Mode.EQ.1) THEN
+  IF(.NOT.myComputeNodeRank.EQ.0) RETURN
+END IF
+#endif /*USE_MPI*/
 
 ! Sanity checks
-IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'Could not retrieve total available memory')
-IF((Threshold.GT.1.0).OR.(Threshold.LE.0.0)) CALL abort(__STAMP__,'Threshold in WarningMemusage must be in the range 0 < X <= 1')
+IF(ABS(memory(3)).LE.0.) CALL abort(__STAMP__,'ERROR in WarningMemusage: Could not retrieve total available memory')
 ! Convert kB to GB
 memory(1:3)=memory(1:3)/1048576.
 ! Check if X% of the total memory available is reached
@@ -1615,12 +1626,8 @@ IF(MemUsagePercent.GT.Threshold)THEN
   WRITE(UNIT=hilf ,FMT='(F16.1)') memory(1)
   WRITE(UNIT=hilf2,FMT='(F16.1)') memory(3)
   WRITE(UNIT=hilf3,FMT='(F5.1)') MemUsagePercent
-  !CALL set_formatting("red")
-  !SWRITE(UNIT_stdOut,'(A,F5.2,A)') ' WARNING: Memory reaching maximum, RAM is at ',MemUsagePercent,'%'
-  WRITE(UNIT_stdOut,'(A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//&
-      "] GB on at least one node is close to the global limit of ["&
-      //TRIM(ADJUSTL(hilf2))//"] GB, which is "//TRIM(ADJUSTL(hilf3))//"%. Watch out for the OOM killer!"
-  !CALL clear_formatting()
+  IPWRITE(UNIT_stdOut,'(A)') "WARNING: Allocated memory ["//TRIM(ADJUSTL(hilf))//"] GB is above the set threshold and corresponds to "&
+                              //TRIM(ADJUSTL(hilf3))//"% of the available memory ["//TRIM(ADJUSTL(hilf2))//"] GB!"
 END IF
 
 END SUBROUTINE WarningMemusage

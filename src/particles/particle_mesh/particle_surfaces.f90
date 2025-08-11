@@ -65,10 +65,6 @@ INTERFACE RotateMasterToSlave
   MODULE PROCEDURE RotateMasterToSlave
 END INTERFACE
 
-INTERFACE ElevateBezierPolynomial
-  MODULE PROCEDURE ElevateBezierPolynomial
-END INTERFACE
-
 INTERFACE EvaluateBezierPolynomialAndGradient
   MODULE PROCEDURE EvaluateBezierPolynomialAndGradient
 END INTERFACE
@@ -668,8 +664,7 @@ SideSlabNormals(:,1) = BezierControlPoints3D(:,NGeoElevated,0)              &
                      + BezierControlPoints3D(:,NGeoElevated,NGeoElevated)   &
                      - BezierControlPoints3D(:,0,NGeoElevated)
 
-IF (ALL(SideSlabNormals(:,1).EQ.0)) &
-  CALL ABORT(__STAMP__,             &
+IF (ALL(SideSlabNormals(:,1).EQ.0)) CALL ABORT(__STAMP__,&
   'Error while calculating side slab normals and intervals. Normal vector length zero. Possibly wrong BezierControlPoints')
 
 SideSlabNormals(:,1)=SideSlabNormals(:,1)/SQRT(DOT_PRODUCT(SideSlabNormals(:,1),SideSlabNormals(:,1)))
@@ -1128,7 +1123,7 @@ END SUBROUTINE GetBezierSampledAreas
 
 FUNCTION ElevateBezierPolynomial(NGeo,BezierPolynomial)
 !===================================================================================================================================
-! this function creates a new equidistantly distributed set of control points (bézier polynomial basis coefficients) based on the
+! this function creates a new equidistantly distributed set of control points (Bézier polynomial basis coefficients) based on the
 ! control points "BezierPolynomial" with order "N" and elevates them to "ElevateBezierPolynomial" on "Xi_NGeo_elevated" with order
 ! "p+BezierElevation"
 ! book: single step procedure (1D)

@@ -66,22 +66,31 @@ USE MOD_Restart              ,ONLY: InitRestart
 USE MOD_Restart_Vars         ,ONLY: DoRestart
 USE MOD_Mesh                 ,ONLY: InitMesh
 USE MOD_Mesh_Vars            ,ONLY: GetMeshMinMaxBoundariesIsDone
-#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
-USE MOD_Equation             ,ONLY: InitEquation
-#endif
-USE MOD_GetBoundaryFlux      ,ONLY: InitBC
-USE MOD_DG                   ,ONLY: InitDG
-USE MOD_Mortar               ,ONLY: InitMortar
-#if ! (USE_HDG)
-USE MOD_PML                  ,ONLY: InitPML
-#endif /*USE_HDG*/
-USE MOD_Dielectric           ,ONLY: InitDielectric
-USE MOD_Analyze              ,ONLY: InitAnalyze
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 USE MOD_RecordPoints         ,ONLY: InitRecordPoints
-#if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver         ,ONLY: InitLinearSolver
-#endif /*ROS or IMPA*/
-USE MOD_Restart_Vars         ,ONLY: N_Restart,InterpolateSolution,RestartNullifySolution
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
+#if USE_FV
+USE MOD_Equation_FV          ,ONLY: InitEquation_FV
+USE MOD_FV                   ,ONLY: InitFV
+#endif
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
+#if !(USE_FV) || (USE_HDG)
+USE MOD_Equation             ,ONLY: InitEquation
+USE MOD_DG                   ,ONLY: InitDG
+USE MOD_Dielectric           ,ONLY: InitDielectric
+#if !(USE_HDG)
+USE MOD_Equation             ,ONLY: InitRefState
+USE MOD_PML                  ,ONLY: InitPML
+#if USE_MPI
+USE MOD_DG                   ,ONLY: InitDGExchange
+#endif /*USE_MPI*/
+#endif /*USE_HDG*/
+#endif /*!(USE_FV) || (USE_HDG)*/
+USE MOD_GetBoundaryFlux      ,ONLY: InitBC
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+USE MOD_Mortar               ,ONLY: InitMortar
+USE MOD_Analyze              ,ONLY: InitAnalyze
+USE MOD_Restart_Vars         ,ONLY: N_Restart,RestartNullifySolution
 #if USE_MPI
 USE MOD_MPI                  ,ONLY: InitMPIvars
 #endif /*USE_MPI*/
@@ -89,20 +98,13 @@ USE MOD_Symmetry             ,ONLY: InitSymmetry
 #ifdef PARTICLES
 USE MOD_DSMC_Vars            ,ONLY: UseDSMC
 USE MOD_ParticleInit         ,ONLY: InitParticleGlobals,InitParticles
-USE MOD_TTMInit              ,ONLY: InitTTM,InitIMD_TTM_Coupling
-USE MOD_TTM_Vars             ,ONLY: DoImportTTMFile
 USE MOD_Particle_Analyze     ,ONLY: InitParticleAnalyze
 USE MOD_SurfaceModel_Analyze ,ONLY: InitSurfModelAnalyze
 USE MOD_Particle_MPI         ,ONLY: InitParticleMPI
-#if USE_MPI
-USE mod_readIMD              ,ONLY: initReadIMDdata,read_IMD_results
-#endif /* USE_MPI */
-#if defined(IMPA) || defined(ROS)
-USE MOD_ParticleSolver       ,ONLY: InitPartSolver
-#endif
 #endif
 #if USE_HDG
 USE MOD_HDG                  ,ONLY: InitHDG
+USE MOD_Equation             ,ONLY: InitRefState,InitChiTens
 #endif
 #if (PP_TimeDiscMethod==600)
 USE MOD_RadiationTrans_Init        ,ONLY: InitRadiationTransport
@@ -140,13 +142,18 @@ useDSMC=GETLOGICAL('UseDSMC')
 
 CALL InitSymmetry()
 
+#if !(USE_FV) || (USE_HDG)
+#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
+CALL InitEquation() ! is required in InitMortar() and InitMesh()
+#endif /*!(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)*/
+#endif /*!(USE_FV) || (USE_HDG)*/
 ! Initialization
 IF(IsLoadBalance)THEN
   DoRestart=.TRUE.
   RestartInitIsDone=.TRUE.
   InterpolationInitIsDone=.TRUE.
   RestartNullifySolution=.FALSE.
-  InterpolateSolution=.FALSE.
+  !InterpolateSolution=.FALSE.
   N_Restart=PP_N
   CALL InitMortar()
 ELSE
@@ -163,27 +170,37 @@ CALL InitMesh(2)
 #if USE_MPI
 CALL InitMPIvars()
 #endif /*USE_MPI*/
-#if !(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)
-CALL InitEquation()
-#endif
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL InitBC()
+#endif /*!(PP_TimeDiscMethod==4) && !(PP_TimeDiscMethod==300) && !(PP_TimeDiscMethod==400)*/
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+CALL InitRecordPoints()
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
+#if !(USE_FV) || (USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_HDG)
 CALL InitPML() ! Perfectly Matched Layer (PML): electromagnetic-wave-absorbing layer
-#endif /*USE_HDG*/
+#if USE_MPI
+CALL InitDGExchange()
+#endif /*USE_MPI*/
+CALL InitRefState()
+#else /*USE_HDG*/
+CALL InitRefState()
+CALL InitChiTens()
+#endif /*!USE_HDG*/
 CALL InitDielectric() ! Dielectric media
 CALL InitDG()
-#if defined(ROS) || defined(IMPA)
-CALL InitLinearSolver()
-#endif /*ROS /IMEX*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!(USE_FV) || (USE_HDG)*/
+#if USE_FV
+CALL InitEquation_FV()
+CALL InitFV()
+#endif /*USE_FV*/
 #ifdef PARTICLES
 CALL InitParticleMPI
 CALL InitParticles()
-#if defined(IMPA) || defined(ROS)
-CALL InitPartSolver()
-#endif
 #endif
 CALL InitAnalyze()
-CALL InitRecordPoints()
 #ifdef PARTICLES
 CALL InitParticleAnalyze()
 CALL InitSurfModelAnalyze()
@@ -197,19 +214,6 @@ CALL InitHDG() ! Hybridizable Discontinuous Galerkin Method (HDGSEM)
 CALL InitRadiation()
 CALL InitRadiationTransport()
 #endif
-
-#ifdef PARTICLES
-! Old IMD format
-  CALL InitTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
-IF(DoImportTTMFile)THEN
-  CALL InitIMD_TTM_Coupling() ! use MD and TTM data to distribute the cell averaged charge to the atoms/ions
-END IF
-#if USE_MPI
-! New IMD binary format (not TTM needed as this information is stored on the atoms)
-CALL initReadIMDdata()
-CALL read_IMD_results()
-#endif /* USE_MPI */
-#endif /*PARTICLES*/
 
 CALL InitInterfaces() ! set Riemann solver identifier for face connectivity (vacuum, dielectric, PML ...)
 
@@ -237,28 +241,34 @@ USE MOD_ReadInTools                ,ONLY: prms,FinalizeParameters
 USE MOD_Restart                    ,ONLY: FinalizeRestart
 USE MOD_Interpolation              ,ONLY: FinalizeInterpolation
 USE MOD_Mesh                       ,ONLY: FinalizeMesh
-USE MOD_Equation                   ,ONLY: FinalizeEquation
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
+USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
+#if USE_FV
+USE MOD_Equation_FV                ,ONLY: FinalizeEquation_FV
+USE MOD_FV                         ,ONLY: FinalizeFV
+#endif /*USE_FV*/
 USE MOD_Interfaces                 ,ONLY: FinalizeInterfaces
-USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
-USE MOD_DG                         ,ONLY: FinalizeDG
 USE MOD_Mortar                     ,ONLY: FinalizeMortar
+#if !(USE_FV) || (USE_HDG)
+USE MOD_Equation                   ,ONLY: FinalizeEquation
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_DG                         ,ONLY: FinalizeDG
 USE MOD_Dielectric                 ,ONLY: FinalizeDielectric
-#if ! (USE_HDG)
+#if !(USE_HDG)
 USE MOD_PML                        ,ONLY: FinalizePML
 #else
 USE MOD_HDG                        ,ONLY: FinalizeHDG
 #endif /*USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!(USE_FV) || (USE_HDG)*/
 USE MOD_Analyze                    ,ONLY: FinalizeAnalyze
-USE MOD_RecordPoints               ,ONLY: FinalizeRecordPoints
-USE MOD_RecordPoints_Vars          ,ONLY: RP_Data
-#if defined(ROS) || defined(IMPA)
-USE MOD_LinearSolver               ,ONLY: FinalizeLinearSolver
-#endif /*IMEX*/
 #if USE_MPI
 USE MOD_MPI                        ,ONLY: FinalizeMPI
 USE MOD_MPI_Shared                 ,ONLY: FinalizeMPIShared
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_MPI                        ,ONLY: OutputMPIW8Time
+USE MOD_MPI_Output                 ,ONLY: OutputMPIW8Time
 #endif /*defined(MEASURE_MPI_WAIT)*/
 #endif /*USE_MPI*/
 #ifdef PARTICLES
@@ -268,12 +278,14 @@ USE MOD_InitializeBackgroundField  ,ONLY: FinalizeBackGroundField
 USE MOD_SuperB_Init                ,ONLY: FinalizeSuperB
 USE MOD_Particle_Mesh              ,ONLY: FinalizeParticleMesh
 USE MOD_Particle_Analyze           ,ONLY: FinalizeParticleAnalyze
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_GetBoundaryFlux            ,ONLY: FinalizeBC
 USE MOD_PICDepo                    ,ONLY: FinalizeDeposition
 USE MOD_PICInterpolation           ,ONLY: FinalizePICInterpolation
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_ParticleInit               ,ONLY: FinalizeParticles
 USE MOD_Particle_Sampling_Adapt    ,ONLY: FinalizeParticleSamplingAdaptive
 USE MOD_Particle_Boundary_Init     ,ONLY: FinalizeParticleBoundary
-USE MOD_TTMInit                    ,ONLY: FinalizeTTM
 USE MOD_DSMC_Init                  ,ONLY: FinalizeDSMC
 USE MOD_MCC_Init                   ,ONLY: FinalizeMCC
 USE MOD_SurfaceModel_Porous        ,ONLY: FinalizePorousBoundaryCondition
@@ -293,7 +305,7 @@ USE MOD_Particle_MPI               ,ONLY: FinalizeParticleMPI
 USE MOD_Particle_MPI_Vars          ,ONLY: ParticleMPIInitisdone
 #endif /*USE_MPI*/
 #endif /*PARTICLES*/
-USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut
+USE MOD_IO_HDF5                    ,ONLY: FinalizeElemData,ElementOut,ElementOutRay,ElementOutNloc
 USE MOD_TimeDiscInit               ,ONLY: FinalizeTimeDisc
 #if (PP_TimeDiscMethod==600)
 USE MOD_Radiation_Init             ,ONLY: FinalizeRadiation
@@ -311,23 +323,30 @@ LOGICAL,INTENT(IN)      :: IsLoadBalance
 REAL                    :: Time
 !===================================================================================================================================
 CALL FinalizeElemData(ElementOut)
+CALL FinalizeElemData(ElementOutRay)
+CALL FinalizeElemData(ElementOutNloc)
 !Finalize
-CALL FinalizeRecordPoints()
 CALL FinalizeAnalyze()
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+CALL FinalizeRecordPoints()
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
+#if USE_FV
+CALL FinalizeFV()
+CALL FinalizeEquation_FV()
+#endif
+#if !(USE_FV) || (USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL FinalizeDG()
-#if defined(IMPA) || defined(ROS)
-!CALL FinalizeCSR()
-CALL FinalizeLinearSolver()
-#endif /*IMEX*/
 CALL FinalizeDielectric()
 #if !(USE_HDG)
 CALL FinalizePML()
 #else
 CALL FinalizeHDG()
 #endif /*USE_HDG*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 CALL FinalizeEquation()
-CALL FinalizeBC()
-IF(.NOT.IsLoadBalance) CALL FinalizeInterpolation()
+#endif /*!(USE_FV) || (USE_HDG)*/
+CALL FinalizeInterpolation(IsLoadBalance)
 CALL FinalizeRestart()
 CALL FinalizeMesh()
 CALL FinalizeMortar()
@@ -338,10 +357,13 @@ CALL FinalizeSurfaceModelAnalyze()
 CALL FinalizeParticleBoundarySampling()
 CALL FinalizePorousBoundaryCondition()
 CALL FinalizeParticleSurfaces()
-CALL FinalizeParticleMesh()
 CALL FinalizeParticleAnalyze()
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+CALL FinalizeBC()
 CALL FinalizeDeposition()
 CALL FinalizePICInterpolation()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+CALL FinalizeParticleMesh()
 #if USE_MPI
 CALL FinalizeParticleMPI()
 #endif /*USE_MPI*/
@@ -374,9 +396,7 @@ ParticleMPIInitIsDone=.FALSE.
 CALL FinalizeRadiation()
 CALL FinalizeRadiationTransport()
 CALL FinalizePhotonSurfSample()
-#endif
-
-CALL FinalizeTTM() ! FD grid based data from a Two-Temperature Model (TTM) from Molecular Dynamics (MD) Code IMD
+#endif /*PP_TimeDiscMethod==600*/
 #endif /*PARTICLES*/
 
 CALL FinalizeInterfaces()
@@ -385,7 +405,9 @@ CALL FinalizeCommandlineArguments()
 
 CALL FinalizeTimeDisc()
 ! mssing arrays to deallocate
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 SDEALLOCATE(RP_Data)
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
 
 ! Before program termination: Finalize load balance
 ! Measure simulation duration
