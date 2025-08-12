@@ -833,7 +833,7 @@ USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative,FieldAnalyze
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_HDG*/
-USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nBCSides
+USE MOD_Mesh_Vars                 ,ONLY: nBCs,BC,nSides
 USE MOD_TimeDisc_Vars             ,ONLY: iter
 USE MOD_Mesh_Vars                 ,ONLY: N_SurfMesh
 USE MOD_Interpolation_Vars        ,ONLY: N_Inter
@@ -955,8 +955,9 @@ END DO ! iPartBound = 1, BPO%NPartBoundaries
 IF(iter.EQ.0)THEN ! First iteration: Only output this information once
   ALLOCATE(TotalSurfArea(1:BPO%NPartBoundaries))
   TotalSurfArea = 0.
-  ! Loop over all BC sides and get surface area
-  DO BCSideID = 1,nBCSides
+  ! Loop over all sides (to include inner BCs, which are not part of nBCSides) and get surface area
+  DO BCSideID = 1,nSides
+    IF(BC(BCSideID).EQ.0) CYCLE
     ! Get particle boundary ID
     iPartBound = PartBound%MapToPartBC(BC(BCSideID))
     ! get BPO boundary ID
@@ -966,7 +967,7 @@ IF(iter.EQ.0)THEN ! First iteration: Only output this information once
       Nloc = MAX(DG_Elems_master(BCSideID),DG_Elems_slave(BCSideID))
       TotalSurfArea(iBPO) = TotalSurfArea(iBPO) + SUM(N_SurfMesh(BCSideID)%SurfElem(:,:)*N_Inter(Nloc)%wGPSurf(:,:))
     END IF ! iBPO.GT.0
-  END DO ! BCSideID = 1,nBCSides
+  END DO ! BCSideID = 1,nSides
 #if USE_MPI
   IF(MPIroot)THEN
     CALL MPI_REDUCE(MPI_IN_PLACE , TotalSurfArea , BPO%NPartBoundaries , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)

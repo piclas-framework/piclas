@@ -337,7 +337,7 @@ SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 #endif
 !===================================================================================================================================
-! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
+! Calculates L_infinity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
