@@ -862,7 +862,7 @@ GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
       IF(BCType.EQ.10) CYCLE LocSideListLoop ! Skip Neumann sides
       IF(pAdaptionBCLevel.EQ.-1)THEN
         N_DG(iElem) = NMin+1
-ELSE
+      ELSE
         N_DG(iElem) = NMax
       END IF ! pAdaptionBCLevel.EQ.-1
     END DO LocSideListLoop ! iLocSideList = 1, 3
@@ -877,6 +877,9 @@ IF(ABS(pAdaptionBCLevel).GT.1)THEN
 
   ! Set Nloc in N_DG_Mapping
   CALL Set_N_DG_Mapping(OffsetCounter)
+
+  ! Synchronize shared array before utilization as GlobalNbElemID can be outside of the processors local elements
+  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
 
   ! Loop over the process-local global elements indices
   iGlobalElemID_loop: DO iGlobalElemID = FirstElemInd, LastElemInd
@@ -896,7 +899,7 @@ IF(ABS(pAdaptionBCLevel).GT.1)THEN
       IF(N_DG_Mapping(2,GlobalNbElemID).EQ.NMax)THEN
         IF(pAdaptionBCLevel.EQ.-2)THEN
           N_DG(iElem) = NMin+1
-ELSE
+        ELSE
           N_DG(iElem) = NMax
         END IF ! pAdaptionBCLevel.EQ.-2
       END IF ! N_DG_Mapping(2,GlobalNbElemID).EQ.NMax
@@ -991,8 +994,9 @@ NDGAllocationIsDone = .TRUE.
 END SUBROUTINE Allocate_N_DG_Mapping
 
 !===================================================================================================================================
-!> Loop over all CN elements and set N_DG_Mapping(1:2,iElem+offSetElem). N_DG_Mapping(2,:) is only correct for single-process
-!> execution as the communication between the processes is done later.
+!> Loop over all local elements and set N_DG_Mapping(1:2,iElem+offSetElem).
+!> N_DG_Mapping(1,:) can only be utilized after the barrier & sync, and the communication between the processes in Build_N_DG_Mapping
+!> N_DG_Mapping(2,:) requires at least a barrier & sync, or each process can only access its own local elements
 !===================================================================================================================================
 SUBROUTINE Set_N_DG_Mapping(OffsetCounter)
 ! MODULES
@@ -1005,18 +1009,18 @@ IMPLICIT NONE
 INTEGER,INTENT(OUT) :: OffsetCounter
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: locDofs,iElem,iCNElem,Nloc
+INTEGER :: locDofs,iElem,iGlobalElem,Nloc
 !===================================================================================================================================
 OffsetCounter = 0
-! Loop all CN elements
-DO iCNElem = 1+offSetElem,nElems+offSetElem
-  iElem = iCNElem-offSetElem
+! Loop over local elements using the global ID
+DO iGlobalElem = 1+offSetElem,nElems+offSetElem
+  iElem = iGlobalElem-offSetElem
   Nloc = N_DG(iElem)
   locDofs = (Nloc+1)**3
-  N_DG_Mapping(2,iCNElem) = Nloc
-  N_DG_Mapping(1,iCNElem) = OffsetCounter
+  N_DG_Mapping(2,iGlobalElem) = Nloc
+  N_DG_Mapping(1,iGlobalElem) = OffsetCounter
   OffsetCounter = OffsetCounter + locDofs
-END DO ! iCNElem
+END DO ! iGlobalElem
 END SUBROUTINE Set_N_DG_Mapping
 
 
@@ -1061,7 +1065,7 @@ IF(PerformLoadBalance)THEN
   !OffsetCounter = N_DG_Mapping(1,nElems+offSetElem) + (N_DG_Mapping(2,nElems+offSetElem)+1)**3
 
 #if USE_LOADBALANCE
-    ELSE
+ELSE
 #endif /*USE_LOADBALANCE*/
   IF(.NOT.NDGAllocationIsDone)THEN
     ! Allocate the shared memory container and associate pointer: N_DG_Mapping
@@ -1122,7 +1126,7 @@ IF(PerformLoadBalance)THEN
 #endif /*USE_MPI*/
 
 #if USE_LOADBALANCE
-    END IF
+END IF
 #endif /*USE_LOADBALANCE*/
 
 END SUBROUTINE Build_N_DG_Mapping

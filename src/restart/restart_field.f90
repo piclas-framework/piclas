@@ -565,6 +565,7 @@ ELSE ! Normal restart
         Nloc = N_DG_Mapping(2,iElem+offSetElem)
         IF (Nloc.NE.Nloc_HDF5(iElem)) THEN
           IPWRITE(*,*) 'iElem           :', iElem
+          IPWRITE(*,*) 'iGlobalElem     :', iElem+offSetElem
           IPWRITE(*,*) 'Nloc            :', Nloc
           IPWRITE(*,*) 'Nloc_HDF5(iElem):', Nloc_HDF5(iElem)
           CALL abort(__STAMP__,'Nloc has changed during restart and dynamic p-adaption is not implemented yet.')
