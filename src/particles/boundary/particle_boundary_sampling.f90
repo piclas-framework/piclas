@@ -857,7 +857,7 @@ IF (mySurfRank.EQ.0) THEN
 
   IF (PartBound%OutputWallTemp) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
   IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
-  IF (DoChemSurface) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Heat_Flux')
+  IF (DoChemSurface) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Catalytic_HeatFlux')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 
