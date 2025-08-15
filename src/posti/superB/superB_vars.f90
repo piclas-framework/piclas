@@ -53,6 +53,7 @@ TYPE tCoilInfo
   REAL                            :: RectVec1(2)                !< Cuboid coil-specific vector in the cross-section plane
   REAL                            :: RectVec2(2)                !< Cuboid coil-specific vector in the cross-section plane
   REAL                            :: Length                     !< Length of coil, calculated from the length vector
+  REAL,ALLOCATABLE                :: CoilNodes(:,:)             !< Geometric information of the coil [1:3,CoilInfo(iCoil)%NumNodes]
 END TYPE tCoilInfo
 
 TYPE(tCoilInfo),ALLOCATABLE       :: CoilInfo(:)                !< Container for the coil information [1:NumOfCoils]
@@ -83,7 +84,7 @@ TYPE tPermanentMagnets
                                                                !< [0:Nloc,0:Nloc,0:Nloc]
 END TYPE tPermanentMagnets
 
-TYPE(tPermanentMagnets),ALLOCATABLE  :: PermanentMagnets(:)   
+TYPE(tPermanentMagnets),ALLOCATABLE  :: PermanentMagnets(:)
 
 TYPE tPermanentMagnetInfo
   CHARACTER(LEN=255)    :: Type                                 !< Cuboid, sphere, cylinder, conic

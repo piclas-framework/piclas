@@ -982,13 +982,14 @@ CALL WriteAdditionalElemData(FileName,ElementOutNloc)
 ASSOCIATE(nVarOut         => INT(nVarOut,IK)           ,&
           nDofsMapping    => INT(nDofsMapping,IK)      ,&
           nDOFOutput      => INT(nDOFOutput,IK)        ,&
+          nTimePoints     => INT(nTimePoints,IK)        ,&
           offsetDOF       => INT(offsetDOF,IK)         )
   IF (UseTimeDepCoil) THEN
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-                            DataSetName = 'DG_Solution' , rank = 3             , &
-                            nValGlobal  = (/nVarOut     , nDofsMapping     /)  , &
-                            nVal        = (/nVarOut     , nDOFOutput       /)  , &
-                            offset      = (/0_IK        , offsetDOF , 0_IK /)  , &
+    CALL GatheredWriteArray(FileName,create=.FALSE.,&
+                            DataSetName = 'DG_Solution' , rank = 3                       , &
+                            nValGlobal  = (/nVarOut     , nDofsMapping  , nTimePoints/)  , &
+                            nVal        = (/nVarOut     , nDOFOutput    , nTimePoints/)  , &
+                            offset      = (/0_IK        , offsetDOF     , 0_IK /)        , &
                             collective  = .TRUE.        , RealArray = U_N_3D_local)
   ELSE
     CALL GatheredWriteArray(FileName, create = .FALSE.                            , &

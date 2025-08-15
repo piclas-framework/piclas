@@ -1652,12 +1652,7 @@ END SUBROUTINE WriteElectroMagneticPICFieldToHDF5
 !===================================================================================================================================
 SUBROUTINE WriteEmissionVariablesToHDF5(FileName)
 ! MODULES
-#if USE_MPI
-USE mpi_f08
-#endif /*USE_MPI*/
-!USE MOD_io_HDF5
 USE MOD_Globals
-!USE MOD_PreProc
 USE MOD_Particle_Vars     ,ONLY: Species,nSpecies
 USE MOD_Particle_Vars     ,ONLY: NeutralizationBalanceGlobal
 ! IMPLICIT VARIABLE HANDLING

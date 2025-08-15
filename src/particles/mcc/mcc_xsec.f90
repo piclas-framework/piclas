@@ -14,7 +14,7 @@
 
 MODULE MOD_MCC_XSec
 !===================================================================================================================================
-! Contains the Argon Ionization
+!> Module contains routines for the cross-section data in MCC including read-in, interpolation and calculation of probabilities
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
