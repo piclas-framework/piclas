@@ -99,6 +99,7 @@ CALL prms%CreateRealArrayOption('RefState-FV',     'State(s) in primitive variab
 CALL prms%CreateRealArrayOption('DVM-Accel',    'Acceleration vector for force term', '(/0., 0., 0./)')
 CALL prms%CreateLogicalOption(  'DVM-Collisions',  'Activate collision (RHS BGK equation)', '.TRUE.')
 CALL prms%CreateLogicalOption(  'DVM-WriteMacroSurfaceValues',  'Surface output', '.FALSE.')
+CALL prms%CreateRealOption(     'DVM-BCTempGrad',          'BC temperature gradient', '0.')
 END SUBROUTINE DefineParametersEquation
 
 !==================================================================================================================================
@@ -276,6 +277,7 @@ IF(nRefState_FV .GT. 0)THEN
 END IF
 
 DVMForce = GETREALARRAY('DVM-Accel',3)
+BCTempGrad = GETREAL('DVM-BCTempGrad')
 
 ALLOCATE(DVMMomentSave(17,DVMnSpecies+1,nElems))
 DVMMomentSave = 0.

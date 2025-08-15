@@ -44,7 +44,7 @@ USE MOD_Mesh_Vars        ,ONLY: BC
 USE MOD_Mesh_Vars_FV     ,ONLY: BoundaryType_FV
 USE MOD_Equation_FV      ,ONLY: ExactFunc_FV
 USE MOD_Equation_Vars_FV ,ONLY: IniExactFunc_FV, RefState_FV
-USE MOD_Equation_Vars_FV ,ONLY: DVMVeloDisc, DVMSpecData, DVMnSpecies, DVMDim, DVMMethod, DVMnMacro
+USE MOD_Equation_Vars_FV ,ONLY: DVMVeloDisc, DVMSpecData, DVMnSpecies, DVMDim, DVMMethod, DVMnMacro, BCTempGrad
 USE MOD_TimeDisc_Vars    ,ONLY: dt, time
 USE MOD_DistFunc         ,ONLY: MaxwellDistribution, MacroValuesFromDistribution, MaxwellScatteringDVM, MoleculeRelaxEnergy
 IMPLICIT NONE
@@ -158,7 +158,7 @@ CASE(3) ! specular reflection
   END DO
 
 
-CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
+CASE(4,24,25) ! diffusive order 2 (see Baranger et al. 2019, MCS)
   fplus(:)=UPrim_master(:)-gradUinside(:)
   IF (output) THEN
     CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
@@ -183,6 +183,8 @@ CASE(4) ! diffusive order 2 (see Baranger et al. 2019, MCS)
     ASSOCIATE(Sp => DVMSpecData(iSpec))
     vLastID = vLastID + Sp%nVar
     MacroVal(:) = RefState_FV(:,iSpec,BCState)
+    IF (BCType.EQ.24) MacroVal(5) = MacroVal(5)+Face_xGP(1)*BCTempGrad
+    ! IF (BCType.EQ.25) MacroVal(5) = MacroVal(5)+(9.-Face_xGP(1))*2.*BCTempGrad
     CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
     CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),fplus(vFirstID:vLastID),NormVec,prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
     DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)

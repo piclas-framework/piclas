@@ -117,7 +117,7 @@ USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScatteringDVM, MacroValuesFromDistribution, MoleculeRelaxEnergy
-USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMethod, DVMnMacro
+USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMethod, DVMnMacro, BCTempGrad
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -245,7 +245,7 @@ DO iBC=1,nBCs
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
-  CASE(4,14) ! maxwell scattering
+  CASE(4,14,24,25) ! maxwell scattering
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       DO q=0,0; DO p=0,0
@@ -268,6 +268,8 @@ DO iBC=1,nBCs
         DO iSpec=1,DVMnSpecies
           vLastID = vLastID + DVMSpecData(iSpec)%nVar
           MacroVal(:) = RefState_FV(:,iSpec,BCState)
+          IF (BCType.EQ.24) MacroVal(5) = MacroVal(5)+Face_xGP(1,p,q,SideID)*BCTempGrad
+          ! IF (BCType.EQ.25) MacroVal(5) = MacroVal(5)+(9.-Face_xGP(1,p,q,SideID))*2.*BCTempGrad
           CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
           CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID,p,q),UPrim_master(vFirstID:vLastID,p,q,SideID),NormVec(:,p,q,SideID),prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
           vFirstID = vFirstID + DVMSpecData(iSpec)%nVar

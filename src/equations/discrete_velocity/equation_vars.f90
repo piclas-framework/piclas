@@ -36,6 +36,8 @@ INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each bounda
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
 #endif
 
+REAL                 :: BCTempGrad            !< Gradient of temperature at the boundary (x direction)
+
 LOGICAL              :: DVMColl
 INTEGER              :: DVMnSpecies
 INTEGER              :: DVMnMacro=14
