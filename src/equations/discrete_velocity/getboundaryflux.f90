@@ -273,33 +273,45 @@ DO iBC=1,nBCs
           CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
           CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID,p,q),UPrim_master(vFirstID:vLastID,p,q,SideID),NormVec(:,p,q,SideID),prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
           vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
-        END DO; END DO
-      END DO
+        END DO
+      END DO; END DO
       CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
     END DO
 
-  ! CASE(5) !constant static pressure+temperature inlet
-  !   DO iSide=1,nBCLoc
-  !     SideID=BCSideID(iBC,iSide)
-  !     DO q=0,0; DO p=0,0
-  !       CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-  !       MacroVal(1)=RefState_FV(1,BCState)
-  !       MacroVal(5)=RefState_FV(5,BCState)
-  !       CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
-  !     END DO; END DO
-  !     CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
-  !   END DO
+  CASE(5) !constant static pressure+temperature inlet
+    DO iSide=1,nBCLoc
+      SideID=BCSideID(iBC,iSide)
+      DO q=0,0; DO p=0,0
+        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
+        vFirstID=1
+        vLastID=0
+        DO iSpec=1,DVMnSpecies
+          vLastID = vLastID + DVMSpecData(iSpec)%nVar
+          MacroValInside(1,iSpec)=RefState_FV(1,iSpec,BCState)
+          MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)
+          CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
+          vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+        END DO
+      END DO; END DO
+      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+    END DO
 
-  ! CASE(6) !constant static pressure outlet
-  !   DO iSide=1,nBCLoc
-  !     SideID=BCSideID(iBC,iSide)
-  !     DO q=0,0; DO p=0,0
-  !       CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-  !       MacroVal(5)=RefState_FV(5,BCState)*RefState_FV(1,BCState)/MacroVal(1) !to get the pressure given by refstate
-  !       CALL MaxwellDistribution(MacroVal,UPrim_boundary(:,p,q))
-  !     END DO; END DO
-  !     CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
-  !   END DO
+  CASE(6) !constant static pressure outlet
+    DO iSide=1,nBCLoc
+      SideID=BCSideID(iBC,iSide)
+      DO q=0,0; DO p=0,0
+        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
+        vFirstID=1
+        vLastID=0
+        DO iSpec=1,DVMnSpecies
+          vLastID = vLastID + DVMSpecData(iSpec)%nVar
+          MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)*RefState_FV(1,iSpec,BCState)/MacroValInside(1,iSpec) !to get the pressure given by refstate
+          CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
+          vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+        END DO
+      END DO; END DO
+      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+    END DO
 
   CASE(7) !open outlet
     DO iSide=1,nBCLoc

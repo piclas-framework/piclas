@@ -216,10 +216,10 @@ CASE(4,24,25) ! diffusive order 2 (see Baranger et al. 2019, MCS)
 
 CASE(14) ! diffusive order 1
   IF (output) THEN
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+    CALL MacroValuesFromDistribution(MacroValInside,UPrim_master,dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
     CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
   ELSE
-    CALL MacroValuesFromDistribution(MacroValInside,fplus,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+    CALL MacroValuesFromDistribution(MacroValInside,UPrim_master,dt/2.,tau,2,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
     CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
   END IF
   IF (dt.EQ.0.) THEN
@@ -242,6 +242,40 @@ CASE(14) ! diffusive order 1
     vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
   END DO
   gradU = 2.*(UPrim_master-UPrim_boundary)
+
+CASE(5) ! constant pressure and temperature
+  IF (output) THEN
+    CALL MacroValuesFromDistribution(MacroValInside,UPrim_master,dt,tau,1)
+  ELSE
+    CALL MacroValuesFromDistribution(MacroValInside,UPrim_master,dt/2.,tau,2)
+  END IF
+  vFirstID=1
+  vLastID=0
+  DO iSpec = 1,DVMnSpecies
+    vLastID = vLastID + DVMSpecData(iSpec)%nVar
+    MacroValInside(1,iSpec)=RefState_FV(1,iSpec,BCState)
+    MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)
+    CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID),iSpec)
+    vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+  END DO
+  gradU = UPrim_master - UPrim_boundary
+
+CASE(6) ! constant pressure
+  IF (output) THEN
+    CALL MacroValuesFromDistribution(MacroValInside,UPrim_master,dt,tau,1)
+  ELSE
+    CALL MacroValuesFromDistribution(MacroValInside,UPrim_master,dt/2.,tau,2)
+  END IF
+  vFirstID=1
+  vLastID=0
+  DO iSpec = 1,DVMnSpecies
+    vLastID = vLastID + DVMSpecData(iSpec)%nVar
+    CALL MacroValuesFromDistribution(MacroVal,UPrim_master(vFirstID:vLastID),dt/2.,tau,1)
+    MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)*RefState_FV(1,iSpec,BCState)/MacroValInside(1,iSpec) !to get the pressure given by refstate
+    CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID),iSpec)
+    vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+  END DO
+  gradU = UPrim_master - UPrim_boundary
 
 CASE(7) ! open outlet
   gradU = 0.
