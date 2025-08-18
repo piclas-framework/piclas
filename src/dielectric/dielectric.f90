@@ -91,6 +91,7 @@ USE MOD_Equation_Vars     ,ONLY: IniExactFunc
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if defined(PARTICLES)
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_Mesh_Vars        ,ONLY: nGlobalElems
@@ -98,6 +99,7 @@ USE MOD_MPI_Vars         ,ONLY: offsetElemMPI
 USE MOD_MPI_Shared_Vars  ,ONLY: myComputeNodeRank,ComputeNodeRootRank,nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
 #endif /*USE_MPI*/
+#endif /*defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -107,9 +109,11 @@ USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iElem,iZone
+#if defined(PARTICLES)
 #if USE_MPI
 INTEGER             :: iProc,ElemPerProc(0:nComputeNodeProcessors-1),offsetElemPerProc(0:nComputeNodeProcessors-1)
 #endif /*USE_MPI*/
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT Dielectric...'
@@ -249,7 +253,7 @@ CALL WriteDielectricGlobalToHDF5()
 
 ! Create a shared array isDielectricElem_Shared, required in GetBoundaryInteraction to check whether particles have been moved inside
 ! a dielectric element (RotPeriodicBoundary), here only the temporary isDielectricElem_Global is populated by each compute-node root
-#ifdef PARTICLES
+#if defined(PARTICLES)
 #if USE_MPI
 ! Get the elements and offsets per compute node
 DO iProc = 0,nComputeNodeProcessors-1
@@ -270,7 +274,7 @@ IF (myComputeNodeRank.EQ.0) CALL MPI_ALLREDUCE(MPI_IN_PLACE,isDielectricElem_Glo
 ALLOCATE(isDielectricElem_Shared(1:nElems))
 isDielectricElem_Shared(1:nElems) = isDielectricElem(1:nElems)
 #endif  /*USE_MPI*/
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES)*/
 
 DielectricInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT Dielectric DONE!'
@@ -643,7 +647,9 @@ SUBROUTINE FinalizeDielectric()
 USE MOD_Dielectric_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
+#ifdef PARTICLES
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
+#endif /*PARTICLES*/
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

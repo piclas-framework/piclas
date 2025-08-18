@@ -1674,11 +1674,13 @@ USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
-USE MOD_Symmetry_Vars             ,ONLY: Symmetry
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI && defined(PARTICLES)
+USE MOD_Symmetry_Vars             ,ONLY: Symmetry
+#endif /*USE_MPI && defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

@@ -55,26 +55,26 @@ USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_IO_HDF5
-USE MOD_Restart_Vars       ,ONLY: N_Restart,RestartFile,RestartNullifySolution
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D,ChangeBasis2D
-USE MOD_HDF5_Input         ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize,nDims,HSize
+USE MOD_Restart_Vars           ,ONLY: N_Restart,RestartFile,RestartNullifySolution
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D,ChangeBasis2D
+USE MOD_HDF5_Input             ,ONLY: OpenDataFile,CloseDataFile,ReadArray,ReadAttribute,GetDataSize,nDims,HSize
 USE MOD_HDF5_Input             ,ONLY: DatasetExists
 USE MOD_HDF5_Output            ,ONLY: FlushHDF5
-USE MOD_Interpolation_Vars ,ONLY: NMax,N_Inter,PREF_VDM
+USE MOD_Interpolation_Vars     ,ONLY: NMax,N_Inter,PREF_VDM
 #if !(PP_TimeDiscMethod==700)
-USE MOD_DG_Vars            ,ONLY: U_N
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,Nloc_HDF5
+USE MOD_DG_Vars                ,ONLY: U_N
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,Nloc_HDF5
 #endif /*!(PP_TimeDiscMethod==700)*/
-USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 #if defined(PARTICLES)
 USE MOD_Particle_Restart       ,ONLY: ParticleRestart
 #endif /*defined(PARTICLES)*/
 #if USE_HDG
 USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
-USE MOD_HDG_Vars           ,ONLY: HDG_Surf_N, nGP_face
-USE MOD_HDG                ,ONLY: RecomputeEFieldHDG
+USE MOD_HDG_Vars               ,ONLY: HDG_Surf_N, nGP_face
+USE MOD_HDG                    ,ONLY: RecomputeEFieldHDG
 #if defined(PARTICLES)
-USE MOD_HDG                ,ONLY: CalculatePhiAndEFieldFromCurrentsVDL
+USE MOD_HDG                    ,ONLY: CalculatePhiAndEFieldFromCurrentsVDL
 #endif /*defined(PARTICLES)*/
 USE MOD_Mesh_Vars              ,ONLY: nSides,GlobalUniqueSideID,MortarType,SideToElem
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
@@ -83,10 +83,10 @@ USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide,M
 USE MOD_Mesh_Vars              ,ONLY: lastMPISide_MINE
 #if USE_MPI
 USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
-!USE MOD_MPI                ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-USE MOD_MPI_HDG            ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType,Mask_MPIsides
+USE MOD_MPI_HDG                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType,Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
+! USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld
 USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
 USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
@@ -113,12 +113,15 @@ USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh
 #else /*USE_HDG*/
 ! Non-HDG stuff
 #if !(USE_FV)
+! USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld
 USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar,isPMLElem
 #endif /*USE_FV*/
 #endif /*USE_HDG*/
-USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld
 #if USE_LOADBALANCE
+#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG)
+USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
+#endif /*#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG)*/
 #endif /*USE_LOADBALANCE*/
 #ifdef discrete_velocity /*DVM*/
 USE MOD_DistFunc               ,ONLY: GradDistribution
@@ -144,10 +147,10 @@ REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
 INTEGER                            :: iMortar,MortarSideID,nMortars
-REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 REAL,ALLOCATABLE                   :: tmp2(:,:,:),tmp3(:,:,:),lambdaloc(:,:)
 #if USE_LOADBALANCE
 #if defined(PARTICLES)
+REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 INTEGER                            :: NonUniqueGlobalSideID
 #endif /*defined(PARTICLES)*/

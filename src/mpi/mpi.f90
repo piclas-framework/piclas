@@ -521,7 +521,7 @@ SUBROUTINE StartSendMPIDataType(MPIRequest,SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave, DG_Elems_master
+USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
 USE MOD_Mesh_Vars,ONLY: N_SurfMesh
 #if !(USE_HDG)
 USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
@@ -554,7 +554,7 @@ DO iNbProc=1,nNbProcs
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%NormVec(1:3,p,q) 
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%NormVec(1:3,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -562,13 +562,13 @@ DO iNbProc=1,nNbProcs
       nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
       ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
       CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)   
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
    ELSE IF (SendID.EQ.11) THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%TangVec1(1:3,p,q) 
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%TangVec1(1:3,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -576,13 +576,13 @@ DO iNbProc=1,nNbProcs
       nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
       ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
       CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)   
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
    ELSE IF (SendID.EQ.12) THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%TangVec2(1:3,p,q) 
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%TangVec2(1:3,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -590,13 +590,13 @@ DO iNbProc=1,nNbProcs
       nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
       ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
       CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError) 
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
    ELSE IF (SendID.EQ.13) THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceDataSendSurf(i) = N_SurfMesh(iSide)%SurfElem(p,q) 
+            DGExchange(iNbProc)%FaceDataSendSurf(i) = N_SurfMesh(iSide)%SurfElem(p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -604,13 +604,13 @@ DO iNbProc=1,nNbProcs
       nSendVal = DataSizeSideSend(iNbProc,SendIDLoc)
       ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
       CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendSurf,nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)     
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
    ELSE IF (SendID.EQ.14) THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
         DO p = 0, N_slave
           DO q = 0, N_slave
-            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%Face_xGP(1:3,p,q) 
+            DGExchange(iNbProc)%FaceDataSendVec(1:3,i) = N_SurfMesh(iSide)%Face_xGP(1:3,p,q)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -618,7 +618,7 @@ DO iNbProc=1,nNbProcs
       nSendVal = 3*DataSizeSideSend(iNbProc,SendIDLoc)
       ! FaceDataSendU(1:PP_nVar,1:DataSizeSideSend(iNbProc,SendID))
       CALL MPI_ISEND(DGExchange(iNbProc)%FaceDataSendVec,nSendVal,MPI_DOUBLE_PRECISION,  &
-                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError) 
+                      nbProc(iNbProc),0,MPI_COMM_PICLAS,MPIRequest(iNbProc),iError)
    ELSE IF(SendID.EQ.2)THEN
       DO iSide = SideID_start, SideID_end
         N_slave = DG_Elems_slave(iSide)
@@ -826,7 +826,7 @@ REAL(KIND=8)                  :: Rate
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -842,7 +842,7 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -983,7 +983,7 @@ END IF
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendIDLoc).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -998,7 +998,7 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendIDLoc).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -1021,7 +1021,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             IF (N_slave.GT.DG_Elems_master(iSide)) &
-              N_SurfMesh(iSide)%NormVec(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
+              N_SurfMesh(iSide)%NormVec(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -1032,7 +1032,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             IF (N_slave.GT.DG_Elems_master(iSide)) &
-              N_SurfMesh(iSide)%TangVec1(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
+              N_SurfMesh(iSide)%TangVec1(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -1043,7 +1043,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             IF (N_slave.GT.DG_Elems_master(iSide)) &
-              N_SurfMesh(iSide)%TangVec2(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
+              N_SurfMesh(iSide)%TangVec2(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -1054,7 +1054,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             IF (N_slave.GT.DG_Elems_master(iSide)) &
-              N_SurfMesh(iSide)%SurfElem(p,q) = DGExchange(iNbProc)%FaceDataRecvSurf(i) 
+              N_SurfMesh(iSide)%SurfElem(p,q) = DGExchange(iNbProc)%FaceDataRecvSurf(i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -1065,7 +1065,7 @@ DO iNbProc=1,nNbProcs
         DO p = 0, N_slave
           DO q = 0, N_slave
             IF (N_slave.GT.DG_Elems_master(iSide)) &
-              N_SurfMesh(iSide)%Face_xGP(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i) 
+              N_SurfMesh(iSide)%Face_xGP(1:3,p,q) = DGExchange(iNbProc)%FaceDataRecvVec(1:3,i)
             i = i + 1
           END DO ! q = 0, N_slave
         END DO ! p = 0, N_slave
@@ -1148,7 +1148,7 @@ INTEGER                       :: i,p,q,iSide,N_slave,N_master
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -1163,7 +1163,7 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 

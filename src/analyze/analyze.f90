@@ -582,7 +582,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,OutputErrorNormsPart,FieldAnalyzeStep
+USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
 USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars             ,ONLY: iter
@@ -596,6 +596,7 @@ USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 #endif
 #ifdef PARTICLES
+USE MOD_Analyze_Vars              ,ONLY: OutputErrorNormsPart
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
 USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles

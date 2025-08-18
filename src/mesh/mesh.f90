@@ -1034,11 +1034,11 @@ END SUBROUTINE Set_N_DG_Mapping
 SUBROUTINE Build_N_DG_Mapping()
 ! MODULES
 USE MOD_Globals
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,displsDofs, recvcountDofs, nDofsMapping
+USE MOD_DG_Vars            ,ONLY: nDofsMapping
 USE MOD_DG_Vars            ,ONLY: NDGAllocationIsDone
-USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nGlobalElems
 #if USE_MPI
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nGlobalElems
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping_Shared_Win,displsDofs,recvcountDofs,N_DG_Mapping
 USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myleadergrouprank
 USE MOD_MPI_Shared_Vars    ,ONLY: nLeaderGroupProcs,nComputeNodeProcessors
 USE MOD_Particle_Mesh_Vars ,ONLY: offsetComputeNodeElem
@@ -1144,9 +1144,9 @@ USE MOD_GLobals
 USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave,N_DG_Mapping!,pAdaptionType
 USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides, offSetElem
 
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarType,MortarInfo
-USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarType,MortarInfo
 #if USE_MPI
+USE MOD_Mesh_Vars ,ONLY: firstMortarMPISide,lastMortarMPISide
 USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
 USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
 USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send
@@ -1641,11 +1641,11 @@ USE MOD_Mesh_Vars_FV
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 #if !(PP_TimeDiscMethod==700)
-USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared, N_DG
+USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave, N_DG
 #endif /*!(PP_TimeDiscMethod==700)*/
 #if USE_MPI
 #if !(PP_TimeDiscMethod==700)
-USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared, N_DG_Mapping_Shared_Win
 #endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
 USE MOD_MPI_Shared

@@ -61,7 +61,10 @@ REAL,INTENT(INOUT)              :: Uface_master(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar,0:PP_N,0:PP_N,1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: l,p,q,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID
+INTEGER                         :: p,q,ElemID,SideID,flip,LocSideID,firstSideID,lastSideID
+#if (PP_NodeType==1) /*for Gauss-points*/
+INTEGER                         :: l
+#endif /*(PP_NodeType==1)*/
 REAL                            :: Uface(PP_nVar,0:PP_N,0:PP_N)
 !===================================================================================================================================
 IF(doMPISides)THEN
@@ -407,7 +410,9 @@ SUBROUTINE ProlongToFace_Side(Nvar, Nloc, locSideID, flip, U, USide)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+#if (PP_NodeType==1) /*for Gauss-points*/
 USE MOD_Interpolation_Vars ,ONLY: N_Inter
+#endif /*(PP_NodeType==1)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -419,12 +424,15 @@ REAL, INTENT(INOUT):: USide(1:nvar,0:Nloc,0:Nloc)
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: l,p,q
+INTEGER            :: p,q
+#if (PP_NodeType==1) /*for Gauss-points*/
+INTEGER            :: l
+#endif /*(PP_NodeType==1)*/
 REAL               :: Uface(Nvar,0:Nloc,0:Nloc)
 !===================================================================================================================================
   ! neighbor side !ElemID,locSideID and flip =-1 if not existing
 
-#if (PP_NodeType==1) /* for Gauss-points*/
+#if (PP_NodeType==1) /*for Gauss-points*/
   SELECT CASE(locSideID)
   CASE(XI_MINUS)
     DO q=0,Nloc
@@ -556,9 +564,11 @@ SUBROUTINE ProlongToFace_Elementlocal(nVar,locSideID,Uvol,Uface, Nloc)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Interpolation_Vars, ONLY: N_Inter
 USE MOD_PreProc
 USE MOD_Mappings,           ONLY: CGNS_VolToSide_IJK
+#if (PP_NodeType==1) /* for Gauss-points*/
+USE MOD_Interpolation_Vars, ONLY: N_Inter
+#endif /*(PP_NodeType==1)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -572,8 +582,10 @@ REAL,INTENT(IN)                 :: Uvol(1:nVar,0:Nloc,0:Nloc,0:Nloc)
 REAL,INTENT(OUT)                :: Uface(1:nVar,0:Nloc,0:Nloc)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if (PP_NodeType==1) /* for Gauss-points*/
 INTEGER                         :: i,j,k
 INTEGER                         :: pq(1:3)
+#endif /*(PP_NodeType==1)*/
 !===================================================================================================================================
 
 #if (PP_NodeType==1) /* for Gauss-points*/
@@ -602,7 +614,7 @@ CASE(ETA_PLUS)
 CASE(ZETA_PLUS)
   Uface(:,:,:)=Uvol(:,:,:,Nloc)
 END SELECT
-#endif
+#endif /*(PP_NodeType==1)*/
 
 END SUBROUTINE ProlongToFace_Elementlocal
 

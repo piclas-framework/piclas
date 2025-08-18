@@ -152,7 +152,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide, iUniqueFPCBC
+INTEGER           :: i,j,k,r,iElem,SideID,Nloc,iNeumannBCsides,NSideMin,NSideMax,NSide, iSide
 INTEGER           :: BCType,BCState
 REAL              :: D(0:Nmax,0:Nmax)
 INTEGER           :: nDirichletBCsidesGlobal
@@ -160,7 +160,7 @@ INTEGER           :: nDirichletBCsidesGlobal
 PetscErrorCode    :: ierr
 PetscInt          :: major,minor,subminor,release
 IS                :: PETScISLocal, PETScISGlobal
-INTEGER           :: iProc
+INTEGER           :: iProc,iUniqueFPCBC
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
 INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
@@ -171,7 +171,9 @@ INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
 INTEGER           :: locSide,nMortars
 INTEGER           :: MortarSideID,iMortar
 REAL              :: StartT,EndT
+#if USE_PETSC
 CHARACTER(100)    :: hilf
+#endif /*USE_PETSC*/
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -216,15 +218,15 @@ PetscCallA(PetscGetVersionNumber(major,minor,subminor,release,ierr))
 hilf = '(built with Hypre and'
 #else
 hilf = '(built without Hypre and'
-#endif
+#endif /*PETSC_HAVE_HYPRE*/
 #ifdef PETSC_HAVE_MUMPS
 hilf = TRIM(hilf)//' with Mumps)'
 #else
 hilf = TRIM(hilf)//' without Mumps)'
-#endif
+#endif /*PETSC_HAVE_MUMPS*/
 LBWRITE(UNIT_stdOut,'(A,I0,A,I0,A,I0,A)') ' | Method for HDG solver: PETSc ',major,'.',minor,'.',subminor,' '//TRIM(hilf)
 PrecondType          = GETINT('PrecondType','1')
-#else
+#else /*without PETSC*/
 LBWRITE(UNIT_stdOut,'(A)') ' | Method for HDG solver: CG '
 PrecondType          = GETINT('PrecondType','2')
 #endif /*USE_PETSC*/
@@ -709,7 +711,7 @@ DEALLOCATE(localToGlobalPETScDOF)
 ! Clean-up local PETSc objects
 PetscCallA(ISDestroy(PETScISLocal,ierr))
 PetscCallA(ISDestroy(PETScISGlobal,ierr))
-#endif
+#endif /*USE_PETSC*/
 
 GETTIME(EndT)
 HDGInitIsDone = .TRUE.
@@ -1967,7 +1969,9 @@ USE MOD_TimeDisc_Vars   ,ONLY: iStage
 #if (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506)
 USE MOD_TimeDisc_Vars   ,ONLY: iStage,nRKStages
 #endif
+#if defined(PARTICLES)
 USE MOD_TimeDisc_Vars   ,ONLY: dt
+#endif /*defined(PARTICLES)*/
 USE MOD_Analyze_Vars    ,ONLY: CalcElectricTimeDerivative
 #endif /*(USE_HDG && (PP_nVar==1))*/
 #if defined(PARTICLES)
@@ -1978,7 +1982,7 @@ USE MOD_HDG_Linear      ,ONLY: HDGLinear
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)     :: t !time
+REAL,INTENT(IN)             :: t !time
 INTEGER(KIND=8),INTENT(IN)  :: iter
 #if defined(PARTICLES)
 LOGICAL,INTENT(IN),OPTIONAL :: ForceCGSolverIteration_opt ! set converged=F in first step (only required for BR electron fluid)
@@ -2060,7 +2064,7 @@ END IF
   CALL SynchronizeVoltageOnEPC()
 #endif /*USE_MPI*/
   END IF ! UseEPC
-#endif /*(USE_HDG && (PP_nVar==1)&&  defined(PARTICLES))*/
+#endif /*(USE_HDG && (PP_nVar==1)&& defined(PARTICLES))*/
 
 ! Run the appropriate HDG solver: Newton or Linear
 #if defined(PARTICLES)
@@ -2102,7 +2106,7 @@ END SUBROUTINE HDG
 SUBROUTINE CalculateElectricTimeDerivative(iter,mode)
 ! MODULES
 USE MOD_PreProc
-USE MOD_Mesh_Vars              ,ONLY: nElems,offSetElem
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_TimeDisc_Vars          ,ONLY: dt,dt_Min
 USE MOD_Analyze_Vars           ,ONLY: FieldAnalyzeStep
