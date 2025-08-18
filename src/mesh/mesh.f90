@@ -878,8 +878,10 @@ IF(ABS(pAdaptionBCLevel).GT.1)THEN
   ! Set Nloc in N_DG_Mapping
   CALL Set_N_DG_Mapping(OffsetCounter)
 
+#if USE_MPI
   ! Synchronize shared array before utilization as GlobalNbElemID can be outside of the processors local elements
   CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
 
   ! Loop over the process-local global elements indices
   iGlobalElemID_loop: DO iGlobalElemID = FirstElemInd, LastElemInd
