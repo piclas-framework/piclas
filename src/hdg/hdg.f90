@@ -27,12 +27,6 @@ PRIVATE
 PUBLIC :: InitHDG,FinalizeHDG
 PUBLIC :: HDG, RecomputeEFieldHDG
 PUBLIC :: DefineParametersHDG
-#if USE_MPI
-PUBLIC :: SynchronizeChargeOnFPC,SynchronizeVoltageOnEPC
-#if defined(PARTICLES)
- PUBLIC :: SynchronizeBV
-#endif /*defined(PARTICLES)*/
-#endif /*USE_MPI */
 #if defined(PARTICLES)
 PUBLIC :: CalculatePhiAndEFieldFromCurrentsVDL
 #endif /*defined(PARTICLES)*/
@@ -722,6 +716,7 @@ SUBROUTINE HDG(t,iter,RecomputeLambda_opt)
 ! MODULES
 #if USE_MPI
 USE mpi_f08
+USE MOD_HDG_Readin      ,ONLY: synchronizevoltageonepc
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_PreProc

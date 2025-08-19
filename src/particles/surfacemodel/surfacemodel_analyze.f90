@@ -162,7 +162,7 @@ USE MOD_Analyze_Vars              ,ONLY: EDC
 USE MOD_Analyze_Vars              ,ONLY: CalcElectricTimeDerivative
 USE MOD_HDG_Vars                  ,ONLY: UseBiasVoltage,BiasVoltage,BVDataLength
 #if USE_MPI
-USE MOD_HDG                       ,ONLY: SynchronizeBV
+USE MOD_HDG_Readin                ,ONLY: SynchronizeBV
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING

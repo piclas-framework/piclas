@@ -24,6 +24,11 @@ PRIVATE
 #if USE_HDG
 PUBLIC :: ReadFPCDataFromH5
 PUBLIC :: ReadEPCDataFromH5
+#if USE_MPI
+PUBLIC :: SynchronizeChargeOnFPC
+PUBLIC :: SynchronizeVoltageOnEPC
+PUBLIC :: SynchronizeBV
+#endif /*USE_MPI */
 #if defined(PARTICLES)
 PUBLIC :: ReadBVDataFromH5
 #endif /*defined(PARTICLES)*/
