@@ -160,12 +160,12 @@ INTEGER           :: nDirichletBCsidesGlobal
 PetscErrorCode    :: ierr
 PetscInt          :: major,minor,subminor,release
 IS                :: PETScISLocal, PETScISGlobal
-INTEGER           :: iProc,iUniqueFPCBC
+INTEGER           :: iUniqueFPCBC
 INTEGER             :: iLocalPETScDOF,iDOF
 INTEGER             :: OffsetCounter
 INTEGER,ALLOCATABLE :: localToGlobalPETScDOF(:)
 #if USE_MPI
-INTEGER             :: PETScDOFOffsetsMPI(nProcessors)
+INTEGER             :: iProc,PETScDOFOffsetsMPI(nProcessors)
 #endif
 #endif
 INTEGER           :: locSide,nMortars
@@ -738,7 +738,9 @@ USE MOD_Preproc
 USE MOD_HDG_Vars
 USE PETSc
 USE MOD_HDG_Vars_PETSc
-USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

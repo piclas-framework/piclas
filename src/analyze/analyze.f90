@@ -1101,7 +1101,9 @@ REAL,INTENT(IN)     :: Time
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
 REAL                :: rDummy
+#endif /*USE_MPI*/
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter

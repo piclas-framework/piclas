@@ -284,7 +284,10 @@ CHARACTER(LEN=255)                  :: H5_Name
 CHARACTER(LEN=255),ALLOCATABLE      :: Str2DVarNames(:)
 INTEGER                             :: GlobalSideID, iSurfSide, OutputCounter, Nloc,BCSideID,iLocSide,iElem,BCType,iBC
 INTEGER                             :: GlobalElemID,iPartBound,GlobalNonUniqueSideID
-INTEGER                             :: nSurfSample, MessageSize
+INTEGER                             :: nSurfSample
+#if USE_MPI
+INTEGER                             :: MessageSize
+#endif /*USE_MPI*/
 REAL                                :: tstart,tend
 REAL, ALLOCATABLE                   :: helpArray(:,:,:,:), helpArray2(:,:,:,:)
 

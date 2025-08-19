@@ -1232,6 +1232,9 @@ USE MOD_Mesh_Vars        ,ONLY: nGlobalDOFs
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 USE MOD_Globals          ,ONLY: nGlobalNbrOfParticles
+#if USE_HDG && USE_PETSC
+USE MOD_HDG_Vars_PETSc    ,ONLY: PETScFieldTime
+#endif /*USE_HDG && USE_PETSC*/
 #endif /*PARTICLES*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars  ,ONLY: myComputeNodeRank,myLeaderGroupRank
@@ -1245,9 +1248,6 @@ USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeMM,MPIW8CountMM
 #endif /*defined(MEASURE_MPI_WAIT)*/
-#if USE_HDG && USE_PETSC
-USE MOD_HDG_Vars_PETSc    ,ONLY: PETScFieldTime
-#endif /*USE_HDG && USE_PETSC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

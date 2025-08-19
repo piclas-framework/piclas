@@ -137,12 +137,9 @@ INTEGER                            :: Nres,iElem
 INTEGER(KIND=IK)                   :: Nres8,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 LOGICAL                            :: DG_SolutionExists
-#if USE_LOADBALANCE
-REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
-#endif /*USE_LOADBALANCE*/
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionPhiFExists
-INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar,nVarVDL
+INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar
 REAL,ALLOCATABLE                   :: ExtendedLambda(:,:,:)
 INTEGER                            :: p,q,r,rr,pq(1:2)
 INTEGER                            :: iLocSide,iLocSide_NB,iLocSide_master
@@ -150,6 +147,7 @@ INTEGER                            :: iMortar,MortarSideID,nMortars
 REAL,ALLOCATABLE                   :: tmp2(:,:,:),tmp3(:,:,:),lambdaloc(:,:)
 #if USE_LOADBALANCE
 #if defined(PARTICLES)
+INTEGER                            :: nVarVDL
 REAL,ALLOCATABLE                   :: lambdaLBTmp(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 INTEGER                            :: NonUniqueGlobalSideID
@@ -159,8 +157,12 @@ INTEGER                            :: NonUniqueGlobalSideID
 #if USE_PETSC
 PetscErrorCode                     :: ierr
 INTEGER,ALLOCATABLE                :: DOFindices(:)
+#if USE_LOADBALANCE
+#if defined(PARTICLES)
 INTEGER                            :: PETScDOFs(1:nGP_face(NMax))
-#endif
+#endif /*defined(PARTICLES)*/
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_PETSC*/
 #else /*! USE_HDG*/
 REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 !REAL,ALLOCATABLE                   :: U_local2(:,:,:,:,:)
@@ -173,6 +175,7 @@ INTEGER                            :: i,j,k
 #if USE_LOADBALANCE
 !INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
 #if defined(PARTICLES) || !(USE_HDG) || (USE_FV)
+REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1)

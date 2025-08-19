@@ -355,7 +355,7 @@ USE MOD_Particle_Analyze_Tools ,ONLY: CalcXiTotalEqui
 USE MOD_part_tools             ,ONLY: GetParticleWeight, GetNextFreePosition
 USE MOD_part_operations        ,ONLY: RemoveParticle
 #ifdef CODE_ANALYZE
-USE MOD_Globals                ,ONLY: unit_stdout,myrank
+USE MOD_Globals                ,ONLY: unit_stdout
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,nPartOut,PartEkinIn,PartEkinOut

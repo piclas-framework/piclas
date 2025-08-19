@@ -50,7 +50,6 @@ SUBROUTINE BGK_CollisionOperator(iPartIndx_Node, nPart, NodeVolume, AveragingVal
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
-USE MOD_Globals               ,ONLY: DOTPRODUCT, CROSS
 USE MOD_Particle_Vars         ,ONLY: PartState, Species, PartSpecies, nSpecies, usevMPF, UseVarTimeStep
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, InRotRefFrame, RotRefFrameOmega, PartVeloRotRef
 USE MOD_DSMC_Vars             ,ONLY: DSMC, PartStateIntEn, PolyatomMolDSMC, CollInf
@@ -60,7 +59,10 @@ USE MOD_BGK_Vars              ,ONLY: BGK_MeanRelaxFactor, BGK_MeanRelaxFactorCou
 USE MOD_BGK_Vars              ,ONLY: BGK_PrandtlNumber, BGK_Viscosity, BGK_ThermalConductivity
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
-USE MOD_Globals               ,ONLY: abort,unit_stdout,myrank
+USE MOD_Globals               ,ONLY: abort,unit_stdout
+#if USE_MPI
+USE MOD_Globals               ,ONLY: myrank
+#endif /*USE_MPI*/
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

@@ -1703,6 +1703,10 @@ IF(ABS(meshMode).GT.1)THEN
   CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
 END IF ! ABS(meshMode).GT.1
+#else
+IF(ABS(meshMode).GT.1)THEN
+  ! Dummy statement to suppress the compiler warning
+END IF ! ABS(meshMode).GT.1
 #endif /*USE_MPI && defined(PARTICLES)*/
 
 ! Then, free the pointers or arrays
