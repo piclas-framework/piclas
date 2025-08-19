@@ -62,7 +62,10 @@ USE MOD_TimeDisc_Vars         ,ONLY: dt
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: DoInterpolation
 #endif /*PARTICLES*/
-USE MOD_AnalyzeField_Tools    ,ONLY: CalculateBoundaryFieldOutput,CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+USE MOD_AnalyzeField_Tools    ,ONLY: CalculateBoundaryFieldOutput
+#if !(USE_FV) || (USE_HDG)
+USE MOD_AnalyzeField_Tools    ,ONLY: CalcPotentialEnergy,CalcPotentialEnergy_Dielectric
+#endif /*no FV alone - !(USE_FV) || (USE_HDG)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

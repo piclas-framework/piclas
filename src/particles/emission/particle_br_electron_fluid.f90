@@ -1164,11 +1164,11 @@ SUBROUTINE InitBRAutomaticElectronRefElements()
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals
-USE MOD_HDF5_Output_Fields ,ONLY: WriteBRAverageElemToHDF5
-USE MOD_HDG_Vars           ,ONLY: nBRAverageElems,nBRAverageElemsGlobal,BRAverageElemToElem
-USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_Mesh_Vars          ,ONLY: offSetElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemCharLength_Shared,NodeCoords_Shared,ElemInfo_Shared
+USE MOD_HDF5_Output_Fields_HDG ,ONLY: WriteBRAverageElemToHDF5
+USE MOD_HDG_Vars               ,ONLY: nBRAverageElems,nBRAverageElemsGlobal,BRAverageElemToElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
+USE MOD_Mesh_Vars              ,ONLY: offSetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemCharLength_Shared,NodeCoords_Shared,ElemInfo_Shared
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES

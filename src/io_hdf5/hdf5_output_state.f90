@@ -122,7 +122,7 @@ USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_StringTools            ,ONLY: set_formatting,clear_formatting
 #if (PP_nVar==8)
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-USE MOD_HDF5_Output_Fields     ,ONLY: WritePMLDataToHDF5
+USE MOD_HDF5_Output_Fields_Maxwell,ONLY: WritePMLDataToHDF5
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif
 USE MOD_HDF5_Output_ElemData   ,ONLY: WriteAdditionalElemData
@@ -133,7 +133,7 @@ USE MOD_Analyze_Vars           ,ONLY: OutputErrorNormsToH5
 USE MOD_HDF5_Output_Fields     ,ONLY: WriteErrorNormsToHDF5
 #if USE_HDG
 #if defined(PARTICLES)
-USE MOD_HDF5_Output_Fields     ,ONLY: WriteSurfVDLToHDF5
+USE MOD_HDF5_Output_Fields_HDG ,ONLY: WriteSurfVDLToHDF5
 USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
