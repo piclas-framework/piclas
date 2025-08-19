@@ -79,7 +79,9 @@ CALL prms%CreateRealArrayOption('DVM-Species[$]-GaussHermiteTemp',        'Refer
                                                                '(/273.,273.,273./)', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('DVM-Species[$]-VeloMin',                 'Only for Newton-Cotes velocity quadrature', '(/-1.,-1.,-1./)', numberedmulti=.TRUE.)
 CALL prms%CreateRealArrayOption('DVM-Species[$]-VeloMax',                 'Only for Newton-Cotes velocity quadrature', '(/1.,1.,1./)', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'DVM-Species[$]-nVelo' ,                  'Number of velocity discretization points', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-nVeloX' ,                  'Number of velocity discretization points in x-direction', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-nVeloY' ,                  'Number of velocity discretization points in y-direction', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'DVM-Species[$]-nVeloZ' ,                  'Number of velocity discretization points in y-direction', numberedmulti=.TRUE.)
 CALL prms%CreateIntArrayOption( 'DVM-Species[$]-NewtonCotesDegree',       'Degree of the subquadrature for composite quadrature', '(/1,1,1/)', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'DVM-Dimension',     'Number of space dimensions for velocity discretization', '3')
 CALL prms%CreateIntOption(      'DVM-BGKCollModel',  'Select the BGK method:\n'//&
@@ -167,7 +169,10 @@ DO iSpec = 1, DVMnSpecies
   ASSOCIATE(Sp => DVMSpecData(iSpec))
   DVMVeloDisc(iSpec)  = GETINT('DVM-Species'//TRIM(hilf)//'-VeloDiscretization')
   Sp%nVelos(1:3)      = 1
-  Sp%nVelos(1:DVMDim) = GETINT('DVM-Species'//TRIM(hilf)//'-nVelo')
+  DO iDim=1,DVMDim
+    Sp%nVelos(iDim) = GETINT('DVM-Species'//TRIM(hilf)//'-nVelo'//CHAR(iDim+87)) ! 88 -> 'X', 89 -> 'Y', 90 -> 'Z'
+    IF (Sp%nVelos(iDim).LT.1) CALL abort(__STAMP__,'DVM error: nVelo must be at least 1')
+  END DO
   Sp%nVarReduced      = Sp%nVelos(1)*Sp%nVelos(2)*Sp%nVelos(3) !number of velocity points, potentially using reduced distribution
   Sp%nVar             = Sp%nVarReduced
   IF (DVMDim.LT.3) Sp%nVar = Sp%nVar + Sp%nVarReduced ! variables for translational energy reduced distribution
@@ -573,10 +578,10 @@ DO iSpec=1,DVMnSpecies
 
   CASE(5) !Taylor-Green vortex
     MacroVal(:) = RefState_FV(:,iSpec,1)
-    MacroVal(2) = RefState_FV(2,iSpec,1)*SIN(x(1))*COS(x(2))*COS(x(3))
-    MacroVal(3) = -RefState_FV(2,iSpec,1)*COS(x(1))*SIN(x(2))*COS(x(3))
+    MacroVal(2) = RefState_FV(2,iSpec,1)*SIN(1e4*x(1))*COS(1e4*x(2))*COS(1e4*x(3))
+    MacroVal(3) = -RefState_FV(2,iSpec,1)*COS(1e4*x(1))*SIN(1e4*x(2))*COS(1e4*x(3))
     MacroVal(4) = 0.
-    MacroVal(5) = MacroVal(5)+(RefState_FV(2,iSpec,1)**2)/(16.*DVMSpecData(iSpec)%R_S)*(COS(2.*x(1))+COS(2.*x(2)))*(COS(2.*x(3))+2.)
+    MacroVal(5) = MacroVal(5)+(RefState_FV(2,iSpec,1)**2)/(16.*DVMSpecData(iSpec)%R_S)*(COS(2.*1e4*x(1))+COS(2.*1e4*x(2)))*(COS(2.*1e4*x(3))+2.)
     CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
 
   CASE(6) !Sum of 2 distributions
@@ -710,3 +715,4 @@ SDEALLOCATE(DVMSpecData)
 END SUBROUTINE FinalizeEquation
 
 END MODULE MOD_Equation_FV
+
