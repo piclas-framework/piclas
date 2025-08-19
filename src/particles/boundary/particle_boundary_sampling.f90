@@ -150,6 +150,12 @@ REAL,ALLOCATABLE                       :: xIP_VISU(:)
 ! Get input parameters
 LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING ...'
 
+! Feature check
+IF(TrackingMethod.EQ.TRIATRACKING) THEN
+  IF((Symmetry%Order.NE.3).AND.nSurfSample.GT.1) CALL abort(__STAMP__,&
+    'ERROR in InitParticleBoundarySampling: nSurfSample > 1 is not implemented for 1D or 2D simulations!')
+END IF
+
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
@@ -304,29 +310,44 @@ END IF
 !CALL ABORT(__STAMP__,'Still needs to be implemented for MPI=OFF')
 #endif /*USE_MPI*/
 
-! Surf sides are shared, array calculation can be distributed
+! Surf sides are shared, area calculation can be distributed
 #if USE_MPI
 CALL Allocate_Shared((/nSurfSample,nSurfSample,nComputeNodeSurfTotalSides/),SurfSideArea_Shared_Win,SurfSideArea_Shared)
 CALL MPI_WIN_LOCK_ALL(0,SurfSideArea_Shared_Win,IERROR)
 SurfSideArea => SurfSideArea_Shared
-
+IF (myComputeNodeRank.EQ.0) SurfSideArea = 0.
+CALL BARRIER_AND_SYNC(SurfSideArea_Shared_Win,MPI_COMM_SHARED)
 firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(SurfSideArea(1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-
+SurfSideArea = 0.
 firstSide = 1
 lastSide  = nGlobalSurfSides
 #endif /*USE_MPI*/
 
-#if USE_MPI
-IF (myComputeNodeRank.EQ.0) THEN
-#endif /*USE_MPI*/
-  SurfSideArea=0.
-#if USE_MPI
+! Initialize area calculation: Instead of triangles use Bezier control points for curved or with nSurfSample>1
+UseBezierControlPointsForArea = .FALSE.
+IF (TrackingMethod.EQ.TRIATRACKING) THEN
+  IF((Symmetry%Order.EQ.3).AND.(nSurfSample.GT.1)) UseBezierControlPointsForArea = .TRUE.
+ELSE
+  UseBezierControlPointsForArea = .TRUE.
 END IF
-CALL BARRIER_AND_SYNC(SurfSideArea_Shared_Win,MPI_COMM_SHARED)
-#endif /*USE_MPI*/
+
+! Additional parameters for area calculation with Bezier control points
+IF(UseBezierControlPointsForArea) THEN
+  ! Calculate equidistant surface points
+  ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
+  dXiEQ_SurfSample =2./REAL(nSurfSample)
+  DO q=0,nSurfSample
+    XiEQ_SurfSample(q) = dXiEQ_SurfSample * REAL(q) - 1.
+  END DO
+  ! get interpolation points and weights
+  ALLOCATE(Xi_NGeo( 0:NGeo), wGP_NGeo(0:NGeo))
+  CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
+  ! compute area of sub-faces
+  tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
+END IF
 
 ! TriaTracking and nSurfSample > 1 requires the midpoints of the subsides to map the impact position to the subside
 IF (TrackingMethod.EQ.TRIATRACKING) THEN
@@ -336,13 +357,10 @@ IF (TrackingMethod.EQ.TRIATRACKING) THEN
     CALL MPI_WIN_LOCK_ALL(0,SurfSideSamplingMidPoints_Shared_Win,IERROR)
     SurfSideSamplingMidPoints => SurfSideSamplingMidPoints_Shared
     IF(myComputeNodeRank.EQ.0) SurfSideSamplingMidPoints = 0.
+    CALL BARRIER_AND_SYNC(SurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
 #else
     ALLOCATE(SurfSideSamplingMidPoints(1:3,1:nSurfSample,1:nSurfSample,1:nComputeNodeSurfTotalSides))
-    SurfSideSamplingMidPoints=0.
-#endif /*USE_MPI*/
-
-#if USE_MPI
-    CALL BARRIER_AND_SYNC(SurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
+    SurfSideSamplingMidPoints = 0.
 #endif /*USE_MPI*/
     ! Build basis for surface sampling on VISU nodes
     ALLOCATE(xIP_VISU(0:nSurfSample))
@@ -350,64 +368,11 @@ IF (TrackingMethod.EQ.TRIATRACKING) THEN
   END IF
 END IF
 
-! Calculate equidistant surface points
-ALLOCATE(XiEQ_SurfSample(0:nSurfSample))
-dXiEQ_SurfSample =2./REAL(nSurfSample)
-DO q=0,nSurfSample
-  XiEQ_SurfSample(q) = dXiEQ_SurfSample * REAL(q) - 1.
-END DO
-
-! get interpolation points and weights
-ALLOCATE( Xi_NGeo( 0:NGeo)  &
-        , wGP_NGeo(0:NGeo) )
-CALL LegendreGaussNodesAndWeights(NGeo,Xi_NGeo,wGP_NGeo)
-
-! compute area of sub-faces
-tmp1=dXiEQ_SurfSample/2.0 !(b-a)/2
-
+! Perform area calculation
 DO iSide = firstSide,LastSide
   ! get global SideID. This contains only nonUniqueSide, no special mortar treatment required
   SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-
-  UseBezierControlPointsForArea = .FALSE.
-
-  IF (TrackingMethod.EQ.TRIATRACKING) THEN
-    ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
-    CNElemID  = GetCNElemID(ElemID)
-    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-    IF((Symmetry%Order.NE.3).AND.nSurfSample.GT.1) CALL abort(__STAMP__,'nSurfSample>1 not implemented for this symmetry!')
-
-    IF(Symmetry%Order.EQ.3) THEN
-      ! Check if triangles are used for the calculation of the surface area or not
-      IF(nSurfSample.GT.1)THEN
-        ! Do not use triangles
-        UseBezierControlPointsForArea = .TRUE.
-      ELSE
-        xNod(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-        area = 0.
-        DO TriNum = 1,2
-          Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
-          Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
-            Vector1(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod(1:3)
-            Vector2(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod(1:3)
-          nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
-          ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
-          nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
-          nVal = SQRT(nx*nx + ny*ny + nz*nz)
-          area = area + nVal/2.
-        END DO
-        SurfSideArea(1,1,iSide) = area
-      END IF ! nSurfSample.GT.1
-    ELSE IF(Symmetry%Order.EQ.2) THEN
-      SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID, CNElemID)
-    ELSE IF(Symmetry%Order.EQ.1) THEN
-      SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
-    END IF
-  ELSE ! TrackingMethod.NE.TRIATRACKING
-    UseBezierControlPointsForArea = .TRUE.
-  END IF ! TrackingMethod.EQ.TRIATRACKIN
-
-  ! Instead of triangles use Bezier control points (curved or triangle tracking with nSurfSample>1)
+  ! Use Bezier control points (curved or triangle tracking with nSurfSample>1)
   IF(UseBezierControlPointsForArea)THEN
     DO jSample=1,nSurfSample
       DO iSample=1,nSurfSample
@@ -439,6 +404,31 @@ DO iSide = firstSide,LastSide
         SurfSideArea(iSample,jSample,iSide) = area
       END DO ! iSample=1,nSurfSample
     END DO ! jSample=1,nSurfSample
+  ELSE
+    ! Use triangles (TriaTracking with nSurfSample = 1)
+    ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+    CNElemID  = GetCNElemID(ElemID)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+    IF(Symmetry%Order.EQ.3) THEN
+      xNod(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+      area = 0.
+      DO TriNum = 1,2
+        Node1 = TriNum+1     ! normal = cross product of 1-2 and 1-3 for first triangle
+        Node2 = TriNum+2     !          and 1-3 and 1-4 for second triangle
+          Vector1(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node1,LocSideID,CNElemID)+1) - xNod(1:3)
+          Vector2(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(Node2,LocSideID,CNElemID)+1) - xNod(1:3)
+        nx = - Vector1(2) * Vector2(3) + Vector1(3) * Vector2(2) !NV (inwards)
+        ny = - Vector1(3) * Vector2(1) + Vector1(1) * Vector2(3)
+        nz = - Vector1(1) * Vector2(2) + Vector1(2) * Vector2(1)
+        nVal = SQRT(nx*nx + ny*ny + nz*nz)
+        area = area + nVal/2.
+      END DO
+      SurfSideArea(1,1,iSide) = area
+    ELSE IF(Symmetry%Order.EQ.2) THEN
+      SurfSideArea(1,1,iSide) = DSMC_2D_CalcSymmetryArea(LocSideID, CNElemID)
+    ELSE IF(Symmetry%Order.EQ.1) THEN
+      SurfSideArea(1,1,iSide) = DSMC_1D_CalcSymmetryArea(LocSideID, CNElemID)
+    END IF
   END IF ! UseBezierControlPointsForArea
 
 END DO ! iSide = firstSide,lastSide
@@ -467,7 +457,8 @@ CALL MPI_BCAST(area,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iError)
 #endif /*USE_MPI*/
 
 ! de-allocate temporary interpolation points and weights
-DEALLOCATE(Xi_NGeo,wGP_NGeo)
+SDEALLOCATE(Xi_NGeo)
+SDEALLOCATE(wGP_NGeo)
 SDEALLOCATE(xIP_VISU)
 
 #if USE_MPI
