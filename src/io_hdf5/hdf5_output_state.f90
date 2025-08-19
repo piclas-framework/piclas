@@ -78,7 +78,7 @@ USE MOD_Particle_Analyze_Vars  ,ONLY: nSpecAnalyze
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcNumPartsOfSpec
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
-USE MOD_HDF5_Output_Particles  ,ONLY: WriteNodeSourceExtToHDF5,WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
+USE MOD_HDF5_Output_Particles_PIC  ,ONLY: WriteNodeSourceExtToHDF5
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteClonesToHDF5,WriteVibProbInfoToHDF5,WriteAdaptiveWallTempToHDF5
 USE MOD_HDF5_Output_Particles  ,ONLY: WriteAdaptiveInfoToHDF5,WriteParticleToHDF5,WriteBoundaryParticleToHDF5
@@ -108,7 +108,7 @@ USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRAutomaticElectronRef,
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcElectronIonDensity,CalcElectronTemperature
 USE MOD_Particle_Analyze_Tools ,ONLY: AllocateElectronIonDensityCell,AllocateElectronTemperatureCell
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculateElectronIonDensityCell,CalculateElectronTemperatureCell
-USE MOD_HDF5_Output_Particles  ,ONLY: AddBRElectronFluidToPartSource
+USE MOD_HDF5_Output_Particles_HDG  ,ONLY: AddBRElectronFluidToPartSource
 USE MOD_HDG_Vars               ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,CPPDataLength
 #endif /*PARTICLES*/
 #else

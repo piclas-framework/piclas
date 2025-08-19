@@ -87,7 +87,7 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #ifdef PARTICLES
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
 #if !(USE_FV) || (USE_HDG)
-USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
+USE MOD_HDF5_Output_Particles_PIC ,ONLY: WriteElectroMagneticPICFieldToHDF5
 #endif
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
