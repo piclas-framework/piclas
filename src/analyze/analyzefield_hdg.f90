@@ -31,6 +31,7 @@ PRIVATE
 PUBLIC :: CalculateAverageElectricPotential
 PUBLIC :: GetAverageElectricPotentialPlane
 PUBLIC :: FinalizeAverageElectricPotential
+PUBLIC :: CalculateElectricDisplacementCurrentSurface
 #if defined(PARTICLES)
 PUBLIC :: CalculateElectricPotentialAndFieldBoundaryVDL
 #endif /*defined(PARTICLES)*/
@@ -433,6 +434,91 @@ END DO ! SideID=1,nBCSides
 
 END SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL
 #endif /*defined(PARTICLES)*/
+
+
+SUBROUTINE CalculateElectricDisplacementCurrentSurface()
+!===================================================================================================================================
+!> Calculation of the average electric potential with its own Prolong to face // check if Gauss-Lobatto or Gauss Points is used is
+!> missing ... ups
+!>
+!> 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!      interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
+!> 2.) Apply the normal vector: Uface(1,:,:)=DOT_PRODUCT(Uface(1:3,:,:),NormVec(1:3,:,:,SideID))
+!      Store result of dot product in first array index
+!> 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
+!> 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
+!===================================================================================================================================
+! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,BC, offSetElem
+USE MOD_Analyze_Vars       ,ONLY: EDC
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
+USE MOD_ProlongToFace      ,ONLY: ProlongToFace_Side
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER          :: ElemID,SideID,ilocSide,Nloc
+REAL,ALLOCATABLE :: Eface(:,:,:)
+INTEGER          :: iBC,iEDCBC
+!REAL             :: SIP(0:PP_N,0:PP_N)
+!REAL             :: AverageElectricPotentialProc
+!REAL             :: area_loc,integral_loc
+!===================================================================================================================================
+! Nullify
+EDC%Current = 0.
+
+! 1.) Loop over all processor-local BC sides and therein find the local side ID which corresponds to the reference element and
+!     interpolate the vector field Dt = (/Dtx, Dty, Dtz/) to the boundary face
+DO SideID=1,nBCSides
+  ! Get the local element index
+  ElemID   = SideToElem(S2E_ELEM_ID,SideID)
+  ! Get local polynomial degree of the element
+  Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+  ! Allocate Eface depending on the local polynomial degree
+  ALLOCATE(Eface(1:3,0:Nloc,0:Nloc))
+  ! Get local side index
+  ilocSide = SideToElem(S2E_LOC_SIDE_ID,SideID)
+  ! Prolong-to-face depending on orientation in reference element
+  CALL ProlongToFace_Side(3, Nloc, ilocSide, 0, U_N(ElemID)%Dt, Eface)
+
+  ! 2.) Apply the normal vector: Eface(1,:,:)=DOT_PRODUCT(Eface(1:3,:,:),NormVec(1:3,:,:,SideID))
+  !     Store result of dot product in first array index
+  Eface(1,:,:) =   Eface(1,:,:) * N_SurfMesh(SideID)%NormVec(1,:,:) &
+                 + Eface(2,:,:) * N_SurfMesh(SideID)%NormVec(2,:,:) &
+                 + Eface(3,:,:) * N_SurfMesh(SideID)%NormVec(3,:,:)
+
+  ! 3.) Get BC index and EDC index and the mapping of the SideID boundary to the EDC boundary ID and store the integrated current
+  iBC    = BC(SideID)
+  iEDCBC = EDC%BCIDToEDCBCID(iBC)
+  EDC%Current(iEDCBC) = EDC%Current(iEDCBC) + SUM(Eface(1,:,:) * N_SurfMesh(SideID)%SurfElem(:,:) * N_Inter(Nloc)%wGPSurf(:,:))
+
+  DEALLOCATE(Eface)
+END DO ! SideID=1,nBCSides
+
+#if USE_MPI
+! 4.) Communicate the integrated current values on each boundary to the MPI root process (the root outputs the values to .csv)
+DO iEDCBC = 1, EDC%NBoundaries
+  IF(EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL)THEN
+    ASSOCIATE( Current => EDC%Current(iEDCBC), COMM => EDC%COMM(iEDCBC)%UNICATOR)
+      IF(MPIroot)THEN
+        CALL MPI_REDUCE(MPI_IN_PLACE , Current , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+      ELSE
+        CALL MPI_REDUCE(Current      , 0       , 1 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , COMM , IERROR)
+      END IF ! myLeaderGroupRank.EQ.0
+    END ASSOCIATE
+  END IF ! EDC%COMM(iEDCBC)%UNICATOR.NE.MPI_COMM_NULL
+END DO ! iEDCBC = 1, EDC%NBoundaries
+#endif /*USE_MPI*/
+
+END SUBROUTINE CalculateElectricDisplacementCurrentSurface
 #endif /*USE_HDG*/
 
 END MODULE MOD_AnalyzeField_HDG
