@@ -67,7 +67,6 @@ SUBROUTINE Riemann(Nloc,nVarLoc,Flux_Master,Flux_Slave,U_Master,U_Slave,NormVec,
 USE MOD_PreProc
 USE MOD_Dielectric_vars    ,ONLY: DielectricSurf
 USE MOD_Globals            ,ONLY: abort,UNIT_StdOut
-USE MOD_PML_vars           ,ONLY: PMLnVar
 USE MOD_Interfaces_Vars    ,ONLY: InterfaceRiemann
 USE MOD_DG_Vars            ,ONLY: DG_Elems_master
 USE MOD_Interpolation_Vars ,ONLY: PREF_VDM

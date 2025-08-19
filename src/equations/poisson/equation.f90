@@ -496,11 +496,11 @@ USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinP
 #if defined(PARTICLES)
 USE MOD_HDG_Vars        ,ONLY: CoupledPowerPotential,UseCoupledPowerPotential,BiasVoltage,UseBiasVoltage
 USE MOD_Particle_Vars   ,ONLY: Species,nSpecies!,PartState,PDM
+USE MOD_TimeDisc_Vars   ,ONLY: time
 #endif /*defined(PARTICLES)*/
 USE MOD_Dielectric_Vars ,ONLY: DielectricRatio,Dielectric_E_0,DielectricRadiusValue,DielectricEpsR
 USE MOD_Mesh_Vars       ,ONLY: ElemBaryNGeo
 USE MOD_HDG_Vars        ,ONLY: FPC,EPC
-USE MOD_TimeDisc_Vars   ,ONLY: time
 #if USE_MPI
 USE MOD_Globals         ,ONLY: mpiroot
 #endif /*USE_MPI*/
@@ -938,6 +938,8 @@ INTEGER                         :: RegionID
 #if defined(CODE_ANALYZE)
 REAL                            :: ElemCharLengthX,dx
 #endif /*defined(CODE_ANALYZE)*/
+#else
+REAL :: dummy_real
 #endif /*PARTICLES*/
 !===================================================================================================================================
 ASSOCIATE( &
@@ -1040,10 +1042,15 @@ resu(1) = - ((PS_N(iElem)%PartSource(4,i,j,k) - U_FV(1,0,0,0,iElem)*ElementaryCh
 !resu(1) = 0.!- ((1e20 - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
 #endif
 
-
+#if !defined(PARTICLES)
+! Suppress compiler warning
+RETURN
+dummy_real = Phi
+#endif /*!defined(PARTICLES)*/
 END SUBROUTINE CalcSourceHDG
 
 
+#ifdef donotcompilethis
 #if defined(PARTICLES) && defined(CODE_ANALYZE)
 !===================================================================================================================================
 !> Check if elements has at least one side that is a Dirichlet BC
@@ -1084,6 +1091,7 @@ DO iLocSide = 1, 6
 END DO ! iLocSide = 1, 6
 END FUNCTION ElemHasDirichletBC
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
+#endif /* donotcompilethis */
 
 
 FUNCTION shapefunc(r)

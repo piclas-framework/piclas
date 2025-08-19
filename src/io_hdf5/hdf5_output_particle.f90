@@ -1728,6 +1728,8 @@ INTEGER(KIND=IK),INTENT(OUT) :: globnPart(6)
 #if USE_MPI
 INTEGER(KIND=8)              :: locnPart8,locnPart8Recv,globnPart8 ! always integer KIND=8
 INTEGER(KIND=IK)             :: SimNumSpecMin,SimNumSpecMax
+#else
+CHARACTER(LEN=255) :: dummy_char
 #endif
 !===================================================================================================================================
 #if USE_MPI
@@ -1782,6 +1784,12 @@ IF(GetMinMaxNbrOfParticles)THEN
   globnPart(5) = MAX(globnPart(2),globnPart(5))
   globnPart(6) = MAX(globnPart(3),globnPart(6))
 END IF ! GetMinMaxNbrOfParticles
+
+#if !(USE_MPI)
+! Suppress compiler warning
+RETURN
+dummy_char = CallingRoutine
+#endif /*!(USE_MPI)*/
 
 END SUBROUTINE GetOffsetAndGlobalNumberOfParts
 

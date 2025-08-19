@@ -35,12 +35,10 @@ SUBROUTINE TimeStepPoisson()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort, LocalTime
 USE MOD_PreProc
-USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
-!#if (PP_TimeDiscMethod==509)
-!USE MOD_TimeDisc_Vars          ,ONLY: dt_old
-!#endif /*(PP_TimeDiscMethod==509)*/
+USE MOD_TimeDisc_Vars          ,ONLY: iter,time
 USE MOD_HDG                    ,ONLY: HDG
-#ifdef PARTICLES
+#if defined(PARTICLES)
+USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_PICDepo                ,ONLY: Deposition
 USE MOD_PICInterpolation       ,ONLY: InterpolateFieldToParticle
 USE MOD_Particle_Vars          ,ONLY: PartState, Pt, LastPartPos,PEM, PDM, DelayTime, Species, PartSpecies
@@ -66,22 +64,24 @@ USE MOD_Particle_Tracking      ,ONLY: PerformTracking
 USE MOD_vMPF                   ,ONLY: SplitAndMerge
 USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 USE MOD_PICDepo                ,ONLY: DepositVirtualDielectricLayerParticles
-#endif /*PARTICLES*/
+USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
+#endif /*defined(PARTICLES)*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
-USE MOD_Particle_Boundary_Vars ,ONLY: DoVirtualDielectricLayer
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: iPart
+#if defined(PARTICLES)
 REAL                       :: RandVal, dtFrac, dtVar
+INTEGER                    :: iPart
 #if USE_LOADBALANCE
 REAL                       :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+#endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 #ifdef PARTICLES
 #ifdef EXTRAE

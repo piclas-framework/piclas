@@ -379,11 +379,13 @@ SUBROUTINE CalcPoyntingIntegral(PoyntingIntegral)
 USE MOD_Mesh_Vars          ,ONLY: nElems, N_SurfMesh, offSetElem
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
 USE MOD_Analyze_Vars       ,ONLY: nPoyntingIntPlanes,isPoyntingIntSide,SideIDToPoyntingSide,PoyntingMainDir,Poynting
-USE MOD_Interpolation_Vars ,ONLY: N_inter
 USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_Globals_Vars       ,ONLY: smu0
 USE MOD_Dielectric_Vars    ,ONLY: isDielectricFace,PoyntingUseMuR_Inv,DoDielectric
 USE MOD_Globals
+#if (PP_NodeType==1) /* for Gauss-points*/
+USE MOD_Interpolation_Vars ,ONLY: N_inter
+#endif /*(PP_NodeType==1)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -394,7 +396,10 @@ REAL,INTENT(INOUT)          :: PoyntingIntegral(1:nPoyntingIntPlanes)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: iElem,SideID,ilocSide,iPoyntingSide,Nloc
-INTEGER          :: p,q,l
+INTEGER          :: p,q
+#if (PP_NodeType==1) /* for Gauss-points*/
+INTEGER          :: l
+#endif /*(PP_NodeType==1)*/
 #if USE_MPI
 REAL             :: SumSabs(nPoyntingIntPlanes)
 #endif
@@ -1338,7 +1343,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Dielectric_Vars ,ONLY: Dielectric_MuR_Master_inv,Dielectric_MuR_Slave_inv
 USE MOD_Dielectric_Vars ,ONLY: isDielectricElem,ElemToDielectric,DielectricVol
-USE MOD_Mesh_Vars       ,ONLY: nSides,offSetElem
+USE MOD_Mesh_Vars       ,ONLY: nSides
 USE MOD_ProlongToFace   ,ONLY: ProlongToFace
 #if USE_MPI
 USE MOD_MPI_Vars

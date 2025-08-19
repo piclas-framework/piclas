@@ -40,7 +40,10 @@ SUBROUTINE FP_CollisionOperator(iPartIndx_Node, nPart, NodeVolume)
 !===================================================================================================================================
 ! MODULES
 #ifdef CODE_ANALYZE
-USE MOD_Globals                 ,ONLY: abort,unit_stdout,myrank
+#if USE_MPI
+USE MOD_Globals                 ,ONLY: myrank
+#endif /*USE_MPI*/
+USE MOD_Globals                 ,ONLY: abort,unit_stdout
 #endif /* CODE_ANALYZE */
 USE MOD_Globals_Vars            ,ONLY: Pi, BoltzmannConst
 USE MOD_FPFlow_Vars             ,ONLY: FPCollModel, ESFPModel, SpecFP, FPUseQuantVibEn, FPDoVibRelaxation, FP_PrandtlNumber

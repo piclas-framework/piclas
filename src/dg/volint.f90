@@ -68,7 +68,7 @@ LOGICAL,INTENT(IN)                                  :: dofirstElems
 ! LOCAL VARIABLES
 REAL,DIMENSION(PP_nVar,0:NMax,0:NMax,0:NMax)      :: f,g,h                ! volume fluxes at all Gauss points
 REAL,DIMENSION(PP_nVar)                           :: fTilde,gTilde,hTilde ! auxiliary variables needed to store the fluxes at one GP
-INTEGER                                           :: i,j,k,iElem, CNElemID
+INTEGER                                           :: i,j,k,iElem
 INTEGER                                           :: l                    ! row index for matrix vector product
 INTEGER                                           :: firstElemID, lastElemID
 INTEGER                                           :: Nloc

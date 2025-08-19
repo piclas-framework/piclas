@@ -401,21 +401,40 @@ REAL(KIND=8)                  :: Rate
 #endif /*defined(MEASURE_MPI_WAIT)*/
 INTEGER                       :: i,p,q,r,iSide,Nloc
 !===================================================================================================================================
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
+
 ! Check receive operations first
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(2) = MPIW8TimeField(2) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(2) = MPIW8CountField(2) + 1_8
+  CALL SYSTEM_CLOCK(count=CounterStart)
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Check send operations
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
+
+#if defined(MEASURE_MPI_WAIT)
+  CALL SYSTEM_CLOCK(count=CounterEnd, count_rate=Rate)
+  ! Note: Send and Receive are switched to have the same ordering as for particles (1. Send, 2. Receive)
+  MPIW8TimeField(1) = MPIW8TimeField(1) + REAL(CounterEnd-CounterStart,8)/Rate
+  MPIW8CountField(1) = MPIW8CountField(1) + 1_8
+#endif /*defined(MEASURE_MPI_WAIT)*/
 
 ! Unroll data
 DO iNbProc=1,nNbProcs
