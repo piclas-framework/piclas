@@ -27,7 +27,9 @@ PUBLIC :: ReadEPCDataFromH5
 #if USE_MPI
 PUBLIC :: SynchronizeChargeOnFPC
 PUBLIC :: SynchronizeVoltageOnEPC
+#if defined(PARTICLES)
 PUBLIC :: SynchronizeBV
+#endif /*defined(PARTICLES)*/
 #endif /*USE_MPI */
 #if defined(PARTICLES)
 PUBLIC :: ReadBVDataFromH5

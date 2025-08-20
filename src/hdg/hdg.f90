@@ -128,7 +128,10 @@ USE MOD_HDG_PETSc             ,ONLY: PETScSetSolver
 #endif /*USE_PETSC*/
 USE MOD_Mesh_Vars             ,ONLY: MortarType,MortarInfo
 USE MOD_Mesh_Vars             ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC,InitBV
+USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC
+#if defined(PARTICLES)
+USE MOD_HDG_Init              ,ONLY: InitBV
+#endif /*defined(PARTICLES)*/
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
