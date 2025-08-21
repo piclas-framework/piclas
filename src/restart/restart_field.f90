@@ -86,12 +86,11 @@ USE MOD_MPI_Vars               ,ONLY: RecRequest_U,SendRequest_U
 USE MOD_MPI_HDG                ,ONLY: StartReceiveMPISurfDataType,StartSendMPISurfDataType,FinishExchangeMPISurfDataType,Mask_MPIsides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-! USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld
-USE MOD_HDG                    ,ONLY: SynchronizeVoltageOnEPC
+USE MOD_HDG_Readin             ,ONLY: SynchronizeVoltageOnEPC
 USE MOD_HDG_Vars               ,ONLY: UseEPC
 #if defined(PARTICLES)
 USE MOD_Equation_Tools         ,ONLY: SynchronizeCPP
-USE MOD_HDG                    ,ONLY: SynchronizeBV
+USE MOD_HDG_Readin             ,ONLY: SynchronizeBV
 USE MOD_HDG_Vars               ,ONLY: UseBiasVoltage,UseCoupledPowerPotential
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 USE MOD_Mesh_Vars              ,ONLY: SideToNonUniqueGlobalSide
@@ -102,7 +101,7 @@ USE MOD_HDG_Vars               ,ONLY: lambdaLB
 #endif /*USE_LOADBALANCE*/
 #if USE_PETSC
 #if USE_LOADBALANCE
-USE MOD_HDG                    ,ONLY: SynchronizeChargeOnFPC
+USE MOD_HDG_Readin             ,ONLY: SynchronizeChargeOnFPC
 USE MOD_HDG_Vars               ,ONLY: UseFPC
 #endif /*USE_LOADBALANCE*/
 USE PETSc
