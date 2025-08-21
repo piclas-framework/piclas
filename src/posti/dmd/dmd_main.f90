@@ -98,7 +98,7 @@ USE MOD_EquationDMD           ,ONLY: InitEquationDMD,CalcEquationDMD
 USE MOD_Interpolation_Vars    ,ONLY: NodeType
 USE MOD_Globals_Vars ,ONLY: TimeStampLenStr,TimeStampLenStr2
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping,N_DG
-USE MOD_Mesh                  ,ONLY: Set_N_DG_Mapping
+USE MOD_Mesh_pAdaption        ,ONLY: Set_N_DG_Mapping
 USE MOD_HDF5_Input            ,ONLY: DatasetExists
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
