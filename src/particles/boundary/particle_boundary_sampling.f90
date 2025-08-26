@@ -1107,9 +1107,7 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-!USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
-!USE MOD_Particle_Vars                  ,ONLY: WriteMacroSurfaceValues
 #if USE_MPI
 USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
@@ -1125,9 +1123,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
-! Return if nothing was allocated
-!IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
 
 ! Return if no sampling surfaces on node
 IF (.NOT.SurfTotalSideOnNode) RETURN
