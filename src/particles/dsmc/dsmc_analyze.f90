@@ -398,8 +398,8 @@ DO iPart=1,PDM%ParticleVecLength
       vBulk(1:3,iElem) = PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
       TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
       totalWeight(iElem) = totalWeight(iElem) + partWeight
-      totalWeight2(iElem) = totalWeight(iElem) + partWeight*partWeight
-      totalWeight3(iElem) = totalWeight(iElem) + partWeight*partWeight*partWeight
+      totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
+      totalWeight3(iElem) = totalWeight3(iElem) + partWeight*partWeight*partWeight
     END IF
     ! Internal energy: rotational, vibrational, electronic
     IF(useDSMC)THEN
