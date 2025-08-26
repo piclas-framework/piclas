@@ -419,7 +419,7 @@ IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
 #if (PP_TimeDiscMethod==600)
 CALL InitParticleBoundarySampling()
 #endif
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive).OR.PartBound%OutputWallTemp) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive)) THEN
 #if !(PP_TimeDiscMethod==600)
   CALL InitParticleBoundarySampling()
 #endif
@@ -941,6 +941,11 @@ IF(UseRayTracing)THEN
   ! Automatically activate when UseRayTracing = T
   DSMC%CalcSurfaceVal = .TRUE.
   CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+      LogOpt=DSMC%CalcSurfaceVal)
+ELSE IF(PartBound%OutputWallTemp) THEN
+  ! Automatically activate for AdaptiveWallTemp/WallTempGrad
+  DSMC%CalcSurfaceVal = .TRUE.
+  CALL PrintOption('Surface sampling activated (AdaptiveWallTemp/WallTempGrad=T): Particles-DSMC-CalcSurfaceVal','INFO',&
       LogOpt=DSMC%CalcSurfaceVal)
 ELSE
   DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
