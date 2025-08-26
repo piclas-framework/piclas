@@ -868,6 +868,10 @@ IF(ParticleWeighting%UseSubdivision) THEN
               * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal)
       PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
     END DO
+  ELSE
+    CALL RANDOM_NUMBER(RandVal)
+    PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+      * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal)
   END IF
 ELSE
   CALL RANDOM_NUMBER(RandVal)

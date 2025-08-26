@@ -1544,8 +1544,9 @@ USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Mesh_Vars              ,ONLY: dXCL_NGeo
 USE MOD_Particle_Mesh_Vars
 USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping
-USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems,offsetElem,nElems
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
 #if USE_MPI
+USE MOD_Mesh_Vars              ,ONLY: NGeo,nGlobalElems
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_DG_Vars                ,ONLY: nDofsMapping, N_DG_Mapping, recvcountDofs, displsDofs
@@ -2286,13 +2287,14 @@ SUBROUTINE InitVolumes_1D()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem, ELEM_HALOFLAG
+USE MOD_Mesh_Vars               ,ONLY: nElems, offsetElem
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
 USE MOD_Particle_Mesh_Vars      ,ONLY: offsetComputeNodeElem,SideIsSymSide_Shared,SideIsSymSide_Shared_Win,nNonUniqueGlobalSides

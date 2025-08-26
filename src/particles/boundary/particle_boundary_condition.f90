@@ -58,7 +58,10 @@ USE MOD_SurfaceModel_Tools       ,ONLY: PerfectReflection
 USE MOD_Particle_Boundary_Tools  ,ONLY: StoreBoundaryParticleProperties
 USE MOD_Mesh_Tools               ,ONLY: GetCNElemID
 #ifdef CODE_ANALYZE
-USE MOD_Globals                  ,ONLY: myRank,UNIT_stdout
+#if USE_MPI
+USE MOD_Globals                  ,ONLY: myRank
+#endif /*USE_MPI*/
+USE MOD_Globals                  ,ONLY: UNIT_stdout
 USE MOD_Mesh_Vars                ,ONLY: NGeo
 USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared

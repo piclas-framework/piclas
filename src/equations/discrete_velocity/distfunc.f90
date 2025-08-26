@@ -355,7 +355,7 @@ DO iSpec = 1, DVMnSpecies
   ASSOCIATE(Sp => DVMSpecData(iSpec))
   IF (Sp%Xi_Rot.GT.0) THEN
     EdiffRot = 30.*(TempTrans*BoltzmannConst*Sp%Xi_Rot/2.-Erot(iSpec))/(4.-2.*Sp%omegaVHS)/(6.-2.*Sp%omegaVHS)/Prandtl/Sp%Z_Rot
-    ! change this to include actual multispecies collfreq
+    ! TODO: change this to include actual multispecies collfreq
     ErelaxRot(iSpec) = Erot(iSpec) + EdiffRot
     ErelaxTrans = ErelaxTrans - EdiffRot
   END IF

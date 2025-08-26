@@ -499,9 +499,8 @@ USE MOD_Mortar_Metrics, ONLY:Mortar_CalcSurfMetrics
 #if !defined(discrete_velocity)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
 #endif /*!defined(discrete_velocity)*/
-USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo!,PREF_VDM,N_Inter
+USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo
 USE MOD_Mesh_Vars,          ONLY: SideToElem, offSetElem,N_VolMesh,N_VolMesh2
-USE MOD_Interpolation_Vars ,ONLY: PREF_VDM!,N_Inter
 ! #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
 ! USE MOD_Equation_Vars      ,ONLY: DoExactFlux ! Required for skipping cycle because NormVec is then not built for loc.LT.NSideMax sides
 ! #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)*/
@@ -520,8 +519,8 @@ INTEGER            :: p,q,pq(2),dd,iLocSide,SideID,SideID2,iMortar,nbSideIDs(4)
 INTEGER            :: NormalDir,TangDir,NSideMax
 REAL               :: NormalSign
 REAL               :: Ja_Face_l(3,3,0:Nmax,0:Nmax)
-REAL               :: Mortar_Ja(3,3,0:Nmax,0:Nmax,4), Mortar_Ja_loc(3,3,0:Nmax,0:Nmax)
-REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4), Mortar_xGP_loc( 3,0:Nmax,0:Nmax)
+REAL               :: Mortar_Ja(3,3,0:Nmax,0:Nmax,4)
+REAL               :: Mortar_xGP( 3,0:Nmax,0:Nmax,4)
 REAL               :: tmp(        3,0:Nmax,0:Nmax)
 REAL               :: tmp2(       3,0:Nmax,0:Nmax)
 REAL               :: tmpflip(    3,0:Nmax,0:Nmax)

@@ -18,8 +18,7 @@ PROGRAM SuperB_standalone
 !===================================================================================================================================
 ! MODULES
 USE MOD_Commandline_Arguments
-!USE MOD_Globals               ,ONLY: doPrintHelp,iError,MPIRoot,StartTime,UNIT_stdOut,PiclasTime,SetStackSizeUnlimited
-USE MOD_Globals!               ,ONLY: CollectiveStop
+USE MOD_Globals
 USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
@@ -76,7 +75,7 @@ SWRITE(UNIT_stdOut,'(A)') "                         M=                          
 SWRITE(UNIT_stdOut,'(A)') "                        MM                                                      "
 SWRITE(UNIT_stdOut,'(A)') "                        ~~                                                      "
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.0"
+SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.1"
 SWRITE(UNIT_stdOut,'(132("="))')
 
 GETTIME(StartTime)
@@ -91,7 +90,10 @@ IF ((nArgs.GT.1) .OR. ((nArgs.EQ.0).AND.(doPrintHelp.EQ.0)) ) THEN
     'or superB --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
 END IF
 
-!CALL InitDefineParameters()
+! Read-in of TimeStampLength and setting of TimeStampLenStr/TimeStampLenStr2, currently not required
+! CALL prms%CreateIntOption('TimeStampLength' , 'Length of the floating number time stamp' , '21')
+! WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
+! WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()

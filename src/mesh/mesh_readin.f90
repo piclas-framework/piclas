@@ -1678,11 +1678,13 @@ USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
-USE MOD_Symmetry_Vars             ,ONLY: Symmetry
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI && defined(PARTICLES)
+USE MOD_Symmetry_Vars             ,ONLY: Symmetry
+#endif /*USE_MPI && defined(PARTICLES)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1704,6 +1706,10 @@ IF(ABS(meshMode).GT.1)THEN
   IF (Symmetry%Order.LE.2) CALL UNLOCK_AND_FREE(SideIsSymSide_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemVolume_Shared_Win)
   CALL UNLOCK_AND_FREE(ElemCharLength_Shared_Win)
+END IF ! ABS(meshMode).GT.1
+#else
+IF(ABS(meshMode).GT.1)THEN
+  ! Dummy statement to suppress the compiler warning
 END IF ! ABS(meshMode).GT.1
 #endif /*USE_MPI && defined(PARTICLES)*/
 

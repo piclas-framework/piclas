@@ -267,7 +267,9 @@ DO iPart = 1, ParticleWeighting%ClonePartNum(DelayCounter)
   PartSpecies(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Species
   ! Set the global element number with the offset
   PEM%GlobalElemID(PositionNbr) = ClonedParticles(iPart,DelayCounter)%Element
-  PEM%LastGlobalElemID(PositionNbr) = PEM%GlobalElemID(PositionNbr)
+  ! Set the LastGlobalElemID index to zero to skip the clones during the first tracking after their insertion, otherwise tracking
+  ! these clones can cause problems in 2D, which relies on the relative distance moved (zero in this case)
+  PEM%LastGlobalElemID(PositionNbr) = 0
   locElemID = PEM%LocalElemID(PositionNbr)
   LastPartPos(1:3,PositionNbr) = PartState(1:3,PositionNbr)
   PartMPF(PositionNbr) =  ClonedParticles(iPart,DelayCounter)%WeightingFactor

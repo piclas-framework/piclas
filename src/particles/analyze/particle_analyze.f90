@@ -882,8 +882,11 @@ USE MOD_HDG_Vars               ,ONLY: UseCoupledPowerPotential,CoupledPowerPoten
 USE MOD_Particle_Analyze_Tools ,ONLY: CalculatePCouplElectricPotential,CalculateParticlePotentialEnergy
 #endif /*USE_HDG*/
 USE MOD_Globals_Vars           ,ONLY: eV2Kelvin
-USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,ForceAverage, SumForceAverage
+USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,SumForceAverage
 USE MOD_Particle_Vars          ,ONLY: usevMPF
+#if USE_MPI
+USE MOD_Particle_Vars          ,ONLY: ForceAverage
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

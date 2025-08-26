@@ -45,24 +45,27 @@ USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, UseVarTimeStep, S
 USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
+#if USE_MPI
+USE MOD_Globals                ,ONLY : myrank
+#endif /*USE_MPI*/
 USE MOD_Globals                 ,ONLY: Abort
-USE MOD_Globals                 ,ONLY: unit_stdout,myrank
+USE MOD_Globals                 ,ONLY: unit_stdout
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 USE MOD_DSMC_Vars               ,ONLY: DSMC
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair
+INTEGER, INTENT(IN)           :: iPair
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
-  REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
-  REAL                          :: cRelaNew(3)                      ! post-collision relative velocities
-  INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2   ! Colliding particles 1 and 2, their species
+REAL                          :: FracMassCent1, FracMassCent2     ! mx/(mx+my)
+REAL                          :: VeloMx, VeloMy, VeloMz           ! center of mass velo
+REAL                          :: cRelaNew(3)                      ! post-collision relative velocities
+INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2   ! Colliding particles 1 and 2, their species
 #ifdef CODE_ANALYZE
 REAL,PARAMETER                :: RelMomTol=5e-9  ! Relative tolerance applied to conservation of momentum before/after reaction
 REAL                          :: Momentum_old(3),Momentum_new(3)
@@ -539,45 +542,48 @@ SUBROUTINE DSMC_Relax_Col_Gimelshein(iPair)
 ! procedures for DSMC calculation of gas mixtures')
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Globals,                ONLY : Abort
-  USE MOD_DSMC_Vars,              ONLY : Coll_pData, CollInf, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
-  USE MOD_Particle_Vars,          ONLY : PartSpecies, PartState, PEM, usevMPF, UseVarTimeStep, Species
-  USE MOD_DSMC_PolyAtomicModel,   ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
-  USE MOD_DSMC_Relaxation,        ONLY : DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
-  USE MOD_DSMC_CollisVec,         ONLY : PostCollVec
-  USE MOD_DSMC_ElectronicModel,   ONLY: ElectronicEnergyExchange
-  USE MOD_part_tools            ,ONLY: GetParticleWeight
+USE MOD_Globals                ,ONLY : Abort
+USE MOD_DSMC_Vars              ,ONLY : Coll_pData, CollInf, DSMC, PolyatomMolDSMC, SpecDSMC, PartStateIntEn
+USE MOD_Particle_Vars          ,ONLY : PartSpecies, PartState, PEM, usevMPF, UseVarTimeStep, Species
+USE MOD_DSMC_PolyAtomicModel   ,ONLY : DSMC_RotRelaxPoly, DSMC_VibRelaxPoly, DSMC_VibRelaxPolySingle
+USE MOD_DSMC_Relaxation        ,ONLY : DSMC_VibRelaxDiatomic, DSMC_calc_P_rot, DSMC_calc_P_vib, DSMC_calc_P_elec
+USE MOD_DSMC_CollisVec         ,ONLY : PostCollVec
+USE MOD_DSMC_ElectronicModel   ,ONLY: ElectronicEnergyExchange
+USE MOD_part_tools             ,ONLY: GetParticleWeight
 #ifdef CODE_ANALYZE
-  USE MOD_Globals                ,ONLY : unit_stdout,myrank
-  USE MOD_Particle_Vars          ,ONLY : Species
-  USE MOD_part_tools             ,ONLY : GetParticleWeight
+#if USE_MPI
+USE MOD_Globals                ,ONLY : myrank
+#endif /*USE_MPI*/
+USE MOD_Globals                ,ONLY : unit_stdout
+USE MOD_Particle_Vars          ,ONLY : Species
+USE MOD_part_tools             ,ONLY : GetParticleWeight
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)           :: iPair
+INTEGER, INTENT(IN)           :: iPair
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  REAL                          :: FracMassCent1, FracMassCent2                 ! mx/(mx+my)
-  REAL                          :: VeloMx, VeloMy, VeloMz                       ! center of mass velo
-  INTEGER                       :: iDOF, iPolyatMole, DOFRelax, iElem
-  REAL (KIND=8)                 :: iRan
-  LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2               ! Check whether rot or vib relax is performed
-  LOGICAL                       :: DoElec1, DoElec2
-  REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
-  REAL                          :: cRelaNew(3),ReducedMass                      ! post collision relative velocity
-  REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
-  REAL                          :: ProbFrac5, ProbFrac6                         ! probability-fractions according to Zhang
-  REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
-  REAL                          :: ProbElec1, ProbElec2
-  REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
-  INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2               ! Colliding particles 1 and 2 and their species
+REAL                          :: FracMassCent1, FracMassCent2                 ! mx/(mx+my)
+REAL                          :: VeloMx, VeloMy, VeloMz                       ! center of mass velo
+INTEGER                       :: iDOF, iPolyatMole, DOFRelax, iElem
+REAL (KIND=8)                 :: iRan
+LOGICAL                       :: DoRot1, DoRot2, DoVib1, DoVib2               ! Check whether rot or vib relax is performed
+LOGICAL                       :: DoElec1, DoElec2
+REAL (KIND=8)                 :: FakXi, Xi_rel                                ! Factors of DOF
+REAL                          :: cRelaNew(3),ReducedMass                      ! post collision relative velocity
+REAL                          :: ProbFrac1, ProbFrac2, ProbFrac3, ProbFrac4   ! probability-fractions according to Zhang
+REAL                          :: ProbFrac5, ProbFrac6                         ! probability-fractions according to Zhang
+REAL                          :: ProbRot1, ProbRot2, ProbVib1, ProbVib2       ! probabilities for rot-/vib-relax for part 1/2
+REAL                          :: ProbElec1, ProbElec2
+REAL                          :: BLCorrFact, ProbRotMax1, ProbRotMax2         ! Correction factor for BL-redistribution of energy
+INTEGER                       :: iPart1, iPart2, iSpec1, iSpec2               ! Colliding particles 1 and 2 and their species
 #ifdef CODE_ANALYZE
-  REAL                          :: Energy_old,Energy_new
-  REAL                          :: Weight1, Weight2
+REAL                          :: Energy_old,Energy_new
+REAL                          :: Weight1, Weight2
 #endif /* CODE_ANALYZE */
 !===================================================================================================================================
 ! Reservoir simulation for obtaining the reaction rate at one given point does not require to perform the reaction

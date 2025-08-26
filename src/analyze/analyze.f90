@@ -117,7 +117,7 @@ SUBROUTINE InitAnalyze()
 USE MOD_Globals
 USE MOD_Preproc
 #if PP_nVar>=6
-USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
+USE MOD_AnalyzeField_Poynting ,ONLY: GetPoyntingIntPlane
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt
 #endif /*PP_nVar>=6*/
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,OutputErrorNormsToH5
@@ -335,7 +335,7 @@ SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 #endif
 !===================================================================================================================================
-! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
+! Calculates L_infinity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -501,18 +501,18 @@ SUBROUTINE FinalizeAnalyze()
 ! MODULES
 USE MOD_Globals
 #if PP_nVar>=6
-USE MOD_Analyze_Vars       ,ONLY: CalcPoyntingInt
-USE MOD_AnalyzeField       ,ONLY: FinalizePoyntingInt
+USE MOD_Analyze_Vars         ,ONLY: CalcPoyntingInt
+USE MOD_AnalyzeField_Poynting,ONLY: FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
-USE MOD_Analyze_Vars       ,ONLY: PPWCell,AnalyzeInitIsDone
+USE MOD_Analyze_Vars         ,ONLY: PPWCell,AnalyzeInitIsDone
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
-USE MOD_TimeAverage_Vars   ,ONLY: doCalcTimeAverage
-USE MOD_TimeAverage        ,ONLY: FinalizeTimeAverage
+USE MOD_TimeAverage_Vars     ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage          ,ONLY: FinalizeTimeAverage
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #if USE_HDG
-USE MOD_Analyze_Vars       ,ONLY: CalcAverageElectricPotential,EDC
-USE MOD_AnalyzeField_HDG   ,ONLY: FinalizeAverageElectricPotential
-USE MOD_Analyze_Vars       ,ONLY: CalcElectricTimeDerivative
+USE MOD_Analyze_Vars         ,ONLY: CalcAverageElectricPotential,EDC
+USE MOD_AnalyzeField_HDG     ,ONLY: FinalizeAverageElectricPotential
+USE MOD_Analyze_Vars         ,ONLY: CalcElectricTimeDerivative
 #endif /*USE_HDG*/
 USE MOD_Interpolation_Vars ,ONLY: UEx
 ! IMPLICIT VARIABLE HANDLINGDG
@@ -580,7 +580,7 @@ SUBROUTINE PerformAnalyze(OutputTime,FirstOrLastIter,OutPutHDF5)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,OutputErrorNormsPart,FieldAnalyzeStep
+USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,FieldAnalyzeStep
 USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars             ,ONLY: iter
@@ -594,6 +594,7 @@ USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 #endif
 #ifdef PARTICLES
+USE MOD_Analyze_Vars              ,ONLY: OutputErrorNormsPart
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
 USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
@@ -624,7 +625,7 @@ USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
-USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField_Poynting     ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
 #if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
@@ -1098,7 +1099,9 @@ REAL,INTENT(IN)     :: Time
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
 REAL                :: rDummy
+#endif /*USE_MPI*/
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter

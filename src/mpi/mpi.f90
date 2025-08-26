@@ -521,7 +521,7 @@ SUBROUTINE StartSendMPIDataType(MPIRequest,SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave, DG_Elems_master
+USE MOD_DG_Vars  ,ONLY: U_Surf_N,DG_Elems_slave
 USE MOD_Mesh_Vars,ONLY: N_SurfMesh
 #if !(USE_HDG)
 USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
@@ -826,7 +826,7 @@ REAL(KIND=8)                  :: Rate
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -842,7 +842,7 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -983,7 +983,7 @@ END IF
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendIDLoc).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -998,7 +998,7 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendIDLoc).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -1148,7 +1148,7 @@ INTEGER                       :: i,p,q,iSide,N_slave,N_master
 DO iNbProc=1,nNbProcs
   IF(nMPISides_rec(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(RecRequest(iNbProc) ,MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 
@@ -1163,7 +1163,7 @@ END DO !iProc=1,nNBProcs
 DO iNbProc=1,nNbProcs
   IF(nMPISides_send(iNbProc,SendID).GT.0)THEN
     CALL MPI_WAIT(SendRequest(iNbProc),MPI_STATUS_IGNORE,iError)
-    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error iyyn MPI_WAIT',iError)
+    IF(iError.NE.MPI_SUCCESS) CALL Abort(__STAMP__,'Error in MPI_WAIT',iError)
   END IF
 END DO !iProc=1,nNBProcs
 

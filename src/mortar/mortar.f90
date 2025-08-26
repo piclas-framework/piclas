@@ -41,9 +41,9 @@ USE MOD_Globals
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType,NMin,NMax
 USE MOD_Interpolation      ,ONLY: GetNodesAndWeights
 USE MOD_Mortar_Vars
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE && (PP_NodeType==1)
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE && (PP_NodeType==1)*/
 #ifdef maxwell
 USE MOD_PML_vars           ,ONLY: PMLnVar
 #endif /*maxwell*/
@@ -86,7 +86,7 @@ DO Nloc = NMin, NMax
   DEALLOCATE(test1, test2, xi_Gauss, w_Gauss)
 END DO
 LBWRITE(UNIT_StdOut,'(A)')' Mortar operators built successfully.'
-#endif
+#endif /*(PP_NodeType==1)*/
 
 MortarInitIsDone=.TRUE.
 END SUBROUTINE InitMortar

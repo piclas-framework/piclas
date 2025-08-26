@@ -567,6 +567,13 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
       ! Add your contribution to my inner BC
       SampWallState(:,:,:,iSurfSide) = SampWallState(:,:,:,iSurfSide) + SampWallState(:,:,:,SurfSideNb)
+      IF(CalcSurfaceImpact)THEN
+        SampWallImpactNumber(:,:,:,iSurfSide) = SampWallImpactNumber(:,:,:,iSurfSide) + SampWallImpactNumber(:,:,:,SurfSideNb)
+        SampWallImpactEnergy(:,:,:,:,iSurfSide) = SampWallImpactEnergy(:,:,:,:,iSurfSide) + SampWallImpactEnergy(:,:,:,:,SurfSideNb)
+        SampWallImpactVector(:,:,:,:,iSurfSide) = SampWallImpactVector(:,:,:,:,iSurfSide) + SampWallImpactVector(:,:,:,:,SurfSideNb)
+        SampWallImpactAngle(:,:,:,iSurfSide) = SampWallImpactAngle(:,:,:,iSurfSide) + SampWallImpactAngle(:,:,:,SurfSideNb)
+      END IF
+      IF(nPorousBC.GT.0) SampWallPumpCapacity(iSurfSide) = SampWallPumpCapacity(iSurfSide) + SampWallPumpCapacity(SurfSideNb)
     ELSE
       CYCLE
     END IF

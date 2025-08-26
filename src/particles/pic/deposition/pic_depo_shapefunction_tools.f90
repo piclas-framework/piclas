@@ -919,8 +919,8 @@ USE MOD_Globals
 USE MOD_PICDepo_Vars       ,ONLY: PS_N
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
-USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 #if USE_MPI
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_Mesh_Vars          ,ONLY: ELEM_RANK
 USE MOD_PICDepo_Vars       ,ONLY: SendDofShapeID, CNRankToSendRank, ShapeMapping
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared
