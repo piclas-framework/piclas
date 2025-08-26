@@ -54,7 +54,6 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemEpsOneCell
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,NbrOfLostParticles,CountNbrOfLostParts
 USE MOD_Particle_Tracking_Vars ,ONLY: NbrOfLostParticlesTotal,TotalNbrOfMissingParticlesSum,NbrOfLostParticlesTotal_old
 ! Interpolation
-USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_Eval_XYZ               ,ONLY: GetPositionInRefElem
 ! Mesh
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
@@ -68,6 +67,7 @@ USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC, DoChemSurface
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
+USE MOD_Particle_BGM           ,ONLY: CheckAndMayDeleteFIBGM
 ! Restart
 USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues
 ! HDG
@@ -84,7 +84,7 @@ USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! Rotational frame of reference
-USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, PartVeloRotRef, RotRefFrameOmega
+USE MOD_Particle_Vars          ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck, IncreaseMaxParticleNumber
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -161,8 +161,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
         iPos = 7
         ! Rotational frame of reference: initialize logical and velocity
         IF(UseRotRefFrame) THEN
-          PDM%InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
-          IF(PDM%InRotRefFrame(iPart)) THEN
+          InRotRefFrame(iPart) = InRotRefFrameCheck(iPart)
+          IF(InRotRefFrame(iPart)) THEN
             IF(readVarFromState(1+iPos).AND.readVarFromState(2+iPos).AND.readVarFromState(3+iPos)) THEN
               PartVeloRotRef(1:3,iPart) = PartData(MapPartDataToReadin(1+iPos):MapPartDataToReadin(3+iPos),offsetnPart+iLoop)
             ELSE
@@ -656,8 +656,8 @@ IF(.NOT.DoMacroscopicRestart) THEN
           iPos = 7
           ! Rotational frame of reference
           IF(UseRotRefFrame) THEN
-            PDM%InRotRefFrame(CurrentPartNum) = InRotRefFrameCheck(CurrentPartNum)
-            IF(PDM%InRotRefFrame(CurrentPartNum)) THEN
+            InRotRefFrame(CurrentPartNum) = InRotRefFrameCheck(CurrentPartNum)
+            IF(InRotRefFrame(CurrentPartNum)) THEN
               PartVeloRotRef(1:3,CurrentPartNum) = RecBuff(1+iPos:3+iPos,iPart)
             ELSE
               PartVeloRotRef(1:3,CurrentPartNum) = 0.
@@ -771,7 +771,7 @@ IF(.NOT.DoMacroscopicRestart) THEN
             ! in the .h5 container)
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
-            PEM%LastGlobalElemID(CurrentPartNum) = -1
+            PEM%LastGlobalElemID(CurrentPartNum) = 0 ! Initialize with invalid value
             PDM%ParticleInside(CurrentPartNum)   = .FALSE.
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
 
@@ -844,6 +844,8 @@ IF (DoVirtualCellMerge) CALL MergeCells()
 
 ! Deallocate the read-in macroscopic values (might have been utilized in RestartAdaptiveBCSampling)
 SDEALLOCATE(MacroRestartValues)
+
+CALL CheckAndMayDeleteFIBGM() ! Check if FIBGM can be deleted (it is necessary for restart)
 
 END SUBROUTINE ParticleRestart
 
@@ -927,7 +929,14 @@ END IF
 CALL BARRIER_AND_SYNC(BoundaryWallTemp_Shared_Win,MPI_COMM_SHARED)
 #endif
 
-CALL CloseDataFile()
+#if USE_MPI
+! Only the surface leaders open the file
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+  CALL CloseDataFile()
+END IF
+#else
+  CALL CloseDataFile()
+#endif
 
 END SUBROUTINE RestartAdaptiveWallTemp
 
@@ -1130,7 +1139,7 @@ USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                           :: AdaptiveDataExists, RunningAverageExists, UseAdaptiveType4, AdaptBCPartNumOutExists
-REAL                              :: TimeStepOverWeight, v_thermal, dtVar, WeightingFactor(1:nSpecies)
+REAL                              :: v_thermal, dtVar, WeightingFactor(1:nSpecies)
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalElemID, currentBC
 INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar, nVarArrayStart, nVarArrayEnd
@@ -1282,7 +1291,7 @@ IF(UseAdaptiveType4) THEN
         ASSOCIATE (&
               nSpecies     => INT(nSpecies,IK) ,&
               nSurfFluxBCs => INT(nSurfacefluxBCs,IK)  )
-          CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,IntegerArray_i4=AdaptBCPartNumOut(:,:))
+          CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,RealArray=AdaptBCPartNumOut(:,:))
         END ASSOCIATE
         LBWRITE(*,*) '| Surface Flux, Type=4: Number of particles leaving the domain successfully read-in from restart file.'
       END IF
@@ -1334,7 +1343,6 @@ IF(UseAdaptiveType4.AND..NOT.AdaptBCPartNumOutExists) THEN
       IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
       ! Calculate the velocity for the particles leaving the domain with the thermal velocity assuming a zero bulk velocity
       v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
-      TimeStepOverWeight = dtVar / Species(iSpec)%MacroParticleFactor
       ! Loop over sides on the surface flux
       DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
         BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
@@ -1343,7 +1351,7 @@ IF(UseAdaptiveType4.AND..NOT.AdaptBCPartNumOutExists) THEN
         IF(SampleElemID.GT.0) THEN
           DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
             AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + INT(AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              * TimeStepOverWeight * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal)
+              * dtVar * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal)
           END DO; END DO
         END IF  ! SampleElemID.GT.0
       END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber

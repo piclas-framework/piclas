@@ -16,6 +16,9 @@ MODULE MOD_PICDepo_Vars
 ! Contains the variables for the particle deposition
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -28,21 +31,28 @@ LOGICAL                         :: DoDeposition              ! flag to switch de
 LOGICAL                         :: DoDirichletDeposition     ! flag to switch deposition on Dirichlet sides on/off
 #endif /*USE_HDG*/
 LOGICAL                         :: RelaxDeposition           ! relaxation of current PartSource with RelaxFac into PartSourceOld
-LOGICAL                         :: DoHaloDepo                ! Flag for enlarging the deposition region (implicit and dielectric)
+LOGICAL                         :: DoHaloDepo                ! Flag for enlarging the deposition region (dielectric)
 REAL                            :: RelaxFac
 
-REAL,ALLOCATABLE                 :: PartSource(:,:,:,:,:)    ! PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
-!                                                            ! current and charge density source terms for Maxwell/Poisson systems
-REAL,ALLOCATABLE                :: PartSourceGlob(:,:,:,:,:)
-!REAL,ALLOCATABLE                :: PartSourceProc(:,:,:,:,:)
-!REAL,ALLOCATABLE                :: PartSourceLoc(:,:,:,:,:)
-REAL,ALLOCATABLE                :: PartSourceTmp (:,:,:,:)
-INTEGER, ALLOCATABLE            :: nDepoDOFPerProc(:)
-INTEGER, ALLOCATABLE            :: nDepoOffsetProc(:)
+! DG solution particle volume source terms
+TYPE N_PartSource_Vol
+  REAL,ALLOCATABLE  :: PartSource(:,:,:,:)      !< PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
+                                                !< current and charge density source terms for Maxwell/Poisson systems
+  REAL,ALLOCATABLE  :: PartSourceOld(:,:,:,:,:) !< PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
+END TYPE N_PartSource_Vol
 
-LOGICAL                         :: PartSourceConstExists
-REAL,ALLOCATABLE                :: PartSourceConst(:,:,:,:,:)! PartSource(1:4,PP_N,PP_N,PP_N,nElems) const. part of Source
-REAL,ALLOCATABLE                :: PartSourceOld(:,:,:,:,:,:)! PartSource(:,2,PP_N,PP_N,PP_N,nElems) prev. and sec. prev. Source
+! Part Source
+TYPE(N_PartSource_Vol),ALLOCATABLE :: PS_N(:)       !< Solution variable for each equation, node and element,
+
+! DG solution particle volume source terms
+TYPE tN_ShapeTmp
+  REAL,ALLOCATABLE  :: PartSource(:,:,:,:)      !< PartSource(1:4,PP_N,PP_N,PP_N,nElems) containing
+END TYPE tN_ShapeTmp
+
+! Part Source
+TYPE(tN_ShapeTmp),ALLOCATABLE :: N_ShapeTmp(:)       !< Solution variable for each equation, node and element,
+
+
 REAL,ALLOCATABLE                :: GaussBorder(:)            ! 1D coords of gauss points in -1|1 space
 INTEGER,ALLOCATABLE             :: GaussBGMIndex(:,:,:,:,:)  ! Background mesh index of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
 REAL,ALLOCATABLE                :: GaussBGMFactor(:,:,:,:,:) ! BGM factor of gausspoints (1:3,PP_N,PP_N,PP_N,nElems)
@@ -104,14 +114,22 @@ REAL                            :: totalChargePeriodicSF     ! total charge of p
 INTEGER                         :: NKnots
 REAL,ALLOCATABLE                :: Knots(:)
 LOGICAL                         :: OutputSource              ! write the source to hdf5
-REAL,ALLOCATABLE                :: CellVolWeightFac(:)
+
+TYPE, PUBLIC :: CVWInterpolation
+  REAL,ALLOCATABLE  :: Fac(:)
+  REAL, ALLOCATABLE :: Vdm_tmp(:,:)
+  REAL, ALLOCATABLE :: DetLocal(:,:,:,:)
+END TYPE CVWInterpolation
+
+TYPE(CVWInterpolation),ALLOCATABLE    :: CellVolWeight(:)          !< Array of prebuild interpolation matrices
+
 INTEGER                         :: VolIntOrder
 REAL,ALLOCATABLE                :: VolInt_X(:)
 REAL,ALLOCATABLE                :: VolInt_W(:)
 REAL,ALLOCATABLE                :: CellVolWeight_Volumes(:,:,:,:)
 REAL,ALLOCPOINT                 :: NodeVolume(:)
 #if USE_MPI
-INTEGER                         :: NodeVolume_Shared_Win
+TYPE(MPI_Win)                   :: NodeVolume_Shared_Win
 REAL,ALLOCPOINT                 :: NodeVolume_Shared(:)
 #endif
 
@@ -136,11 +154,11 @@ INTEGER,ALLOCPOINT :: Periodic_Nodes(:)
 INTEGER,ALLOCPOINT :: Periodic_offsetNode(:)
 
 #if USE_MPI
-INTEGER            :: Periodic_nNodes_Shared_Win
+TYPE(MPI_Win)      :: Periodic_nNodes_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_nNodes_Shared(:)
-INTEGER            :: Periodic_Nodes_Shared_Win
+TYPE(MPI_Win)      :: Periodic_Nodes_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_Nodes_Shared(:)
-INTEGER            :: Periodic_offsetNode_Shared_Win
+TYPE(MPI_Win)      :: Periodic_offsetNode_Shared_Win
 INTEGER,ALLOCPOINT :: Periodic_offsetNode_Shared(:)
 
 REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local non-synchronized surface charge contribution (does
@@ -148,7 +166,7 @@ REAL,ALLOCATABLE                :: NodeSourceExtTmp(:) ! It contains the local n
 !                                                      ! contribution accumulates over time, but remains local to each processor
 !                                                      ! as it is communicated via the container NodeSourceExt.
 
-INTEGER                         :: SFElemr2_Shared_Win
+TYPE(MPI_Win)                   :: SFElemr2_Shared_Win
 
 ! Send direction of nodes (can be different from number of receive nodes for each processor)
 TYPE tNodeMappingSend
@@ -172,11 +190,14 @@ TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
 
 TYPE tShapeMapping
   INTEGER,ALLOCATABLE           :: RecvShapeElemID(:)
+  INTEGER,ALLOCATABLE           :: RecvShapeElemDofOffset(:)
+  INTEGER                       :: nRecvShapeDofs
   INTEGER                       :: nRecvShapeElems
   INTEGER,ALLOCATABLE           :: SendShapeElemID(:)
   INTEGER                       :: nSendShapeElems
-  REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
-  REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
+  INTEGER                       :: nSendShapeDofs
+  REAL,ALLOCATABLE              :: RecvBuffer(:,:)
+  REAL,ALLOCATABLE              :: SendBuffer(:,:)
   LOGICAL,ALLOCATABLE           :: DoSendElem(:)
   INTEGER                       :: nNonZeroSendElems
   INTEGER                       :: Rank
@@ -190,19 +211,18 @@ TYPE tCNShapeMapping
   INTEGER,ALLOCATABLE           :: SendShapeProcElemID(:,:)
   INTEGER                       :: nRecvShapeElems(2)
   INTEGER                       :: nSendShapeElems(2)
-  REAL,ALLOCATABLE              :: RecvBuffer(:,:,:,:,:)
-  REAL,ALLOCATABLE              :: SendBuffer(:,:,:,:,:)
 END TYPE
 TYPE(tCNShapeMapping),ALLOCATABLE ::CNShapeMapping(:)
 
-INTEGER                         :: ShapeElemProcSend_Shared_Win
+TYPE(MPI_Win)                   :: ShapeElemProcSend_Shared_Win
 LOGICAL,ALLOCPOINT              :: ShapeElemProcSend_Shared(:,:)
 LOGICAL,ALLOCATABLE             :: FlagShapeElem(:)
-INTEGER,ALLOCATABLE             :: SendElemShapeID(:)         ! mapping from ShapeElemID to CNElemID
+INTEGER,ALLOCATABLE             :: SendDofShapeID(:)         ! mapping from ShapeElemID to CNElemID
 INTEGER                         :: nShapeExchangeProcs
 
 !INTEGER             :: SendRequest
-INTEGER,ALLOCATABLE :: RecvRequest(:), SendRequest(:), CNRankToSendRank(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecvRequest(:), SendRequest(:)
+INTEGER,ALLOCATABLE ::CNRankToSendRank(:)
 #endif
 
 !===================================================================================================================================

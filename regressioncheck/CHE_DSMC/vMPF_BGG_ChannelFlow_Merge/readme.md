@@ -3,3 +3,4 @@
 * Number density should remain constant across interface
 * New particle weights after merge cannot distributed evenly as density distribution due to flow across cell has to be reproduced
 * Example: Many particles enter the large cell with a low MPF, as they travel through the cell their MPF increases and only a few particles with a high MPF leave the cell
+* Note that the number density of the background gas was set to 1 to allow its usage without actually performing any collisions

@@ -102,6 +102,14 @@ INTERFACE LegendrePolynomialAndDerivative
    MODULE PROCEDURE LegendrePolynomialAndDerivative
 END INTERFACE
 
+INTERFACE GaussHermiteNodesAndWeights
+  MODULE PROCEDURE GaussHermiteNodesAndWeights
+END INTERFACE
+
+INTERFACE NewtonCotesNodesAndWeights
+  MODULE PROCEDURE NewtonCotesNodesAndWeights
+END INTERFACE
+
 INTERFACE EQUALTOTOLERANCE
    MODULE PROCEDURE EQUALTOTOLERANCE
 END INTERFACE
@@ -127,6 +135,8 @@ PUBLIC::LagrangeInterpolationPolys
 PUBLIC::LegendrePolynomialAndDerivative
 PUBLIC::GetSPDInverse
 PUBLIC::EQUALTOTOLERANCE
+PUBLIC::GaussHermiteNodesAndWeights
+PUBLIC::NewtonCotesNodesAndWeights
 
 !===================================================================================================================================
 
@@ -164,21 +174,13 @@ n = size(A,1)
 ! using partial pivoting with row interchanges.
 CALL DGETRF(n, n, Ainv, n, ipiv, info)
 
-IF(info.NE.0)THEN
-    CALL abort(&
-__STAMP__&
-,' Matrix is numerically singular!')
-END IF
+IF(info.NE.0) CALL abort(__STAMP__,' Matrix is numerically singular!')
 
 ! DGETRI computes the inverse of a matrix using the LU factorization
 ! computed by DGETRF.
 CALL DGETRI(n, Ainv, n, ipiv, work, n, info)
 
-IF(info.NE.0)THEN
-    CALL abort(&
-__STAMP__&
-,' Matrix inversion failed!')
-END IF
+IF(info.NE.0) CALL abort(__STAMP__,' Matrix inversion failed!')
 END FUNCTION INV
 
 SUBROUTINE INV33(M,MInv,detM)
@@ -296,6 +298,9 @@ INTEGER            :: i,j,jStart,jEnd
 REAL               :: dummy,eps
 REAL               :: arrayNchooseK(0:N_In,0:N_In)
 !===================================================================================================================================
+! Sanity check
+IF(BezierElevation.LT.0) CALL abort(__STAMP__,'BezierElevation<0 is not allowed. Check correct initialisation of BezierElevation.')
+
 ! store the coefficients
 ALLOCATE(FacNchooseK(0:N_In,0:N_In))
 FacNchooseK(:,:) = 0.
@@ -319,8 +324,7 @@ DO i=0,N_In
 END DO !j
 
 ! 3.) build array with binomial coeffs (fractions) for elevation
-IF(N_In+BezierElevation.GE.171) CALL Abort(&
-__STAMP__&
+IF(N_In+BezierElevation.GE.171) CALL abort(__STAMP__&
 ,'Bezier elevation to polynomial degrees greater/equal 171 is forbidden! exit.',171,REAL(N_In+BezierElevation))
 
 ElevationMatrix(0,0) = 1.
@@ -333,11 +337,8 @@ DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
     ElevationMatrix(i,j)=CHOOSE_large(N_In,j)*CHOOSE_large(BezierElevation,i-j) / CHOOSE_large(N_In+BezierElevation,i)
   END DO
   eps=ABS(SUM(ElevationMatrix(i,:))-1.0)
-  IF(eps>1e-12) CALL Abort(&
-__STAMP__&
-,'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
+  IF(eps>1e-12) CALL abort(__STAMP__,'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
 END DO
-
 ! Invert Vandermonde
 #ifdef VDM_ANALYTICAL
 ! Computes sVdm_Leg in  buildLegendreVdm() via analytical expression (only works for Lagrange polynomials, hence the "analytical"
@@ -352,8 +353,7 @@ sVdm_Bezier=INVERSE(Vdm_Bezier)
 dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 ! Tolerance used to be 1.0E-13, now depending on PP_RealTolerance, which yields approx. 8.88e-14 when PP_RealTolerance = 2.22e-16
 ! (gradually reduced due to not fail), now depending on PP_RealTolerance
-IF(ABS(dummy).GT.400.*PP_RealTolerance) CALL abort(&
-__STAMP__&
+IF(ABS(dummy).GT.400.*PP_RealTolerance) CALL abort(__STAMP__&
 ,'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',RealInfoOpt=dummy)
 END SUBROUTINE BuildBezierVdm
 
@@ -599,8 +599,7 @@ END DO
 CALL InitializeVandermonde(N_In,N_In,wBary_Loc,xi_In,xGauss,Vdm_Lag)
 sVdm_Leg=MATMUL(Vdm_Leg_Gauss,Vdm_Lag)
 dummy=ABS(SUM(ABS(MATMUL(sVdm_Leg,Vdm_Leg)))/(N_In+1.)-1.)
-IF(dummy.GT.15.*PP_RealTolerance) CALL abort(__STAMP__,&
-                                         'buildLegendreVdm: problems in MODAL<->NODAL Vandermonde ',999,dummy)
+IF(dummy.GT.15.*PP_RealTolerance) CALL abort(__STAMP__,'buildLegendreVdm: problems in MODAL<->NODAL Vandermonde ',999,dummy)
 #else
 ! Lapack
 sVdm_Leg=INVERSE(Vdm_Leg)
@@ -608,8 +607,7 @@ sVdm_Leg=INVERSE(Vdm_Leg)
 !check (Vdm_Leg)^(-1)*Vdm_Leg := I
 dummy=ABS(SUM(ABS(MATMUL(sVdm_Leg,Vdm_Leg)))/(N_In+1.)-1.)
 ! Tolerance used to be PP_RealTolerance
-IF(dummy.GT.10.*PP_RealTolerance) CALL abort(__STAMP__,&
-                                         'problems in Legendre Vandermonde ',999,dummy)
+IF(dummy.GT.10.*PP_RealTolerance) CALL abort(__STAMP__,'problems in Legendre Vandermonde ',999,dummy)
 #endif
 END SUBROUTINE buildLegendreVdm
 
@@ -734,15 +732,24 @@ REAL,INTENT(OUT),OPTIONAL :: wGP(0:N_in)  ! Gausspoint weights
 !local variables
 INTEGER            :: iGP
 !===================================================================================================================================
-DO iGP=0,N_in
-  xGP(iGP)=-COS(iGP/REAL(N_in)*ACOS(-1.))
-END DO
-IF(PRESENT(wGP))THEN
+! Attention PP_N=0: Lobatto has no meaning, respectively Gauss/Lobatto nodes can't be distinguished anymore
+! natural choice: xGP=0 and wGP=2
+IF(N_in.EQ.0)THEN
+  xGP=0.
+  IF(PRESENT(wGP))THEN
+    wGP=2.
+  END IF
+ELSE
   DO iGP=0,N_in
-    wGP(iGP)=ACOS(-1.)/REAL(N_in)
+    xGP(iGP)=-COS(iGP/REAL(N_in)*ACOS(-1.))
   END DO
-  wGP(0)=wGP(0)*0.5
-  wGP(N_in)=wGP(N_in)*0.5
+  IF(PRESENT(wGP))THEN
+    DO iGP=0,N_in
+      wGP(iGP)=ACOS(-1.)/REAL(N_in)
+    END DO
+    wGP(0)=wGP(0)*0.5
+    wGP(N_in)=wGP(N_in)*0.5
+  END IF
 END IF
 END SUBROUTINE ChebyGaussLobNodesAndWeights
 
@@ -806,9 +813,7 @@ ELSE ! N_in>1
         xGP(iGP)=xGP(iGP)+dx
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO !iter
-      CALL abort(&
-__STAMP__&
-,'Code stopped!',999,999.)
+      CALL abort(__STAMP__,'Code stopped!')
     END IF ! (iter.GT.nIter)
     CALL LegendrePolynomialAndDerivative(N_in+1,xGP(iGP),L_Np1,Lder_Np1)
     xGP(N_in-iGP)=-xGP(iGP)
@@ -925,9 +930,7 @@ IF(N_in.GT.1)THEN
         xGP(iGP)=xGP(iGP)+dx
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO ! iter
-      CALL abort(&
-__STAMP__&
-,'Code stopped!',999,999.)
+      CALL abort(__STAMP__,'Code stopped!')
     END IF ! (iter.GT.nIter)
     CALL qAndLEvaluation(N_in,xGP(iGP),q,qder,L)
     xGP(N_in-iGP)=-xGP(iGP)
@@ -1146,17 +1149,13 @@ INTEGER(KIND=8)    :: I
 !===================================================================================================================================
 !print*,"stop"
 !stop
-IF(N_in.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+IF(N_in.LT.0) CALL abort(__STAMP__,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(N_in.EQ.0)THEN
   FACTORIAL = 1 !! debug, should be one!!!!
 ELSE
   FACTORIAL = PRODUCT((/(I, I = 1, N_in)/))
 END IF
-IF(FACTORIAL.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
+IF(FACTORIAL.LT.0) CALL abort(__STAMP__,'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
 END FUNCTION FACTORIAL
 
 
@@ -1181,16 +1180,12 @@ INTEGER         :: I
 !===================================================================================================================================
 !print*,"stop"
 !stop
-IF(N_in.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+IF(N_in.LT.0) CALL abort(__STAMP__,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 FACTORIAL_REAL=1.
 DO I=2,N_in
   FACTORIAL_REAL=FACTORIAL_REAL*REAL(I,8)
 END DO
-IF(FACTORIAL_REAL.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
+IF(FACTORIAL_REAL.LT.0) CALL abort(__STAMP__,'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
 END FUNCTION FACTORIAL_REAL
 
 
@@ -1268,6 +1263,162 @@ DO iGP=0,N_in
 END DO
 END SUBROUTINE LagrangeInterpolationPolys
 
+SUBROUTINE GaussHermiteNodesAndWeights(N_in,xGP,wGP)
+!===================================================================================================================================
+! Algorithm presented in Computer Physics Communications 48
+! Abscissae and Weights for the Gauss-Hermite Quadrature Formula
+!===================================================================================================================================
+!MODULES
+USE MOD_Globals
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER,INTENT(IN)        :: N_in              ! polynomial degree, (N_in) Gausspoints
+!-----------------------------------------------------------------------------------------------------------------------------------
+!output parameters
+REAL,INTENT(OUT)          :: xGP(0:N_in)       ! Gausspoint positions for the reference interval [-1,1]
+REAL,INTENT(OUT),OPTIONAL :: wGP(0:N_in)       ! Gausspoint weights
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+REAL                      :: hermCompMat(0:N_in,0:N_in), wTemp, dx, H_Np1,Hder_Np1, pi, wSum
+REAL                      :: Work(1000)
+INTEGER                   :: iN, factorial, iGP, iFac
+INTEGER                   :: INFO
+!===================================================================================================================================
+
+pi=4.*atan(1.)
+factorial = 1
+DO iFac=1,(N_in+1)
+  factorial = factorial * iFac
+END DO ! iFac
+
+hermCompMat = 0.0
+
+DO iN = 0,(N_in-1)
+  hermCompMat(iN,iN+1) = SQRT(.5*(iN+1))
+  hermCompMat(iN+1,iN) = SQRT(.5*(iN+1))
+END DO
+
+CALL DSYEV('N','L',N_in+1,hermCompMat,N_in+1,xGP,Work,1000,INFO)
+
+wSum = 0.
+DO iGP=0,N_in
+  CALL HermitePolynomialAndDerivative(N_in+1,xGP(iGP),H_Np1,Hder_Np1)
+  dx = -H_Np1/Hder_Np1
+  xGP(iGP) = xGP(iGP) + dx
+
+  CALL HermitePolynomialAndDerivative(N_in+2,xGP(iGP),H_Np1,Hder_Np1)
+  IF (PRESENT(wGP)) THEN
+    wTemp = REAL(2**(N_in+2) * SQRT(pi) * factorial)
+    wGP(iGP) = wTemp/(H_Np1**2)
+    wSum = wSum + wGP(iGP)
+  END IF ! (PRES
+END DO ! iGP
+
+wGP = wGP*sqrt(pi)/wSum
+END SUBROUTINE GaussHermiteNodesAndWeights
+
+SUBROUTINE NewtonCotesNodesAndWeights(N_in,N_deg,xGP,wGP)
+!===================================================================================================================================
+
+!===================================================================================================================================
+!MODULES
+USE MOD_Globals
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER,INTENT(IN)        :: N_in              ! (N_in) points
+INTEGER,INTENT(IN)        :: N_deg              ! degree of newton-cotes formula
+!-----------------------------------------------------------------------------------------------------------------------------------
+!output parameters
+REAL,INTENT(OUT)          :: xGP(0:N_in)       ! point positions for the reference interval [0,1]
+REAL,INTENT(OUT),OPTIONAL :: wGP(0:N_in)       ! weights
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+INTEGER :: iNewt, iGlob
+REAL :: Nreal
+!===================================================================================================================================
+
+IF (N_deg.GT.0) THEN
+  IF (MOD(N_in,N_deg).GT.0) CALL abort(__STAMP__,&
+                 'ERROR: Number of interpolation points has to be a multiple of the Newton-Cotes formula degree')
+END IF
+
+IF (N_deg.EQ.1) THEN
+  Nreal = REAL(N_in,8)
+  xGP(0) = 0.
+  xGP(N_in) = 1.
+  wGP(0) = 1./Nreal/2.
+  wGP(N_in) = 1./Nreal/2.
+  DO iNewt=1, N_in-1
+    xGP(iNewt) = iNewt/Nreal
+    wGP(iNewt) = 1./Nreal
+  END DO
+ELSE IF (N_deg.EQ.2) THEN
+  Nreal = REAL(N_in/2,8)
+  xGP(0) = 0.
+  wGP(0) = 1./Nreal/6.
+  DO iNewt=1, N_in/2
+    iGlob = 2*iNewt-1
+    xGP(iGlob) = iGlob/Nreal/2.
+    xGP(iGlob+1) = (iGlob+1)/Nreal/2.
+    wGP(iGlob) = 2./Nreal/3.
+    wGP(iGlob+1) = 1./Nreal/3.
+  END DO
+  xGP(N_in) = 1.
+  wGP(N_in) = 1./Nreal/6.
+ELSE IF (N_deg.EQ.3) THEN
+  Nreal = REAL(N_in/3,8)
+  xGP(0) = 0.
+  wGP(0) = 1./Nreal/8.
+  DO iNewt=1, N_in/3
+    iGlob = 3*iNewt-2
+    xGP(iGlob) = iGlob/Nreal/3.
+    xGP(iGlob+1) = (iGlob+1)/Nreal/3.
+    xGP(iGlob+2) = (iGlob+2)/Nreal/3.
+    wGP(iGlob) = 3./Nreal/8.
+    wGP(iGlob+1) = 3./Nreal/8.
+    wGP(iGlob+2) = 1./Nreal/4.
+  END DO
+  xGP(N_in) = 1.
+  wGP(N_in) = 1./Nreal/8.
+ELSE
+  CALL abort(__STAMP__,&
+    'ERROR: Newton-Cotes degree not implemented')
+END IF
+
+END SUBROUTINE NewtonCotesNodesAndWeights
+
+SUBROUTINE HermitePolynomialAndDerivative(N_in,x,H,Hder)
+!===================================================================================================================================
+!
+!===================================================================================================================================
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+!input parameters
+INTEGER,INTENT(IN)        :: N_in     ! polynomial degree
+REAL,INTENT(IN)    :: x      ! coordinate value in the interval [-infty,infty]
+!-----------------------------------------------------------------------------------------------------------------------------------
+!output parameters
+REAL,INTENT(OUT)    :: H,Hder  ! H_N(xi), d/dxi H_N(xi)
+!-----------------------------------------------------------------------------------------------------------------------------------
+!local variables
+INTEGER :: iHermite
+REAL    :: H_Nm1,H_Nm2 ! H_{N_in-1}, H_{N_in-2}
+!===================================================================================================================================
+IF (N_in .EQ. 1) THEN
+  H = 2*x
+  Hder = 2
+ELSE ! N_in > 1
+  H_Nm2 = 1
+  H_Nm1 = 2*x
+  DO iHermite=2,N_in
+    H = 2.*x*H_Nm1 - 2.*REAL(iHermite-1)*H_Nm2
+    H_Nm2 = H_Nm1
+    H_Nm1 = H
+  END DO ! iLegendre=2,N_in
+  Hder = 2*N_in*H_Nm2
+END IF
+END SUBROUTINE HermitePolynomialAndDerivative
 
 END MODULE MOD_Basis
-

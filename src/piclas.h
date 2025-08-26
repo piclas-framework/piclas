@@ -117,6 +117,10 @@
 #define PP_ij      i,j
 #endif
 
+#if USE_FV
+#define PP_1 1
+#endif
+
 #ifdef INTKIND8
 #define MPI_INTEGER_INT_KIND MPI_INTEGER8
 #else
@@ -124,22 +128,33 @@
 #endif
 
 ! number of entry in each line of ElemInfo
-#define ELEMINFOSIZE_H5   6
+#define ELEMINFOSIZE_H5      6
+#define FEMELEMINFOSIZE_H5   4
+#define ALLELEMINFOSIZE_H5   10
 #if USE_MPI
 #define ELEMINFOSIZE      8
+#define ALLELEMINFOSIZE   12
 #else
 #define ELEMINFOSIZE      6
+#define ALLELEMINFOSIZE   10
 #endif /* USE_MPI*/
 ! ElemInfo in H5 file
-#define ELEM_TYPE         1
-#define ELEM_ZONE         2
-#define ELEM_FIRSTSIDEIND 3
-#define ELEM_LASTSIDEIND  4
-#define ELEM_FIRSTNODEIND 5
-#define ELEM_LASTNODEIND  6
+#define ELEM_TYPE           1
+#define ELEM_ZONE           2
+#define ELEM_FIRSTSIDEIND   3
+#define ELEM_LASTSIDEIND    4
+#define ELEM_FIRSTNODEIND   5
+#define ELEM_LASTNODEIND    6
+#define ELEM_FIRSTEDGEIND   7
+#define ELEM_LASTEDGEIND    8
+#define ELEM_FIRSTVERTEXIND 9
+#define ELEM_LASTVERTEXIND  10
 ! ElemInfo for shared array
-#define ELEM_RANK         7
-#define ELEM_HALOFLAG     8
+! ATTENTION: these variables are now defined in mesh_vars.f90 and not here. Do not delete the following four lines!
+!#define ELEM_RANK         7
+!#define ELEM_HALOFLAG     8
+!#define ALLELEM_RANK         11
+!#define ALLELEM_HALOFLAG     12
 ! number of entries in each line of SideInfo
 #define SIDEINFOSIZE_H5   5
 #define SIDEINFOSIZE      8
@@ -156,6 +171,27 @@
 #define SURF_SIDEID       1
 #define SURF_RANK         2
 #define SURF_LEADER       3
+
+! EdgeInfo in H5 file
+#define EDGEINFOSIZE_H5      3
+#define EDGE_FEMID           1
+#define EDGE_FIRSTCONNECTIND 2
+#define EDGE_LASTCONNECTIND  3
+! EdgeConnectInfo
+#define EDGECONNECTINFOSIZE_H5  2
+#define EDGECONNECT_NBELEMID    1
+#define EDGECONNECT_NBLOCEDGEID 2
+
+! VertexInfo in H5 file
+#define VERTEXINFOSIZE_H5      3
+#define VERTEX_FEMID           1
+#define VERTEX_FIRSTCONNECTIND 2
+#define VERTEX_LASTCONNECTIND  3
+! VertexConnectInfo
+#define VERTEXCONNECTINFOSIZE_H5  2
+#define VERTEXCONNECT_NBELEMID    1
+#define VERTEXCONNECT_NBLOCNODEID 2
+
 
 ! Predefined "PARAMETER-like" variables
 #define XI_MINUS   5
@@ -259,7 +295,7 @@
 #define LB_EMISSION      5
 #define LB_TRACK         6
 #define LB_INTERPOLATION 7
-#define LB_DEPOSITION    8
+#define LB_DEPO_SF       8
 #define LB_CARTMESHDEPO  9
 #define LB_PUSH          10
 #define LB_PARTANALYZE   11
@@ -272,8 +308,10 @@
 #define LB_SURFFLUX      18
 #define LB_SURFCOMM      19
 #define LB_ADAPTIVE      20
+#define LB_FV            21
+#define LB_FVCOMM        22
 
-#define LB_NTIMES        20
+#define LB_NTIMES        22
 
 ! DSMC_analyze indeces used in arrays
 #define DSMC_VELOX       1
@@ -319,10 +357,13 @@
 #define DT_END        3
 #define DT_BR_SWITCH  4
 
-! Secondary electron emission
-#define SEE_MODELS_ID 4,5,6,7,8,9,10,11
+! Virtual Dielectric Layer (VDL): PartBound%SurfaceModel
+#define VDL_MODEL_ID 99
+
+! Secondary electron emission: PartBound%SurfaceModel
+#define SEE_MODELS_ID 3,4,5,6,7,8,9,10,11,12,13
 
 #if USE_HDG
-! HDG Dirichlet BC Side IDs
+! HDG Dirichlet BC Side IDs: BCType = BoundaryType(BC(SideID),BC_TYPE)
 #define HDGDIRICHLETBCSIDEIDS 2,4,5,6,7,8,50,51,52,60
 #endif

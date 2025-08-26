@@ -600,7 +600,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
                                               / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
         ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
-        IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,iSurfSide) = 0.
+        IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,OutputCounter) = 0.
         ! Heat flux (energy difference per second per area -> W/m2)
         MacroSurfaceVal(4,p,q,OutputCounter) = (SampWallState(SAMPWALL_ETRANSOLD,p,q,iSurfSide)  &
                                           + SampWallState(SAMPWALL_EROTOLD  ,p,q,iSurfSide)  &
@@ -857,7 +857,7 @@ IF (mySurfRank.EQ.0) THEN
 
   IF (PartBound%OutputWallTemp) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
   IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
-  IF (DoChemSurface) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Heat_Flux')
+  IF (DoChemSurface) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Catalytic_HeatFlux')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 

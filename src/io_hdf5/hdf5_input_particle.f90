@@ -42,16 +42,18 @@ SUBROUTINE ReadNodeSourceExtFromHDF5()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
-USE MOD_HDF5_Input             ,ONLY: ReadArray
+! USE MOD_Dielectric_Vars        ,ONLY: DoDielectric
+USE MOD_HDF5_Input             ,ONLY: ReadArray,GetDataSize,nDims,HSize
 USE MOD_HDF5_Input             ,ONLY: File_ID,DatasetExists
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Interpolation          ,ONLY: GetVandermonde
-USE MOD_Mesh_Vars              ,ONLY: Vdm_N_EQ,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,nElems
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetGlobalElemID
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes!,NodeToElemMapping,NodeToElemInfo
 USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt,NodeVolume,DoDeposition
 USE MOD_Restart_Vars           ,ONLY: N_Restart
+USE MOD_DG_vars                ,ONLY: N_DG_Mapping
+USE MOD_Interpolation_Vars     ,ONLY: NMax,NMin
 !#if USE_MPI
 !USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 !USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED
@@ -65,14 +67,33 @@ IMPLICIT NONE
 ! Space-separated list of input and output types. Use: (int|real|logical|...)_(in|out|inout)_dim(n)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                               :: U_local(1,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems)
+REAL,ALLOCATABLE                   :: U_local(:,:,:,:,:)
 LOGICAL                            :: DG_SourceExtExists
 REAL                               :: NodeSourceExtEqui(1,0:1,0:1,0:1),NodeVol(1:8)
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp,N_RestartTmp
-INTEGER                            :: iElem!,CNElemID
+INTEGER                            :: iElem,CNElemID
 INTEGER                            :: NodeID(1:8)!,firstNode,lastNode,firstGlobalElemID(1:8),iNode
+! REAL,ALLOCATABLE                   :: Vdm_N_EQ(:,:) !< Vandermonde mapping from NodeType to equidistant (visu) node set
+CHARACTER(LEN=255),PARAMETER       :: DGSourceDataset='DG_SourceExt'
+! p-adaption input
+TYPE VdmType
+  REAL,ALLOCATABLE :: Vdm(:,:)                              !< Vandermonde mapping from equidistant (visu) to NodeType node set
+END TYPE VdmType
+
+TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm_N_EQ        !< Array to store all Vandermonde matrices depending on Nloc
+
+TYPE NSEType
+  REAL,ALLOCATABLE :: U(:,:,:,:)                            !< NodeSourceExtEqui mapped to Nloc
+END TYPE NSEType
+
+TYPE(NSEType), DIMENSION(:), ALLOCATABLE :: NodeSourceExt_N !< Array to store all NodeSourceExtEqui depending on Nloc
+
+REAL,ALLOCATABLE               :: U_N_2D_local(:,:)
+INTEGER                        :: nDOF, iDOF, offsetDOF, Nloc, i, j, k
 !===================================================================================================================================
-IF(.NOT.DoDielectric) RETURN
+! DoDielectric=F for VDL model
+!IF(.NOT.DoDielectric) RETURN
+NodeVol = 1. ! default
 
 ! This array is not allocated when DoDeposition=F, however, the previously calculated surface charge might still be required in the
 ! future, when DoDeposition is activated again. Therefore, read the old data and store in the new state file.
@@ -81,91 +102,152 @@ IF(.NOT.DoDeposition) THEN
   NodeSourceExt = 0.
 END IF
 
+IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
+
 ! Temp. vars for integer KIND=8 possibility
 OffsetElemTmp = INT(OffsetElem,IK)
 PP_nElemsTmp  = INT(PP_nElems,IK)
 N_RestartTmp  = INT(N_Restart,IK)
 
-CALL DatasetExists(File_ID,'DG_SourceExt',DG_SourceExtExists)
+CALL DatasetExists(File_ID,TRIM(DGSourceDataset),DG_SourceExtExists)
 
 IF(DG_SourceExtExists)THEN
+  ! build necessary mappings
+  ALLOCATE(Vdm_N_EQ(Nmin:MAX(Nmax,N_Restart)))
+  ALLOCATE(NodeSourceExt_N(Nmin:Nmax))
+  DO Nloc = Nmin, Nmax
+    ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
+    ! ALLOCATE(Vdm_N_EQ(0:1,0:N_Restart))
+    ALLOCATE(Vdm_N_EQ(Nloc)%Vdm(0:1,0:Nloc))
+    CALL GetVandermonde(Nloc, NodeType, 1, NodeTypeVISU, Vdm_N_EQ(Nloc)%Vdm(0:1,0:Nloc), modal=.FALSE.)
+    ALLOCATE(NodeSourceExt_N(Nloc)%U(1:1,0:Nloc,0:Nloc,0:Nloc))
+  END DO ! Nloc = Nmin, Nmax
 
-  ! We need to interpolate the solution to the new computational grid
-  CALL ReadArray('DG_SourceExt',5,(/1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
-      OffsetElemTmp,5,RealArray=U_local)
+  ! Get dimension of dataset
+  CALL GetDataSize(File_ID,TRIM(DGSourceDataset),nDims,HSize)
+  DEALLOCATE(HSize)
 
-  ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
-  ALLOCATE(Vdm_N_EQ(0:1,0:N_Restart))
-  CALL GetVandermonde(N_Restart, NodeType, 1, NodeTypeVISU, Vdm_N_EQ, modal=.FALSE.)
+  IF(nDims.EQ.2)THEN
+    ! Preparing U_N_2D_local array for output as DG_Solution
+    ! Get the number of output DOFs per processor as the difference between the first and last offset and adding the number of DOFs of the last element
+    nDOF = N_DG_Mapping(1,nElems+offsetElem)-N_DG_Mapping(1,1+offsetElem)+(N_DG_Mapping(2,nElems+offSetElem)+1)**3
+    ! Get the offset based on the element-local polynomial degree
+    IF(offsetElem.GT.0) THEN
+      offsetDOF = N_DG_Mapping(1,1+offsetElem)
+    ELSE
+      offsetDOF = 0
+    END IF
 
-!  #if USE_MPI
-!    firstNode = INT(REAL( myComputeNodeRank   )*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
-!    lastNode  = INT(REAL((myComputeNodeRank+1))*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
-!  #else
-!    firstNode = 1
-!    lastNode = nUniqueGlobalNodes
-!  #endif
-  NodeVol = 1. ! default
-  DO iElem =1, PP_nElems
-    ! Map G/GL (current node type) to equidistant distribution
-    CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ, U_local(:,:,:,:,iElem),NodeSourceExtEqui(:,:,:,:))
+    ! Allocate local 2D array
+    ALLOCATE(U_N_2D_local(1:1,1:nDOF))
+    CALL ReadArray(TRIM(DGSourceDataset),2,(/1_IK,INT(nDOF,IK)/),INT(offsetDOF,IK),2,RealArray=U_N_2D_local)
 
-    ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
-    ! Map non-unique to unique node ID
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
-    !DO iNode = 1, 8
-    !  firstGlobalElemID(iNode) = GetGlobalElemID(NodeToElemInfo(NodeToElemMapping(1,NodeID(iNode)) + 1))
-    !END DO ! I = 1, 8
+    ! Read data from 2D array
+    iDOF = 0
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offsetElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        iDOF = iDOF + 1
+        NodeSourceExt_N(Nloc)%U(1:1,i,j,k) = U_N_2D_local(1:1,iDOF)
+      END DO; END DO; END DO
 
-    ! method 1: Only change the nodes which are assigned to the proc
-    !IF(firstNode.LE.NodeID(1).AND.NodeID(1).LE.lastNode) NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
-    !IF(firstNode.LE.NodeID(2).AND.NodeID(2).LE.lastNode) NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
-    !IF(firstNode.LE.NodeID(3).AND.NodeID(3).LE.lastNode) NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
-    !IF(firstNode.LE.NodeID(4).AND.NodeID(4).LE.lastNode) NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
-    !IF(firstNode.LE.NodeID(5).AND.NodeID(5).LE.lastNode) NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
-    !IF(firstNode.LE.NodeID(6).AND.NodeID(6).LE.lastNode) NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
-    !IF(firstNode.LE.NodeID(7).AND.NodeID(7).LE.lastNode) NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
-    !IF(firstNode.LE.NodeID(8).AND.NodeID(8).LE.lastNode) NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+      ! Map G/GL (current node type) to equidistant distribution
+      CALL ChangeBasis3D(1, Nloc, 1, Vdm_N_EQ(Nloc)%Vdm, NodeSourceExt_N(Nloc)%U(1:1,0:Nloc,0:Nloc,0:Nloc),&
+                                                               NodeSourceExtEqui(1:1,0:1   ,0:1   ,0:1))
 
-    ! method 2: change any node
-    ! this can lead to a race condition when two or more procs write to the same position in the
-    ! shared memory array NodeSourceExt
-    ! Fix: try MPI_FETCH_AND_OP(...)
-    !NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
-    !NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
-    !NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
-    !NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
-    !NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
-    !NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
-    !NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
-    !NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+      ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
+      ! Map non-unique to unique node ID
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      NodeID   = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
 
-    ! method 3: check node ID
-    ! Compare global Elem ID and only write the data for the first element
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(1)) NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(2)) NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(3)) NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(4)) NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(5)) NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(6)) NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(7)) NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
-    !IF(iElem+OffsetElem.EQ.firstGlobalElemID(8)) NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+      ! method 4: all nodes are local (removed shared memory)
+      IF(DoDeposition) NodeVol = NodeVolume(NodeID(1:8)) ! this is only required when deposition is activated
+      NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVol(1)
+      NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVol(2)
+      NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVol(3)
+      NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVol(4)
+      NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVol(5)
+      NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVol(6)
+      NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVol(7)
+      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVol(8)
+    END DO
+  ELSE ! nDims.EQ.5
+    ALLOCATE(U_local(1,0:N_Restart,0:N_Restart,0:N_Restart,PP_nElems))
+    ! We need to interpolate the solution to the new computational grid
+    CALL ReadArray(TRIM(DGSourceDataset),5,(/1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,N_RestartTmp+1_IK,PP_nElemsTmp/),&
+        OffsetElemTmp,5,RealArray=U_local)
 
-    ! method 4: all nodes are local (removed shared memory)
-    IF(DoDeposition) NodeVol = NodeVolume(NodeID(1:8)) ! this is only required when deposition is activated
-    NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVol(1)
-    NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVol(2)
-    NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVol(3)
-    NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVol(4)
-    NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVol(5)
-    NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVol(6)
-    NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVol(7)
-    NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVol(8)
-  END DO
+!    #if USE_MPI
+!      firstNode = INT(REAL( myComputeNodeRank   )*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))+1
+!      lastNode  = INT(REAL((myComputeNodeRank+1))*REAL(nUniqueGlobalNodes)/REAL(nComputeNodeProcessors))
+!    #else
+!      firstNode = 1
+!      lastNode = nUniqueGlobalNodes
+!    #endif
+    DO iElem =1, PP_nElems
+      ! Map G/GL (current node type) to equidistant distribution
+      CALL ChangeBasis3D(1, N_Restart, 1, Vdm_N_EQ(N_Restart)%Vdm, U_local(1:1,0:N_Restart,0:N_Restart,0:N_Restart,iElem), NodeSourceExtEqui(1:1,0:1,0:1,0:1))
+
+      ! Map the solution to the global nodes 'NodeSourceExt' and apply the volumes (charge density -> charge)
+      ! Map non-unique to unique node ID
+      CNElemID = GetCNElemID(iElem+offsetElem)
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
+      !DO iNode = 1, 8
+      !  firstGlobalElemID(iNode) = GetGlobalElemID(NodeToElemInfo(NodeToElemMapping(1,NodeID(iNode)) + 1))
+      !END DO ! I = 1, 8
+
+      ! method 1: Only change the nodes which are assigned to the proc
+      !IF(firstNode.LE.NodeID(1).AND.NodeID(1).LE.lastNode) NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+      !IF(firstNode.LE.NodeID(2).AND.NodeID(2).LE.lastNode) NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+      !IF(firstNode.LE.NodeID(3).AND.NodeID(3).LE.lastNode) NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+      !IF(firstNode.LE.NodeID(4).AND.NodeID(4).LE.lastNode) NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+      !IF(firstNode.LE.NodeID(5).AND.NodeID(5).LE.lastNode) NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+      !IF(firstNode.LE.NodeID(6).AND.NodeID(6).LE.lastNode) NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+      !IF(firstNode.LE.NodeID(7).AND.NodeID(7).LE.lastNode) NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+      !IF(firstNode.LE.NodeID(8).AND.NodeID(8).LE.lastNode) NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+
+      ! method 2: change any node
+      ! this can lead to a race condition when two or more procs write to the same position in the
+      ! shared memory array NodeSourceExt
+      ! Fix: try MPI_FETCH_AND_OP(...)
+      !NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+      !NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+      !NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+      !NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+      !NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+      !NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+      !NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+      !NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+
+      ! method 3: check node ID
+      ! Compare global Elem ID and only write the data for the first element
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(1)) NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVolume(NodeID(1))
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(2)) NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVolume(NodeID(2))
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(3)) NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVolume(NodeID(3))
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(4)) NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVolume(NodeID(4))
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(5)) NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVolume(NodeID(5))
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(6)) NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVolume(NodeID(6))
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(7)) NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVolume(NodeID(7))
+      !IF(iElem+OffsetElem.EQ.firstGlobalElemID(8)) NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVolume(NodeID(8))
+
+      ! method 4: all nodes are local (removed shared memory)
+      IF(DoDeposition) NodeVol = NodeVolume(NodeID(1:8)) ! this is only required when deposition is activated
+      NodeSourceExt(NodeID(1)) = NodeSourceExtEqui(1,0,0,0) * NodeVol(1)
+      NodeSourceExt(NodeID(2)) = NodeSourceExtEqui(1,1,0,0) * NodeVol(2)
+      NodeSourceExt(NodeID(3)) = NodeSourceExtEqui(1,1,1,0) * NodeVol(3)
+      NodeSourceExt(NodeID(4)) = NodeSourceExtEqui(1,0,1,0) * NodeVol(4)
+      NodeSourceExt(NodeID(5)) = NodeSourceExtEqui(1,0,0,1) * NodeVol(5)
+      NodeSourceExt(NodeID(6)) = NodeSourceExtEqui(1,1,0,1) * NodeVol(6)
+      NodeSourceExt(NodeID(7)) = NodeSourceExtEqui(1,1,1,1) * NodeVol(7)
+      NodeSourceExt(NodeID(8)) = NodeSourceExtEqui(1,0,1,1) * NodeVol(8)
+    END DO
+  END IF ! nDims.EQ.2
 
 !#if USE_MPI
 !  CALL BARRIER_AND_SYNC(NodeSourceExt_Shared_Win,MPI_COMM_SHARED)
 !#endif /*USE_MPI*/
+  DEALLOCATE(Vdm_N_EQ)
+  DEALLOCATE(NodeSourceExt_N)
 END IF ! DG_SourceExtExists
 
 END SUBROUTINE ReadNodeSourceExtFromHDF5
@@ -181,7 +263,7 @@ END SUBROUTINE ReadNodeSourceExtFromHDF5
 SUBROUTINE ReadEmissionVariablesFromHDF5()
 ! MODULES
 #if USE_MPI
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 !USE MOD_io_HDF5
 USE MOD_Globals

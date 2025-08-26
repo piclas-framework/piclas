@@ -37,7 +37,7 @@ PUBLIC::EvalFlux3DDielectric
 
 CONTAINS
 
-SUBROUTINE EvalFlux3D(iElem,f,g,h)
+SUBROUTINE EvalFlux3D(Nloc,iElem,f,g,h)
 !===================================================================================================================================
 !
 !===================================================================================================================================
@@ -45,24 +45,25 @@ SUBROUTINE EvalFlux3D(iElem,f,g,h)
 USE MOD_PreProc
 USE MOD_Equation_Vars ,ONLY: c_corr,c_corr_c2
 USE MOD_Globals_Vars  ,ONLY: c2
-USE MOD_DG_Vars       ,ONLY: U
+USE MOD_DG_Vars       ,ONLY: U_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)                                 :: Nloc
 INTEGER,INTENT(IN)                                 :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,DIMENSION(8,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
+REAL,DIMENSION(8,0:Nloc,0:Nloc,0:Nloc),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: Uin(8)
 INTEGER             :: i,j,k
 !===================================================================================================================================
-DO k=0,PP_N
-  DO j=0,PP_N
-    DO i=0,PP_N
-      Uin=U(:,i,j,k,iElem)
+DO k=0,Nloc
+  DO j=0,Nloc
+    DO i=0,Nloc
+      Uin=U_N(iElem)%U(:,i,j,k)
         ! hier der physikalische Fluss ohne die Divergenzkorrektur!
         !A
         f(1,i,j,k) = Uin(8)*c_corr_c2          ! phi*chi*c^2      P1
@@ -97,7 +98,7 @@ END DO ! k
 END SUBROUTINE EvalFlux3D
 
 
-SUBROUTINE EvalFlux3DDielectric(iElem,f,g,h)
+SUBROUTINE EvalFlux3DDielectric(Nloc,iElem,f,g,h)
 !===================================================================================================================================
 ! calculate the 3D physical fluxes for each DOF i,j,k with additional dielectric material factors
 !===================================================================================================================================
@@ -105,26 +106,27 @@ SUBROUTINE EvalFlux3DDielectric(iElem,f,g,h)
 USE MOD_PreProc
 USE MOD_Equation_Vars   ,ONLY: c_corr,c_corr_c2
 USE MOD_Globals_Vars    ,ONLY: c2
-USE MOD_DG_Vars         ,ONLY: U
-USE MOD_Dielectric_Vars ,ONLY: ElemToDielectric,DielectricConstant_inv
+USE MOD_DG_Vars         ,ONLY: U_N
+USE MOD_Dielectric_Vars ,ONLY: ElemToDielectric,DielectricVol
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
+INTEGER,INTENT(IN)                                 :: Nloc
 INTEGER,INTENT(IN)                                 :: iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,DIMENSION(8,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
+REAL,DIMENSION(8,0:Nloc,0:Nloc,0:Nloc),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                :: Uin(8),die
 INTEGER             :: i,j,k
 !===================================================================================================================================
-DO k=0,PP_N
-  DO j=0,PP_N
-    DO i=0,PP_N
-      Uin=U(:,i,j,k,iElem)
-      die=DielectricConstant_Inv(i,j,k,ElemToDielectric(iElem))
+DO k=0,Nloc
+  DO j=0,Nloc
+    DO i=0,Nloc
+      Uin=U_N(iElem)%U(:,i,j,k)
+      die=DielectricVol(ElemToDielectric(iElem))%DielectricConstant_Inv(i,j,k)
         ! hier der physikalische Fluss ohne die Divergenzkorrektur!
         !A
         f(1,i,j,k) = Uin(8)*c_corr_c2*die  ! phi*chi*c^2      P1

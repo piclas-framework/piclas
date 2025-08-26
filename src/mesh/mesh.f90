@@ -14,7 +14,7 @@
 
 MODULE MOD_Mesh
 !===================================================================================================================================
-! Contains subroutines to build (curvilinear) meshes and provide metrics, etc.
+! Contains subroutines to build (curviilinear) meshes and provide metrics, etc.
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -24,30 +24,27 @@ PRIVATE
 ! GLOBAL VARIABLES (PUBLIC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE InitMesh
-  MODULE PROCEDURE InitMesh
-END INTERFACE
-
-INTERFACE SwapMesh
-  MODULE PROCEDURE SwapMesh
-END INTERFACE
-
-INTERFACE FinalizeMesh
-  MODULE PROCEDURE FinalizeMesh
-END INTERFACE
-
-INTERFACE GetMeshMinMaxBoundaries
-  MODULE PROCEDURE GetMeshMinMaxBoundaries
-END INTERFACE
-
 PUBLIC::InitMesh
-PUBLIC::SwapMesh
 PUBLIC::FinalizeMesh
 PUBLIC::GetMeshMinMaxBoundaries
+PUBLIC::DefineParametersMesh
+#if !(PP_TimeDiscMethod==700)
+PUBLIC::Set_N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
+
+INTEGER,PARAMETER :: PRM_P_ADAPTION_DBG2 = -2 ! Debugging
+INTEGER,PARAMETER :: PRM_P_ADAPTION_DBG  = -1 ! Debugging
+INTEGER,PARAMETER :: PRM_P_ADAPTION_ZERO = 0  ! deactivate
+INTEGER,PARAMETER :: PRM_P_ADAPTION_RDN  = 1  ! random
+INTEGER,PARAMETER :: PRM_P_ADAPTION_NPB  = 2  ! Elements with non-periodic boundary sides get NMax
+INTEGER,PARAMETER :: PRM_P_ADAPTION_HH   = 3  ! Elements in the lower half domain in x-direction are set to NMin and the upper half are set to NMax. Origin must be at x=0.
+
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_MINTWO  = -2 ! Directly connected elements are set to NMax and 2nd layer elements are set to NMin+1
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_MINONE  = -1 ! Directly connected elements are set to NMin+1
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_DEFAULT = 1 ! Directly connected elements are set to NMax
+INTEGER,PARAMETER :: PRM_P_ADAPTION_LVL_TWO     = 2 ! Directly connected elements and elements connected with these are set to NMax
 !===================================================================================================================================
 
-PUBLIC::DefineParametersMesh
 CONTAINS
 
 !==================================================================================================================================
@@ -56,24 +53,51 @@ CONTAINS
 SUBROUTINE DefineParametersMesh()
 ! MODULES
 USE MOD_Globals
-USE MOD_ReadInTools ,ONLY: prms
+USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Mesh")
-CALL prms%CreateLogicalOption( 'DoSwapMesh'          , "Flag to swap mesh for calculation."                                                                                                 , '.FALSE.')
-CALL prms%CreateStringOption(  'SwapMeshExePath'     , "(relative) path to swap-meshfile (mandatory).")
-CALL prms%CreateIntOption(     'SwapMeshLevel'       , "0: initial grid\n1: first swap mesh\n2: second swap mesh\n"                                                                         , '0')
 CALL prms%CreateStringOption(  'MeshFile'            , "(relative) path to meshfile (mandatory)\n(HALOWIKI:) usually located in directory of project.ini")
 CALL prms%CreateLogicalOption( 'useCurveds'          , "Controls usage of high-order information in mesh. Turn off to discard high-order data and treat curved meshes as linear meshes."    , '.FALSE.')
 CALL prms%CreateRealOption(    'meshScale'           , "Scale the mesh by this factor (shrink/enlarge)."                                                                                    , '1.0')
 CALL prms%CreateLogicalOption( 'meshdeform'          , "Apply simple sine-shaped deformation on cartesion mesh (for testing)."                                                              , '.FALSE.')
 CALL prms%CreateLogicalOption( 'meshCheckRef'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
 CALL prms%CreateLogicalOption( 'CalcMeshInfo'        , 'Calculate and output elem data for myrank, ElemID and tracking info to ElemData'                                                    , '.FALSE.')
+CALL prms%CreateLogicalOption( 'readFEMconnectivity' , 'Activate reading the FEM connectivity arrays EdgeInfo, EdgeConnectInfo, VertexInfo and VertexConnectInfo from the mesh file'        , '.FALSE.')
 CALL prms%CreateLogicalOption( 'crossProductMetrics' , "Compute mesh metrics using cross product form. Caution: in this case free-stream preservation is only guaranteed for N=3*NGeo."     , '.FALSE.')
 CALL prms%CreateStringOption(  'BoundaryName'        , "Names of boundary conditions to be set (must be present in the mesh!). For each BoundaryName a BoundaryType needs to be specified." , multiple=.TRUE.)
 CALL prms%CreateIntArrayOption('BoundaryType'        , "Type of boundary conditions to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
+#if USE_FV
+CALL prms%CreateLogicalOption( 'meshCheckRef-FV'        , "Flag if the mesh Jacobians should be checked in the reference system in addition to the computational system."                      , '.TRUE.')
+CALL prms%CreateIntArrayOption('BoundaryType-FV'     , "Type of boundary conditions for FV to be set. Format: (BC_TYPE, BC_STATE)"                                                                 , multiple=.TRUE. , no=2)
+#endif
 CALL prms%CreateLogicalOption( 'writePartitionInfo'  , "Write information about MPI partitions into a file."                                                                                , '.FALSE.')
+
+! p-adaption
+CALL prms%CreateIntFromStringOption('pAdaptionType', "Method for initial polynomial degree distribution among the elements: \n"//&
+                                    '           none ('//TRIM(int2strf(PRM_P_ADAPTION_ZERO))//'): default for setting all elements to N\n'//&
+                                    '         random ('//TRIM(int2strf(PRM_P_ADAPTION_RDN))//'): elements get random polynomial degree between NMin and NMax\n'//&
+                                    'non-periodic-BC ('//TRIM(int2strf(PRM_P_ADAPTION_NPB))//'): elements with non-periodic boundary conditions receive NMax\n'//&
+                                    '      half-half ('//TRIM(int2strf(PRM_P_ADAPTION_HH))//'): elements in the lower half domain in x-direction are set to NMin and the upper half are set to NMax. The domain must be centered around x=0.\n'&
+                                   ,'none')
+
+CALL addStrListEntry('pAdaptionType' , 'none'            , PRM_P_ADAPTION_ZERO)
+CALL addStrListEntry('pAdaptionType' , 'random'          , PRM_P_ADAPTION_RDN)
+CALL addStrListEntry('pAdaptionType' , 'non-periodic-BC' , PRM_P_ADAPTION_NPB)
+CALL addStrListEntry('pAdaptionType' , 'half-half'       , PRM_P_ADAPTION_HH)
+
+CALL prms%CreateIntFromStringOption('pAdaptionBCLevel', "Only for pAdaptionType=non-periodic-BC: Number/Depth of elements connected to a boundary that are set to NMax.\n"//&
+                                    '1st-and-2nd-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINTWO))//'): elements with non-periodic boundary conditions receive NMax, 2nd layer receive NMin+1\n'//&
+                                    '    directly-connected-NMin+1 ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_MINONE))//'): elements with non-periodic boundary conditions receive NMin+1\n'//&
+                                    '      directly-connected-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_DEFAULT))//'): elements with non-periodic boundary conditions receive NMax\n'//&
+                                    '  1st-and-2nd-NMax ('//TRIM(int2strf(PRM_P_ADAPTION_LVL_TWO))//'): first two elements with non-periodic boundary conditions receive NMax\n'&
+                                   ,'directly-connected')
+
+CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMin+1'        , PRM_P_ADAPTION_LVL_MINTWO)
+CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMin+1' , PRM_P_ADAPTION_LVL_MINONE)
+CALL addStrListEntry('pAdaptionBCLevel' , 'directly-connected-NMax'   , PRM_P_ADAPTION_LVL_DEFAULT)
+CALL addStrListEntry('pAdaptionBCLevel' , '1st-and-2nd-NMax'          , PRM_P_ADAPTION_LVL_TWO)
 
 END SUBROUTINE DefineParametersMesh
 
@@ -96,12 +120,16 @@ USE MOD_PreProc
 USE MOD_Analyze_Vars           ,ONLY: CalcMeshInfo
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
 USE MOD_HDF5_Input
-USE MOD_Interpolation_Vars     ,ONLY: xGP,InterpolationInitIsDone
+USE MOD_Interpolation_Vars     ,ONLY: InterpolationInitIsDone,Nmin,Nmax
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Mappings               ,ONLY: InitMappings
 USE MOD_Mesh_Vars
 USE MOD_Mesh_ReadIn            ,ONLY: ReadMesh
-USE MOD_Metrics                ,ONLY: BuildCoords,CalcMetrics,CalcSurfMetrics
+#if USE_FV
+USE MOD_Mesh_Vars_FV
+USE MOD_Metrics_FV             ,ONLY: CalcMetrics_PP_1,CalcSurfMetrics_PP_1
+#endif /*FV*/
+USE MOD_Metrics                ,ONLY: BuildElem_xGP,CalcMetrics,CalcSurfMetrics
 USE MOD_Prepare_Mesh           ,ONLY: setLocalSideIDs,fillMeshInfo
 USE MOD_ReadInTools            ,ONLY: PrintOption
 USE MOD_ReadInTools            ,ONLY: GETLOGICAL,GETSTR,GETREAL,GETINT,GETREALARRAY
@@ -110,21 +138,33 @@ USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #endif
 #if USE_MPI
 USE MOD_Prepare_Mesh           ,ONLY: exchangeFlip
+!USE MOD_DG_Vars                ,ONLY: N_DG_Mapping_Shared_Win
+!USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myleadergrouprank, nComputeNodeProcessors
+!USE MOD_MPI_Shared_Vars        ,ONLY: nLeaderGroupProcs
+!USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem
+USE MOD_MPI_Shared
 #endif
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Metrics    ,ONLY: MoveCoords,MoveMetrics
+USE MOD_LoadBalance_Metrics    ,ONLY: ExchangeVolMesh,ExchangeMetrics
 USE MOD_LoadBalance_Vars       ,ONLY: DoLoadBalance,PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 USE MOD_Restart_Vars           ,ONLY: DoInitialAutoRestart
+#if USE_FV
+USE MOD_LoadBalance_Metrics_FV ,ONLY: ExchangeVolMesh_FV,ExchangeMetrics_FV
+#endif /*USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef PARTICLES
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Particle_Vars          ,ONLY: usevMPF
 #endif
 #if USE_HDG && USE_LOADBALANCE
 USE MOD_Mesh_Tools             ,ONLY: BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
+#if !(PP_TimeDiscMethod==700)
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Particle_Mesh_Vars     ,ONLY: meshScale
+USE MOD_Mesh_Vars              ,ONLY: firstMortarInnerSide,lastMortarInnerSide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -143,9 +183,8 @@ CHARACTER(LEN=255),INTENT(IN),OPTIONAL :: MeshFile_IN !< file name of mesh to be
 REAL                :: x(3)
 REAL,POINTER        :: Coords(:,:,:,:,:)
 INTEGER             :: iElem,i,j,k,nElemsLoc
-!CHARACTER(32)       :: hilf2
-CHARACTER(LEN=255)  :: FileName
-LOGICAL             :: validMesh,ExistFile,ReadNodes
+INTEGER             :: Nloc,iSide,NSideMin,N_max
+LOGICAL             :: validMesh,ReadNodes
 !===================================================================================================================================
 IF ((.NOT.InterpolationInitIsDone).OR.MeshInitIsDone) THEN
   CALL abort(__STAMP__,'InitMesh not ready to be called or already called.')
@@ -161,29 +200,6 @@ IF(meshMode.LT.0) ReadNodes  =.TRUE.
 
 ! Output of myrank, ElemID and tracking info
 CalcMeshInfo = GETLOGICAL('CalcMeshInfo')
-
-! SwapMesh: either supply the path to the swapmesh binary or place the binary into the current working directory
-DoSwapMesh=GETLOGICAL('DoSwapMesh','.FALSE.')
-IF(DoSwapMesh)THEN
-  SwapMeshExePath=GETSTR('SwapMeshExePath','')
-  INQUIRE(File=SwapMeshExePath,EXIST=ExistFile)
-  IF(.NOT.ExistFile)THEN ! no path to binary found, look for binary in current directory
-    FileName='./swapmesh'
-    INQUIRE(File=FileName,EXIST=ExistFile)
-    IF(.NOT.ExistFile) THEN
-      LBWRITE(UNIT_stdOut,'(A)') ' ERROR: no swapmesh binary found'
-      LBWRITE(UNIT_stdOut,'(A,A)') ' FileName:             ',TRIM(FileName)
-      LBWRITE(UNIT_stdOut,'(A,L1)') ' ExistFile:            ',ExistFile
-      DoSwapMesh=.FALSE.
-    ELSE
-      SwapMeshExePath=FileName
-    END IF
-  END IF
-  SwapMeshLevel=GETINT('SwapMeshLevel','0')
-  IF((SwapMeshLevel.LT.0).OR.(SwapMeshLevel.GT.99))THEN
-    CALL abort(__STAMP__,'SwapMeshLEvel<0 or SwapMeshLEvel>99, this is invalid!')
-  END IF
-END IF
 
 ! prepare pointer structure (get nElems, etc.)
 IF (PRESENT(MeshFile_IN)) THEN
@@ -232,6 +248,19 @@ END IF
 meshScale = GETREAL('meshScale') ! default is 1.0
 ! Sanity check
 IF(ABS(meshScale).LE.0.) CALL abort(__STAMP__,'meshScale is zero')
+
+! Activate reading the FEM connectivity arrays EdgeInfo, EdgeConnectInfo, VertexInfo and VertexConnectInfo from the mesh file
+readFEMconnectivity = GETLOGICAL('readFEMconnectivity') ! This flag is required in ReadMesh() to load the FEM info from the .h5 mesh file
+#if USE_MPI
+IF(readFEMconnectivity)THEN
+  ELEM_RANK     = 11
+  ELEM_HALOFLAG = 12
+ELSE
+  ELEM_RANK     = 7
+  ELEM_HALOFLAG = 8
+END IF ! readFEMconnectivity
+#endif  /*USE_MPI*/
+
 CALL ReadMesh(MeshFile,ReadNodes) !set nElems
 
 !schmutz fink
@@ -254,18 +283,11 @@ IF(GETLOGICAL('meshdeform','.FALSE.'))THEN
   END DO
 END IF
 
-#if USE_LOADBALANCE
-IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  CALL MoveCoords()
-ELSE
-! Build the coordinates of the solution gauss points in the volume
-#endif /*USE_LOADBALANCE*/
-  SDEALLOCATE(Elem_xGP)
-  ALLOCATE(Elem_xGP      (3,0:PP_N,0:PP_N,0:PP_N,nElems))
-  CALL BuildCoords(NodeCoords,PP_N,Elem_xGP)
-#if USE_LOADBALANCE
-END IF
-#endif /*USE_LOADBALANCE*/
+! initialize flag for gradient calculations (filled in setLocalSideIDs)
+#if USE_FV
+ALLOCATE(IsPeriodicSide(1:nSides))
+IsPeriodicSide(:)=.FALSE.
+#endif /*USE_FV*/
 
 ! Return if no connectivity and metrics are required (e.g. for visualization mode)
 IF (ABS(meshMode).GT.0) THEN
@@ -314,134 +336,223 @@ IF (ABS(meshMode).GT.0) THEN
   LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING fillMeshInfo..."
 #if USE_HDG && USE_LOADBALANCE
   ! Call with meshMode to check whether, e.g., HDG load balance info need to be determined or not
-  CALL fillMeshInfo(meshMode)
+  CALL fillMeshInfo(meshMode) ! Fills SideToElem and ElemToSide
 #else
-  CALL fillMeshInfo()
+  CALL fillMeshInfo() ! Fills SideToElem and ElemToSide
 #endif /*USE_HDG && USE_LOADBALANCE*/
 
   ! build necessary mappings
-  CALL InitMappings(PP_N,VolToSideA,VolToSideIJKA,VolToSide2A,CGNS_VolToSideA, &
-                         SideToVolA,SideToVol2A,CGNS_SideToVol2A,FS2M)
+  ALLOCATE(N_Mesh(Nmin:Nmax))
+  DO Nloc = Nmin, Nmax
+    CALL InitMappings(Nloc, N_Mesh(Nloc)%VolToSideA, N_Mesh(Nloc)%VolToSideIJKA, N_Mesh(Nloc)%FS2M)
+  END DO ! Nloc = Nmin, Nmax
 
 END IF ! meshMode.GT.0
+
+CALL InitpAdaption() ! Calls Build_N_DG_Mapping() which builds N_DG_Mapping()
+
+#if USE_LOADBALANCE
+IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+!IF (PerformLoadBalance) THEN
+  CALL ExchangeVolMesh() !  Allocates N_VolMesh(1:nElems) after communication of Elem_xGP
+#if USE_FV
+  CALL ExchangeVolMesh_FV()
+#endif
+ELSE
+  ! Build the coordinates of the solution gauss points in the volume
+#endif /*USE_LOADBALANCE*/
+  ! Build Elem_xGP
+  ALLOCATE(N_VolMesh(1:nElems))
+  ALLOCATE(N_VolMesh2(1:nElems))
+  CALL BuildElem_xGP(NodeCoords) ! Builds N_VolMesh(iElem)%Elem_xGP, requires N_DG_Mapping() for Nloc
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+
+#if !(PP_TimeDiscMethod==700)
+CALL DG_ProlongDGElemsToFace() ! Builds DG_Elems_master and ,DG_Elems_slave, requires SideToElem()
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 ! ----- CONNECTIVITY IS NOW COMPLETE AT THIS POINT -----
 
 IF (ABS(meshMode).GT.1) THEN
 #if USE_LOADBALANCE
   IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  !IF (PerformLoadBalance) THEN
     ! Shift metric arrays during load balance
-    CALL MoveMetrics()
+    CALL ExchangeMetrics()
+#if USE_FV
+    CALL ExchangeMetrics_FV()
+#endif
   ELSE
-    ! deallocate existing arrays
-    ! mesh basis
-    ! SDEALLOCATE(Xi_NGeo)
-    ! SDEALLOCATE(XiCL_NGeo)
-    ! SDEALLOCATE(DCL_N)
-    ! SDEALLOCATE(DCL_NGeo)
-    ! SDEALLOCATE(Vdm_CLN_GaussN)
-    ! SDEALLOCATE(Vdm_CLNGeo_GaussN)
-    ! SDEALLOCATE(Vdm_CLNGeo_CLN)
-    ! SDEALLOCATE(Vdm_NGeo_CLNGeo)
-    ! SDEALLOCATE(wBaryCL_NGeo)
-
-    ! mesh metrics
-    SDEALLOCATE(      dXCL_N)
-    SDEALLOCATE(      JaCL_N)
-    SDEALLOCATE(Metrics_fTilde)
-    SDEALLOCATE(Metrics_gTilde)
-    SDEALLOCATE(Metrics_hTilde)
-    SDEALLOCATE(sJ)
-
-    ! Vandermonde
-    SDEALLOCATE(Vdm_CLN_N)
-    SDEALLOCATE(XCL_N)
-
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-    SDEALLOCATE(nVecLoc)
-    SDEALLOCATE(SurfLoc)
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
-
-    SDEALLOCATE(XCL_NGeo)
-#ifdef PARTICLES
-    SDEALLOCATE(dXCL_NGeo)
-#endif /*PARTICLES*/
-
-    ! Calculate metric arrays
 #endif /*USE_LOADBALANCE*/
+
+    NGeoRef=3*NGeo ! build jacobian at higher degree
+    ALLOCATE(    DetJac_Ref(1,0:NgeoRef,0:NgeoRef,0:NgeoRef,nElems))
+
     ! volume data
-    ALLOCATE(       XCL_N(  3,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ALLOCATE(      dXCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ALLOCATE(      JaCL_N(3,3,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ALLOCATE(Metrics_fTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ALLOCATE(Metrics_gTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ALLOCATE(Metrics_hTilde(3,0:PP_N,0:PP_N,0:PP_N,nElems))
-    ALLOCATE(sJ            (  0:PP_N,0:PP_N,0:PP_N,nElems))
-    NGeoRef = 3*NGeo ! build jacobian at higher degree
-    JaCL_N  = 0.
+    DO iElem = 1, nElems
+#if !(PP_TimeDiscMethod==700)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+      Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
+      ALLOCATE(N_VolMesh(iElem)%XCL_N(       3,  0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%Metrics_fTilde(3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%Metrics_gTilde(3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%Metrics_hTilde(3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh(iElem)%sJ            (  0:Nloc,0:Nloc,0:Nloc))
+    END DO ! iElem = 1, nElems
+
+    ! volume data
+    DO iElem = 1, nElems
+#if !(PP_TimeDiscMethod==700)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+#else
+      Nloc = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
+      ALLOCATE(N_VolMesh2(iElem)%dXCL_N(     3,3,0:Nloc,0:Nloc,0:Nloc))
+      ALLOCATE(N_VolMesh2(iElem)%JaCL_N(     3,3,0:Nloc,0:Nloc,0:Nloc))
+    END DO ! iElem = 1, nElems
+
+#if USE_FV
+    SDEALLOCATE(       XCL_N_PP_1)
+    SDEALLOCATE(      dXCL_N_PP_1)
+    SDEALLOCATE(      JaCL_N_PP_1)
+    SDEALLOCATE(Metrics_fTilde_FV)
+    SDEALLOCATE(Metrics_gTilde_FV)
+    SDEALLOCATE(Metrics_hTilde_FV)
+
+    ALLOCATE(       XCL_N_PP_1(  3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics(), required in CalcSurfMetrics()
+    ALLOCATE(      dXCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics()
+    ALLOCATE(      JaCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems))
+    ALLOCATE(Metrics_fTilde_FV(3,0:0,0:0,0:0,nElems))
+    ALLOCATE(Metrics_gTilde_FV(3,0:0,0:0,0:0,nElems))
+    ALLOCATE(Metrics_hTilde_FV(3,0:0,0:0,0:0,nElems))
+    JaCL_N_PP_1 = 0.
 
     ! Vandermonde
-    ALLOCATE(Vdm_CLN_N(       0:PP_N,0:PP_N))
-
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-    ALLOCATE(nVecLoc(1:3,0:PP_N,0:PP_N,1:6,PP_nElems))
-    ALLOCATE(SurfLoc(0:PP_N,0:PP_N,1:6,PP_nElems))
-    nVecLoc  = 0.
-    SurfLoc  = 0.
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
-
+    ALLOCATE(Vdm_CLN_N_PP_1(   0:PP_1,0:PP_1))
+#endif /*FV*/
     ! assign all metrics Metrics_fTilde,Metrics_gTilde,Metrics_hTilde
     ! assign 1/detJ (sJ)
     ! assign normal and tangential vectors and surfElems on faces
 
-    crossProductMetrics=GETLOGICAL('crossProductMetrics','.FALSE.')
+    crossProductMetrics=GETLOGICAL('crossProductMetrics')
 #if USE_HDG
-    IF(Symmetry%axisymmetric.AND..NOT.crossProductMetrics) THEN
+    IF(Symmetry%Axisymmetric.AND..NOT.crossProductMetrics) THEN
       crossProductMetrics = .TRUE.
-      LBWRITE(UNIT_stdOut,'(A)') 'WARNING: setting ""crossProductMetrics" to true for axisymmetric simulations!'
+      CALL PrintOption('WARNING: axisymmetric HDG simulations require crossProductMetrics','INFO',LogOpt=crossProductMetrics)
     END IF
 #endif /*USE_HDG*/
     LBWRITE(UNIT_stdOut,'(A)') "NOW CALLING calcMetrics..."
-    CALL InitMeshBasis(NGeo,PP_N,xGP)
 
     ! get XCL_NGeo
     ALLOCATE(XCL_NGeo(1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
     XCL_NGeo = 0.
-#ifdef PARTICLES
+
+#if USE_FV
+#if defined(PARTICLES)
     ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
+    dXCL_NGeo = 0.
+    CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
+#else
+    ! CALL InitGetCNElemID() ! TODO: is this required here?
+    CALL CalcMetrics_PP_1(XCL_NGeo_Out=XCL_NGeo)
+#endif /*PARTICLES*/
+#endif /*USE_FV*/
+#if !(USE_FV) || (USE_HDG)
+#ifdef PARTICLES
+    IF(.NOT.ALLOCATED(dXCL_NGeo)) ALLOCATE(dXCL_NGeo(1:3,1:3,0:NGeo,0:NGeo,0:NGeo,1:nElems))
     dXCL_NGeo = 0.
     CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo,dXCL_NGeo_Out=dXCL_NGeo)
 #else
     CALL CalcMetrics(XCL_NGeo_Out=XCL_NGeo)
 #endif /*PARTICLES*/
+#endif /*!(USE_FV) || (USE_HDG)*/
 #if USE_LOADBALANCE
-  END IF
+  END IF ! PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)
 #endif /*USE_LOADBALANCE*/
 
   ! surface data
-  ALLOCATE(Face_xGP      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(NormVec       (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec1      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(TangVec2      (3,0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(SurfElem      (  0:PP_N,0:PP_N,1:nSides))
-  ALLOCATE(     Ja_Face(3,3,0:PP_N,0:PP_N,1:nSides)) ! temp
-  Face_xGP = 0.
-  NormVec  = 0.
-  TangVec1 = 0.
-  TangVec2 = 0.
-  SurfElem = 0.
+  ALLOCATE(N_SurfMesh(1:nSides))
+  DO iSide = 1, nSides
+
+    ! Allocate with max. polynomial degree of the two master-slave sides
+#if !(PP_TimeDiscMethod==700)
+    N_max    = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+    NSideMin = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+#else
+    N_max    = PP_N
+    NSideMin = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
+    N_SurfMesh(iSide)%NSide = NSideMin
+    ALLOCATE(N_SurfMesh(iSide)%Face_xGP (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%NormVec  (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec1 (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%TangVec2 (3,0:N_max,0:N_max))
+    ALLOCATE(N_SurfMesh(iSide)%SurfElem (  0:N_max,0:N_max))
+    !!!ALLOCATE(N_SurfMesh(iSide)%SurfElemMin(0:NSideMin,0:NSideMin))
+    N_SurfMesh(iSide)%Face_xGP = 0.
+    N_SurfMesh(iSide)%NormVec  = 0.
+    N_SurfMesh(iSide)%TangVec1 = 0.
+    N_SurfMesh(iSide)%TangVec2 = 0.
+    N_SurfMesh(iSide)%SurfElem = 0.
+    !!!N_SurfMesh(iSide)%SurfElemMin= 0.
+  END DO ! iSide = 1, nSides
+
+#if !(USE_FV) || (USE_HDG)
+  ! Due to possible load balance, this is done outside of CalcMetrics() now
+  DO iElem=1,nElems
+    CALL CalcSurfMetrics(iElem)
+  END DO ! iElem = 1, nElems
+#endif
+
+#if USE_FV
+  ALLOCATE(Face_xGP_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(NormVec_FV       (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec1_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(TangVec2_FV      (3,0:0,0:0,1:nSides))
+  ALLOCATE(SurfElem_FV      (  0:0,0:0,1:nSides))
+  ALLOCATE(Ja_Face_FV       (3,3,0:0,0:0,1:nSides)) ! temp
+  Face_xGP_FV=0.
+  NormVec_FV=0.
+  TangVec1_FV=0.
+  TangVec2_FV=0.
+  SurfElem_FV=0.
+  Ja_Face_FV=0.
+
+  ALLOCATE(Face_xGP_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(NormVec_PP_1    (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(TangVec1_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(TangVec2_PP_1   (3,0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(SurfElem_PP_1     (0:PP_1,0:PP_1,1:nSides))
+  ALLOCATE(Ja_Face_PP_1  (3,3,0:PP_1,0:PP_1,1:nSides))
+  Face_xGP_PP_1       = 0.
+  NormVec_PP_1        = 0.
+  TangVec1_PP_1       = 0.
+  TangVec2_PP_1       = 0.
+  SurfElem_PP_1       = 0.
+  Ja_Face_PP_1        = 0.
 
   DO iElem=1,nElems
-    CALL CalcSurfMetrics(JaCL_N(:,:,:,:,:,iElem),iElem)
+    CALL CalcSurfMetrics_PP_1(JaCL_N_PP_1(:,:,:,:,:,iElem),iElem)
   END DO
 
+  ! PP_1 metrics to global ones
+  Face_xGP_FV(:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
+  NormVec_FV (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
+  TangVec1_FV(:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
+  TangVec2_FV(:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
+  SurfElem_FV(0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
+  Ja_Face_FV (:,:,0,0,:) = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
+#endif /*FV*/
+
+#if defined(PARTICLES) || USE_HDG
   ! Compute element bary and element radius for processor-local elements (without halo region)
   ALLOCATE(ElemBaryNGeo(1:3,1:nElems))
   CALL BuildElementOrigin()
+#endif /*defined(PARTICLES) || USE_HDG*/
 
 #ifndef PARTICLES
   ! dealloacte pointers
@@ -454,15 +565,15 @@ IF (ABS(meshMode).GT.1) THEN
 
 #ifndef PARTICLES
   IF(meshMode.GT.1) DEALLOCATE(NodeCoords)
-#endif
-! #if !USE_LOADBALANCE
-  ! DEALLOCATE(dXCL_N)
-  DEALLOCATE(Ja_Face)
-! #endif /*!USE_LOADBALANCE*/
+#endif /*PARTICLES*/
+#if USE_FV
+  DEALLOCATE(Ja_Face_PP_1)
+  DEALLOCATE(Ja_Face_FV)
+#endif /*FV*/
 
   IF((ABS(meshMode).NE.3).AND.(meshMode.GT.1))THEN
 #ifdef PARTICLES
-    IF(RadialWeighting%DoRadialWeighting) THEN
+    IF(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) THEN
       usevMPF = .TRUE.
     ELSE
       usevMPF = GETLOGICAL('Part-vMPF','.FALSE.')
@@ -487,6 +598,12 @@ IF (ABS(meshMode).GT.0) CALL BuildSideToNonUniqueGlobalSide() ! requires ElemInf
 #endif /*USE_HDG && USE_LOADBALANCE*/
 !DEALLOCATE(ElemInfo,SideInfo)
 DEALLOCATE(SideInfo)
+IF(readFEMconnectivity)THEN
+  SDEALLOCATE(EdgeInfo)
+  SDEALLOCATE(VertexInfo)
+  SDEALLOCATE(EdgeConnectInfo)
+  SDEALLOCATE(VertexConnectInfo)
+END IF
 
 MeshInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT MESH DONE!'
@@ -494,280 +611,687 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitMesh
 
 
-SUBROUTINE InitMeshBasis(NGeo_in,N_in,xGP)
 !===================================================================================================================================
-! Read Parameter from inputfile
+!> Get local N for each element and side
 !===================================================================================================================================
-! MODULES
-USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights,LegGaussLobNodesAndWeights,BarycentricWeights
-USE MOD_Basis              ,ONLY: ChebyGaussLobNodesAndWeights,PolynomialDerivativeMatrix,InitializeVandermonde
-USE MOD_Mesh_Vars          ,ONLY: Xi_NGeo,Vdm_CLN_GaussN,Vdm_CLNGeo_CLN,Vdm_CLNGeo_GaussN,Vdm_NGeo_CLNGeo,DCL_NGeo,DCL_N
-USE MOD_Mesh_Vars          ,ONLY: wBaryCL_NGeo,XiCL_NGeo,DeltaXi_NGeo,NGeo
-USE MOD_Interpolation      ,ONLY: GetNodesAndWeights
-USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-! INPUT VARIABLES
-INTEGER,INTENT(IN)                         :: NGeo_in,N_in
-REAL,INTENT(IN),DIMENSION(0:N_in)          :: xGP
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT/OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL,DIMENSION(0:N_in)                     :: XiCL_N,wBaryCL_N
-REAL,DIMENSION(0:NGeo_in)                  :: wBary_NGeo!: XiCL_NGeo,!,wBaryCL_NGeo,wBary_NGeo
-INTEGER                                    :: i
-!===================================================================================================================================
-ALLOCATE(Xi_NGeo(          0:NGeo_in))
-ALLOCATE(XiCL_NGeo(        0:NGeo_in))
-ALLOCATE(DCL_N(            0:N_in   ,0:N_in   ))
-ALLOCATE(DCL_NGeo(         0:NGeo_in,0:NGeo_in))
-ALLOCATE(Vdm_CLN_GaussN(   0:N_in   ,0:N_in   ))
-ALLOCATE(Vdm_CLNGeo_GaussN(0:N_in   ,0:NGeo_in))
-ALLOCATE(Vdm_CLNGeo_CLN(   0:N_in   ,0:NGeo_in))
-ALLOCATE(Vdm_NGeo_CLNGeo(  0:NGeo_in,0:NGeo_in))
-ALLOCATE(wBaryCL_NGeo(     0:NGeo_in))
-
-CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
-
-! Chebyshev-Lobatto N
-CALL ChebyGaussLobNodesAndWeights(N_in,XiCL_N)
-CALL BarycentricWeights(          N_in,XiCL_N,wBaryCL_N)
-CALL PolynomialDerivativeMatrix(  N_in,XiCL_N,DCL_N)
-CALL InitializeVandermonde(       N_in,N_in  ,wBaryCL_N,XiCL_N,xGP,Vdm_CLN_GaussN)
-!equidistant-Lobatto NGeo
-DO i=0,NGeo_in
-  Xi_NGeo(i) = 2./REAL(NGeo_in) * REAL(i) - 1.
-END DO
-DeltaXi_NGeo=2./NGeo_in
-CALL BarycentricWeights(          NGeo_in,Xi_NGeo,wBary_NGeo)
-
-! Chebyshev-Lobatto NGeo
-CALL ChebyGaussLobNodesAndWeights(NGeo_in,XiCL_NGeo)
-CALL BarycentricWeights(          NGeo_in,XiCL_NGeo,wBaryCL_NGeo)
-CALL PolynomialDerivativeMatrix(  NGeo_in,XiCL_NGeo,DCL_NGeo)
-
-CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,xGP      ,Vdm_CLNGeo_GaussN)
-CALL InitializeVandermonde(NGeo_in,N_in   ,wBaryCL_NGeo,XiCL_NGeo,XiCL_N   ,Vdm_CLNGeo_CLN   )
-CALL InitializeVandermonde(NGeo_in,NGeo_in,wBary_NGeo  ,Xi_NGeo  ,XiCL_NGeo,Vdm_NGeo_CLNGeo  )
-
-END SUBROUTINE InitMeshBasis
-
-
-SUBROUTINE SwapMesh()
-!============================================================================================================================
-! use the posti tool swapmesh in order to map the DG solution as well as particles into a new state file with a different
-! mesh file
-!============================================================================================================================
+SUBROUTINE InitpAdaption()
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars     ,ONLY: ProjectName
-USE MOD_Preproc
-USE MOD_Mesh_Vars        ,ONLY: SwapMeshExePath,SwapMeshLevel,MeshFile
-USE MOD_Restart_Vars     ,ONLY: RestartFile
+USE MOD_PreProc
+!USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+#if !(PP_TimeDiscMethod==700)
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionType,pAdaptionBCLevel,NDGAllocationIsDone
+#endif /*!(PP_TimeDiscMethod==700)*/
+USE MOD_IO_HDF5            ,ONLY: AddToElemData,ElementOut,ElementOutNloc
+USE MOD_Mesh_Vars          ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC,readFEMconnectivity,NodeCoords,nGlobalDOFs
+USE MOD_Mesh_Vars          ,ONLY: NMaxGlobal,NMinGlobal
+USE MOD_ReadInTools        ,ONLY: GETINTFROMSTR
+USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT/OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,BCSideID,BCType
+REAL    :: RandVal,x
+LOGICAL :: SetBCElemsToNMax
+INTEGER(KIND=8) :: nLocalDOFs
+!===================================================================================================================================
+! Set defaults
+SetBCElemsToNMax = .FALSE. ! Initialize
+
+#if !(PP_TimeDiscMethod==700)
+pAdaptionBCLevel = -1
+NDGAllocationIsDone = .FALSE.
+
+! Read p-adaption specific input data
+pAdaptionType = GETINTFROMSTR('pAdaptionType')
+#if USE_HDG && !(USE_PETSC)
+! Sanity check: p-adaption without petsc is not allowed
+IF (pAdaptionType.NE.PRM_P_ADAPTION_ZERO) CALL abort(__STAMP__,'p-adaption is only implemented with petsc. Set LIBS_USE_PETSC=ON')
+#endif /*USE_HDG && !(USE_PETSC)*/
+
+! Allocate arrays and initialize local polynomial degree
+! This happens here because nElems is determined here and N_DG is required below for the mesh initialisation
+ALLOCATE(N_DG(1:nElems))
+N_DG = -1
+!CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Mapping(2,1+offSetElem:nElems+offSetElem)) ! TODO: Why does this not work?
+! Add array containing the local polynomial degree to the hdf5 output
+CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG)
+! Add the same container to a separate object for writing it to special .h5 files that contain other fields using Nloc
+CALL AddToElemData(ElementOutNloc,'Nloc',IntArray=N_DG)
+
+SELECT CASE(pAdaptionType)
+CASE(PRM_P_ADAPTION_DBG2) ! Debugging
+  ! Nloc = 2,3,4,5
+  DO iElem=1,nElems
+    N_DG(iElem) = 2
+    IF (iElem+offsetElem.eq.1) THEN
+      N_DG(iElem) = 4
+    ELSEIF (iElem+offsetElem.eq.2) THEN
+      N_DG(iElem) = 5
+    ELSEIF (iElem+offsetElem.eq.4) THEN
+      N_DG(iElem) = 3
+    END IF ! iElem+offset
+  END DO
+CASE(PRM_P_ADAPTION_DBG) ! Debugging
+  ! Nloc = 2 for all elements, except for iGlogalElemID=1,6,10
+  DO iElem=1,nElems
+    N_DG(iElem) = 2
+    IF (iElem+offsetElem.eq.1) THEN
+      N_DG(iElem) = 1
+    ELSEIF (iElem+offsetElem.eq.6) THEN
+      N_DG(iElem) = 1
+    ELSEIF (iElem+offsetElem.eq.10) THEN
+      N_DG(iElem) = 1
+    END IF ! iElem+offset
+  END DO
+CASE(PRM_P_ADAPTION_ZERO)
+  N_DG = PP_N ! By default, the initial degree is set to PP_N
+CASE(PRM_P_ADAPTION_RDN) ! Random between NMin and NMax
+  DO iElem=1,nElems
+    CALL RANDOM_NUMBER(RandVal)
+    N_DG(iElem) = NMin + INT(RandVal*(NMax-NMin+1))
+  END DO
+CASE(PRM_P_ADAPTION_NPB) ! Non-periodic BCs are set to NMax
+  ! Get depth of increased polynomial degree
+  pAdaptionBCLevel = GETINTFROMSTR('pAdaptionBCLevel')
+  N_DG = Nmin ! By default, the initial degree is set to Nmin
+  SetBCElemsToNMax = .TRUE.
+CASE(PRM_P_ADAPTION_HH) ! Elements in the lower half domain in x-direction are set to NMin and the upper half are set to NMax
+  DO iElem=1,nElems
+    x = (MAXVAL(NodeCoords(1,:,:,:,iElem))+MINVAL(NodeCoords(1,:,:,:,iElem)))/2.0
+    IF(x.GT.0.0)THEN
+      N_DG(iElem) = NMax
+    ELSE
+      N_DG(iElem) = NMin
+    END IF ! x.GT.0.0
+  END DO
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,'Unknown pAdaptionType!' ,IntInfo=pAdaptionType)
+END SELECT
+
+! Check if BC elements are to be set to a higher polynomial degree
+IF(ABS(pAdaptionBCLevel).GT.1.OR.&
+  (ABS(pAdaptionBCLevel).GT.0.AND.readFEMconnectivity))THEN
+  CALL SetpAdaptionBCLevel()
+ELSE
+  ! Check if all BC elements are set to Nmax
+  IF(SetBCElemsToNMax)THEN
+    DO BCSideID=1,nBCSides
+      BCType=Boundarytype(BC(BCSideID),BC_TYPE)
+      IF(BCType.EQ.1) CYCLE ! Skip periodic sides
+      iElem       = SideToElem(S2E_ELEM_ID,BCSideID)
+      N_DG(iElem) = NMax
+    END DO ! BCSideID=1,nBCSides
+  END IF ! SetBCElemsToNMax
+END IF
+
+! Sanity check and nGlobalDOFs calculation
+nLocalDOFs=0
+DO iElem=1,nElems
+  IF((N_DG(iElem).LT.NMin).OR.(N_DG(iElem).GT.NMax))THEN
+    IPWRITE(*,*) "iElem       = ", iElem
+    IPWRITE(*,*) "N_DG(iElem) = ", N_DG(iElem)
+    IPWRITE(*,*) "NMin        = ", NMin
+    IPWRITE(*,*) "NMax        = ", NMax
+  END IF
+  IF(N_DG(iElem).LT.NMin) CALL abort(__STAMP__,'N_DG(iElem)<NMin')
+  IF(N_DG(iElem).GT.NMax) CALL abort(__STAMP__,'N_DG(iElem)>NMax')
+  nLocalDOFs = nLocalDOFs + INT((N_DG(iElem)+1)**3,8)
+END DO
+
+NMinGlobal = MINVAL(N_DG)
+NMaxGlobal = MAXVAL(N_DG)
+#if USE_MPI
+! Get global min/max polynomial degree that are actually present (not the theoretical limits)
+IF(MPIroot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE , NMinGlobal , 1 , MPI_INTEGER , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(MPI_IN_PLACE , NMaxGlobal , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+ELSE
+  CALL MPI_REDUCE(NMinGlobal   , 0          , 1 , MPI_INTEGER , MPI_MIN , 0 , MPI_COMM_PICLAS , iError)
+  CALL MPI_REDUCE(NMaxGlobal   , 0          , 1 , MPI_INTEGER , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+  ! in this case the receive value is not relevant.
+END IF
+! Calculate the sum across all processes. Only the MPI root process needs this information
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(nLocalDOFs , nGlobalDOFs , 1 , MPI_INTEGER8 , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+  ! Sanity check
+  IF(nGlobalDOFs.LE.0) CALL abort(__STAMP__,'nGlobalDOFs.LE.0')
+ELSE
+  CALL MPI_REDUCE(nLocalDOFs , 0           , 1 , MPI_INTEGER8 , MPI_SUM , 0 , MPI_COMM_PICLAS , IError)
+END IF ! MPIRoot
+#else
+nGlobalDOFs = nLocalDOFs
+#endif /*USE_MPI*/
+
+! Initialize element containers
+CALL Build_N_DG_Mapping()
+#else
+NMinGlobal = PP_N
+NMaxGlobal = PP_N
+#endif /*!(PP_TimeDiscMethod==700)*/
+
+END SUBROUTINE InitpAdaption
+
+
+#if !(PP_TimeDiscMethod==700)
+!===================================================================================================================================
+!> Set Nloc of BC elements to a higher polynomial degree than in the volume
+!>
+!> 1. Loop over the processor-local elements
+!> 2. Loop over the corner vertices of the element
+!> 3. Use VertexConnectInfo to get the neighbour element index and vertex for all possible connection (also periodic)
+!> 4. Check the sides of connected to the neighbour node and find out if the side is a BC side
+!> 5. For further layers, loop over the elements again and check for already marked elements instead of the sides
+!===================================================================================================================================
+SUBROUTINE SetpAdaptionBCLevel()
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars          ,ONLY: readFEMconnectivity, offsetElem, nElems
+USE MOD_Mesh_Vars          ,ONLY: ElemInfo,VertexInfo,VertexConnectInfo
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,SideInfo_Shared
+USE MOD_DG_Vars            ,ONLY: N_DG,pAdaptionBCLevel,N_DG_Mapping
+USE MOD_Interpolation_Vars ,ONLY: NMax,NMin
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: iElem,BCType,NonUniqueGlobalSideID,iGlobalElemID,BCIndex,ElemType,OffsetCounter
+INTEGER :: iVertexConnect,GlobalNbElemID,GlobalNbLocVertexID,LocSideList(3),iLocSideList,iLocSide
+INTEGER :: FirstElemInd,LastElemInd
+INTEGER :: FirstVertexInd,LastVertexInd,FirstVertexConnectInd,LastVertexConnectInd
+!===================================================================================================================================
+! Do not re-allocate during load balance here as it is communicated between the processors
+#if USE_LOADBALANCE
+IF(PerformLoadBalance) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! Sanity check: This routine requires FEM connectivity
+IF(.NOT.readFEMconnectivity) CALL abort(__STAMP__,'Error in p-adaption init: readFEMconnectivity=T is required!')
+
+! Element index
+FirstElemInd = offsetElem+1
+LastElemInd  = offsetElem+nElems
+
+! Loop over the process-local global elements indices
+GlobalElemIDLoop: DO iGlobalElemID = FirstElemInd, LastElemInd
+  iElem = iGlobalElemID - offsetElem
+  ElemType = ElemInfo(ELEM_TYPE,iGlobalElemID)
+  ! Sanity check: currently only hexahedral elements are implemented
+  SELECT CASE(ElemType)
+  CASE(108,118,208)
+    ! Hexahedral elements
+  CASE DEFAULT
+    CALL abort(__STAMP__,'Element type not implemented: ElemType =',IntInfoOpt=ElemType)
+  END SELECT
+  ! Get local VertexInfo of current element
+  FirstVertexInd = ElemInfo(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
+  LastVertexInd  = ElemInfo(ELEM_LASTVERTEXIND,iGlobalElemID)
+  ! Get local vertex connectivity
+  FirstVertexConnectInd = VertexInfo(VERTEX_FIRSTCONNECTIND,FirstVertexInd)+1
+  LastVertexConnectInd  = VertexInfo(VERTEX_LASTCONNECTIND,LastVertexInd)
+  VertexConnectLoop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+    ! Check if current element has already been flagged
+    IF(N_DG(iElem).EQ.NMax) EXIT VertexConnectLoop
+    ! Get neighbour infos
+    GlobalNbElemID      = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+    GlobalNbLocVertexID = VertexConnectInfo(VERTEXCONNECT_NBLOCNODEID,iVertexConnect)
+    ! Set sides depending on the element type: Only implemented for Hexahedral elements
+    CALL GetLocSideList(ElemType,GlobalNbLocVertexID,LocSideList)
+    LocSideListLoop: DO iLocSideList = 1, 3
+      ! Check if current element has already been flagged
+      IF(N_DG(iElem).EQ.NMax) EXIT VertexConnectLoop
+      iLocSide = LocSideList(iLocSideList)
+      NonUniqueGlobalSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,GlobalNbElemID) + iLocSide
+      BCIndex = SideInfo_Shared(SIDE_BCID,NonUniqueGlobalSideID)
+      IF(BCIndex.LE.0) CYCLE LocSideListLoop ! Skip inner sides
+      BCType = BoundaryType(BCIndex,BC_TYPE)
+      IF(BCType.LE.1) CYCLE LocSideListLoop ! Skip periodic sides
+      IF(BCType.EQ.10) CYCLE LocSideListLoop ! Skip Neumann sides
+      IF(pAdaptionBCLevel.EQ.-1)THEN
+        N_DG(iElem) = NMin+1
+ELSE
+        N_DG(iElem) = NMax
+      END IF ! pAdaptionBCLevel.EQ.-1
+    END DO LocSideListLoop ! iLocSideList = 1, 3
+  END DO VertexConnectLoop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+END DO GlobalElemIDLoop ! iGlobalElemID = FirstElemInd, LastElemInd
+
+
+! For further layers, loop over the elements again and check for already marked elements instead of the sides
+IF(ABS(pAdaptionBCLevel).GT.1)THEN
+  ! Allocate the shared memory container and associate pointer: N_DG_Mapping
+  CALL Allocate_N_DG_Mapping()
+
+  ! Set Nloc in N_DG_Mapping
+  CALL Set_N_DG_Mapping(OffsetCounter)
+
+  ! Loop over the process-local global elements indices
+  iGlobalElemID_loop: DO iGlobalElemID = FirstElemInd, LastElemInd
+    iElem = iGlobalElemID - offsetElem
+    IF(N_DG(iElem).GT.NMin) CYCLE iGlobalElemID_loop
+    ! Get local VertexInfo of current element
+    FirstVertexInd = ElemInfo(ELEM_FIRSTVERTEXIND,iGlobalElemID)+1
+    LastVertexInd  = ElemInfo(ELEM_LASTVERTEXIND,iGlobalElemID)
+    ! Get local vertex connectivity
+    FirstVertexConnectInd = VertexInfo(VERTEX_FIRSTCONNECTIND,FirstVertexInd)+1
+    LastVertexConnectInd  = VertexInfo(VERTEX_LASTCONNECTIND,LastVertexInd)
+    iVertexConnect_loop: DO iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+      ! Check if current element has already been flagged
+      IF(N_DG(iElem).GT.NMin) EXIT iVertexConnect_loop
+      ! Get neighbour infos
+      GlobalNbElemID = ABS(VertexConnectInfo(VERTEXCONNECT_NBELEMID   ,iVertexConnect))
+      IF(N_DG_Mapping(2,GlobalNbElemID).EQ.NMax)THEN
+        IF(pAdaptionBCLevel.EQ.-2)THEN
+          N_DG(iElem) = NMin+1
+ELSE
+          N_DG(iElem) = NMax
+        END IF ! pAdaptionBCLevel.EQ.-2
+      END IF ! N_DG_Mapping(2,GlobalNbElemID).EQ.NMax
+    END DO iVertexConnect_loop ! iVertexConnect = FirstVertexConnectInd, LastVertexConnectInd
+  END DO iGlobalElemID_loop ! iGlobalElemID = FirstElemInd, LastElemInd
+
+#if USE_MPI
+  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+END IF ! pAdaptionBCLevel.GT.1
+END SUBROUTINE SetpAdaptionBCLevel
+#endif /*!(PP_TimeDiscMethod==700)*/
+
+!===================================================================================================================================
+!> Returns a list of sides (depending on the CGNS ordering) for a given local corner node index
+!===================================================================================================================================
+SUBROUTINE GetLocSideList(ElemType,iLocNode,LocSideList)
+! MODULES
+USE MOD_Globals
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER, INTENT(IN)  :: ElemType
+INTEGER, INTENT(IN)  :: iLocNode
+INTEGER, INTENT(OUT) :: LocSideList(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+! Set sides depending on the element type: Only implemented for Hexahedral elements
+SELECT CASE(ElemType)
+CASE(108,118,208)
+  ! Hexahedral elements
+  SELECT CASE(iLocNode)
+  CASE(1)
+    LocSideList=(/1,2,5/)
+  CASE(2)
+    LocSideList=(/1,2,3/)
+  CASE(3)
+    LocSideList=(/1,3,4/)
+  CASE(4)
+    LocSideList=(/1,4,5/)
+  CASE(5)
+    LocSideList=(/2,5,6/)
+  CASE(6)
+    LocSideList=(/2,3,6/)
+  CASE(7)
+    LocSideList=(/3,4,6/)
+  CASE(8)
+    LocSideList=(/4,5,6/)
+  CASE DEFAULT
+    CALL abort(__STAMP__,'Wrong iLocNode',IntInfoOpt=iLocNode)
+  END SELECT
+CASE DEFAULT
+  CALL abort(__STAMP__,'Element type not implemented: ElemType =',IntInfoOpt=ElemType)
+END SELECT
+END SUBROUTINE GetLocSideList
+
+
+#if !(PP_TimeDiscMethod==700)
+!===================================================================================================================================
+!> Allocate the shared memory container N_DG_Mapping_Shared
+!===================================================================================================================================
+SUBROUTINE Allocate_N_DG_Mapping()
+! MODULES
+USE MOD_Globals
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping,NDGAllocationIsDone
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_Mesh_Vars       ,ONLY: nGlobalElems
+USE MOD_DG_Vars         ,ONLY: N_DG_Mapping_Shared,N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared_Vars ,ONLY: MPI_COMM_SHARED, myComputeNodeRank
+#else
+USE MOD_Mesh_Vars       ,ONLY: nElems
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+#if USE_MPI
+CALL Allocate_Shared((/3,nGlobalElems/),N_DG_Mapping_Shared_Win,N_DG_Mapping_Shared)
+CALL MPI_WIN_LOCK_ALL(0,N_DG_Mapping_Shared_Win,IERROR)
+N_DG_Mapping => N_DG_Mapping_Shared
+IF (myComputeNodeRank.EQ.0) N_DG_Mapping = 0
+CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+#else
+ALLOCATE(N_DG_Mapping(3,nElems))
+N_DG_Mapping = 0
+#endif /*USE_MPI*/
+NDGAllocationIsDone = .TRUE.
+END SUBROUTINE Allocate_N_DG_Mapping
+
+!===================================================================================================================================
+!> Loop over all CN elements and set N_DG_Mapping(1:2,iElem+offSetElem). N_DG_Mapping(2,:) is only correct for single-process
+!> execution as the communication between the processes is done later.
+!===================================================================================================================================
+SUBROUTINE Set_N_DG_Mapping(OffsetCounter)
+! MODULES
+USE MOD_Globals
+USE MOD_Mesh_Vars ,ONLY: nElems,offSetElem
+USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,N_DG
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+INTEGER,INTENT(OUT) :: OffsetCounter
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER :: locDofs,iElem,iCNElem,Nloc
+!===================================================================================================================================
+OffsetCounter = 0
+! Loop all CN elements
+DO iCNElem = 1+offSetElem,nElems+offSetElem
+  iElem = iCNElem-offSetElem
+  Nloc = N_DG(iElem)
+  locDofs = (Nloc+1)**3
+  N_DG_Mapping(2,iCNElem) = Nloc
+  N_DG_Mapping(1,iCNElem) = OffsetCounter
+  OffsetCounter = OffsetCounter + locDofs
+END DO ! iCNElem
+END SUBROUTINE Set_N_DG_Mapping
+
+
+!===================================================================================================================================
+!> Create shared memory array N_DG_Mapping containing the global element information
+!>   N_DG_Mapping(1,nElems+offSetElem): DOF offset
+!>   N_DG_Mapping(2,nElems+offSetElem): element polynomial degree Nloc
+!===================================================================================================================================
+SUBROUTINE Build_N_DG_Mapping()
+! MODULES
+USE MOD_Globals
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,displsDofs, recvcountDofs, nDofsMapping
+USE MOD_DG_Vars            ,ONLY: NDGAllocationIsDone
+USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem,nGlobalElems
+#if USE_MPI
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping_Shared_Win
+USE MOD_MPI_Shared_Vars    ,ONLY: MPI_COMM_LEADERS_SHARED, MPI_COMM_SHARED, myComputeNodeRank, myleadergrouprank
+USE MOD_MPI_Shared_Vars    ,ONLY: nLeaderGroupProcs,nComputeNodeProcessors
+USE MOD_Particle_Mesh_Vars ,ONLY: offsetComputeNodeElem
+USE MOD_MPI_Shared
+#endif
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: OffsetCounter,OffsetN_DG_Mapping
+#if USE_MPI
+INTEGER             :: iProc
+INTEGER             :: sendbuf,recvbuf
+#endif
+!===================================================================================================================================
+! Do not re-allocate during load balance here as it is communicated between the processors
+#if USE_LOADBALANCE
+IF(PerformLoadBalance)THEN
+#endif /*USE_LOADBALANCE*/
+
+  ! N_DG_Mapping is already set
+  !OffsetCounter = N_DG_Mapping(1,nElems+offSetElem) + (N_DG_Mapping(2,nElems+offSetElem)+1)**3
+
+#if USE_LOADBALANCE
+    ELSE
+#endif /*USE_LOADBALANCE*/
+  IF(.NOT.NDGAllocationIsDone)THEN
+    ! Allocate the shared memory container and associate pointer: N_DG_Mapping
+    CALL Allocate_N_DG_Mapping()
+  END IF ! .NOT.NDGAllocationIsDone
+
+  ! Set Nloc in N_DG_Mapping
+  CALL Set_N_DG_Mapping(OffsetCounter)
+
+#if USE_MPI
+  ! Set the correct offsets in N_DG_Mapping(1,:) for parallel simulation
+  sendbuf = OffsetCounter
+  recvbuf = 0
+  CALL MPI_EXSCAN(sendbuf,recvbuf,1,MPI_INTEGER,MPI_SUM,MPI_COMM_PICLAS,iError)
+  OffsetN_DG_Mapping   = recvbuf
+  ! The last process knows CN total number of connected CN elements
+  sendbuf = OffsetN_DG_Mapping + OffsetCounter
+  CALL MPI_BCAST(sendbuf,1,MPI_INTEGER,nProcessors-1,MPI_COMM_PICLAS,iError)
+  nDofsMapping = sendbuf
+
+  N_DG_Mapping(1,1+offSetElem:nElems+offSetElem) = N_DG_Mapping(1,1+offSetElem:nElems+offSetElem) + OffsetN_DG_Mapping
+  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win,MPI_COMM_SHARED)
+
+  ! Communication between nodes
+  IF (nComputeNodeProcessors.NE.nProcessors.AND.myComputeNodeRank.EQ.0) THEN
+    ! Arrays for the compute node to hold the elem offsets
+    ALLOCATE(displsDofs(   0:nLeaderGroupProcs-1), recvcountDofs(0:nLeaderGroupProcs-1))
+    displsDofs(myLeaderGroupRank) = offsetComputeNodeElem
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsDofs,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
+    DO iProc=1,nLeaderGroupProcs-1
+      recvcountDofs(iProc-1) = displsDofs(iProc)-displsDofs(iProc-1)
+    END DO
+    recvcountDofs(nLeaderGroupProcs-1) = nGlobalElems - displsDofs(nLeaderGroupProcs-1)
+
+    CALL MPI_ALLGATHERV( MPI_IN_PLACE                  &
+        , 0                             &
+        , MPI_DATATYPE_NULL             &
+        , N_DG_Mapping               &
+        , 3*recvcountDofs   &
+        , 3*displsDofs      &
+        , MPI_INTEGER          &
+        , MPI_COMM_LEADERS_SHARED       &
+        , IERROR)
+
+    displsDofs(myLeaderGroupRank) = N_DG_Mapping(1,1+offSetElem)
+    CALL MPI_ALLGATHER(MPI_IN_PLACE,0,MPI_DATATYPE_NULL,displsDofs,1,MPI_INTEGER,MPI_COMM_LEADERS_SHARED,IERROR)
+    DO iProc=1,nLeaderGroupProcs-1
+      recvcountDofs(iProc-1) = displsDofs(iProc)-displsDofs(iProc-1)
+    END DO
+    recvcountDofs(nLeaderGroupProcs-1) = nDofsMapping - displsDofs(nLeaderGroupProcs-1)
+    END IF
+
+  CALL BARRIER_AND_SYNC(N_DG_Mapping_Shared_Win ,MPI_COMM_SHARED)
+
+#else
+  OffsetN_DG_Mapping = 0
+  nDofsMapping = OffsetCounter
+#endif /*USE_MPI*/
+
+#if USE_LOADBALANCE
+    END IF
+#endif /*USE_LOADBALANCE*/
+
+END SUBROUTINE Build_N_DG_Mapping
+
+
+!==================================================================================================================================
+!> Set DG_Elems_slave and DG_Elems_master information
+!==================================================================================================================================
+SUBROUTINE DG_ProlongDGElemsToFace()
+! MODULES
+USE MOD_PreProc
+USE MOD_GLobals
+USE MOD_DG_Vars   ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave,N_DG_Mapping!,pAdaptionType
+USE MOD_Mesh_Vars ,ONLY: SideToElem,nSides,nBCSides, offSetElem
+
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,MortarType,MortarInfo
+USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+#if USE_MPI
+USE MOD_MPI       ,ONLY: StartExchange_DG_Elems,FinishExchangeMPIData
+USE MOD_MPI_Vars  ,ONLY: DataSizeSideSend,DataSizeSideRec,nNbProcs,nMPISides_rec,nMPISides_send,OffsetMPISides_rec
+USE MOD_MPI_Vars  ,ONLY: OffsetMPISides_send
+USE MOD_MPI_Vars  ,ONLY: DataSizeSurfSendMax,DataSizeSurfRecMax, DataSizeSurfSendMin,DataSizeSurfRecMin
+#if !(USE_HDG)
+USE MOD_MPI_Vars  ,ONLY: DataSizeSideSendMaster,DataSizeSideRecMaster
+#endif /*not USE_HDG*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------
-!input parameters
-!----------------------------------------------------------------------------------------------------------------------------
-!output parameters
-!----------------------------------------------------------------------------------------------------------------------------
-!local variables
-CHARACTER(LEN=255)  :: LocalName                   ! local project name
-CHARACTER(LEN=255)  :: FileName                    ! names/paths to files
-CHARACTER(LEN=255)  :: NewFolderName,OldFolderName ! names/paths to folders
-LOGICAL             :: objExist                    ! file or folder exist variable
-LOGICAL             :: CreateSwapScript            ! temporary varaible for creating a swapmesh.sh shell script
-LOGICAL             :: LogSwapMesh                 ! create log file for swapmesh: log.swapmesh
-LOGICAL             :: CleanUp                     ! rm old state and mesh file in swapmesh folder
-LOGICAL             :: KeepSwapFile                ! if true, do not remove created swap file, e.g., "PlasmaPlume_NewMesh_State...."
-CHARACTER(LEN=22)   :: ParameterFile               ! swapmesh parameter file containing all conversion information
-CHARACTER(LEN=3)    :: hilf,hilf2                  ! auxiliary variable for INTEGER -> CHARACTER conversion
-CHARACTER(LEN=255)  :: SYSCOMMAND,SWITCHFOLDER     ! string to fit the system command
-INTEGER             :: iSTATUS                     ! error status return code
-INTEGER             :: StartIndex                  ! get string index (position) of certain substring
-CHARACTER(len=255)  :: cwd                         ! current working directory
-INTEGER             :: cwdLen                      ! string length of cwd
-!============================================================================================================================
-ParameterFile='parameter_swapmesh.ini'
-IF(SwapMeshLevel.GT.0)THEN
-  LocalName=TRIM(ProjectName(1:LEN(TRIM(ProjectName))-3))
-ELSE
-  LocalName=TRIM(ProjectName)
-END IF
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                      :: iSide,ElemID,nbElemID,nMortars, locSide,SideID, iMortar,flip!, iElem
+#if USE_MPI
+INTEGER                      :: iNbProc,Nloc
+TYPE(MPI_Request), DIMENSION(nNbProcs) :: RecRequest_U,SendRequest_U,RecRequest_U2,SendRequest_U2
+#endif /*USE_MPI*/
+!==================================================================================================================================
+! Side containers
+ALLOCATE(DG_Elems_master(1:nSides))
+ALLOCATE(DG_Elems_slave (1:nSides))
+! Initialize with element-local N
+!IF(pAdaptionType.EQ.0)THEN
+  DG_Elems_master = -1
+  DG_Elems_slave  = -1
+!ELSE
+!  DO iSide = 1, nSides
+!    iElem = SideToElem(S2E_ELEM_ID,iSide)
+!    DG_Elems_master(iSide) = N_DG_Mapping(2,iElem+offSetElem)
+!    DG_Elems_slave(iSide)  = N_DG_Mapping(2,iElem+offSetElem)
+!  END DO ! iSide = 1, nSides
+!END IF ! pAdaptionType.EQ.0
 
-! current mesh folder
-WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel
-IF(SwapMeshLevel.GT.9)THEN
-  OldFolderName='mesh'//TRIM(ADJUSTL(hilf))
-ELSE
-  OldFolderName='mesh0'//TRIM(ADJUSTL(hilf))
-ENDIF
+! set information which polynomial degree elements adjacent to a side have
+DO iSide = 1,nSides
+  ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
+  nbElemID  = SideToElem(S2E_NB_ELEM_ID,iSide)
+  ! Master sides
+  IF(ElemID  .GT.0) DG_Elems_master(iSide) = N_DG_Mapping(2,ElemID+offSetElem)
+  ! Slave side (ElemID,locSide and flip =-1 if not existing)
+  IF(nbElemID.GT.0) DG_Elems_slave( iSide) = N_DG_Mapping(2,nbElemID+offSetElem)
+  ! Boundaries
+  IF(iSide.LE.nBCSides) DG_Elems_slave( iSide) = DG_Elems_master(iSide)
+END DO
 
-CALL getcwd(cwd)
-cwdLen=LEN(TRIM(cwd))
-!WRITE(*,*) TRIM(cwd)
-!print*,TRIM(cwd(cwdLen-5:cwdLen)) ! e.g. : PlasmaPlume_cylinder/linear/mesh02 -> mesh02
-!print*,TRIM(OldFolderName)        ! e.g. : mesh02
-IF(TRIM(cwd(cwdLen-LEN(TRIM(OldFolderName))+1:cwdLen)).NE.TRIM(OldFolderName))THEN
-  SWRITE(UNIT_stdOut,'(A)')   ' ERROR: something is wrong with the directory or SwapMeshLevel'
-  SWRITE(UNIT_stdOut,'(A,A)') ' cwd:           ',TRIM(cwd)
-  SWRITE(UNIT_stdOut,'(A,I3,A,A)') ' SwapMeshLevel: ',SwapMeshLevel,' -> ',OldFolderName
-  CALL abort(__STAMP__,'Abort. Check SwapMeshLevel.',999,999.)
-END IF
+DO iSide = firstMortarInnerSide,lastMortarInnerSide
+  ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
+  nMortars=MERGE(4,2,MortarType(1,iSide).EQ.1)
+  locSide=MortarType(2,iSide)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
+    flip  = MortarInfo(MI_FLIP,iMortar,locSide)
+    SELECT CASE(flip)
+     CASE(0) ! master side
+       DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+     CASE(1:4) ! slave side
+       DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+    END SELECT !f
+  END DO
+END DO
 
-! check if next level mesh folder exists
-WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel+1
-IF(SwapMeshLevel+1.GT.9)THEN
-  NewFolderName='mesh'//TRIM(ADJUSTL(hilf))
-ELSE
-  NewFolderName='mesh0'//TRIM(ADJUSTL(hilf))
-ENDIF
-INQUIRE(File='../'//TRIM(NewFolderName),EXIST=objExist)
-IF(.NOT.objExist)THEN ! no swapmesh folder found
-  LBWRITE(UNIT_stdOut,'(A)')   ' ERROR: no swapmesh folder found. Cannot perform swapmesh'
-  LBWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(NewFolderName)
-  LBWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
-ELSE
-  FileName='../'//TRIM(NewFolderName)//'/'//ParameterFile
-  INQUIRE(File=FileName,EXIST=objExist)
-  IF(.NOT.objExist) THEN
-    LBWRITE(UNIT_stdOut,'(A)')   ' ERROR: no '//ParameterFile//' found. Cannot perform swapmesh'
-    LBWRITE(UNIT_stdOut,'(A,A)') ' objName:             ',TRIM(FileName)
-    LBWRITE(UNIT_stdOut,'(A,L1)') ' objExist:            ',objExist
-  ELSE
-    !NewFolderName=FileName
+#if USE_MPI
+DO iSide = firstMortarMPISide,lastMortarMPISide
+  ElemID    = SideToElem(S2E_ELEM_ID   ,iSide)
+  nMortars=MERGE(4,2,MortarType(1,iSide).EQ.1)
+  locSide=MortarType(2,iSide)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
+    flip  = MortarInfo(MI_FLIP,iMortar,locSide)
+    SELECT CASE(flip)
+     CASE(0) ! master side
+       DG_Elems_master(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+     CASE(1:4) ! slave side
+       DG_Elems_slave(SideID) = N_DG_Mapping(2,ElemID+offSetElem)
+    END SELECT !f
+  END DO
+END DO
+! Exchange element local polynomial degree (N_LOC)
+CALL StartExchange_DG_Elems(DG_Elems_slave ,1,nSides,SendRequest_U ,RecRequest_U ,SendID=2)  ! RECEIVE MINE, SEND YOUR / DG_Elems_slave:  slave  -> master
+CALL StartExchange_DG_Elems(DG_Elems_master,1,nSides,SendRequest_U2,RecRequest_U2,SendID=1)  ! RECEIVE YOUR, SEND MINE / DG_Elems_master: master -> slave
+! Complete send / receive
+CALL FinishExchangeMPIData(SendRequest_U ,RecRequest_U ,SendID=2) ! Send YOUR - receive MINE
+CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1) ! Send YOUR - receive MINE
+! Initialize the send/rec face sizes for master/slave communication
+ALLOCATE(DataSizeSideSend(nNbProcs,2), DataSizeSideRec(nNbProcs,2))
+! Min/Max is only required for HDG
+ALLOCATE(DataSizeSurfSendMax(nNbProcs,2), DataSizeSurfRecMax(nNbProcs,2))
+ALLOCATE(DataSizeSurfSendMin(nNbProcs,2), DataSizeSurfRecMin(nNbProcs,2))
+#if !(USE_HDG)
+! Master is only required for Maxwell (with Dielectric)
+ALLOCATE(DataSizeSideSendMaster(nNbProcs,2), DataSizeSideRecMaster(nNbProcs,2))
+DataSizeSideSendMaster=0
+DataSizeSideRecMaster=0
+#endif /*not USE_HDG*/
+DataSizeSideSend=0
+DataSizeSideRec=0
+DataSizeSurfSendMax =0; DataSizeSurfRecMax = 0; DataSizeSurfSendMin =0; DataSizeSurfRecMin = 0
+DO iNbProc = 1, nNbProcs
 
-    SWITCHFOLDER='cd ../'//TRIM(NewFolderName)//' && '
-    ! print LocalName and SwapMeshLevel as new mesh file name to parameter_swapmesh.ini
-    ! cd ../meshXX &&  sed -i -e "s/.*MeshFileNew.*/MeshFileNew=PlasmaPlume_01_mesh.h5/" parameter_swapmesh.ini
-    SYSCOMMAND=' sed -i -e "s/.*MeshFileNew.*/MeshFileNew='//&
-               TRIM(LocalName)//'_'//TRIM(NewFolderName(5:6))//'_mesh.h5/" '//ParameterFile
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-
-    ! print current polynomial degree to parameter_swapmesh.ini
-    WRITE(UNIT=hilf,FMT='(I3)') PP_N
-    ! cd ../meshXX && sed -i -e "s/.*NNew.*/NNew=2/" parameter_swapmesh.ini
-    SYSCOMMAND=' sed -i -e "s/.*NNew.*/NNew='//&
-               TRIM(ADJUSTL(hilf))//'/" '//ParameterFile
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-
-    ! create symbolic link to old mesh file and restart file
-    ! (delete the old links if they exist, they might point to the wrong file)
-    ! cd ../meshXX && rm PlasmaPlume_State_000.000000000000100.h5 > /dev/null 2>&1
-    SYSCOMMAND=' rm '//TRIM(RestartFile)//' > /dev/null 2>&1'
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    ! cd ../meshXX && ln -s ../mesh00/PlasmaPlume_State_000.000000000000100.h5 .
-    SYSCOMMAND=' ln -s ../'//TRIM(OldFolderName)//'/'//TRIM(RestartFile)//' .'
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-
-    ! cd ../meshXX && rm PlasmaPlume_mesh.h5 > /dev/null 2>&1
-    SYSCOMMAND=' rm '//TRIM(MeshFile)//' > /dev/null 2>&1'
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    ! cd ../meshXX && ln -s ../mesh00/PlasmaPlume_mesh.h5 .
-    SYSCOMMAND=' ln -s ../'//TRIM(OldFolderName)//'/'//TRIM(MeshFile)//' .'
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-
-    ! call swapmesh and create new state file (delete all '_NewMesh_State*' state file of new mesh)
-    ! cd ../meshXX && rm PlasmaPlume_NewMesh_State* > /dev/null 2>&1
-    SYSCOMMAND=' rm '//TRIM(ProjectName)//'_NewMesh_State* > /dev/null 2>&1'
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    SYSCOMMAND=' echo "#!/bin/bash" > swapmesh.sh'
-    print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-    CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-
-    ! run swapmesh executable
-    ! =======================================================================================================================
-    ! CAUTION: CURRENTLY ONLY WORKS IN SINGLE EXECUTION!!!! WHEN STARTED WITH MPIRUN AND PERFORMED BY MPIROOT NOTHING OCCURS!
-    ! =======================================================================================================================
-    CreateSwapScript=.FALSE.
-    IF(CreateSwapScript)THEN
-      ! cd ../mesh01 && echo "/home/stephen/Flexi/ParaViewPlugin_newest_version/build_hdf16/bin/swapmesh parameter_swapmesh.ini
-      !                       PlasmaPlume_State_000.000000000000100.h5" >> swapmesh.sh && chmod +x swapmesh.sh
-      SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)//'" >> swapmesh.sh && chmod +x swapmesh.sh'
-      print*,                   TRIM(SWITCHFOLDER)//' echo "'//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND)
-      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//' echo "'//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND), &
-      WAIT=.TRUE., EXITSTAT=iSTATUS)
-      !SYSCOMMAND=' nohup ./swapmesh.sh > log.swapmesh &'
-      SYSCOMMAND=' ./swapmesh.sh > log.swapmesh '
-      print*,TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    ELSE
-      ! cd ../meshXX && ~/build_hdf16/bin/swapmesh parameter_swapmesh.ini PlasmaPlume_State_000.000000000000100.h5
-      LogSwapMesh=.TRUE.
-      IF(LogSwapMesh)THEN
-        SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)//' > log.swapmesh'
-      ELSE
-        SYSCOMMAND=' '//ParameterFile//' '//TRIM(RestartFile)
-      END IF
-      print*,                   TRIM(SWITCHFOLDER)//' '//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND)
-      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//' '//TRIM(SwapMeshExePath)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    END IF
-
-
-
-    ! cd ../meshXX && mv PlasmaPlume_NewMesh_State_000.000000000000100.h5 PlasmaPlume_State_000.000000000000100.h5
-    WRITE(UNIT=hilf,FMT='(I3)') SwapMeshLevel+1
-    IF(SwapMeshLevel+1.GT.9)THEN
-      hilf2=TRIM(ADJUSTL(hilf))
-    ELSE
-      hilf2='0'//TRIM(ADJUSTL(hilf))
-    ENDIF
-
-
-    KeepSwapFile=.FALSE.
-    IF(.NOT.KeepSwapFile)THEN
-      ! move the created state file (remove the "NewMesh" suffix and replace with SwapMeshLevel)
-      StartIndex=INDEX(TRIM(RestartFile),'_State')+7
-      ! cd ../mesh01 && mv PlasmaPlume_01_NewMesh_State_000.000000000002000.h5 PlasmaPlume_01_State_000.000000000002000.h5
-      SYSCOMMAND=' mv '//TRIM(ProjectName)//'_NewMesh_State_'//TRIM(RestartFile(StartIndex:LEN(RestartFile)))//' '//&
-                        TRIM(LocalName)//'_'//TRIM(ADJUSTL(hilf2))//'_State_'//TRIM(RestartFile(StartIndex:LEN(RestartFile)))
-      print*,TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    END IF
-    IF(iSTATUS.NE.0)THEN
-      CALL abort(&
-      __STAMP__&
-      ,'new swapmesh state file could not be created.',999,999.)
-    END IF
-
-
-    CleanUp=.TRUE.
-    IF(CleanUp)THEN
-      ! Clean up: rm old state and mesh file !
-      ! cd ../meshXX && rm PlasmaPlume_State_000.000000000000100.h5 > /dev/null 2>&1
-      SYSCOMMAND=' rm '//TRIM(RestartFile)//' > /dev/null 2>&1'
-      print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-      ! cd ../mesh02 && rm PlasmaPlume_01_mesh.h5 > /dev/null 2>&1
-      SYSCOMMAND=' rm '//TRIM(MeshFile)//' > /dev/null 2>&1'
-      print*,                   TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND)
-      CALL EXECUTE_COMMAND_LINE(TRIM(SWITCHFOLDER)//TRIM(SYSCOMMAND), WAIT=.TRUE., EXITSTAT=iSTATUS)
-    END IF
-
-!PlasmaPlume_State_
-
-
-
-
-
-
+  ! 1: Set number of sides and offset for SEND MINE - RECEIVE YOUR case
+  IF(nMPISides_rec(iNbProc,1).GT.0) THEN
+    DO iSide = OffsetMPISides_rec(iNbProc-1,1)+1, OffsetMPISides_rec(iNbProc,1)
+      Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideRec(iNbProc,1) = DataSizeSideRec(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfRecMax(iNbProc,1) = DataSizeSurfRecMax(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfRecMin(iNbProc,1) = DataSizeSurfRecMin(iNbProc,1)  + (Nloc+1)**2
+#if !(USE_HDG)
+      ! Master is only required for Maxwell (with Dielectric)
+      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideRecMaster(iNbProc,1) = DataSizeSideRecMaster(iNbProc,1)  + (Nloc+1)**2
+#endif /*not USE_HDG*/
+    END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
   END IF
+
+  IF(nMPISides_send(iNbProc,1).GT.0) THEN
+    DO iSide = OffsetMPISides_send(iNbProc-1,1)+1, OffsetMPISides_send(iNbProc,1)
+      Nloc = DG_Elems_slave(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideSend(iNbProc,1) = DataSizeSideSend(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfSendMax(iNbProc,1) = DataSizeSurfSendMax(iNbProc,1)  + (Nloc+1)**2
+      Nloc = MIN(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+      DataSizeSurfSendMin(iNbProc,1) = DataSizeSurfSendMin(iNbProc,1)  + (Nloc+1)**2
+#if !(USE_HDG)
+      ! Master is only required for Maxwell (with Dielectric)
+      Nloc = DG_Elems_master(iSide) ! polynomial degree of the sending slave side
+      DataSizeSideSendMaster(iNbProc,1) = DataSizeSideSendMaster(iNbProc,1)  + (Nloc+1)**2
+#endif /*not USE_HDG*/
+    END DO ! iSide = 1, nMPISides_rec(iNbProc,1)
 END IF
 
-END SUBROUTINE SwapMesh
+  ! Important: Keep symmetry
+  DataSizeSideSend(iNbProc,2) = DataSizeSideRec( iNbProc,1)
+  DataSizeSideRec( iNbProc,2) = DataSizeSideSend(iNbProc,1)
+  DataSizeSurfSendMax(iNbProc,2) = DataSizeSurfRecMax( iNbProc,1)
+  DataSizeSurfRecMax( iNbProc,2) = DataSizeSurfSendMax(iNbProc,1)
+  DataSizeSurfSendMin(iNbProc,2) = DataSizeSurfRecMin( iNbProc,1)
+  DataSizeSurfRecMin( iNbProc,2) = DataSizeSurfSendMin(iNbProc,1)
+#if !(USE_HDG)
+  ! Master is only required for Maxwell (with Dielectric)
+  DataSizeSideSendMaster(iNbProc,2) = DataSizeSideRecMaster( iNbProc,1)
+  DataSizeSideRecMaster( iNbProc,2) = DataSizeSideSendMaster(iNbProc,1)
+#endif /*not USE_HDG*/
+END DO ! iNbProc = 1, nNbProcs
+
+#endif /*USE_MPI*/
+END SUBROUTINE DG_ProlongDGElemsToFace
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 
 SUBROUTINE GetMeshMinMaxBoundaries()
@@ -796,6 +1320,7 @@ IF(GetMeshMinMaxBoundariesIsDone) RETURN
 
 ! Get global min/max for all directions x, y and z
 #if USE_MPI
+
    ! Map global min/max values from xyzMinMax(1:6) that were determined in metric.f90 for each processor
    xmin_loc(1) = xyzMinMax(1)
    xmin_loc(2) = xyzMinMax(3)
@@ -828,6 +1353,7 @@ GetMeshMinMaxBoundariesIsDone=.TRUE.
 END SUBROUTINE GetMeshMinMaxBoundaries
 
 
+#if defined(PARTICLES) || USE_HDG
 SUBROUTINE BuildElementOrigin()
 !================================================================================================================================
 ! compute the element origin at xi=(0,0,0)^T and set it as ElemBaryNGeo
@@ -869,6 +1395,7 @@ DO iElem=1,PP_nElems
 END DO ! iElem
 
 END SUBROUTINE BuildElementOrigin
+#endif /*defined(PARTICLES) || USE_HDG*/
 
 
 SUBROUTINE InitElemVolumes()
@@ -877,14 +1404,17 @@ SUBROUTINE InitElemVolumes()
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals            ,ONLY: UNIT_StdOut
-USE MOD_Interpolation_Vars ,ONLY: wGP
-USE MOD_Mesh_Vars          ,ONLY: nElems,sJ
+USE MOD_Globals            ,ONLY: UNIT_StdOut,abort
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
+#if !(PP_TimeDiscMethod==700)
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+#endif /*!(PP_TimeDiscMethod==700)*/
+USE MOD_Mesh_Vars          ,ONLY: nElems,N_VolMesh, offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: LocalVolume,MeshVolume
 USE MOD_Particle_Mesh_Vars ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_ReadInTools
 #if USE_MPI
-USE MPI
+USE mpi_f08
 USE MOD_MPI_Shared
 USE MOD_Globals            ,ONLY: IERROR,MPIRoot
 #ifdef PARTICLES
@@ -908,8 +1438,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: iElem,CNElemID
-INTEGER                         :: i,j,k
-REAL                            :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
+INTEGER                         :: i,j,k,Nloc
 INTEGER                         :: offsetElemCNProc
 #if USE_MPI
 #ifdef PARTICLES
@@ -919,6 +1448,12 @@ REAL                            :: CNVolume                       ! Total CN vol
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT ELEMENT GEOMETRY INFORMATION ...'
+#if (USE_FV) && !(USE_HDG)
+! Can something be checked in this case?
+#else
+! Sanity check
+IF(.NOT.ALLOCATED(N_Inter)) CALL abort(__STAMP__,'Error in InitElemVolumes(): N_Inter is not allocated')
+#endif /*(USE_FV) && !(USE_HDG)*/
 
 #if USE_MPI && defined(PARTICLES)
 ! J_N is only built for local DG elements. Therefore, array is only filled for elements on the same compute node
@@ -952,10 +1487,15 @@ ElemCharLength_Shared(:) = 0.
 DO iElem = 1,nElems
   CNElemID=iElem+offsetElemCNProc
   !--- Calculate and save volume of element iElem
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-    ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + wGP(i)*wGP(j)*wGP(k)*J_N(1,i,j,k)
+#if (USE_FV) && !(USE_HDG)
+    ElemVolume_Shared(CNElemID) = 1./N_VolMesh(iElem)%sJ(0,0,0)
+#else
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+    ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) + &
+                                  N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)/N_VolMesh(iElem)%sJ(i,j,k)
   END DO; END DO; END DO
+#endif /*(USE_FV) && !(USE_HDG)*/
   !---- Calculate characteristic cell length: V^(1/3)
   ElemCharLength_Shared(CNElemID) = ElemVolume_Shared(CNElemID)**(1./3.)
 END DO
@@ -1019,7 +1559,7 @@ USE MOD_Globals   ,ONLY: UNIT_StdOut
 USE MOD_Mesh_Vars ,ONLY: nGlobalUniqueSidesFromMesh,nGlobalUniqueSides,nMortarMPISides,nUniqueSides
 #if USE_MPI
 USE MOD_Globals   ,ONLY: myrank,MPI_COMM_PICLAS,iError
-USE mpi
+USE mpi_f08
 #endif /*USE_MPI*/
 #endif /*USE_HDG*/
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -1088,9 +1628,30 @@ SUBROUTINE FinalizeMesh()
 ! MODULES
 USE MOD_Globals
 USE MOD_Mesh_Vars
+#if USE_FV
+USE MOD_Mesh_Vars_FV
+#endif /*USE_FV*/
 #if defined(PARTICLES) && USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
+#if !(PP_TimeDiscMethod==700)
+USE MOD_DG_Vars          ,ONLY: DG_Elems_master,DG_Elems_slave, N_DG_Mapping_Shared, N_DG
+#endif /*!(PP_TimeDiscMethod==700)*/
+#if USE_MPI
+#if !(PP_TimeDiscMethod==700)
+USE MOD_DG_Vars          ,ONLY: N_DG_Mapping_Shared_Win
+#endif /*!(PP_TimeDiscMethod==700)*/
+USE MOD_MPI_Shared_Vars  ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideSend,DataSizeSurfSendMax,DataSizeSurfSendMin
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideRec,DataSizeSurfRecMax,DataSizeSurfRecMin
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance!,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+#if !(USE_HDG)
+USE MOD_MPI_Vars         ,ONLY: DataSizeSideSendMaster,DataSizeSideRecMaster
+#endif /*not USE_HDG*/
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
@@ -1108,34 +1669,35 @@ SDEALLOCATE(AnalyzeSide)
 SDEALLOCATE(SideToElem)
 SDEALLOCATE(BC)
 SDEALLOCATE(GlobalUniqueSideID)
+! elem-xgp and metrics
 !#ifdef CODE_ANALYZE
 !#ifndef PARTICLES
 !SDEALLOCATE(SideBoundingBoxVolume)
 !#endif
 !#endif
-SDEALLOCATE(ElemToElemGlob)
 ! mortars
 SDEALLOCATE(MortarType)
 SDEALLOCATE(MortarInfo)
 SDEALLOCATE(MortarSlave2MasterInfo)
 ! mappings
-SDEALLOCATE(VolToSideA)
-SDEALLOCATE(VolToSide2A)
-SDEALLOCATE(CGNS_VolToSideA)
-SDEALLOCATE(SideToVolA)
-SDEALLOCATE(SideToVol2A)
-SDEALLOCATE(CGNS_SideToVol2A)
-SDEALLOCATE(FS2M)
-! Sides
-SDEALLOCATE(Face_xGP)
-SDEALLOCATE(NormVec)
-SDEALLOCATE(TangVec1)
-SDEALLOCATE(TangVec2)
-SDEALLOCATE(SurfElem)
+SDEALLOCATE(DetJac_Ref)
+#if USE_FV
+SDEALLOCATE(NormVec_FV)
+SDEALLOCATE(TangVec1_FV)
+SDEALLOCATE(TangVec2_FV)
+SDEALLOCATE(SurfElem_FV)
+SDEALLOCATE(Face_xGP_FV)
+SDEALLOCATE(NormVec_PP_1)
+SDEALLOCATE(TangVec1_PP_1)
+SDEALLOCATE(TangVec2_PP_1)
+SDEALLOCATE(SurfElem_PP_1)
+SDEALLOCATE(Face_xGP_PP_1)
+SDEALLOCATE(IsPeriodicSide)
+#endif
 SDEALLOCATE(Vdm_CLNGeo1_CLNGeo)
 SDEALLOCATE(wBaryCL_NGeo1)
 SDEALLOCATE(XiCL_NGeo1)
-SDEALLOCATE(VolToSideIJKA)
+SDEALLOCATE(N_Mesh)
 MeshInitIsDone = .FALSE.
 SDEALLOCATE(ElemBaryNGeo)
 SDEALLOCATE(ElemGlobalID)
@@ -1143,52 +1705,90 @@ SDEALLOCATE(myInvisibleRank)
 SDEALLOCATE(LostRotPeriodicSides)
 SDEALLOCATE(SideToNonUniqueGlobalSide)
 
+SDEALLOCATE(n_surfmesh)
+
+! p-adaption
+#if !(PP_TimeDiscMethod==700)
+SDEALLOCATE(DG_Elems_master)
+SDEALLOCATE(DG_Elems_slave)
+
+#if USE_MPI
+SDEALLOCATE(DataSizeSideSend)
+SDEALLOCATE(DataSizeSideRec)
+
+! Min/Max is only required for HDG
+SDEALLOCATE(DataSizeSurfSendMax)
+SDEALLOCATE(DataSizeSurfSendMin)
+SDEALLOCATE(DataSizeSurfRecMax)
+SDEALLOCATE(DataSizeSurfRecMin)
+
+#if !(USE_HDG)
+! Master is only required for Maxwell (with Dielectric)
+SDEALLOCATE(DataSizeSideSendMaster)
+SDEALLOCATE(DataSizeSideRecMaster)
+#endif /*not USE_HDG*/
+
+! Do not deallocate during load balance here as it needs to be communicated between the processors
+#if USE_LOADBALANCE
+IF(.NOT.PerformLoadBalance.AND.ALLOCATED(N_DG))THEN
+#endif /*USE_LOADBALANCE*/
+  ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  CALL UNLOCK_AND_FREE(N_DG_Mapping_Shared_Win)
+  ! Then, free the pointers or arrays
+  ADEALLOCATE(N_DG_Mapping_Shared)
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+#endif /*USE_MPI*/
+
+SDEALLOCATE(N_DG)
+#endif /*!(PP_TimeDiscMethod==700)*/
+SDEALLOCATE(Xi_NGeo)
+
 ! Arrays are being shifted along load balancing, so they need to be kept allocated
 #if defined(PARTICLES) && USE_LOADBALANCE
 IF (PerformLoadBalance .AND. .NOT.UseH5IOLoadBalance) RETURN
+!IF (PerformLoadBalance) RETURN
 #endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
 ! geometry information and VDMS
-SDEALLOCATE(DCL_N)
-SDEALLOCATE(DCL_NGeo)
-SDEALLOCATE(Vdm_CLN_GaussN)
-SDEALLOCATE(Vdm_CLNGeo_GaussN)
-SDEALLOCATE(Vdm_CLNGeo_CLN)
-SDEALLOCATE(Vdm_NGeo_CLNGeo)
-SDEALLOCATE(Xi_NGeo)
+!SDEALLOCATE(DCL_N)
+!SDEALLOCATE(DCL_NGeo)
+!SDEALLOCATE(Vdm_CLN_GaussN)
+
+!SDEALLOCATE(Vdm_CLNGeo_CLN)
+!SDEALLOCATE(Vdm_NGeo_CLNGeo)
+
 SDEALLOCATE(XiCL_NGeo)
 SDEALLOCATE(wBaryCL_NGeo)
 ! particle input/output
-SDEALLOCATE(Vdm_N_EQ)
-SDEALLOCATE(Vdm_EQ_N)
-! superb
-SDEALLOCATE(Vdm_GL_N)
-SDEALLOCATE(Vdm_N_GL)
+!SDEALLOCATE(Vdm_EQ_N)
+!SDEALLOCATE(Vdm_N_EQ)
+!SDEALLOCATE(Vdm_N_GL)
 ! BCS
 SDEALLOCATE(BoundaryName)
 SDEALLOCATE(BoundaryType)
+#if USE_FV && USE_HDG
+SDEALLOCATE(BoundaryType_FV)
+#endif
 ! elem-xgp and metrics
-SDEALLOCATE(XCL_NGeo)
-SDEALLOCATE(dXCL_NGeo)
-SDEALLOCATE(Metrics_fTilde)
-SDEALLOCATE(Metrics_gTilde)
-SDEALLOCATE(Metrics_hTilde)
-SDEALLOCATE(Elem_xGP)
-SDEALLOCATE(sJ)
-#ifdef maxwell
-#if defined(ROS) || defined(IMPA)
-SDEALLOCATE(nVecLoc)
-SDEALLOCATE(SurfLoc)
-#endif /*ROS or IMPA*/
-#endif /*maxwell*/
-SDEALLOCATE(JaCL_N)
-SDEALLOCATE(Vdm_CLN_N)
-SDEALLOCATE(XCL_N)
-! #if USE_LOADBALANCE
-SDEALLOCATE(dXCL_N)
-! SDEALLOCATE(Ja_Face)
-! #endif /*USE_LOADBALANCE*/
+SDEALLOCATE(XCL_NGeo)  ! MPI communication during LB in ExchangeMetrics()
+SDEALLOCATE(dXCL_NGeo) ! MPI communication during LB in ExchangeMetrics()
+! VolMesh
+SDEALLOCATE(N_VolMesh)  ! MPI communication during LB in ExchangeVolMesh()
+SDEALLOCATE(N_VolMesh2) ! MPI communication during LB in ExchangeMetrics()
 
+#if USE_FV
+SDEALLOCATE(Elem_xGP_FV)
+SDEALLOCATE(Elem_xGP_PP_1)
+SDEALLOCATE(Metrics_fTilde_FV)
+SDEALLOCATE(Metrics_gTilde_FV)
+SDEALLOCATE(Metrics_hTilde_FV)
+SDEALLOCATE(JaCL_N_PP_1)
+SDEALLOCATE(       XCL_N_PP_1)
+SDEALLOCATE(      dXCL_N_PP_1)
+#endif
 END SUBROUTINE FinalizeMesh
 
 END MODULE MOD_Mesh

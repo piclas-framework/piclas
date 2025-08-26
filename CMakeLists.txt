@@ -1,136 +1,45 @@
 # =========================================================================
+# PICLas information
+# =========================================================================
+SET(PROJECT_NAME "PICLas")
+SET(PROJECT_DESC "A parallel, three-dimensional PIC-DSMC solver and flexible particle-based plasma simulation suite")
+SET(PROJECT_VER  "3.6.0")
+SET(PROJECT_URL  "https://github.com/piclas-framework/piclas")
+
+# =========================================================================
 # CMake configuration
 # =========================================================================
-MESSAGE(STATUS "Generating with [cmake] (${CMAKE_VERSION})")
-# NOTE: use minimum CMake version required
-CMAKE_MINIMUM_REQUIRED(VERSION 3.6.3)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.10.0)
+
+MESSAGE(STATUS "This is ${PROJECT_NAME} (v${PROJECT_VER})")
+MESSAGE(STATUS "Generating with [cmake] (v${CMAKE_VERSION})")
+
 # Policies (see https://cmake.org/cmake/help/v3.13/manual/cmake-policies.7.html)
-# VERSION_GREATER_EQUAL is incompatible with CMAKE versions < 3.7
-IF(NOT CMAKE_VERSION VERSION_LESS "3.6.0")
-  # Utilizing GIT_SHALLOW for faster cloning, using LIST(APPEND ...) to ensure correct expansion in ExternalProject_Add
-  LIST(APPEND GITSHALLOW "GIT_SHALLOW" "TRUE")
-ENDIF()
-IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.12.0"))
+SET(GITSHALLOW "GIT_SHALLOW ON")
+IF(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.12.0")
   CMAKE_POLICY(SET CMP0074 NEW)
 ENDIF()
 # Required to link visulib against visuReader
-IF(NOT(${CMAKE_VERSION} VERSION_LESS "3.13.0"))
+IF(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.13.0")
   CMAKE_POLICY(SET CMP0079 NEW)
 ENDIF()
 
 # =========================================================================
-# Git configuration
+# Load CMake modules
 # =========================================================================
-IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  # Setup git hooks
-  SET(PRECOMMIT_FILE ".githooks/pre-commit")
-  # Check if the pre-commit hooks exits
-  IF (NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
-    # Create otherwise
-    EXECUTE_PROCESS(COMMAND mkdir -p ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks)
-    EXECUTE_PROCESS(COMMAND ln -s ${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE} ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit)
-  ELSE()
-    # Check if the hook is the correct symlink and warn otherwise
-    EXECUTE_PROCESS(COMMAND readlink ${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit OUTPUT_VARIABLE PRECOMMIT_LINK OUTPUT_STRIP_TRAILING_WHITESPACE)
-    IF (NOT ${PRECOMMIT_LINK} MATCHES "${CMAKE_CURRENT_SOURCE_DIR}/${PRECOMMIT_FILE}")
-      MESSAGE (WARNING "Custom git pre-commit hook detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
-    ENDIF()
-  ENDIF()
-
-  # Check if the hook actually gets loaded
-  EXECUTE_PROCESS(COMMAND git config --get core.hooksPath OUTPUT_VARIABLE HOOKSPATH OUTPUT_STRIP_TRAILING_WHITESPACE WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  IF (DEFINED HOOKSPATH  AND NOT "${HOOKSPATH}" STREQUAL "" AND NOT "${HOOKSPATH}" STREQUAL ".git/hooks")
-    # STRING(ASCII 27 ESCAPE)
-    # MESSAGE (STATUS "${ESCAPE}[34mCustom hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.${ESCAPE}[0m")
-    MESSAGE (WARNING "Custom git hooks path detected. Please ensure to call ${PRECOMMIT_FILE} manually.")
-  ENDIF()
-ELSE()
-  MESSAGE(STATUS "git not found")
-ENDIF()
-
-# =========================================================================
-# Project definition
-# =========================================================================
-#PROJECT(PICLas Fortran C CXX)
-
-# Folder for custom CMake source files
+# Directory for custom CMake source files
 LIST(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 SET_PROPERTY(GLOBAL PROPERTY USE_FOLDERS ON)
-INCLUDE(ExternalProject)
+INCLUDE(CheckOrigin)
+
+# Load CMake internal extensions
 INCLUDE(CMakeDependentOption)
+INCLUDE(ExternalProject)
 
 # =========================================================================
 # Performance mode
 # =========================================================================
 OPTION(PICLAS_PERFORMANCE "Enable performance optimizations (e.g. PGO for GNU)" OFF)
-
-# =========================================================================
-# Check lld / gold support
-# =========================================================================
-# EXECUTE_PROCESS(COMMAND ld.lld --version COMMAND grep "^LLD" COMMAND grep -Eo "[0-9]+\.[0-9]+\.[0-9]+" OUTPUT_VARIABLE LLD_VERSION)
-# # lld should be faster than gold
-# IF (DEFINED LLD_VERSION  AND NOT "${LLD_VERSION}" STREQUAL "")
-#   STRING(STRIP "${LLD_VERSION}" LLD_VERSION)
-#   MESSAGE(STATUS "Setting linker to [lld] (v${LLD_VERSION})")
-#   # Shift responsibility of driving the final stages of compilation from collect2 to gold via the linker plugin
-#   # More information at: https://gcc.gnu.org/wiki/LinkTimeOptimization
-#   IF(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
-#     ADD_LINK_OPTIONS("-fuse-ld=lld")
-#     # Make it abundantly clear we want to use lld
-#     FIND_PROGRAM(LLD_LINKER NAMES ${_CMAKE_TOOLCHAIN_PREFIX}ld.lld${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
-#     SET (CMAKE_LINKER "${LLD_LINKER}" CACHE FILEPATH "" FORCE)
-#     MARK_AS_ADVANCED(FORCE LLD_LINKER)
-#   ELSE()
-#     SET (CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS}    -fuse-ld=lld")
-#     SET (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=lld")
-#     SET (CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -fuse-ld=lld")
-#     SET (CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -fuse-ld=lld")
-#     # Make it abundantly clear we want to use lld
-#     FIND_PROGRAM(LLD_LINKER NAMES ${_CMAKE_TOOLCHAIN_PREFIX}ld.lld${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
-#     SET (CMAKE_LINKER "${LLD_LINKER}" CACHE FILEPATH "" FORCE)
-#     MARK_AS_ADVANCED(FORCE LLD_LINKER)
-#   ENDIF()
-# # gold should be faster than GNU ld
-# ELSE()
-  EXECUTE_PROCESS(COMMAND ld.gold --version COMMAND grep "^GNU gold" COMMAND sed "s/^.* //g" OUTPUT_VARIABLE GNU_GOLD_VERSION)
-  IF (DEFINED GNU_GOLD_VERSION  AND NOT "${GNU_GOLD_VERSION}" STREQUAL "")
-    STRING(STRIP "${GNU_GOLD_VERSION}" GNU_GOLD_VERSION)
-    MESSAGE(STATUS "Linking with [gold] (v${GNU_GOLD_VERSION})")
-    # Shift responsibility of driving the final stages of compilation from collect2 to gold via the linker plugin
-    # More information at: https://gcc.gnu.org/wiki/LinkTimeOptimization
-    IF(CMAKE_VERSION VERSION_GREATER_EQUAL 3.13)
-      ADD_LINK_OPTIONS("-fuse-ld=gold")
-      # Make it abundantly clear we want to use gold
-      FIND_PROGRAM(CMAKE_GOLD_LINKER NAMES ${_CMAKE_TOOLCHAIN_PREFIX}ld.gold${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
-      SET (CMAKE_LINKER "${CMAKE_GOLD_LINKER}" CACHE FILEPATH "" FORCE)
-      MARK_AS_ADVANCED(FORCE CMAKE_GOLD_LINKER)
-    ELSE()
-      SET (CMAKE_EXE_LINKER_FLAGS    "${CMAKE_EXE_LINKER_FLAGS}    -fuse-ld=gold")
-      SET (CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -fuse-ld=gold")
-      # This currently breaks ar (binutils archiver)
-      # SET (CMAKE_STATIC_LINKER_FLAGS "${CMAKE_STATIC_LINKER_FLAGS} -fuse-ld=gold")
-      SET (CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} -fuse-ld=gold")
-      # Make it abundantly clear we want to use gold
-      FIND_PROGRAM(CMAKE_GOLD_LINKER NAMES ${_CMAKE_TOOLCHAIN_PREFIX}ld.gold${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
-      SET (CMAKE_LINKER "${CMAKE_GOLD_LINKER}" CACHE FILEPATH "" FORCE)
-      MARK_AS_ADVANCED(FORCE CMAKE_GOLD_LINKER)
-    ENDIF()
-# Found neither lld nor gold, output GNU ld
-  ELSE()
-    EXECUTE_PROCESS(COMMAND ld --version OUTPUT_VARIABLE GNU_LD_STRING)
-    # Check if we actually got GNU ld
-    IF (GNU_LD_STRING MATCHES "^GNU ld")
-      EXECUTE_PROCESS(COMMAND ld --version COMMAND grep "^GNU ld" COMMAND sed "s/^.* //g" OUTPUT_VARIABLE GNU_LD_VERSION)
-      STRING(STRIP "${GNU_LD_VERSION}" GNU_LD_VERSION)
-      MESSAGE(STATUS "Linking with [ld] (v${GNU_LD_VERSION})")
-    # ... or if we are running mold
-    ELSEIF (GNU_LD_STRING MATCHES "^mold")
-      EXECUTE_PROCESS(COMMAND ld --version COMMAND grep "^mold" COMMAND grep -Eo "[0-9]+\.[0-9]+\.[0-9]+ " OUTPUT_VARIABLE GNU_MOLD_VERSION)
-      STRING(STRIP "${GNU_MOLD_VERSION}" GNU_MOLD_VERSION)
-      MESSAGE(STATUS "Linking with [mold] (v${GNU_MOLD_VERSION})")
-    ENDIF()
-  ENDIF()
-# ENDIF()
 
 # =========================================================================
 # code development
@@ -148,23 +57,49 @@ ENDIF()
 # =========================================================================
 # Machine environment
 # =========================================================================
-INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/CMakeListsMachine.txt)
 
-# Hawk requires this after specifying CMAKE_COMPILER
-PROJECT(PICLas)
+INCLUDE(SetLinker)
+# Languages are specified in SetCompiler as Hawk requires them
+# after specifying CMAKE_COMPILER
+INCLUDE(SetMachine)
+
+PROJECT(${PROJECT_NAME}
+        VERSION      ${PROJECT_VER}
+        DESCRIPTION  ${PROJECT_DESC}
+        HOMEPAGE_URL ${PROJECT_URL})
+
+INCLUDE(SetCompiler)
+# Load CMake internal extensions
+# > must be loaded after target architecture is known
+INCLUDE(GNUInstallDirs)
 
 # =========================================================================
 # Store the current commit information
 # =========================================================================
-SET(commit ${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h)
-FILE(WRITE ${commit} "! Define the current commit hash. The default must remain empty, i.e., ''. Do not commit the changed file!\n#define GIT_CURRENT_COMMIT  ''\n")
-IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/.git)
-  EXECUTE_PROCESS(COMMAND git rev-parse HEAD OUTPUT_VARIABLE GIT_COMMIT OUTPUT_STRIP_TRAILING_WHITESPACE WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
-  MESSAGE(STATUS "Current git commit ${GIT_COMMIT} will be written to ${commit}")
-  EXECUTE_PROCESS(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit} WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+SET(commit_header "${CMAKE_CURRENT_SOURCE_DIR}/src/commit.h")
+
+# Write an inline CMake update script to a temporary file.
+FILE(WRITE "${CMAKE_CURRENT_BINARY_DIR}/update_commit.cmake"
+"EXECUTE_PROCESS(
+  COMMAND git rev-parse HEAD
+  WORKING_DIRECTORY \"${CMAKE_CURRENT_SOURCE_DIR}\"
+  OUTPUT_VARIABLE GIT_COMMIT
+  OUTPUT_STRIP_TRAILING_WHITESPACE
+  ERROR_QUIET
+)
+IF(NOT GIT_COMMIT)
+  SET(GIT_COMMIT \"\")
 ENDIF()
-# Make sure that the script is executed even though cmake is not explicitly executed after the commit is changed in git
-ADD_CUSTOM_TARGET(UpdateGitCommitHash COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/tools/cmake/setCommitHash.sh ${commit})
+FILE(WRITE \"\${commit_header}\" \"! Define the current commit hash. The default must remain empty, i.e., ''.\n#define GIT_CURRENT_COMMIT \\\"\${GIT_COMMIT}\\\"\n\")
+")
+
+# Create a custom target that always updates the commit header.
+# This target will run on every build invocation.
+ADD_CUSTOM_TARGET(UpdateGitCommitHash ALL
+  COMMAND ${CMAKE_COMMAND} -Dcommit_header=${commit_header} -P ${CMAKE_CURRENT_BINARY_DIR}/update_commit.cmake
+  COMMENT "Updating commit header with current git commit"
+  VERBATIM
+)
 
 # =========================================================================
 # Check IPO support:
@@ -197,79 +132,22 @@ ENDIF()
 # =========================================================================
 # Build type
 # =========================================================================
-# make sure that the default is a RELEASE
-IF (NOT CMAKE_BUILD_TYPE)
-  SET (CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: Debug, Release, Profile, Sanitize (only GNU), Nitro (only GNU)." FORCE)
-   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile Sanitize Nitro)
-   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Intel")
-     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile)
-   ELSEIF (CMAKE_Fortran_COMPILER_ID MATCHES "Cray")
-     SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release Profile)
-   ENDIF()
-ENDIF (NOT CMAKE_BUILD_TYPE)
-
-STRING(TOLOWER ${CMAKE_BUILD_TYPE} BUILD_TYPE_LC)
-IF (BUILD_TYPE_LC MATCHES "debug" OR BUILD_TYPE_LC MATCHES "sanitize")
-  ADD_DEFINITIONS(-DUSE_DEBUG=1)
-ELSE()
-  ADD_DEFINITIONS(-DUSE_DEBUG=0)
-  IF (PICLAS_IPO)
-    # enable IPO globally (IPO branding: Intel => IPO, GNU => LTO, PGI => IPA)
-    IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
-      # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
-      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)
-      # Check the GCC wrapper for the complete toolchain
-      FIND_PROGRAM(CMAKE_GCC_AR     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ar${_CMAKE_TOOLCHAIN_SUFFIX} HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
-      FIND_PROGRAM(CMAKE_GCC_NM     NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-nm                           HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
-      FIND_PROGRAM(CMAKE_GCC_RANLIB NAMES ${_CMAKE_TOOLCHAIN_PREFIX}gcc-ranlib                       HINTS ${_CMAKE_TOOLCHAIN_LOCATION})
-      MARK_AS_ADVANCED(FORCE CMAKE_GCC_AR)
-      MARK_AS_ADVANCED(FORCE CMAKE_GCC_NM)
-      MARK_AS_ADVANCED(FORCE CMAKE_GCC_RANLIB)
-      # Do not use the standard CMake LTO option for GNU (-flto -fno-fat-lto-objects), as it does not allow speed-up during linking
-      IF(CMAKE_GCC_AR AND CMAKE_GCC_NM AND CMAKE_GCC_RANLIB)
-        # Static libraries require either fat LTO objects (increases compilation time) or the use of linker plugins (per default enabled); the jobserver option reduces linking time
-        # More information at: https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html#Optimize-Options
-        SET(LTO_AUTO_MIN_GCC_VERSION 10.1)
-        IF(CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL LTO_AUTO_MIN_GCC_VERSION)
-          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=auto] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (>= ${LTO_AUTO_MIN_GCC_VERSION}).")
-          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=auto -fuse-linker-plugin")
-        ELSE()
-          MESSAGE(STATUS "Found GCC binutils wrappers for LTO. Linker plugin is enabled. Using [-flto=jobserver] as GCC version is ${CMAKE_CXX_COMPILER_VERSION} (< ${LTO_AUTO_MIN_GCC_VERSION})")
-          SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -fuse-linker-plugin")
-        ENDIF()
-        # Set the GCC wrapper
-        SET(CMAKE_AR     "${CMAKE_GCC_AR}" )
-        SET(CMAKE_NM     "${CMAKE_GCC_NM}" )
-        SET(CMAKE_RANLIB "${CMAKE_GCC_RANLIB}" )
-        MARK_AS_ADVANCED(FORCE CMAKE_AR)
-        MARK_AS_ADVANCED(FORCE CMAKE_NM)
-        MARK_AS_ADVANCED(FORCE CMAKE_RANLIB)
-      ELSE()
-        MESSAGE(WARNING "GCC binutils wrappers for LTO not found. Linker plugin might not be available, enabling fat LTO objects.")
-        SET(CMAKE_Fortran_FLAGS  "${CMAKE_Fortran_FLAGS} -flto=jobserver -ffat-lto-objects")
-      ENDIF()
-    ELSE()
-      SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION FALSE)  # disable IPO for other compilers as not yet tested (might cause problem in combination with Intel & binutils' objcopy)
-    ENDIF()
-  ENDIF()
-ENDIF()
-MESSAGE(STATUS "Compiling with [${BUILD_TYPE_LC}] build type")
+INCLUDE(SetBuildType)
 
 # =========================================================================
 # Location of binary and filenames
 # =========================================================================
-# append relative filename-macro for __FILENAME__ in Stamp of abort function (see piclas.h)
+# append relative filename-macro for __FILENAME__ in __STAMP__ of abort function (see piclas.h)
 # subst replacement is GNU make specific
 IF("${CMAKE_GENERATOR}" MATCHES "Unix Makefiles")
   SET(CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -D__FILENAME__='\"$(subst ${CMAKE_SOURCE_DIR}/,,$(abspath $<))\"'")
 ENDIF()
 
 # add basedir for location of corresponding userblock-file
-ADD_DEFINITIONS("-DBASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
+ADD_COMPILE_DEFINITIONS("BASEDIR='\"${CMAKE_CURRENT_BINARY_DIR}/\"'")
 
 # =========================================================================
-# echo COMPILE_DEFINITIONS
+# Echo compile definitions
 # =========================================================================
 GET_DIRECTORY_PROPERTY(comp_defs DIRECTORY ${CMAKE_SOURCE_DIR} COMPILE_DEFINITIONS )
 SET(comp_defs_str "COMPILE_DEFINITIONS = ")
@@ -279,14 +157,14 @@ ENDFOREACH()
 ADD_CUSTOM_TARGET(preproc_defines COMMAND echo ${comp_defs_str})
 
 # =========================================================================
-# USERBLOCK + Preproc_flags
+# USERBLOCK + PREPROC_FLAGS
 # =========================================================================
 # A function to get all user defined variables with a specified prefix
-function (getListOfVarsStartingWith _prefix _varResult)
-    GET_CMAKE_PROPERTY(_vars CACHE_VARIABLES)
-    STRING(REGEX MATCHALL "(^|;)${_prefix}[A-Za-z0-9_]*" _matchedVars "${_vars}")
-    SET(${_varResult} ${_matchedVars} PARENT_SCOPE)
-endfunction()
+FUNCTION (GETLISTOFVARSSTARTINGWITH _PREFIX _VARRESULT)
+    GET_CMAKE_PROPERTY(_VARS CACHE_VARIABLES)
+    STRING(REGEX MATCHALL "(^|;)${_PREFIX}[A-Za-z0-9_]*" _MATCHEDVARS "${_VARS}")
+    SET(${_VARRESULT} ${_MATCHEDVARS} PARENT_SCOPE)
+ENDFUNCTION()
 
 # A function to get all user defined variables with a specified prefix
 SET(configuration ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/configuration.cmake)
@@ -323,7 +201,7 @@ OPTION(LIBS_DOWNLOAD_HOPR "Download HOPR pre-processor AppImage executable from 
 # =========================================================================
 # ADD LIBRARIES
 # =========================================================================
-INCLUDE(${CMAKE_CURRENT_SOURCE_DIR}/CMakeListsLib.txt)
+INCLUDE(SetLibraries)
 
 # =========================================================================
 # PICLas

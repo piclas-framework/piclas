@@ -17,6 +17,9 @@ MODULE MOD_Particle_Mesh_Vars
 ! Contains global variables provided by the particle surfaces routines
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -60,7 +63,7 @@ REAL,ALLOCPOINT,DIMENSION(:,:,:)         :: XiEtaZetaBasis     ! element local b
 
 ! XCL_NGeo and dXCL_NGeo always exist for DG mesh
 REAL,POINTER,DIMENSION(:,:,:,:,:)        :: XCL_NGeo_Shared
-REAL,POINTER,DIMENSION(:,:,:,:,:)        :: Elem_xGP_Shared
+REAL,POINTER,DIMENSION(:,:)              :: Elem_xGP_Shared
 REAL,POINTER,DIMENSION(:,:,:,:,:,:)      :: dXCL_NGeo_Shared   ! Jacobi matrix of the mapping P\in NGeo
 
 ! FIBGM
@@ -80,7 +83,7 @@ LOGICAL,ALLOCPOINT,DIMENSION(:)          :: ElemCurved         !> flag if an ele
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: ElemToBCSides(:,:) !> Mapping from elem to BC sides within halo eps
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: SideBCMetrics(:,:) !> Metrics for BC sides, see piclas.h
 
-REAL,POINTER   ,DIMENSION(:,:,:,:)       :: ElemsJ             !> 1/DetJac for each Gauss Point
+REAL,ALLOCPOINT,DIMENSION(:)             :: ElemsJ             !> 1/DetJac for each Gauss Point
 REAL,ALLOCPOINT,DIMENSION(:)             :: ElemEpsOneCell     !> tolerance for particle in inside ref element 1+epsinCell
 
 ! Boundary sides
@@ -108,6 +111,10 @@ INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: SideInfo_Shared
 INTEGER,ALLOCATABLE                      :: SideInfo_Shared_tmp(:)
 INTEGER,ALLOCPOINT,DIMENSION(:)          :: NodeInfo_Shared !> Contains the 8 corner nodes of an element (global "unique node IDs")
 REAL,ALLOCPOINT,DIMENSION(:,:)           :: NodeCoords_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: EdgeInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: EdgeConnectInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: VertexInfo_Shared
+INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: VertexConnectInfo_Shared
 
 ! Shared arrays for halo debug information
 INTEGER,ALLOCPOINT,DIMENSION(:,:)        :: ElemHaloInfo_Shared
@@ -142,7 +149,11 @@ INTEGER,ALLOCPOINT :: GlobalSide2CNTotalSide_Shared(:)         !> Reverse Mappin
 REAL,ALLOCPOINT    :: BoundsOfElem_Shared(:,:,:)           !> Cartesian bounding box around element
 
 REAL,ALLOCPOINT    :: XCL_NGeo_Array(:)                          !> 1D array, pointer changes to proper array bounds
-REAL,ALLOCPOINT    :: Elem_xGP_Array(:)                          !> 1D array, pointer changes to proper array bounds
+#if USE_MPI
+REAL,POINTER       :: Elem_xGP_Array(:)                          !> 1D array, pointer changes to proper array bounds
+#else
+REAL,ALLOCATABLE,TARGET :: Elem_xGP_Array(:)                     !> 1D array, pointer changes to proper array bounds
+#endif /*USE_MPI*/
 REAL,ALLOCPOINT    :: dXCL_NGeo_Array(:)                         !> 1D array, pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3D_Shared(:)            !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
 REAL,ALLOCPOINT    :: BezierControlPoints3DElevated_Shared(:)    !> BezierControlPoints in 1D array. Pointer changes to proper array bounds
@@ -195,91 +206,95 @@ LOGICAL,ALLOCPOINT :: SideIsSymSide(:)
 REAL,ALLOCPOINT    :: SideNormalEdge2D_Shared(:,:,:)
 
 #if USE_MPI
-INTEGER            :: SideNormalEdge2D_Shared_Win
-INTEGER            :: ElemSideNodeID2D_Shared_Win
-INTEGER            :: ElemSideNodeID1D_Shared_Win
-INTEGER            :: SideIsSymSide_Shared_Win
+TYPE(MPI_Win)      :: SideNormalEdge2D_Shared_Win
+TYPE(MPI_Win)      :: ElemSideNodeID2D_Shared_Win
+TYPE(MPI_Win)      :: ElemSideNodeID1D_Shared_Win
+TYPE(MPI_Win)      :: SideIsSymSide_Shared_Win
 ! integers to hold shared memory windows
-INTEGER         :: NodeToElemMapping_Shared_Win
-INTEGER         :: NodeToElemInfo_Shared_Win
-INTEGER         :: NodeToGlobElemMapping_Shared_Win
-INTEGER         :: NodeToGlobElemInfo_Shared_Win
-INTEGER         :: ElemToElemMapping_Shared_Win
-INTEGER         :: ElemToElemInfo_Shared_Win
+TYPE(MPI_Win)   :: NodeToElemMapping_Shared_Win
+TYPE(MPI_Win)   :: NodeToElemInfo_Shared_Win
+TYPE(MPI_Win)   :: NodeToGlobElemMapping_Shared_Win
+TYPE(MPI_Win)   :: NodeToGlobElemInfo_Shared_Win
+TYPE(MPI_Win)   :: ElemToElemMapping_Shared_Win
+TYPE(MPI_Win)   :: ElemToElemInfo_Shared_Win
 
-INTEGER         :: ElemInfo_Shared_Win
-INTEGER         :: SideInfo_Shared_Win
-INTEGER         :: NodeInfo_Shared_Win
-INTEGER         :: NodeCoords_Shared_Win
+TYPE(MPI_Win)   :: ElemInfo_Shared_Win
+TYPE(MPI_Win)   :: SideInfo_Shared_Win
+TYPE(MPI_Win)   :: NodeInfo_Shared_Win
+TYPE(MPI_Win)   :: NodeCoords_Shared_Win
+TYPE(MPI_Win)   :: EdgeInfo_Shared_Win
+TYPE(MPI_Win)   :: EdgeConnectInfo_Shared_Win
+TYPE(MPI_Win)   :: VertexInfo_Shared_Win
+TYPE(MPI_Win)   :: VertexConnectInfo_Shared_Win
 
-INTEGER         :: ElemHaloInfo_Shared_Win
+TYPE(MPI_Win)   :: ElemHaloInfo_Shared_Win
 
-INTEGER         :: ElemToBCSides_Shared_Win
-INTEGER         :: SideBCMetrics_Shared_Win
+TYPE(MPI_Win)   :: ElemToBCSides_Shared_Win
+TYPE(MPI_Win)   :: SideBCMetrics_Shared_Win
 
-INTEGER         :: ElemToBGM_Shared_Win
-INTEGER         :: FIBGM_nTotalElems_Shared_Win
-INTEGER         :: FIBGM_nElems_Shared_Win
-INTEGER         :: FIBGM_Element_Shared_Win
-INTEGER         :: FIBGM_offsetElem_Shared_Win
+TYPE(MPI_Win)   :: ElemToBGM_Shared_Win
+TYPE(MPI_Win)   :: FIBGM_nTotalElems_Shared_Win
+TYPE(MPI_Win)   :: FIBGM_nElems_Shared_Win
+TYPE(MPI_Win)   :: FIBGM_Element_Shared_Win
+TYPE(MPI_Win)   :: FIBGM_offsetElem_Shared_Win
 
-INTEGER         :: FIBGMToProc_Shared_Win
-INTEGER         :: FIBGMToProcFlag_Shared_Win
-INTEGER         :: FIBGMToProcExtent_Shared_Win
-INTEGER         :: FIBGMProcs_Shared_Win
+TYPE(MPI_Win)   :: FIBGMToProc_Shared_Win
+TYPE(MPI_Win)   :: FIBGMToProcFlag_Shared_Win
+TYPE(MPI_Win)   :: FIBGMToProcExtent_Shared_Win
+TYPE(MPI_Win)   :: FIBGMProcs_Shared_Win
 
-INTEGER         :: CNTotalElem2GlobalElem_Shared_Win
-INTEGER         :: GlobalElem2CNTotalElem_Shared_Win
-INTEGER         :: CNTotalSide2GlobalSide_Shared_Win
-INTEGER         :: GlobalSide2CNTotalSide_Shared_Win
+TYPE(MPI_Win)   :: CNTotalElem2GlobalElem_Shared_Win
+TYPE(MPI_Win)   :: GlobalElem2CNTotalElem_Shared_Win
+TYPE(MPI_Win)   :: CNTotalSide2GlobalSide_Shared_Win
+TYPE(MPI_Win)   :: GlobalSide2CNTotalSide_Shared_Win
 
-INTEGER         :: BoundsOfElem_Shared_Win
+TYPE(MPI_Win)   :: BoundsOfElem_Shared_Win
 
-INTEGER         :: XCL_NGeo_Shared_Win
-INTEGER         :: Elem_xGP_Shared_Win
-INTEGER         :: dXCL_NGeo_Shared_Win
-INTEGER         :: BezierControlPoints3D_Shared_Win
-INTEGER         :: BezierControlPoints3DElevated_Shared_Win
-INTEGER         :: ElemsJ_Shared_Win
-INTEGER         :: ElemEpsOneCell_Shared_Win
+TYPE(MPI_Win)   :: XCL_NGeo_Shared_Win
+TYPE(MPI_Win)   :: Elem_xGP_Shared_Win
+TYPE(MPI_Win)   :: dXCL_NGeo_Shared_Win
+TYPE(MPI_Win)   :: BezierControlPoints3D_Shared_Win
+TYPE(MPI_Win)   :: BezierControlPoints3DElevated_Shared_Win
+TYPE(MPI_Win)   :: ElemsJ_Shared_Win
+TYPE(MPI_Win)   :: ElemEpsOneCell_Shared_Win
 
-INTEGER         :: ElemBaryNGeo_Shared_Win
-INTEGER         :: ElemRadiusNGeo_Shared_Win
-INTEGER         :: ElemRadius2NGeo_Shared_Win
-INTEGER         :: XiEtaZetaBasis_Shared_Win
-INTEGER         :: slenXiEtaZetaBasis_Shared_Win
+TYPE(MPI_Win)   :: ElemBaryNGeo_Shared_Win
+TYPE(MPI_Win)   :: ElemRadiusNGeo_Shared_Win
+TYPE(MPI_Win)   :: ElemRadius2NGeo_Shared_Win
+TYPE(MPI_Win)   :: XiEtaZetaBasis_Shared_Win
+TYPE(MPI_Win)   :: slenXiEtaZetaBasis_Shared_Win
 
-INTEGER         :: ElemCurved_Shared_Win
-INTEGER         :: ConcaveElemSide_Shared_Win
-INTEGER         :: ElemNodeID_Shared_Win
-INTEGER         :: ElemSideNodeID_Shared_Win
-INTEGER         :: ElemMidPoint_Shared_Win
+TYPE(MPI_Win)   :: ElemCurved_Shared_Win
+TYPE(MPI_Win)   :: ConcaveElemSide_Shared_Win
+TYPE(MPI_Win)   :: ElemNodeID_Shared_Win
+TYPE(MPI_Win)   :: ElemSideNodeID_Shared_Win
+TYPE(MPI_Win)   :: ElemMidPoint_Shared_Win
 
-INTEGER         :: SideSlabNormals_Shared_Win
-INTEGER         :: SideSlabIntervals_Shared_Win
-INTEGER         :: BoundingBoxIsEmpty_Shared_Win
+TYPE(MPI_Win)   :: SideSlabNormals_Shared_Win
+TYPE(MPI_Win)   :: SideSlabIntervals_Shared_Win
+TYPE(MPI_Win)   :: BoundingBoxIsEmpty_Shared_Win
 
-INTEGER         :: SideType_Shared_Win
-INTEGER         :: SideDistance_Shared_Win
-INTEGER         :: SideNormVec_Shared_Win
+TYPE(MPI_Win)   :: SideType_Shared_Win
+TYPE(MPI_Win)   :: SideDistance_Shared_Win
+TYPE(MPI_Win)   :: SideNormVec_Shared_Win
 
-INTEGER         :: BaseVectors0_Shared_Win
-INTEGER         :: BaseVectors1_Shared_Win
-INTEGER         :: BaseVectors2_Shared_Win
-INTEGER         :: BaseVectors3_Shared_Win
-INTEGER         :: BaseVectorsScale_Shared_Win
+TYPE(MPI_Win)   :: BaseVectors0_Shared_Win
+TYPE(MPI_Win)   :: BaseVectors1_Shared_Win
+TYPE(MPI_Win)   :: BaseVectors2_Shared_Win
+TYPE(MPI_Win)   :: BaseVectors3_Shared_Win
+TYPE(MPI_Win)   :: BaseVectorsScale_Shared_Win
 
 ! Boundary sides
-INTEGER         :: BCSide2SideID_Shared_Win
-INTEGER         :: SideID2BCSide_Shared_Win
-INTEGER         :: BCSideMetrics_Shared_Win
+TYPE(MPI_Win)   :: BCSide2SideID_Shared_Win
+TYPE(MPI_Win)   :: SideID2BCSide_Shared_Win
+TYPE(MPI_Win)   :: BCSideMetrics_Shared_Win
 
 ! Shared arrays containing information for mesh on compute node
-INTEGER         :: ElemVolume_Shared_Win
-INTEGER         :: ElemCharLength_Shared_Win
-INTEGER         :: ElemCharLengthX_Shared_Win
-INTEGER         :: ElemCharLengthY_Shared_Win
-INTEGER         :: ElemCharLengthZ_Shared_Win
+TYPE(MPI_Win)   :: ElemVolume_Shared_Win
+TYPE(MPI_Win)   :: ElemCharLength_Shared_Win
+TYPE(MPI_Win)   :: ElemCharLengthX_Shared_Win
+TYPE(MPI_Win)   :: ElemCharLengthY_Shared_Win
+TYPE(MPI_Win)   :: ElemCharLengthZ_Shared_Win
 
 ! periodic sides
 LOGICAL         :: MeshHasPeriodic
@@ -348,6 +363,9 @@ TYPE tGeometry
   ! required for cartesian BGM for desposition
   INTEGER, ALLOCATABLE                   :: PeriodicBGMVectors(:,:)  ! = periodic vectors in backgroundmesh coords
   ! FIBGM
+  LOGICAL                                :: AutomaticFIBGM           ! Flag if the FIBGM is defined automatically
+  LOGICAL                                :: ForceFIBGM               ! Forced the build of the FIBGM
+  LOGICAL                                :: InitFIBGM                ! Flag if FIBGM is initialized (can be used)
   REAL                                   :: FIBGMdeltas(3)           ! size of background mesh cell for particle init
   REAL                                   :: FactorFIBGM(3)           ! scaling factor for FIBGM
 
@@ -381,6 +399,7 @@ TYPE tGeometry
   LOGICAL                                :: SelfPeriodic                      ! does process have periodic bounds with itself?
   REAL, ALLOCATABLE                      :: XMinMax(:,:)                      ! Minimum (1) and maximum (2) xValue of the Element
                                                                               ! Used for 1D (2,nELems)
+  LOGICAL                                :: FIBGMSymmetryVec(3)               ! Symmetry vector for FIBGM
 END TYPE
 
 TYPE (tGeometry)                         :: GEO
@@ -394,6 +413,38 @@ LOGICAL                                  :: FindNeighbourElems                ! 
 
 REAL,ALLOCATABLE                         :: ElemTolerance(:)
 INTEGER, ALLOCATABLE                     :: ElemToGlobalElemID(:)  ! mapping form local-elemid to global-id is built via nodes
+
+! ====================================================================
+REAL,ALLOCATABLE                         :: PartWeightAtNode(:,:)                 ! Cell-local weighting: node value of the weight
+INTEGER,ALLOCATABLE                      :: NodeSendRankToGlobalRank(:)
+INTEGER,ALLOCATABLE                      :: NodeRecvRankToGlobalRank(:)
+INTEGER,ALLOCATABLE                      :: NodetoGlobalNode(:)
+INTEGER                                  :: nMapNodes
+INTEGER                                  :: nMapNodesTotal
+INTEGER                                  :: nNodeSendExchangeProcs
+INTEGER                                  :: nNodeRecvExchangeProcs
+
+#if USE_MPI
+! Send direction of nodes (can be different from number of receive nodes for each processor)
+TYPE tNodeMappingSend
+  INTEGER,ALLOCATABLE                    :: SendNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE                       :: SendNodeFilterMPF(:,:)
+  INTEGER                                :: nSendUniqueNodes
+END TYPE
+TYPE (tNodeMappingSend),ALLOCATABLE      :: NodeMappingSend(:)
+
+! Receive direction of nodes (can be different from number of send nodes for each processor)
+TYPE tNodeMappingRecv
+  INTEGER,ALLOCATABLE                    :: RecvNodeUniqueGlobalID(:)
+  REAL,ALLOCATABLE                       :: RecvNodeFilterMPF(:,:)
+  INTEGER                                :: nRecvUniqueNodes
+END TYPE
+TYPE (tNodeMappingRecv),ALLOCATABLE      :: NodeMappingRecv(:)
+
+INTEGER,ALLOCATABLE :: CNRankToSendRank(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecvRequest(:), SendRequest(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecvRequestCN(:), SendRequestCN(:)
+#endif
 
 INTEGER, ALLOCATABLE                     :: SymmetrySide(:,:)
 

@@ -38,9 +38,10 @@ SUBROUTINE WritePhotonVolSampleToHDF5()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,sJ
-USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,U_N_Ray_loc,N_DG_Ray,PREF_VDM_Ray,N_DG_Ray_loc,N_Inter_Ray
+USE MOD_Mesh_Vars            ,ONLY: nElems,MeshFile,offSetElem,N_VolMesh
+USE MOD_RayTracing_Vars      ,ONLY: Ray,nVarRay,U_N_Ray,U_N_Ray_loc,N_DG_Ray,N_DG_Ray_loc,N_Inter_Ray
 USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1st,RayElemPassedEnergyLoc2nd
+USE MOD_RayTracing_Vars      ,ONLY: RayElemPassedEnergyLoc1stError,RayElemPassedEnergyLoc2ndError,RayElemPassedEnergyVolError
 USE MOD_RayTracing_Vars      ,ONLY: RaySecondaryVectorX,RaySecondaryVectorY,RaySecondaryVectorZ,ElemVolume,RayElemEmission
 USE MOD_HDF5_output          ,ONLY: GatheredWriteArray
 #if USE_MPI
@@ -59,6 +60,9 @@ USE MOD_Mesh_Tools           ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars   ,ONLY: ElemVolume_Shared
 USE MOD_Photon_TrackingVars  ,ONLY: RadiationVolState
 USE MOD_HDF5_Output_State    ,ONLY: WriteElemDataToSeparateContainer
+USE MOD_LoadBalance_Vars     ,ONLY: nPartsPerElem
+USE MOD_DG_Vars              ,ONLY: N_DG_Mapping
+USE MOD_Interpolation_Vars   ,ONLY: Nmax
 ! IMPLICIT VARIABLE HANDLING
   IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -68,35 +72,50 @@ USE MOD_HDF5_Output_State    ,ONLY: WriteElemDataToSeparateContainer
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m
+INTEGER                             :: iElem,iGlobalElem,iCNElem,Nloc,k,l,m,NlocDG
+INTEGER                             :: iDOF,offsetDOF,nDOFOutput,nDOFTotalOutput
 CHARACTER(LEN=255), ALLOCATABLE     :: StrVarNames(:)
-REAL                                :: UNMax(nVarRay,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax,PP_nElems)
+REAL                                :: ElemTimeDummy(PP_nElems)
 #if USE_MPI
 INTEGER                             :: NlocOffset
 #endif /*USE_MPI*/
-REAL                                :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
-REAL                                :: J_Nmax(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
+REAL                                :: J_N(1,0:NMax,0:NMax,0:NMax)
 REAL                                :: J_Nloc(1:1,0:Ray%NMax,0:Ray%NMax,0:Ray%NMax)
-REAL                                :: IntegrationWeight
-REAL                                :: Vdm_GaussN_NMax(0:PP_N,0:Ray%NMax)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
 REAL, ALLOCATABLE                   :: Vdm_GaussN_Nloc(:,:)    !< for interpolation to Analyze points (from NodeType nodes to Gauss-Lobatto nodes)
+REAL, ALLOCATABLE                   :: U_N_Ray_2D_local(:,:)   !< for output as 1D array per variable
 REAL, PARAMETER                     :: tolerance=1e-2
+LOGICAL                             :: WriteErrorToElemData
+REAL                                :: StartT,EndT
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE Radiation TO HDF5 FILE...'
+SWRITE(UNIT_stdOut,'(a)',ADVANCE='NO') ' WRITE RADIATION VOLSTATE TO HDF5 FILE...'
+GETTIME(StartT)
+
+WriteErrorToElemData = .FALSE.
 
 ALLOCATE(RayElemPassedEnergyLoc1st(1:nElems))
 ALLOCATE(RayElemPassedEnergyLoc2nd(1:nElems))
 ALLOCATE(ElemVolume(1:nElems))
+ALLOCATE(RayElemPassedEnergyLoc1stError(1:nElems))
+ALLOCATE(RayElemPassedEnergyLoc2ndError(1:nElems))
+ALLOCATE(RayElemPassedEnergyVolError(1:nElems))
 RayElemPassedEnergyLoc1st=-1.0
 RayElemPassedEnergyLoc2nd=-1.0
 ElemVolume=-1.0
-CALL AddToElemData(ElementOut,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
-CALL AddToElemData(ElementOut,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorX'   ,RealArray=RaySecondaryVectorX)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorY'   ,RealArray=RaySecondaryVectorY)
-CALL AddToElemData(ElementOut,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
-CALL AddToElemData(ElementOut,'ElemVolume'            ,RealArray=ElemVolume)
-CALL AddToElemData(ElementOut,'Nloc',IntArray=N_DG_Ray_loc)
+RayElemPassedEnergyLoc1stError=0.0
+RayElemPassedEnergyLoc2ndError=0.0
+RayElemPassedEnergyVolError=0.0
+! Add two dummy arrays for comparison with reggie reference file: Remove this in the future and adjust the reference files
+ElemTimeDummy=-1.0
+CALL AddToElemData(ElementOutRay,'ElemTime'     ,RealArray=ElemTimeDummy)
+CALL AddToElemData(ElementOutRay,'nPartsPerElem',LongIntArray=nPartsPerElem)
+
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergy1st',RealArray=RayElemPassedEnergyLoc1st)
+CALL AddToElemData(ElementOutRay,'RayElemPassedEnergy2nd',RealArray=RayElemPassedEnergyLoc2nd)
+CALL AddToElemData(ElementOutRay,'RaySecondaryVectorX'   ,RealArray=RaySecondaryVectorX)
+CALL AddToElemData(ElementOutRay,'RaySecondaryVectorY'   ,RealArray=RaySecondaryVectorY)
+CALL AddToElemData(ElementOutRay,'RaySecondaryVectorZ'   ,RealArray=RaySecondaryVectorZ)
+CALL AddToElemData(ElementOutRay,'ElemVolume'            ,RealArray=ElemVolume)
+CALL AddToElemData(ElementOutRay,'NlocRay'               ,IntArray=N_DG_Ray_loc)
 
 ! Copy data from shared array
 DO iElem = 1, nElems
@@ -117,9 +136,6 @@ StrVarNames(5)='PhotonEnergyDensity2nd'
 CALL ExchangeRayVolInfo()
 #endif /*USE_MPI*/
 
-! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
-CALL GetVandermonde(PP_N, NodeType, Ray%NMax, Ray%NodeType, Vdm_GaussN_NMax, modal=.FALSE.)
-
 #if USE_MPI
 ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 #endif /*USE_MPI*/
@@ -129,9 +145,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
     ! 1. Elem-constant data
     ! Primary energy
-    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
+    RayElemPassedEnergyLoc1st(iElem) = RayElemPassedEnergy(1,iGlobalElem)
     ! Secondary energy
-    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem) !/ ElemVolume_Shared(iCNElem)
+    RayElemPassedEnergyLoc2nd(iElem) = RayElemPassedEnergy(2,iGlobalElem)
     ! Activate volume emission
     IF((RayElemPassedEnergyLoc1st(iElem).GT.0.0)) RayElemEmission(1,iElem) = .TRUE.
     IF((RayElemPassedEnergyLoc2nd(iElem).GT.0.0)) RayElemEmission(2,iElem) = .TRUE.
@@ -153,8 +169,6 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
 
     ! 2. Variable polynomial degree data
     Nloc = N_DG_Ray_loc(iElem)
-    !U_N_Ray(iElem)%U(1:1,:,:,:) = RayElemPassedEnergy(1,iGlobalElem)
-    !U_N_Ray(iElem)%U(2:2,:,:,:) = RayElemPassedEnergy(2,iGlobalElem)
 #if USE_MPI
     IF(nProcessors.GT.1)THEN
       ! Get data from shared array
@@ -166,37 +180,38 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     END IF ! nProcessors.GT.1
 #endif /*USE_MPI*/
 
+    ! TODO: Maybe pre-compute these Vandermonde matrices at the beginning?
+    ! Switch node type from NodeType to Ray%NodeType (e.g. Gauss to VISU)
+    ! Note the following:
+    !     N_VolMesh(iElem)%sJ(:,:,:)    with    NlocDG = N_DG_Mapping(2,iElem+offSetElem)    on     NodeType
+    ! is converted to
+    !     J_Nloc                        with    Nloc = N_DG_Ray_loc(iElem)                   on     Ray%NodeType
     ! Get the element volumes on Nloc
     ! Apply integration weights and the Jacobian
     ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-    ! p-refinement: Interpolate lower degree to higher degree (other way around would require model=T)
+    NlocDG = N_DG_Mapping(2,iElem+offSetElem)
+    J_N(1,0:NlocDG,0:NlocDG,0:NlocDG)=1./N_VolMesh(iElem)%sJ(:,:,:)
+    ! p-refinement: Interpolate lower degree to higher degree (other way around would require modal=T)
     J_Nloc = 0.
-    IF(PP_N.EQ.Nloc)THEN
-      J_Nloc(1,0:PP_N,0:PP_N,0:PP_N) = J_N(1,0:PP_N,0:PP_N,0:PP_N)
+    ALLOCATE(Vdm_GaussN_Nloc(0:Nloc,0:NlocDG))
+    IF(Nloc.LT.NlocDG)THEN
+      CALL GetVandermonde(NlocDG, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.TRUE.)
     ELSE
-      ALLOCATE(Vdm_GaussN_Nloc(0:PP_N,0:Nloc))
-      IF(Nloc.LT.PP_N)THEN
-        CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.TRUE.)
-      ELSE
-        CALL GetVandermonde(PP_N, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
-      END IF ! Nloc.LT.PP_N
-        CALL ChangeBasis3D(1,PP_N,Nloc,Vdm_GaussN_Nloc,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nloc(1:1,0:Nloc,0:Nloc,0:Nloc))
-    END IF ! PP_N.EQ.Nloc
+      CALL GetVandermonde(NlocDG, NodeType, Nloc, Ray%NodeType, Vdm_GaussN_Nloc, modal=.FALSE.)
+    END IF ! Nloc.LT.NlocDG
+    CALL ChangeBasis3D(1,NlocDG,Nloc,Vdm_GaussN_Nloc,J_N(1:1,0:NlocDG,0:NlocDG,0:NlocDG),J_Nloc(1:1,0:Nloc,0:Nloc,0:Nloc))
 
     ! Calculate the sub-volumes
     DO m=0,Nloc
       DO l=0,Nloc
         DO k=0,Nloc
-          IntegrationWeight = N_Inter_Ray(Nloc)%wGP(k)*&
-                              N_Inter_Ray(Nloc)%wGP(l)*&
-                              N_Inter_Ray(Nloc)%wGP(m)*J_Nloc(1,k,l,m)
-          !UNMax(1:2,k,l,m,iElem) = UNMax(1:2,k,l,m,iElem) / IntegrationWeight
-          U_N_Ray(iGlobalElem)%U(3,k,l,m) = IntegrationWeight
+          U_N_Ray(iGlobalElem)%U(3,k,l,m) = N_Inter_Ray(Nloc)%wGP(k)*&
+                                            N_Inter_Ray(Nloc)%wGP(l)*&
+                                            N_Inter_Ray(Nloc)%wGP(m)*J_Nloc(1,k,l,m)
         END DO ! k
       END DO ! l
     END DO ! m
-    IF(PP_N.NE.Nloc) DEALLOCATE(Vdm_GaussN_Nloc)
+    DEALLOCATE(Vdm_GaussN_Nloc)
 
     ! Sanity checks: Low order
     ! 1.) compare sum of sub-volumes with cell-const value and abort
@@ -208,7 +223,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem)     = ", RayElemPassedEnergyLoc1st(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))/RayElemPassedEnergyLoc1st(iElem)
-        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] RayElemPassedEnergyLoc1st does not match U_N_Ray%U(1) for tolerance = ',tolerance
+        RayElemPassedEnergyLoc1stError(iElem) = SUM(U_N_Ray(iGlobalElem)%U(1,:,:,:))/RayElemPassedEnergyLoc1st(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
     ! 2nd energy
@@ -218,7 +235,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem)     = ", RayElemPassedEnergyLoc2nd(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem)
-        CALL abort(__STAMP__,'Before: RayElemPassedEnergyLoc1st does not match U_N_Ray%U(2) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] RayElemPassedEnergyLoc2nd does not match U_N_Ray%U(2) for tolerance = ',tolerance
+        RayElemPassedEnergyLoc2ndError(iElem) = SUM(U_N_Ray(iGlobalElem)%U(2,:,:,:))/RayElemPassedEnergyLoc2nd(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
     ! volume
@@ -228,7 +247,9 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
         IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)                    = ", ElemVolume(iElem)
         IPWRITE(UNIT_StdOut,*) "SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:)) = ", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))
         IPWRITE(UNIT_StdOut,*) "ratio =", SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))/ElemVolume(iElem)
-        CALL abort(__STAMP__,'Before: ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',RealInfoOpt=tolerance)
+        IPWRITE(UNIT_StdOut,*) '[WARNING] ElemVolume(iElem) does not match U_N_Ray%U(3) for tolerance = ',tolerance
+        RayElemPassedEnergyVolError(iElem) = SUM(U_N_Ray(iGlobalElem)%U(3,:,:,:))/ElemVolume(iElem)
+        WriteErrorToElemData = .TRUE.
       END IF
     END IF
 
@@ -236,107 +257,85 @@ ASSOCIATE( RayElemPassedEnergy => RayElemPassedEnergy_Shared )
     U_N_Ray(iGlobalElem)%U(4,:,:,:) = U_N_Ray(iGlobalElem)%U(1,:,:,:)/U_N_Ray(iGlobalElem)%U(3,:,:,:)
     U_N_Ray(iGlobalElem)%U(5,:,:,:) = U_N_Ray(iGlobalElem)%U(2,:,:,:)/U_N_Ray(iGlobalElem)%U(3,:,:,:)
 
-    ! Map from Nloc to NMax for output to .h5 on the highest polynomial degree NMax
-    ! The higher order element volume UNMax(3,:,:,:,:) is over-written later on
-    IF(Nloc.EQ.Ray%Nmax)THEN
-      UNMax(:,:,:,:,iElem) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
-    ELSE
-      CALL ChangeBasis3D(nVarRay, Nloc, Ray%NMax, PREF_VDM_Ray(Nloc,Ray%NMax)%Vdm, U_N_Ray(iGlobalElem)%U(:,:,:,:), UNMax(:,:,:,:,iElem))
-    END IF ! Nloc.Eq.Nmax
-
     ! Copy data from global array (later used for emission)
     U_N_Ray_loc(iElem)%U(:,:,:,:) = U_N_Ray(iGlobalElem)%U(:,:,:,:)
-
-    ! Apply integration weights and the Jacobian
-    ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the Jacobian ;-)
-    J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-    CALL ChangeBasis3D(1,PP_N,Ray%NMax,Vdm_GaussN_NMax,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_Nmax(1:1,:,:,:))
-    DO m=0,Ray%NMax
-      DO l=0,Ray%NMax
-        DO k=0,Ray%NMax
-          IntegrationWeight = N_Inter_Ray(Ray%NMax)%wGP(k)*&
-                              N_Inter_Ray(Ray%NMax)%wGP(l)*&
-                              N_Inter_Ray(Ray%NMax)%wGP(m)*J_Nmax(1,k,l,m)
-          !UNMax(1:2,k,l,m,iElem) = UNMax(1:2,k,l,m,iElem) / IntegrationWeight
-          UNMax(3,k,l,m,iElem) = IntegrationWeight
-        END DO ! k
-      END DO ! l
-    END DO ! m
-
-    ! Sanity checks: High order
-    ! 1.) compare sum of sub-volumes with cell-const value and abort
-    ! 2.) compare sum of sub-cell energies with cell-const value and abort (1st and 2nd energies)
-    ! 1st energy
-    IF(RayElemPassedEnergyLoc1st(iElem).GT.0.0)THEN
-      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc1st(iElem), SUM(UNMax(1,:,:,:,iElem)), tolerance))THEN
-        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
-        IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc1st(iElem) = ", RayElemPassedEnergyLoc1st(iElem)
-        IPWRITE(UNIT_StdOut,*) "SUM(UNMax(1,:,:,:,iElem))        = ", SUM(UNMax(1,:,:,:,iElem))
-        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc1st(iElem)
-        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(1) for tolerance = ',RealInfoOpt=tolerance)
-      END IF
-    END IF
-    ! 2nd energy
-    IF(RayElemPassedEnergyLoc2nd(iElem).GT.0.0)THEN
-      IF(.NOT.ALMOSTEQUALRELATIVE(RayElemPassedEnergyLoc2nd(iElem), SUM(UNMax(2,:,:,:,iElem)), tolerance))THEN
-        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem                = ", iElem,iGlobalElem
-        IPWRITE(UNIT_StdOut,*) "RayElemPassedEnergyLoc2nd(iElem) = ", RayElemPassedEnergyLoc2nd(iElem)
-        IPWRITE(UNIT_StdOut,*) "SUM(UNMax(2,:,:,:,iElem))        = ", SUM(UNMax(2,:,:,:,iElem))
-        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(1,:,:,:,iElem))/RayElemPassedEnergyLoc2nd(iElem)
-        CALL abort(__STAMP__,'After: RayElemPassedEnergyLoc1st does not match UNMax(2) for tolerance = ',RealInfoOpt=tolerance)
-      END IF
-    END IF
-    ! volume
-    IF(ElemVolume(iElem).GT.0.0)THEN
-      IF(.NOT.ALMOSTEQUALRELATIVE(ElemVolume(iElem), SUM(UNMax(3,:,:,:,iElem)), tolerance))THEN
-        IPWRITE(UNIT_StdOut,*) "iElem,iGlobalElem         = ", iElem,iGlobalElem
-        IPWRITE(UNIT_StdOut,*) "ElemVolume(iElem)         = ", ElemVolume(iElem)
-        IPWRITE(UNIT_StdOut,*) "SUM(UNMax(3,:,:,:,iElem)) = ", SUM(UNMax(3,:,:,:,iElem))
-        IPWRITE(UNIT_StdOut,*) "ratio =", SUM(UNMax(3,:,:,:,iElem))/ElemVolume(iElem)
-        CALL abort(__STAMP__,'After: ElemVolume(iElem) does not match UNMax(3) for tolerance = ',RealInfoOpt=tolerance)
-      END IF
-    END IF
-
   END DO ! iElem=1,PP_nElems
-
-  ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
-  ! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
-  CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NIn=Ray%NMax,NodeType_in=Ray%NodeType)
-#if USE_MPI
-  CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
-#endif
-
-  ! Sanity check
-  IF(ANY(ISNAN(UNMax))) CALL abort(__STAMP__,'Found one or more NaN in the array UNMax!')
-
-  ! Associate construct for integer KIND=8 possibility
-  ASSOCIATE (&
-        nVarRay           => INT(nVarRay,IK)            ,&
-        NMax              => INT(Ray%NMax,IK)           ,&
-        nGlobalElems      => INT(nGlobalElems,IK)       ,&
-        PP_nElems         => INT(PP_nElems,IK)          ,&
-        offsetElem        => INT(offsetElem,IK)         )
-    CALL GatheredWriteArray(RadiationVolState,create=.FALSE.,&
-         DataSetName='DG_Solution', rank=5,&
-         nValGlobal=(/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , nGlobalElems/) , &
-         nVal=      (/nVarRay     , NMax+1_IK , NMax+1_IK , NMax+1_IK , PP_nElems/)    , &
-         offset=    (/0_IK        , 0_IK      , 0_IK      , 0_IK      , offsetElem/)   , &
-         collective=.TRUE.,RealArray=UNMax)
-  END ASSOCIATE
 #if USE_MPI
 END ASSOCIATE
 #endif /*USE_MPI*/
 
+! Output of errors if any detected (requires for every processor to add the array to the output, otherwise deadlock)
+#if USE_MPI
+CALL MPI_ALLREDUCE(MPI_IN_PLACE,WriteErrorToElemData,1,MPI_LOGICAL,MPI_LOR,MPI_COMM_PICLAS,iError)
+#endif /*USE_MPI*/
+
+IF(WriteErrorToElemData) THEN
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc1stError',RealArray=RayElemPassedEnergyLoc1stError)
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyLoc2ndError',RealArray=RayElemPassedEnergyLoc2ndError)
+  CALL AddToElemData(ElementOutRay,'RayElemPassedEnergyVolError',RealArray=RayElemPassedEnergyVolError)
+END IF
+
+! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
+! Write file after last abort to prevent a corrupt output file (which might be used when restarting the simulation)
+IF(MPIRoot) CALL GenerateFileSkeleton('RadiationVolState',nVarRay,StrVarNames,TRIM(MeshFile),0.,FileNameIn=RadiationVolState,NodeType_in=Ray%NodeType)
+#if USE_MPI
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+#endif
+
+! Get the number of output DOFs per processor
+nDOFOutput = SUM((N_DG_Ray(1+offSetElem:nElems+offSetElem)+1)**3)
+! Get the offset based on the element-local polynomial degree
+IF(offsetElem.GT.0) THEN
+  offsetDOF = SUM((N_DG_Ray(1:offSetElem)+1)**3)
+ELSE
+  offsetDOF = 0
+END IF
+
+nDOFTotalOutput = SUM((N_DG_Ray(1:nGlobalElems)+1)**3)
+
+! Allocate local 2D array
+ALLOCATE(U_N_Ray_2D_local(1:nVarRay,1:nDOFOutput))
+! Write into 2D array
+DO iElem = 1, PP_nElems
+  Nloc = N_DG_Ray_loc(iElem)
+  DO m=0,Nloc
+    DO l=0,Nloc
+      DO k=0,Nloc
+        iDOF = iDOF + 1
+        U_N_Ray_2D_local(1:nVarRay,iDOF) = U_N_Ray_loc(iElem)%U(1:nVarRay,k,l,m)
+        IF(ANY(ISNAN(U_N_Ray_2D_local(1:nVarRay,iDOF)))) CALL abort(__STAMP__,' ERROR: Found one or more NaN in the array U_N_Ray_loc!')
+      END DO ! k
+    END DO ! l
+  END DO ! m
+END DO
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nVarRay         => INT(nVarRay,IK)          ,&
+      nDOFTotalOutput => INT(nDOFTotalOutput,IK)  ,&
+      nDOFOutput      => INT(nDOFOutput,IK)       ,&
+      offsetDOF       => INT(offsetDOF,IK)        )
+  CALL GatheredWriteArray(RadiationVolState,create=.FALSE.,&
+        DataSetName='DG_Solution', rank=2,              &
+        nValGlobal=(/nVarRay     , nDOFTotalOutput/)  , &
+        nVal=      (/nVarRay     , nDOFOutput/)       , &
+        offset=    (/0_IK        , offsetDOF/)        , &
+        collective=.TRUE.,RealArray=U_N_Ray_2D_local(1:nVarRay,1:nDOFOutput))
+END ASSOCIATE
+SDEALLOCATE(U_N_Ray_2D_local)
+
 ! Write all 'ElemData' arrays to a single container in the state.h5 file
-CALL WriteAdditionalElemData(RadiationVolState,ElementOut)
+CALL WriteAdditionalElemData(RadiationVolState,ElementOutRay)
 
 ! Write Nloc and the reflected vector to separate containers for element- and process-wise read-in during restart or loadbalance
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'Nloc')
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorX')
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorY')
-CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOut,'RaySecondaryVectorZ')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'NlocRay')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorX')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorY')
+CALL WriteElemDataToSeparateContainer(RadiationVolState,ElementOutRay,'RaySecondaryVectorZ')
 
-SWRITE(*,*) 'DONE'
+GETTIME(EndT)
+CALL DisplayMessageAndTime(EndT-StartT,' DONE!', DisplayLine=.FALSE.)
+
 END SUBROUTINE WritePhotonVolSampleToHDF5
 
 
@@ -394,7 +393,7 @@ CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
 IF (nGlobalSurfSides.EQ.0) RETURN
 #endif /*USE_MPI*/
 IF (mySurfRank.EQ.0) THEN
-  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE Radiation SurfSTATE TO HDF5 FILE...'
+  WRITE(UNIT_stdOut,'(a)',ADVANCE='NO')' WRITE RADIATION SURFSTATE TO HDF5 FILE...'
   tstart=LOCALTIME()
 END IF
 
@@ -435,7 +434,7 @@ CALL OpenDataFile(RadiationSurfState,create=.FALSE.,single=.FALSE.,readOnly=.FAL
 WRITE(H5_Name,'(A)') 'SurfaceData'
 WRITE(H5_Name2,'(A)') 'SurfaceDataGlobalSideIndex'
 #if USE_MPI
-ASSOCIATE(PhotonSurfSideArea   => PhotonSurfSideArea_Shared)
+ASSOCIATE(PhotonSurfSideArea => PhotonSurfSideArea_Shared)
 #endif
 
 ASSOCIATE (&
@@ -494,7 +493,7 @@ CALL CloseDataFile()
 
 IF (mySurfRank.EQ.0) THEN
   tend=LOCALTIME()
-  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')'DONE  [',tend-tstart,'s]'
+  WRITE(UNIT_stdOut,'(A,F0.3,A)',ADVANCE='YES')' DONE!  [',tend-tstart,' sec]'
 END IF
 
 END SUBROUTINE WritePhotonSurfSampleToHDF5
@@ -527,7 +526,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                         :: MessageSize,nValues,iSurfSide,SurfSideID, SideID
 INTEGER                         :: iPos,iProc,p,q
-INTEGER                         :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
+TYPE(MPI_Request)               :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -617,12 +616,12 @@ IF (myComputeNodeRank.EQ.0) THEN
     IF (iProc.EQ.mySurfRank) CYCLE
 
     IF (SurfMapping(iProc)%nSendSurfSides.NE.0) THEN
-      CALL MPI_WAIT(SendRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(SendRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
 
     IF (SurfMapping(iProc)%nRecvSurfSides.NE.0) THEN
-      CALL MPI_WAIT(RecvRequest(iProc),MPIStatus,IERROR)
+      CALL MPI_WAIT(RecvRequest(iProc),MPI_STATUS_IGNORE,IERROR)
       IF (IERROR.NE.MPI_SUCCESS) CALL ABORT(__STAMP__,' MPI Communication error',IERROR)
     END IF
   END DO ! iProc

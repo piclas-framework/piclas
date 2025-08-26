@@ -10,11 +10,16 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_DSMC_Vars
 !===================================================================================================================================
 ! Contains the DSMC variables
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE mpi_f08
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -62,24 +67,67 @@ END TYPE tVarVibRelaxProb
 
 TYPE(tVarVibRelaxProb) VarVibRelaxProb
 
-TYPE tRadialWeighting
-  REAL                        :: PartScaleFactor
+LOGICAL                       :: DoRadialWeighting          ! Enables radial weighting in DSMC
+LOGICAL                       :: DoLinearWeighting          ! Enables linear weighting in DSMC
+LOGICAL                       :: DoCellLocalWeighting       ! Enables cell-local weighting in DSMC
+
+TYPE tParticleWeighting
+  CHARACTER(LEN=256)          :: Type
+  REAL                        :: ScaleFactor
   INTEGER                     :: NextClone
   INTEGER                     :: CloneDelayDiff
-  LOGICAL                     :: DoRadialWeighting          ! Enables radial weighting in the axisymmetric simulations
   LOGICAL                     :: PerformCloning             ! Flag whether the cloning/deletion routine should be performed,
                                                             ! when using radial weighting (e.g. no cloning for the BGK/FP methods)
   INTEGER                     :: CloneMode                  ! 1 = Clone Delay
                                                             ! 2 = Clone Random Delay
   INTEGER, ALLOCATABLE        :: ClonePartNum(:)
   INTEGER                     :: CloneInputDelay
-  LOGICAL                     :: CellLocalWeighting
+  LOGICAL                     :: UseCellAverage
+  LOGICAL                     :: UseSubdivision
   INTEGER                     :: nSubSides
+  INTEGER, ALLOCATABLE        :: PartInsSide(:)
   INTEGER                     :: CloneVecLength
   INTEGER                     :: CloneVecLengthDelta
-END TYPE tRadialWeighting
+  LOGICAL                     :: EnableOutput               ! Output of the cell-local weighting factor
+END TYPE tParticleWeighting
 
-TYPE(tRadialWeighting)        :: RadialWeighting
+TYPE(tParticleWeighting)      :: ParticleWeighting
+
+TYPE tLinearWeighting
+  INTEGER                     :: nScalePoints               ! Number of sub-cell divisions for the scaling of the weighting factor
+                                                            ! Default = 2 (borders of the simulation domain along one axis)
+  INTEGER                     :: ScaleAxis                  ! Direction of the increase in the variable weight
+                                                            ! 1: x-axis, 2: y-axis, 3: z-axis, 0: use of scaling vector
+  REAL                        :: ScalingVector(3)           ! Direction of the increase in the variable weight
+                                                            ! For a scaling not along the coordinate axes
+  REAL                        :: StartPointScaling(1:3)     ! Start point for the scaling domain not defined by the coordinate axes
+  REAL                        :: EndPointScaling(1:3)       ! End point for the scaling domain not defined by the coordinate axes
+  REAL, ALLOCATABLE           :: ScalePoint(:)              ! Points along the defined scaling vector on which the MPF is changed(%)
+  REAL, ALLOCATABLE           :: VarMPF(:)                  ! Desired MPF at the respective scaling points
+END TYPE tLinearWeighting
+
+TYPE(tLinearWeighting)        :: LinearWeighting
+
+! Automatic adaption of the particle weight
+TYPE tCellLocalWeight
+  LOGICAL                     :: SkipAdaption                ! Use of the MPF distribution from the previous adaption
+  LOGICAL                     :: UseMedianFilter             ! Applies median filter to the distribution of the optimal MPF
+  LOGICAL                     :: IncludeMaxPartNum           ! Enables the refinement based on the max. particle number
+  REAL, ALLOCATABLE           :: ScaleFactorAdapt(:)         ! Comparison of new and old MPF
+  REAL                        :: QualityFactor               ! Refinement factor in cases where the quality factor is not resolved
+  REAL                        :: MinPartNum                  ! Target minimum number of simulation particles per sub-cell
+  REAL                        :: MaxPartNum                  ! Target maximum number of simulation particles per sub-cell
+  REAL                        :: BGKFactor                   ! Ratio between the BGK- and DSMC-MPF for further refinement of BGK simulations
+  REAL                        :: FPFactor                    ! Ratio between the FP- and DSMC-MPF for further refinement of FP simulations
+  INTEGER                     :: SymAxis_MinPartNum          ! Target minimum number of simulation particles close to the symmetry axis
+  INTEGER                     :: Cat_MinPartNum              ! Target minimum number of simulation particles close to catalytic surfaces
+  INTEGER                     :: nRefine                     ! Number of times the MPF filter routine is called
+END TYPE tCellLocalWeight
+
+TYPE(tCellLocalWeight)        :: CellLocalWeight
+
+REAL,ALLOCPOINT :: AdaptMPFInfo_Shared(:,:)
+REAL,ALLOCPOINT :: OptimalMPF_Shared(:)
 
 TYPE tClonedParticles
   ! Clone Delay: Clones are inserted at the next time step
@@ -111,6 +159,8 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: dref                      ! collision model: reference diameter        , ini_2
   REAL                        :: omega                     ! collision model: temperature exponent      , ini_2
   REAL                        :: alphaVSS                  ! collision model: scattering exponent(VSS)  , ini_2
+  REAL, ALLOCATABLE           :: C1(:)                     ! constant 1 for vibrational collision number according to Bird
+  REAL, ALLOCATABLE           :: C2(:)                     ! constant 2 for vibrational collision number according to Bird
   INTEGER                     :: Xi_Rot                    ! Rotational DOF
   REAL                        :: GammaVib                  ! GammaVib = Xi_Vib(T_t)² * exp(CharaTVib/T_t) / 2 -> correction fact
                                                            ! for vib relaxation -> see 'Vibrational relaxation rates
@@ -119,6 +169,7 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: Ediss_eV                  ! Energy of dissociation in eV, ini_2
   INTEGER                     :: MaxVibQuant               ! Max vib quantum number + 1
   INTEGER                     :: MaxElecQuant              ! Max elec quantum number + 1
+  INTEGER                     :: MaxRotQuant               ! Max rot quantum number + 1 (from database)
   INTEGER                     :: DissQuant                 ! Vibrational quantum number corresponding to the dissociation energy
   REAL                        :: RotRelaxProb              ! rotational relaxation probability
   REAL                        :: VibRelaxProb              ! vibrational relaxation probability
@@ -135,37 +186,50 @@ TYPE tSpeciesDSMC                                          ! DSMC Species Parame
   REAL                        :: VibCrossSec               ! vibrational cross section, ini_2
   REAL, ALLOCATABLE           :: CharaVelo(:)              ! characteristic velocity according to Boyd & Abe, nec for vib
                                                            ! relaxation
-  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState      ! Array with electronic State for each species
-                                                            ! first  index: 1 - degeneracy & 2 - char. Temp,el
-                                                            ! second index: energy level
+  REAL,ALLOCATABLE,DIMENSION(:,:)   :: ElectronicState     ! Array with electronic State for each species
+                                                           ! first  index: 1 - degeneracy & 2 - char. Temp,el
+                                                           ! second index: energy level
+  REAL,ALLOCATABLE,DIMENSION(:,:)   :: RotationalState     ! Array with rotational State for each species
+                                                           ! first  index: 1 - degeneracy
+                                                           ! second index: energy level
   INTEGER                           :: SymmetryFactor
   REAL                              :: CharaTRot
-  REAL, ALLOCATABLE                 :: PartitionFunction(:) ! Partition function for each species in given temperature range
-  REAL                              :: EZeroPoint           ! Zero point energy for molecules
-  REAL                              :: HeatOfFormation      ! Heat of formation of the respective species [Kelvin]
-  INTEGER                           :: PreviousState        ! Species number of the previous state (e.g. N for NIon)
-  LOGICAL                           :: FullyIonized         ! Flag if the species is fully ionized (e.g. C^6+)
-  INTEGER                           :: NextIonizationSpecies! SpeciesID of the next higher ionization level (required for field
-                                                            ! ionization)
+  REAL,ALLOCATABLE                  :: jMaxAtTemp(:)                 ! contains maximum quantum number (in first row) for given temperature
+                                                                     ! (in second row) for initial particle insertion to decrease computational
+                                                                     ! cost - for symmetric tops there: numerically calculated maximal value for
+                                                                     ! for acceptance rejection normalization in third row
+  REAL                              :: MomentOfInertia               ! Moment of Inertia
+  REAL, ALLOCATABLE                 :: PartitionFunction(:)          ! Partition function for each species in given temperature range
+  REAL                              :: EZeroPoint                    ! Zero point energy for molecules
+  REAL                              :: HeatOfFormation               ! Heat of formation of the respective species [Kelvin]
+  INTEGER                           :: PreviousState                 ! Species number of the previous state (e.g. N for NIon)
+  LOGICAL                           :: FullyIonized                  ! Flag if the species is fully ionized (e.g. C^6+)
+  INTEGER                           :: NextIonizationSpecies         ! SpeciesID of the next higher ionization level (required for field
+                                                                     ! ionization)
   ! Collision cross-sections for MCC
-  LOGICAL                           :: UseCollXSec          ! Flag if the collisions of the species with a background gas should be
-                                                            ! treated with read-in collision cross-section
-  LOGICAL                           :: UseVibXSec           ! Flag if the vibrational relaxation probability should be treated,
-                                                            ! using read-in cross-sectional data
-  LOGICAL                           :: UseElecXSec          ! Flag if the electronic relaxation probability should be treated,
-                                                            ! using read-in cross-sectional data (currently only with BGG)
-  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:) ! Prefactors for calculating the collision frequency in each time step
-  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:) ! Correction factor for electronic landau-teller relaxation
-  REAL                              :: MaxMeanXiElec(2)     ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
+  LOGICAL                           :: UseCollXSec                   ! Flag if the collisions of the species with a background gas should be
+                                                                     ! treated with read-in collision cross-section
+  LOGICAL                           :: UseVibXSec                    ! Flag if the vibrational relaxation probability should be treated,
+                                                                     ! using read-in cross-sectional data
+  LOGICAL                           :: UseElecXSec                   ! Flag if the electronic relaxation probability should be treated,
+                                                                     ! using read-in cross-sectional data (currently only with BGG)
+  REAL,ALLOCATABLE                  :: CollFreqPreFactor(:)          ! Prefactors for calculating the collision frequency in each time step
+  REAL,ALLOCATABLE                  :: ElecRelaxCorrectFac(:)        ! Correction factor for electronic landau-teller relaxation
+  REAL                              :: MaxMeanXiElec(2)              ! 1: max mean XiElec 2: Temperature corresponding to max mean XiElec
+
+  ! Granular particle interaction
+  REAL                              :: ThermalACCGranularPart        ! thermal accommodation coefficient during granular particle interaction
+  REAL                              :: SpecificHeatSolid             ! solid particle specific heat [J/(kg*K)]
 END TYPE tSpeciesDSMC
 
-TYPE(tSpeciesDSMC), ALLOCATABLE     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
+TYPE(tSpeciesDSMC), ALLOCATABLE,TARGET     :: SpecDSMC(:)          ! Species DSMC params (nSpec)
 
 TYPE tDSMC
   INTEGER                       :: ElectronSpecies          ! Species of the electron
   REAL                          :: EpsElecBin               ! percentage parameter of electronic energy level merging
   REAL                          :: GammaQuant               ! GammaQuant for zero point energy in Evib (perhaps also Erot),
                                                             ! should be 0.5 or 0
+  LOGICAL                       :: VibAHO                   ! Vibration with anharmonic oscillator model (Morse potential)
   REAL, ALLOCATABLE             :: NumColl(:)               ! Number of Collision for each case + entire Collision number
   REAL                          :: TimeFracSamp=0.          ! %-of simulation time for sampling
   INTEGER                       :: SampNum                  ! number of Samplingsteps
@@ -197,10 +261,10 @@ TYPE tDSMC
                                                             !     2: Max Prob
                                                             !     3: Sample size
   REAL                          :: MeanFreePath
-  real                          :: CollProbMaxProcMax       ! Maximum CollProbMax of every cell in Process
+  REAL                          :: CollProbMaxProcMax       ! Maximum CollProbMax of every cell in Process
   REAL                          :: MaxMCSoverMFP            ! Maximum MCSoverMFP after each time step
   REAL                          :: MCSoverMFP               ! Subcell local mean collision distance over mean free path
-  INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collison. Used for ResolvedCellPercentage
+  INTEGER                       :: ParticleCalcCollCounter  ! Counts Calculation/Calls of Collision. Used for ResolvedCellPercentage
   INTEGER                       :: ResolvedCellCounter      ! Counts resolved Cells. Used for ResolvedCellPercentage
   INTEGER                       :: ResolvedTimestepCounter  ! Counts Cells with MeanCollProb below 1
   INTEGER                       :: CollProbMeanCount        ! counter of possible collision pairs
@@ -231,9 +295,17 @@ TYPE tDSMC
                                                             !    0-1: constant probability  (0: no relaxation)
                                                             !    2: Boyd's model
                                                             !    3: Nonequilibrium Direction Dependent model (Zhang,Schwarzentruber)
+  INTEGER                       :: RotRelaxModel            ! Model for rotational relaxation
+                                                            !    0 Continuous treatment
+                                                            !    1 Analytic model + rotational energy levels from unified species database
+                                                            !       only for asymmetric top molecules
+                                                            !    2 rotational energy levels for all species from unified species database
   REAL                          :: VibRelaxProb             ! Model for calculation of vibrational relaxation probability, ini_1
                                                             !    0-1: constant probability (0: no relaxation)
                                                             !    2: Boyd's model, with correction from Abe
+  INTEGER                       :: VibRelaxModel            ! Model for vibrational relaxation
+                                                            !    0: Simple harmonic oscillator
+                                                            !    1: Anharmonic oscillator (Morse potential)
   REAL                          :: ElecRelaxProb            ! electronic relaxation probability
   LOGICAL                       :: PolySingleMode           ! Separate relaxation of each vibrational mode of a polyatomic in a
                                                             ! loop over all vibrational modes (every mode has its own corrected
@@ -253,6 +325,15 @@ TYPE tDSMC
 END TYPE tDSMC
 
 TYPE(tDSMC)                     :: DSMC
+
+TYPE tAHO
+  REAL, ALLOCATABLE             :: VibEnergy(:,:)           ! Tabular vib energy for Morse potential [nSpecies,max(NumVibLevels)]
+  INTEGER, ALLOCATABLE          :: NumVibLevels(:)          ! Number of vib levels [nSpecies]
+  REAL, ALLOCATABLE             :: omegaE(:)                ! Spectroscopy constant omegaE [nSpecies]
+  REAL, ALLOCATABLE             :: chiE(:)                  ! Spectroscopy constant chiE [nSpecies]
+END TYPE
+
+TYPE(tAHO)                       :: AHO
 
 TYPE tRegion
   CHARACTER(40)                 :: Type             ! Geometric type of the region, e.g. cylinder
@@ -289,9 +370,18 @@ TYPE tBGGas
   LOGICAL                       :: UseRegions               ! Flag for the definition of different background gas regions (set after read-in)
   INTEGER, ALLOCATABLE          :: RegionElemType(:)        ! 0: outside, positive integers: inside region number
   TYPE(tRegion), ALLOCATABLE    :: Region(:)                ! Type for the geometry definition of the different regions [1:nRegions]
+  CHARACTER(LEN=64)                         :: DatabaseName                     ! Database name from which to coefficients where calculated
+                                                                                ! , required for SpeciesDatabase
+  REAL, ALLOCATABLE                         :: ElectronMobility(:,:) ! first column: Reduced electric field (Td) 
+                                                                    ! second column: Electron Mobility mu (UNIT)
+  REAL, ALLOCATABLE                         :: DriftDiffusionCoefficient(:,:) ! first column: Reduced electric field (Td)
+                                                                              ! second column: drift diffusion coefficient D (UNIT)
+  REAL, ALLOCATABLE                         :: ReducedTownsendCoefficient(:,:) ! first column: Reduced electric field (Td)
+                                                                              ! second column: Reduced Townsend coefficient (alpha/N) in m^2
 END TYPE tBGGas
 
 TYPE(tBGGas)                    :: BGGas
+
 
 TYPE tPairData
   REAL                          :: CRela2                       ! squared relative velo of the particles in a pair
@@ -450,6 +540,9 @@ TYPE(tQKChemistry), ALLOCATABLE   :: QKChemistry(:)
 
 TYPE tPolyatomMolDSMC !DSMC Species Param
   LOGICAL                         :: LinearMolec            ! Is a linear Molec?
+  INTEGER                         :: RotationalGroup        ! Type of molecule - 1 sperical top, 10 and 11 symmetric tops (where 10
+                                                            ! is an oblate symmetric top and 11 an prolate symmetric top),
+                                                            ! 3 asymmetric top, -1 catch for errors
   INTEGER                         :: NumOfAtoms             ! Number of Atoms in Molec
   INTEGER                         :: VibDOF                 ! DOF in Vibration, equals number of independent SHO's
   REAL, ALLOCATABLE               :: CharaTVibDOF(:)        ! Chara TVib for each DOF
@@ -458,6 +551,7 @@ TYPE tPolyatomMolDSMC !DSMC Species Param
   REAL, ALLOCATABLE               :: GammaVib(:)            ! GammaVib: correction factor for Gimelshein Relaxation Procedure
   REAL, ALLOCATABLE               :: VibRelaxProb(:)
   REAL, ALLOCATABLE               :: CharaTRotDOF(:)        ! Chara TRot for each DOF
+  REAL, ALLOCATABLE               :: MomentOfInertia(:)     ! Moments of Inertia for each axis
 END TYPE
 
 TYPE (tPolyatomMolDSMC), ALLOCATABLE    :: PolyatomMolDSMC(:)        ! Infos for Polyatomic Molecule
@@ -542,5 +636,10 @@ TYPE tOctreeVdm
 END TYPE
 
 TYPE (tOctreeVdm), POINTER                  :: OctreeVdm => null()
+
+#if USE_MPI
+TYPE(MPI_Win)                             :: AdaptMPFInfo_Shared_Win
+TYPE(MPI_Win)                             :: OptimalMPF_Shared_Win
+#endif
 !===================================================================================================================================
 END MODULE MOD_DSMC_Vars

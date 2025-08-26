@@ -46,7 +46,7 @@ USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, GetNextFreePositio
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode
 USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-USE MOD_Particle_Analyze_Tools ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure  ,ONLY: CalcEkinPart
 USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
 USE MOD_part_emission_tools    ,ONLY: CountNeutralizationParticles
 USE MOD_PICDepo_Tools          ,ONLY: DepositPhotonSEEHoles
@@ -58,7 +58,7 @@ USE MOD_ReadInTools            ,ONLY: PrintOption
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcElectronSEE
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Photoionization  ,ONLY: PhotoIonization_RayTracing_Volume, PhotoIonization_RayTracing_SEE
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -323,10 +323,10 @@ DO i=1,nSpecies
       CYCLE
     END SELECT
     ! Check if photon SEE electric current is to be measured
-    IF(StringBeginsWith(Species(i)%Init(iInit)%SpaceIC,'photon_SEE').AND.CalcElectronSEE.AND.(NbrOfParticle.GT.0))THEN
+    IF(StringBeginsWith(Species(i)%Init(iInit)%SpaceIC,'photon_SEE').AND.CalcPhotonSEE.AND.(NbrOfParticle.GT.0))THEN
       ! Note that the negative value of the charge -q is used below
       iSEEBC = SEE%BCIDToSEEBCID(Species(i)%Init(iInit)%PartBCIndex)
-      SEE%RealElectronOut(iSEEBC) = SEE%RealElectronOut(iSEEBC) - MPF*NbrOfParticle*Species(i)%ChargeIC
+      SEE%RealElectronOutPhoton(iSEEBC) = SEE%RealElectronOutPhoton(iSEEBC) - MPF*NbrOfParticle*Species(i)%ChargeIC
     END IF
 
     CALL SetParticleVelocity(i,iInit,NbrOfParticle)

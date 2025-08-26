@@ -34,39 +34,16 @@ SAVE
 ! ----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part
 ! ----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE InitInterpolation
-   MODULE PROCEDURE InitInterpolation
-END INTERFACE
-
-INTERFACE FinalizeInterpolation
-   MODULE PROCEDURE FinalizeInterpolation
-END INTERFACE
-
-INTERFACE GetNodesAndWeights
-   MODULE PROCEDURE GetNodesAndWeights
-END INTERFACE
-
-INTERFACE GetDerivativeMatrix
-   MODULE PROCEDURE GetDerivativeMatrix
-END INTERFACE
-
-INTERFACE ApplyJacobian
-   MODULE PROCEDURE ApplyJacobian
-END INTERFACE
-
-INTERFACE InitInterpolationBasis
-   MODULE PROCEDURE InitInterpolationBasis
-END INTERFACE
-
 PUBLIC::InitInterpolation
-PUBLIC::ApplyJacobian
 PUBLIC::FinalizeInterpolation
 PUBLIC::GetNodesAndWeights
 PUBLIC::GetDerivativeMatrix
 PUBLIC::GetVandermonde
 PUBLIC::InitInterpolationBasis
-
 PUBLIC::DefineParametersInterpolation
+#if !(PP_TimeDiscMethod==700)
+PUBLIC::ApplyJacobian
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 !===================================================================================================================================
 
@@ -89,12 +66,12 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Interpolation")
 CALL prms%CreateIntOption('N'        , "Polynomial degree of computation to represent to solution")
-CALL prms%CreateIntOption('NAnalyze' , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\n'//&
-                                       'Default: 2*(N+1).')
+CALL prms%CreateIntOption('Nmax'     , "Maximum polynomial degree of computation to represent to solution (p-adaption)")
+CALL prms%CreateIntOption('NAnalyze' , 'Polynomial degree at which analysis is performed (e.g. for L2 errors).\nDefault: 2*(N+1).')
 END SUBROUTINE DefineParametersInterpolation
 
 
-SUBROUTINE InitInterpolation(NIn,NAnalyzeIn)
+SUBROUTINE InitInterpolation(NIn_opt,NAnalyzeIn_opt,Nmax_opt)
 !============================================================================================================================
 ! Initialize basis for Gauss-points of order N.
 ! Prepares Differentiation matrices D, D_Hat, Basis at the boundaries L(1), L(-1), L_Hat(1), L_Hat(-1)
@@ -104,13 +81,14 @@ SUBROUTINE InitInterpolation(NIn,NAnalyzeIn)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Interpolation_Vars
-USE MOD_ReadInTools        ,ONLY: GETINT,CountOption
+USE MOD_ReadInTools        ,ONLY: GETINT,CountOption,PrintOption
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !input parameters
-INTEGER,INTENT(IN),OPTIONAL :: NIn         !< optional polynomial degree
-INTEGER,INTENT(IN),OPTIONAL :: NAnalyzeIn  !< optional analyze polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: NIn_opt         !< optional polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: NAnalyzeIn_opt  !< optional analyze polynomial degree
+INTEGER,INTENT(IN),OPTIONAL :: Nmax_opt        !< optional maximum polynomial degree
 !----------------------------------------------------------------------------------------------------------------------------
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
@@ -119,42 +97,96 @@ CHARACTER(LEN=40)           :: DefStr
 #if !(PP_N == N)
 INTEGER                     :: Ntmp
 #endif /*!(PP_N == N)*/
+INTEGER                     :: Nin,Nout,i,j,Nloc
+CHARACTER(LEN=3)            :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
 !============================================================================================================================
 IF (InterpolationInitIsDone) CALL CollectiveStop(__STAMP__,'InitInterpolation already called.')
 SWRITE(UNIT_StdOut,'(132("-"))')
 SWRITE(UNIT_stdOut,'(A)') ' INIT INTERPOLATION...'
 
+#if USE_FV && !(USE_HDG)
+PP_N = 0
+SWRITE(UNIT_stdOut,'(A)') ' Finite Volumes: PP_N set to 0'
+#else
 ! Access ini-file
 #if PP_N == N
-IF(PRESENT(Nin))THEN
-  PP_N = NIn
+IF(PRESENT(NIn_opt))THEN
+  PP_N = NIn_opt
 ELSE
   PP_N = GETINT('N')
 END IF
 #else
-IF(PRESENT(Nin))THEN
-  Ntmp = NIn
+IF(PRESENT(NIn_opt))THEN
+  Ntmp = NIn_opt
 ELSE
   Ntmp=PP_N
   IF(CountOption('N').EQ.1) Ntmp=GETINT('N')
 END IF
 IF(PP_N.NE.Ntmp) CALL CollectiveStop(__STAMP__,'N in ini-file is different from hard-compiled N. Ini/Compiled:',Ntmp,REAL(PP_N))
 #endif
+#endif /*USE_FV*/
 
-SWRITE(UNIT_stdOut,'(A)') ' NodeType: '//NodeType
-!CALL InitInterpolationBasis(PP_N, xGP ,wGP, swGP,wBary ,L_Minus ,L_Plus , L_PlusMinus, wGPSurf, Vdm_Leg ,sVdm_Leg)
-CALL InitInterpolationBasis(PP_N, xGP, wGP, wBary, L_Minus , L_Plus, L_PlusMinus, swGP=swGP, wGPSurf=wGPSurf)
+! polynomial degree range for p-Refinement
+Nmin = 1
+CALL PrintOption('p-adaption minimum polynomial degree: Nmin','INFO',IntOpt=Nmin)
+IF(PRESENT(Nmax_opt))THEN
+  Nmax = Nmax_opt
+ELSE
+  WRITE(UNIT=hilf,FMT='(I3)') PP_N
+  Nmax = GETINT('Nmax',hilf)
+  IF(PP_N.GT.Nmax)THEN
+    Nmax  = PP_N
+    CALL PrintOption('N > Nmax, increasing Nmax', 'INFO.', IntOpt=Nmax)
+  END IF ! PP_N.GT.Nmax
+END IF ! PRESENT(Nmax_opt)
+
+! Check if p-adaption is activated and only build the constructs if Nmax>0
+IF(Nmax.GT.0)THEN
+  ALLOCATE(N_Inter(Nmin:Nmax))
+  DO Nloc=Nmin,Nmax
+    CALL InitInterpolationBasis(Nloc , N_Inter(Nloc)%xGP     , N_Inter(Nloc)%wGP     , N_Inter(Nloc)%wBary , &
+                                       N_Inter(Nloc)%L_Minus , N_Inter(Nloc)%L_Plus  , N_Inter(Nloc)%L_PlusMinus , &
+                                       N_Inter(Nloc)%swGP    , N_Inter(Nloc)%wGPSurf , &
+                                       N_Inter(Nloc)%Vdm_Leg , N_Inter(Nloc)%sVdm_Leg)
+  END DO
+
+  ! Allocate Vandermonde matrices for p-refinement
+  ALLOCATE(PREF_VDM(Nmin:Nmax,Nmin:Nmax))
+
+  DO Nin=Nmin,Nmax
+    DO Nout=Nmin,Nmax
+      ! Note the shape of Vdm!
+      ALLOCATE(PREF_VDM(Nin,Nout)%Vdm(0:Nout,0:Nin))
+      IF(Nin.EQ.Nout) THEN
+        DO i=0,Nin
+          DO j=0,Nin
+            IF(i.EQ.j) THEN
+              PREF_VDM(Nin,Nout)%Vdm(i,j) = 1.
+            ELSE
+              PREF_VDM(Nin,Nout)%Vdm(i,j) = 0.
+            END IF
+          END DO
+        END DO
+      ELSE IF(Nin.GT.Nout) THEN ! p-coarsening: Project from higher degree to lower degree
+        CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.TRUE. )
+        !CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.FALSE. )
+      ELSE                   ! p-refinement: Interpolate lower degree to higher degree
+        CALL GetVandermonde(Nin, NodeType, Nout, NodeType, PREF_VDM(Nin,Nout)%Vdm, modal=.FALSE.)
+      END IF ! Nin.GT.Nout
+    END DO ! Nout=Nmin,Nmax
+  END DO ! Nin=Nmin,Nmax
+END IF ! Nmax.GT.0
 
 ! Set the default analyze polynomial degree NAnalyze to 2*(N+1)
-IF(PRESENT(NAnalyzeIn))THEN
-  NAnalyze = NAnalyzeIn
+IF(PRESENT(NAnalyzeIn_opt))THEN
+  NAnalyze = NAnalyzeIn_opt
 ELSE
   WRITE(DefStr,'(i4)') 2*(PP_N+1)
   NAnalyze = GETINT('NAnalyze',DefStr)
-END IF ! PRESENT(NAnalyzeIn)
+END IF ! PRESENT(NAnalyzeIn_opt)
 
 ! Initialize the basis functions for the analyze polynomial
-CALL InitAnalyzeBasis(PP_N,NAnalyze,xGP,wBary)
+CALL InitAnalyzeBasis(NAnalyze)
 
 InterpolationInitIsDone = .TRUE.
 SWRITE(UNIT_stdOut,'(A)')' INIT INTERPOLATION DONE!'
@@ -221,7 +253,7 @@ IF(PRESENT(swGP))THEN
 END IF
 
 !! interpolate to left and right face (1 and -1) and pre-divide by mass matrix
-CALL LagrangeInterpolationPolys(1.,N_in,xGP,wBary,L_Plus)
+CALL LagrangeInterpolationPolys( 1.,N_in,xGP,wBary,L_Plus )
 CALL LagrangeInterpolationPolys(-1.,N_in,xGP,wBary,L_Minus)
 L_PlusMinus(:,  XI_MINUS) = L_Minus
 L_PlusMinus(:, ETA_MINUS) = L_Minus
@@ -231,9 +263,9 @@ L_PlusMinus(:, ETA_PLUS)  = L_Plus
 L_PlusMinus(:,ZETA_PLUS)  = L_Plus
 
 IF(PRESENT(Vdm_Leg).AND.PRESENT(sVdm_Leg))THEN
-! Vandermonde from NODAL <--> MODAL
-ALLOCATE(Vdm_Leg(0:N_in,0:N_in),sVdm_Leg(0:N_in,0:N_in))
-CALL buildLegendreVdm(N_in,xGP,Vdm_Leg,sVdm_Leg)
+  ! Vandermonde from NODAL <--> MODAL
+  ALLOCATE(Vdm_Leg(0:N_in,0:N_in),sVdm_Leg(0:N_in,0:N_in))
+  CALL buildLegendreVdm(N_in,xGP,Vdm_Leg,sVdm_Leg)
 END IF
 
 END SUBROUTINE InitInterpolationBasis
@@ -308,7 +340,7 @@ END IF !present wIP
 IF(PRESENT(wIPBary)) CALL BarycentricWeights(N_in,xIP,wIPBary)
 END SUBROUTINE GetNodesAndWeights
 
-SUBROUTINE GetVandermonde(N_in,NodeType_in,N_out,NodeType_out,Vdm_In_Out,Vdm_Out_In,modal)
+SUBROUTINE GetVandermonde(N_in, NodeType_in, N_out, NodeType_out, Vdm_In_Out, Vdm_Out_In, modal)
 !==================================================================================================================================
 !> Build a Vandermonde-Matrix from/to different node types and polynomial degrees.
 !==================================================================================================================================
@@ -323,7 +355,7 @@ INTEGER,INTENT(IN)                 :: N_out                      !> Output polyn
 CHARACTER(LEN=*),INTENT(IN)        :: NodeType_in                !> Type of 1D input points
 CHARACTER(LEN=*),INTENT(IN)        :: NodeType_out               !> Type of 1D output points
 LOGICAL,INTENT(IN),OPTIONAL        :: modal                      !> Switch if a modal Vandermonde should be build
-REAL,INTENT(OUT)                   :: Vdm_In_out(0:N_out,0:N_in) !> Vandermonde In->Out
+REAL,INTENT(OUT)                   :: Vdm_In_Out(0:N_out,0:N_in) !> Vandermonde In->Out
 REAL,INTENT(OUT),OPTIONAL          :: Vdm_Out_In(0:N_in,0:N_out) !> Vandermonde Out->in
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -403,117 +435,137 @@ CALL PolynomialDerivativeMatrix(N_in,xIP,D)
 END SUBROUTINE GetDerivativeMatrix
 
 
-SUBROUTINE ApplyJacobian(U,toPhysical,toSwap)
+#if !(PP_TimeDiscMethod==700)
+SUBROUTINE ApplyJacobian(toPhysical,toSwap)
 !===================================================================================================================================
 ! Convert solution between physical <-> reference space
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Mesh_Vars,ONLY:sJ
+USE MOD_Mesh_Vars ,ONLY: N_VolMesh, offSetElem
+USE MOD_DG_Vars   ,ONLY: U_N,N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT) :: U(PP_nVar,0:PP_N,0:PP_N,0:PP_N,PP_nElems)
 LOGICAL,INTENT(IN) :: toPhysical
 LOGICAL,INTENT(IN) :: toSwap
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: i,j,k,iElem,iVar
+INTEGER             :: i,j,k,iElem,iVar,Nloc
 !===================================================================================================================================
 IF(toPhysical)THEN
   IF(toSwap)THEN
     DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
-          U(iVar,i,j,k,iElem)=-U(iVar,i,j,k,iElem)*sJ(i,j,k,iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
+          U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)*N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
-        U(iVar,i,j,k,iElem)=U(iVar,i,j,k,iElem)*sJ(i,j,k,iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
+        U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)*N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO
     END DO
   END IF
 ELSE
   IF(toSwap)THEN
     DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
-        U(iVar,i,j,k,iElem)=-U(iVar,i,j,k,iElem)/sJ(i,j,k,iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
+        U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)/N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO
     END DO
   ELSE
     DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N; DO iVar=1,PP_nVar
-        U(iVar,i,j,k,iElem)=U(iVar,i,j,k,iElem)/sJ(i,j,k,iElem)
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc; DO iVar=1,PP_nVar
+        U_N(iElem)%Ut(iVar,i,j,k)=-U_N(iElem)%Ut(iVar,i,j,k)/N_VolMesh(iElem)%sJ(i,j,k)
       END DO; END DO; END DO; END DO
     END DO
   END IF
 END IF
 END SUBROUTINE ApplyJacobian
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 
-SUBROUTINE InitAnalyzeBasis(N_in,Nanalyze_in,xGP,wBary)
+SUBROUTINE InitAnalyzeBasis(Nanalyze_in)
 !===================================================================================================================================
 ! Build analyze nodes (Gauss-Lobatto) and corresponding Vandermonde matrix
 !===================================================================================================================================
 ! MODULES
 USE MOD_Interpolation_Vars ,ONLY: wAnalyze ! GL integration weights used for the analyze
-USE MOD_Interpolation_Vars ,ONLY: Vdm_GaussN_NAnalyze
+USE MOD_Interpolation_Vars ,ONLY: N_InterAnalyze,N_Inter,Nmin,Nmax
 USE MOD_Basis              ,ONLY: LegGaussLobNodesAndWeights,InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-INTEGER,INTENT(IN)   :: N_in          !< input polynomial degree
 INTEGER,INTENT(IN)   :: Nanalyze_in   !< polynomial degree of analysis polynomial
-REAL,INTENT(IN)      :: xGP(0:N_in)   !< interpolation points
-REAL,INTENT(IN)      :: wBary(0:N_in) !< barycentric weights
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL ,DIMENSION(0:Nanalyze_in) :: XiAnalyze ! GL nodes
+INTEGER                        :: Nloc
 !===================================================================================================================================
-ALLOCATE(wAnalyze(0:NAnalyze_in),Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:N_in))
+ALLOCATE(N_InterAnalyze(Nmin:Nmax))
+ALLOCATE(wAnalyze(0:NAnalyze_in))
 ! Build analyze nodes (Gauss-Lobatto)
 CALL LegGaussLobNodesAndWeights(NAnalyze_in,XiAnalyze,wAnalyze)
-! Build analyze Vandermonde matrix which maps from NodeType nodes to Gauss-Lobatto nodes
-CALL InitializeVandermonde(N_in,NAnalyze_in,wBary,xGP,XiAnalyze,Vdm_GaussN_NAnalyze)
+
+DO Nloc = Nmin, Nmax
+  ALLOCATE(N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze(0:NAnalyze_in,0:Nloc))
+  ! Build analyze Vandermonde matrix which maps from NodeType nodes to Gauss-Lobatto nodes
+  CALL InitializeVandermonde(Nloc, NAnalyze_in, N_Inter(Nloc)%wBary, N_Inter(Nloc)%xGP, XiAnalyze, N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze)
+END DO ! Nloc = Nmin, Nmax
 END SUBROUTINE InitAnalyzeBasis
 
 
-SUBROUTINE FinalizeInterpolation()
+SUBROUTINE FinalizeInterpolation(IsLoadBalance)
 !============================================================================================================================
 ! Deallocate all global interpolation variables.
 !============================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Interpolation_Vars
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------
 !input parameters
+LOGICAL,INTENT(IN),OPTIONAL :: IsLoadBalance
 !----------------------------------------------------------------------------------------------------------------------------
 !output parameters
 !----------------------------------------------------------------------------------------------------------------------------
 !local variables
 !============================================================================================================================
-! Deallocate global variables, needs to go somewhere else later
-SDEALLOCATE(xGP)
-SDEALLOCATE(wGP)
-SDEALLOCATE(swGP)
-SDEALLOCATE(wGPSurf)
-SDEALLOCATE(wBary)
-SDEALLOCATE(NChooseK)
-SDEALLOCATE(L_Minus)
-SDEALLOCATE(L_Plus)
-SDEALLOCATE(L_PlusMinus)
-SDEALLOCATE(Vdm_GaussN_NAnalyze)
+
+IF(PRESENT(IsLoadBalance)&
+#if USE_LOADBALANCE
+    .AND.(.NOT.UseH5IOLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+        )THEN
+!IF(PRESENT(IsLoadBalance))THEN
+  IF(IsLoadBalance) RETURN
+END IF ! PRESENT(IsLoadBalance)
+
+SDEALLOCATE(NInfo)
+
+IF(PRESENT(IsLoadBalance))THEN
+  IF(IsLoadBalance) RETURN
+END IF ! PRESENT(IsLoadBalance)
+
+SDEALLOCATE(N_Inter)
+SDEALLOCATE(N_InterAnalyze)
 SDEALLOCATE(wAnalyze)
+SDEALLOCATE(PREF_VDM)
 
 InterpolationInitIsDone = .FALSE.
 END SUBROUTINE FinalizeInterpolation
 
 END MODULE MOD_Interpolation
-

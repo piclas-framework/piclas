@@ -37,8 +37,8 @@ SUBROUTINE ParticleEmissionCellLocal(iSpec,iInit,NbrOfParticle)
 ! MODULES
 USE MOD_Globals
 USE MOD_part_emission_tools     ,ONLY: IntegerDivide
-USE MOD_part_tools              ,ONLY: CalcRadWeightMPF
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_part_tools              ,ONLY: CalcRadWeightMPF, CalcVarWeightMPF
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, ParticleWeighting
 USE MOD_Mesh_Vars               ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Vars      ,ONLY: LocalVolume
 USE MOD_Particle_Mesh_Vars      ,ONLY: BoundsOfElem_Shared,ElemVolume_Shared,ElemMidPoint_Shared
@@ -52,7 +52,6 @@ USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI_Vars       ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
-!----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -134,21 +133,27 @@ IF ((chunksize.EQ.0).AND.(Species(iSpec)%Init(iInit)%PartDensity.EQ.0.)) RETURN
 
 ! Approximate the total number of particles to be inserted
 IF (DoExactPartNumInsert) THEN
-  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize)
+  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0.AND..NOT.ParticleWeighting%PerformCloning) CALL IncreaseMaxParticleNumber(chunkSize)
   CellChunkSize(:)=0
   ASSOCIATE( start => GetCNElemID(1+offsetElem),&
              end   => GetCNElemID(nElems+offsetElem))
     CALL IntegerDivide(chunkSize,nElems,ElemVolume_Shared(start:end),CellChunkSize(:))
   END ASSOCIATE
 ELSE
-  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor   ! numerical Partdensity is needed
-  IF(RadialWeighting%DoRadialWeighting) PartDens = PartDens * 2. / (RadialWeighting%PartScaleFactor)
+  ! Numerical number density is needed
+  PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
+  ! Radial weighting: scaling it with the average factor from symmetry axis to outer boundary
+  IF(DoRadialWeighting) PartDens = PartDens * 2. / (ParticleWeighting%ScaleFactor)
+  ! Linear weighting: ScaleFactor is actually a regular MPF in this case
+  IF(DoLinearWeighting)  PartDens = Species(iSpec)%MacroParticleFactor*PartDens / (ParticleWeighting%ScaleFactor)
+  ! Sanity check: Resulting number of particles is an integer of KIND = 4
   CHECKSAFEINT(PartDens * LocalVolume, 4)
   chunkSize_tmp = INT(PartDens * LocalVolume)
+  ! Split & Merge: constant number of particles defined by the split threshold
   IF(UseSplitAndMerge) THEN
     IF(vMPFSplitThreshold(iSpec).GT.0) chunkSize_tmp = nElems * vMPFSplitThreshold(iSpec)
   END IF
-  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0) CALL IncreaseMaxParticleNumber(chunkSize_tmp)
+  IF (Species(iSpec)%Init(iInit)%ParticleEmissionType.EQ.0.AND..NOT.ParticleWeighting%PerformCloning) CALL IncreaseMaxParticleNumber(chunkSize_tmp)
 END IF
 
 ! Loop over all local elements and insert particles
@@ -170,9 +175,11 @@ DO iElem = 1, nElems
       nPart = CellChunkSize(iGlobalElem)
     ELSE
       ! Number of particles to be inserted through %PartDensity: number depends on cell volume, weighting factor or split threshold
-      ! Apply radial weighting
-      IF(RadialWeighting%DoRadialWeighting) THEN
+      ! Apply particle weighting: radial or linear
+      IF(DoRadialWeighting) THEN
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcRadWeightMPF(ElemMidPoint_Shared(2,CNElemID), iSpec)
+      ELSE IF(DoLinearWeighting) THEN
+        PartDens = Species(iSpec)%Init(iInit)%PartDensity / CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID), iElem)
       ELSE
         PartDens = Species(iSpec)%Init(iInit)%PartDensity / Species(iSpec)%MacroParticleFactor
       END IF
@@ -197,7 +204,7 @@ DO iElem = 1, nElems
       InsideFlag=.FALSE.
       DO WHILE(.NOT.InsideFlag)
         CALL RANDOM_NUMBER(RandomPos)
-        IF(Symmetry%Axisymmetric.AND.(.NOT.RadialWeighting%DoRadialWeighting)) THEN
+        IF(Symmetry%Axisymmetric.AND.(.NOT.DoRadialWeighting.AND..NOT.DoLinearWeighting)) THEN
           ! Treatment of axisymmetry without weighting
           RandomPos(1) = Bounds(1,1) + RandomPos(1)*(Bounds(2,1)-Bounds(1,1))
           RandomPos(2) = SQRT(RandomPos(2)*(Bounds(2,2)**2-Bounds(1,2)**2)+Bounds(1,2)**2)
@@ -216,10 +223,12 @@ DO iElem = 1, nElems
       PEM%GlobalElemID(PartID) = iGlobalElem
       ichunkSize = ichunkSize + 1
       IF (UseVarTimeStep) PartTimeStep(PartID) = GetParticleTimeStep(PartState(1,PartID), PartState(2,PartID),iElem)
-      ! Check if vMPF (and radial weighting is used) to determine the MPF of the new particle
+      ! Check if vMPF (and radial/linear weighting is used) to determine the MPF of the new particle
       IF(usevMPF) THEN
-        IF(RadialWeighting%DoRadialWeighting) THEN
+        IF(DoRadialWeighting) THEN
           PartMPF(PartID) = CalcRadWeightMPF(PartState(2,PartID),iSpec,PartID)
+        ELSE IF(DoLinearWeighting) THEN
+          PartMPF(PartID) = CalcVarWeightMPF(PartState(:,PartID),iElem,PartID)
         ELSE
           PartMPF(PartID) = Species(iSpec)%MacroParticleFactor
         END IF
@@ -259,6 +268,8 @@ USE MOD_part_emission_tools    ,ONLY: SetParticlePositionLiu2010SzaboNeutralizat
 USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Part_Tools             ,ONLY: IncreaseMaxParticleNumber, GetNextFreePosition
+USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
+USE MOD_Particle_Emission_Vars ,ONLY: particle_positions, particle_positions_size
 #if USE_MPI
 USE MOD_Particle_MPI_Emission  ,ONLY: SendEmissionParticlesToProcs
 USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
@@ -274,7 +285,7 @@ INTEGER,INTENT(IN)                       :: FractNbr, iInit
 INTEGER,INTENT(INOUT)                    :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE                         :: particle_positions(:)
+! REAL,ALLOCATABLE                         :: particle_positions(:)
 INTEGER                                  :: i,ParticleIndexNbr,allocStat,nChunks, chunkSize
 INTEGER                                  :: DimSend
 INTEGER, ALLOCATABLE                     :: AcceptedParts(:)
@@ -330,7 +341,15 @@ END SELECT
 IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
 #endif
   ! Allocate part pos buffer
-  ALLOCATE( particle_positions(1:chunkSize*DimSend), STAT=allocStat )
+  IF(ParticleWeighting%PerformCloning.AND.chunkSize.GT.100.AND.&
+     .NOT.(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_Liu2010_neutralization_Szabo'&
+     .OR.TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'3D_Liu2010_neutralization_Szabo')) THEN
+    ! particle_positions will be increased in size if necessary
+    particle_positions_size = 100*DimSend
+  ELSE
+    particle_positions_size = chunkSize*DimSend
+  END IF
+  ALLOCATE( particle_positions(1:particle_positions_size), STAT=allocStat )
   IF (allocStat .NE. 0) &
     CALL abort(__STAMP__,'ERROR in SetParticlePosition: cannot allocate particle_positions!')
   ! Sanity check
@@ -339,61 +358,61 @@ IF (PartMPIInitGroup(InitGroup)%MPIROOT.OR.nChunks.GT.1) THEN
   !------------------SpaceIC-cases: start-----------------------------------------------------------!
   SELECT CASE(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC))
   CASE('point')
-    CALL SetParticlePositionPoint(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPoint(FractNbr,iInit,chunkSize)
   CASE('line_with_equidistant_distribution')
-    CALL SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionEquidistLine(FractNbr,iInit,chunkSize)
   CASE('line')
-    CALL SetParticlePositionLine(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionLine(FractNbr,iInit,chunkSize)
   CASE('disc')
-    CALL SetParticlePositionDisk(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionDisk(FractNbr,iInit,chunkSize)
   CASE('circle', 'circle_equidistant')
-    CALL SetParticlePositionCircle(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionCircle(FractNbr,iInit,chunkSize)
   CASE('gyrotron_circle')
-    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionGyrotronCircle(FractNbr,iInit,chunkSize)
   CASE('cuboid','cylinder')
-    CALL SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionCuboidCylinder(FractNbr,iInit,chunkSize)
   CASE('sphere')
-    CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionSphere(FractNbr,iInit,chunkSize)
   CASE('sin_deviation')
-    CALL SetParticlePositionSinDeviation(FractNbr,iInit,particle_positions)
+    CALL SetParticlePositionSinDeviation(FractNbr,iInit,chunkSize)
   CASE('cos_distribution')
-    CALL SetParticlePositionCosDistribution(FractNbr,iInit,particle_positions)
+    CALL SetParticlePositionCosDistribution(FractNbr,iInit,chunkSize)
   CASE('photon_SEE_disc') ! disc case for surface distribution
-    CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonSEEDisc(FractNbr,iInit,chunkSize)
   CASE('photon_SEE_rectangle') ! rectangle case for surface distribution
-    CALL SetParticlePositionPhotonSEERectangle(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonSEERectangle(FractNbr,iInit,chunkSize)
   CASE('photon_SEE_honeycomb') ! Honeycomb disc case for surface distribution
-    CALL SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonSEEHoneycomb(FractNbr,iInit,chunkSize)
   CASE('photon_cylinder') ! cylinder case for photonionization
-    CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonCylinder(FractNbr,iInit,chunkSize)
   CASE('photon_rectangle') ! rectangle case for photonionization
-    CALL SetParticlePositionPhotonRectangle(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonRectangle(FractNbr,iInit,chunkSize)
   CASE('photon_honeycomb') ! Honeycomb case for photonionization
-    CALL SetParticlePositionPhotonHoneycomb(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionPhotonHoneycomb(FractNbr,iInit,chunkSize)
   CASE('2D_landmark','2D_landmark_copy')
     ! Ionization profile from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
     IF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')THEN
       FractNbrOld  = FractNbr
       chunkSizeOld = chunkSize
-      CALL SetParticlePositionLandmark(chunkSize,particle_positions,1)
+      CALL SetParticlePositionLandmark(FractNbr,chunkSize,1)
     ELSEIF(TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark_copy')THEN
-      CALL SetParticlePositionLandmark(chunkSizeOld,particle_positions,2)
+      CALL SetParticlePositionLandmark(FractNbr,chunkSizeOld,2)
     END IF ! TRIM(Species(FractNbr)%Init(iInit)%SpaceIC).EQ.'2D_landmark')
   CASE('2D_landmark_neutralization')
     ! Neutralization at const. x-position from T. Charoy, 2D axial-azimuthal particle-in-cell benchmark
     ! for low-temperature partially magnetized plasmas (2019)
-    CALL SetParticlePositionLandmarkNeutralization(chunkSize,particle_positions)
+    CALL SetParticlePositionLandmarkNeutralization(FractNbr,chunkSize)
   CASE('2D_Liu2010_neutralization')
     ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D case
-    CALL SetParticlePositionLiu2010Neutralization(chunkSize,particle_positions)
+    CALL SetParticlePositionLiu2010Neutralization(FractNbr,chunkSize)
   CASE('3D_Liu2010_neutralization')
     ! Neutralization at right BC (max. z-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 3D case
-    CALL SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize,particle_positions)
+    CALL SetParticlePositionLiu2010Neutralization3D(FractNbr,iInit,chunkSize)
   CASE('2D_Liu2010_neutralization_Szabo','3D_Liu2010_neutralization_Szabo')
     ! Neutralization at right BC (max. x-position) H. Liu "Particle-in-cell simulation of a Hall thruster" (2010) - 2D and 3D case
     ! Some procs might have nothing to emit (cells are quasi neutral or negatively charged)
-    IF(chunkSize.GT.0) CALL SetParticlePositionLiu2010SzaboNeutralization(chunkSize,particle_positions)
+    IF(chunkSize.GT.0) CALL SetParticlePositionLiu2010SzaboNeutralization(chunkSize)
   END SELECT
   !------------------SpaceIC-cases: end-------------------------------------------------------------------------------------------
 #if USE_MPI
@@ -411,6 +430,7 @@ ELSE
   AcceptedParts=-1
   AcceptedParts(0)=0
   DO i = 1,chunkSize
+    ! For TriaTracking, this routine calls ParticleInsideQuad3D() and for Tracing/RefMapping it calls GetPositionInRefElem()
     AcceptedParts(i) = SinglePointToElement(particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend),doHALO=.FALSE.)
     IF(AcceptedParts(i).NE.-1) AcceptedParts(0) = AcceptedParts(0) + 1
   END DO
@@ -424,6 +444,7 @@ ELSE
       PartState(1:DimSend,ParticleIndexNbr) = particle_positions(DimSend*(i-1)+1:DimSend*(i-1)+DimSend)
       PDM%ParticleInside(ParticleIndexNbr)=.TRUE.
       PEM%GlobalElemID(ParticleIndexNbr) = AcceptedParts(i)
+      PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
       IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:DimSend,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),AcceptedParts(i))
       PDM%IsNewPart(ParticleIndexNbr)  = .TRUE.
       PDM%dtFracPush(ParticleIndexNbr) = .FALSE.
@@ -452,7 +473,7 @@ Species(FractNbr)%Init(iInit)%sumOfMatchedParticles = Species(FractNbr)%Init(iIn
 ! the values for the local particles
 NbrOfParticle = Species(FractNbr)%Init(iInit)%mySumOfMatchedParticles
 
-IF (chunkSize.GT.0) THEN
+IF (ALLOCATED(particle_positions)) THEN
   DEALLOCATE(particle_positions, STAT=allocStat)
   IF (allocStat .NE. 0) CALL ABORT(__STAMP__,'ERROR in ParticleEmission_parallel: cannot deallocate particle_positions!')
 END IF
@@ -474,10 +495,10 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
 USE MOD_part_tools              ,ONLY: BuildTransGaussNums, InRotRefFrameCheck, GetNextFreePosition, BuildTransGaussNums2
 USE MOD_Particle_Vars           ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
+USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
-USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -490,12 +511,12 @@ INTEGER,INTENT(INOUT)           :: NbrOfParticle
 INTEGER                         :: iPart, PositionNbr
 CHARACTER(30)                   :: velocityDistribution
 REAL                            :: VeloIC, VeloVecIC(3), maxwellfac, VeloVecNorm
-REAL                            :: iRanPart(3, NbrOfParticle), Vec3D(3),MPF
+REAL                            :: Vec3D(3),MPF
+REAL,ALLOCATABLE                :: iRanPart(:,:)
 #if USE_HDG
 INTEGER                         :: iBC,iUniqueFPCBC,iUniqueEPCBC,BCState
 #endif /*USE_HDG*/
 !===================================================================================================================================
-
 IF(NbrOfParticle.LT.1) RETURN
 IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle > PDM%maxParticleNumber! '//&
                                                                 'Increase Part-maxParticleNumber or use more processors.')
@@ -557,6 +578,7 @@ CASE('taylorgreenvortex')
     END IF
   END DO
 CASE('maxwell')
+  ALLOCATE(iRanPart(3, NbrOfParticle))
   CALL BuildTransGaussNums(NbrOfParticle, iRanPart)
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO iPart = 1,NbrOfParticle
@@ -566,6 +588,7 @@ CASE('maxwell')
     END IF
   END DO
 CASE('maxwell_distribution_1D')
+  ALLOCATE(iRanPart(3, NbrOfParticle))
   CALL BuildTransGaussNums2(NbrOfParticle, iRanPart(1,:))
   maxwellfac = SQRT(BoltzmannConst*Species(FractNbr)%Init(iInit)%MWTemperatureIC/Species(FractNbr)%MassIC)
   DO iPart = 1,NbrOfParticle
@@ -575,8 +598,6 @@ CASE('maxwell_distribution_1D')
        PartState(4,PositionNbr) = PartState(4,PositionNbr) + iRanPart(1,iPart)*maxwellfac
     END IF
   END DO
-CASE('IMD') ! read IMD particle velocity from *.chkpt file -> velocity space has already been read when particles position was done
-  ! do nothing
 CASE('photon_SEE_energy')
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
@@ -588,7 +609,7 @@ CASE('photon_SEE_energy')
         ASSOCIATE( PartBCIndex => Species(FractNbr)%Init(iInit)%PartBCIndex)
 
           ! 1. Store the particle information in PartStateBoundary.h5
-          IF(DoBoundaryParticleOutputHDF5) THEN
+          IF(DoBoundaryParticleOutputHDF5.AND.PartBound%BoundaryParticleOutputEmission(PartBCIndex)) THEN
             IF(usevMPF)THEN
               MPF = Species(FractNbr)%Init(iInit)%MacroParticleFactor ! Use emission-specific MPF
             ELSE
@@ -644,9 +665,9 @@ IF(UseRotRefFrame) THEN
   DO iPart = 1,NbrOfParticle
     PositionNbr = GetNextFreePosition(iPart)
     IF (PositionNbr.GT.0) THEN
-      PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+      InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
       ! Initialize velocity in the rotational frame of reference
-      IF(PDM%InRotRefFrame(PositionNbr)) THEN
+      IF(InRotRefFrame(PositionNbr)) THEN
         PartVeloRotRef(1:3,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
       END IF
     END IF
@@ -678,17 +699,14 @@ USE MOD_Particle_Tracking      ,ONLY: ParticleInsideCheck
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Emission_Vars ,ONLY: EmissionDistributionDim, EmissionDistributionN
 USE MOD_Interpolation          ,ONLY: GetVandermonde,GetNodesAndWeights
-USE MOD_Basis                  ,ONLY: BarycentricWeights
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Equation               ,ONLY: ExactFunc
-USE MOD_Mesh_Vars              ,ONLY: Elem_xGP,sJ
+USE MOD_Mesh_Vars              ,ONLY: N_VolMesh
 USE MOD_Interpolation_Vars     ,ONLY: NodeTypeVISU,NodeType
 USE MOD_Eval_xyz               ,ONLY: TensorProductInterpolation, GetPositionInRefElem
 USE MOD_Mesh_Vars              ,ONLY: NGeo,XCL_NGeo,XiCL_NGeo,wBaryCL_NGeo,offsetElem
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemVolume_Shared,BoundsOfElem_Shared
-USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
 !----------------------------------------------------------------------------------------------------------------------------------
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -700,7 +718,7 @@ INTEGER,INTENT(IN)  :: iSpec, iInit
 INTEGER,INTENT(OUT) :: NbrOfParticle
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iElem,iPart,GlobalElemID,PositionNbr
+INTEGER           :: iElem,iPart,GlobalElemID,PositionNbr,CNElemID
 REAL              :: iRan, RandomPos(3), MPF
 REAL              :: PartDens(1:3) ! dummy vector because the routine can only return vector values
 LOGICAL           :: InsideFlag
@@ -734,10 +752,11 @@ DO Nloc = PP_N, EmissionDistributionN
   ALLOCATE(NED(Nloc)%Coords_NAnalyze(3,0:Nloc,0:Nloc,0:Nloc))
   ALLOCATE(NED(Nloc)%xIP_VISU(0:Nloc))
   ALLOCATE(NED(Nloc)%wIP_VISU(0:Nloc))
-  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:Nloc))
+  ALLOCATE(NED(Nloc)%Vdm_N_EQ_emission(0:Nloc,0:PP_N))
 
   ! Allocate and determine Vandermonde mapping from NodeType to equidistant (visu) node set
   CALL GetVandermonde(PP_N, NodeType, Nloc, NodeTypeVISU, NED(Nloc)%Vdm_N_EQ_emission, modal=.FALSE.)
+  ! Required only for integration
   CALL GetNodesAndWeights(Nloc, NodeTypeVISU, NED(Nloc)%xIP_VISU, wIP=NED(Nloc)%wIP_VISU)
 END DO ! Nloc = 1, EmissionDistributionN
 
@@ -745,12 +764,12 @@ NbrOfParticle = 0
 MPF = Species(iSpec)%MacroParticleFactor
 
 DO iElem = 1, nElems
+  GlobalElemID = iElem + offsetElem
   ! Do not emit particles in dielectrics
   IF(DoDielectric)THEN
-    IF(DielectricNoParticles.AND.isDielectricElem(iElem)) CYCLE
+    CNElemID = GetCNElemID(GlobalElemID)
+    IF(DielectricNoParticles.AND.isDielectricElem_Shared(CNElemID)) CYCLE
   END IF ! DoDielectric
-
-  GlobalElemID = iElem + offsetElem
 
   SELECT CASE(EmissionDistributionDim)
   CASE(1) ! 1D
@@ -758,11 +777,11 @@ DO iElem = 1, nElems
   CASE(2) ! 2D
 
     ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-    CALL ChangeBasis3D(3, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, Elem_xGP(1:3,:,:,:,iElem), &
+    CALL ChangeBasis3D(3, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:), &
                                                        NED(EmissionDistributionN)%Coords_NAnalyze(1:3,:,:,:))
 
     ! Interpolate the Jacobian to the equidistant grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-    CALL ChangeBasis3D(1, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, 1./sJ(:,:,:,iElem), &
+    CALL ChangeBasis3D(1, PP_N, EmissionDistributionN, NED(EmissionDistributionN)%Vdm_N_EQ_emission, 1./N_VolMesh(iElem)%sJ(:,:,:), &
                                                        NED(EmissionDistributionN)%J_NAnalyze(1:1,:,:,:))
 
     ! Integrate the density with the highest polynomial degree and calculate the average number of particles for the whole cell
@@ -818,10 +837,10 @@ DO iElem = 1, nElems
       ! Check if already calculated
       IF(Nred.NE.EmissionDistributionN)THEN
         ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-        CALL ChangeBasis3D(3, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, Elem_xGP(1:3,:,:,:,iElem), NED(Nred)%Coords_NAnalyze(1:3,:,:,:))
+        CALL ChangeBasis3D(3, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:), NED(Nred)%Coords_NAnalyze(1:3,:,:,:))
 
         ! Interpolate the Jacobian to the equidistant grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-        CALL ChangeBasis3D(1, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, 1./sJ(:,:,:,iElem), NED(Nred)%J_NAnalyze(1:1,:,:,:))
+        CALL ChangeBasis3D(1, PP_N, Nred, NED(Nred)%Vdm_N_EQ_emission, 1./N_VolMesh(iElem)%sJ(:,:,:), NED(Nred)%J_NAnalyze(1:1,:,:,:))
       END IF ! Nred.NE.EmissionDistributionN
 
       ! Loop over all interpolation points

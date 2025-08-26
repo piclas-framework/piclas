@@ -134,6 +134,7 @@ USE MOD_Particle_Surfaces      ,ONLY: GetBezierSampledAreas
 USE MOD_Particle_Vars          ,ONLY: Species, nSpecies, DoSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, DoForceFreeSurfaceFlux
 USE MOD_Particle_Vars          ,ONLY: VarTimeStep
+USE MOD_DSMC_Vars              ,ONLY: ParticleWeighting
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_SurfaceModel_Vars
 !USE MOD_Particle_SurfChemFlux_Init
@@ -334,11 +335,15 @@ DO iSpec=1,nSpecies
     IF(Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
       IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
         currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-        IF(Symmetry%Axisymmetric) CALL abort(__STAMP__, 'ERROR: AdaptiveType = 4 is not implemented with axisymmetric simulations!')
-        ! Weighting factor to account for a
+        ! Ratio of side-local volume flow rate to the total volume flow rate, calculated in CalcConstMassflowWeight
         ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(1:SurfFluxSideSize(1),1:SurfFluxSideSize(2), &
                   1:BCdata_auxSF(currentBC)%SideNumber))
         Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight = 0.0
+        ! Ratio of subside-local volume flow rate to the total volume flow rate, calculated in CalcConstMassflowWeight
+        IF(ParticleWeighting%UseSubdivision) THEN
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeightSub(1:BCdata_auxSF(currentBC)%SideNumber,1:ParticleWeighting%nSubSides))
+          Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeightSub = 0.0
+        END IF
         ! In case the mass flow is set to zero, the weighting factor can be determined once initially based on area ratio
         IF(ALMOSTEQUAL(Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow,0.)) CALL CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
         ! Circular inflow in combination with AdaptiveType = 4 requires the partial circle area per tria side
@@ -401,7 +406,7 @@ USE MOD_Particle_Vars          ,ONLY: nSpecies, Species, UseVarTimeStep, VarTime
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas, DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF, BezierSampleN, TriaSurfaceFlux
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars              ,ONLY: NGeo
@@ -464,10 +469,16 @@ DO iSpec=1,nSpecies
       nDataBC=nDataBC+1
     END IF
     SF%velocityDistribution  = TRIM(GETSTR('Part-Species'//TRIM(hilf2)//'-velocityDistribution','constant'))
-    IF (TRIM(SF%velocityDistribution).NE.'constant' .AND. TRIM(SF%velocityDistribution).NE.'maxwell' .AND. &
-        TRIM(SF%velocityDistribution).NE.'maxwell_lpn') THEN
-      CALL abort(__STAMP__,'Only constant or maxwell-like velocity distributions implemented for surface flux!')
+    ! Velocity distribution of granular species must be constant
+    IF(Species(iSpec)%InterID.EQ.100) THEN
+      SF%velocityDistribution  = 'constant'
+      CALL PrintOption('Velocity distribution for granular species set to constant.','INFO',StrOpt=TRIM(SF%velocityDistribution))
     END IF
+    SELECT CASE(TRIM(SF%velocityDistribution))
+    CASE('constant','maxwell','maxwell_lpn','cosine','cosine2')
+    CASE DEFAULT
+      CALL abort(__STAMP__,'Selected velocity distribution not implemented for surface flux!')
+    END SELECT
     SF%VeloIC                = GETREAL('Part-Species'//TRIM(hilf2)//'-VeloIC')
     SF%VeloIsNormal          = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-VeloIsNormal')
     IF (SF%VeloIsNormal) THEN
@@ -575,10 +586,13 @@ DO iSpec=1,nSpecies
     ! === Set the surface flux type
     IF(DoPoissonRounding) SF%Type = 3
     IF(DoTimeDepInflow)   SF%Type = 4
-    IF(RadialWeighting%DoRadialWeighting) SF%Type = 2
+    IF(DoRadialWeighting.OR.DoLinearWeighting.OR.DoCellLocalWeighting) SF%Type = 2
     ! === ADAPTIVE BC ==============================================================================================================
     SF%Adaptive         = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-Adaptive')
     IF(SF%Adaptive) THEN
+      IF(Species(iSpec)%InterID.EQ.100) THEN
+        CALL abort(__STAMP__,'ERROR in Surface Flux: Adaptive BC can not be defined for granular species!')
+      END IF
       UseAdaptiveBC  = .TRUE.
       SF%Type = 1
       IF(TrackingMethod.EQ.REFMAPPING) THEN
@@ -611,6 +625,10 @@ DO iSpec=1,nSpecies
           CALL abort(__STAMP__&
             ,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
         END IF
+      END IF
+      ! Cosine distribution not tested with adaptive
+      IF(TRIM(SF%velocityDistribution).EQ.'cosine'.OR.TRIM(SF%velocityDistribution).EQ.'cosine2') THEN
+        CALL abort(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
       END IF
     END IF
     ! === THERMIONIC EMISSION ======================================================================================================
@@ -722,7 +740,8 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: GEO, ElemMidPoint_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Particle_Vars          ,ONLY: UseCircularInflow, Species, DoSurfaceFlux, nSpecies
 USE MOD_Particle_Mesh_Tools    ,ONLY: DSMC_1D_CalcSymmetryArea, DSMC_2D_CalcSymmetryArea, DSMC_2D_CalcSymmetryAreaSubSides
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars              ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
+USE MOD_part_tools             ,ONLY: CalcVarWeightMPF
 USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
@@ -744,7 +763,7 @@ INTEGER               :: iSample,jSample,iSpec,iSub
 #if USE_MPI
 REAL, ALLOCATABLE     :: areasLoc(:),areasGlob(:)
 #endif /*USE_MPI*/
-REAL                  :: ymax,ymin,yMaxTemp,yMinTemp
+REAL                  :: ymax,ymin,yMaxTemp,yMinTemp,yAvTemp
 !===================================================================================================================================
 !-- 2.: create Side lists for applicable BCs
 !--- 2a: temporary (linked) lists
@@ -771,7 +790,7 @@ DO BCSideID=1,nBCSides
   TmpSideNumber(currentBC) = TmpSideNumber(currentBC) + 1  ! Number of Sides
 END DO ! BCSideID
 
-IF(RadialWeighting%DoRadialWeighting) THEN
+IF(ParticleWeighting%PerformCloning) THEN
   ALLOCATE(BCdata_auxSFTemp(1:nPartBound))
 END IF
 
@@ -779,19 +798,24 @@ END IF
 DO iBC=1,countDataBC
   BCdata_auxSF(TmpMapToBC(iBC))%SideNumber=TmpSideNumber(iBC)
   IF (TmpSideNumber(iBC).EQ.0) CYCLE
+  ! Allocate global arrays per boundary
   ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%SideList(1:TmpSideNumber(iBC)))
   IF (TriaSurfaceFlux) THEN
     ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSwapGeo(SurfFluxSideSize(1),SurfFluxSideSize(2),1:TmpSideNumber(iBC)))
     ALLOCATE(BCdata_auxSF(TmpMapToBC(iBC))%TriaSideGeo(1:TmpSideNumber(iBC)))
   END IF
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Allocate temporary arrays per boundary
+  IF(ParticleWeighting%PerformCloning) THEN
     ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(1:TmpSideNumber(iBC)))
     BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor = 1.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
-    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 0.
-    ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
-    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea = 0.
+    IF(Symmetry%Axisymmetric) THEN
+      ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+      BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight = 0.
+      ALLOCATE(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+      BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea = 0.
+    END IF
   END IF
+  ! Allocate global arrays per species and surface flux
   DO iSpec=1,nSpecies
     DO iSF=1,Species(iSpec)%nSurfacefluxBCs
       IF (TmpMapToBC(iBC).EQ.Species(iSpec)%Surfaceflux(iSF)%BC) THEN !only surfacefluxes with iBC
@@ -799,8 +823,17 @@ DO iBC=1,countDataBC
         IF (UseCircularInflow .AND. (iSF .LE. Species(iSpec)%nSurfacefluxBCs)) THEN
           ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SurfFluxSideRejectType(1:TmpSideNumber(iBC)) )
         END IF
-        IF(RadialWeighting%DoRadialWeighting) THEN
-          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:RadialWeighting%nSubSides))
+        IF(ParticleWeighting%UseSubdivision) THEN
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides)=0.
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideWeight(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+          Species(iSpec)%Surfaceflux(iSF)%SubSideWeight = 0.
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%SubSideArea(1:TmpSideNumber(iBC),1:ParticleWeighting%nSubSides))
+          Species(iSpec)%Surfaceflux(iSF)%SubSideArea = 0.
+        END IF
+        IF(ParticleWeighting%PerformCloning) THEN
+          ALLOCATE(Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(1:TmpSideNumber(iBC)))
+          Species(iSpec)%Surfaceflux(iSF)%WeightingFactor = 1.
         END IF
       END IF
     END DO
@@ -825,34 +858,73 @@ DO iBC=1,countDataBC
           SurfMeshSubSideData(1,1,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,CNElemID, ymin, ymax)
           SurfMeshSubSideData(1,2,BCSideID)%area = 0.0
           ! Determination of the mean radial weighting factor for calculation of the number of particles to be inserted
-          IF (RadialWeighting%DoRadialWeighting) THEN
+          IF (DoRadialWeighting) THEN
             IF((ymax - ymin).GT.0.0) THEN
               ! Surfaces that are NOT parallel to the YZ-plane
-              IF(RadialWeighting%CellLocalWeighting) THEN
+              IF(ParticleWeighting%UseCellAverage) THEN
                 ! Cell local weighting
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = (1. + ElemMidPoint_Shared(2,CNElemID) &
-                                                                        / GEO%ymaxglob*(RadialWeighting%PartScaleFactor-1.))
+                                                                        / GEO%ymaxglob*(ParticleWeighting%ScaleFactor-1.))
               ELSE
                 BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
-                DO iSub = 1, RadialWeighting%nSubSides
-                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / RadialWeighting%nSubSides
-                  yMaxTemp = ymin + iSub * (ymax - ymin) / RadialWeighting%nSubSides
+                DO iSub = 1, ParticleWeighting%nSubSides
+                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / ParticleWeighting%nSubSides
+                  yMaxTemp = ymin + iSub * (ymax - ymin) / ParticleWeighting%nSubSides
+                  IF (yMaxTemp-yMinTemp.LE.0.) THEN
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:) = 0.
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &
+                                                    + ymax/(GEO%ymaxglob)*(ParticleWeighting%ScaleFactor-1.)
+                    EXIT
+                  END IF
                   BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = 1.          &
-                    + (yMaxTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.) &
-                    -  yMinTemp**2/(GEO%ymaxglob*2.)*(RadialWeighting%PartScaleFactor-1.))/(yMaxTemp - yMinTemp)
+                    + (yMaxTemp**2/(GEO%ymaxglob*2.)*(ParticleWeighting%ScaleFactor-1.) &
+                    -  yMinTemp**2/(GEO%ymaxglob*2.)*(ParticleWeighting%ScaleFactor-1.))/(yMaxTemp - yMinTemp)
                 END DO
-                BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
+                IF (ANY(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:).GT.0.)) &
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
               END IF
             ELSE ! surfaces parallel to the x-axis (ymax = ymin)
               BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1. &
-                                                                        + ymax/(GEO%ymaxglob)*(RadialWeighting%PartScaleFactor-1.)
+                                                                        + ymax/(GEO%ymaxglob)*(ParticleWeighting%ScaleFactor-1.)
             END IF
           END IF
+          ! Determination of the mean variable weighting factor for calculation of the number of particles to be inserted
+          IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+            IF((ymax - ymin).GT.0.0) THEN
+              ! Surfaces that are NOT parallel to the YZ-plane
+              IF(ParticleWeighting%UseCellAverage) THEN
+                ! Cell average weighting
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),ElemID)
+              ELSE
+                BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = 1.
+                DO iSub = 1, ParticleWeighting%nSubSides
+                  yMinTemp = ymin + (iSub-1) * (ymax - ymin) / ParticleWeighting%nSubSides
+                  yMaxTemp = ymin + iSub * (ymax - ymin) / ParticleWeighting%nSubSides
+                  IF (yMaxTemp-yMinTemp.LE.0.) THEN
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:) = 0.
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/),ElemID)
+                    EXIT
+                  END IF
+                  yAvTemp = (yMaxTemp + yMinTemp)/2.
+                  BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,iSub) = CalcVarWeightMPF((/0.0,yAvTemp,0.0/),ElemID)
+                END DO
+                IF (ANY(BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideWeight(iCount,:).GT.0.)) &
+                    BCdata_auxSFTemp(TmpMapToBC(iBC))%SubSideArea(iCount,:) = DSMC_2D_CalcSymmetryAreaSubSides(iLocSide,CNElemID)
+              END IF
+            ELSE ! surfaces parallel to the x-axis (ymax = ymin)
+              BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF((/0.0,ymax,0.0/),ElemID)
+            END IF
+          END IF ! variable weighting
         ELSE
           SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_2D_CalcSymmetryArea(iLocSide,CNElemID) / 2.
         END IF
       ELSE IF(Symmetry%Order.EQ.1) THEN
         SurfMeshSubSideData(1,1:2,BCSideID)%area = DSMC_1D_CalcSymmetryArea(iLocSide,ElemID) / 2.
+      ELSE IF (DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+        GlobalElemID = SideInfo_Shared(SIDE_ELEMID,SideID)
+        CNElemID     = GetCNElemID(GlobalElemID)
+        iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
+        BCdata_auxSFTemp(TmpMapToBC(iBC))%WeightingFactor(iCount) = CalcVarWeightMPF(ElemMidPoint_Shared(:,CNElemID),ElemID)
       END IF
       !----- symmetry specific area calculation end
       IF (TrackingMethod.NE.TRIATRACKING) THEN !check that all sides are planar if TriaSurfaceFlux is used for tracing or refmapping
@@ -982,7 +1054,7 @@ USE MOD_Globals
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, SurfMeshSubSideData, tBCdata_auxSFRadWeight, BCdata_auxSF
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_DSMC_Vars               ,ONLY: RadialWeighting
+USE MOD_DSMC_Vars               ,ONLY: DoRadialWeighting, DoLinearWeighting, DoCellLocalWeighting, ParticleWeighting
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1024,6 +1096,8 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       vSF = v_thermal / (2.0*SQRT(PI))  ! mean flux velocity through normal sub-face
     END IF
+  CASE('cosine','cosine2')
+    vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC
   CASE DEFAULT
     CALL abort(__STAMP__, 'ERROR in SurfaceFlux: Wrong velocity distribution!')
   END SELECT
@@ -1031,19 +1105,48 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
   IF(Species(iSpec)%Surfaceflux(iSF)%UseEmissionCurrent .OR. Species(iSpec)%Surfaceflux(iSF)%UseMassflow .OR. &
       Species(iSpec)%Surfaceflux(iSF)%Adaptive) THEN
     nVFR = tmp_SubSideAreas(iSample,jSample) ! Area
-    ! vSF set to 1 to allow the utilization with radial weighting (untested)
+    ! vSF set to 1 to allow the utilization with radial weighting
     vSF = 1.
   ELSE
     nVFR = tmp_SubSideAreas(iSample,jSample) * vSF ! VFR projected to inwards normal of sub-side
   END IF
-  IF(RadialWeighting%DoRadialWeighting) THEN
+  ! Particle weighting: calculate the volume flow rate per sub-side
+  IF(DoRadialWeighting) THEN
     nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
-    DO iSub = 1, RadialWeighting%nSubSides
-      IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
-        Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
-                                                            * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
-      END IF
-    END DO
+    Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide) = BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+    IF(ParticleWeighting%UseSubdivision) THEN
+      DO iSub = 1, ParticleWeighting%nSubSides
+        IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) &
+                                                              * vSF / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+          Species(iSpec)%Surfaceflux(iSF)%SubSideWeight(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+        END IF
+      END DO
+    END IF
+  ELSE IF(DoLinearWeighting.OR.DoCellLocalWeighting) THEN
+    IF (BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide).GT.1) THEN
+      nVFR = nVFR * Species(iSpec)%MacroParticleFactor / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+      ! Weighting factor must be relative to the MacroParticleFactor (as is the case for radial weighting)
+      Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide) = BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide) / Species(iSpec)%MacroParticleFactor
+    ELSE
+      nVFR = nVFR / BCdata_auxSFTemp(currentBC)%WeightingFactor(iSide)
+    END IF
+    ! Only for 2D axisymmetric
+    IF(ParticleWeighting%UseSubdivision) THEN
+      DO iSub = 1, ParticleWeighting%nSubSides
+        IF(ABS(BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)).GT.0.)THEN
+          Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,iSub) * vSF &
+                                * Species(iSpec)%MacroParticleFactor / BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub)
+          ! SubSideWeight expects a weighting relative to the global MacroParticleFactor (as is the case for radial weighting)
+          Species(iSpec)%Surfaceflux(iSF)%SubSideWeight(iSide,iSub) = BCdata_auxSFTemp(currentBC)%SubSideWeight(iSide,iSub) &
+                                                                      / Species(iSpec)%MacroParticleFactor
+        END IF
+      END DO
+    END IF
+  END IF
+  ! Axisymmetric and particle weighting: store the area of the subsides separately
+  IF(ParticleWeighting%UseSubdivision) THEN
+    Species(iSpec)%Surfaceflux(iSF)%SubSideArea(iSide,:) = BCdata_auxSFTemp(currentBC)%SubSideArea(iSide,:)
   END IF
   IF (Species(iSpec)%Surfaceflux(iSF)%CircularInflow) THEN
     ! Check whether cell is completely outside of the circular inflow region and set the volume flow rate to zero
@@ -1191,13 +1294,15 @@ END SUBROUTINE CalcCircInflowAreaPerTria
 
 SUBROUTINE CalcConstMassflowWeightForZeroMassFlow(iSpec,iSF)
 !===================================================================================================================================
-!> Routine calculates the ConstMassflowWeight for AdaptiveType=4 in case of zero massflow rate
+!> Routine calculates the ConstMassflowWeight once initially for AdaptiveType=4 in case of zero massflow rate
+!> Requires successful call of InitVolumeFlowRate to get SubSideArea
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Particle_Vars           ,ONLY: Species
-USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfMeshSubSideData, BCdata_auxSF, SurfFluxSideSize
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize
+USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1207,17 +1312,31 @@ INTEGER, INTENT(IN)             :: iSpec, iSF
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iSample, jSample, currentBC, iSide, BCSideID
+INTEGER                         :: iSample, jSample, currentBC, iSide, BCSideID, iSub
 !===================================================================================================================================
 
-currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-  BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-  DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-    Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)=SurfMeshSubSideData(iSample,jSample,BCSideID)%area &
-                                                                                / Species(iSpec)%Surfaceflux(iSF)%totalAreaSF
-  END DO; END DO
-END DO
+ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
+
+currentBC = SF%BC
+IF(ParticleWeighting%UseSubdivision) THEN
+  ! Axisymmetric and particle weighting: subdivision of surface flux sides
+  DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+    DO iSub = 1, ParticleWeighting%nSubSides
+      ! Calculate the volume flow rate per sub-side
+      SF%ConstMassflowWeightSub(iSide,iSub) = SF%SubSideArea(iSide,iSub) / SF%totalAreaSF
+    END DO
+  END DO
+ELSE
+  ! In case of adaptive: nVFR contains the side area and is weighted in case of particle weighting
+  DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+    BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+    DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+      SF%ConstMassflowWeight(iSample,jSample,iSide) = SF%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR / SF%totalAreaSF
+    END DO; END DO
+  END DO
+END IF
+
+END ASSOCIATE
 
 END SUBROUTINE CalcConstMassflowWeightForZeroMassFlow
 

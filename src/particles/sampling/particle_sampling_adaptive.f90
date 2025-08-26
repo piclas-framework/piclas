@@ -85,8 +85,7 @@ USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
 ! LOCAL VARIABLES
 LOGICAL                           :: UseAdaptiveType4
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, GlobalSideID, GlobalElemID, currentBC
-INTEGER                           :: jSample, iSample, BCSideID
-INTEGER                           :: nSurfacefluxBCs
+INTEGER                           :: jSample, iSample, BCSideID, nSurfacefluxBCs, CNElemID
 #if USE_MPI
 INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
 #endif
@@ -143,7 +142,8 @@ DO iSpec=1,nSpecies
         END DO; END DO
       END IF
       ! Calculate the sum of the cell volumes adjacent to the surface flux
-      AdaptBCVolSurfaceFlux(iSpec,iSF) = AdaptBCVolSurfaceFlux(iSpec,iSF) + ElemVolume_Shared(GetCNElemID(ElemID+offsetElem))
+      CNElemID = GetCNElemID(ElemID+offsetElem)
+      AdaptBCVolSurfaceFlux(iSpec,iSF) = AdaptBCVolSurfaceFlux(iSpec,iSF) + ElemVolume_Shared(CNElemID)
       ! Only add elements once
       IF(AdaptBCMapElemToSample(ElemID).NE.0) CYCLE
       ! Add the element to the BC sampling
@@ -257,7 +257,7 @@ AdaptBCSampIter = GETINT('AdaptiveBC-SamplingIteration')
 IF(.NOT.PerformLoadBalance) THEN
   IF(UseAdaptiveType4) THEN
     ALLOCATE(AdaptBCPartNumOut(1:nSpecies,1:nSurfacefluxBCs))
-    AdaptBCPartNumOut = 0
+    AdaptBCPartNumOut = 0.
   END IF
   IF(AdaptBCAverageValBC) THEN
     ALLOCATE(AdaptBCAverageMacroVal(1:3,1:nSpecies,1:nSurfacefluxBCs))
@@ -327,7 +327,6 @@ SUBROUTINE AdaptiveBCSampling(initSampling_opt,initTruncAverage_opt)
 USE MOD_Globals
 USE MOD_Globals_Vars
 USE MOD_Particle_Sampling_Vars
-USE MOD_DSMC_Vars              ,ONLY: RadialWeighting
 USE MOD_Mesh_Vars              ,ONLY: offsetElem, SideToElem
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Part_Tools             ,ONLY: GetParticleWeight
@@ -497,7 +496,7 @@ IF(AdaptBCAverageValBC) THEN
             ! AdaptBCTruncAverage: continuous average of the last AdaptBCSampIter iterations
             IF(AdaptBCSampIter.GT.0) THEN
               ! Calculate the average number density
-              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+              IF(usevMPF) THEN
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
                                                       / AdaptBCVolSurfaceFlux(iSpec,iSF)
               ELSE
@@ -518,12 +517,12 @@ IF(AdaptBCAverageValBC) THEN
             ! ================================================================
             ! Relaxation factor: updating the macro values with a certain percentage of the current sampled value
               ! Calculate the average number density
-              IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+              IF(usevMPF) THEN
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF)
+                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF)
               ELSE
                 AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
+                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
                     * Species(iSpec)%MacroParticleFactor
               END IF
               IF(AdaptBCMeanValues(7,iSpec,iSF).GT.1) THEN
@@ -602,7 +601,7 @@ ELSE              ! .NOT. AdaptBCAverageValBC
               AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCSample(1:3,SampleElemID, iSpec)
             END IF
             ! number density
-            IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+            IF(usevMPF) THEN
               AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID)
             ELSE
               AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID) &
@@ -646,7 +645,7 @@ ELSE              ! .NOT. AdaptBCAverageValBC
                                                 + RelaxationFactor*AdaptBCSample(1:3,SampleElemID, iSpec)
           END IF
           ! Calculation of the number density
-          IF(usevMPF.OR.RadialWeighting%DoRadialWeighting) THEN
+          IF(usevMPF) THEN
             AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
               + RelaxationFactor*AdaptBCSample(8,SampleElemID,iSpec) / ElemVolume_Shared(CNElemID)
           ELSE

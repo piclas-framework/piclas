@@ -94,7 +94,7 @@ PUBLIC::ElemToNBElem
 
 CONTAINS
 
-SUBROUTINE InitMappings(N_in,V2S,V2SIJK,V2S2,CV2S,S2V,S2V2,CS2V,FS2M)
+SUBROUTINE InitMappings(N_in, V2S, V2SIJK, FS2M)
 !===================================================================================================================================
 ! initialization of all mappings for polynomial degree N_in
 !===================================================================================================================================
@@ -109,29 +109,19 @@ INTEGER,INTENT(IN)              :: N_in
 ! OUTPUT VARIABLES
 INTEGER,ALLOCATABLE,INTENT(OUT) :: V2S(:,:,:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: V2SIJK(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: V2S2(:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: CV2S(:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: S2V(:,:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: S2V2(:,:,:,:,:)
-INTEGER,ALLOCATABLE,INTENT(OUT) :: CS2V(:,:,:,:)
 INTEGER,ALLOCATABLE,INTENT(OUT) :: FS2M(:,:,:,:)     !< FlipSlaveToMaster mapping
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                    :: i,j,k,f,s, ijk(3),pq(3),p,q
+INTEGER                    :: i,j,k,f,s
 !===================================================================================================================================
-ALLOCATE(V2S(3,0:N_in,0:N_in,0:N_in,0:4,1:6))
+ALLOCATE(V2S(   3,0:N_in,0:N_in,0:N_in,0:4,1:6))
 ALLOCATE(V2SIJK(3,0:N_in,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(V2S2(2,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(CV2S(3,0:N_in,0:N_in,0:N_in,1:6))
-ALLOCATE(S2V(3,0:N_in,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(S2V2(2,0:N_in,0:N_in,0:4,1:6))
-ALLOCATE(CS2V(2,0:N_in,0:N_in,1:6))
-ALLOCATE(FS2M(2,0:N_in,0:N_in,0:4))
+ALLOCATE(FS2M(  2,0:N_in,0:N_in,0:4))
 
 DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
   DO f=0,4
     DO s=1,6
-      V2S(:,i,j,k,f,s) = VolToSide(i,j,k,f,s)
+      V2S(:,i,j,k,f,s) = VolToSide(N_in,i,j,k,f,s)
     END DO
   END DO
 END DO; END DO; END DO
@@ -144,62 +134,12 @@ DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
   END DO
 END DO; END DO; END DO
 
-DO j=0,N_in; DO i=0,N_in
-  DO f=0,4
-    DO s=1,6
-      V2S2(:,i,j,f,s) = VolToSide2(i,j,f,s)
-    END DO
-  END DO
-END DO; END DO
-
-DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
-  DO s=1,6
-    CV2S(:,i,j,k,s) = CGNS_VolToSide(i,j,k,s)
-  END DO
-END DO; END DO; END DO
-
-DO k=0,N_in; DO j=0,N_in; DO i=0,N_in
-  DO f=0,4
-    DO s=1,6
-      S2V(:,i,j,k,f,s) = SideToVol(i,j,k,f,s)
-    END DO
-  END DO
-END DO; END DO; END DO
-
-DO j=0,N_in; DO i=0,N_in
-  DO f=0,4
-    DO s=1,6
-      S2V2(:,i,j,f,s) = SideToVol2(N_in,i,j,f,s)
-    END DO
-  END DO
-END DO; END DO
-
-DO j=0,N_in; DO i=0,N_in
-  DO s=1,6
-    CS2V(:,i,j,s) = CGNS_SideToVol2(N_in,i,j,s)
-  END DO
-END DO; END DO
-
 ! Flip_S2M
 DO j=0,N_in; DO i=0,N_in
   DO f=0,4
     FS2M(:,i,j,f) = Flip_S2M(N_in,i,j,f)
   END DO
 END DO; END DO
-
-DO f = 0, 4
-  DO s = 1, 6
-    DO q = 0,N_in; DO p = 0,N_in
-      ijk = S2V(:,0,p,q,f,s)
-      pq = V2S(:,ijk(1),ijk(2),ijk(3),f,s)
-      IF ((pq(1).NE.p).OR.(pq(2).NE.q)) THEN
-CALL abort(&
-__STAMP__&
-,'SideToVol does not fit to VolToSideA')
-      END IF
-    END DO; END DO
-  END DO ! s = 1, 6
-END DO ! f = 0, 4
 
 END SUBROUTINE InitMappings
 
@@ -262,7 +202,7 @@ Flip_M2S=Flip_S2M(N_in,p,q,flip)
 END FUNCTION Flip_M2S
 
 
-FUNCTION CGNS_VolToSide(i,j,k, locSideID)
+FUNCTION CGNS_VolToSide(N_in,i,j,k, locSideID)
 !===================================================================================================================================
 ! Transforms Volume-Coordinates into RHS of the Side (uses CGNS-Notation)
 ! input: i,j,k, locSideID
@@ -274,7 +214,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: i,j,k,locSideID
+INTEGER,INTENT(IN) :: N_in,i,j,k,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -287,15 +227,15 @@ SELECT CASE(locSideID)
   CASE(XI_MINUS)
     CGNS_VolToSide = (/k,j,i/)
   CASE(XI_PLUS)
-    CGNS_VolToSide = (/j,k,PP_N-i/)
+    CGNS_VolToSide = (/j,k,N_in-i/)
   CASE(ETA_MINUS)
     CGNS_VolToSide = (/i,k,j/)
   CASE(ETA_PLUS)
-    CGNS_VolToSide = (/PP_N-i,k,PP_N-j/)
+    CGNS_VolToSide = (/N_in-i,k,N_in-j/)
   CASE(ZETA_MINUS)
     CGNS_VolToSide = (/j,i,k/)
   CASE(ZETA_PLUS)
-    CGNS_VolToSide = (/i,j,PP_N-k/)
+    CGNS_VolToSide = (/i,j,N_in-k/)
 END SELECT
 END FUNCTION CGNS_VolToSide
 
@@ -338,12 +278,12 @@ END SELECT
 END FUNCTION CGNS_VolToSide_IJK
 
 
-FUNCTION CGNS_SideToVol(l, p, q, locSideID)
+FUNCTION CGNS_SideToVol(N_in, l, p, q, locSideID)
 !===================================================================================================================================
 ! Transforms RHS-Coordinates of Side (CGNS-Notation) into Volume-Coordinates
 ! input: l, p,q, locSideID
 !   where: p,q are in Master-RHS;
-!          l is the xi-,eta- or zeta-index in 0:PP_N corresponding to locSideID
+!          l is the xi-,eta- or zeta-index in 0:N_in corresponding to locSideID
 ! output: volume-indicies
 !===================================================================================================================================
 ! MODULES
@@ -351,7 +291,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: l,p,q,locSideID
+INTEGER,INTENT(IN) :: N_in,l,p,q,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -364,15 +304,15 @@ SELECT CASE(locSideID)
   CASE(XI_MINUS)
     CGNS_SideToVol = (/l,q,p/)
   CASE(XI_PLUS)
-    CGNS_SideToVol = (/PP_N-l,p,q/)
+    CGNS_SideToVol = (/N_in-l,p,q/)
   CASE(ETA_MINUS)
     CGNS_SideToVol = (/p,l,q/)
   CASE(ETA_PLUS)
-    CGNS_SideToVol = (/PP_N-p,PP_N-l,q/)
+    CGNS_SideToVol = (/N_in-p,N_in-l,q/)
   CASE(ZETA_MINUS)
     CGNS_SideToVol = (/q,p,l/)
   CASE(ZETA_PLUS)
-    CGNS_SideToVol = (/p,q,PP_N-l/)
+    CGNS_SideToVol = (/p,q,N_in-l/)
 END SELECT
 END FUNCTION CGNS_SideToVol
 
@@ -382,7 +322,7 @@ FUNCTION CGNS_SideToVol2(N_in,p, q, locSideID)
 ! Transforms RHS-Coordinates of Side (CGNS-Notation) into Volume-Coordinates
 ! input: l, p,q, locSideID
 !   where: p,q are in Master-RHS;
-!          l is the xi-,eta- or zeta-index in 0:PP_N corresponding to locSideID
+!          l is the xi-,eta- or zeta-index in 0:N_in corresponding to locSideID
 ! output: volume-indicies
 !===================================================================================================================================
 ! MODULES
@@ -416,7 +356,7 @@ END SELECT
 END FUNCTION CGNS_SideToVol2
 
 
-FUNCTION VolToSide(i,j,k, flip, locSideID)
+FUNCTION VolToSide(N_in,i,j,k, flip, locSideID)
 !===================================================================================================================================
 ! Transform Volume-Coordinates to RHS-Coordinates of Master. This is: VolToSide = Flip_S2M(CGNS_VolToSide(...))
 ! input: i,j,k, flip, locSideID
@@ -428,7 +368,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: i,j,k,flip,locSideID
+INTEGER,INTENT(IN) :: N_in,i,j,k,flip,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -438,8 +378,8 @@ INTEGER,DIMENSION(3) :: VolToSide
 ! LOCAL VARIABLES
 INTEGER,DIMENSION(3) :: pq
 !===================================================================================================================================
-pq = CGNS_VolToSide(i,j,k,locSideID)
-VolToSide(1:2) = Flip_S2M(PP_N,pq(1),pq(2),flip)
+pq = CGNS_VolToSide(N_in,i,j,k,locSideID)
+VolToSide(1:2) = Flip_S2M(N_in,pq(1),pq(2),flip)
 VolToSide(3) = pq(3)
 END FUNCTION VolToSide
 
@@ -474,7 +414,7 @@ SELECT CASE(locSideID)
 END SELECT
 END FUNCTION VolToSideIJK
 
-FUNCTION VolToSide2(ijk1,ijk2, flip, locSideID)
+FUNCTION VolToSide2(N_in,ijk1,ijk2, flip, locSideID)
 !===================================================================================================================================
 ! Transform Volume-Coordinates to RHS-Coordinates of Master. This is: VolToSide = Flip_S2M(CGNS_VolToSide(...))
 ! input: (ijk1,ijk2)is i,j for Zeta, ik, for eta, and jk for xi, flip, locSideID
@@ -486,7 +426,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: ijk1,ijk2,flip,locSideID
+INTEGER,INTENT(IN) :: N_in,ijk1,ijk2,flip,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -498,21 +438,21 @@ INTEGER,DIMENSION(3) :: pq
 !===================================================================================================================================
 SELECT CASE(locSideID)
 CASE(XI_MINUS,XI_PLUS)
-  pq = CGNS_VolToSide(0,ijk1,ijk2,locSideID)
+  pq = CGNS_VolToSide(N_in,0,ijk1,ijk2,locSideID)
 CASE(ETA_MINUS,ETA_PLUS)
-  pq = CGNS_VolToSide(ijk1,0,ijk2,locSideID)
+  pq = CGNS_VolToSide(N_in,ijk1,0,ijk2,locSideID)
 CASE(ZETA_MINUS,ZETA_PLUS)
-  pq = CGNS_VolToSide(ijk1,ijk2,0,locSideID)
+  pq = CGNS_VolToSide(N_in,ijk1,ijk2,0,locSideID)
 END SELECT
-VolToSide2(1:2) = Flip_S2M(PP_N,pq(1),pq(2),flip)
+VolToSide2(1:2) = Flip_S2M(N_in,pq(1),pq(2),flip)
 END FUNCTION VolToSide2
 
-FUNCTION SideToVol(l, p, q, flip, locSideID)
+FUNCTION SideToVol(N_in, l, p, q, flip, locSideID)
 !===================================================================================================================================
 ! Transform RHS-Coordinates of Master to Volume-Coordinates. This is: SideToVol = CGNS_SideToVol(Flip_M2S(...))
 ! input: l, p,q, flip, locSideID
 !     where: p,q are in Master-RHS;
-!            l is the xi-,eta- or zeta-index in 0:PP_N corresponding to locSideID
+!            l is the xi-,eta- or zeta-index in 0:N_in corresponding to locSideID
 ! output: volume-indicies
 !===================================================================================================================================
 ! MODULES
@@ -520,7 +460,7 @@ USE MOD_PreProc
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: l,p,q,flip,locSideID
+INTEGER,INTENT(IN) :: N_in,l,p,q,flip,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -530,17 +470,17 @@ INTEGER,DIMENSION(3) :: SideToVol
 ! LOCAL VARIABLES
 INTEGER,DIMENSION(2) :: pq
 !===================================================================================================================================
-pq = Flip_M2S(PP_N,p,q,flip)
-SideToVol = CGNS_SideToVol(l,pq(1),pq(2),locSideID)
+pq = Flip_M2S(N_in,p,q,flip)
+SideToVol = CGNS_SideToVol(N_in,l,pq(1),pq(2),locSideID)
 END FUNCTION SideToVol
 
 
-FUNCTION SideToAdjointLocSide(p, q, flip, locSideID)
+FUNCTION SideToAdjointLocSide(N_in, p, q, flip, locSideID)
 !===================================================================================================================================
 ! Transform RHS-Coordinates of Master to Volume-Coordinates. This is: SideToVol = CGNS_SideToVol(Flip_M2S(...))
 ! input: l, p,q, flip, locSideID
 !     where: p,q are in Master-RHS;
-!            l is the xi-,eta- or zeta-index in 0:PP_N corresponding to locSideID
+!            l is the xi-,eta- or zeta-index in 0:N_in corresponding to locSideID
 ! output: volume-indicies
 !===================================================================================================================================
 ! MODULES
@@ -549,7 +489,7 @@ USE MOD_Globals, ONLY:abort
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: p,q,flip,locSideID
+INTEGER,INTENT(IN) :: N_in,p,q,flip,locSideID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -560,7 +500,7 @@ INTEGER,DIMENSION(2) :: SideToAdjointLocSide
 INTEGER,DIMENSION(2) :: pq
 !===================================================================================================================================
 
-pq = SideToVol2(PP_N,p, q, flip, locSideID)
+pq = SideToVol2(N_in,p, q, flip, locSideID)
 SELECT CASE(locSideID)
 CASE(XI_MINUS)
   IF(pq(1).EQ.0)THEN
@@ -598,7 +538,7 @@ FUNCTION SideToVol2(N_in,p, q, flip, locSideID)
 ! Transform RHS-Coordinates of Master to Volume-Coordinates. This is: SideToVol = CGNS_SideToVol(Flip_M2S(...))
 ! input: l, p,q, flip, locSideID
 !     where: p,q are in Master-RHS;
-!            l is the xi-,eta- or zeta-index in 0:PP_N corresponding to locSideID
+!            l is the xi-,eta- or zeta-index in 0:N_in corresponding to locSideID
 ! output: volume-indicies
 !===================================================================================================================================
 ! MODULES
@@ -655,7 +595,7 @@ END IF
 END FUNCTION ElemToNBElem
 
 
-FUNCTION VolToVol(i,j,k,locSideID,iElem)
+FUNCTION VolToVol(N_in,i,j,k,locSideID,iElem)
 !===================================================================================================================================
 ! Transform Volume-Coordinates to neighboring Volume-Coordinates.  This is: VolToVol = SideToVol(VolToSide(...))
 ! input: i,j,k, iElem, locSideID
@@ -669,7 +609,7 @@ USE MOD_Mesh_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 ! INPUT VARIABLES
-INTEGER,INTENT(IN) :: i,j,k,locSideID,iElem
+INTEGER,INTENT(IN) :: N_in,i,j,k,locSideID,iElem
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -682,7 +622,7 @@ INTEGER              :: flip, l, SideID, neighbor_flip, neighbor_locSideID
 !===================================================================================================================================
 SideID=ElemToSide(E2S_SIDE_ID,locSideID,iElem)
 flip  =ElemToSide(E2S_FLIP,locSideID,iElem)
-pq = VolToSide(i,j,k, flip, locSideID)
+pq = VolToSide(N_in,i,j,k, flip, locSideID)
 l = pq(3)
 IF (flip.EQ.0) THEN
   neighbor_locSideID = SideToElem(S2E_NB_LOC_SIDE_ID,SideID)
@@ -691,7 +631,7 @@ ELSE
   neighbor_locSideID = SideToElem(S2E_LOC_SIDE_ID,SideID)
   neighbor_flip      = 0
 END IF
-VolToVol = SideToVol(l, pq(1), pq(2), neighbor_flip, neighbor_locSideID)
+VolToVol = SideToVol(N_in,l, pq(1), pq(2), neighbor_flip, neighbor_locSideID)
 END FUNCTION VolToVol
 
 END MODULE MOD_Mappings

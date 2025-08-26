@@ -28,30 +28,15 @@ weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), 
 Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be
 defined with these parameters.
 
-Due to the often repetitive definitions, the default value for a given parameter can be set using the wildcard `$`. Different
-values for individual parameters can be specified by explicitly specifying the numbered parameter, irrespective of the ordering
-in the parameter file.
-
-    Part-Species1-Init1-VeloIC = 1.
-    Part-Species$-Init$-VeloIC = 2.
-
-Due to runtime considerations, the evaluation of the wildcard character is performed from left to right. Thus, a parameter like
-`Part-Species1-Init$-VeloIC` will not work.
-
 Different velocity distributions are available for the initialization/emission of particles.
 
-| Distribution | Description                                             |
-| ------------ | ------------------------------------------------------- |
-| maxwell      | Maxwell-Boltzmann distribution                          |
-| maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers |
-| WIP          | **WORK IN PROGRESS**                                    |
-
-Some emission types allow the usage of an emission-specific particle weighting factor.
-The default weighting factor given by `Part-Species1-MacroParticleFactor` can be overwritten by supplying a different one for each
-initialization, for which the variable weighting factor (or variable macro-particle factor `vMPF`)  model must be activated
-
-    Part-vMPF = T
-    Part-Species1-Init1-MacroParticleFactor = 1e4
+| Distribution | Description                                                   |
+| ------------ | ------------------------------------------------------------- |
+| constant     | No distribution, constant velocity vector                     |
+| maxwell      | Maxwell-Boltzmann distribution                                |
+| maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers       |
+| cosine       | Cosine distribution {cite}`Greenwood2002` (surface flux only) |
+| cosine2      | Squared cosine distribution (surface flux only)               |
 
 (sec:particle-insertion)=
 ## Initialization
@@ -70,6 +55,7 @@ Different `SpaceIC` are available and an overview is given in the table below.
 | Distribution         | Description                                                                      | Reference                                    |
 | -------------------- | -------------------------------------------------------------------------------- | -------------------------------------------- |
 | cell_local           | Particles are inserted in every cell at a constant number density                | Section {ref}`sec:particle-cell-local`       |
+| point                | Particles are inserted at a specified point                                      | Section {ref}`sec:particle-point-init`       |
 | disc                 | Particles are inserted on a circular disc                                        | Section {ref}`sec:particle-disk-init`        |
 | cuboid               | Particles are inserted in the given cuboid volume at a constant number density   | Section {ref}`sec:particle-cuboid-init`      |
 | cylinder             | Particles are inserted in the given cylinder volume at a constant number density | Section {ref}`sec:particle-cylinder-init`    |
@@ -115,9 +101,16 @@ Additional options are available to limit the local emission to certain limits i
 To limit the insertion only to a specific dimension, simply provide a sufficiently large number for the other dimensions. This approach
 can also be utilized for 2D and axisymmetric simulations.
 
-When using a variable particle weighting as described in Section {ref}`sec:variable-particle-weighting`, the variable `Part-Species1-vMPFSplitThreshold`
+When using a variable particle weighting as described in Section {ref}`sec:split-merge`, the variable `Part-Species1-vMPFSplitThreshold`
 will be utilized as the target number of particles per cell during the insertion and the weighting factor will be determined from the
 given number density and cell volume.
+
+(sec:particle-point-init)=
+### Point
+
+Particles can be inserted at a point specified by
+
+    Part-Species1-Init1-BasePointIC=(/1.0,1.0,1.0/)
 
 (sec:particle-disk-init)=
 ### Circular Disc
@@ -240,6 +233,12 @@ actual computational domain corresponds only to a quarter of the cylinder:
 
     Part-Species1-Init1-FirstQuadrantOnly       = T
     Part-Species1-Init2-FirstQuadrantOnly       = T
+
+The default weighting factor given by `Part-Species1-MacroParticleFactor` can be overwritten by supplying a different one for each
+initialization, for which the variable weighting factor (or variable macro-particle factor `vMPF`)  model must be activated
+
+    Part-vMPF = T
+    Part-Species1-Init1-MacroParticleFactor = 1e4
 
 (sec:particle-emission-distri)=
 ### Emission Distribution
@@ -523,7 +522,8 @@ open boundary and accounts for particles leaving the domain through that boundar
 to be inserted. As a result, this method tends to over predict the given mass flow, when the emission area is very small and large
 sample size would be required to have enough particles that leave the domain through the emission area. For the `Type=4` method,
 the actual number of particles leaving the domain through the circular inflow is counted and the mass flow adapted accordingly,
-thus the correct mass flow can be reproduced.
+thus the correct mass flow can be reproduced. Analogously, the conditions of the type 1, 2, and 3 might overpredict/underpredict
+the pressure/massflow in proximity of diffuse walls (e.g. a rough channel flow).
 
 Additionally, the `Type=4` method can be utilized in combination with a reflective boundary condition to model diffusion and
 leakage (e.g. in vacuum tanks) based on a diffusion rate $Q$ [Pa m$^3$ s$^{-1}$]. The input mass flow [kg s$^{-1}$] for the
@@ -550,7 +550,10 @@ To verify the resulting current [A], mass flow rate [kg s$^{-1}$] or the pressur
 
 This will output a species-specific rate and/or the average pressure in the adjacent cells (in case of an adaptive/subsonic BC)
 for each surface flux condition in the `PartAnalyze.csv`. It gives the current values for the time step. For the former, positive values
-correspond to a net flux into the domain and negative values vice versa.
+correspond to a net flux into the domain and negative values vice versa. Additionally, the State file contains an `AdaptiveInfo` dataset, where the sampled macroscopic values,
+utilized for the emission have been stored. It can be visualized by converting the State file with piclas2vtk and the additional flag as described in Sec {ref}`sec:visu-output`:
+
+    VisuAdaptiveInfo = T
 
 ### Missing descriptions
 
@@ -559,4 +562,3 @@ ReduceNoise, DoForceFreeSurfaceFlux
 DoPoissonRounding: {cite}`Tysanner2004`
 
 AcceptReject, ARM_DmaxSampleN: {cite}`Garcia2006`
-

@@ -163,6 +163,18 @@ def CleanSingleLines(stdfile,args):
             elif 'WARNING: Memory reaching maximum, RAM is at' in line_stripped:
                 # Remove [ WARNING: Memory reaching maximum, RAM is at *****%]
                 changedLines+=1
+            elif 'See NOT_SET for more details' in line_stripped:
+                # Remove 'See NOT_SET for more details'
+                changedLines+=1
+            elif 'This file was compiled' in line_stripped:
+                # Remove 'This file was compiled at'
+                changedLines+=1
+            elif '_____________________________________________________________________________' in line_stripped:
+                # Remove '_____________________________________________________________________________'
+                changedLines+=1
+            elif not line_stripped:
+                # Remove empty lines
+                changedLines+=1
             else:
                 # Write the line to the new (clean) file
                 output_new.write(line)
@@ -446,6 +458,40 @@ def blue(text) :
 def yellow(text) :
     return bcolors.YELLOW+text+bcolors.ENDC
 
+def filter_invalid_utf8(file_path):
+    """
+    Reads a file and filters out invalid UTF-8 characters, replacing the original file.
+
+    Args:
+        file_path (str): Path to the file to clean in-place
+
+    Returns:
+        str: The cleaned content
+    """
+    # Read the file in binary mode
+    with open(file_path, 'rb') as file:
+        binary_data = file.read()
+
+    # Filter out invalid UTF-8 characters
+    cleaned_data = b''
+    for i in range(len(binary_data)):
+        # Try to decode each byte
+        try:
+            binary_data[i:i+1].decode('utf-8')
+            cleaned_data += binary_data[i:i+1]
+        except UnicodeDecodeError:
+            # Skip this byte if it can't be decoded
+            pass
+
+    # Get the decoded clean content
+    clean_content = cleaned_data.decode('utf-8')
+
+    # Write back to the original file
+    with open(file_path, 'w', encoding='utf-8') as file:
+        file.write(clean_content)
+
+    return clean_content
+
 # import h5 I/O routines
 try :
     import h5py
@@ -493,6 +539,9 @@ for stdfile in args.files :
     if stdfile.endswith(tuple(ext)):
         print("%s " % stdfile + yellow("(skipping)"))
         continue
+
+    # Remove non-UTF8 characters
+    filter_invalid_utf8(stdfile)
 
     # Clean-up the current file
     nLostParts, changedLines = CleanFile(stdfile,args)

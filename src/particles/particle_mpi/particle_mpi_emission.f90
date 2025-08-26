@@ -495,8 +495,6 @@ DO iSpec=1,nSpecies
        xCoords(1:3,7) = xCoords(1:3,5) + (/0.,ylen,0./)
        xCoords(1:3,8) = xCoords(1:3,5) + (/xlen,ylen,0./)
        RegionOnProc=BoxInProc(xCoords,8)
-    CASE ('IMD')
-       RegionOnProc=.TRUE.
     CASE ('background')
        RegionOnProc=.TRUE.
     CASE ('EmissionDistribution')
@@ -527,7 +525,7 @@ DO iSpec=1,nSpecies
     ! set communicator id
     Species(iSpec)%Init(iInit)%InitCOMM=nInitRegions
     ! create new emission communicator for emission communication. Pass MPI_INFO_NULL as rank to follow the original ordering
-    CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,MPI_INFO_NULL,PartMPIInitGroup(nInitRegions)%COMM,iError)
+    CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS,color,0,PartMPIInitGroup(nInitRegions)%COMM,iError)
 
     ! Find my rank on the shared communicator, comm size and proc name
     IF (RegionOnProc) THEN
@@ -590,6 +588,7 @@ USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
+USE MOD_Mesh_Vars                  ,ONLY: ELEM_RANK
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -613,7 +612,7 @@ REAL,ALLOCATABLE              :: chunkState(:,:)
 ! MPI Communication
 INTEGER                       :: ALLOCSTAT,PartCommSize,ParticleIndexNbr
 INTEGER                       :: InitGroup,tProc
-INTEGER                       :: msg_status(1:MPI_STATUS_SIZE),messageSize
+INTEGER                       :: messageSize
 INTEGER                       :: nRecvParticles,nSendParticles
 REAL,ALLOCATABLE              :: recvPartPos(:)
 #if defined(MEASURE_MPI_WAIT)
@@ -831,9 +830,9 @@ CALL SYSTEM_CLOCK(count=CounterStart)
 DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
-  CALL MPI_WAIT(PartMPIInsert%SendRequest(1,iProc),msg_status(:),IERROR)
+  CALL MPI_WAIT(PartMPIInsert%SendRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(PartMPIInsert%RecvRequest(1,iProc),msg_status(:),IERROR)
+  CALL MPI_WAIT(PartMPIInsert%RecvRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
   IF (IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
 END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -919,7 +918,8 @@ DO i = 1, chunkSize
       IF (TrackingMethod.EQ.REFMAPPING) THEN
         CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
       END IF ! TrackingMethod.EQ.REFMAPPING
-      PEM%GlobalElemID(ParticleIndexNbr)         = ElemID
+      PEM%GlobalElemID(ParticleIndexNbr)     = ElemID
+      PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
       mySumOfMatchedParticles = mySumOfMatchedParticles + 1
     END IF ! ElemID.EQ.-1
   END IF ! InsideMyBGM(i)
@@ -977,9 +977,9 @@ CALL SYSTEM_CLOCK(count=CounterStart)
 DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
-  CALL MPI_WAIT(PartMPILocate%SendRequest(1,iProc),msg_status(:),IERROR)
+  CALL MPI_WAIT(PartMPILocate%SendRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
-  CALL MPI_WAIT(PartMPILocate%RecvRequest(1,iProc),msg_status(:),IERROR)
+  CALL MPI_WAIT(PartMPILocate%RecvRequest(1,iProc),MPI_STATUS_IGNORE,IERROR)
   IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
 END DO
 #if defined(MEASURE_MPI_WAIT)
@@ -1036,11 +1036,11 @@ DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   IF (PartMPIInsert%nPartsSend(1,iProc).GT.0) THEN
-    CALL MPI_WAIT(PartMPIInsert%SendRequest(2,iProc),msg_status(:),IERROR)
+    CALL MPI_WAIT(PartMPIInsert%SendRequest(2,iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   END IF
   IF (PartMPIInsert%nPartsRecv(1,iProc).GT.0) THEN
-    CALL MPI_WAIT(PartMPIInsert%RecvRequest(2,iProc),msg_status(:),IERROR)
+    CALL MPI_WAIT(PartMPIInsert%RecvRequest(2,iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
@@ -1070,7 +1070,8 @@ DO i = 1,TotalNbrOfRecvParts
   IF (TrackingMethod.EQ.REFMAPPING) THEN
     CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),ElemID)
   END IF ! TrackingMethod.EQ.REFMAPPING
-  PEM%GlobalElemID(ParticleIndexNbr)    = ElemID
+  PEM%GlobalElemID(ParticleIndexNbr)     = ElemID
+  PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
   mySumOfMatchedParticles = mySumOfMatchedParticles + 1
 END DO
 
@@ -1082,11 +1083,11 @@ DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
   IF (iProc.EQ.PartMPIInitGroup(InitGroup)%myRank) CYCLE
 
   IF (PartMPILocate%nPartsSend(1,iProc).GT.0) THEN
-    CALL MPI_WAIT(PartMPILocate%SendRequest(2,iProc),msg_status(:),IERROR)
+    CALL MPI_WAIT(PartMPILocate%SendRequest(2,iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   END IF
   IF (PartMPILocate%nPartsRecv(1,iProc).GT.0) THEN
-    CALL MPI_WAIT(PartMPILocate%RecvRequest(2,iProc),msg_status(:),IERROR)
+    CALL MPI_WAIT(PartMPILocate%RecvRequest(2,iProc),MPI_STATUS_IGNORE,IERROR)
     IF(IERROR.NE.MPI_SUCCESS) CALL abort(__STAMP__,' MPI Communication error', IERROR)
   END IF
 END DO
@@ -1109,7 +1110,8 @@ DO iProc=0,PartMPIInitGroup(InitGroup)%nProcs-1
     IF (TrackingMethod.EQ.REFMAPPING) THEN
       PartPosRef(1:3,ParticleIndexNbr) = EmissionRecvBuf(iProc)%content(PartCommSize*(i-1)+4:PartCommSize*(i-1)+6)
     END IF ! TrackingMethod.EQ.REFMAPPING
-    PEM%GlobalElemID(ParticleIndexNbr)    = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
+    PEM%GlobalElemID(ParticleIndexNbr)     = INT(EmissionRecvBuf(iProc)%content(PartCommSize*(i)),KIND=4)
+    PEM%LastGlobalElemID(ParticleIndexNbr) = 0 ! Initialize with invalid value
     PDM%ParticleInside( ParticleIndexNbr) = .TRUE.
     mySumOfMatchedParticles = mySumOfMatchedParticles + 1
   END DO

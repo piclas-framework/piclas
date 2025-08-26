@@ -4,7 +4,7 @@
 ###################################################################################################
 # Name of Attribute of the Reaction #
 reaction_attribute_name = 'ChemistryModel'
-# this attribute is an array with dimension:    (X,1), where in the first column the Name of the Chemisty Model is stored 
+# this attribute is an array with dimension:    (X,1), where in the first column the Name of the Chemisty Model is stored
 #                                               or
 #                                               (X,2), where in the first column the Name of the Chemisty Model is stored and in the second column the nonreactive species as a string seperated by ','
 ###################################################################################################
@@ -22,10 +22,12 @@ import h5py
 import re
 import numpy as np
 
+from config import datatype_h5
+
 def create_dataset(hdf_unified_data, chem_model_list, non_reac_species_list, reference_list):
     # array_of_strings is used for the single reactions to combine chemisty models and Full_Chem_Model_List is for saving the Models for the attribute of the reactions group
     if non_reac_species_list != []:
-        array_of_strings = np.empty((len(chem_model_list),2), dtype='S255')
+        array_of_strings = np.empty((len(chem_model_list),2), dtype=datatype_h5)
         for i in range(len(chem_model_list)):
 
             Full_Chem_Model_List.append(chem_model_list[i][0])
@@ -39,9 +41,9 @@ def create_dataset(hdf_unified_data, chem_model_list, non_reac_species_list, ref
 
             non_reac_species_str = non_reac_species_str[:-1]
             array_of_strings[i,1] = non_reac_species_str
-    
+
     else:
-        array_of_strings = np.empty((len(chem_model_list),1), dtype='S255')
+        array_of_strings = np.empty((len(chem_model_list),1), dtype=datatype_h5)
         for i in range(len(chem_model_list)):
             Full_Chem_Model_List.append(chem_model_list[i][0])
             Full_Ref_List.append(str(reference_list[i]).encode('ascii', 'ignore').decode('utf-8'))
@@ -73,7 +75,7 @@ Arrhenius_Powerfactor   = 0
 
 # Loop over species list
 for i,reaction in enumerate(reactions_list):
-    
+
     # create new reaction dataset if current name differs from name before
     if (re.sub(r'#\d+','',reaction) != re.sub(r'#\d+','',reactions_list[i-1])) or reaction==reactions_list[0]:
         # set counter for new combined name later if Arrhenius changes (if not reaction with different arrhenius coefficientes would be stored under the same name)
@@ -95,11 +97,11 @@ for i,reaction in enumerate(reactions_list):
             dataset = hdf_unified_data["Reactions"][reaction]
         else:
             dataset = hdf_unified_data["Reactions"].create_dataset(combined_reaction_name, data=0)
-        
+
         #  Restore attributes
         for attr_name, attr_value in attrs.items():
             dataset.attrs[attr_name] = attr_value
-    
+
     # enter loop to check arr coefficients if the current name is equal to the name before (after 'or' just to insure loop is entered even with new changed name from j counter)
     elif re.sub(r'#\d+','',reaction) == combined_reaction_name or re.sub(r'#\d+','',reaction) == re.sub(r'#0\d+','',combined_reaction_name):
         # Check if both reactions have the necessary attributes before comparing them
@@ -123,13 +125,13 @@ for i,reaction in enumerate(reactions_list):
                 reference_list = []
 
                 # Store existing attributes
-                attrs = hdf_unified_data["Reactions"][reaction].attrs 
+                attrs = hdf_unified_data["Reactions"][reaction].attrs
                 combined_reaction_name = re.sub(r'#\d+','',reaction) + '#0%i' % j
                 dataset = hdf_unified_data["Reactions"].create_dataset(combined_reaction_name, data=0)
                 #  Restore attributes
                 for attr_name, attr_value in attrs.items():
                     dataset.attrs[attr_name] = attr_value
-            
+
             else:
                 for ArrString,OldValue in zip(["Arrhenius-Powerfactor", "Arrhenius-Prefactor" , "Activation-Energy_K"],[Arrhenius_Powerfactor, Arrhenius_Prefactor, Activation_Energy_Kr]):
                     ArrValue = hdf_unified_data["Reactions"][reaction].attrs[ArrString]
@@ -152,19 +154,19 @@ for i,reaction in enumerate(reactions_list):
             reference_list = []
 
             # Store existing attributes
-            attrs = hdf_unified_data["Reactions"][reaction].attrs 
+            attrs = hdf_unified_data["Reactions"][reaction].attrs
             combined_reaction_name = re.sub(r'#\d+','',reaction) + '#0%i' % j
             dataset = hdf_unified_data["Reactions"].create_dataset(combined_reaction_name, data=0)
             #  Restore attributes
             for attr_name, attr_value in attrs.items():
                 dataset.attrs[attr_name] = attr_value
-    
+
     # store values for loop in next iter since reaction will be deleted before the if loop
     ReactionModel = hdf_unified_data["Reactions"][reaction].attrs['ReactionModel'][0]
     if "Arrhenius-Powerfactor" in hdf_unified_data["Reactions"][reaction].attrs and \
         "Arrhenius-Prefactor" in hdf_unified_data["Reactions"][reaction].attrs and \
         "Activation-Energy_K" in hdf_unified_data["Reactions"][reaction].attrs:
-        
+
         Activation_Energy_Kr = hdf_unified_data["Reactions"][reaction].attrs['Activation-Energy_K']
         Arrhenius_Prefactor= hdf_unified_data["Reactions"][reaction].attrs['Arrhenius-Prefactor']
         Arrhenius_Powerfactor = hdf_unified_data["Reactions"][reaction].attrs['Arrhenius-Powerfactor']
@@ -178,7 +180,7 @@ for i,reaction in enumerate(reactions_list):
         # fix for wrong value in old database
         if reaction == 'N+electron_NIon1+electron+electron#1' or reaction == 'N+electron_NIon1+electron+electron#2':
             del hdf_unified_data["Reactions"][combined_reaction_name].attrs['ReactionModel']
-            hdf_unified_data['Reactions'][combined_reaction_name].attrs.create('ReactionModel', ['QK'],dtype='S255')
+            hdf_unified_data['Reactions'][combined_reaction_name].attrs.create('ReactionModel', ['QK'],dtype=datatype_h5)
         # Store existing attributes
         attrs = hdf_unified_data["Reactions"][reaction].attrs
 
@@ -198,12 +200,12 @@ for i,reaction in enumerate(reactions_list):
 
     # if last reaction in list or current reaction is not equal to next reaction (after second 'or' just to insure loop is entered even with new changed name from j counter)
     if reaction == reactions_list[-1] or re.sub(r'#\d+','',reaction) != re.sub(r'#\d+','',reactions_list[i+1]) or re.sub(r'#\d+','',reaction) != re.sub(r'#0\d+','',reactions_list[i+1]):
-        
+
         create_dataset(hdf_unified_data, chem_model_list, non_reac_species_list, reference_list)
 
 # convert Full lists to arrays to store in attribute
-Full_Chem_Model_array = np.array(Full_Chem_Model_List, dtype='S255')
-Full_Ref_array = np.array(Full_Ref_List, dtype='S255')
+Full_Chem_Model_array = np.array(Full_Chem_Model_List, dtype=datatype_h5)
+Full_Ref_array = np.array(Full_Ref_List, dtype=datatype_h5)
 Full_Array = np.vstack((Full_Chem_Model_array, Full_Ref_array))
 Full_Array = Full_Array.T
 unique_array = np.unique(Full_Array, axis=0)
@@ -267,7 +269,7 @@ for i,reaction in enumerate(unique_reaction_list):
             if Full_Array[i,-1] == Full_Array[k,-1]:
                 if np.all(np.isclose(Full_Array[i][1:3].astype(float), Full_Array[k][1:3].astype(float), rtol=Rtol, atol=0.0)):
                     matching_rows.append((i, k))
-                
+
     if matching_rows != 0:
         for match in matching_rows:
             # get matching idices
@@ -278,7 +280,7 @@ for i,reaction in enumerate(unique_reaction_list):
             if "Arrhenius-Powerfactor" in hdf_unified_data["Reactions"][Full_Array[index1,0]].attrs and \
             "Arrhenius-Prefactor" in hdf_unified_data["Reactions"][Full_Array[index1,0]].attrs and \
             "Activation-Energy_K" in hdf_unified_data["Reactions"][Full_Array[index1,0]].attrs:
-                
+
                 for ArrString in ["Arrhenius-Powerfactor", "Arrhenius-Prefactor" , "Activation-Energy_K"]:
                     ArrValue1 = hdf_unified_data["Reactions"][Full_Array[index1,0]].attrs[ArrString]
                     ArrValue2 = hdf_unified_data["Reactions"][Full_Array[index2,0]].attrs[ArrString]
@@ -298,7 +300,7 @@ for i,reaction in enumerate(unique_reaction_list):
             del hdf_unified_data["Reactions"][Full_Array[index1,0]].attrs[reaction_attribute_name]
             # deleting whole reaction of second match
             delete_list.append(Full_Array[index2,0])
-            
+
             hdf_unified_data["Reactions"][Full_Array[index1,0]].attrs.create(reaction_attribute_name, new_models_array)
 
 delete_list = np.unique(delete_list)
