@@ -56,9 +56,9 @@ USE MOD_ReadInTools ,ONLY: prms,addStrListEntry
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundary Sampling")
-CALL prms%CreateIntOption(      'DSMC-nSurfSample'  , 'Define polynomial degree of particle BC sampling. Default: NGeo', '1')
+CALL prms%CreateIntOption(      'Part-nSurfSample'  , 'Define NxN equidistant supersampling of surfaces. Default: NGeo', '1')
 CALL prms%CreateLogicalOption(  'CalcSurfaceImpact' , 'Sample average impact energy of particles for each species (trans, rot, '//&
-                                                      'vib), impact vector and angle.','.FALSE.')
+                                                            'vib), impact vector and angle.','.FALSE.')
 END SUBROUTINE DefineParametersParticleBoundarySampling
 
 

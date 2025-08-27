@@ -81,8 +81,7 @@ Following parameters can be used for both schemes.
 |                       |          |  space. It is the L2 norm of the delta Xi in ref space.  |
 |    BezierElevation    |   0-50   |   Increase polynomial degree of BezierControlPoints to   |
 |                       |          |     construct a tighter bounding box for each side.      |
-|     BezierSampleN     |   NGeo   |  Polynomial degree to sample sides for SurfaceFlux and   |
-|                       |          |              Sampling of DSMC surface data.              |
+|     BezierSampleN     |   NGeo   |    Polynomial degree to sample sides for SurfaceFlux     |
 |   BezierNewtonAngle   | $<PI/2$  | Angle to switch between Clipping and a Newton algorithm. |
 |  BezierClipTolerance  |   1e-8   |      Tolerance of Bezier-Clipping and Bezier-Newton      |
 |     BezierClipHit     |   1e-6   | Tolerance to increase sides and path during Bezier-Algo. |
