@@ -73,11 +73,11 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueG
 USE MOD_PICDepo_Vars           ,ONLY: PS_N
 USE MOD_TimeDisc_Vars          ,ONLY: time
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
 USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
-USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PS_N
 USE MOD_Restart_Vars           ,ONLY: InterpolateSolution,N_Restart

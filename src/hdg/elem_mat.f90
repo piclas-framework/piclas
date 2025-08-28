@@ -52,7 +52,6 @@ USE MOD_Equation_Vars      ,ONLY: chi
 USE MOD_TimeDisc_Vars      ,ONLY: IterDisplayStep,DoDisplayIter
 USE MOD_Interpolation_Vars ,ONLY: N_Inter,NMax
 USE MOD_Mesh_Vars          ,ONLY: N_VolMesh,offSetElem
-USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: N_Mesh
 USE MOD_ProlongToFace      ,ONLY:ProlongToFace_Side
 #ifdef VDM_ANALYTICAL
@@ -64,7 +63,6 @@ USE MOD_Basis              ,ONLY: getSPDInverse
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid
 #endif /*defined(PARTICLES)*/
 USE MOD_Mesh_Vars          ,ONLY: ElemToSide
-USE MOD_DG_Vars            ,ONLY: DG_Elems_slave,DG_Elems_master
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -74,7 +72,7 @@ INTEGER(KIND=8),INTENT(IN)  :: td_iter
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: l,p,q,g1,g2,g3,Nloc,NSideMax
+INTEGER              :: l,p,q,g1,g2,g3,Nloc
 INTEGER              :: i,j,iElem, i_m,i_p,j_m,j_p
 INTEGER              :: iDir,jDir
 INTEGER              :: iLocSide, jLocSide

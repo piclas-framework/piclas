@@ -66,16 +66,11 @@ IMPLICIT NONE
 CALL prms%SetSection('BGM')
 
 ! Background mesh init variables
-CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
-  , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh.'//&
-  ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
-  , '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
-  , 'Factor with which the background mesh will be scaled.'&
-  , '1. , 1. , 1.')
-CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'Factor to scale the halo region with MPI', '1.0')
-CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'Halo region velocity [m/s]', '0.')
-CALL prms%CreateLogicalOption(     'Part-ForceFIBGM'       , 'Force the build of the FIBGM, for debugging issues only', 'FALSE')
+CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'      , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh. They should be of the similar size as the smallest cells of the used mesh for simulation.', '0. , 0. , 0.')
+CALL prms%CreateRealArrayOption('Part-FactorFIBGM'      , 'Factor with which the background mesh will be scaled.', '1. , 1. , 1.')
+CALL prms%CreateRealOption(     'Part-SafetyFactor'     , 'Factor to scale the halo region with MPI', '1.0')
+CALL prms%CreateRealOption(     'Particles-HaloEpsVelo' , 'Halo region velocity [m/s]', '0.')
+CALL prms%CreateLogicalOption(  'Part-ForceFIBGM'       , 'Force the build of the FIBGM, for debugging issues only', 'FALSE')
 
 
 END SUBROUTINE DefineParametersParticleBGM
@@ -90,10 +85,11 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !----------------------------------------------------------------------------------------------------------------------------------!
 #if USE_MPI
 USE mpi_f08
+USE MOD_Mesh_Vars              ,ONLY: ELEM_HALOFLAG,ELEM_RANK,readFEMconnectivity
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem,ELEM_RANK,ELEM_HALOFLAG,readFEMconnectivity
+USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
@@ -205,14 +201,14 @@ REAL                           :: BoundingBoxVolume
 CHARACTER(LEN=255)             :: hilf
 ! Mortar
 INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems!,nFoundSides,nlocSides,i
-#else
-REAL                           :: halo_eps
-#endif /*USE_MPI*/
+INTEGER                        :: ElemInfoSizeLoc
 #ifdef CODE_ANALYZE
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
+#else
+REAL                           :: halo_eps
+#endif /*USE_MPI*/
 REAL                           :: StartT,EndT ! Timer
-INTEGER                        :: ElemInfoSizeLoc
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
 INTEGER                        :: nFIBGMElems, nFIBGMElems_target, iDim, PseudoSymmetryOrder

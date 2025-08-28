@@ -572,6 +572,13 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       SurfSideNb = GlobalSide2SurfSide(SURF_SIDEID,SideInfo_Shared(SIDE_NBSIDEID,GlobalSideID))
       ! Add your contribution to my inner BC
       SampWallState(:,:,:,iSurfSide) = SampWallState(:,:,:,iSurfSide) + SampWallState(:,:,:,SurfSideNb)
+      IF(CalcSurfaceImpact)THEN
+        SampWallImpactNumber(:,:,:,iSurfSide) = SampWallImpactNumber(:,:,:,iSurfSide) + SampWallImpactNumber(:,:,:,SurfSideNb)
+        SampWallImpactEnergy(:,:,:,:,iSurfSide) = SampWallImpactEnergy(:,:,:,:,iSurfSide) + SampWallImpactEnergy(:,:,:,:,SurfSideNb)
+        SampWallImpactVector(:,:,:,:,iSurfSide) = SampWallImpactVector(:,:,:,:,iSurfSide) + SampWallImpactVector(:,:,:,:,SurfSideNb)
+        SampWallImpactAngle(:,:,:,iSurfSide) = SampWallImpactAngle(:,:,:,iSurfSide) + SampWallImpactAngle(:,:,:,SurfSideNb)
+      END IF
+      IF(nPorousBC.GT.0) SampWallPumpCapacity(iSurfSide) = SampWallPumpCapacity(iSurfSide) + SampWallPumpCapacity(SurfSideNb)
     ELSE
       CYCLE
     END IF
@@ -941,9 +948,7 @@ SUBROUTINE FinalizeParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-!USE MOD_DSMC_Vars                      ,ONLY: DSMC
 USE MOD_Particle_Boundary_Vars
-!USE MOD_Particle_Vars                  ,ONLY: WriteMacroSurfaceValues
 #if USE_MPI
 USE MOD_SurfaceModel_Vars              ,ONLY: nPorousBC
 USE MOD_MPI_Shared_Vars                ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SURF
@@ -959,9 +964,6 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-
-! Return if nothing was allocated
-!IF (.NOT.WriteMacroSurfaceValues.AND..NOT.DSMC%CalcSurfaceVal.AND..NOT.(ANY(PartBound%Reactive))) RETURN
 
 ! Return if no sampling surfaces on node
 IF (.NOT.SurfTotalSideOnNode) RETURN

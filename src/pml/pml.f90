@@ -80,12 +80,12 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ReadInTools
 USE MOD_PML_Vars
-USE MOD_HDF5_output       ,ONLY: GatheredWriteArray,WriteAttributeToHDF5,WriteHDF5Header
-USE MOD_HDF5_Output_Fields,ONLY: WritePMLzetaGlobalToHDF5
-USE MOD_Interfaces        ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
-USE MOD_IO_HDF5           ,ONLY: AddToElemData,ElementOut
+USE MOD_HDF5_output                ,ONLY: GatheredWriteArray,WriteAttributeToHDF5,WriteHDF5Header
+USE MOD_HDF5_Output_Fields_Maxwell ,ONLY: WritePMLzetaGlobalToHDF5
+USE MOD_Interfaces                 ,ONLY: FindInterfacesInRegion,FindElementInRegion,CountAndCreateMappings,DisplayRanges,SelectMinMaxRegion
+USE MOD_IO_HDF5                    ,ONLY: AddToElemData,ElementOut
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars  ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars           ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
