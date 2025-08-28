@@ -603,10 +603,6 @@ DO iElem=FirstElemInd,LastElemInd
 #endif /*USE_HDG*/
 
     IF(ElemID.LT.0)THEN ! mortar Sides attached!
-#if USE_FV
-      CALL Abort(__STAMP__, &
-        "Mortars not implemented for finite volumes")
-#endif /*USE_FV*/
       aSide%MortarType=ABS(ElemID)
       SELECT CASE(aSide%MortarType)
       CASE(1)

@@ -39,7 +39,7 @@ FUNCTION CALCTIMESTEP()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Vars_FV      ,ONLY: NormVec_FV, SurfElem_FV
+USE MOD_Mesh_Vars_FV      ,ONLY: NormVec_FV, SurfElem_FV, Face_xGP_FV
 USE MOD_Mesh_Vars         ,ONLY: ElemToSide
 USE MOD_Equation_Vars_FV  ,ONLY: DVMSpecData, DVMnSpecies
 USE MOD_TimeDisc_Vars     ,ONLY: CFLScale
@@ -94,7 +94,14 @@ DO iElem=1,PP_nElems
       vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
     END DO
   END DO
-  locTimeStepConv = MIN(locTimeStepConv,CFLScale/MAXVAL(FluxFac))
+  IF (MAXVAL(FluxFac).EQ.0.) THEN
+    ! MPI_YOUR sides were not considered because NormVec is not calculated for them
+    ! This leads to FluxFac=0 if a cell has only MPI_YOUR sides in dimensions considered for DVM
+    WRITE(UNIT_stdOut,'(A,I6,A,I6,A)')'DVM timestep warning: Element',iElem,' on proc',myRank, &
+                                          ' is isolated in the MPI decomposition and not considered for CFL calculation.'
+  ELSE
+    locTimeStepConv = MIN(locTimeStepConv,CFLScale/MAXVAL(FluxFac))
+  END IF
 
   IF(locTimeStepConv.NE.locTimeStepConv)THEN
     ERRWRITE(*,'(A,I0,A,I0,A,I0,A,I0)')'Convective timestep NaN on proc ',myRank,' at global position (iElem): ',iElem

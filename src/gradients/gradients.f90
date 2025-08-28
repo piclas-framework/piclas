@@ -59,6 +59,7 @@ USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
 #if USE_MPI
 USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
+! USE MOD_FillMortar_FV         ,ONLY: Dx_Mortar, Dx_Mortar2
 USE MOD_MPI_Vars
 USE MOD_MPI                   ,ONLY: FinishExchangeMPIData
 USE MOD_MPI_FV                ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV
@@ -121,6 +122,7 @@ CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
 CALL StartReceiveMPIDataFV(3,Grad_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 CALL StartReceiveMPIDataFV(3,Grad_dx_master,1,nSides,RecRequest_U2,SendID=1)! Receive YOUR
 CALL InitGradMetrics(doMPISides=.TRUE.)
+! TODO : check what happens for MPI mortars
 ! CALL Dx_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
 ! CALL Dx_Mortar2(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
 CALL StartSendMPIDataFV(3,Grad_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
@@ -149,6 +151,7 @@ SUBROUTINE GetGradients(VarForGradients,output)
 USE MOD_Globals
 USE MOD_Gradient_Vars       ,ONLY: Grad_DIM, Var_slave, Var_master, Diff_side, Gradient_elem,Grad_SysSol_slave, Grad_SysSol_master
 USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
+USE MOD_FillMortar_FV       ,ONLY: U_Mortar_FV,Flux_Mortar_FV
 USE MOD_Mesh_Vars           ,ONLY: nElems,ElemToSide
 #if USE_MPI
 USE MOD_Mesh_Vars           ,ONLY: nSides
@@ -191,7 +194,7 @@ CALL StartReceiveMPIDataFV(Grad_DIM,Var_slave,1,nSides,RecRequest_U,SendID=2) ! 
 CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.TRUE.)
-! CALL U_Mortar(Var_master,Var_slave,doMPISides=.TRUE.)
+CALL U_Mortar_FV(Var_master,Var_slave,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -203,7 +206,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.FALSE.)
-! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+CALL U_Mortar_FV(Var_master,Var_slave,doMPISides=.FALSE.)
 
 #if USE_MPI
 #if USE_LOADBALANCE

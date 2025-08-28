@@ -66,9 +66,9 @@ USE MOD_Preproc
 USE MOD_Mortar,      ONLY: MortarBasis_BigToSmall
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
 USE MOD_Interpolation_Vars,ONLY: NodeType
-#if !defined(discrete_velocity)
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars     ,ONLY: DG_Elems_master,DG_Elems_slave
-#endif /*!defined(discrete_velocity)*/
+#endif /*!(PP_TimeDiscMethod==700)*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -115,11 +115,11 @@ CASE(1) !1->4
     !now in eta
     DO jNb=1,2
       ind=iNb+2*(jNb-1)
-#if !defined(discrete_velocity)
+#if !(PP_TimeDiscMethod==700)
       NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)))
 #else
       NSideMortar = PP_N
-#endif /*!defined(discrete_velocity)*/
+#endif /*!(PP_TimeDiscMethod==700)*/
       IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
       nbSideID(ind)=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
 
@@ -136,11 +136,11 @@ CASE(1) !1->4
 
 CASE(2) !1->2 in eta
   DO jNb=1,2
-#if !defined(discrete_velocity)
+#if !(PP_TimeDiscMethod==700)
     NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)))
 #else
     NSideMortar = PP_N
-#endif /*!defined(discrete_velocity)*/
+#endif /*!(PP_TimeDiscMethod==700)*/
     IF((MortarInfo(E2S_FLIP,jNb,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(jNb)=MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)
 
@@ -156,11 +156,11 @@ CASE(2) !1->2 in eta
 
 CASE(3) !1->2 in xi
   DO iNb=1,2
-#if !defined(discrete_velocity)
+#if !(PP_TimeDiscMethod==700)
     NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)))
 #else
     NSideMortar = PP_N
-#endif /*!defined(discrete_velocity)*/
+#endif /*!(PP_TimeDiscMethod==700)*/
     IF((MortarInfo(E2S_FLIP,iNb,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(iNb)=MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)
 

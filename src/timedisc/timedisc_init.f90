@@ -165,7 +165,7 @@ dt=HUGE(1.)
 #elif (PP_TimeDiscMethod==600)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
 #elif (PP_TimeDiscMethod==700)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ED-DVM or DUGKS'
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Discrete Velocity Method (DVM)'
 #elif (PP_TimeDiscMethod==701)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Explicit finite volumes'
 #elif (PP_TimeDiscMethod==702)
