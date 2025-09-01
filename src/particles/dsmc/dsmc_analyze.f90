@@ -395,7 +395,7 @@ DO iPart=1,PDM%ParticleVecLength
     DSMC_Solution(7,iElem,iSpec) = DSMC_Solution(7,iElem, iSpec) + partWeight
     IF (SamplePressTensHeatflux) THEN
       ! Calculate bulk velocity, total mass and total weights
-      vBulk(1:3,iElem) = PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
+      vBulk(1:3,iElem) = vBulk(1:3,iElem) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
       TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
       totalWeight(iElem) = totalWeight(iElem) + partWeight
       totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
