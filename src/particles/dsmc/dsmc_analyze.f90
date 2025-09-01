@@ -340,7 +340,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode,
 USE MOD_DSMC_Vars              ,ONLY: DSMC_SolutionPressTens
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, DoVirtualCellMerge, VirtMergedCells
-USE MOD_Particle_Vars          ,ONLY: SamplePressTensHeatflux
+USE MOD_Particle_Vars          ,ONLY: SamplePressTensHeatflux, PartMPF
 USE MOD_Mesh_Vars              ,ONLY: offSetElem, nElems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
@@ -356,7 +356,7 @@ IMPLICIT NONE
 INTEGER                       :: iPart, iElem, iSpec
 REAL                          :: partWeight
 REAL                          :: V_rel(3), vmag2
-REAL,ALLOCATABLE              :: TotalMass(:), totalWeight(:), totalWeight2(:), totalWeight3(:)
+REAL,ALLOCATABLE              :: TotalMass(:), TotalNum(:), totalWeight(:), totalWeight2(:), totalWeight3(:)
 REAL,ALLOCATABLE              :: vBulk(:,:), presstens(:,:), heatflux(:,:)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
@@ -366,10 +366,11 @@ DSMC%SampNum = DSMC%SampNum + 1
 
 IF(SamplePressTensHeatflux) THEN
   ALLOCATE(TotalMass(nElems))
+  ALLOCATE(TotalNum(nElems))
   ALLOCATE(totalWeight(nElems))
   ALLOCATE(totalWeight2(nElems))
   ALLOCATE(totalWeight3(nElems))
-  TotalMass = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
+  TotalMass = 0.0; TotalNum = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
   ALLOCATE(vBulk(3,nElems))
   ALLOCATE(presstens(3,nElems))
   ALLOCATE(heatflux(3,nElems))
@@ -397,7 +398,8 @@ DO iPart=1,PDM%ParticleVecLength
       ! Calculate bulk velocity, total mass and total weights
       vBulk(1:3,iElem) = vBulk(1:3,iElem) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
       TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
-      totalWeight(iElem) = totalWeight(iElem) + partWeight
+      TotalNum(iElem)  = TotalNum(iElem)  + PartMPF(iPart)
+      totalWeight(iElem)  = totalWeight(iElem)  + partWeight
       totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
       totalWeight3(iElem) = totalWeight3(iElem) + partWeight*partWeight*partWeight
     END IF
@@ -458,14 +460,15 @@ IF (SamplePressTensHeatflux) THEN
   END DO
   DO iElem = 1, nElems
     ! Pressure tensor
-    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) &
+    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * TotalNum(iElem) &
       / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
     ! Heatflux
-    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem)**2 &
-      / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
+    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * TotalNum(iElem) &
+      * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
   END DO
   ! Deallocate temporary arrays
   DEALLOCATE(TotalMass)
+  DEALLOCATE(TotalNum)
   DEALLOCATE(totalWeight)
   DEALLOCATE(totalWeight2)
   DEALLOCATE(totalWeight3)
