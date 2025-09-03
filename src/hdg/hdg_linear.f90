@@ -378,7 +378,7 @@ PetscCallA(VecAssemblyEnd(PETScRHS,ierr))
 IF(UseFPC) THEN
   IF(MPIRoot)THEN
     DO iUniqueFPCBC = 1, FPC%nUniqueFPCBounds
-      PetscCallA(VecSetValues(PETScRHS,1,nGlobalPETScDOFs-1-FPC%nUniqueFPCBounds+iUniqueFPCBC,FPC%Charge(iUniqueFPCBC)/eps0,INSERT_VALUES,ierr))
+      PetscCallA(VecSetValues(PETScRHS,1,[nGlobalPETScDOFs-1-FPC%nUniqueFPCBounds+iUniqueFPCBC],[FPC%Charge(iUniqueFPCBC)/eps0],INSERT_VALUES,ierr))
     END DO
   END IF
 END IF
