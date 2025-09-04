@@ -59,7 +59,7 @@ USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
 #if USE_MPI
 USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
-! USE MOD_FillMortar_FV         ,ONLY: Dx_Mortar, Dx_Mortar2
+! USE MOD_FillMortar_FV         ,ONLY: Dx_BigToSmall_Mortar, Dx_SmallToBig_Mortar
 USE MOD_MPI_Vars
 USE MOD_MPI                   ,ONLY: FinishExchangeMPIData
 USE MOD_MPI_FV                ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV
@@ -122,16 +122,15 @@ CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
 CALL StartReceiveMPIDataFV(3,Grad_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 CALL StartReceiveMPIDataFV(3,Grad_dx_master,1,nSides,RecRequest_U2,SendID=1)! Receive YOUR
 CALL InitGradMetrics(doMPISides=.TRUE.)
-! TODO : check what happens for MPI mortars
-! CALL Dx_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
-! CALL Dx_Mortar2(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
+! CALL Dx_BigToSmall_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
+! CALL Dx_SmallToBig_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
 CALL StartSendMPIDataFV(3,Grad_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 CALL StartSendMPIDataFV(3,Grad_dx_master,1,nSides,SendRequest_U2,SendID=1) ! Send MINE
 #endif /*USE_MPI*/
 ! distances for BCSides, InnerSides and MPI sides - receive direction
 CALL InitGradMetrics(doMPISides=.FALSE.)
-! CALL Dx_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
-! CALL Dx_Mortar2(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
+! CALL Dx_BigToSmall_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
+! CALL Dx_SmallToBig_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
 #if USE_MPI
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1)
@@ -151,7 +150,7 @@ SUBROUTINE GetGradients(VarForGradients,output)
 USE MOD_Globals
 USE MOD_Gradient_Vars       ,ONLY: Grad_DIM, Var_slave, Var_master, Diff_side, Gradient_elem,Grad_SysSol_slave, Grad_SysSol_master
 USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
-USE MOD_FillMortar_FV       ,ONLY: U_Mortar_FV,Flux_Mortar_FV
+USE MOD_FillMortar_FV       ,ONLY: U_Mortar_FV!, CalcDiff_Mortar
 USE MOD_Mesh_Vars           ,ONLY: nElems,ElemToSide
 #if USE_MPI
 USE MOD_Mesh_Vars           ,ONLY: nSides
@@ -194,7 +193,7 @@ CALL StartReceiveMPIDataFV(Grad_DIM,Var_slave,1,nSides,RecRequest_U,SendID=2) ! 
 CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.TRUE.)
-CALL U_Mortar_FV(Var_master,Var_slave,doMPISides=.TRUE.)
+CALL U_Mortar_FV(Var_master,Var_slave,doReco=.FALSE.,doMPISides=.TRUE.) ! mortar copies
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -206,7 +205,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.FALSE.)
-CALL U_Mortar_FV(Var_master,Var_slave,doMPISides=.FALSE.)
+CALL U_Mortar_FV(Var_master,Var_slave,doReco=.FALSE.,doMPISides=.FALSE.) ! mortar copies
 
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -221,6 +220,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! fill the global neighbour difference list
 CALL CalcDiff(output,doMPISides=.TRUE.)
+! CALL CalcDiff_Mortar(doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -235,6 +235,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! fill all the neighbour differences on this proc
 CALL CalcDiff(output,doMPISides=.FALSE.)
+! CALL CalcDiff_Mortar(doMPISides=.FALSE.)
 
 #ifdef drift_diffusion
 EFluid_GradSide(:)=Diff_side(1,:)/(SQRT((Grad_dx_master(1,:)-Grad_dx_slave(1,:))**2 &

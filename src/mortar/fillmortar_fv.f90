@@ -26,43 +26,38 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-PUBLIC:: U_Mortar_FV, Flux_Mortar_FV
-! PUBLIC:: Dx_Mortar, Dx_Mortar2
+PUBLIC:: U_mortar_FV, Flux_Mortar_FV
+PUBLIC:: Dx_BigToSmall_Mortar, Dx_SmallToBig_Mortar
+PUBLIC:: CalcDiff_Mortar
 !===================================================================================================================================
 
 CONTAINS
+! ATTENTION: somehow none of this works because Face_xGP is the same for small and big sides
+! -> only works without reconstruction at mortar faces
 
-
-SUBROUTINE U_Mortar_FV(U_in_master,U_in_slave,doMPISides)
+SUBROUTINE U_Mortar_FV(U_in_master,U_in_slave,doReco,doMPISides)
 !===================================================================================================================================
-!> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation
-!> operators M_0_1,M_0_2
-!
-!     Type 1               Type 2              Type3
-!      eta                  eta                 eta
-!       ^                    ^                   ^
-!       |                    |                   |
-!   +---+---+            +---+---+           +---+---+
-!   | 3 | 4 |            |   2   |           |   |   |
-!   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!   | 1 | 2 |            |   1   |           |   |   |
-!   +---+---+            +---+---+           +---+---+
-!
+!> fills small non-conforming sides with data for master side with data from the corresponding large side
+!> if (doReco=T) reconstruction already done from big element center to face, continue it to small face centers
+!> fluxes will be calculated on the (virtual) small master sides and then summed up on the large side in Flux_Mortar_FV
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Mortar_Vars     ,ONLY: N_Mortar
-USE MOD_Mesh_Vars       ,ONLY: MortarType,MortarInfo, nSides
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
-USE MOD_Mesh_Vars       ,ONLY: N_Mesh
+USE MOD_Mesh_Vars       ,ONLY: MortarType,MortarInfo, nSides, SideToElem
+USE MOD_Mesh_Vars       ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars       ,ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars_FV    ,ONLY: Face_xGP_FV
+USE MOD_Gradient_Vars   ,ONLY: Gradient_elem
+#ifdef discrete_velocity
+USE MOD_Equation_Vars_FV,ONLY: DVMSpecData,DVMnSpecies,DVMColl,DVMDim
+USE MOD_TimeDisc_Vars   ,ONLY: dt
+#endif /*discrete_velocity*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-#if (USE_FV)
 #ifdef drift_diffusion
 REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar_FV+3,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV+3,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
@@ -70,97 +65,105 @@ REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV+3,0:0,0:0,1:nSides) !< (INOUT) ca
 REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar_FV,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 #endif /*drift_diffusion*/
-#else
-#endif
+LOGICAL,INTENT(IN) :: doReco                                     !< flag whether reconstruction is used
 LOGICAL,INTENT(IN) :: doMPISides                                 !< flag whether MPI sides are processed
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER      :: iMortar,nMortars
 INTEGER      :: firstMortarSideID,lastMortarSideID
-INTEGER      :: MortarSideID,SideID,locSide,flip
-#if (USE_FV)
+INTEGER      :: MortarSideID,SideID,locSide,flip,ElemID
+REAL         :: FaceToFace(3)
 #ifdef drift_diffusion
-REAL     :: U_tmp( PP_nVar_FV+3,1:4)
-REAL     :: U_tmp2(PP_nVar_FV+3,1:2)
+REAL         :: U_tmp( PP_nVar_FV+3)
 #else
-REAL     :: U_tmp( PP_nVar_FV,1:4)
-REAL     :: U_tmp2(PP_nVar_FV,1:2)
+REAL         :: U_tmp( PP_nVar_FV)
 #endif /*drift_diffusion*/
-#else
-#endif
+#ifdef discrete_velocity
+INTEGER      :: iSpec,iVel,jVel,kVel,upos,vFirstID
+#endif /*discrete_velocity*/
 !===================================================================================================================================
 
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
- lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
-
-ASSOCIATE( M1=>N_Mortar(0)%M_0_1(0,0) ,&
-           M2=>N_Mortar(0)%M_0_2(0,0) )
+lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
 DO MortarSideID=firstMortarSideID,lastMortarSideID
-  !
-  SELECT CASE(MortarType(1,MortarSideID))
-  CASE(1) !1->4
-    !first in eta
-    U_tmp2(:,1)=M1*U_in_master(:,0,0,MortarSideID)
-    U_tmp2(:,2)=M2*U_in_master(:,0,0,MortarSideID)
-    ! then in xi
-    U_tmp(:,1)= M1*U_tmp2(:,1)
-    U_tmp(:,2)= M2*U_tmp2(:,1)
-    U_tmp(:,3)= M1*U_tmp2(:,2)
-    U_tmp(:,4)= M2*U_tmp2(:,2)
-
-  CASE(2,3) !1->2
-    U_tmp(:,1)= M1*U_in_master(:,0,0,MortarSideID)
-    U_tmp(:,2)= M2*U_in_master(:,0,0,MortarSideID)
-
-  END SELECT ! mortarType(SideID)
-
   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
   locSide=MortarType(2,MortarSideID)
   DO iMortar=1,nMortars
     SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
     flip  = MortarInfo(MI_FLIP,iMortar,locSide)
+    IF (doReco) THEN
+      ElemID    = SideToElem(S2E_ELEM_ID,MortarSideID)
+      ! Get distance from big face center to small face center
+      FaceToFace(1:3) = Face_xGP_FV(1:3,0,0,SideID) - Face_xGP_FV(1:3,0,0,MortarSideID)
+#ifdef discrete_velocity
+      IF (DVMColl) THEN
+        !DVM specific reconstruction
+        vFirstID = 0
+        DO iSpec=1,DVMnSpecies
+          ASSOCIATE(Sp => DVMSpecData(iSpec))
+          DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+            upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+            U_tmp(upos) = U_in_master(upos,0,0,MortarSideID) &
+                                          + Gradient_elem(1,upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
+                                          + Gradient_elem(2,upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
+                                          + Gradient_elem(3,upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
+            IF (DVMDim.LT.3) THEN
+              U_tmp(Sp%nVarReduced+upos) = U_in_master(Sp%nVarReduced+upos,0,0,MortarSideID) &
+                                          + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
+                                          + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
+                                          + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
+            END IF
+            IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+            ! rotational energy reduced distribution
+              U_tmp(Sp%nVarERotStart+upos) = U_in_master(Sp%nVarERotStart+upos,0,0,MortarSideID) &
+                                          + Gradient_elem(1,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
+                                          + Gradient_elem(2,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
+                                          + Gradient_elem(3,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
+            END IF
+          END DO; END DO; END DO
+          vFirstID = vFirstID + Sp%nVar
+          END ASSOCIATE
+        END DO
+      ELSE
+#endif /*discrete_velocity*/
+        U_tmp(1:PP_nVar_FV) = U_in_master(1:PP_nVar_FV,0,0,MortarSideID) + Gradient_elem(1,1:PP_nVar_FV,ElemID)*FaceToFace(1) &
+                                                                         + Gradient_elem(2,1:PP_nVar_FV,ElemID)*FaceToFace(2) &
+                                                                         + Gradient_elem(3,1:PP_nVar_FV,ElemID)*FaceToFace(3)
+#ifdef discrete_velocity
+      END IF !DVMColl
+#endif
+#ifdef drift_diffusion
+      ! Electric field is only copied, reconstruction only for e- density
+      U_tmp(PP_nVar_FV+1:PP_nVar_FV) = U_in_master(PP_nVar_FV+1:PP_nVar_FV,0,0,MortarSideID)
+#endif
+    ELSE
+      U_tmp(:) = U_in_master(:,0,0,MortarSideID) ! no reconstruction, just copy
+    END IF
     SELECT CASE(flip)
       CASE(0) ! master side
-        U_in_master(:,0,0,SideID)=U_tmp(:,iMortar)
-      CASE(1:4) ! slave side
-        U_in_slave(:,0,0,SideID) =U_tmp(:,iMortar)
+        U_in_master(:,0,0,SideID)=U_tmp(:)
+      CASE(1:4) ! slave side (only for MPI)
+        U_in_slave(:,0,0,SideID) =U_tmp(:)
     END SELECT !flip(iMortar)
   END DO !iMortar
 END DO !MortarSideID
-END ASSOCIATE
 END SUBROUTINE U_Mortar_FV
 
 
 SUBROUTINE Flux_Mortar_FV(Flux_Master,Flux_Slave,doMPISides)
 !===================================================================================================================================
-! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
-!
-!> This routine is used to project the numerical flux at the small sides of the nonconforming interface to the corresponding large
-!>  ones.
-!>
-!     Type 1               Type 2              Type3
-!      eta                  eta                 eta
-!       ^                    ^                   ^
-!       |                    |                   |
-!   +---+---+            +---+---+           +---+---+
-!   | 3 | 4 |            |   2   |           |   |   |
-!   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-!   | 1 | 2 |            |   1   |           |   |   |
-!   +---+---+            +---+---+           +---+---+
-!
+! fills master side from big non-conforming sides, by simply summing up the contributions from the small sides
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Mortar_Vars, ONLY: N_Mortar
 USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
-USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,N_Mesh
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
 USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#if (USE_FV)
 #ifdef drift_diffusion
 REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar_FV+3,0:0,0:0,1:nSides)
 REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV+3,0:0,0:0,1:nSides)
@@ -168,8 +171,6 @@ REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV+3,0:0,0:0,1:nSides)
 REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar_FV,0:0,0:0,1:nSides)
 REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,1:nSides)
 #endif /*drift_diffusion*/
-#else
-#endif
 LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -178,28 +179,20 @@ LOGICAL,INTENT(IN) :: doMPISides
 INTEGER  :: iMortar,nMortars
 INTEGER  :: firstMortarSideID,lastMortarSideID
 INTEGER  :: MortarSideID,SideID,iSide,flip
-#if (USE_FV)
 #ifdef drift_diffusion
 REAL         :: Flux_tmp( PP_nVar_FV+3,1:4)
-REAL         :: Flux_tmp2(PP_nVar_FV+3,1:2)
 #else
 REAL         :: Flux_tmp( PP_nVar_FV,1:4)
-REAL         :: Flux_tmp2(PP_nVar_FV,1:2)
 #endif /*drift_diffusion*/
-#else
-#endif
 !===================================================================================================================================
 
 firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
- lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
-
-ASSOCIATE( M1=>N_Mortar(0)%M_0_1(0,0) ,&
-           M2=>N_Mortar(0)%M_0_2(0,0) )
+lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
 DO MortarSideID=firstMortarSideID,lastMortarSideID
   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
   iSide=MortarType(2,MortarSideID)
-
+  Flux_tmp=0. !nullify as the sum is always done assuming 4 small sides
   ! Loop Mortar faces
   DO iMortar=1,nMortars
     SideID = MortarInfo(MI_SIDEID,iMortar,iSide)
@@ -211,287 +204,153 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
       Flux_tmp(:,iMortar)=-Flux_Slave(:,0,0,SideID)
     END SELECT
   END DO
-
-  SELECT CASE(MortarType(1,MortarSideID))
-  CASE(1) !1->4
-    ! first in xi
-    Flux_tmp2(:,1)=                 M1*Flux_tmp(:,1)+M2*Flux_tmp(:,2)
-    Flux_tmp2(:,2)=                 M1*Flux_tmp(:,3)+M2*Flux_tmp(:,4)
-    !then in eta
-    Flux_Master(:,0,0,MortarSideID)=M1*Flux_tmp2(:,1)+M2*Flux_tmp2(:,2)
-
-  CASE(2,3) !1->2
-    Flux_Master(:,0,0,MortarSideID)=M1*Flux_tmp(:,1)+M2*Flux_tmp(:,2)
-
-  END SELECT ! mortarType(MortarSideID)
+  Flux_Master(:,0,0,MortarSideID)=SUM(Flux_tmp(:,:),2) ! sum up contributions from 2 or 4 small sides
 END DO !MortarSideID
-END ASSOCIATE
+
 END SUBROUTINE Flux_Mortar_FV
 
+SUBROUTINE Dx_BigToSmall_Mortar(Dx_master,Dx_slave,doMPISides)
+!===================================================================================================================================
+! fills master side from small non-conforming sides, by calculating the vector from big element center to small element face
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Mesh_Vars_FV,ONLY: Face_xGP_FV
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT) :: Dx_Master(1:3,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT) :: Dx_Slave(1:3,0:0,0:0,1:nSides)
+LOGICAL,INTENT(IN) :: doMPISides
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: iMortar,nMortars,locSide
+INTEGER  :: firstMortarSideID,lastMortarSideID
+INTEGER  :: MortarSideID,SideID,flip
+REAL     :: FaceToFace(3)
+!===================================================================================================================================
 
-! SUBROUTINE Dx_Mortar(U_in_master,U_in_slave,doMPISides)
-! !===================================================================================================================================
-! !> mortars for fv_metrics (big->small)
-! !> fills small non-conforming sides with data for master side with data from the corresponding large side, using 1D interpolation
-! !> operators M_0_1,M_0_2
-! !
-! !     Type 1               Type 2              Type3
-! !      eta                  eta                 eta
-! !       ^                    ^                   ^
-! !       |                    |                   |
-! !   +---+---+            +---+---+           +---+---+
-! !   | 3 | 4 |            |   2   |           |   |   |
-! !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-! !   | 1 | 2 |            |   1   |           |   |   |
-! !   +---+---+            +---+---+           +---+---+
-! !
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Preproc
-! USE MOD_Mortar_Vars, ONLY: N_Mortar
-! USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
-! USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
-! USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
-! USE MOD_Mesh_Vars,   ONLY: N_Mesh,nSides
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! REAL,INTENT(INOUT) :: U_in_master(1:3,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
-! REAL,INTENT(INOUT) :: U_in_slave(1:3,0:PP_N,0:PP_N,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
-! LOGICAL,INTENT(IN) :: doMPISides                                 !< flag whether MPI sides are processed
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! INTEGER      :: p,q,l
-! INTEGER      :: iMortar,nMortars
-! INTEGER      :: firstMortarSideID,lastMortarSideID
-! INTEGER      :: MortarSideID,SideID,locSide,flip
-! REAL     :: U_tmp(3,0:PP_N,0:PP_N,1:4)
-! REAL     :: U_tmp2(3,0:PP_N,0:PP_N,1:2)
-! REAL,POINTER :: M1(:,:),M2(:,:)
-! !===================================================================================================================================
+firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
+lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
-! firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
-!   lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
+DO MortarSideID=firstMortarSideID,lastMortarSideID
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  locSide=MortarType(2,MortarSideID)
+  DO iMortar=1,nMortars
+    SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
+    flip  = MortarInfo(MI_FLIP,iMortar,locSide)
+    ! Get distance from big face center to small face center
+    FaceToFace(1:3) = Face_xGP_FV(1:3,0,0,SideID) - Face_xGP_FV(1:3,0,0,MortarSideID)
+    SELECT CASE(flip)
+      CASE(0) ! master side
+        Dx_master(:,0,0,SideID)=Dx_Master(1:3,0,0,MortarSideID)+FaceToFace(1:3)
+      CASE(1:4) ! slave side (only for MPI)
+        Dx_slave(:,0,0,SideID) =Dx_Master(1:3,0,0,MortarSideID)+FaceToFace(1:3)
+    END SELECT !flip(iMortar)
+  END DO !iMortar
+END DO !MortarSideID
+END SUBROUTINE Dx_BigToSmall_Mortar
 
-! ASSOCIATE( M1=>N_Mortar(0)%M_0_1 ,&
-!           M2=>N_Mortar(0)%M_0_2 )
+SUBROUTINE Dx_SmallToBig_Mortar(Dx_Master,Dx_Slave,doMPISides)
+!===================================================================================================================================
+! fills master side from big non-conforming sides, by simply averaging the contributions from the small sides
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(INOUT) :: Dx_Master(1:3,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT) :: Dx_Slave(1:3,0:0,0:0,1:nSides)
+LOGICAL,INTENT(IN) :: doMPISides
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: iMortar,nMortars
+INTEGER  :: firstMortarSideID,lastMortarSideID
+INTEGER  :: MortarSideID,SideID,iSide,flip
+REAL     :: Dx_tmp(3,1:4)
+!===================================================================================================================================
 
-! DO MortarSideID=firstMortarSideID,lastMortarSideID
-!   !
-!   SELECT CASE(MortarType(1,MortarSideID))
-!   CASE(1) !1->4
-!     !first in eta
-!     ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!     !    U_tmp2(iVar,p,:,1)  =  M1 * U_in_master(iVar,p,:,MortarSideID)
-!     !    U_tmp2(iVar,p,:,2)  =  M2 * U_in_master(iVar,p,:,MortarSideID)
-!     DO q=0,PP_N
-!       DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
-!         U_tmp2(:,p,q,1)=                  M1(0,q)*U_in_master(:,p,0,MortarSideID)
-!         U_tmp2(:,p,q,2)=                  M2(0,q)*U_in_master(:,p,0,MortarSideID)
-!         DO l=1,PP_N
-!           U_tmp2(:,p,q,1)=U_tmp2(:,p,q,1)+M1(l,q)*U_in_master(:,p,l,MortarSideID)
-!           U_tmp2(:,p,q,2)=U_tmp2(:,p,q,2)+M2(l,q)*U_in_master(:,p,l,MortarSideID)
-!         END DO
-!       END DO
-!     END DO
-!     ! then in xi
-!     DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
-!       ! The following p- and l-loop are four MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!       !    U_tmp(iVar,:,q,1)  =  M1 * U_tmp2(iVar,:,q,1)
-!       !    U_tmp(iVar,:,q,2)  =  M2 * U_tmp2(iVar,:,q,1)
-!       !    U_tmp(iVar,:,q,3)  =  M1 * U_tmp2(iVar,:,q,2)
-!       !    U_tmp(iVar,:,q,4)  =  M2 * U_tmp2(iVar,:,q,2)
-!       DO p=0,PP_N
-!         U_tmp(:,p,q,1)=                 M1(0,p)*U_tmp2(:,0,q,1)
-!         U_tmp(:,p,q,2)=                 M2(0,p)*U_tmp2(:,0,q,1)
-!         U_tmp(:,p,q,3)=                 M1(0,p)*U_tmp2(:,0,q,2)
-!         U_tmp(:,p,q,4)=                 M2(0,p)*U_tmp2(:,0,q,2)
-!         DO l=1,PP_N
-!           U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,p)*U_tmp2(:,l,q,1)
-!           U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,p)*U_tmp2(:,l,q,1)
-!           U_tmp(:,p,q,3)=U_tmp(:,p,q,3)+M1(l,p)*U_tmp2(:,l,q,2)
-!           U_tmp(:,p,q,4)=U_tmp(:,p,q,4)+M2(l,p)*U_tmp2(:,l,q,2)
-!         END DO !l=1,PP_N
-!       END DO
-!     END DO
+firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
+lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
-!   CASE(2) !1->2 in eta
-!     ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!     !    U_tmp(iVar,p,:,1)  =  M1 * U_in_master(iVar,p,:,MortarSideID)
-!     !    U_tmp(iVar,p,:,2)  =  M2 * U_in_master(iVar,p,:,MortarSideID)
-!     DO q=0,PP_N
-!       DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
-!         U_tmp(:,p,q,1)=                 M1(0,q)*U_in_master(:,p,0,MortarSideID)
-!         U_tmp(:,p,q,2)=                 M2(0,q)*U_in_master(:,p,0,MortarSideID)
-!         DO l=1,PP_N
-!           U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,q)*U_in_master(:,p,l,MortarSideID)
-!           U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,q)*U_in_master(:,p,l,MortarSideID)
-!         END DO
-!       END DO
-!     END DO
+DO MortarSideID=firstMortarSideID,lastMortarSideID
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  iSide=MortarType(2,MortarSideID)
+  Dx_tmp=0. !nullify as the sum is always done assuming 4 small sides
+  ! Loop Mortar faces
+  DO iMortar=1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,iSide)
+    flip   = MortarInfo(MI_FLIP,iMortar,iSide)
+    SELECT CASE(flip)
+    CASE(0) ! master side
+      Dx_tmp(:,iMortar)=Dx_Master(:,0,0,SideID)
+    CASE(1:4) ! slave sides (should only occur for MPI)
+      Dx_tmp(:,iMortar)=Dx_Slave(:,0,0,SideID)
+    END SELECT
+  END DO
+  Dx_Master(:,0,0,MortarSideID)=SUM(Dx_tmp(:,:),2)/FLOAT(nMortars) ! sum up contributions from 2 or 4 small sides
+END DO !MortarSideID
 
-!   CASE(3) !1->2 in xi
-!     DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
-!       ! The following p- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!       !    U_tmp(iVar,:,q,1)  =  M1 * U_in_master(iVar,:,q,MortarSideID)
-!       !    U_tmp(iVar,:,q,2)  =  M2 * U_in_master(iVar,:,q,MortarSideID)
-!       DO p=0,PP_N
-!         U_tmp(:,p,q,1)=                 M1(0,p)*U_in_master(:,0,q,MortarSideID)
-!         U_tmp(:,p,q,2)=                 M2(0,p)*U_in_master(:,0,q,MortarSideID)
-!         DO l=1,PP_N
-!           U_tmp(:,p,q,1)=U_tmp(:,p,q,1)+M1(l,p)*U_in_master(:,l,q,MortarSideID)
-!           U_tmp(:,p,q,2)=U_tmp(:,p,q,2)+M2(l,p)*U_in_master(:,l,q,MortarSideID)
-!         END DO
-!       END DO
-!     END DO
-!   END SELECT ! mortarType(SideID)
+END SUBROUTINE Dx_SmallToBig_Mortar
 
-!   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-!   locSide=MortarType(2,MortarSideID)
-!   DO iMortar=1,nMortars
-!     SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
-!     flip  = MortarInfo(MI_FLIP,iMortar,locSide)
-!     SELECT CASE(flip)
-!       CASE(0) ! master side
-!         U_in_master(:,:,:,SideID)=U_tmp(:,:,:,iMortar)
-!       CASE(1:4) ! slave side
-!         DO q=0,PP_N; DO p=0,PP_N
-!           U_in_slave(:,p,q,SideID)=U_tmp(:,N_Mesh(0)%FS2M(1,p,q,flip), &
-!                                             N_Mesh(0)%FS2M(2,p,q,flip),iMortar)
-!         END DO; END DO ! q, p
-!     END SELECT !flip(iMortar)
-!   END DO !iMortar
-! END DO !MortarSideID
-! END ASSOCIATE
-! END SUBROUTINE Dx_Mortar
+SUBROUTINE CalcDiff_Mortar(doMPISides)
+!===================================================================================================================================
+! fills master side from big non-conforming sides, by simply averaging the contributions from the small sides
+!===================================================================================================================================
+! MODULES
+USE MOD_Preproc
+USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo
+USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
+USE MOD_Gradient_Vars,ONLY: Diff_side
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+LOGICAL,INTENT(IN) :: doMPISides
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER  :: iMortar,nMortars
+INTEGER  :: firstMortarSideID,lastMortarSideID
+INTEGER  :: MortarSideID,SideID,iSide,flip
+!===================================================================================================================================
 
+firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
+lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
 
-! SUBROUTINE Dx_Mortar2(Flux_Master,Flux_Slave,doMPISides)
-! !===================================================================================================================================
-! ! mortar for fv_metrics (small->big)
-! ! fills master side from small non-conforming sides, Using 1D projection operators M_1_0,M_2_0
-! ! /!\ differences from Flux_Mortar: no change in sign (vectors always center->face) + average instead of sum
-! !
-! !     Type 1               Type 2              Type3
-! !      eta                  eta                 eta
-! !       ^                    ^                   ^
-! !       |                    |                   |
-! !   +---+---+            +---+---+           +---+---+
-! !   | 3 | 4 |            |   2   |           |   |   |
-! !   +---+---+ --->  xi   +---+---+ --->  xi  + 1 + 2 + --->  xi
-! !   | 1 | 2 |            |   1   |           |   |   |
-! !   +---+---+            +---+---+           +---+---+
-! !
-! !===================================================================================================================================
-! ! MODULES
-! USE MOD_Preproc
-! USE MOD_Mortar_Vars, ONLY: N_Mortar
-! USE MOD_Mesh_Vars,   ONLY: MortarType,MortarInfo,nSides
-! USE MOD_Mesh_Vars,   ONLY: firstMortarInnerSide,lastMortarInnerSide,N_Mesh
-! USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
-! ! IMPLICIT VARIABLE HANDLING
-! IMPLICIT NONE
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! INPUT VARIABLES
-! REAL,INTENT(INOUT) :: Flux_Master(3,0:PP_N,0:PP_N,1:nSides)
-! REAL,INTENT(INOUT) :: Flux_Slave(3,0:PP_N,0:PP_N,1:nSides)
-! LOGICAL,INTENT(IN) :: doMPISides
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! OUTPUT VARIABLES
-! !-----------------------------------------------------------------------------------------------------------------------------------
-! ! LOCAL VARIABLES
-! INTEGER  :: p,q,l
-! INTEGER  :: iMortar,nMortars
-! INTEGER  :: firstMortarSideID,lastMortarSideID
-! INTEGER  :: MortarSideID,SideID,iSide,flip
-! REAL         :: Flux_tmp(3,0:PP_N,0:PP_N,1:4)
-! REAL         :: Flux_tmp2(3,0:PP_N,0:PP_N,1:2)
-! REAL,POINTER :: M1(:,:),M2(:,:)
-! !===================================================================================================================================
+DO MortarSideID=firstMortarSideID,lastMortarSideID
+  nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
+  iSide=MortarType(2,MortarSideID)
+  Diff_side(:,MortarSideID)=0. !nullify as the sum is always done assuming 4 small sides
+  ! Loop Mortar faces
+  DO iMortar=1,nMortars
+    SideID = MortarInfo(MI_SIDEID,iMortar,iSide)
+    flip   = MortarInfo(MI_FLIP,iMortar,iSide)
+    SELECT CASE(flip)
+    CASE(0) ! master side
+      Diff_side(:,MortarSideID)=Diff_side(:,MortarSideID) + Diff_side(:,SideID)/FLOAT(nMortars)
+    CASE(1:4) ! slave sides (should only occur for MPI)
+      Diff_side(:,MortarSideID)=Diff_side(:,MortarSideID) - Diff_side(:,SideID)/FLOAT(nMortars)
+    END SELECT
+  END DO
+END DO !MortarSideID
 
-! firstMortarSideID = MERGE(firstMortarMPISide,firstMortarInnerSide,doMPISides)
-!   lastMortarSideID = MERGE( lastMortarMPISide, lastMortarInnerSide,doMPISides)
-
-! ASSOCIATE( M1=>N_Mortar(0)%M_0_1 ,&
-!            M2=>N_Mortar(0)%M_0_2 )
-
-! DO MortarSideID=firstMortarSideID,lastMortarSideID
-
-!   nMortars=MERGE(4,2,MortarType(1,MortarSideID).EQ.1)
-!   iSide=MortarType(2,MortarSideID)
-!   DO iMortar=1,nMortars
-!     SideID = MortarInfo(MI_SIDEID,iMortar,iSide)
-!     flip   = MortarInfo(MI_FLIP,iMortar,iSide)
-!     SELECT CASE(flip)
-!     CASE(0) ! master side
-!       Flux_tmp(:,:,:,iMortar)=Flux_Slave(:,:,:,SideID)
-!     CASE(1:4) ! slave sides (should only occur for MPI)
-!       DO q=0,PP_N; DO p=0,PP_N
-!         Flux_tmp(:,N_Mesh(0)%FS2M(1,p,q,flip),N_Mesh(0)%FS2M(2,p,q,flip),iMortar)=Flux_Master(:,p,q,SideID)
-!       END DO; END DO
-!     END SELECT
-!   END DO
-
-!   SELECT CASE(MortarType(1,MortarSideID))
-!   CASE(1) !1->4
-!     ! first in xi
-!     DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
-!       ! The following p- and l-loop are four MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!       !    Flux_tmp2(iVar,:,q,1)  =  M1 * Flux_tmp(iVar,:,q,1) + M2 * Flux_tmp(iVar,:,q,2)
-!       !    Flux_tmp2(iVar,:,q,2)  =  M1 * Flux_tmp(iVar,:,q,1) + M2 * Flux_tmp(iVar,:,q,2)
-!       DO p=0,PP_N
-!         Flux_tmp2(:,p,q,1)=                       M1(0,p)*Flux_tmp(:,0,q,1)+M2(0,p)*Flux_tmp(:,0,q,2)
-!         Flux_tmp2(:,p,q,2)=                       M1(0,p)*Flux_tmp(:,0,q,3)+M2(0,p)*Flux_tmp(:,0,q,4)
-!         DO l=1,PP_N
-!           Flux_tmp2(:,p,q,1)=Flux_tmp2(:,p,q,1) + M1(l,p)*Flux_tmp(:,l,q,1)+M2(l,p)*Flux_tmp(:,l,q,2)
-!           Flux_tmp2(:,p,q,2)=Flux_tmp2(:,p,q,2) + M1(l,p)*Flux_tmp(:,l,q,3)+M2(l,p)*Flux_tmp(:,l,q,4)
-!         END DO
-!       END DO
-!     END DO
-!     !then in eta
-!     ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!     !    Flux(iVar,p,:,MortarSideID)  =  M1 * Flux_tmp2(iVar,p,:,1) + M2 * Flux_tmp2(iVar,p,:,2)
-!     DO q=0,PP_N
-!       DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
-!         Flux_Slave(:,p,q,MortarSideID)=                               (M1(0,q)*Flux_tmp2(:,p,0,1)+M2(0,q)*Flux_tmp2(:,p,0,2))/4.
-!         DO l=1,PP_N
-!           Flux_Slave(:,p,q,MortarSideID)=Flux_Slave(:,p,q,MortarSideID) + (M1(l,q)*Flux_tmp2(:,p,l,1)+M2(l,q)*Flux_tmp2(:,p,l,2))/4.
-!         END DO
-!       END DO
-!     END DO
-
-!   CASE(2) !1->2 in eta
-!     ! TODO why not q-loop first?
-!     DO p=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
-!       ! The following q- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!       !    Flux(iVar,p,:,MortarSideID)  =  M1 * Flux_tmp(iVar,p,:,1) + M2 * Flux_tmp(iVar,p,:,2)
-!       DO q=0,PP_N ! for every xi-layer perform Mortar operation in eta-direction
-!         Flux_Slave(:,p,q,MortarSideID)=                                  (M1(0,q)*Flux_tmp(:,p,0,1)+M2(0,q)*Flux_tmp(:,p,0,2))/2.
-!         DO l=1,PP_N
-!           Flux_Slave(:,p,q,MortarSideID)=Flux_Slave(:,p,q,MortarSideID) + (M1(l,q)*Flux_tmp(:,p,l,1)+M2(l,q)*Flux_tmp(:,p,l,2))/2.
-!         END DO
-!       END DO
-!     END DO
-
-!   CASE(3) !1->2 in xi
-!     DO q=0,PP_N ! for every eta-layer perform Mortar operation in xi-direction
-!       ! The following p- and l-loop are two MATMULs: (ATTENTION M1 and M2 are already transposed in mortar.f90)
-!       !    Flux(iVar,:,q,MortarSideID)  =   M1 * Flux_tmp(iVar,:,q,1) + M2 * Flux_tmp(iVar,:,q,2)
-!       DO p=0,PP_N
-!         Flux_Slave(:,p,q,MortarSideID)=                                    (M1(0,p)*Flux_tmp(:,0,q,1)+M2(0,p)*Flux_tmp(:,0,q,2))/2.
-!         DO l=1,PP_N
-!           Flux_Slave(:,p,q,MortarSideID)=Flux_Slave(:,p,q,MortarSideID) + (M1(l,p)*Flux_tmp(:,l,q,1)+M2(l,p)*Flux_tmp(:,l,q,2))/2.
-!         END DO
-!       END DO
-!     END DO
-
-!   END SELECT ! mortarType(MortarSideID)
-! END DO !MortarSideID
-! END ASSOCIATE
-! END SUBROUTINE Dx_Mortar2
+END SUBROUTINE CalcDiff_Mortar
 
 #endif /*USE_FV*/
 END MODULE MOD_FillMortar_FV

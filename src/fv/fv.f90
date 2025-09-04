@@ -239,7 +239,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
-CALL U_Mortar_FV(U_master_FV,U_slave_FV,doMPISides=.TRUE.) !not working
+CALL U_Mortar_FV(U_master_FV,U_slave_FV,doReco=.FALSE.,doMPISides=.TRUE.) ! doReco should be doFVReconstruct
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
@@ -252,7 +252,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
-CALL U_Mortar_FV(U_master_FV,U_slave_FV,doMPISides=.FALSE.) !not working
+CALL U_Mortar_FV(U_master_FV,U_slave_FV,doReco=.FALSE.,doMPISides=.FALSE.) ! doReco should be doFVReconstruct
 
 !> A.) Send particles
 #if USE_MPI
