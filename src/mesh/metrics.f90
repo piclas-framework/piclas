@@ -496,9 +496,9 @@ USE MOD_Mesh_Vars          ,ONLY: NormalDirs,TangDirs,NormalSigns, N_SurfMesh
 USE MOD_Mappings,       ONLY:CGNS_SideToVol2
 USE MOD_ChangeBasis,    ONLY:ChangeBasis2D
 USE MOD_Mortar_Metrics, ONLY:Mortar_CalcSurfMetrics
-#if !defined(discrete_velocity)
+#if !(PP_TimeDiscMethod==700)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping,DG_Elems_master,DG_Elems_slave
-#endif /*!defined(discrete_velocity)*/
+#endif /*!(PP_TimeDiscMethod==700)*/
 USE MOD_Interpolation_Vars ,ONLY: Nmax,NInfo
 USE MOD_Mesh_Vars,          ONLY: SideToElem, offSetElem,N_VolMesh,N_VolMesh2
 ! #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) && defined(maxwell)
@@ -538,7 +538,7 @@ DO iLocSide=2,5
 #endif
   SideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
   flipSide=.FALSE.
-#if !defined(discrete_velocity)
+#if !(PP_TimeDiscMethod==700)
   ! Use maximum polynomial degree of master/slave sides
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   NSideMax = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
@@ -556,7 +556,7 @@ DO iLocSide=2,5
   END IF
 #else
   Nloc = PP_N
-#endif /*!defined(discrete_velocity)*/
+#endif /*!(PP_TimeDiscMethod==700)*/
 
   SELECT CASE(iLocSide)
   CASE(XI_MINUS)
@@ -704,11 +704,11 @@ DO iLocSide=2,5
     DO iMortar=1,4
       SideID2=nbSideIDs(iMortar)
       IF(SideID2.LT.1) CYCLE ! for MPI sides some sides are built from the inside and for type 2/3 there are only 2 neighbours
-#if defined(discrete_velocity)
+#if (PP_TimeDiscMethod==700)
       NSideMortar = PP_N
 #else
       NSideMortar = MAX(DG_Elems_slave(SideID2),DG_Elems_master(SideID2))
-#endif /*defined(discrete_velocity)*/
+#endif /*(PP_TimeDiscMethod==700)*/
       IF(Nloc.LT.NSideMortar) CYCLE
       N_SurfMesh(SideID2)%Face_xGP(:,:,:) = Mortar_xGP(1:3,0:Nloc,0:Nloc,iMortar)
       CALL SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Mortar_Ja(1:3,1:3,0:Nloc,0:Nloc,iMortar),&

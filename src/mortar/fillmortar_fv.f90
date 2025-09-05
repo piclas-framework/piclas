@@ -32,8 +32,6 @@ PUBLIC:: CalcDiff_Mortar
 !===================================================================================================================================
 
 CONTAINS
-! ATTENTION: somehow none of this works because Face_xGP is the same for small and big sides
-! -> only works without reconstruction at mortar faces
 
 SUBROUTINE U_Mortar_FV(U_in_master,U_in_slave,doReco,doMPISides)
 !===================================================================================================================================

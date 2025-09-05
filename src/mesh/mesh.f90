@@ -528,7 +528,7 @@ IF (ABS(meshMode).GT.1) THEN
   END DO
 
   ! PP_1 metrics to global ones
-  Face_xGP_FV(:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
+  Face_xGP_FV(:,0,0,:)   = SUM(SUM(Face_xGP_PP_1      (:,:,:,:),3),2)/4. !average over (PP_1+1)^2 points
   NormVec_FV (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
   TangVec1_FV(:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
   TangVec2_FV(:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)

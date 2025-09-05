@@ -169,7 +169,7 @@ CALL GetDerivativeMatrix(PP_1  , NodeTypeCL  , DCL_N)
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 CALL GetVandermonde(    PP_1   , NodeTypeCL  , PP_1    , NodeType,   Vdm_CLN_N_PP_1    , modal=.FALSE.)
-Vdm_CLN_N_PP_1(:,:)=0.5
+! Vdm_CLN_N_PP_1(:,:)=0.5
 CALL GetNodesAndWeights(PP_1   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 
 
@@ -471,6 +471,7 @@ DO iLocSide=2,5
                                             Mortar_Ja_PP_1,Mortar_xGP_PP_1,nbSideIDs)
     DO iMortar=1,4
       SideID2=nbSideIDs(iMortar)
+      print*, 'siiiiiiiide', SideID, SideID2
       IF(SideID2.LT.1) CYCLE ! for MPI sides some sides are built from the inside and for type 2/3 there are only 2 neighbours
       Ja_Face_PP_1(:,:,:,:,SideID2)=Mortar_Ja_PP_1(:,:,:,:,iMortar)
       Face_xGP_PP_1(:,:,:,SideID2) = Mortar_xGP_PP_1(:,:,:,iMortar)
