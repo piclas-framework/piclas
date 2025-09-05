@@ -339,7 +339,7 @@ USE MOD_Globals
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode, SpecDSMC, DSMC_Solution, AmbipolElecVelo
 USE MOD_DSMC_Vars              ,ONLY: DSMC_SolutionPressTens
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
-USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, DoVirtualCellMerge, VirtMergedCells
+USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, nSpecies, DoVirtualCellMerge, VirtMergedCells
 USE MOD_Particle_Vars          ,ONLY: SamplePressTensHeatflux, PartMPF, usevMPF
 USE MOD_Mesh_Vars              ,ONLY: offSetElem, nElems
 #if USE_LOADBALANCE
@@ -355,8 +355,8 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iElem, iSpec
 REAL                          :: partWeight
-REAL                          :: V_rel(3), vmag2
-REAL,ALLOCATABLE              :: TotalMass(:), TotalNum(:), totalWeight(:), totalWeight2(:), totalWeight3(:)
+REAL                          :: V_rel(3), vmag2, TotalNum
+REAL,ALLOCATABLE              :: TotalMass(:), totalWeight(:), totalWeight2(:), totalWeight3(:)
 REAL,ALLOCATABLE              :: vBulk(:,:), presstens(:,:), heatflux(:,:)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
@@ -366,11 +366,10 @@ DSMC%SampNum = DSMC%SampNum + 1
 
 IF(SamplePressTensHeatflux) THEN
   ALLOCATE(TotalMass(nElems))
-  ALLOCATE(TotalNum(nElems))
   ALLOCATE(totalWeight(nElems))
   ALLOCATE(totalWeight2(nElems))
   ALLOCATE(totalWeight3(nElems))
-  TotalMass = 0.0; TotalNum = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
+  TotalMass = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
   ALLOCATE(vBulk(3,nElems))
   ALLOCATE(presstens(3,nElems))
   ALLOCATE(heatflux(3,nElems))
@@ -401,11 +400,6 @@ DO iPart=1,PDM%ParticleVecLength
       totalWeight(iElem)  = totalWeight(iElem)  + partWeight
       totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
       totalWeight3(iElem) = totalWeight3(iElem) + partWeight*partWeight*partWeight
-      IF (usevMPF) THEN
-        TotalNum(iElem) = TotalNum(iElem) + PartMPF(iPart)
-      ELSE
-        TotalNum(iElem) = TotalNum(iElem) + Species(iSpec)%MacroParticleFactor
-      END IF
     END IF
     ! Internal energy: rotational, vibrational, electronic
     IF(useDSMC)THEN
@@ -459,20 +453,27 @@ IF (SamplePressTensHeatflux) THEN
       presstens(1,iElem) = presstens(1,iElem) + V_rel(1)*V_rel(2)*Species(iSpec)%MassIC*partWeight
       presstens(2,iElem) = presstens(2,iElem) + V_rel(1)*V_rel(3)*Species(iSpec)%MassIC*partWeight
       presstens(3,iElem) = presstens(3,iElem) + V_rel(2)*V_rel(3)*Species(iSpec)%MassIC*partWeight
-      heatflux(1:3,iElem) = heatflux(1:3,iElem) + V_rel(1:3) * vmag2 * partWeight*Species(iSpec)%MassIC
+      heatflux(1:3,iElem) = heatflux(1:3,iElem) + 0.5 * V_rel(1:3) * vmag2 * partWeight*Species(iSpec)%MassIC
     END IF
   END DO
   DO iElem = 1, nElems
+    TotalNum=0.
+    DO iSpec = 1, nSpecies
+      IF (usevMPF) THEN
+        TotalNum = TotalNum + DSMC_Solution(7,iElem, iSpec)
+      ELSE
+        TotalNum = TotalNum + DSMC_Solution(7,iElem, iSpec)*Species(iSpec)%MacroParticleFactor
+      END IF
+    END DO
     ! Pressure tensor
-    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * TotalNum(iElem) &
+    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * TotalNum &
       / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
     ! Heatflux
-    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * TotalNum(iElem) &
+    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * TotalNum &
       * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
   END DO
   ! Deallocate temporary arrays
   DEALLOCATE(TotalMass)
-  DEALLOCATE(TotalNum)
   DEALLOCATE(totalWeight)
   DEALLOCATE(totalWeight2)
   DEALLOCATE(totalWeight3)
