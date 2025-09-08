@@ -65,11 +65,11 @@ USE MOD_Part_Tools             ,ONLY: UpdateNextFreePosition,StoreLostParticlePr
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,PartState,PartSpecies,PEM,PDM,usevMPF,PartMPF,PartPosRef,SpecReset,Species
 USE MOD_Particle_Vars          ,ONLY: DoVirtualCellMerge
-USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
+USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC, DoChemSurface
 USE MOD_Particle_Sampling_Vars ,ONLY: UseAdaptiveBC
 USE MOD_Particle_BGM           ,ONLY: CheckAndMayDeleteFIBGM
 ! Restart
-USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues, DoCatalyticRestart
+USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart, MacroRestartValues
 ! HDG
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseBRElectronFluid,BRConvertElectronsToFluid,BRConvertFluidToElectrons
@@ -129,8 +129,6 @@ INTEGER                            :: iProc
 ! Distribute or read the particle solution
 ! ===========================================================================
 CALL ParticleReadin()
-
-IF(DoCatalyticRestart) CALL CatalyticRestart()
 
 IF(.NOT.DoMacroscopicRestart) THEN
   IF(PartIntExists)THEN
@@ -820,6 +818,9 @@ END IF ! .NOT.DoMacroscopicRestart
 ! Read-in the cell-local wall temperature
 IF (ANY(PartBound%UseAdaptedWallTemp)) CALL RestartAdaptiveWallTemp()
 
+! Read in of the coverage and catalatic heat flux
+IF (DoChemSurface) CALL CatalyticRestart()
+
 ! Read-in of adaptive BC sampling values
 IF(UseAdaptiveBC.OR.nPorousBC.GT.0) CALL RestartAdaptiveBCSampling()
 
@@ -902,7 +903,7 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
     RETURN
   END IF
 
-  CALL DatasetExists(File_ID,'AdaptiveBoundaryGlobalSideIndx',AdaptiveWallTempExists)
+  CALL DatasetExists(File_ID,'BoundaryGlobalSideIndx',AdaptiveWallTempExists)
   IF (.NOT.AdaptiveWallTempExists) THEN
     CALL Abort(__STAMP__,&
       'ERROR during Restart: AdaptiveBoundaryWallTemp was found in the restart file but not the GlobalSideIndx array!')
@@ -912,7 +913,7 @@ IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
 
   ASSOCIATE (nSurfSample          => INT(nSurfSample,IK), &
              nGlobalSides         => INT(nGlobalSurfSides,IK))
-    CALL ReadArray('AdaptiveBoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
+    CALL ReadArray('BoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
     CALL ReadArray('AdaptiveBoundaryWallTemp',3,(/nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tmpWallTemp)
   END ASSOCIATE
   ! Mapping of the temperature on the global side to the node-local surf side
@@ -946,14 +947,19 @@ SUBROUTINE CatalyticRestart()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_HDF5_input
 USE MOD_io_hdf5
-USE MOD_HDF5_Input              ,ONLY: OpenDataFile,ReadArray,GetDataSize,ReadAttribute
-USE MOD_HDF5_Input              ,ONLY: HSize,File_ID,GetDataProps
-USE MOD_Restart_Vars            ,ONLY: CatalyticFileName
+USE MOD_Restart_Vars            ,ONLY: RestartFile
+USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, nGlobalSurfSides
+USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, offsetComputeNodeSurfSide
 USE MOD_Particle_Vars           ,ONLY: nSpecies
+#if USE_MPI
+USE MOD_MPI_Shared
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
+USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -962,66 +968,76 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(LEN=255)              :: File_Type
-CHARACTER(LEN=255),ALLOCATABLE  :: VarNamesSurf_HDF5(:)
-INTEGER                         :: iSpec, nVarSurf, nSurfSample, nSurfaceSidesReadin
-REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:), SurfData(:,:)
-REAL                            :: OutputTime
-INTEGER                         :: iSide, ReadInSide
+INTEGER                         :: iSpec, iSide, tmpSide, iSurfSide, nVarSurf
+INTEGER, ALLOCATABLE            :: tmpGlobalSideInx(:)
+REAL, ALLOCATABLE               :: tempSurfData(:,:,:,:)
+LOGICAL                         :: CatDataExists
 !===================================================================================================================================
+! Leave routine if no surface sides have been defined in the domain
+IF (nGlobalSurfSides.EQ.0) RETURN
 
-SWRITE(UNIT_stdOut,*) 'Using catalytic values from file: ',TRIM(CatalyticFileName)
+nVarSurf = nSpecies+1
 
-CALL OpenDataFile(CatalyticFileName,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
-
-! Check if the provided file is a DSMC surface chemistry state file.
-CALL ReadAttribute(File_ID,'File_Type',1,StrScalar=File_Type)
-
-IF(TRIM(File_Type).NE.'DSMCSurfChemState') THEN
-  SWRITE(*,*) 'ERROR: The given file type is: ', TRIM(File_Type)
-  CALL abort(__STAMP__,'ERROR: Given file for the catalytic restart is not of the type "DSMCSurfChemState", please check the input file!')
+#if USE_MPI
+! Only the surface leaders open the file
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
 END IF
+#else
+CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+#endif
 
-CALL ReadAttribute(File_ID,'DSMC_nSurfSample',1,IntScalar=nSurfSample)
-CALL ReadAttribute(File_ID,'Time',1,RealScalar=OutputTime)
+! Associate construct for integer KIND=8 possibility
+#if USE_MPI
+! Only the surface leaders read the array
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+#endif
+  CALL DatasetExists(File_ID,'CatalyticData',CatDataExists)
+  IF (.NOT.CatDataExists) THEN
+    SWRITE(*,*) 'No catalytic data found. The coverage and heat flux values will be reset.'
+    RETURN
+  END IF
 
-CALL GetDataSize(File_ID,'SurfaceData',nDims,HSize)
-nVarSurf = INT(HSize(1),4)
-nSurfaceSidesReadin = INT(HSize(4),4)
-ALLOCATE(VarNamesSurf_HDF5(nVarSurf))
-CALL ReadAttribute(File_ID,'VarNamesSurface',nVarSurf,StrArray=VarNamesSurf_HDF5(1:nVarSurf))
+  CALL DatasetExists(File_ID,'BoundaryGlobalSideIndx',CatDataExists)
+  IF (.NOT.CatDataExists) THEN
+    CALL Abort(__STAMP__,&
+      'ERROR during Restart: CatalyticData was found in the restart file but not the GlobalSideIndx array!')
+  END IF
 
-ALLOCATE(SurfData(1:nVarSurf,1:nSurfaceSidesReadin))
-ALLOCATE(tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,1:nSurfaceSidesReadin))
-SurfData=0.
-tempSurfData = 0.
-ASSOCIATE(nVarSurf        => INT(nVarSurf,IK),  &
-          nSurfaceSidesReadin => INT(nSurfaceSidesReadin,IK))
-  CALL ReadArray('SurfaceData',4,(/nVarSurf, 1_IK, 1_IK, nSurfaceSidesReadin/), &
-                  0_IK,4,RealArray=tempSurfData(:,:,:,:))
-END ASSOCIATE
+  ALLOCATE(tmpGlobalSideInx(nGlobalSurfSides),tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,nGlobalSurfSides))
 
-! Copy data from tmp array
-DO iSide = 1, nSurfaceSidesReadin
-  SurfData(1:nVarSurf,iSide) = tempSurfData(1:nVarSurf,1,1,iSide)
-END DO
-
-CALL CloseDataFile()
-
-! Read-In of the coverage values per species
-DO iSide = 1, nComputeNodeSurfSides
-  ReadInSide = iSide + offsetComputeNodeSurfSide
-  DO iSpec = 1, nSpecies
-  ! Initial surface coverage
-    ChemWallProp(iSpec,1,1,1,iSide) = SurfData(iSpec,ReadInSide)
+  ASSOCIATE (nVarSurf             => INT(nVarSurf,IK), &
+             nSurfSample          => INT(nSurfSample,IK), &
+             nGlobalSides         => INT(nGlobalSurfSides,IK))
+    CALL ReadArray('BoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
+    CALL ReadArray('CatalyticData',4,(/nVarSurf, nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tempSurfData)
+  END ASSOCIATE
+  ! Mapping of the data on the global side to the node-local surf side
+  DO iSide = 1, nGlobalSurfSides
+    tmpSide = tmpGlobalSideInx(iSide)
+    IF (GlobalSide2SurfSide(SURF_SIDEID,tmpSide).EQ.-1) CYCLE
+    iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,tmpSide)
+    DO iSpec = 1, nSpecies
+    ! Initial surface coverage
+      ChemWallProp(iSpec,:,:,iSurfSide) = tempSurfData(iSpec,:,:,iSide)
+    END DO
+    ! Heat flux on the surface element
+    ChemWallProp(nSpecies+1,:,:,iSurfSide) = tempSurfData(nSpecies+1,:,:,iSide)
   END DO
-  ! Heat flux on the surface element
-  ChemWallProp(1,2,1,1,iSide) = SurfData(nSpecies+1,ReadInSide)*OutputTime*SurfSideArea(1,1,iSide)
-END DO
+#if USE_MPI
+END IF
+! Distribute the coverage and heat flux data onto the shared array
+CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
+#endif
 
-SDEALLOCATE(VarNamesSurf_HDF5)
-SDEALLOCATE(SurfData)
-SDEALLOCATE(tempSurfData)
+#if USE_MPI
+! Only the surface leaders open the file
+IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
+  CALL CloseDataFile()
+END IF
+#else
+  CALL CloseDataFile()
+#endif
 
 END SUBROUTINE CatalyticRestart
 

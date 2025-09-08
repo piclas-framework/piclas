@@ -156,9 +156,9 @@ DO iSF = 1, SurfChem%CatBoundNum
                 ! Test for multiples of the same reactant
                 ReactantCount = COUNT(SurfChemReac(iReac)%Reactants(:).EQ.iSpec)
                 IF(iSpec.NE.SurfChem%SurfSpecies) THEN ! Coverage set to 1 for surface species
-                  Coverage = Coverage * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID)
+                  Coverage = Coverage * ChemWallProp(iSpec,SubP,SubQ,SurfSideID)
                   ! Particle density of the adsorbate on the surface
-                  AdsDens = AdsDens * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID) * SurfMolDens
+                  AdsDens = AdsDens * ChemWallProp(iSpec,SubP,SubQ,SurfSideID) * SurfMolDens
                 END IF
               END IF
             END DO
@@ -181,14 +181,14 @@ DO iSF = 1, SurfChem%CatBoundNum
                 CALL RANDOM_NUMBER(RanNum)
 
                 ! Number of products to be inserted into the gas phase
-                ChemDesorpWall(iSpec, 1, SubP, SubQ, SurfSideID) =  Rate * dt * Area * (-LOG(RanNum)) / ReactantCount + &
-                                                                    ChemDesorpWall(iSpec, 1, SubP, SubQ, SurfSideID)
+                ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID) =  Rate * dt * Area * (-LOG(RanNum)) / ReactantCount + &
+                                                                    ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID)
 
                 DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
                   IF (SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
                     iReactant = SurfChemReac(iReac)%Reactants(iValReac)
                     IF(iReactant.NE.SurfChem%SurfSpecies) THEN
-                      Coverage = ChemWallProp(iReactant,1,SubP,SubQ,SurfSideID)
+                      Coverage = ChemWallProp(iReactant,SubP,SubQ,SurfSideID)
                     ELSE
                       Coverage = 1.
                     END IF
@@ -197,23 +197,23 @@ DO iSF = 1, SurfChem%CatBoundNum
                     AdCount = Coverage * SurfMol
 
                     ! Check if enough adsorbate reactants are available
-                    IF(ChemDesorpWall(iSpec, 1, SubP, SubQ, SurfSideID) .GT. AdCount/ReactantCount) THEN
-                      ChemDesorpWall(iSpec, 1, SubP, SubQ, SurfSideID) = AdCount/ReactantCount
+                    IF(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID) .GT. AdCount/ReactantCount) THEN
+                      ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID) = AdCount/ReactantCount
                     END IF
 
                   END IF
                 END DO
 
                 ! Update the surface coverage values and the heat flux
-                IF(INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8).GE.1) THEN
-                  ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) &
-                                                 + INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8) * ReacHeat * BetaCoeff
+                IF(INT(ChemDesorpWall(iSpec,SubP, SubQ, SurfSideID),8).GE.1) THEN
+                  ChemWallProp(nSpecies+1, SubP, SubQ, SurfSideID) = ChemWallProp(nSpecies+1, SubP, SubQ, SurfSideID) &
+                                                 + INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID),8) * ReacHeat * BetaCoeff
                   DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
                     IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
                       iReactant = SurfChemReac(iReac)%Reactants(iValReac)
                       IF(iReactant.NE.SurfChem%SurfSpecies) THEN
-                        ChemWallProp(iReactant,1, SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,1, SubP, SubQ, SurfSideID) &
-                                                                  - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)/SurfMol
+                        ChemWallProp(iReactant, SubP, SubQ, SurfSideID) = ChemWallProp(iReactant, SubP, SubQ, SurfSideID) &
+                                                                  - INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID),8)/SurfMol
                       END IF
                     END IF
                   END DO ! iValReac
@@ -232,9 +232,9 @@ DO iSF = 1, SurfChem%CatBoundNum
                 ! Test for multiples of the same reactant
                 ReactantCount = COUNT(SurfChemReac(iReac)%Reactants(:).EQ.iSpec)
                 IF(iSpec.NE.SurfChem%SurfSpecies) THEN ! Coverage set to 1 for surface species
-                  Coverage = Coverage * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID)
+                  Coverage = Coverage * ChemWallProp(iSpec,SubP,SubQ,SurfSideID)
                   ! Calculate the adsorbate particle density per unit element
-                  AdsDens = AdsDens * ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID) * SurfMolDens
+                  AdsDens = AdsDens * ChemWallProp(iSpec,SubP,SubQ,SurfSideID) * SurfMolDens
                 END IF
               END IF
             END DO
@@ -262,7 +262,7 @@ DO iSF = 1, SurfChem%CatBoundNum
                   IF (SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
                     iReactant = SurfChemReac(iReac)%Reactants(iValReac)
                     IF(iReactant.NE.SurfChem%SurfSpecies) THEN
-                      Coverage = ChemWallProp(iReactant,1,SubP,SubQ,SurfSideID)
+                      Coverage = ChemWallProp(iReactant,SubP,SubQ,SurfSideID)
                     ELSE
                       Coverage = 1.
                     END IF
@@ -279,17 +279,17 @@ DO iSF = 1, SurfChem%CatBoundNum
                 DesCount = DesCount / ReactantCount
 
                 ! Update the surface coverage values and the heat flux
-                ChemWallProp(iSpec,1, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,1, SubP, SubQ, SurfSideID) + DesCount
+                ChemWallProp(iSpec, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec, SubP, SubQ, SurfSideID) + DesCount
                 ! Test for the maximum of the product coverage
-                IF(ChemWallProp(iSpec,1, SubP, SubQ, SurfSideID).GT.PartBound%MaxCoverage(BoundID, iSpec)) THEN
-                  ChemWallProp(iSpec,1, SubP, SubQ, SurfSideID) = PartBound%MaxCoverage(BoundID, iSpec)
+                IF(ChemWallProp(iSpec, SubP, SubQ, SurfSideID).GT.PartBound%MaxCoverage(BoundID, iSpec)) THEN
+                  ChemWallProp(iSpec, SubP, SubQ, SurfSideID) = PartBound%MaxCoverage(BoundID, iSpec)
                 END IF
-                ChemWallProp(iSpec,2,SubP,SubQ,SurfSideID) = ChemWallProp(iSpec,2,SubP,SubQ,SurfSideID) + DesCount*ReacHeat*SurfMol
+                ChemWallProp(nSpecies+1,SubP,SubQ,SurfSideID) = ChemWallProp(nSpecies+1,SubP,SubQ,SurfSideID) + DesCount*ReacHeat*SurfMol
                 DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
                   IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
                     iReactant = SurfChemReac(iReac)%Reactants(iValReac)
                     IF(iReactant.NE.SurfChem%SurfSpecies) THEN
-                      ChemWallProp(iReactant,1, SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,1,SubP,SubQ,SurfSideID) - DesCount
+                      ChemWallProp(iReactant, SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,SubP,SubQ,SurfSideID) - DesCount
                     END IF
                   END IF
                 END DO ! iValReac
@@ -309,7 +309,7 @@ DO iSF = 1, SurfChem%CatBoundNum
                     IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
                       iReactant = SurfChemReac(iReac)%Reactants(iValReac)
                       IF(iReactant.NE.SurfChem%SurfSpecies) THEN
-                        Coverage = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID)
+                        Coverage = ChemWallProp(iReactant,SubP, SubQ, SurfSideID)
                       ELSE
                         ! Coverage set to 1 for surface species
                         Coverage = 1.
@@ -318,7 +318,7 @@ DO iSF = 1, SurfChem%CatBoundNum
                     END IF
                   END DO
                 ELSE
-                  Coverage = ChemWallProp(iSpec,1,SubP, SubQ, SurfSideID)
+                  Coverage = ChemWallProp(iSpec,SubP, SubQ, SurfSideID)
                   AdCount = Coverage * SurfMol
                 END IF
                 ! Absolute particle density of the surface element
@@ -347,31 +347,31 @@ DO iSF = 1, SurfChem%CatBoundNum
                 CALL RANDOM_NUMBER(RanNum)
 
                 ! Determine the desorption probability
-                ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) = (Rate * dt * Area*(-LOG(RanNum)))/DissOrder + &
-                                                                  ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)
+                ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID) = (Rate * dt * Area*(-LOG(RanNum)))/DissOrder + &
+                                                                  ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID)
 
-                IF(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID).GE.(AdCount/DissOrder)) THEN
+                IF(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID).GE.(AdCount/DissOrder)) THEN
                   ! Upper bound for the desorption number
-                  ChemDesorpWall(iSpec, 1, SubP, SubQ, SurfSideID) = AdCount/DissOrder
+                  ChemDesorpWall(iSpec,  SubP, SubQ, SurfSideID) = AdCount/DissOrder
                 END IF
 
                 ! Update the adsorbtion and desorption count together with the heat flux
-                IF(INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/Species(iSpec)%MacroParticleFactor).GE.1) THEN
-                  ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) = ChemWallProp(iSpec,2, SubP, SubQ, SurfSideID) &
-                                                              - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8) * DesHeat
+                IF(INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID)/Species(iSpec)%MacroParticleFactor).GE.1) THEN
+                  ChemWallProp(nSpecies+1, SubP, SubQ, SurfSideID) = ChemWallProp(nSpecies+1, SubP, SubQ, SurfSideID) &
+                                                              - INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID),8) * DesHeat
                   IF(ANY(SurfChemReac(iReac)%Reactants(:).NE.0)) THEN
                     DO iValReac=1, SIZE(SurfChemReac(iReac)%Reactants(:))
                       IF(SurfChemReac(iReac)%Reactants(iValReac).NE.0) THEN
                         iReactant = SurfChemReac(iReac)%Reactants(iValReac)
                         IF (iReactant.NE.SurfChem%SurfSpecies) THEN
-                          ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,1,SubP, SubQ, SurfSideID) &
-                                                        - DissOrder*INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)/SurfMol
+                          ChemWallProp(iReactant,SubP, SubQ, SurfSideID) = ChemWallProp(iReactant,SubP, SubQ, SurfSideID) &
+                                                        - DissOrder*INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID),8)/SurfMol
                         END IF
                       END IF
                     END DO
                   ELSE
-                    ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID) = ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID) &
-                                                        - DissOrder*INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)/SurfMol
+                    ChemWallProp(iSpec,SubP,SubQ,SurfSideID) = ChemWallProp(iSpec,SubP,SubQ,SurfSideID) &
+                                                        - DissOrder*INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID),8)/SurfMol
                   END IF
                 END IF !ChemDesorbWall .GE. 1
               END IF ! Products .NE. 1
@@ -401,7 +401,7 @@ DO iSF = 1, SurfChem%CatBoundNum
         ELSE
           SurfElemMPF = Species(iSpec)%MacroParticleFactor
         END IF
-        IF (INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF).GE.1) THEN
+        IF (INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID)/SurfElemMPF).GE.1) THEN
 
           ! Define the necessary variables
           xyzNod(1:3) = BCdata_auxSF(BoundID)%TriaSideGeo(iSide)%xyzNod(1:3)
@@ -417,10 +417,10 @@ DO iSF = 1, SurfChem%CatBoundNum
             ! REQUIRED LATER FOR THE POSITION START
             IF(Symmetry%Axisymmetric) CALL DefineSideDirectVec2D(SideID, xyzNod, minPos, RVec)
 
-            PartInsSubSide = INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID)/SurfElemMPF)
+            PartInsSubSide = INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID)/SurfElemMPF)
 
-            ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) = ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID) &
-                                                            - INT(ChemDesorpWall(iSpec,1, SubP, SubQ, SurfSideID),8)
+            ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID) = ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID) &
+                                                            - INT(ChemDesorpWall(iSpec, SubP, SubQ, SurfSideID),8)
             NbrOfParticle = NbrOfParticle + PartInsSubSide
 
             !-- Fill Particle Informations (PartState, Partelem, etc.)
@@ -587,7 +587,7 @@ SideNumber = lastSide - firstSide + 1
 ! Average/diffusion over all catalytic boundaries
 IF(SurfChem%TotDiffusion) THEN
   DO iSpec = 1, nSpecies
-    ChemWallProp(iSpec,1,SubP,SubQ,:) = SUM(ChemWallProp(iSpec,1,SubP,SubQ,:))/SideNumber
+    ChemWallProp(iSpec,SubP,SubQ,:) = SUM(ChemWallProp(iSpec,SubP,SubQ,:))/SideNumber
   END DO
 
 ! Diffusion over a single reactive boundary
@@ -607,7 +607,7 @@ ELSE IF(SurfChem%Diffusion) THEN
         SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
         SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 
-        Coverage_Sum = Coverage_Sum + ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID)
+        Coverage_Sum = Coverage_Sum + ChemWallProp(iSpec,SubP,SubQ,SurfSideID)
 
       END DO
 
@@ -620,7 +620,7 @@ ELSE IF(SurfChem%Diffusion) THEN
         SideID=GetGlobalNonUniqueSideID(globElemId,iLocSide)
         SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 
-        ChemWallProp(iSpec,1,SubP,SubQ,SurfSideID) = Coverage_Sum/SideNumber
+        ChemWallProp(iSpec,SubP,SubQ,SurfSideID) = Coverage_Sum/SideNumber
 
       END DO
 

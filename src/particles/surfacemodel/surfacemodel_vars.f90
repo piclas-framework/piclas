@@ -124,14 +124,14 @@ TYPE tSurfReactions
 END TYPE
 TYPE(tSurfReactions), ALLOCATABLE        :: SurfChemReac(:)
 
-REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)     ! Desorption numbers
-REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:)       ! Sampling direct impact mechanism
-REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)       ! Adsorption count / heat flux
+REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:)     ! Desorption numbers
+REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:)       ! Sampling direct impact mechanism
+REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:)       ! Adsorption count / heat flux
 
 #if USE_MPI
-REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)! Sampling direct impact mechanism
+REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:)! Sampling direct impact mechanism
 TYPE(MPI_Win)                            :: ChemSampWall_Shared_Win
-REAL,POINTER                             :: ChemWallProp_Shared(:,:,:,:,:)! Adsorption count / heat flux
+REAL,POINTER                             :: ChemWallProp_Shared(:,:,:,:)! Adsorption count / heat flux
 TYPE(MPI_Win)                            :: ChemWallProp_Shared_Win
 #endif
 
