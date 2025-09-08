@@ -356,6 +356,7 @@ USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Timedisc_Vars          ,ONLY: dt
 USE MOD_Equation_Vars_FV       ,ONLY: DVMMethod, DVMnSpecies, DVMSpecData, DVMColl, DVMnMacro
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistribution, MoleculeRelaxEnergy
+USE MOD_Mesh_Vars_FV           ,ONLY: Elem_xGP_FV
 #else
 USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
 #endif /*DVM*/
@@ -389,11 +390,6 @@ DO iRP=1,nRP
       L_eta_zeta_RP=L_eta_RP(j,iRP)*L_zeta_RP(k,iRP)
       DO i=0,Nloc
 #endif /*discrete_velocity*/
-#if USE_HDG
-#if (PP_nVar==1) && !(USE_FV)
-        U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(ElemID)%U(:,i,j,k), U_N(ElemID)%E(1:3,i,j,k) /)*L_xi_RP(i,iRP)*L_eta_zeta_RP
-#endif /*PP_nVar==1*/
-#else /*NOT USE_HDG*/
 #ifdef discrete_velocity
         IF (t.GT.0..AND.DVMColl.AND.DVMMethod.GT.0) THEN
           CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
@@ -414,12 +410,17 @@ DO iRP=1,nRP
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
         ELSE
           U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
-          ! U_RP(1,iRP)=Elem_xGP(1,0,0,0,RP_ElemID(iRP)) !when RP position is needed
+          U_RP(1,iRP)=Elem_xGP_FV(1,0,0,0,RP_ElemID(iRP)) !when RP position is needed
         END IF
 #else /*NOT discrete_velocity*/
+#if USE_HDG
+#if (PP_nVar==1) && !(USE_FV)
+        U_RP(:,iRP)=U_RP(:,iRP) + (/ U_N(ElemID)%U(:,i,j,k), U_N(ElemID)%E(1:3,i,j,k) /)*L_xi_RP(i,iRP)*L_eta_zeta_RP
+#endif /*PP_nVar==1*/
+#else /*NOT USE_HDG*/
         U_RP(:,iRP)=U_RP(:,iRP) +    U_N(ElemID)%U(:,i,j,k)                             *L_xi_RP(i,iRP)*L_eta_zeta_RP
-#endif /*discrete_velocity*/
 #endif /*USE_HDG*/
+#endif /*discrete_velocity*/
 #ifndef discrete_velocity
       END DO !i
     END DO !j

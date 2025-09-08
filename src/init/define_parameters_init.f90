@@ -53,14 +53,12 @@ USE MOD_Equation                   ,ONLY: DefineParametersEquation
 #if USE_FV
 USE MOD_Equation_FV                ,ONLY: DefineParametersEquation_FV
 #endif
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !defined(discrete_velocity)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
-#endif /*!defined(discrete_velocity)*/
 #if !(USE_HDG) && !(USE_FV)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*!(USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/
@@ -129,9 +127,9 @@ CALL DefineParametersRecordPoints()
 #endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
 #if !(USE_FV) || (USE_HDG)
 CALL DefineParametersEquation()
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 CALL DefineParametersDielectric()
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #endif /*!(USE_FV) || (USE_HDG)*/
 #if USE_FV
 CALL DefineParametersEquation_FV()

@@ -23,15 +23,15 @@ MODULE MOD_TimeStep
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: TimeStep_DVM
+PUBLIC :: TimeStep_ploesma
 !===================================================================================================================================
 
 CONTAINS
 
 
-SUBROUTINE TimeStep_DVM()
+SUBROUTINE TimeStep_ploesma()
 !===================================================================================================================================
-! DUGKS/Exp diff DVM timestep with finite volumes
+! Plasma DVM timestep with finite volumes and HDG
 !===================================================================================================================================
 ! MODULES
 USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
@@ -50,7 +50,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! initial rescaling if initialized with non-equilibrium flow
-IF (DVMColl.AND.DVMMethod.GT.0.AND.(IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.iter.EQ.0) CALL RescaleInit(dt)
+! IF (DVMColl.AND.DVMMethod.GT.0.AND.(IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.iter.EQ.0) CALL RescaleInit(dt)
 
 IF (iter.EQ.0) THEN
   CALL HDG(time,iter)
@@ -69,7 +69,7 @@ U_FV = U_FV + Ut_FV*dt        ! fchapeau -> ftilde
 CALL HDG(time,iter)
 CALL ForceStep(2.*dt,ploesma=.TRUE.)
 
-END SUBROUTINE TimeStep_DVM
+END SUBROUTINE TimeStep_ploesma
 
 
 END MODULE MOD_TimeStep
