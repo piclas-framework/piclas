@@ -1405,7 +1405,7 @@ def GetEquilibriumCondition2():
   global Solution, Barycenters, Mesh, SimulationParameter
   # print(glob.glob("*SMCHO*"))
   if(('Particles-DSMC-CollisMode'.lower()) in SimulationParameter):
-    if(SimulationParameter['Particles-DSMC-CollisMode'.lower()]==3):
+    if(SimulationParameter['Particles-DSMC-CollisMode'.lower()]=='3'):
       Chem=True
     else:
       Chem=False

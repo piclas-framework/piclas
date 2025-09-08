@@ -942,6 +942,11 @@ IF(UseRayTracing)THEN
   DSMC%CalcSurfaceVal = .TRUE.
   CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
       LogOpt=DSMC%CalcSurfaceVal)
+ELSE IF(PartBound%OutputWallTemp) THEN
+  ! Automatically activate for AdaptiveWallTemp/WallTempGrad
+  DSMC%CalcSurfaceVal = .TRUE.
+  CALL PrintOption('Surface sampling activated (OutputWallTemp=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+      LogOpt=DSMC%CalcSurfaceVal)
 ELSE
   DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
 END IF ! UseRayTracing
