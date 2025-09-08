@@ -18,58 +18,58 @@ import subprocess
 def get_userblock(filename,userblock) :
     linesread = 0
     HDFfound = False
-    f = open(filename, 'r')
+    f = open(filename, 'rb')
     while True :
       line = f.readline()
       linesread = linesread + 1
 
-      if line == "" :
+      if line == b"" :
         break
 
-      if linesread == 1 and not line.startswith('{[(') :
-        print 'Error: HDF5 state file %s contains no userblock.' % filename
+      if linesread == 1 and not line.startswith(b'{[(') :
+        print(f'Error: HDF5 state file {filename} contains no userblock.')
         exit(1)
 
-      if line.startswith('{[( END USERBLOCK )]}') :
+      if line.startswith(b'{[( END USERBLOCK )]}') :
         break
 
       # check for HDF identifier (here the original HDF state file begins)
       for i in range(len(line)) :
           c = line[i]
-          if ord(c) == 0 : continue
-          if ord(c) == 137 : 
-              if line[i+1:i+4] == 'HDF' : HDFfound = True
+          if c == 0 : continue
+          if c == 137 : 
+              if line[i+1:i+4] == b'HDF' : HDFfound = True
       if HDFfound :
         break
 
       # check for compressed data
-      if line.startswith('{[( COMPRESSED )]}') :
+      if line.startswith(b'{[( COMPRESSED )]}') :
         try:
-          filenamec=f.readline()      #size in bytes
+          filenamec=f.readline().decode('ascii')      #size in bytes
           filenametar=filenamec.strip() + ".tar.xz"
           filesize=int(f.readline()) #size in bytes
           userblock_compressed=f.read(filesize)
         except:
-          print 'Error: Could not extract compressed data.'
-          exit(1)
-        fc = open(filenametar, 'w')
+          print('Error: Could not extract compressed data.')
+          raise
+        fc = open(filenametar, 'wb')
         fc.write(userblock_compressed)
         fc.close()
         try:
           p = subprocess.call("tar -xJf " + filenametar,shell=True)
         except:
-          print 'Error while extracting userblock data.'
-          exit(1)
+          print('Error while extracting userblock data.')
+          raise
 
         try:
           userblock = get_userblock(filenamec.strip(),userblock)
         except:
-          print 'Error while reading compressed userblock data.'
-          exit(1)
+          print('Error while reading compressed userblock data.')
+          raise
         continue
 
       # everything ok
-      userblock = userblock + line
+      userblock = userblock + line.decode('ascii')
 
     return userblock
 
@@ -82,7 +82,7 @@ def print_all_parts(userblock) :
             identifier = line.split("{[(")[1].split(")]}")[0] 
             if "END USERBLOCK" in identifier : break
             # print identifier
-            print identifier
+            print(identifier)
         except :
             continue
 
@@ -112,12 +112,12 @@ def get_part(userblock,part) :
 def print_part(userblock,part) :
     tmp = get_part(userblock,part)
     if tmp :
-       print tmp,
+       print(tmp)
 
 # output whole userblock
 def print_all(userblock) :
     for line in userblock.split('\n') :
-        print line
+        print(line)
 
 
 if __name__ == "__main__":
