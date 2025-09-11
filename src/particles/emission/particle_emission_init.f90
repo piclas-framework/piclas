@@ -456,9 +456,6 @@ SUBROUTINE InitialParticleInserting()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
-USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
-USE MOD_Mesh_Vars               ,ONLY: SideToElem
 USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, CollisMode
@@ -467,13 +464,12 @@ USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
 USE MOD_Part_Pos_and_Velo       ,ONLY: SetParticlePosition,SetParticleVelocity,ParticleEmissionFromDistribution
 USE MOD_Part_Pos_and_Velo       ,ONLY: ParticleEmissionCellLocal
 USE MOD_DSMC_AmbipolarDiffusion ,ONLY: AD_SetInitElectronVelo
-USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition, IncreaseMaxParticleNumber, GetNextFreePosition
+USE MOD_Part_Tools              ,ONLY: UpdateNextFreePosition, GetNextFreePosition
 USE MOD_Restart_Vars            ,ONLY: DoRestart
-USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, UseVarTimeStep, VarTimeStep
-USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC, AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCPartNumOut
-USE MOD_Particle_Sampling_Adapt ,ONLY: AdaptiveBCSampling
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,PDM,PEM, usevMPF, SpecReset, UseVarTimeStep
+USE MOD_Particle_Sampling_Vars  ,ONLY: UseAdaptiveBC
+USE MOD_Particle_Sampling_Adapt ,ONLY: AdaptiveBCSampling, CalcAdaptBCPartNumOutBackup
 USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC
-USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
 USE MOD_DSMC_Init               ,ONLY: SetVarVibProb2Elems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
@@ -486,9 +482,8 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
+INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr
 INTEGER             :: CNElemID
-REAL                :: v_thermal, dtVar
 REAL                :: StartT,EndT
 !===================================================================================================================================
 
@@ -579,38 +574,10 @@ IF(DoDielectric)THEN
 END IF
 
 IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
-!--- Sampling of near adaptive boundary element values after particle insertion to get initial distribution
+  !--- Sampling of near adaptive boundary element values after particle insertion to get initial distribution
   CALL AdaptiveBCSampling(initSampling_opt=.TRUE.)
   ! Adaptive BC Type = 4: Approximation of particles leaving the domain, assuming zero bulk velocity, using the fall-back values
-  DO iSpec=1,nSpecies
-    ! Species-specific time step
-    IF(VarTimeStep%UseSpeciesSpecific) THEN
-      dtVar = ManualTimeStep * RKdtFrac * Species(iSpec)%TimeStepFactor
-    ELSE
-      dtVar = ManualTimeStep * RKdtFrac
-    END IF
-    DO iSF=1,Species(iSpec)%nSurfacefluxBCs
-      currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
-      ! Skip processors without a surface flux
-      IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
-      ! Skip other regular surface flux and other types
-      IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
-      ! Calculate the velocity for the surface flux with the thermal velocity assuming a zero bulk velocity
-      v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
-      ! Loop over sides on the surface flux
-      DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
-        BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
-        ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
-        SampleElemID = AdaptBCMapElemToSample(ElemID)
-        IF(SampleElemID.GT.0) THEN
-          DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
-            AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              * dtVar * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal
-          END DO; END DO
-        END IF  ! SampleElemID.GT.0
-      END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber
-    END DO      ! iSF=1,Species(iSpec)%nSurfacefluxBCs
-  END DO        ! iSpec=1,nSpecies
+  CALL CalcAdaptBCPartNumOutBackup()
 END IF
 
 IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()

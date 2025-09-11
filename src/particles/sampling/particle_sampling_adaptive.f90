@@ -22,7 +22,10 @@ MODULE MOD_Particle_Sampling_Adapt
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleSamplingAdaptive, InitAdaptiveBCSampling, AdaptiveBCSampling, FinalizeParticleSamplingAdaptive
+PUBLIC :: DefineParametersParticleSamplingAdaptive
+PUBLIC :: InitAdaptiveBCSampling
+PUBLIC :: AdaptiveBCSampling, CalcAdaptBCPartNumOutBackup
+PUBLIC :: FinalizeParticleSamplingAdaptive
 !===================================================================================================================================
 
 CONTAINS
@@ -677,6 +680,64 @@ ELSE              ! .NOT. AdaptBCAverageValBC
 END IF            ! AdaptBCAverageValBC
 
 END SUBROUTINE AdaptiveBCSampling
+
+
+SUBROUTINE CalcAdaptBCPartNumOutBackup()
+!===================================================================================================================================
+!> Approximate the number of particles leaving the domain for the surface flux, adaptive type = 4
+!> Assuming zero bulk velocity, using the fall-back values
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
+USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
+USE MOD_Mesh_Vars               ,ONLY: SideToElem
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,VarTimeStep
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCPartNumOut
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iSpec,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
+REAL                :: v_thermal, dtVar
+!===================================================================================================================================
+
+DO iSpec=1,nSpecies
+  ! Species-specific time step
+  IF(VarTimeStep%UseSpeciesSpecific) THEN
+    dtVar = ManualTimeStep * RKdtFrac * Species(iSpec)%TimeStepFactor
+  ELSE
+    dtVar = ManualTimeStep * RKdtFrac
+  END IF
+  DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+    currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+    ! Skip processors without a surface flux
+    IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
+    ! Skip other regular surface flux and other types
+    IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
+    ! Calculate the velocity for the surface flux with the thermal velocity assuming a zero bulk velocity
+    v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
+    ! Loop over sides on the surface flux
+    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+      BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+      ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+      SampleElemID = AdaptBCMapElemToSample(ElemID)
+      IF(SampleElemID.GT.0) THEN
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+          AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + AdaptBCMacroVal(4,SampleElemID,iSpec) &
+            * dtVar * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal
+        END DO; END DO
+      END IF  ! SampleElemID.GT.0
+    END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber
+  END DO      ! iSF=1,Species(iSpec)%nSurfacefluxBCs
+END DO        ! iSpec=1,nSpecies
+
+END SUBROUTINE CalcAdaptBCPartNumOutBackup
 
 
 SUBROUTINE FinalizeParticleSamplingAdaptive(IsLoadBalance)
