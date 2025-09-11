@@ -953,7 +953,6 @@ USE MOD_Restart_Vars            ,ONLY: RestartFile
 USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample, nGlobalSurfSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides, offsetComputeNodeSurfSide
 USE MOD_Particle_Vars           ,ONLY: nSpecies
 #if USE_MPI
 USE MOD_MPI_Shared
@@ -1150,7 +1149,7 @@ REAL                              :: v_thermal, dtVar, WeightingFactor(1:nSpecie
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, nVar, GlobalElemID, currentBC
 INTEGER                           :: jSample, iSample, BCSideID, nElemReadin, nVarTotal, iVar, nVarArrayStart, nVarArrayEnd
-INTEGER                           :: SampIterEnd, nSurfacefluxBCs
+INTEGER                           :: SampIterEnd, MaxSurfacefluxBCs, nSpeciesReadin, nSurfacefluxBCsReadin
 INTEGER,ALLOCATABLE               :: GlobalElemIndex(:)
 !===================================================================================================================================
 
@@ -1158,6 +1157,8 @@ AdaptiveDataExists = .FALSE.
 RunningAverageExists = .FALSE.
 UseAdaptiveType4 = .FALSE.
 AdaptBCPartNumOutExists = .FALSE.
+
+MaxSurfacefluxBCs = MAXVAL(Species(:)%nSurfacefluxBCs)
 
 DO iSpec=1,nSpecies
   DO iSF=1,Species(iSpec)%nSurfacefluxBCs
@@ -1294,13 +1295,20 @@ IF(UseAdaptiveType4) THEN
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
       CALL DatasetExists(File_ID,'AdaptBCPartNumOut',AdaptBCPartNumOutExists)
       IF(AdaptBCPartNumOutExists) THEN
-        ! Associate construct for integer KIND=8 possibility
-        ASSOCIATE (&
-              nSpecies     => INT(nSpecies,IK) ,&
-              nSurfFluxBCs => INT(nSurfacefluxBCs,IK)  )
-          CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,RealArray=AdaptBCPartNumOut(:,:))
-        END ASSOCIATE
-        LBWRITE(*,*) '| Surface Flux, Type=4: Number of particles leaving the domain successfully read-in from restart file.'
+        ! Get the data size of the read-in array
+        CALL GetDataSize(File_ID,'AdaptBCPartNumOut',nDims,HSize)
+        nSpeciesReadin=INT(HSize(1),4)
+        nSurfacefluxBCsReadin=INT(HSize(2),4)
+        IF((nSpeciesReadin.EQ.nSpecies).AND.(nSurfacefluxBCsReadin.EQ.MaxSurfacefluxBCs)) THEN
+          ! Associate construct for integer KIND=8 possibility
+          ASSOCIATE (nSpecies     => INT(nSpecies,IK) ,&
+                     nSurfFluxBCs => INT(MaxSurfacefluxBCs)  )
+            CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,RealArray=AdaptBCPartNumOut)
+          END ASSOCIATE
+          LBWRITE(*,*) '| Surface Flux, Type=4: Number of particles leaving the domain successfully read-in from restart file.'
+        ELSE
+          LBWRITE(*,*) '| Surface Flux, Type=4: Number of surface flux BCs has changed. Previous number of particles leaving the domain resetted.'
+        END IF
       END IF
       CALL CloseDataFile()
     END IF
