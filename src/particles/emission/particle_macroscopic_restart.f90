@@ -104,7 +104,7 @@ DO iElem = 1, nElems
               PartDens = MacroRestartValues(iElem,iSpec,DSMC_NUMDENS) / CalcVarWeightMPF(PosVar,iElem)
             END IF
             IF(UseVarTimeStep) THEN
-              PartDens = PartDens * GetParticleTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
+              PartDens = PartDens / GetParticleTimeStep((Bounds(2,1)+Bounds(1,1))*0.5, (MaxPosTemp+MinPosTemp)*0.5, iElem)
             END IF
             CALL RANDOM_NUMBER(iRan)
             nPart = INT(PartDens  * TempVol + iRan)
