@@ -80,6 +80,7 @@ USE MOD_Particle_Boundary_Vars ,ONLY: nSurfSample,nComputeNodeSurfTotalSides,Par
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 USE MOD_Photon_Tracking        ,ONLY: InitPhotonSurfSample
+USE MOD_Particle_Surfaces_Vars ,ONLY: BezierSampleN, BezierSampleXi
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -88,7 +89,7 @@ USE MOD_Photon_Tracking        ,ONLY: InitPhotonSurfSample
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER             :: iSurfSide, iBC, NonUniqueGlobalSideID
+INTEGER             :: iSurfSide, iBC, NonUniqueGlobalSideID,iSample
 INTEGER,ALLOCATABLE :: RaySide2GlobalSide_temp(:)
 REAL                :: factor,SurfaceNormal(3),alpha
 CHARACTER(LEN=3)    :: hilf ! auxiliary variable for INTEGER -> CHARACTER conversion
@@ -127,6 +128,16 @@ CASE('VISU','VISU_INNER','GAUSS')
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,'Unknown node type for ray tracing: '//TRIM(Ray%NodeType)//'. Select VISU, VISU_INNER or GAUSS')
 END SELECT
+
+! Initialize BezierSampleXi for photon SEE in PhotoIonization_RayTracing_SEE
+IF(ALLOCATED(BezierSampleXi)) THEN
+  IF(BezierSampleN.NE.Ray%nSurfSample) CALL abort(__STAMP__,'RayTracing-nSurfSample is in conflict with BezierSampleN (=NGeo per default). BezierSampleN = ',IntInfoOpt=BezierSampleN)
+ELSE
+  ALLOCATE(BezierSampleXi(0:Ray%nSurfSample))
+  DO iSample=0,Ray%nSurfSample
+    BezierSampleXi(iSample)=-1.+2.0/Ray%nSurfSample*iSample
+  END DO
+END IF
 
 ! Parameters only require for actual ray tracing computation
 IF(PerformRayTracing)THEN

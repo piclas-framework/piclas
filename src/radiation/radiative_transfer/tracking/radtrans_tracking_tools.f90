@@ -1432,6 +1432,7 @@ IF (PhotonEnACC.GT.iRan) THEN
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
+            distanceMin = distance
           END IF ! distance.LT.distanceMin
         END DO ! q = 1, Ray%nSurfSample
       END DO ! p = 1, Ray%nSurfSample
