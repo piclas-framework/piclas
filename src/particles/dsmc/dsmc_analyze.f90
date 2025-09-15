@@ -355,7 +355,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iElem, iSpec
 REAL                          :: partWeight
-REAL                          :: V_rel(3), vmag2, TotalNum
+REAL                          :: V_rel(3), vmag2
 REAL,ALLOCATABLE              :: TotalMass(:), totalWeight(:), totalWeight2(:), totalWeight3(:)
 REAL,ALLOCATABLE              :: vBulk(:,:), presstens(:,:), heatflux(:,:)
 #if USE_LOADBALANCE
@@ -447,6 +447,8 @@ IF (SamplePressTensHeatflux) THEN
         IF (VirtMergedCells(iElem)%isMerged) iElem = VirtMergedCells(iElem)%MasterCell - offSetElem
       END IF
       partWeight = GetParticleWeight(iPart)
+      ! always include MPF to compute total pressure/heatflux values
+      IF (.NOT.usevMPF) partWeight = partWeight * Species(iSpec)%MacroParticleFactor
       V_rel(1:3)=PartState(4:6,iPart)-vBulk(1:3,iElem)
       vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
       ! Sample pressure tensor (shear stress) and heatflux
@@ -457,19 +459,11 @@ IF (SamplePressTensHeatflux) THEN
     END IF
   END DO
   DO iElem = 1, nElems
-    TotalNum=0.
-    DO iSpec = 1, nSpecies
-      IF (usevMPF) THEN
-        TotalNum = TotalNum + DSMC_Solution(7,iElem, iSpec)
-      ELSE
-        TotalNum = TotalNum + DSMC_Solution(7,iElem, iSpec)*Species(iSpec)%MacroParticleFactor
-      END IF
-    END DO
     ! Pressure tensor
-    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * TotalNum &
+    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * totalWeight(iElem) &
       / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
     ! Heatflux
-    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * TotalNum &
+    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem) &
       * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
   END DO
   ! Deallocate temporary arrays
