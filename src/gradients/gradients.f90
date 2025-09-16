@@ -57,6 +57,7 @@ USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
 USE MOD_Mesh_Vars             ,ONLY: nElems, nSides
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
+USE MOD_FV_Vars               ,ONLY: doFVReconstruct
 #if USE_MPI
 USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_FillMortar_FV         ,ONLY: Dx_BigToSmall_Mortar, Dx_SmallToBig_Mortar
@@ -79,6 +80,26 @@ INTEGER, INTENT(IN)    :: ini_dim
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT GRADIENTS...'
+
+GradLimiterType=GETINT('Grad-LimiterType')
+GradLimVktK=GETREAL('Grad-VktK')
+SELECT CASE(GradLimiterType)
+CASE(0)
+  LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+  LBWRITE(UNIT_stdOut,'(A)')' NO GRADIENTS NEEDED!'
+  LBWRITE(UNIT_StdOut,'(132("-"))')
+  doFVReconstruct=.FALSE.
+  RETURN
+CASE(1) !minmax
+  LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
+CASE(4) !venkatakrishnan
+  LBWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
+CASE(9) ! no limiter (central)
+  LBWRITE(UNIT_stdOut,*)'Not using any limiter'
+CASE DEFAULT
+  CALL abort(__STAMP__,'Limiter type not implemented.')
+END SELECT
+
 ALLOCATE(Grad_dx_slave(1:3,1:nSides))
 ALLOCATE(Grad_dx_master(1:3,1:nSides))
 ALLOCATE(Grad_SysSol_slave(1:3,1:nSides))
@@ -95,21 +116,6 @@ ALLOCATE(Var_master(Grad_DIM,nSides))
 ALLOCATE(Diff_side(Grad_DIM,nSides))
 ALLOCATE(Gradient_elem(3,Grad_DIM,nElems))
 Var_slave = 0.; Var_master = 0.; Diff_side = 0.; Gradient_elem = 0.
-
-GradLimiterType=GETINT('Grad-LimiterType')
-GradLimVktK=GETREAL('Grad-VktK')
-SELECT CASE(GradLimiterType)
-CASE(0)
-  LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
-CASE(1) !minmax
-  LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
-CASE(4) !venkatakrishnan
-  LBWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
-CASE(9) ! no limiter (central)
-  LBWRITE(UNIT_stdOut,*)'Not using any limiter'
-CASE DEFAULT
-  CALL abort(__STAMP__,'Limiter type not implemented.')
-END SELECT
 
 !calculate face to center distances for reconstruction
 #if USE_MPI

@@ -297,7 +297,6 @@ doCalcSource=.TRUE.
 SELECT CASE (DVMMethod)
 CASE(0)
   LBWRITE(UNIT_stdOut,*)'Method: First order DVM'
-  doFVReconstruct=.FALSE. ! no reconstruction for first order DVM
 CASE(1)
   LBWRITE(UNIT_stdOut,*)'Method: Exponential Differencing DVM'
 CASE(2)
