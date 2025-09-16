@@ -645,7 +645,7 @@ SpecLoop: DO iSpec=1,nSpecies
 END DO SpecLoop
 
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundPhotonSEE) CALL InitializeVariablesSpeciesBoundary()
+CALL InitializeVariablesSpeciesBoundary(FoundPartBoundPhotonSEE)
 
 PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
