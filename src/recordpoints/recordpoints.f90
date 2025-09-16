@@ -392,7 +392,7 @@ DO iRP=1,nRP
 #endif /*discrete_velocity*/
 #ifdef discrete_velocity
         IF (t.GT.0..AND.DVMColl.AND.DVMMethod.GT.0) THEN
-          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
           CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroVal(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
           SELECT CASE(DVMMethod)
             CASE(1)
@@ -407,10 +407,10 @@ DO iRP=1,nRP
             CALL TargetDistribution(MacroVal(:,DVMnSpecies+1),fTarget(vFirstID:vLastID),iSpec,MacroVal(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
             vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
           END DO
-          U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
+          U_RP(:,iRP)=U_FV(:,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
         ELSE
-          U_RP(:,iRP)=U_FV(:,0,0,0,RP_ElemID(iRP))
-          U_RP(1,iRP)=Elem_xGP_FV(1,0,0,0,RP_ElemID(iRP)) !when RP position is needed
+          U_RP(:,iRP)=U_FV(:,RP_ElemID(iRP))
+          U_RP(1,iRP)=Elem_xGP_FV(1,RP_ElemID(iRP)) !when RP position is needed
         END IF
 #else /*NOT discrete_velocity*/
 #if USE_HDG

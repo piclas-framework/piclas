@@ -50,6 +50,7 @@ USE MOD_Globals
 USE MOD_PreProc
 #if USE_FV
 USE MOD_FV_Vars                ,ONLY: U_FV
+USE MOD_Restart_Vars           ,ONLY: N_Restart_FV
 #endif /*USE_FV*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
@@ -138,8 +139,12 @@ INTEGER(KIND=IK)                   :: Nres8,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 LOGICAL                            :: DG_SolutionExists
 #ifdef discrete_velocity
-REAL,ALLOCATABLE                   :: Udvm(:,:,:,:,:)
+REAL                               :: Udvm(14*(DVMnSpecies+1)+1)
 #endif /*discrete_velocity*/
+#if (USE_FV)
+REAL,ALLOCATABLE                   :: UTmp_FV(:,:)
+REAL,ALLOCATABLE                   :: Ureco_FV(:,:,:,:,:)
+#endif /*USE_FV*/
 #if USE_HDG
 LOGICAL                            :: DG_SolutionLambdaExists,DG_SolutionPhiFExists
 INTEGER                            :: SideID,iSide,MinGlobalSideID,MaxGlobalSideID,NSideMin,iVar
@@ -177,7 +182,7 @@ REAL,ALLOCATABLE                   :: U(:,:,:,:,:)
 INTEGER                            :: i,j,k
 #if USE_LOADBALANCE
 !INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
-#if defined(PARTICLES) || !(USE_HDG) || (USE_FV)
+#if defined(PARTICLES) || !(USE_HDG || USE_FV)
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
@@ -505,7 +510,7 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
   DEALLOCATE(U)
 #endif /*USE_HDG*/
 #if USE_FV
-  ALLOCATE(UTmp(PP_nVar_FV,0:0,0:0,0:0,nElems))
+  ALLOCATE(UTmp_FV(PP_nVar_FV,nElems))
   ASSOCIATE (&
           counts_send  => (INT(MPInElemSend     )) ,&
           disp_send    => (INT(MPIoffsetElemSend)) ,&
@@ -517,10 +522,10 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
     MPI_TYPE         = MPI_DOUBLE_PRECISION
     CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
     CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-    CALL MPI_ALLTOALLV(U_FV,counts_send,disp_send,MPI_STRUCT,UTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+    CALL MPI_ALLTOALLV(U_FV,counts_send,disp_send,MPI_STRUCT,UTmp_FV,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
     CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
   END ASSOCIATE
-  CALL MOVE_ALLOC(UTmp,U_FV)
+  CALL MOVE_ALLOC(UTmp_FV,U_FV)
 #endif /*FV*/
 
   ! Update N_DG and delete N_DG_Tmp
@@ -533,7 +538,9 @@ IF(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))THEN
 ELSE ! Normal restart
 #endif /*USE_LOADBALANCE*/
 
+#if !(USE_FV)
   IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initialization of N_Restart!')
+#endif /*not USE_FV*/
 
   ! Temp. vars for integer KIND=8 possibility
   Nres8         = INT(N_Restart,IK)
@@ -933,27 +940,29 @@ ELSE ! Normal restart
 
 #ifdef discrete_velocity
     SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
-    ALLOCATE(Udvm(14*(DVMnSpecies+1)+1,0:0,0:0,0:0,nElems))
-    Udvm=0.
-    CALL ReadArray('DVM_Solution',5,(/INT(14*(DVMnSpecies+1)+1,IK),1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Udvm)
+    ALLOCATE(Ureco_FV(14*(DVMnSpecies+1)+1,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,nElems))
+    Ureco_FV=0.
+    CALL ReadArray('DVM_Solution',5,(/INT(14*(DVMnSpecies+1)+1,IK),1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Ureco_FV)
     DO iElem=1,nElems
+      ! average reconstructed values to get cell-centered values
+      Udvm = SUM(SUM(SUM(Ureco_FV(:,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,iElem),4),3),2)/(N_Restart_FV+1)**3
       vFirstID=1
       vLastID=0
       offsetMV=0
       DO iSpec=1,DVMnSpecies
         vLastID = vLastID + DVMSpecData(iSpec)%nVar
-        Udvm(offsetMV+6:offsetMV+8,0,0,0,iElem)=Udvm(offsetMV+6:offsetMV+8,0,0,0,iElem) &
-                                                -SUM(Udvm(offsetMV+6:offsetMV+8,0,0,0,iElem))/3. ! traceless pressure tensor for Grad dist
-        CALL GradDistribution(Udvm(offsetMV+1:offsetMV+14,0,0,0,iElem),U_FV(vFirstID:vLastID,0,0,0,iElem),iSpec)
+        Udvm(offsetMV+6:offsetMV+8)=Udvm(offsetMV+6:offsetMV+8) &
+                                   -SUM(Udvm(offsetMV+6:offsetMV+8))/3. ! traceless pressure tensor for Grad dist
+        CALL GradDistribution(Udvm(offsetMV+1:offsetMV+14),U_FV(vFirstID:vLastID,iElem),iSpec)
         offsetMV = offsetMV + 14
         vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
       END DO
     END DO
-    DEALLOCATE(Udvm)
+    DEALLOCATE(Ureco_FV)
 #endif
 #ifdef drift_diffusion
     SWRITE(UNIT_stdOut,*)'Performing Drift Diffusion restart'
-    CALL ReadArray('DriftDiffusion_Solution',5,(/PP_nVar_FV,1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=U_FV)
+    CALL ReadArray('DriftDiffusion_Solution',2,(/PP_nVar_FV,PP_nElemsTmp/),OffsetElemTmp,2,RealArray=U_FV)
 #endif
   END IF ! IF(.NOT. RestartNullifySolution)
   CALL CloseDataFile()

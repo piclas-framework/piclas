@@ -188,7 +188,7 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t,coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
+REAL,INTENT(INOUT)              :: Ut(1:PP_nVar_FV,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: ElemID, iSpec, i, j, k, Nloc
@@ -208,7 +208,7 @@ DO ElemID = 1, PP_nElems
   END DO; END DO; END DO
 
   CALL CalcDriftDiffusionCoeff(VECNORM(E_avg),BGGas%NumberDensity(iSpec),mu,D,ionRate)
-  Ut(1,:,:,:,ElemID) = Ut(1,:,:,:,ElemID) + ionRate*mu*VECNORM(E_avg)*U_FV(1,:,:,:,ElemID)
+  Ut(1,ElemID) = Ut(1,ElemID) + ionRate*mu*VECNORM(E_avg)*U_FV(1,ElemID)
 END DO
 
 END SUBROUTINE CalcSource

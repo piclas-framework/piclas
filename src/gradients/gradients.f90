@@ -120,8 +120,8 @@ Var_slave = 0.; Var_master = 0.; Diff_side = 0.; Gradient_elem = 0.
 !calculate face to center distances for reconstruction
 #if USE_MPI
 !send face coordinates because MPI slave sides don't have them
-CALL StartReceiveMPIDataFV(3,Face_xGP_FV(:,0,0,:),1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataFV(3,Face_xGP_FV(:,0,0,:),1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
+CALL StartReceiveMPIDataFV(3,Face_xGP_FV(:,:),1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataFV(3,Face_xGP_FV(:,:),1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
 
 ! distances for MPI sides - send direction
@@ -360,13 +360,13 @@ IF (.NOT.doMPISides) THEN
     END DO
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),diffUinside,&
                           Var_master(:,SideID),&
-                          NormVec_FV(:,0,0,SideID),&
-                          Face_xGP_FV(:,0,0,SideID),output)
+                          NormVec_FV(:,SideID),&
+                          Face_xGP_FV(:,SideID),output)
 #else
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),&
                           Var_master(:,SideID),&
-                          NormVec_FV(:,0,0,SideID),&
-                          Face_xGP_FV(:,0,0,SideID))
+                          NormVec_FV(:,SideID),&
+                          Face_xGP_FV(:,SideID))
 #endif
   END DO
 END IF

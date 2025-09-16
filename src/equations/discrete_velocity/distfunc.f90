@@ -951,64 +951,61 @@ REAL,ALLOCATABLE                :: fTarget(:)
 !===================================================================================================================================
 Erot = 0.
 DO iElem =1, nElems
-  ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-  DO k=0, 0; DO j=0, 0; DO i=0, 0
-    SELECT CASE (tilde)
-      CASE(1) ! f~  -----> f2^    (tDeriv=dt)
-        CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),tDeriv,tau,tilde,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-        DVMMomentSave(1:DVMnMacro,:,iElem) = MacroVal(1:DVMnMacro,:)
-        DVMMomentSave(DVMnMacro+1,:,iElem) = tau
-        DVMMomentSave(DVMnMacro+2,:,iElem) = rho
-        DVMMomentSave(DVMnMacro+3,:,iElem) = Pr
-        IF (DVMnInnerE.GT.0) DVMInnerESave(1,1:DVMnSpecies+1,iElem) = Erot(1:DVMnSpecies+1)
-        SELECT CASE(DVMMethod)
-        CASE(0) !First order
-          relaxFac = tDeriv/tau
-          IF (CHECKEXP(relaxFac)) THEN
-            prefac = EXP(-relaxFac)
-          ELSE
-            prefac = 0.
-          END IF
-        CASE(1) !EDDVM
-          relaxFac = tDeriv/tau/2.
-          IF (CHECKEXP(3.*relaxFac)) THEN
-            prefac = (EXP(-relaxFac)-EXP(-3.*relaxFac))/(1.-EXP(-relaxFac))/2.
-          ELSE
-            prefac = 0.
-          END IF
-        CASE(2) !DUGKS
-          prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
-        END SELECT
-      CASE(2) ! f2^ -----> f^     (tDeriv=dt/2)
-        MacroVal(1:DVMnMacro,:) = DVMMomentSave(1:DVMnMacro,:,iElem)
-        tau = DVMMomentSave(DVMnMacro+1,DVMnSpecies+1,iElem)
-        rho = DVMMomentSave(DVMnMacro+2,DVMnSpecies+1,iElem)
-        Pr = DVMMomentSave(DVMnMacro+3,DVMnSpecies+1,iElem)
-        IF (DVMnInnerE.GT.0) Erot(1:DVMnSpecies+1) = DVMInnerESave(1,1:DVMnSpecies+1,iElem)
-        SELECT CASE(DVMMethod)
-        CASE(1)
-          relaxFac = tDeriv/tau
-          IF (CHECKEXP(2.*relaxFac)) THEN
-            prefac = 2.*(EXP(-relaxFac)-EXP(-2.*relaxFac))/(1.-EXP(-2.*relaxFac))
-          ELSE
-            prefac = 0.
-          END IF
-        CASE(2)
-          prefac = (4./3.)-(1./3.)*(2.*tau+2.*tDeriv)/(2.*tau-tDeriv)
-        END SELECT
-    END SELECT
-    CALL MoleculeRelaxEnergy(ErelaxTrans, ErelaxRot, MacroVal(5,DVMnSpecies+1), Erot, Pr)
-    vFirstID=1
-    vLastID=0
-    DO iSpec=1,DVMnSpecies
-      vLastID = vLastID + DVMSpecData(iSpec)%nVar
-      ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
-      CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr, ErelaxTrans, Erelaxrot(iSpec))
-      U_FV(vFirstID:vLastID,i,j,k,iElem) = U_FV(vFirstID:vLastID,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
-      DEALLOCATE(fTarget)
-      vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
-    END DO
-  END DO; END DO; END DO
+  SELECT CASE (tilde)
+    CASE(1) ! f~  -----> f2^    (tDeriv=dt)
+      CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),tDeriv,tau,tilde,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+      DVMMomentSave(1:DVMnMacro,:,iElem) = MacroVal(1:DVMnMacro,:)
+      DVMMomentSave(DVMnMacro+1,:,iElem) = tau
+      DVMMomentSave(DVMnMacro+2,:,iElem) = rho
+      DVMMomentSave(DVMnMacro+3,:,iElem) = Pr
+      IF (DVMnInnerE.GT.0) DVMInnerESave(1,1:DVMnSpecies+1,iElem) = Erot(1:DVMnSpecies+1)
+      SELECT CASE(DVMMethod)
+      CASE(0) !First order
+        relaxFac = tDeriv/tau
+        IF (CHECKEXP(relaxFac)) THEN
+          prefac = EXP(-relaxFac)
+        ELSE
+          prefac = 0.
+        END IF
+      CASE(1) !EDDVM
+        relaxFac = tDeriv/tau/2.
+        IF (CHECKEXP(3.*relaxFac)) THEN
+          prefac = (EXP(-relaxFac)-EXP(-3.*relaxFac))/(1.-EXP(-relaxFac))/2.
+        ELSE
+          prefac = 0.
+        END IF
+      CASE(2) !DUGKS
+        prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
+      END SELECT
+    CASE(2) ! f2^ -----> f^     (tDeriv=dt/2)
+      MacroVal(1:DVMnMacro,:) = DVMMomentSave(1:DVMnMacro,:,iElem)
+      tau = DVMMomentSave(DVMnMacro+1,DVMnSpecies+1,iElem)
+      rho = DVMMomentSave(DVMnMacro+2,DVMnSpecies+1,iElem)
+      Pr = DVMMomentSave(DVMnMacro+3,DVMnSpecies+1,iElem)
+      IF (DVMnInnerE.GT.0) Erot(1:DVMnSpecies+1) = DVMInnerESave(1,1:DVMnSpecies+1,iElem)
+      SELECT CASE(DVMMethod)
+      CASE(1)
+        relaxFac = tDeriv/tau
+        IF (CHECKEXP(2.*relaxFac)) THEN
+          prefac = 2.*(EXP(-relaxFac)-EXP(-2.*relaxFac))/(1.-EXP(-2.*relaxFac))
+        ELSE
+          prefac = 0.
+        END IF
+      CASE(2)
+        prefac = (4./3.)-(1./3.)*(2.*tau+2.*tDeriv)/(2.*tau-tDeriv)
+      END SELECT
+  END SELECT
+  CALL MoleculeRelaxEnergy(ErelaxTrans, ErelaxRot, MacroVal(5,DVMnSpecies+1), Erot, Pr)
+  vFirstID=1
+  vLastID=0
+  DO iSpec=1,DVMnSpecies
+    vLastID = vLastID + DVMSpecData(iSpec)%nVar
+    ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
+    CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr, ErelaxTrans, Erelaxrot(iSpec))
+    U_FV(vFirstID:vLastID,iElem) = U_FV(vFirstID:vLastID,iElem)*prefac + fTarget(:)*(1.-prefac)
+    DEALLOCATE(fTarget)
+    vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+  END DO
 END DO
 END SUBROUTINE RescaleU
 
@@ -1041,24 +1038,22 @@ SWRITE(UNIT_stdOut,*) 'INITIAL DISTRIBUTION FUNCTION RESCALE'
 vFirstID=1
 vLastID=0
 DO iElem =1, nElems
-  DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-    CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),0.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot) ! tDeriv=0 to get heatflux from original distribution
-    SELECT CASE (DVMMethod)
-      CASE(1)
-        prefac = (tDeriv/tau)/(1. - (EXP(-tDeriv/tau)))
-      CASE(2)
-        prefac = (2.*tau+tDeriv)/(2.*tau)
-    END SELECT
-    CALL MoleculeRelaxEnergy(ErelaxTrans, ErelaxRot, MacroVal(5,DVMnSpecies+1), Erot(1:DVMnSpecies), Pr)
-    DO iSpec=1,DVMnSpecies
-      vLastID = vLastID + DVMSpecData(iSpec)%nVar
-      ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
-      CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr, ErelaxTrans, Erelaxrot(iSpec))
-      U_FV(vFirstID:vLastID,i,j,k,iElem) = U_FV(vFirstID:vLastID,i,j,k,iElem)*prefac + fTarget(:)*(1.-prefac)
-      DEALLOCATE(fTarget)
-      vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
-    END DO
-  END DO; END DO; END DO
+  CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),0.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot) ! tDeriv=0 to get heatflux from original distribution
+  SELECT CASE (DVMMethod)
+    CASE(1)
+      prefac = (tDeriv/tau)/(1. - (EXP(-tDeriv/tau)))
+    CASE(2)
+      prefac = (2.*tau+tDeriv)/(2.*tau)
+  END SELECT
+  CALL MoleculeRelaxEnergy(ErelaxTrans, ErelaxRot, MacroVal(5,DVMnSpecies+1), Erot(1:DVMnSpecies), Pr)
+  DO iSpec=1,DVMnSpecies
+    vLastID = vLastID + DVMSpecData(iSpec)%nVar
+    ALLOCATE(fTarget(DVMSpecData(iSpec)%nVar))
+    CALL TargetDistribution(MacroVal(:,DVMnSpecies+1), fTarget, iSpec, MacroVal(1,iSpec), rho, Pr, ErelaxTrans, Erelaxrot(iSpec))
+    U_FV(vFirstID:vLastID,iElem) = U_FV(vFirstID:vLastID,iElem)*prefac + fTarget(:)*(1.-prefac)
+    DEALLOCATE(fTarget)
+    vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+  END DO
 END DO
 END SUBROUTINE RescaleInit
 
@@ -1102,73 +1097,71 @@ DO iElem =1, nElems
     END DO; END DO; END DO
   END IF
 #endif
-  ! DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
-  DO k=0, 0; DO j=0, 0; DO i=0, 0
-    ! CALL MacroValuesFromDistribution(MacroVal,U_FV(:,i,j,k,iElem),tDeriv,tau,1)
-    ! SELECT CASE (DVMBGKModel)
-    !   CASE(1)
-    !     CALL MaxwellDistribution(MacroVal,fTarget)
-    !   CASE(2)
-    !     CALL ShakhovDistribution(MacroVal,fTarget)
-    !   CASE DEFAULT
-    !     CALL abort(__STAMP__,'DVM BGK Model not implemented.')
-    !   END SELECT
-    ! gamma = tau*(1.-EXP(-tDeriv/tau))/tDeriv
-    vFirstID = 0
-    DO iSpec=1,DVMnSpecies
-      ASSOCIATE(Sp => DVMSpecData(iSpec))
-      ! ALLOCATE(fTarget(Sp%nVar))
-      ! CALL MaxwellDistribution(MacroVal(1:DVMnMacro,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
+  ! CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),tDeriv,tau,1)
+  ! SELECT CASE (DVMBGKModel)
+  !   CASE(1)
+  !     CALL MaxwellDistribution(MacroVal,fTarget)
+  !   CASE(2)
+  !     CALL ShakhovDistribution(MacroVal,fTarget)
+  !   CASE DEFAULT
+  !     CALL abort(__STAMP__,'DVM BGK Model not implemented.')
+  !   END SELECT
+  ! gamma = tau*(1.-EXP(-tDeriv/tau))/tDeriv
+  vFirstID = 0
+  DO iSpec=1,DVMnSpecies
+    ASSOCIATE(Sp => DVMSpecData(iSpec))
+    ! ALLOCATE(fTarget(Sp%nVar))
+    ! CALL MaxwellDistribution(MacroVal(1:DVMnMacro,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
 
-      DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
-        upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-        !equilibrium approximation
-        ! cVel(1) = Sp%Velos(iVel,1) - MacroVal(2,iSpec)
-        ! cVel(2) = Sp%Velos(jVel,2) - MacroVal(3,iSpec)
-        ! cVel(3) = Sp%Velos(kVel,3) - MacroVal(4,iSpec)
-        ! IF (PRESENT(ploesma)) THEN
-        !   forceTerm = (Sp%Charge/Sp%Mass) &
-        !             * DOT_PRODUCT(Eloc,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
-        ! ELSE
-        !   forceTerm = DOT_PRODUCT(DVMForce,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
-        ! END IF
-        ! non equilibrium version
-        IF (iVel.EQ.1) THEN
-          upos1=upos
-          upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-          velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel,1)
-        ELSE IF (iVel.EQ.Sp%nVelos(1)) THEN
-          upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-          upos2=upos
-          velodiff=Sp%Velos(iVel,1)-Sp%Velos(iVel-1,1)
-        ELSE
-          upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-          upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-          velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel-1,1)
-        END IF
+    DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+      upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+      !equilibrium approximation
+      ! cVel(1) = Sp%Velos(iVel,1) - MacroVal(2,iSpec)
+      ! cVel(2) = Sp%Velos(jVel,2) - MacroVal(3,iSpec)
+      ! cVel(3) = Sp%Velos(kVel,3) - MacroVal(4,iSpec)
+      ! IF (PRESENT(ploesma)) THEN
+      !   forceTerm = (Sp%Charge/Sp%Mass) &
+      !             * DOT_PRODUCT(Eloc,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
+      ! ELSE
+      !   forceTerm = DOT_PRODUCT(DVMForce,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
+      ! END IF
+      ! non equilibrium version
+      ! TODO: extend to 3D
+      IF (iVel.EQ.1) THEN
+        upos1=upos
+        upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+        velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel,1)
+      ELSE IF (iVel.EQ.Sp%nVelos(1)) THEN
+        upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+        upos2=upos
+        velodiff=Sp%Velos(iVel,1)-Sp%Velos(iVel-1,1)
+      ELSE
+        upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+        upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+        velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel-1,1)
+      END IF
+      IF (PRESENT(ploesma)) THEN
+        forceTerm = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(upos2+vFirstID,iElem)-U_FV(upos1+vFirstID,iElem))/velodiff
+      ELSE
+        forceTerm = - DVMForce(1)*(U_FV(upos2+vFirstID,iElem)-U_FV(upos1+vFirstID,iElem))/velodiff
+      END IF
+      ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,iElem)-U(upos1,iElem)) &
+      !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
+
+      U_FV(upos+vFirstID,iElem) = U_FV(upos+vFirstID,iElem) + forceTerm*tDeriv/2. !t/2 for strang splitting
+      IF (DVMDim.LT.3) THEN
         IF (PRESENT(ploesma)) THEN
-          forceTerm = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(upos2+vFirstID,i,j,k,iElem)-U_FV(upos1+vFirstID,i,j,k,iElem))/velodiff
+          forceTerm2 = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(Sp%nVarReduced+upos2+vFirstID,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,iElem))/velodiff
         ELSE
-          forceTerm = - DVMForce(1)*(U_FV(upos2+vFirstID,i,j,k,iElem)-U_FV(upos1+vFirstID,i,j,k,iElem))/velodiff
+          forceTerm2 = - DVMForce(1)*(U_FV(Sp%nVarReduced+upos2+vFirstID,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,iElem))/velodiff
         END IF
-        ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,i,j,k,iElem)-U(upos1,i,j,k,iElem)) &
-        !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
-
-        U_FV(upos+vFirstID,i,j,k,iElem) = U_FV(upos+vFirstID,i,j,k,iElem) + forceTerm*tDeriv/2. !t/2 for strang splitting
-        IF (DVMDim.LT.3) THEN
-          IF (PRESENT(ploesma)) THEN
-            forceTerm2 = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(Sp%nVarReduced+upos2+vFirstID,i,j,k,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,i,j,k,iElem))/velodiff
-          ELSE
-            forceTerm2 = - DVMForce(1)*(U_FV(Sp%nVarReduced+upos2+vFirstID,i,j,k,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,i,j,k,iElem))/velodiff
-          END IF
-          U_FV(Sp%nVarReduced+upos+vFirstID,i,j,k,iElem) = U_FV(Sp%nVarReduced+upos+vFirstID,i,j,k,iElem) + forceTerm2*tDeriv/2.
-        END IF
-      END DO; END DO; END DO
-      vFirstID = vFirstID + Sp%nVar
-      ! DEALLOCATE(fTarget)
-      END ASSOCIATE
-    END DO
-  END DO; END DO; END DO
+        U_FV(Sp%nVarReduced+upos+vFirstID,iElem) = U_FV(Sp%nVarReduced+upos+vFirstID,iElem) + forceTerm2*tDeriv/2.
+      END IF
+    END DO; END DO; END DO
+    vFirstID = vFirstID + Sp%nVar
+    ! DEALLOCATE(fTarget)
+    END ASSOCIATE
+  END DO
 END DO
 END SUBROUTINE ForceStep
 

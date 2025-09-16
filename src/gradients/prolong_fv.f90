@@ -51,18 +51,18 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 LOGICAL,INTENT(IN)              :: doMPISides  != .TRUE. only YOUR MPISides are filled, =.FALSE. BCSides +InnerSides +MPISides MINE
 #ifdef drift_diffusion
-REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV+3,0:0,0:0,0:0,1:PP_nElems)
+REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV+3,1:PP_nElems)
 #else
-REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
+REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV,1:PP_nElems)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 #ifdef drift_diffusion
-REAL,INTENT(INOUT)              :: Uface_master(PP_nVar_FV+3,0:0,0:0,1:nSides)
-REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV+3,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_master(PP_nVar_FV+3,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV+3,1:nSides)
 #else
-REAL,INTENT(INOUT)              :: Uface_master(PP_nVar_FV,0:0,0:0,1:nSides)
-REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_master(PP_nVar_FV,1:nSides)
+REAL,INTENT(INOUT)              :: Uface_slave(PP_nVar_FV,1:nSides)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -94,19 +94,19 @@ DO SideID=firstSideID,lastSideID
           ASSOCIATE(Sp => DVMSpecData(iSpec))
           DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
             upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-            Uface_slave(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+            Uface_slave(upos,SideID) = Uvol(upos,ElemID) &
                                           + Gradient_elem(1,upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
                                           + Gradient_elem(2,upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
             IF (DVMDim.LT.3) THEN
-              Uface_slave(Sp%nVarReduced+upos,0,0,SideID) = Uvol(Sp%nVarReduced+upos,0,0,0,ElemID) &
+              Uface_slave(Sp%nVarReduced+upos,SideID) = Uvol(Sp%nVarReduced+upos,ElemID) &
                                           + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
                                           + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
             END IF
             IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
               ! rotational energy reduced distribution
-              Uface_slave(Sp%nVarErotStart+upos,0,0,SideID) = Uvol(Sp%nVarErotStart+upos,0,0,0,ElemID) &
+              Uface_slave(Sp%nVarErotStart+upos,SideID) = Uvol(Sp%nVarErotStart+upos,ElemID) &
                                           + Gradient_elem(1,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
                                           + Gradient_elem(2,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_slave(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
@@ -117,7 +117,7 @@ DO SideID=firstSideID,lastSideID
         END DO
       ELSE
 #endif /*discrete_velocity*/
-      Uface_slave(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
+      Uface_slave(1:PP_nVar_FV,SideID) = Uvol(1:PP_nVar_FV,ElemID) &
                                 + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_slave(1,SideID) &
                                 + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_slave(2,SideID) &
                                 + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_slave(3,SideID)
@@ -126,11 +126,11 @@ DO SideID=firstSideID,lastSideID
 #endif
     ELSE
       ! no reconstruction, just copy
-      Uface_slave(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID)
+      Uface_slave(1:PP_nVar_FV,SideID) = Uvol(1:PP_nVar_FV,ElemID)
     END IF
 #ifdef drift_diffusion
   ! Electric field is only copied, reconstruction only for e- density
-  Uface_slave(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID)
+  Uface_slave(PP_nVar_FV+1:PP_nVar_FV+3,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,ElemID)
 #endif
 END DO
 
@@ -158,19 +158,19 @@ DO SideID=firstSideID,lastSideID
       ASSOCIATE(Sp => DVMSpecData(iSpec))
       DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
         upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-        Uface_master(upos,0,0,SideID) = Uvol(upos,0,0,0,ElemID) &
+        Uface_master(upos,SideID) = Uvol(upos,ElemID) &
                                       + Gradient_elem(1,upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
                                       + Gradient_elem(2,upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                       + Gradient_elem(3,upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
         IF (DVMDim.LT.3) THEN
-          Uface_master(Sp%nVarReduced+upos,0,0,SideID) = Uvol(Sp%nVarReduced+upos,0,0,0,ElemID) &
+          Uface_master(Sp%nVarReduced+upos,SideID) = Uvol(Sp%nVarReduced+upos,ElemID) &
                                       + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
                                       + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                       + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
         END IF
         IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
         ! rotational energy reduced distribution
-          Uface_master(Sp%nVarErotStart+upos,0,0,SideID) = Uvol(Sp%nVarErotStart+upos,0,0,0,ElemID) &
+          Uface_master(Sp%nVarErotStart+upos,SideID) = Uvol(Sp%nVarErotStart+upos,ElemID) &
                                       + Gradient_elem(1,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_master(1,SideID)-Sp%Velos(iVel,1)*dt/2.) &
                                       + Gradient_elem(2,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_master(2,SideID)-Sp%Velos(jVel,2)*dt/2.) &
                                       + Gradient_elem(3,Sp%nVarErotStart+upos,ElemID)*(Grad_dx_master(3,SideID)-Sp%Velos(kVel,3)*dt/2.)
@@ -181,7 +181,7 @@ DO SideID=firstSideID,lastSideID
     END DO
   ELSE
 #endif /*discrete_velocity*/
-    Uface_master(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID) &
+    Uface_master(1:PP_nVar_FV,SideID) = Uvol(1:PP_nVar_FV,ElemID) &
                               + Gradient_elem(1,1:PP_nVar_FV,ElemID)*Grad_dx_master(1,SideID) &
                               + Gradient_elem(2,1:PP_nVar_FV,ElemID)*Grad_dx_master(2,SideID) &
                               + Gradient_elem(3,1:PP_nVar_FV,ElemID)*Grad_dx_master(3,SideID)
@@ -190,11 +190,11 @@ DO SideID=firstSideID,lastSideID
 #endif
     ELSE
       ! no reconstruction, just copy
-      Uface_master(1:PP_nVar_FV,0,0,SideID) = Uvol(1:PP_nVar_FV,0,0,0,ElemID)
+      Uface_master(1:PP_nVar_FV,SideID) = Uvol(1:PP_nVar_FV,ElemID)
     END IF
 #ifdef drift_diffusion
   ! Electric field is only copied, reconstruction only for e- density
-  Uface_master(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,ElemID)
+  Uface_master(PP_nVar_FV+1:PP_nVar_FV+3,SideID) = Uvol(PP_nVar_FV+1:PP_nVar_FV+3,ElemID)
 #endif
 END DO !SideID
 
@@ -213,7 +213,7 @@ USE MOD_Mesh_Vars_FV,       ONLY: Elem_xGP_PP_1,Elem_xGP_FV
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV,0:0,0:0,0:0,1:PP_nElems)
+REAL,INTENT(IN)                 :: Uvol(PP_nVar_FV,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,INTENT(OUT)                :: Uout(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,1:PP_nElems)
@@ -225,10 +225,10 @@ DO ElemID=1,PP_nElems
   DO k=0,PP_1
     DO j=0,PP_1
       DO i=0,PP_1
-        Uout(:,i,j,k,ElemID) = Uvol(:,0,0,0,ElemID) &
-                            + Gradient_elem(1,:,ElemID)*(Elem_xGP_PP_1(1,i,j,k,ElemID)-Elem_xGP_FV(1,0,0,0,ElemID)) &
-                            + Gradient_elem(2,:,ElemID)*(Elem_xGP_PP_1(2,i,j,k,ElemID)-Elem_xGP_FV(2,0,0,0,ElemID)) &
-                            + Gradient_elem(3,:,ElemID)*(Elem_xGP_PP_1(3,i,j,k,ElemID)-Elem_xGP_FV(3,0,0,0,ElemID))
+        Uout(:,i,j,k,ElemID) = Uvol(:,ElemID) &
+                            + Gradient_elem(1,:,ElemID)*(Elem_xGP_PP_1(1,i,j,k,ElemID)-Elem_xGP_FV(1,ElemID)) &
+                            + Gradient_elem(2,:,ElemID)*(Elem_xGP_PP_1(2,i,j,k,ElemID)-Elem_xGP_FV(2,ElemID)) &
+                            + Gradient_elem(3,:,ElemID)*(Elem_xGP_PP_1(3,i,j,k,ElemID)-Elem_xGP_FV(3,ElemID))
       END DO
     END DO
   END DO

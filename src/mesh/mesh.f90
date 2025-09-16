@@ -407,16 +407,10 @@ IF (ABS(meshMode).GT.1) THEN
     SDEALLOCATE(       XCL_N_PP_1)
     SDEALLOCATE(      dXCL_N_PP_1)
     SDEALLOCATE(      JaCL_N_PP_1)
-    SDEALLOCATE(Metrics_fTilde_FV)
-    SDEALLOCATE(Metrics_gTilde_FV)
-    SDEALLOCATE(Metrics_hTilde_FV)
 
     ALLOCATE(       XCL_N_PP_1(  3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics(), required in CalcSurfMetrics()
     ALLOCATE(      dXCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems)) ! built in CalcMetrics()
     ALLOCATE(      JaCL_N_PP_1(3,3,0:PP_1,0:PP_1,0:PP_1,nElems))
-    ALLOCATE(Metrics_fTilde_FV(3,0:0,0:0,0:0,nElems))
-    ALLOCATE(Metrics_gTilde_FV(3,0:0,0:0,0:0,nElems))
-    ALLOCATE(Metrics_hTilde_FV(3,0:0,0:0,0:0,nElems))
     JaCL_N_PP_1 = 0.
 
     ! Vandermonde
@@ -497,12 +491,12 @@ IF (ABS(meshMode).GT.1) THEN
 #endif
 
 #if USE_FV
-  ALLOCATE(Face_xGP_FV      (3,0:0,0:0,1:nSides))
-  ALLOCATE(NormVec_FV       (3,0:0,0:0,1:nSides))
-  ALLOCATE(TangVec1_FV      (3,0:0,0:0,1:nSides))
-  ALLOCATE(TangVec2_FV      (3,0:0,0:0,1:nSides))
-  ALLOCATE(SurfElem_FV      (  0:0,0:0,1:nSides))
-  ALLOCATE(Ja_Face_FV       (3,3,0:0,0:0,1:nSides)) ! temp
+  ALLOCATE(Face_xGP_FV      (3,1:nSides))
+  ALLOCATE(NormVec_FV       (3,1:nSides))
+  ALLOCATE(TangVec1_FV      (3,1:nSides))
+  ALLOCATE(TangVec2_FV      (3,1:nSides))
+  ALLOCATE(SurfElem_FV      (  1:nSides))
+  ALLOCATE(Ja_Face_FV       (3,3,1:nSides)) ! temp
   Face_xGP_FV=0.
   NormVec_FV=0.
   TangVec1_FV=0.
@@ -528,12 +522,12 @@ IF (ABS(meshMode).GT.1) THEN
   END DO
 
   ! PP_1 metrics to global ones
-  Face_xGP_FV(:,0,0,:)   = SUM(SUM(Face_xGP_PP_1      (:,:,:,:),3),2)/4. !average over (PP_1+1)^2 points
-  NormVec_FV (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
-  TangVec1_FV(:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
-  TangVec2_FV(:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
-  SurfElem_FV(0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
-  Ja_Face_FV (:,:,0,0,:) = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
+  Face_xGP_FV(:,:)   = SUM(SUM(Face_xGP_PP_1      (:,:,:,:),3),2)/4. !average over (PP_1+1)^2 points
+  NormVec_FV (:,:)   = NormVec_PP_1       (:,0,0,:)
+  TangVec1_FV(:,:)   = TangVec1_PP_1      (:,0,0,:)
+  TangVec2_FV(:,:)   = TangVec2_PP_1      (:,0,0,:)
+  SurfElem_FV(:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
+  Ja_Face_FV (:,:,:) = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
 #endif /*FV*/
 
 #if defined(PARTICLES) || USE_HDG
@@ -1252,9 +1246,6 @@ SDEALLOCATE(N_VolMesh2) ! MPI communication during LB in ExchangeMetrics()
 SDEALLOCATE(BoundaryType_FV)
 SDEALLOCATE(Elem_xGP_FV)
 SDEALLOCATE(Elem_xGP_PP_1)
-SDEALLOCATE(Metrics_fTilde_FV)
-SDEALLOCATE(Metrics_gTilde_FV)
-SDEALLOCATE(Metrics_hTilde_FV)
 SDEALLOCATE(JaCL_N_PP_1)
 SDEALLOCATE(       XCL_N_PP_1)
 SDEALLOCATE(      dXCL_N_PP_1)

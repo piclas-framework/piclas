@@ -71,7 +71,7 @@ END IF
 DO SideID=firstSideID,lastSideID
     ElemID     = SideToElem(S2E_NB_ELEM_ID,SideID)
     IF (ElemID.LT.0) CYCLE !mpi-mortar whatever
-    Face_temp(:) = Face_xGP_FV(:,0,0,SideID)
+    Face_temp(:) = Face_xGP_FV(:,SideID)
     IF (IsPeriodicSide(SideID)) THEN
       ! Only master coordinates in Face_xGP but need coordinates of periodic slave side for distance to slave element
       ! Currently only works for xyz-aligned periodic vectors
@@ -89,7 +89,7 @@ DO SideID=firstSideID,lastSideID
         Face_temp((PeriodicDim+1)/2) = xyzMinMax(PeriodicDim+1)
       END IF
     END IF
-    Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP_FV(:,0,0,0,ElemID)
+    Grad_dx_slave(:,SideID)=Face_temp(:)-Elem_xGP_FV(:,ElemID)
 END DO
 
 ! Second process Minus/Master sides, U_Minus is always MINE
@@ -107,7 +107,7 @@ END IF
 DO SideID=firstSideID,lastSideID
     ElemID    = SideToElem(S2E_ELEM_ID,SideID)
     IF (ElemID.LT.0) CYCLE !small mortar sides don't have info of the big master element + skip MPI_YOUR sides
-    Grad_dx_master(:,SideID)=Face_xGP_FV(:,0,0,SideID)-Elem_xGP_FV(:,0,0,0,ElemID)
+    Grad_dx_master(:,SideID)=Face_xGP_FV(:,SideID)-Elem_xGP_FV(:,ElemID)
     ! mirror distance for ghost cells
     IF (SideID.LE.lastBCSide) Grad_dx_slave(:,SideID) = -Grad_dx_master(:,SideID)
 END DO !SideID

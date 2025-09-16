@@ -166,9 +166,9 @@ REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
 #if USE_FV
-REAL,ALLOCATABLE               :: Ureco(:,:,:,:,:)
 INTEGER(KIND=IK)               :: N_FV
 #ifdef discrete_velocity
+REAL,ALLOCATABLE               :: Ureco(:,:,:,:,:)
 REAL                           :: MacroVal(DVMnMacro,DVMnSpecies+1)
 REAL,ALLOCATABLE               :: Udvm(:,:,:,:,:)
 REAL                           :: tau,dtMV
@@ -404,20 +404,20 @@ SDEALLOCATE(U_N_2D_local)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 #if USE_FV
-IF (doFVReconstruct) THEN
-! reconstruct solution using gradients, as done during simulation
-  CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
-  CALL ProlongToOutput(U_FV,Ureco)
-ELSE
-  ! first order solution
-  Ureco = U_FV
-END IF
 ! Associate construct for integer KIND=8 possibility
 ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK)       ,&
           PP_nElems       => INT(PP_nElems,IK)          ,&
           offsetElem      => INT(offsetElem,IK)         ,&
           PP_nVarTmp_FV   => INT(PP_nVar_FV,IK)          )
 #ifdef discrete_velocity
+IF (doFVReconstruct) THEN
+! reconstruct solution using gradients, as done during simulation
+  CALL GetGradients(U_FV(:,:),output=.TRUE.)
+  CALL ProlongToOutput(U_FV,Ureco)
+ELSE
+  ! first order solution
+  Ureco(:,0,0,0,:) = U_FV(:,:)
+END IF
 IF (time.EQ.0.) THEN
   dtMV = 0.
 ELSE
@@ -438,6 +438,7 @@ DO iElem=1,INT(PP_nElems)
     END DO
   END DO
 END DO
+SDEALLOCATE(Ureco)
 nValDVM = INT((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,IK)
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
     DataSetName='DVM_Solution', rank=5,&
@@ -448,14 +449,13 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
 #endif
 #ifdef drift_diffusion
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
-    DataSetName='DriftDiffusion_Solution', rank=5,&
-    nValGlobal=(/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
-    nVal=      (/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
-    offset=    (/0_IK           , 0_IK     , 0_IK      , 0_IK      , offsetElem/)   , &
-    collective=.TRUE.,RealArray=Ureco)
+    DataSetName='DriftDiffusion_Solution', rank=2,&
+    nValGlobal=(/PP_nVarTmp_FV , nGlobalElems/) , &
+    nVal=      (/PP_nVarTmp_FV ,  PP_nElems/)    , &
+    offset=    (/0_IK          , offsetElem/)   , &
+    collective=.TRUE.,RealArray=U_FV)
 #endif
 END ASSOCIATE
-SDEALLOCATE(Ureco)
 #endif /*USE_FV*/
 
 ! ---------------------------------------------------------

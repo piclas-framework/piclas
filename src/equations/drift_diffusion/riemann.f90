@@ -37,12 +37,12 @@ USE MOD_Particle_Vars  ,ONLY: nSpecies
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar_FV+3,0:0,0:0),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:0,0:0)
+REAL,DIMENSION(PP_nVar_FV+3),INTENT(IN)          :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3)
 REAL,INTENT(IN)                                  :: GradSide
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:0,0:0)
+REAL,INTENT(OUT)                                 :: F(PP_nVar_FV)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -56,19 +56,19 @@ DO iSpec = 1, nSpecies
   END IF
 END DO
 
-E_L = U_L(PP_nVar_FV+1:PP_nVar_FV+3,0,0)
-E_R = U_R(PP_nVar_FV+1:PP_nVar_FV+3,0,0)
+E_L = U_L(PP_nVar_FV+1:PP_nVar_FV+3)
+E_R = U_R(PP_nVar_FV+1:PP_nVar_FV+3)
 
 
 CALL CalcDriftDiffusionCoeff(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
 CALL CalcDriftDiffusionCoeff(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
 
-normalE = -DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
+normalE = -DOT_PRODUCT(nv,(E_L+E_R)/2.)
 
 IF (normalE.GT.0.) THEN
-  F(1,0,0)=normalE*mu_L*U_L(1,0,0) + D_L*GradSide
+  F(1)=normalE*mu_L*U_L(1) + D_L*GradSide
 ELSE
-  F(1,0,0)=normalE*mu_R*U_R(1,0,0) + D_R*GradSide
+  F(1)=normalE*mu_R*U_R(1) + D_R*GradSide
 END IF
 
 END SUBROUTINE Riemann

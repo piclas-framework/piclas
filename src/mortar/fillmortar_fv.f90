@@ -57,11 +57,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 #ifdef drift_diffusion
-REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar_FV+3,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
-REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV+3,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
+REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar_FV+3,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
+REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV+3,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 #else
-REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar_FV,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
-REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV,0:0,0:0,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
+REAL,INTENT(INOUT) :: U_in_master(1:PP_nVar_FV,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
+REAL,INTENT(INOUT) :: U_in_slave( 1:PP_nVar_FV,1:nSides) !< (INOUT) can be U or Grad_Ux/y/z_master
 #endif /*drift_diffusion*/
 LOGICAL,INTENT(IN) :: doReco                                     !< flag whether reconstruction is used
 LOGICAL,INTENT(IN) :: doMPISides                                 !< flag whether MPI sides are processed
@@ -93,7 +93,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     IF (doReco) THEN
       ElemID    = SideToElem(S2E_ELEM_ID,MortarSideID)
       ! Get distance from big face center to small face center
-      FaceToFace(1:3) = Face_xGP_FV(1:3,0,0,SideID) - Face_xGP_FV(1:3,0,0,MortarSideID)
+      FaceToFace(1:3) = Face_xGP_FV(1:3,SideID) - Face_xGP_FV(1:3,MortarSideID)
 #ifdef discrete_velocity
       IF (DVMColl) THEN
         !DVM specific reconstruction
@@ -102,19 +102,19 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
           ASSOCIATE(Sp => DVMSpecData(iSpec))
           DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
             upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-            U_tmp(upos) = U_in_master(upos,0,0,MortarSideID) &
+            U_tmp(upos) = U_in_master(upos,MortarSideID) &
                                           + Gradient_elem(1,upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
                                           + Gradient_elem(2,upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
             IF (DVMDim.LT.3) THEN
-              U_tmp(Sp%nVarReduced+upos) = U_in_master(Sp%nVarReduced+upos,0,0,MortarSideID) &
+              U_tmp(Sp%nVarReduced+upos) = U_in_master(Sp%nVarReduced+upos,MortarSideID) &
                                           + Gradient_elem(1,Sp%nVarReduced+upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
                                           + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
             END IF
             IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
             ! rotational energy reduced distribution
-              U_tmp(Sp%nVarERotStart+upos) = U_in_master(Sp%nVarERotStart+upos,0,0,MortarSideID) &
+              U_tmp(Sp%nVarERotStart+upos) = U_in_master(Sp%nVarERotStart+upos,MortarSideID) &
                                           + Gradient_elem(1,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
                                           + Gradient_elem(2,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
@@ -125,7 +125,7 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
         END DO
       ELSE
 #endif /*discrete_velocity*/
-        U_tmp(1:PP_nVar_FV) = U_in_master(1:PP_nVar_FV,0,0,MortarSideID) + Gradient_elem(1,1:PP_nVar_FV,ElemID)*FaceToFace(1) &
+        U_tmp(1:PP_nVar_FV) = U_in_master(1:PP_nVar_FV,MortarSideID) + Gradient_elem(1,1:PP_nVar_FV,ElemID)*FaceToFace(1) &
                                                                          + Gradient_elem(2,1:PP_nVar_FV,ElemID)*FaceToFace(2) &
                                                                          + Gradient_elem(3,1:PP_nVar_FV,ElemID)*FaceToFace(3)
 #ifdef discrete_velocity
@@ -133,16 +133,16 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
 #endif
 #ifdef drift_diffusion
       ! Electric field is only copied, reconstruction only for e- density
-      U_tmp(PP_nVar_FV+1:PP_nVar_FV) = U_in_master(PP_nVar_FV+1:PP_nVar_FV,0,0,MortarSideID)
+      U_tmp(PP_nVar_FV+1:PP_nVar_FV) = U_in_master(PP_nVar_FV+1:PP_nVar_FV,MortarSideID)
 #endif
     ELSE
-      U_tmp(:) = U_in_master(:,0,0,MortarSideID) ! no reconstruction, just copy
+      U_tmp(:) = U_in_master(:,MortarSideID) ! no reconstruction, just copy
     END IF
     SELECT CASE(flip)
       CASE(0) ! master side
-        U_in_master(:,0,0,SideID)=U_tmp(:)
+        U_in_master(:,SideID)=U_tmp(:)
       CASE(1:4) ! slave side (only for MPI)
-        U_in_slave(:,0,0,SideID) =U_tmp(:)
+        U_in_slave(:,SideID) =U_tmp(:)
     END SELECT !flip(iMortar)
   END DO !iMortar
 END DO !MortarSideID
@@ -163,11 +163,11 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 #ifdef drift_diffusion
-REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar_FV+3,0:0,0:0,1:nSides)
-REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV+3,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar_FV+3,1:nSides)
+REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV+3,1:nSides)
 #else
-REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar_FV,0:0,0:0,1:nSides)
-REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT) :: Flux_Master(1:PP_nVar_FV,1:nSides)
+REAL,INTENT(INOUT) :: Flux_Slave(1:PP_nVar_FV,1:nSides)
 #endif /*drift_diffusion*/
 LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -197,12 +197,12 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     flip   = MortarInfo(MI_FLIP,iMortar,iSide)
     SELECT CASE(flip)
     CASE(0) ! master side
-      Flux_tmp(:,iMortar)=Flux_Master(:,0,0,SideID)
+      Flux_tmp(:,iMortar)=Flux_Master(:,SideID)
     CASE(1:4) ! slave sides (should only occur for MPI)
-      Flux_tmp(:,iMortar)=-Flux_Slave(:,0,0,SideID)
+      Flux_tmp(:,iMortar)=-Flux_Slave(:,SideID)
     END SELECT
   END DO
-  Flux_Master(:,0,0,MortarSideID)=SUM(Flux_tmp(:,:),2) ! sum up contributions from 2 or 4 small sides
+  Flux_Master(:,MortarSideID)=SUM(Flux_tmp(:,:),2) ! sum up contributions from 2 or 4 small sides
 END DO !MortarSideID
 
 END SUBROUTINE Flux_Mortar_FV
@@ -221,8 +221,8 @@ USE MOD_Mesh_Vars_FV,ONLY: Face_xGP_FV
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT) :: Dx_Master(1:3,0:0,0:0,1:nSides)
-REAL,INTENT(INOUT) :: Dx_Slave(1:3,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT) :: Dx_Master(1:3,1:nSides)
+REAL,INTENT(INOUT) :: Dx_Slave(1:3,1:nSides)
 LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -244,12 +244,12 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     SideID= MortarInfo(MI_SIDEID,iMortar,locSide)
     flip  = MortarInfo(MI_FLIP,iMortar,locSide)
     ! Get distance from big face center to small face center
-    FaceToFace(1:3) = Face_xGP_FV(1:3,0,0,SideID) - Face_xGP_FV(1:3,0,0,MortarSideID)
+    FaceToFace(1:3) = Face_xGP_FV(1:3,SideID) - Face_xGP_FV(1:3,MortarSideID)
     SELECT CASE(flip)
       CASE(0) ! master side
-        Dx_master(:,0,0,SideID)=Dx_Master(1:3,0,0,MortarSideID)+FaceToFace(1:3)
+        Dx_master(:,SideID)=Dx_Master(1:3,MortarSideID)+FaceToFace(1:3)
       CASE(1:4) ! slave side (only for MPI)
-        Dx_slave(:,0,0,SideID) =Dx_Master(1:3,0,0,MortarSideID)+FaceToFace(1:3)
+        Dx_slave(:,SideID) =Dx_Master(1:3,MortarSideID)+FaceToFace(1:3)
     END SELECT !flip(iMortar)
   END DO !iMortar
 END DO !MortarSideID
@@ -268,8 +268,8 @@ USE MOD_Mesh_Vars,   ONLY: firstMortarMPISide,lastMortarMPISide
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,INTENT(INOUT) :: Dx_Master(1:3,0:0,0:0,1:nSides)
-REAL,INTENT(INOUT) :: Dx_Slave(1:3,0:0,0:0,1:nSides)
+REAL,INTENT(INOUT) :: Dx_Master(1:3,1:nSides)
+REAL,INTENT(INOUT) :: Dx_Slave(1:3,1:nSides)
 LOGICAL,INTENT(IN) :: doMPISides
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -294,12 +294,12 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
     flip   = MortarInfo(MI_FLIP,iMortar,iSide)
     SELECT CASE(flip)
     CASE(0) ! master side
-      Dx_tmp(:,iMortar)=Dx_Master(:,0,0,SideID)
+      Dx_tmp(:,iMortar)=Dx_Master(:,SideID)
     CASE(1:4) ! slave sides (should only occur for MPI)
-      Dx_tmp(:,iMortar)=Dx_Slave(:,0,0,SideID)
+      Dx_tmp(:,iMortar)=Dx_Slave(:,SideID)
     END SELECT
   END DO
-  Dx_Master(:,0,0,MortarSideID)=SUM(Dx_tmp(:,:),2)/FLOAT(nMortars) ! sum up contributions from 2 or 4 small sides
+  Dx_Master(:,MortarSideID)=SUM(Dx_tmp(:,:),2)/FLOAT(nMortars) ! sum up contributions from 2 or 4 small sides
 END DO !MortarSideID
 
 END SUBROUTINE Dx_SmallToBig_Mortar

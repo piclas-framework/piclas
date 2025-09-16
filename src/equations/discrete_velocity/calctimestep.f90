@@ -78,11 +78,11 @@ DO iElem=1,PP_nElems
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,iElem)
     flip=ElemToSide(E2S_FLIP,locSideID,iElem)
     IF (flip.EQ.0) THEN !master side, outgoing normal OK
-      n_loc = NormVec_FV(:,0,0,SideID)
+      n_loc = NormVec_FV(:,SideID)
     ELSE !slave side, flip ingoing normal
-      n_loc = -NormVec_FV(:,0,0,SideID)
+      n_loc = -NormVec_FV(:,SideID)
     END IF
-    SideFac = SurfElem_FV(0,0,SideID)/ElemVolume_Shared(CNElemID)
+    SideFac = SurfElem_FV(SideID)/ElemVolume_Shared(CNElemID)
     vFirstID = 0
     DO iSpec =1,DVMnSpecies
       DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)

@@ -163,17 +163,19 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   END IF ! FileVersionExists
   N_Restart=-1
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-  CALL DatasetExists(File_ID,'DVM_Solution',DG_SolutionExists)
 #if defined(discrete_velocity) /*DVM*/
+  CALL DatasetExists(File_ID,'DVM_Solution',DG_SolutionExists)
   IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DVM_Solution')
+  CALL GetDataProps('DVM_Solution',nVar_Restart_FV,N_Restart_FV,nElems_Restart_FV,NodeType_Restart_FV)
+  ! copy FV restart info to DG restart info for the case where it is not overwritten later (pure DVM case)
+  N_Restart = N_Restart_FV
+  nVar_Restart = nVar_Restart_FV
+  nElems_Restart = nElems_Restart_FV
+  NodeType_Restart = NodeType_Restart_FV
 #endif /*DVM*/
-IF (DG_SolutionExists) THEN
-  CALL GetDataProps('DVM_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-ELSE
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
   IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
   CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
-END IF ! DG_SolutionExists
 #else
   nVar_Restart = PP_nVar
   N_Restart = 0

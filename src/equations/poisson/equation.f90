@@ -1047,12 +1047,12 @@ END ASSOCIATE
 
 #ifdef drift_diffusion
 ! Add the electron density from the FV solver to the particle source
-resu(1) = - ((PS_N(iElem)%PartSource(4,i,j,k) - U_FV(1,0,0,0,iElem)*ElementaryCharge))/eps0
+resu(1) = - ((PS_N(iElem)%PartSource(4,i,j,k) - U_FV(1,iElem)*ElementaryCharge))/eps0
 !resu(1) = 0.!- ((1e20 - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
 #endif
 
 #ifdef discrete_velocity
-CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),0.,tau,1,Charge=DVMtotalCharge)
+CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),0.,tau,1,Charge=DVMtotalCharge)
 resu(1) = - DVMtotalCharge/eps0
 #endif
 

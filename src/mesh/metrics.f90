@@ -98,12 +98,15 @@ TYPE VdmType
 END TYPE VdmType
 
 TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm
+#if USE_FV
+REAL                          :: Elem_xGP_tmp(3,0:0,0:0,0:0)
+#endif
 !==================================================================================================================================
 
 #if USE_FV
 ! Element centers
 SDEALLOCATE(Elem_xGP_FV)
-ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))!
+ALLOCATE(Elem_xGP_FV   (3,nElems))!
 ! Output points
 SDEALLOCATE(Elem_xGP_PP_1)
 ALLOCATE(Elem_xGP_PP_1 (3,0:PP_1,0:PP_1,0:PP_1,nElems))
@@ -140,7 +143,8 @@ DO iElem=1,nElems
 #if USE_FV
   ! Element centers
   Nloc = 0
-  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_FV(:,:,:,:,iElem))
+  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_tmp(:,:,:,:))
+  Elem_xGP_FV(:,iElem) = Elem_xGP_tmp(:,0,0,0)
   ! Output points
   Nloc = PP_1
   CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_PP_1(:,:,:,:,iElem))

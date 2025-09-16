@@ -121,17 +121,17 @@ USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMe
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
-REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: NormVec(           3,0:PP_N,0:PP_N,1:nBCSides)
-REAL,INTENT(IN)                      :: Face_xGP(        3,0:PP_N,0:PP_N,1:nBCSides)
+REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV,1:nBCSides)
+REAL,INTENT(IN)                      :: NormVec(           3,1:nBCSides)
+REAL,INTENT(IN)                      :: Face_xGP(        3,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,1:nBCSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: UPrim_boundary(PP_nVar_FV,0:0,0:0)
+REAL                                 :: UPrim_boundary(PP_nVar_FV)
 INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFirstID, vLastID
 REAL                                 :: MacroVal(DVMnMacro), vnormal
@@ -151,21 +151,17 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       IF(BCState.EQ.0) THEN
-        DO q=0,PP_N; DO p=0,PP_N
-          CALL ExactFunc_FV(IniExactFunc_FV,t,Face_xGP(:,p,q,SideID),UPrim_boundary(:,p,q))
-        END DO; END DO
+        CALL ExactFunc_FV(IniExactFunc_FV,t,Face_xGP(:,SideID),UPrim_boundary(:))
       ELSE
-        DO q=0,0; DO p=0,0
-          vFirstID=1
-          vLastID=0
-          DO iSpec=1,DVMnSpecies
-            vLastID = vLastID + DVMSpecData(iSpec)%nVar
-            CALL MaxwellDistribution(RefState_FV(:,iSpec,BCState),UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
-            vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
-          END DO
-        END DO; END DO
+        vFirstID=1
+        vLastID=0
+        DO iSpec=1,DVMnSpecies
+          vLastID = vLastID + DVMSpecData(iSpec)%nVar
+          CALL MaxwellDistribution(RefState_FV(:,iSpec,BCState),UPrim_boundary(vFirstID:vLastID),iSpec)
+          vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+        END DO
       END IF
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
   CASE(3) !specular reflection
@@ -176,148 +172,140 @@ DO iBC=1,nBCs
     END DO
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      DO q=0,0; DO p=0,0
-        IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not working (yet?)') !THEN
-        !   IF (DVMVeloDisc.NE.3) CALL abort(__STAMP__,'DVM specular bc error: moving wall only with Gauss-Hermite disc')
-        !   CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-        !   Sin=0.
-        !   Sout=0.
-        !   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-        !     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-        !     weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
-        !     vnormal = DVMVelos(iVel,1)*NormVec(1,p,q,SideID) + DVMVelos(jVel,2)*NormVec(2,p,q,SideID) + DVMVelos(kVel,3)*NormVec(3,p,q,SideID)
-        !     vwall = DVMVelos(iVel,1)*RefState_FV(2,BCState) + DVMVelos(jVel,2)*RefState_FV(3,BCState) + DVMVelos(kVel,3)*RefState_FV(4,BCState)
-        !     IF (vnormal.LT.0.) THEN !inflow
-        !       Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpecData%R_S/MacroVal(5)/2.) &
-        !       /DVMSpecData%R_S/MacroVal(5)/(2.*Pi*DVMSpecData%R_S*MacroVal(5))**(DVMDim/2.)
-        !     ELSE IF (vnormal.GT.0.) THEN
-        !       Sout = Sout + weight*UPrim_master(upos,p,q,SideID)
-        !     ELSE
-        !       Sout = Sout + 2.*weight*UPrim_master(upos,p,q,SideID)
-        !     END IF
-        !   END DO; END DO; END DO
-        !   WallDensity = Sout/(1-Sin)
-        ! END IF
-        vFirstID=0
-        DO iSpec=1,DVMnSpecies
-          ASSOCIATE(Sp => DVMSpecData(iSpec))
-          DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
-            upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-            vnormal = Sp%Velos(iVel,1)*NormVec(1,p,q,SideID) + Sp%Velos(jVel,2)*NormVec(2,p,q,SideID) + Sp%Velos(kVel,3)*NormVec(3,p,q,SideID)
-            ! vwall = Sp%Velos(iVel,1)*RefState_FV(2,BCState) + Sp%Velos(jVel,2)*RefState_FV(3,BCState) + Sp%Velos(kVel,3)*RefState_FV(4,BCState)
-            IF (ABS(ABS(NormVec(1,p,q,SideID)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
-              upos_sp=(Sp%nVelos(1)+1-iVel)+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-            ELSE IF (ABS(ABS(NormVec(2,p,q,SideID)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
-              upos_sp=iVel+(Sp%nVelos(2)-jVel)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-            ELSE IF (ABS(ABS(NormVec(3,p,q,SideID)) - 1.).LE.1e-6) THEN !z-perpendicular boundary
-              upos_sp=iVel+(jVel-1)*Sp%nVelos(1)+(Sp%nVelos(3)-kVel)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-            ELSE
-              CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
+      IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not working (yet?)') !THEN
+      !   IF (DVMVeloDisc.NE.3) CALL abort(__STAMP__,'DVM specular bc error: moving wall only with Gauss-Hermite disc')
+      !   CALL MacroValuesFromDistribution(MacroVal,UPrim_master(:,SideID),dt/2.,tau,1)
+      !   Sin=0.
+      !   Sout=0.
+      !   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
+      !     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
+      !     weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
+      !     vnormal = DVMVelos(iVel,1)*NormVec(1,SideID) + DVMVelos(jVel,2)*NormVec(2,SideID) + DVMVelos(kVel,3)*NormVec(3,SideID)
+      !     vwall = DVMVelos(iVel,1)*RefState_FV(2,BCState) + DVMVelos(jVel,2)*RefState_FV(3,BCState) + DVMVelos(kVel,3)*RefState_FV(4,BCState)
+      !     IF (vnormal.LT.0.) THEN !inflow
+      !       Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpecData%R_S/MacroVal(5)/2.) &
+      !       /DVMSpecData%R_S/MacroVal(5)/(2.*Pi*DVMSpecData%R_S*MacroVal(5))**(DVMDim/2.)
+      !     ELSE IF (vnormal.GT.0.) THEN
+      !       Sout = Sout + weight*UPrim_master(upos,SideID)
+      !     ELSE
+      !       Sout = Sout + 2.*weight*UPrim_master(upos,SideID)
+      !     END IF
+      !   END DO; END DO; END DO
+      !   WallDensity = Sout/(1-Sin)
+      ! END IF
+      vFirstID=0
+      DO iSpec=1,DVMnSpecies
+        ASSOCIATE(Sp => DVMSpecData(iSpec))
+        DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
+          upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+          vnormal = Sp%Velos(iVel,1)*NormVec(1,SideID) + Sp%Velos(jVel,2)*NormVec(2,SideID) + Sp%Velos(kVel,3)*NormVec(3,SideID)
+          ! vwall = Sp%Velos(iVel,1)*RefState_FV(2,BCState) + Sp%Velos(jVel,2)*RefState_FV(3,BCState) + Sp%Velos(kVel,3)*RefState_FV(4,BCState)
+          IF (ABS(ABS(NormVec(1,SideID)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
+            upos_sp=(Sp%nVelos(1)+1-iVel)+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+          ELSE IF (ABS(ABS(NormVec(2,SideID)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
+            upos_sp=iVel+(Sp%nVelos(2)-jVel)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+          ELSE IF (ABS(ABS(NormVec(3,SideID)) - 1.).LE.1e-6) THEN !z-perpendicular boundary
+            upos_sp=iVel+(jVel-1)*Sp%nVelos(1)+(Sp%nVelos(3)-kVel)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
+          ELSE
+            CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
+          END IF
+          IF (vnormal.LT.0.) THEN !inflow
+            ! IF (BCState.NE.0) THEN
+            !   MovTerm = 2.*WallDensity*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpecData%R_S/MacroVal(5)/2.) &
+            !   /DVMSpecData%R_S/MacroVal(5)/(2.*Pi*DVMSpecData%R_S*MacroVal(5))**(DVMDim/2.)
+            ! ELSE
+            !   MovTerm = 0.
+            ! END IF
+            UPrim_boundary(upos)=UPrim_master(upos_sp,SideID)! + MovTerm
+            IF (DVMDim.LT.3) THEN
+              UPrim_boundary(Sp%nVarReduced+upos)=UPrim_master(Sp%nVarReduced+upos_sp,SideID)! + MovTerm
             END IF
-            IF (vnormal.LT.0.) THEN !inflow
-              ! IF (BCState.NE.0) THEN
-              !   MovTerm = 2.*WallDensity*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpecData%R_S/MacroVal(5)/2.) &
-              !   /DVMSpecData%R_S/MacroVal(5)/(2.*Pi*DVMSpecData%R_S*MacroVal(5))**(DVMDim/2.)
-              ! ELSE
-              !   MovTerm = 0.
-              ! END IF
-              UPrim_boundary(upos,p,q)=UPrim_master(upos_sp,p,q,SideID)! + MovTerm
-              IF (DVMDim.LT.3) THEN
-                UPrim_boundary(Sp%nVarReduced+upos,p,q)=UPrim_master(Sp%nVarReduced+upos_sp,p,q,SideID)! + MovTerm
-              END IF
-              IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
-                UPrim_boundary(Sp%nVarErotStart+upos,p,q)=UPrim_master(Sp%nVarErotStart+upos_sp,p,q,SideID)! + MovTerm
-              END IF
-            ELSE
-              UPrim_boundary(upos,p,q)=UPrim_master(upos,p,q,SideID)
-              IF (DVMDim.LT.3) THEN
-                UPrim_boundary(Sp%nVarReduced+upos,p,q)=UPrim_master(Sp%nVarReduced+upos,p,q,SideID)
-              END IF
-              IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
-                UPrim_boundary(Sp%nVarErotStart+upos,p,q)=UPrim_master(Sp%nVarErotStart+upos,p,q,SideID)
-              END IF
+            IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+              UPrim_boundary(Sp%nVarErotStart+upos)=UPrim_master(Sp%nVarErotStart+upos_sp,SideID)! + MovTerm
             END IF
-          END DO; END DO; END DO
-          vFirstID = vFirstID + Sp%nVar
-          END ASSOCIATE
-        END DO ! iSpec
-      END DO; END DO
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+          ELSE
+            UPrim_boundary(upos)=UPrim_master(upos,SideID)
+            IF (DVMDim.LT.3) THEN
+              UPrim_boundary(Sp%nVarReduced+upos)=UPrim_master(Sp%nVarReduced+upos,SideID)
+            END IF
+            IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+              UPrim_boundary(Sp%nVarErotStart+upos)=UPrim_master(Sp%nVarErotStart+upos,SideID)
+            END IF
+          END IF
+        END DO; END DO; END DO
+        vFirstID = vFirstID + Sp%nVar
+        END ASSOCIATE
+      END DO ! iSpec
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
   CASE(4,14,24,25) ! maxwell scattering
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      DO q=0,0; DO p=0,0
-        IF (DVMMethod.GT.0) THEN
-          CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-          CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
-          IF (dt.EQ.0.) THEN
-            prefac = 1.
-          ELSE
-            SELECT CASE(DVMMethod)
-            CASE(1)
-              prefac = 2.*tau*(1.-EXP(-dt/tau/2.))/dt ! f from f2~
-            CASE(2)
-              prefac = 2.*tau/(2.*tau+dt/2.)
-            END SELECT
-          END IF
+      IF (DVMMethod.GT.0) THEN
+        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
+        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
+        IF (dt.EQ.0.) THEN
+          prefac = 1.
+        ELSE
+          SELECT CASE(DVMMethod)
+          CASE(1)
+            prefac = 2.*tau*(1.-EXP(-dt/tau/2.))/dt ! f from f2~
+          CASE(2)
+            prefac = 2.*tau/(2.*tau+dt/2.)
+          END SELECT
         END IF
-        vFirstID=1
-        vLastID=0
-        DO iSpec=1,DVMnSpecies
-          vLastID = vLastID + DVMSpecData(iSpec)%nVar
-          MacroVal(:) = RefState_FV(:,iSpec,BCState)
-          IF (BCType.EQ.24) MacroVal(5) = MacroVal(5)+Face_xGP(1,p,q,SideID)*BCTempGrad
-          ! IF (BCType.EQ.25) MacroVal(5) = MacroVal(5)+(9.-Face_xGP(1,p,q,SideID))*2.*BCTempGrad
-          CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
-          CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID,p,q),UPrim_master(vFirstID:vLastID,p,q,SideID),NormVec(:,p,q,SideID),prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
-          vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
-        END DO
-      END DO; END DO
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+      END IF
+      vFirstID=1
+      vLastID=0
+      DO iSpec=1,DVMnSpecies
+        vLastID = vLastID + DVMSpecData(iSpec)%nVar
+        MacroVal(:) = RefState_FV(:,iSpec,BCState)
+        IF (BCType.EQ.24) MacroVal(5) = MacroVal(5)+Face_xGP(1,SideID)*BCTempGrad
+        ! IF (BCType.EQ.25) MacroVal(5) = MacroVal(5)+(9.-Face_xGP(1,SideID))*2.*BCTempGrad
+        CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
+        CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID,SideID),NormVec(:,SideID),prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
+        vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+      END DO
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
   CASE(5) !constant static pressure+temperature inlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      DO q=0,0; DO p=0,0
-        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-        vFirstID=1
-        vLastID=0
-        DO iSpec=1,DVMnSpecies
-          vLastID = vLastID + DVMSpecData(iSpec)%nVar
-          MacroValInside(1,iSpec)=RefState_FV(1,iSpec,BCState)
-          MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)
-          CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
-          vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
-        END DO
-      END DO; END DO
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+      CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,SideID),dt/2.,tau,1)
+      vFirstID=1
+      vLastID=0
+      DO iSpec=1,DVMnSpecies
+        vLastID = vLastID + DVMSpecData(iSpec)%nVar
+        MacroValInside(1,iSpec)=RefState_FV(1,iSpec,BCState)
+        MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)
+        CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID),iSpec)
+        vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+      END DO
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
   CASE(6) !constant static pressure outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      DO q=0,0; DO p=0,0
-        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,p,q,SideID),dt/2.,tau,1)
-        vFirstID=1
-        vLastID=0
-        DO iSpec=1,DVMnSpecies
-          vLastID = vLastID + DVMSpecData(iSpec)%nVar
-          MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)*RefState_FV(1,iSpec,BCState)/MacroValInside(1,iSpec) !to get the pressure given by refstate
-          CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID,p,q),iSpec)
-          vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
-        END DO
-      END DO; END DO
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+      CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,SideID),dt/2.,tau,1)
+      vFirstID=1
+      vLastID=0
+      DO iSpec=1,DVMnSpecies
+        vLastID = vLastID + DVMSpecData(iSpec)%nVar
+        MacroValInside(5,iSpec)=RefState_FV(5,iSpec,BCState)*RefState_FV(1,iSpec,BCState)/MacroValInside(1,iSpec) !to get the pressure given by refstate
+        CALL MaxwellDistribution(MacroValInside(:,iSpec),UPrim_boundary(vFirstID:vLastID),iSpec)
+        vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+      END DO
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
   CASE(7) !open outlet
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      UPrim_boundary=UPrim_master(:,:,:,SideID)
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID))
+      UPrim_boundary=UPrim_master(:,SideID)
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
   CASE DEFAULT ! unknown BCType

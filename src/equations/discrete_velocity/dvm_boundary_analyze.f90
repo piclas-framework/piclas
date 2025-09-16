@@ -57,7 +57,7 @@ INTEGER                                :: sendbuf,recvbuf
 
 LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' INIT FV SURFACE SIDES ...'
 
-ALLOCATE(DVMSurfaceValues(1:nVarDVMSurf,1:1,1:1,1:nBCSides))
+ALLOCATE(DVMSurfaceValues(1:nVarDVMSurf,1:nBCSides))
 
 ! Find global number of surf sides and offset for each proc
 #if USE_MPI
@@ -192,12 +192,12 @@ ASSOCIATE (&
         nLocalSides       => INT(nBCSides,IK)      , &
         offsetSurfSide    => INT(offsetBCSide,IK)  , &
         SurfOutputSize    => INT(nVarDVMSurf,IK))
-    CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=4                   , &
-                        nValGlobal =(/SurfOutputSize, 1_IK, 1_IK, nGlobalSides/)    , &
-                        nVal       =(/SurfOutputSize, 1_IK, 1_IK, nLocalSides/)     , &
-                        offset     =(/0_IK, 0_IK, 0_IK,  offsetSurfSide/)           , &
+    CALL WriteArrayToHDF5(DataSetName=H5_Name            , rank=2                   , &
+                        nValGlobal =(/SurfOutputSize, nGlobalSides/)    , &
+                        nVal       =(/SurfOutputSize, nLocalSides/)     , &
+                        offset     =(/0_IK,  offsetSurfSide/)           , &
                         collective =.FALSE.                                         , &
-                        RealArray  = DVMSurfaceValues(1:SurfOutputSize,1:1,1:1,1:nLocalSides))
+                        RealArray  = DVMSurfaceValues(1:SurfOutputSize,1:nLocalSides))
 END ASSOCIATE
 
 CALL CloseDataFile()
