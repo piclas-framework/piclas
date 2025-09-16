@@ -193,7 +193,7 @@ nProcs      = nProcessors
 ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
 ! due to the load distribution scheme
 #ifdef PARTICLES
-ALLOCATE(PartIntGlob(PartIntSize,1:nGlobalElems))
+IF (MPIRoot) ALLOCATE(PartIntGlob(PartIntSize,1:nGlobalElems))
 
 ! Redistribute/read PartInt array
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
