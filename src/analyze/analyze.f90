@@ -847,7 +847,7 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
 !----------------------------------------------------------------------------------------------------------------------------------
-#ifndef discrete_velocity
+#if !(PP_TimeDiscMethod==700)
 IF (DoFieldAnalyze) THEN
   IF(DoPerformFieldAnalyze) CALL AnalyzeField(OutputTime)
 END IF

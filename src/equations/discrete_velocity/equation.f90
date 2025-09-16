@@ -614,6 +614,13 @@ DO iSpec=1,DVMnSpecies
       Resu(vFirstID:vLastID)=0.9*Resu(vFirstID:vLastID)
     END IF
 
+  CASE(12) !Landau damping
+    MacroVal(:) = RefState_FV(:,iSpec,1)
+    IF (iSpec.GE.2) THEN  ! electrons
+      MacroVal(1) = MacroVal(1)*(1.+0.05*COS(0.5*x(1)))
+    END IF
+    CALL GradDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
+
   CASE DEFAULT
     CALL abort(__STAMP__,&
               'Specified exact function not implemented!')

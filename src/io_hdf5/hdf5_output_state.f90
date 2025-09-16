@@ -241,9 +241,11 @@ ALLOCATE(Ureco(PP_nVar_FV,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_HDG
 #ifdef discrete_velocity /*DVM+HDG*/
-nVarOut = (DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+5
+! poisson + DVM
+nVarOut = 4
 NOut = N_FV
-ASSOCIATE( StrVarNames => [StrVarNames,StrVarNames_FV] )
+ASSOCIATE( StrVarNames => [StrVarNames,StrVarNames_FV], &
+           nVarOut     => nVarOut+(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1)
 #elif PP_nVar==1
 ! poisson
 nVarOut = 4

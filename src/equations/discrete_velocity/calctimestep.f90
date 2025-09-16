@@ -39,7 +39,7 @@ FUNCTION CALCTIMESTEP()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
-USE MOD_Mesh_Vars_FV      ,ONLY: NormVec_FV, SurfElem_FV, Face_xGP_FV
+USE MOD_Mesh_Vars_FV      ,ONLY: NormVec_FV, SurfElem_FV
 USE MOD_Mesh_Vars         ,ONLY: ElemToSide
 USE MOD_Equation_Vars_FV  ,ONLY: DVMSpecData, DVMnSpecies
 USE MOD_TimeDisc_Vars     ,ONLY: CFLScale

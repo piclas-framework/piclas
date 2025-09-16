@@ -488,13 +488,12 @@ FILE(GLOB_RECURSE hdgfvF90 ./src/hdg/*.f90
                         ./src/equations/${PICLAS_EQNSYSNAME}/ionization.f90
                         ./src/equations/${PICLAS_EQNSYSNAME}/dvm_boundary_analyze.f90
                         ./src/equations/${PICLAS_EQNSYSNAME}/distfunc.f90
-                        ./src/equations/${PICLAS_EQNSYSNAME}/incbeta.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/calctimestep.f90
                         ./src/equations/poisson/equation.f90
                         ./src/equations/poisson/equation_tools.f90
                         ./src/equations/poisson/equation_vars.f90
                         ./src/equations/poisson/timeavg.f90
-                        ./src/equations/poisson/timeavg_vars.f90
-                        ./src/equations/poisson/calctimestep.f90)
+                        ./src/equations/poisson/timeavg_vars.f90)
 
 #FILE(GLOB mainF90 ./src/piclas.f90
                   #./src/piclaslib.f90)

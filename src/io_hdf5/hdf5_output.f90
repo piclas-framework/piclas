@@ -86,7 +86,10 @@ CHARACTER(LEN=255)                           :: FileName
 CHARACTER(LEN=255), DIMENSION(1:3),PARAMETER :: TrackingString = (/'refmapping  ', 'tracing     ', 'triatracking'/)
 #endif /*PARTICLES*/
 LOGICAL                                      :: WriteUserblock
-INTEGER                                      :: Nloc,nVarHDG
+INTEGER                                      :: Nloc
+#ifdef discrete_velocity
+INTEGER                                      :: nVarHDG
+#endif /*discrete_velocity*/
 !===================================================================================================================================
 ! Create filename
 IF(PRESENT(FileNameIn))THEN
@@ -105,7 +108,6 @@ IF(PRESENT(NIn))THEN
 ELSE
   Nloc = PP_N
 END IF ! PRESENT(NIn)
-nVarHDG = 0
 
 ! Create file
 CALL OpenDataFile(TRIM(FileName),create=.TRUE.,single=.TRUE.,readOnly=.FALSE.,userblockSize=userblock_total_len)
@@ -131,6 +133,7 @@ ELSE
   CALL WriteAttributeToHDF5(File_ID,'NodeType',1,StrScalar=(/NodeType/))
 END IF ! PRESENT(NodeType_in)
 #ifdef discrete_velocity
+nVarHDG = 0
 #if USE_HDG
 nVarHDG = 4
 CALL WriteAttributeToHDF5(File_ID,'VarNames',nVarHDG,StrArray=StrVarNames(1:nVarHDG))
