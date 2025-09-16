@@ -73,7 +73,7 @@ CALL addStrListEntry('TrackingMethod' , 'triatracking'    , TRIATRACKING)
 CALL addStrListEntry('TrackingMethod' , 'default'         , TRIATRACKING)
 
 CALL prms%CreateLogicalOption( 'TriaSurfaceFlux'&
-  , 'Using Triangle-aproximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
+  , 'Using triangle approximation [T] or (bi-)linear and bezier (curved) description [F] of sides for surfaceflux.'//&
   ' Default is set to TriaTracking')
 CALL prms%CreateLogicalOption( 'DisplayLostParticles' , 'Display position, velocity, species and host element of particles lost during particle tracking (TrackingMethod = triatracking, tracing)','.FALSE.')
 CALL prms%CreateLogicalOption( 'CountNbrOfLostParts'&
@@ -110,7 +110,7 @@ CALL prms%CreateIntOption(     'RefMappingGuess'&
     '4 -trival guess (0,0,0)^t')
 CALL prms%CreateRealOption(    'RefMappingEps'  , ' Tolerance for mapping particle into reference element measured as L2-norm of deltaXi' , '1e-4')
 CALL prms%CreateIntOption(     'BezierElevation'  , ' Use BezierElevation>0 to tighten the bounding box. Typical values>10','0')
-CALL prms%CreateIntOption(     'BezierSampleN'  , 'TODO-DEFINE-PARAMETER\nDefault value: NGeo equidistant sampling of bezier surface for emission','0')
+CALL prms%CreateIntOption(     'BezierSampleN'  , 'Equidistant sampling of bezier surface for emission. Default value: NGeo')
 
 CALL prms%CreateLogicalOption( 'CalcHaloInfo',         'Output halo element information to ElemData for each processor'//&
                                                        ' "MyRank_ElemHaloInfo"\n'//&
@@ -232,7 +232,7 @@ LBWRITE(UNIT_stdOut,'(A)')' INIT PARTICLE MESH ...'
 IF(ParticleMeshInitIsDone) CALL abort(__STAMP__, ' Particle-Mesh is already initialized.')
 
 WRITE(UNIT=hilf,FMT='(I0)') NGeo
-nSurfSample = GETINT('DSMC-nSurfSample',TRIM(hilf))
+nSurfSample = GETINT('Part-nSurfSample',TRIM(hilf))
 
 #if USE_MPI
 IF(DoParticleLatencyHiding)THEN

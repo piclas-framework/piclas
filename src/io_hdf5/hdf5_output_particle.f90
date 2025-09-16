@@ -31,6 +31,7 @@ PUBLIC :: WriteBoundaryParticleToHDF5
 PUBLIC :: WriteLostParticlesToHDF5
 PUBLIC :: WriteAdaptiveInfoToHDF5
 PUBLIC :: WriteAdaptiveWallTempToHDF5
+PUBLIC :: WriteCatalyticDataToHDF5
 PUBLIC :: WriteVibProbInfoToHDF5
 PUBLIC :: WriteClonesToHDF5
 PUBLIC :: WriteEmissionVariablesToHDF5
@@ -934,7 +935,7 @@ IF (nGlobalSurfSides      .EQ.0) RETURN
 #endif
 
 WRITE(H5_Name,'(A)') 'AdaptiveBoundaryWallTemp'
-WRITE(H5_Name2,'(A)') 'AdaptiveBoundaryGlobalSideIndx'
+WRITE(H5_Name2,'(A)') 'BoundaryGlobalSideIndx'
 
 #if USE_MPI
 CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
@@ -962,6 +963,88 @@ END ASSOCIATE
 CALL CloseDataFile()
 
 END SUBROUTINE WriteAdaptiveWallTempToHDF5
+
+
+SUBROUTINE WriteCatalyticDataToHDF5(FileName)
+!===================================================================================================================================
+!> Output of the surface coverage, catalytic heat flux and the corresponding global side index
+!===================================================================================================================================
+! MODULES
+USE MOD_PreProc
+USE MOD_Globals
+USE MOD_IO_HDF5
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample, nGlobalSurfSides, nComputeNodeSurfSides, offsetComputeNodeSurfSide
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide, PartBound, nComputeNodeSurfTotalSides
+USE MOD_SurfaceModel_Vars         ,ONLY: ChemWallProp
+USE MOD_Particle_Vars             ,ONLY: nSpecies
+#if USE_MPI
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_MPI_Shared
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+CHARACTER(LEN=255),INTENT(IN)  :: FileName
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=255)             :: H5_Name, H5_Name2
+INTEGER                        :: iSpec
+REAL, ALLOCATABLE              :: tempSurfData(:,:,:,:)
+!===================================================================================================================================
+#if USE_MPI
+! Return if not a sampling leader
+IF (MPI_COMM_LEADERS_SURF.EQ.MPI_COMM_NULL) RETURN
+CALL MPI_BARRIER(MPI_COMM_LEADERS_SURF,iERROR)
+
+! Return if no sampling sides
+IF (nGlobalSurfSides.EQ.0) RETURN
+#endif
+ALLOCATE(tempSurfData(nSpecies+1,nSurfSample,nSurfSample,1:nComputeNodeSurfTotalSides))
+
+DO iSpec = 1, nSpecies
+  ! Initial surface coverage
+  tempSurfData(iSpec,:,:,1:nComputeNodeSurfTotalSides) = ChemWallProp(iSpec,:,:,1:nComputeNodeSurfTotalSides)
+END DO
+!  Heat flux on the surface element
+tempSurfData(nSpecies+1,:,:,1:nComputeNodeSurfTotalSides) = ChemWallProp(nSpecies+1,:,:,1:nComputeNodeSurfTotalSides)
+
+WRITE(H5_Name,'(A)') 'CatalyticData'
+IF (.NOT.PartBound%OutputWallTemp) THEN
+  WRITE(H5_Name2,'(A)') 'BoundaryGlobalSideIndx'
+END IF
+
+#if USE_MPI
+CALL OpenDataFile(FileName,create=.FALSE.,single=.FALSE.,readOnly=.FALSE.,communicatorOpt=MPI_COMM_LEADERS_SURF)
+#else
+CALL OpenDataFile(FileName,create=.FALSE.,single=.TRUE.,readOnly=.FALSE.)
+#endif
+
+! Associate construct for integer KIND=8 possibility
+ASSOCIATE (&
+      nCatVar             => INT((nSpecies+1),IK)            ,&
+      nSurfSample          => INT(nSurfSample,IK)               , &
+      nGlobalSides         => INT(nGlobalSurfSides,IK)           , &
+      nLocalSides          => INT(nComputeNodeSurfSides,IK)     , &
+      offsetSurfSide       => INT(offsetComputeNodeSurfSide,IK))
+  CALL WriteArrayToHDF5(DataSetName = H5_Name , rank = 4                   , &
+                        nValGlobal  = (/nCatVar, nSurfSample  , nSurfSample  , nGlobalSides/) , &
+                        nVal        = (/nCatVar, nSurfSample  , nSurfSample  , nLocalSides      /) , &
+                        offset      = (/0_IK,  0_IK,  0_IK,  offsetSurfSide  /) , &
+                        collective  = .FALSE.  , RealArray = tempSurfData(:,:,:,1:nComputeNodeSurfSides))
+  IF (.NOT.PartBound%OutputWallTemp) THEN
+    CALL WriteArrayToHDF5(DataSetName = H5_Name2 , rank = 1                  , &
+                          nValGlobal  = (/nGlobalSides/) , &
+                          nVal        = (/nLocalSides/) , &
+                          offset      = (/offsetSurfSide  /) , &
+                          collective  = .FALSE.  , IntegerArray_i4 = SurfSide2GlobalSide(SURF_SIDEID,1:nComputeNodeSurfSides))
+  END IF
+END ASSOCIATE
+CALL CloseDataFile()
+
+END SUBROUTINE WriteCatalyticDataToHDF5
 
 
 SUBROUTINE WriteVibProbInfoToHDF5(FileName)
