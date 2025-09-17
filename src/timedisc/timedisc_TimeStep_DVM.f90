@@ -38,7 +38,7 @@ USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
 USE MOD_TimeDisc_Vars         ,ONLY: dt,time,iter
 USE MOD_FV                    ,ONLY: FV_main
 USE MOD_DistFunc              ,ONLY: RescaleU, RescaleInit, ForceStep
-USE MOD_Equation_Vars_FV      ,ONLY: IniExactFunc_FV, DVMForce, DVMColl, DVMMethod
+USE MOD_Equation_Vars_FV      ,ONLY: IniExactFunc_FV, DVMAccel, DVMColl, DVMMethod
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -51,14 +51,14 @@ IMPLICIT NONE
 ! initial rescaling if initialized with non-equilibrium flow
 IF (DVMColl.AND.DVMMethod.GT.0.AND.(IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.iter.EQ.0) CALL RescaleInit(dt)
 
-IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
+IF (ANY(DVMAccel.NE.0.)) CALL ForceStep(dt)
 
 IF (DVMColl) CALL RescaleU(1,dt)  ! ftilde -> fchapeau2
 CALL FV_main(time,time,doSource=.FALSE.)  ! fchapeau2 -> ftilde2 -> Ut = flux of f
 IF (DVMColl.AND.DVMMethod.GT.0) CALL RescaleU(2,dt/2.)  ! fchapeau2 -> fchapeau
 U_FV = U_FV + Ut_FV*dt        ! fchapeau -> ftilde
 
-IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt) !two times for strang splitting -> second order
+IF (ANY(DVMAccel.NE.0.)) CALL ForceStep(dt) !two times for strang splitting -> second order
 
 END SUBROUTINE TimeStep_DVM
 

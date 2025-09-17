@@ -132,7 +132,6 @@ REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,1:nBCSides)
 INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV)
-INTEGER                              :: p,q
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFirstID, vLastID
 REAL                                 :: MacroVal(DVMnMacro), vnormal
 REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr,tau,prefac

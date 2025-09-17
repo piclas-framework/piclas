@@ -252,8 +252,8 @@ USE MOD_Interpolation_Vars    ,ONLY: N_Inter,NMax
 USE MOD_Basis                 ,ONLY: LagrangeInterpolationPolys
 #if !defined(discrete_velocity)
 USE MOD_DG_Vars               ,ONLY: N_DG_Mapping
-#endif /*!defined(discrete_velocity)*/
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
+#endif /*!defined(discrete_velocity)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -359,10 +359,10 @@ USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution, TargetDistrib
 USE MOD_Mesh_Vars_FV           ,ONLY: Elem_xGP_FV
 #else
 USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
-#endif /*DVM*/
-USE MOD_RecordPoints_Vars ,ONLY: RP_ElemID
-USE MOD_RecordPoints_Vars ,ONLY: L_xi_RP,L_eta_RP,L_zeta_RP,nRP
+USE MOD_RecordPoints_Vars ,ONLY: L_xi_RP,L_eta_RP,L_zeta_RP
 USE MOD_Mesh_Vars         ,ONLY: offSetElem
+#endif /*DVM*/
+USE MOD_RecordPoints_Vars ,ONLY: RP_ElemID,nRP
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -372,13 +372,15 @@ INTEGER,INTENT(IN)      :: nVar
 REAL,INTENT(INOUT)      :: U_RP(nVar,nRP)          !< State at recordpoints
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                 :: i,j,k,iRP,ElemID,Nloc
-REAL                    :: L_eta_zeta_RP
+INTEGER                 :: iRP,ElemID
 #ifdef discrete_velocity
 REAL                    :: tau, prefac, MacroVal(DVMnMacro,DVMnSpecies+1), fTarget(PP_nVar_FV), rho, Pr
 INTEGER                 :: iSpec, vFirstID, vLastID
 REAL                    :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
-#endif
+#else
+INTEGER                 :: i,j,k,Nloc
+REAL                    :: L_eta_zeta_RP
+#endif /*discrete_velocity*/
 !----------------------------------------------------------------------------------------------------------------------------------
 U_RP=0.
 DO iRP=1,nRP
@@ -428,9 +430,6 @@ DO iRP=1,nRP
 #endif /*discrete_velocity*/
 END DO ! iRP
 
-! Surpress compiler warning
-RETURN
-L_eta_zeta_RP = t
 END SUBROUTINE EvalRecordPoints
 
 
@@ -493,13 +492,12 @@ GETTIME(startT)
 
 #if USE_FV
 #ifdef discrete_velocity
-ASSOCIATE (PP_nVar_loc     => PP_nVar_FV)
+ASSOCIATE (StrVarNames_loc => StrVarNames_FV, &
+           PP_nVar_loc     => PP_nVar_FV)
 #elif USE_HDG
 ASSOCIATE (StrVarNames_loc => StrVarNames, &
   PP_nVar_loc     => PP_nVar+AddVar)
-#else
-ASSOCIATE (StrVarNames_loc => StrVarNames_FV, &
-           PP_nVar_loc     => PP_nVar_FV)
+
 #endif /*discrete_velocity*/
 #else
 ASSOCIATE (StrVarNames_loc => StrVarNames, &
@@ -523,9 +521,7 @@ IF(myRPrank.EQ.0)THEN
     tmp255=TRIM(RPDefFile)
     CALL WriteAttributeToHDF5(File_ID,'RPDefFile'  ,1,StrScalar=(/tmp255/))
     CALL WriteAttributeToHDF5(File_ID,'Time'       ,1,RealScalar=OutputTime)
-#ifndef discrete_velocity
     CALL WriteAttributeToHDF5(File_ID,'VarNames'   ,PP_nVar_loc,StrArray=StrVarNames_loc)
-#endif
   END IF
   CALL CloseDataFile()
 #if USE_MPI

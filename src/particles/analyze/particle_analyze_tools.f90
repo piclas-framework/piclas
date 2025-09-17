@@ -493,7 +493,7 @@ END IF
 DO iElem=1,PP_nElems
   CNElemID = GetCNElemID(iElem+offSetElem)
 #if drift_diffusion
-  ElectronDensityCell(iElem)=U_FV(1,0,0,0,iElem)
+  ElectronDensityCell(iElem)=U_FV(1,iElem)
   ! Sort out crazy small numbers (they crash piclas2vtk later when trying to convert .h5 to .vtu)
   IF(ElectronDensityCell(iElem).LT.1e-10) ElectronDensityCell(iElem) = 0.
 #else

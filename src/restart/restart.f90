@@ -163,7 +163,7 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   END IF ! FileVersionExists
   N_Restart=-1
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if defined(discrete_velocity) /*DVM*/
+#ifdef discrete_velocity /*DVM*/
   CALL DatasetExists(File_ID,'DVM_Solution',DG_SolutionExists)
   IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DVM_Solution')
   CALL GetDataProps('DVM_Solution',nVar_Restart_FV,N_Restart_FV,nElems_Restart_FV,NodeType_Restart_FV)
@@ -174,8 +174,13 @@ IF (LEN_TRIM(RestartFile).GT.0) THEN
   NodeType_Restart = NodeType_Restart_FV
 #endif /*DVM*/
   CALL DatasetExists(File_ID,'DG_Solution',DG_SolutionExists)
-  IF(.NOT.DG_SolutionExists) CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
-  CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  IF(.NOT.DG_SolutionExists) THEN
+#ifndef discrete_velocity /*NOT DVM*/
+    CALL abort(__STAMP__,'Restart files does not contain DG_Solution')
+#endif
+  ELSE
+    CALL GetDataProps('DG_Solution',nVar_Restart,N_Restart,nElems_Restart,NodeType_Restart)
+  END IF
 #else
   nVar_Restart = PP_nVar
   N_Restart = 0

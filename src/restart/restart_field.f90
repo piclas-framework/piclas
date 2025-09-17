@@ -142,7 +142,6 @@ LOGICAL                            :: DG_SolutionExists
 REAL                               :: Udvm(14*(DVMnSpecies+1)+1)
 #endif /*discrete_velocity*/
 #if (USE_FV)
-REAL,ALLOCATABLE                   :: UTmp_FV(:,:)
 REAL,ALLOCATABLE                   :: Ureco_FV(:,:,:,:,:)
 #endif /*USE_FV*/
 #if USE_HDG
@@ -185,6 +184,9 @@ INTEGER                            :: i,j,k
 #if defined(PARTICLES) || !(USE_HDG || USE_FV)
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
 #endif /*defined(PARTICLES) || !(USE_HDG)*/
+#if USE_FV
+REAL,ALLOCATABLE                   :: UTmp_FV(:,:)
+#endif /*USE_FV*/
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
 #if defined(PARTICLES) || !(USE_HDG) || (USE_FV)

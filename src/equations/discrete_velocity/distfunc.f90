@@ -837,7 +837,7 @@ SUBROUTINE TargetDistribution(MacroVal,fTarget,iSpec,densSpec,rho,Pr,ErelaxTrans
 ! Target distribution from macro values
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV         ,ONLY: DVMBGKModel,DVMSpecData,DVMnSpecies,DVMnMacro
+USE MOD_Equation_Vars_FV         ,ONLY: DVMBGKModel,DVMSpecData,DVMnMacro
 USE MOD_PreProc
 USE MOD_Globals
 ! IMPLICIT VARIABLE HANDLING
@@ -850,7 +850,6 @@ REAL, INTENT(IN)                 :: MacroVal(DVMnMacro),densSpec,rho,Pr
 REAL, INTENT(IN)                 :: ErelaxTrans,ErelaxRot
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MassDensity
 !===================================================================================================================================
 
 SELECT CASE(DVMBGKModel)
@@ -946,7 +945,7 @@ INTEGER, INTENT(IN)           :: tilde
 ! LOCAL VARIABLES
 REAL                            :: MacroVal(DVMnMacro,DVMnSpecies+1), tau, prefac, relaxFac, Pr, rho
 REAL                            :: ErelaxTrans, Erot(DVMnSpecies+1), ErelaxRot(DVMnSpecies)
-INTEGER                         :: i,j,k,iElem,iSpec,vFirstID,vLastID
+INTEGER                         :: iElem,iSpec,vFirstID,vLastID
 REAL,ALLOCATABLE                :: fTarget(:)
 !===================================================================================================================================
 Erot = 0.
@@ -1030,7 +1029,7 @@ REAL, INTENT(IN)              :: tDeriv
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                            :: MacroVal(DVMnMacro,DVMnSpecies+1), tau, prefac, rho, Pr
-INTEGER                         :: i,j,k,iElem,iSpec,vFirstID,vLastID
+INTEGER                         :: iElem,iSpec,vFirstID,vLastID
 REAL, ALLOCATABLE               :: fTarget(:)
 REAL                            :: ErelaxTrans, Erot(DVMnSpecies+1), ErelaxRot(DVMnSpecies)
 !===================================================================================================================================
@@ -1062,7 +1061,7 @@ SUBROUTINE ForceStep(tDeriv,ploesma)
 ! Calculates force term (to add in 2 parts (Strang splitting) for 2nd order accuracy)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY: DVMSpecData, DVMnSpecies, DVMDim, DVMForce, DVMnMacro
+USE MOD_Equation_Vars_FV,  ONLY: DVMSpecData, DVMnSpecies, DVMDim, DVMAccel!, DVMnMacro
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars,      ONLY : nElems
@@ -1082,18 +1081,25 @@ LOGICAL, OPTIONAL             :: ploesma
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                            :: MacroVal(DVMnMacro,DVMnSpecies+1), tau, forceTerm, forceTerm2, cVel(3), velodiff, gamma
-INTEGER                         :: i,j,k,iElem,iVel,jVel,kVel,upos,iSpec,vFirstID ,upos1,upos2,Nloc
-REAL, ALLOCATABLE               :: fTarget(:)
-REAL                            :: Eloc(3)
+REAL                            :: forceTerm, forceTerm2, velodiff
+INTEGER                         :: iElem,iVel,jVel,kVel,upos,iSpec,vFirstID ,upos1,upos2,iDim,idxVel,uposDiff
+! REAL                            :: MacroVal(DVMnMacro,DVMnSpecies+1), cVel(3), gamma, tau
+! REAL, ALLOCATABLE               :: fTarget(:)
+#if USE_HDG
+INTEGER                         :: i,j,k,Nloc
+#endif
+REAL                            :: TotalAccel(3),Eloc(3)
 !===================================================================================================================================
+TotalAccel = DVMAccel
 DO iElem =1, nElems
 #if USE_HDG
   IF (PRESENT(ploesma)) THEN
     Nloc = N_DG_Mapping(2,iElem+offSetElem)
     Eloc = 0.
+    ! average Lorentz force in element
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      Eloc(:) = Eloc(:) + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)*U_N(iElem)%E(1:3,i,j,k)/((Nloc+1.)**3)
+      Eloc(1:3) = Eloc(1:3) + U_N(iElem)%E(1:3,i,j,k) &
+                            * N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)/((Nloc+1.)**3)
     END DO; END DO; END DO
   END IF
 #endif
@@ -1110,6 +1116,7 @@ DO iElem =1, nElems
   vFirstID = 0
   DO iSpec=1,DVMnSpecies
     ASSOCIATE(Sp => DVMSpecData(iSpec))
+    IF (PRESENT(ploesma)) TotalAccel = DVMAccel + (Sp%Charge/Sp%Mass)*Eloc
     ! ALLOCATE(fTarget(Sp%nVar))
     ! CALL MaxwellDistribution(MacroVal(1:DVMnMacro,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
 
@@ -1123,38 +1130,43 @@ DO iElem =1, nElems
       !   forceTerm = (Sp%Charge/Sp%Mass) &
       !             * DOT_PRODUCT(Eloc,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
       ! ELSE
-      !   forceTerm = DOT_PRODUCT(DVMForce,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
+      !   forceTerm = DOT_PRODUCT(DVMAccel,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
       ! END IF
       ! non equilibrium version
-      ! TODO: extend to 3D
-      IF (iVel.EQ.1) THEN
-        upos1=upos
-        upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-        velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel,1)
-      ELSE IF (iVel.EQ.Sp%nVelos(1)) THEN
-        upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-        upos2=upos
-        velodiff=Sp%Velos(iVel,1)-Sp%Velos(iVel-1,1)
-      ELSE
-        upos1 = upos - 1 !iVel-1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-        upos2 = upos + 1 !iVel+1+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-        velodiff=Sp%Velos(iVel+1,1)-Sp%Velos(iVel-1,1)
-      END IF
-      IF (PRESENT(ploesma)) THEN
-        forceTerm = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(upos2+vFirstID,iElem)-U_FV(upos1+vFirstID,iElem))/velodiff
-      ELSE
-        forceTerm = - DVMForce(1)*(U_FV(upos2+vFirstID,iElem)-U_FV(upos1+vFirstID,iElem))/velodiff
-      END IF
-      ! forceTerm = - DVMForce(1)*(gamma*(U(upos2,iElem)-U(upos1,iElem)) &
+      forceTerm = 0.
+      forceTerm2 = 0.
+      DO iDim = 1,DVMDim
+        IF (iDim.EQ.1) THEN
+          idxVel = iVel
+          uposDiff = 1
+        ELSE IF (iDim.EQ.2) THEN
+          idxVel = jVel
+          uposDiff = Sp%nVelos(1)
+        ELSE
+          idxVel = kVel
+          uposDiff = Sp%nVelos(1)*Sp%nVelos(2)
+        END IF
+        IF (idxVel.EQ.1) THEN
+          upos1 = upos
+          upos2 = upos + uposDiff
+          velodiff=Sp%Velos(idxVel+1,iDim)-Sp%Velos(idxVel,iDim)
+        ELSE IF (idxVel.EQ.Sp%nVelos(iDim)) THEN
+          upos1 = upos - uposDiff
+          upos2 = upos
+          velodiff=Sp%Velos(idxVel,iDim)-Sp%Velos(idxVel-1,iDim)
+        ELSE
+          upos1 = upos - uposDiff
+          upos2 = upos + uposDiff
+          velodiff=Sp%Velos(idxVel+1,iDim)-Sp%Velos(idxVel-1,iDim)
+        END IF
+        forceTerm = forceTerm - TotalAccel(iDim)*(U_FV(upos2+vFirstID,iElem)-U_FV(upos1+vFirstID,iElem))/velodiff
+        IF (DVMDim.LT.3) forceTerm2 = forceTerm2 &
+        - TotalAccel(iDim)*(U_FV(Sp%nVarReduced+upos2+vFirstID,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,iElem))/velodiff
+      END DO
+      ! forceTerm = - DVMAccel(1)*(gamma*(U(upos2,iElem)-U(upos1,iElem)) &
       !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
-
       U_FV(upos+vFirstID,iElem) = U_FV(upos+vFirstID,iElem) + forceTerm*tDeriv/2. !t/2 for strang splitting
       IF (DVMDim.LT.3) THEN
-        IF (PRESENT(ploesma)) THEN
-          forceTerm2 = - (Sp%Charge/Sp%Mass)*Eloc(1)*(U_FV(Sp%nVarReduced+upos2+vFirstID,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,iElem))/velodiff
-        ELSE
-          forceTerm2 = - DVMForce(1)*(U_FV(Sp%nVarReduced+upos2+vFirstID,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,iElem))/velodiff
-        END IF
         U_FV(Sp%nVarReduced+upos+vFirstID,iElem) = U_FV(Sp%nVarReduced+upos+vFirstID,iElem) + forceTerm2*tDeriv/2.
       END IF
     END DO; END DO; END DO

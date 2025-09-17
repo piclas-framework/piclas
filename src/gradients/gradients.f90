@@ -58,9 +58,9 @@ USE MOD_Mesh_Vars             ,ONLY: nElems, nSides
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
 USE MOD_FV_Vars               ,ONLY: doFVReconstruct
+USE MOD_FillMortar_FV         ,ONLY: Dx_BigToSmall_Mortar, Dx_SmallToBig_Mortar
 #if USE_MPI
 USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
-USE MOD_FillMortar_FV         ,ONLY: Dx_BigToSmall_Mortar, Dx_SmallToBig_Mortar
 USE MOD_MPI_Vars
 USE MOD_MPI                   ,ONLY: FinishExchangeMPIData
 USE MOD_MPI_FV                ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV

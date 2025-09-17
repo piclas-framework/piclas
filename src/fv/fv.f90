@@ -190,9 +190,9 @@ LOGICAL,INTENT(IN)              :: doSource
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: CNElemID, iElem, Nloc
+INTEGER                         :: CNElemID, iElem
 #ifdef drift_diffusion
-INTEGER                         :: i,j,k
+INTEGER                         :: i,j,k,Nloc
 REAL                            :: U_DD(1:PP_nVar_FV+3,PP_nElems) ! U_FV(1:PP_nVar_FV) + E(1:3)
 #endif
 #if USE_LOADBALANCE

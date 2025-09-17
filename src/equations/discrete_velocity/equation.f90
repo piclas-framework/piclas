@@ -113,7 +113,6 @@ USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY : BoltzmannConst
 USE MOD_PreProc
 USE MOD_Mesh_Vars,          ONLY: nElems
-USE MOD_FV_Vars,            ONLY: doFVReconstruct
 USE MOD_ReadInTools,        ONLY:GETREALARRAY,GETINTARRAY,GETREAL,GETINT,GETLOGICAL, CountOption
 USE MOD_Interpolation_Vars, ONLY:InterpolationInitIsDone
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights, GaussHermiteNodesAndWeights, NewtonCotesNodesAndWeights
@@ -281,7 +280,7 @@ IF(nRefState_FV .GT. 0)THEN
   END DO
 END IF
 
-DVMForce = GETREALARRAY('DVM-Accel',3)
+DVMAccel = GETREALARRAY('DVM-Accel',3)
 BCTempGrad = GETREAL('DVM-BCTempGrad')
 
 ALLOCATE(DVMMomentSave(17,DVMnSpecies+1,nElems))
@@ -323,9 +322,9 @@ USE MOD_ReadInTools
 USE MOD_Equation_Vars_FV    ,ONLY: DVMSpecData, DVMnSpecies, DVMColl, DVMnInnerE
 USE MOD_io_hdf5
 USE MOD_HDF5_input          ,ONLY:ReadAttribute, DatasetExists, AttributeExists
-#if USE_MPI
+#if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars    ,ONLY: PerformLoadBalance
-#endif /*USE_MPI*/
+#endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -699,7 +698,7 @@ END SUBROUTINE CalcSource
 SUBROUTINE FinalizeEquation()
 ! MODULES
 USE MOD_Equation_Vars_FV,ONLY:EquationInitIsDone_FV, RefState_FV, WriteDVMSurfaceValues, DVMSpecData, DVMnSpecies
-USE MOD_Equation_Vars_FV,ONLY: DVMMomentSave, DVMVeloDisc, StrVarNames_FV, DVMInnerESave, DVMnInnerE
+USE MOD_Equation_Vars_FV,ONLY: DVMMomentSave, DVMVeloDisc, StrVarNames_FV, DVMInnerESave
 USE MOD_DVM_Boundary_Analyze,ONLY: FinalizeDVMBoundaryAnalyze
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------

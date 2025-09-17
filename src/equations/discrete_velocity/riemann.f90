@@ -50,7 +50,7 @@ REAL                                             :: MacroVal_L(DVMnMacro,DVMnSpe
 REAL                                             :: tau_L, tau_R, Velo, rho_L, rho_R, Pr_L, Pr_R
 REAL,ALLOCATABLE                                 :: fTarget_L(:), fTarget_R(:), UTemp_L(:), UTemp_R(:)
 REAL                                             :: gamma_R, gamma_L, relaxFac
-INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos, iSpec, vFirstID, vLastID
+INTEGER                                          :: iVel, jVel, kVel, upos, iSpec, vFirstID, vLastID
 REAL                                             :: Erot_L(DVMnSpecies+1),Erot_R(DVMnSpecies+1)
 REAL                                             :: ErelaxTrans_L,ErelaxTrans_R
 REAL                                             :: ErelaxRot_L(DVMnSpecies),ErelaxRot_R(DVMnSpecies)

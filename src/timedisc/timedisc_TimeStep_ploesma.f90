@@ -38,7 +38,7 @@ USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
 USE MOD_TimeDisc_Vars         ,ONLY: dt,time,iter
 USE MOD_FV                    ,ONLY: FV_main
 USE MOD_DistFunc              ,ONLY: RescaleU, RescaleInit, ForceStep
-USE MOD_Equation_Vars_FV      ,ONLY: IniExactFunc_FV, DVMForce, DVMColl, DVMMethod
+USE MOD_Equation_Vars_FV      ,ONLY: DVMColl, DVMMethod!, IniExactFunc_FV
 USE MOD_HDG                   ,ONLY: HDG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -57,14 +57,10 @@ IF (iter.EQ.0) THEN
   CALL ForceStep(dt,ploesma=.TRUE.)
 END IF
 
-! IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt)
-
 IF (DVMColl) CALL RescaleU(1,dt)  ! ftilde -> fchapeau2
 CALL FV_main(time,time,doSource=.FALSE.)  ! fchapeau2 -> ftilde2 -> Ut = flux of f
 IF (DVMColl.AND.DVMMethod.GT.0) CALL RescaleU(2,dt/2.)  ! fchapeau2 -> fchapeau
 U_FV = U_FV + Ut_FV*dt        ! fchapeau -> ftilde
-
-! IF (ANY(DVMForce.NE.0.)) CALL ForceStep(dt) !two times for strang splitting -> second order
 
 CALL HDG(time,iter)
 CALL ForceStep(2.*dt,ploesma=.TRUE.)

@@ -45,7 +45,7 @@ INTEGER              :: DVMnInnerE
 INTEGER              :: DVMBGKModel
 INTEGER              :: DVMMethod
 INTEGER              :: DVMDim
-REAL                 :: DVMForce(3)
+REAL                 :: DVMAccel(3)
 INTEGER,ALLOCATABLE  :: DVMVeloDisc(:)
 REAL,ALLOCATABLE     :: DVMGHTemp(:,:)
 INTEGER,ALLOCATABLE  :: DVMNewtDeg(:,:)
