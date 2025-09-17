@@ -46,9 +46,7 @@ SUBROUTINE WriteStateToHDF5(MeshFileName,OutputTime,PreviousTime,InitialAutoRest
 USE MOD_PreProc
 USE MOD_Globals
 #if USE_FV
-USE MOD_FV_Vars                ,ONLY: U_FV,doFVReconstruct
-USE MOD_Gradients              ,ONLY: GetGradients
-USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
+USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 #endif
 #if !(USE_FV) || (USE_HDG)
@@ -87,6 +85,9 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars              ,ONLY: nElems
 #ifdef discrete_velocity
+USE MOD_FV_Vars                ,ONLY: doFVReconstruct
+USE MOD_Gradients              ,ONLY: GetGradients
+USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
 USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE
@@ -165,9 +166,8 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
-#if USE_FV
-INTEGER(KIND=IK)               :: N_FV
 #ifdef discrete_velocity
+INTEGER(KIND=IK)               :: N_FV
 REAL,ALLOCATABLE               :: Ureco(:,:,:,:,:)
 REAL                           :: MacroVal(DVMnMacro,DVMnSpecies+1)
 REAL,ALLOCATABLE               :: Udvm(:,:,:,:,:)
@@ -176,7 +176,6 @@ INTEGER                        :: iSpec
 INTEGER(KIND=IK)               :: nValDVM
 REAL                           :: Erot(DVMnSpecies+1)
 #endif /*discrete_velocity*/
-#endif /*USE_FV*/
 INTEGER                        :: i,j,k
 #if USE_HDG
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
@@ -229,14 +228,14 @@ IF(.NOT.DoWriteStateToHDF5) RETURN
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
 GETTIME(StartT)
 
-#if USE_FV
+#ifdef discrete_velocity
 IF (doFVReconstruct) THEN
   N_FV = INT(PP_1,IK)
 ELSE
   N_FV = 0_IK
 ENDIF
 ALLOCATE(Ureco(PP_nVar_FV,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
-#endif /*USE_FV*/
+#endif /*discrete_velocity*/
 
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_HDG

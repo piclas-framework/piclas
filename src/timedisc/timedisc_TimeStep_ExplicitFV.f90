@@ -206,7 +206,7 @@ U_FV = U_FV + Ut_FV*dt
 
 ! Prevent negative densities
 DO iElem=1,PP_nElems
-  U_FV(1,0,0,0,iElem) = MAX(U_FV(1,0,0,0,iElem),0.)
+  U_FV(1,iElem) = MAX(U_FV(1,iElem),0.)
 END DO
 
 END SUBROUTINE TimeStep_ExplicitFV

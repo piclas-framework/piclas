@@ -946,7 +946,9 @@ ELSE ! Normal restart
     SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
     ALLOCATE(Ureco_FV(14*(DVMnSpecies+1)+1,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,nElems))
     Ureco_FV=0.
-    CALL ReadArray('DVM_Solution',5,(/INT(14*(DVMnSpecies+1)+1,IK),1_IK,1_IK,1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=Ureco_FV)
+    Nres8         = INT(N_Restart_FV,IK)
+    CALL ReadArray('DVM_Solution',5,(/INT(14*(DVMnSpecies+1)+1,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
+        OffsetElemTmp,5,RealArray=Ureco_FV)
     DO iElem=1,nElems
       ! average reconstructed values to get cell-centered values
       Udvm = SUM(SUM(SUM(Ureco_FV(:,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,iElem),4),3),2)/(N_Restart_FV+1)**3
