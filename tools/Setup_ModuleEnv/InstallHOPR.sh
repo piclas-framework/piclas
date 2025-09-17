@@ -108,7 +108,8 @@ do
     #GCCVERSION=11.2.0
     #GCCVERSION=13.1.0
     #GCCVERSION=13.2.0
-    GCCVERSION=14.2.0
+    # GCCVERSION=14.2.0
+    GCCVERSION=15.2.0
 
     #OPENMPIVERSION=3.1.4
     #OPENMPIVERSION=4.0.1
@@ -118,9 +119,10 @@ do
     #OPENMPIVERSION=4.1.5
     #OPENMPIVERSION=4.1.6
     #OPENMPIVERSION=5.0.6
+    OPENMPIVERSION=5.0.8
 
     #MPICHVERSION=4.1.2
-    MPICHVERSION=4.3.1
+    # MPICHVERSION=4.3.1
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
@@ -144,7 +146,8 @@ do
     #HDF5VERSION=1.10.6
     #HDF5VERSION=1.12.1
     #HDF5VERSION=1.14.0
-    HDF5VERSION=1.14.5
+    # HDF5VERSION=1.14.5
+    HDF5VERSION=1.14.6
   fi
 
   # Check if re-run mode is selected by the user
