@@ -40,7 +40,7 @@ CONTAINS
 !SUBROUTINE HDGNewton(time,U_out,td_iter,ForceCGSolverIteration_opt)
 SUBROUTINE HDGNewton(time,td_iter,ForceCGSolverIteration_opt)
 ! MODULES
-USE MOD_Globals
+USE MOD_Globals                ,ONLY: MPIRoot,UNIT_StdOut,abort
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_Equation               ,ONLY: CalcSourceHDG,ExactFunc
@@ -474,12 +474,13 @@ END SUBROUTINE HDGNewton
 !SUBROUTINE CheckNonLinRes(RHS,lambda,converged,Norm_R2)
 SUBROUTINE CheckNonLinRes(converged,Norm_R2)
 ! MODULES
-USE MOD_Globals
+USE MOD_Globals   ,ONLY: iError
 USE MOD_Preproc
 USE MOD_HDG_Vars  ,ONLY: nGP_face
 USE MOD_HDG_Vars  ,ONLY: EpsNonLinear
 USE MOD_Mesh_Vars ,ONLY: nSides
 #if USE_MPI
+USE MOD_Globals   ,ONLY: iError,MPI_LOGICAL,MPI_COMM_PICLAS,MPIRoot
 USE MOD_Mesh_Vars ,ONLY: nMPISides_YOUR
 #endif /*USE_MPI*/
 #if defined(MEASURE_MPI_WAIT)

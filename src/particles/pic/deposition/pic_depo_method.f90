@@ -512,7 +512,7 @@ DO iPart=1,PDM%ParticleVecLength
     ELSE ! not SucRefPos
       NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
       DO iNode = 1, 8
-        norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
+        norm = VECNORM3D(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
         IF(norm.GT.0.)THEN
           PartDistDepo(iNode) = 1./norm
         ELSE

@@ -524,9 +524,9 @@ IF(NbrOfParticle.GT.PDM%maxParticleNumber) CALL abort(__STAMP__,'NbrOfParticle >
 velocityDistribution=Species(FractNbr)%Init(iInit)%velocityDistribution
 VeloIC=Species(FractNbr)%Init(iInit)%VeloIC
 VeloVecIC=Species(FractNbr)%Init(iInit)%VeloVecIC(1:3)
-VeloVecNorm = VECNORM(VeloVecIC(1:3))
+VeloVecNorm = VECNORM3D(VeloVecIC(1:3))
 IF (VeloVecNorm.GT.0.0) THEN
-  VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM(VeloVecIC(1:3))
+  VeloVecIC(1:3) = VeloVecIC(1:3) / VECNORM3D(VeloVecIC(1:3))
 END IF
 
 SELECT CASE(TRIM(velocityDistribution))

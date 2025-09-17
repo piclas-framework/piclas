@@ -1327,7 +1327,7 @@ DO locElemID=1, nElems
 
         DO jNode = 1,4
           IF (NodeDone(jNode)) CYCLE
-          tmpDist = VECNORM(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
+          tmpDist = VECNORM3D(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
                 -NodeCoords_Shared(1:3,ElemSideNodeID_Shared(jNode,NbLocSide,CNNbElemID)+1))
           IF (tmpDist.LT.Dist) THEN
             PeriodicNode = jNode
@@ -1398,7 +1398,7 @@ DO kNode = 1, nUniqueGlobalNodes
 
           DO jNode = 1,4
             IF (NodeDone(jNode)) CYCLE
-            tmpDist = VECNORM(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
+            tmpDist = VECNORM3D(NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1) + SIGN( GEO%PeriodicVectors(1:3,ABS(PVID)),REAL(PVID)) &
                   -NodeCoords_Shared(1:3,ElemSideNodeID_Shared(jNode,NbLocSide,CNNbElemID)+1))
             IF (tmpDist.LT.Dist) THEN
               PeriodicNode = jNode

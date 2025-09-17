@@ -29,7 +29,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv,GradSide)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc ! 0
-USE MOD_Globals        ,ONLY :abort, vecnorm
+USE MOD_Globals        ,ONLY :abort, VECNORM3D
 USE MOD_Transport_Data ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars      ,ONLY: BGGas
 USE MOD_Particle_Vars  ,ONLY: nSpecies
@@ -60,8 +60,8 @@ E_L = U_L(PP_nVar_FV+1:PP_nVar_FV+3,0,0)
 E_R = U_R(PP_nVar_FV+1:PP_nVar_FV+3,0,0)
 
 
-CALL CalcDriftDiffusionCoeff(VECNORM(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
-CALL CalcDriftDiffusionCoeff(VECNORM(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
+CALL CalcDriftDiffusionCoeff(VECNORM3D(E_L),BGGas%NumberDensity(iSpec),mu_L,D_L)
+CALL CalcDriftDiffusionCoeff(VECNORM3D(E_R),BGGas%NumberDensity(iSpec),mu_R,D_R)
 
 normalE = -DOT_PRODUCT(nv(:,0,0),(E_L+E_R)/2.)
 

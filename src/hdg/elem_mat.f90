@@ -355,7 +355,7 @@ SUBROUTINE PETScFillSystemMatrix()
 ! Use Smat to fill the PETSc System matrix
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
+! USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_HDG_Vars_PETSc

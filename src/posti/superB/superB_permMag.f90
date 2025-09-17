@@ -424,7 +424,7 @@ SUBROUTINE CalculateCylindricMagneticPotential(iMagnet)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
-USE MOD_Globals            ,ONLY: VECNORM,UNITVECTOR
+USE MOD_Globals            ,ONLY: VECNORM3D,UNITVECTOR
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Mesh_Vars          ,ONLY: nElems, N_VolMesh, offSetElem
 USE MOD_Basis              ,ONLY: LegendreGaussNodesAndWeights
@@ -461,7 +461,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
   ! ATTENTION: The nodes are still in [-1,1] and need to be mapped to an angle
   CALL LegendreGaussNodesAndWeights(nNodes - 1, xGP, wGP)
 
-  height = VECNORM(h)
+  height = VECNORM3D(h)
 
   ! Transformation matrix from the cylindrical coordinates to the original coordinate system
   CALL FindLinIndependentVectors(h, AxisVec1, AxisVec2)
@@ -495,7 +495,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           normalUnitVector = h
 
           ! Calculate the distance between the mesh point and the magnet point
-          dist = VECNORM(magnetNode-x)
+          dist = VECNORM3D(magnetNode-x)
 
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
           psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
@@ -520,10 +520,10 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           magnetNode = magnetNode + PermanentMagnetInfo(iMagnet)%BasePoint
 
           ! Normal vector direction, which points in negative h-vector direction
-          normalUnitVector = - h 
+          normalUnitVector = - h
 
           ! Calculate the distance between the mesh point and the magnet point
-          dist = VECNORM(magnetNode-x)
+          dist = VECNORM3D(magnetNode-x)
 
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
           psiMagTemp = psiMagTemp + radius / dist * wGP(ii) / (4. * PI) * DOT_PRODUCT(normalUnitVector, M)
@@ -550,7 +550,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           normalUnitVector = UNITVECTOR(normalVector)
 
           ! Calculate the distance between the mesh point and the magnet point
-          dist = VECNORM(magnetNode-x)
+          dist = VECNORM3D(magnetNode-x)
 
           ! Calculate the magnetic potential of the node with the Gaussian quadrature
           psiMagTemp = psiMagTemp + wGP(kk) / dist / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
@@ -606,7 +606,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
             normalUnitVector = -UNITVECTOR(normalVector)
 
             ! Calculate the distance between the mesh point and the magnet point
-            dist = VECNORM(magnetNode-x)
+            dist = VECNORM3D(magnetNode-x)
 
             ! Calculate the magnetic potential of the node with the Gaussian quadrature
             psiMagTemp = psiMagTemp + wGP(kk) / dist / (4 * PI) * DOT_PRODUCT(normalUnitVector, M)
@@ -693,7 +693,7 @@ ASSOCIATE( r      => PermanentMagnetInfo(iMagnet)%Radius       ,& ! outer radius
           WRITE(1112,*) magnetNode(1:3)
         END DO
       END DO ! I = -1, 1, 2
-      
+
       WRITE(1112,*)''
       WRITE(1112,'(A,I0,1X,I0)')'CELLS ',3,8*nNodes+5
 
@@ -970,7 +970,7 @@ REAL              :: normalVectorLength
 !===================================================================================================================================
 
 ! Calculate the normal vector via the cross product
-normalVec(1) = vec1(2)*vec2(3) - vec1(3)*vec2(2) 
+normalVec(1) = vec1(2)*vec2(3) - vec1(3)*vec2(2)
 normalVec(2) = vec1(3)*vec2(1) - vec1(1)*vec2(3)
 normalVec(3) = vec1(1)*vec2(2) - vec1(2)*vec2(1)
 
@@ -1001,7 +1001,7 @@ USE MOD_Mesh_Vars           ,ONLY: N_VolMesh,offSetElem
 USE MOD_Interpolation_Vars  ,ONLY: N_BG, N_Inter, N_BG, Nmin, Nmax
 USE MOD_Globals_Vars        ,ONLY: mu0
 USE MOD_SuperB_Tools        ,ONLY: CalcErrorSuperB
-USE MOD_DG_Vars             ,ONLY: N_DG_Mapping      
+USE MOD_DG_Vars             ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1019,7 +1019,7 @@ TYPE tN_Gradient
   REAL,ALLOCATABLE :: HField(:,:,:,:)
   REAL,ALLOCATABLE :: D(:,:)
 END TYPE tN_Gradient
-TYPE(tN_Gradient),ALLOCATABLE,TARGET  :: N_Gradient(:) 
+TYPE(tN_Gradient),ALLOCATABLE,TARGET  :: N_Gradient(:)
 INTEGER              :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
 !===================================================================================================================================
 ALLOCATE(N_Gradient(Nmin:Nmax))

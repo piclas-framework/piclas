@@ -243,7 +243,7 @@ DO iSpec = 1, nSpecies
     END IF
     !--- Normalize VeloVecIC
     IF(.NOT.ALL(Species(iSpec)%Init(iInit)%VeloVecIC(:).EQ.0.)) THEN
-      Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC / VECNORM(Species(iSpec)%Init(iInit)%VeloVecIC)
+      Species(iSpec)%Init(iInit)%VeloVecIC = Species(iSpec)%Init(iInit)%VeloVecIC / VECNORM3D(Species(iSpec)%Init(iInit)%VeloVecIC)
     END IF
     ! Additional read-in for circular/cuboid cases
     SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
@@ -288,13 +288,13 @@ DO iSpec = 1, nSpecies
       Species(iSpec)%Init(iInit)%NormalIC = UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder').OR.(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         Species(iSpec)%Init(iInit)%BaseVector1IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector1IC &
-                                                    / VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC)
+                                                    / VECNORM3D(Species(iSpec)%Init(iInit)%BaseVector1IC)
         Species(iSpec)%Init(iInit)%BaseVector2IC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%BaseVector2IC &
-                                                    / VECNORM(Species(iSpec)%Init(iInit)%BaseVector2IC)
+                                                    / VECNORM3D(Species(iSpec)%Init(iInit)%BaseVector2IC)
       END IF
       IF ((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sphere')) THEN
         Species(iSpec)%Init(iInit)%NormalIC = Species(iSpec)%Init(iInit)%RadiusIC * Species(iSpec)%Init(iInit)%NormalIC &
-                                              / VECNORM(Species(iSpec)%Init(iInit)%NormalIC)
+                                              / VECNORM3D(Species(iSpec)%Init(iInit)%NormalIC)
       END IF
       Species(iSpec)%Init(iInit)%InflowRiseTime         = GETREAL('Part-Species'//TRIM(hilf2)//'-InflowRiseTime')
     ELSE
@@ -304,7 +304,7 @@ DO iSpec = 1, nSpecies
     IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'photon_SEE_rectangle')THEN
       ! Calculate the height using the base vectors. Use the length of the smaller one.
       Species(iSpec)%Init(iInit)%CuboidHeightIC = &
-          MIN(VECNORM(Species(iSpec)%Init(iInit)%BaseVector1IC),VECNORM(Species(iSpec)%Init(iInit)%BaseVector2IC))
+          MIN(VECNORM3D(Species(iSpec)%Init(iInit)%BaseVector1IC),VECNORM3D(Species(iSpec)%Init(iInit)%BaseVector2IC))
     END IF ! TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'gyrotron_circle'
     ! Additional read-in for specific cases
     IF((TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'sin_deviation') .OR.  &
@@ -666,7 +666,7 @@ ASSOCIATE( n1 => UNITVECTOR(Species(iSpec)%Init(iInit)%NormalIC)      ,&
   SELECT CASE(TRIM(Species(iSpec)%Init(iInit)%SpaceIC))
   CASE('photon_SEE_rectangle','photon_rectangle')
     ! Area is calculated from the cross product of the two base vectors
-    Species(iSpec)%Init(iInit)%Area = VECNORM(CROSS(v2,v3))
+    Species(iSpec)%Init(iInit)%Area = VECNORM3D(CROSS(v2,v3))
     CALL PrintOption('Rectangular emission area for Part-Species'//TRIM(hilf2)//': A [m2]','CALCUL.',&
                     RealOpt=Species(iSpec)%Init(iInit)%Area)
   END SELECT

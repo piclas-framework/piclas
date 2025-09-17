@@ -660,7 +660,7 @@ END SUBROUTINE PhotonIntersectionWithSide
 !> a change basis is used to switch between point sets (polynomial representations).
 !===================================================================================================================================
 SUBROUTINE CalcAbsorptionRayTrace(IntersectionPos,GlobalElemID,PhotonDir)
-USE MOD_Globals             ,ONLY: VECNORM
+USE MOD_Globals             ,ONLY: VECNORM3D
 USE MOD_RayTracing_Vars     ,ONLY: RayElemPassedEnergy,Ray,U_N_Ray,N_DG_Ray
 USE MOD_Photon_TrackingVars ,ONLY: PhotonProps
 !--------------------------------------------------------------------------------------------------!
@@ -678,7 +678,7 @@ REAL              :: RandVal
 !--------------------------------------------------------------------------------------------------!
 ! Calculate the direction and length of the path of the ray through the element
 direction(1:3) = IntersectionPos(1:3)-PhotonProps%PhotonPos(1:3)
-length = VECNORM(direction(1:3))
+length = VECNORM3D(direction(1:3))
 
 ! Check primary or secondary direction
 IF(DOT_PRODUCT(PhotonDir,Ray%Direction).GT.0.0)THEN
@@ -698,7 +698,7 @@ Nloc = N_DG_Ray(GlobalElemID)
 ! Loop over number of sub-samples
 NbrOfSamples = Ray%nSamples*(Nloc+1) ! must be at least 3*(Nloc+1) for this sampling method (one point between the two intersections of the element)!
 subdirection(1:3) = direction(1:3)/REAL(NbrOfSamples-1)
-sublength = VECNORM(subdirection(1:3))
+sublength = VECNORM3D(subdirection(1:3))
 ! Loop over the number of sub lengths and assign them to the nearest DOF. Choose the intersection points at random to prevent artifacts
 DO iIntersec = 1, NbrOfSamples-1
   CALL RANDOM_NUMBER(RandVal)
@@ -1361,7 +1361,7 @@ END SUBROUTINE PeriodicPhotonBC
 !>   ForceWallSample (OPTIONAL): When true, the sampling is performed independent of the actual absorption/reflection outcome
 !===================================================================================================================================
 SUBROUTINE CalcWallAbsoprtion(IntersectionPos, GlobSideID, DONE, ForceWallSample)
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Photon_TrackingVars    ,ONLY: PhotonProps,PhotonSurfSideSamplingMidPoints
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound, GlobalSide2SurfSide
 USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared
@@ -1398,7 +1398,7 @@ IF(PRESENT(ForceWallSample))THEN
       distanceMin = HUGE(1.)
       DO pp = 1, Ray%nSurfSample
         DO qq = 1, Ray%nSurfSample
-          distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          distance = VECNORM3D(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
@@ -1428,7 +1428,7 @@ IF (PhotonEnACC.GT.iRan) THEN
       distanceMin = HUGE(1.)
       DO pp = 1, Ray%nSurfSample
         DO qq = 1, Ray%nSurfSample
-          distance = VECNORM(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
+          distance = VECNORM3D(IntersectionPos(1:3) - PhotonSurfSideSamplingMidPoints(1:3,pp,qq,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             p = pp
             q = qq
@@ -1471,7 +1471,7 @@ REAL                          :: ConeDist, ConeRadius, orthoDist
 PointInObsCone = .FALSE.
 ConeDist = DOT_PRODUCT(Point(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
 ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
-orthoDist = VECNORM(Point(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+orthoDist = VECNORM3D(Point(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
 IF (orthoDist.LE.ConeRadius) PointInObsCone = .TRUE.
 
 END FUNCTION PointInObsCone
@@ -1507,7 +1507,7 @@ IF (projectedDist.LT.0.0) THEN
   !Vector from midpoint of sensor
   DirectionVec(1:3) = DirectionVec(1:3) - RadObservationPoint%MidPoint(1:3)
   !distance to midpoint
-  projectedDist = VECNORM(DirectionVec(1:3))
+  projectedDist = VECNORM3D(DirectionVec(1:3))
   IF (projectedDist.LE.RadObservationPoint%Diameter/2.) PhotonIntersectSensor = .TRUE.
 END IF
 

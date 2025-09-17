@@ -196,7 +196,7 @@ PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*
 IF(UseRotRefFrame) THEN
   ! Check if rotational frame of reference is used, otherwise mirror the LastPartPos for new particle position
   IF(InRotRefFrame(PartID)) THEN
-    POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
+    POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM3D(OldVelo*dtVar)
     ! Determine the correct velocity for the subsequent push in case of a rotational frame of reference at POI
     NewVeloPush(1:3) = PartState(4:6,PartID)
     NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
@@ -220,7 +220,7 @@ END IF
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
-TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+TrackInfo%lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE
@@ -415,7 +415,7 @@ LastPartPos(1:3,PartID) = POI_vec(1:3)
 TildTrajectory = OldVelo * dtVar
 ! Nullify the components in 1D and 2D to calculate the correct magnitude (2D axisymmetric is not affected)
 IF(Symmetry%Order.EQ.3.OR.Symmetry%Axisymmetric) THEN
-  POI_fak = VECNORM(TildTrajectory)
+  POI_fak = VECNORM3D(TildTrajectory)
 ELSE IF(Symmetry%Order.EQ.2.AND..NOT.Symmetry%Axisymmetric) THEN
   POI_fak = VECNORM2D(TildTrajectory(1:2))
 ELSE IF(Symmetry%Order.EQ.1) THEN
@@ -496,7 +496,7 @@ IF(Symmetry%Axisymmetric) THEN
   TrackInfo%lengthPartTrajectory=SQRT(TrackInfo%PartTrajectory(1)**2 + TrackInfo%PartTrajectory(2)**2)
 ELSE
   TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-  TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+  TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
 END IF
 
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
@@ -819,7 +819,7 @@ REAL FUNCTION GetWallTemperature(PartID,locBCID, SideID)
 !===================================================================================================================================
 !> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM3D
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, BoundaryWallTemp, GlobalSide2SurfSide
 USE MOD_Particle_Vars           ,ONLY: LastPartPos
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
@@ -849,7 +849,7 @@ PPURE REAL FUNCTION CalcWallTempGradient(PointVec,locBCID)
 !===================================================================================================================================
 !> Calculation of the wall temperature at a specific position due to the imposed temperature gradient (WallTemp2.GT.0)
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM3D
 USE MOD_Globals_Vars            ,ONLY: EpsMach
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 IMPLICIT NONE
@@ -866,7 +866,7 @@ REAL                            :: Bounds(1:3), TempGradLength, PointVec_project
 ASSOCIATE(PB => PartBound)
 PointVec_projected(1:3) = PB%TempGradStart(1:3,locBCID) + DOT_PRODUCT((PointVec(1:3) - PB%TempGradStart(1:3,locBCID)), &
                           PB%TempGradVec(1:3,locBCID)) / DOTPRODUCT(PB%TempGradVec(1:3,locBCID)) * PB%TempGradVec(1:3,locBCID)
-TempGradLength = VECNORM(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM(PB%TempGradVec(1:3,locBCID))
+TempGradLength = VECNORM3D(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM3D(PB%TempGradVec(1:3,locBCID))
 
 SELECT CASE(PB%TempGradDir(locBCID))
 CASE(0)
@@ -963,7 +963,7 @@ REAL                  :: CalcRotWallVelo(3)
 
 ! Case: rotational axis is NOT one of the major axis (x,y,z)
 ! vec_OrgPOI(1:3) = POI(1:3) - PartBound%RotOrg(1:3,locBCID)
-! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM(PartBound%RotAxis(1:3,locBCID))
+! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM3D(PartBound%RotAxis(1:3,locBCID))
 ! vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
 ! vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
 ! radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )

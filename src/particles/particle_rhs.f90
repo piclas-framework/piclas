@@ -824,7 +824,7 @@ DO iLoop = 1, nPart
   SpecID = PartSpecies(locPart)
   IF(Species(SpecID)%InterID.NE.100) THEN
     c_r = PartState(4:6,locPart) - PartState(4:6,iPart)
-    c_r_abs = VECNORM(c_r)
+    c_r_abs = VECNORM3D(c_r)
     ASSOCIATE(&
       R_p     =>  SpecDSMC(SpecIDSolid)%dref / 2.0 ,&
       T_p     =>  PartStateIntEn( 1,iPart),&

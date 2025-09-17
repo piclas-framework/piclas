@@ -213,7 +213,7 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetCNSideID
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarRectIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarCurvedIntersection
@@ -277,7 +277,7 @@ PartPos(1:3)            = PartPos_In(1:3)
 
 ! get trajectory from element barycenter to current position
 PartTrajectory       = PartPos - LastPartPos(1:3,PartID)
-lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
+lengthPartTrajectory = VECNORM3D(PartTrajectory(1:3))
 
 ! output the part trajectory
 #ifdef CODE_ANALYZE

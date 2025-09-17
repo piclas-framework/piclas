@@ -941,7 +941,6 @@ END SUBROUTINE CalculateElectricTimeDerivative
 !===================================================================================================================================
 SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL(UpdatePhiF)
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC

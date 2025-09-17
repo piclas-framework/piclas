@@ -2047,12 +2047,12 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_
       Vec           = SlaveCoords-MasterCoords
 
       ! Might consider aborting here, malformed periodic sides
-      IF (VECNORM(Vec).EQ.0) CYCLE
+      IF (VECNORM3D(Vec).EQ.0) CYCLE
 
       ! Check if the periodic vector is ALMOST aligned with a Cartesian direction
       DO iVec = 1,3
-        ! IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec))*VECNORM(Vec).LT.1E-12) CYCLE SideLoop
-        IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec)).LT.1E-12*VECNORM(Vec)) Vec(iVec) = 0.
+        ! IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec))*VECNORM3D(Vec).LT.1E-12) CYCLE SideLoop
+        IF (ABS(Vec(iVec)).GT.0 .AND. ABS(Vec(iVec)).LT.1E-12*VECNORM3D(Vec)) Vec(iVec) = 0.
       END DO
 
       GEO%PeriodicVectors(:,BCALPHA) = Vec
@@ -2067,7 +2067,7 @@ sendbuf = 0.
 recvbuf = 0.
 
 DO iVec = 1,GEO%nPeriodicVectors
-  sendbuf = MERGE(VECNORM(GEO%PeriodicVectors(:,iVec)),HUGE(1.),PeriodicFound(iVec))
+  sendbuf = MERGE(VECNORM3D(GEO%PeriodicVectors(:,iVec)),HUGE(1.),PeriodicFound(iVec))
 
 ! Do it by hand, MPI_ALLREDUCE seems problematic with MPI_2DOUBLE_PRECISION and MPI_MINLOC
 ! https://stackoverflow.com/questions/56307320/mpi-allreduce-not-synchronizing-properly
@@ -2093,7 +2093,7 @@ IF (myRank.EQ.0) THEN
 
   ! Sanity check
   DO iVec = 1,GEO%nPeriodicVectors
-    IF(VECNORM(GEO%PeriodicVectors(:,iVec)).LE.0.)THEN
+    IF(VECNORM3D(GEO%PeriodicVectors(:,iVec)).LE.0.)THEN
       CALL abort(__STAMP__,'Norm of GEO%PeriodicVectors(:,iVec) <= 0 for iVec =',IntInfoOpt=iVec)
     END IF
   END DO
