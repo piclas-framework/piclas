@@ -779,7 +779,7 @@ maxwell_only:
   <<: *defaults_maxwell_only
   stage: reggie_checkin
   script:
-    - cd build_maxwell_only ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
+    - cd build_maxwell_only ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas -d2
 
 poisson_release:
   <<: *defaults_poisson_checkin
@@ -1449,21 +1449,26 @@ reggie_code_coverage:
     - ls -la
     - ls -la build* || echo "not found"
     - ls -la Coverage || echo "not found"
-    - gcovr --root /src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary
+    - echo "${CI_PROJECT_NAMESPACE}, ${CI_PROJECT_NAME}"
+    - echo "${PWD}"
+    - echo "${PWD}/src"
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
     - ls -la Coverage/cobertura || echo "not found"
     # split coverage.xml file into smaller files since gitlab has a limit of 10MB per file, but seems to have no limit for number of files
-    - python tools/Coverage/split-xml-by-package.py Coverage/cobertura/coverage.xml Coverage/cobertura
+    # - python tools/Coverage/split-xml-by-package.py Coverage/cobertura/coverage.xml Coverage/cobertura
   # regex expression the retrieve coverage percentage
   coverage: '/lines:\s+(\d+(\.\d+)?)%/'
   artifacts:
     paths:
-      - Coverage/cobertura/coverage.xml
+      - Coverage
+      - Coverage/cobertura/*.xml
     expire_in: 1 week
     reports:
       coverage_report:
         coverage_format: cobertura
         # use smaller files for gitlab artifacts
-        path: Coverage/cobertura/cobertura*.xml
+        # path: Coverage/cobertura/cobertura*.xml
+        path: Coverage/cobertura/*.xml
   rules:
     # //TODO: remove checkin and push after testing
     - if: '$DO_CHECKIN'
