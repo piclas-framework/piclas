@@ -455,7 +455,8 @@ DO iElem=1,PP_nElems
           CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),j), Smatloc(1:iNdof,j))
         END DO
       END IF
-      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),jNdof,jIndices(1:jNdof),Smatloc(1:iNdof,1:jNdof),ADD_VALUES,ierr))
+      ! Fortran API: non-array values, v, passed to PETSc routines expecting arrays must be cast with [v] in the calling sequence
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,[iIndices(1:iNdof)],jNdof,[jIndices(1:jNdof)],[Smatloc(1:iNdof,1:jNdof)],ADD_VALUES,ierr))
     END DO
   END DO
 END DO
@@ -487,7 +488,8 @@ DO BCsideID=1,nConductorBCsides
 
       BCState = BoundaryType(BC(iSideID),BC_STATE)
       iIndices(1:1) = nGlobalPETScDOFs-FPC%nUniqueFPCBounds+FPC%Group(BCState,2)-1
-      PetscCallA(MatSetValues(PETScSystemMatrix,1,iIndices(1:1),1,jIndices(1:1),Smatloc(1,1),ADD_VALUES,ierr))
+      ! Fortran API: non-array values, v, passed to PETSc routines expecting arrays must be cast with [v] in the calling sequence
+      PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[jIndices(1:1)],[Smatloc(1,1)],ADD_VALUES,ierr))
     ELSEIF(MaskedSide(iSideID).GT.0) THEN
       CYCLE
     ELSE
