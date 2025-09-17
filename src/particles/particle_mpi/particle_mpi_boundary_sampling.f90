@@ -20,20 +20,7 @@ MODULE MOD_Particle_MPI_Boundary_Sampling
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-
 #if USE_MPI
-INTERFACE InitSurfCommunication
-  MODULE PROCEDURE InitSurfCommunication
-END INTERFACE
-
-INTERFACE ExchangeSurfData
-  MODULE PROCEDURE ExchangeSurfData
-END INTERFACE
-
-INTERFACE FinalizeSurfCommunication
-  MODULE PROCEDURE FinalizeSurfCommunication
-END INTERFACE
-
 PUBLIC :: InitSurfCommunication
 PUBLIC :: ExchangeSurfData, ExchangeChemSurfData
 PUBLIC :: FinalizeSurfCommunication
@@ -232,7 +219,12 @@ CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SHARED,leadersGroup,IERROR)
 CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SURF  ,surfGroup   ,IERROR)
 
 ! Finally translate global rank to local rank
-CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup,nLeaderGroupProcs,MPIRankSharedLeader,surfGroup,MPIRankSurfLeader,IERROR)
+CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup , nLeaderGroupProcs , MPIRankSharedLeader,&
+                               surfGroup    , MPIRankSurfLeader , IERROR)
+! This operation marks a group object for deallocation. The handle group is set to MPI_GROUP_NULL by the call.
+! Any ongoing operation using this group will complete normally.
+CALL MPI_GROUP_FREE(leadersGroup, IERROR)
+CALL MPI_GROUP_FREE(surfGroup, IERROR)
 IF (mySurfRank.EQ.0) THEN
 #if USE_LOADBALANCE
   IF(.NOT.PerformLoadBalance)&
