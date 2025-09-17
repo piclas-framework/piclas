@@ -48,7 +48,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE                   :: Elem_xGP_LB(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: Elem_xGP_LB(:,:)
 REAL,ALLOCATABLE                   :: Elem_xGP_PP_1_LB(:,:,:,:,:)
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1)
@@ -62,7 +62,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift volume coordinates during loadbalance...'
   GETTIME(StartT)
 
-  ALLOCATE(Elem_xGP_LB   (3,0:0,0:0,0:0,nElems))
+  ALLOCATE(Elem_xGP_LB   (3,nElems))
   ASSOCIATE (&
           counts_send  => INT(MPInElemSend     ) ,&
           disp_send    => INT(MPIoffsetElemSend) ,&
@@ -116,7 +116,7 @@ USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Mesh_Vars_FV       ,ONLY: JaCL_N_PP_1
+USE MOD_Mesh_Vars_FV       ,ONLY: JaCL_N_PP_1,XCL_N_PP_1
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

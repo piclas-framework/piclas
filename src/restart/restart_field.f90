@@ -184,13 +184,15 @@ INTEGER                            :: i,j,k
 !INTEGER,ALLOCATABLE                :: N_DG_Tmp(:)
 #if defined(PARTICLES) || !(USE_HDG || USE_FV)
 REAL,ALLOCATABLE                   :: UTmp(:,:,:,:,:)
+#endif /*defined(PARTICLES) || !(USE_HDG)*/
 ! TODO: make ElemInfo available with PARTICLES=OFF and remove this preprocessor if/else as soon as possible
 ! Custom data type
+#if defined(PARTICLES) || !(USE_HDG) || (USE_FV)
 INTEGER                            :: MPI_LENGTH(1)
 TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
+#endif /*defined(PARTICLES) || !(USE_HDG) || (USE_FV)*/
 #endif /*USE_LOADBALANCE*/
-#endif /*defined(PARTICLES) || !(USE_HDG)*/
 REAL,ALLOCATABLE                   :: Uloc(:,:,:,:)
 INTEGER                            :: Nloc, iDOF, nDOF, offsetDOF
 REAL,ALLOCATABLE                   :: U_N_2D_local(:,:)
