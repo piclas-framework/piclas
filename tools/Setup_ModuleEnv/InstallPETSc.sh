@@ -98,16 +98,19 @@ do
     # Set desired versions
     #GCCVERSION=12.2.0
     #GCCVERSION=13.2.0
-    GCCVERSION=14.2.0
+    # GCCVERSION=14.2.0
+    GCCVERSION=15.2.0
 
     # OPENMPI
     #OPENMPIVERSION=4.1.4
     #OPENMPIVERSION=4.1.5
     #OPENMPIVERSION=4.1.6
-    OPENMPIVERSION=5.0.6
+    # OPENMPIVERSION=5.0.6
+    OPENMPIVERSION=5.0.8
 
     # MPICH
-    MPICHVERSION=4.1.2
+    # MPICHVERSION=4.1.2
+    MPICHVERSION=4.3.1
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
@@ -145,6 +148,7 @@ done
 #PETSCVERSION=3.20.6
 PETSCVERSION=3.21.6
 #PETSCVERSION=3.22.2 # currently does not work
+PETSCVERSION=3.23.6
 
 # Activate DEBUGGING MODE with ON/OFF
 DEBUG=OFF

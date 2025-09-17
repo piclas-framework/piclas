@@ -67,17 +67,20 @@ do
     # GCC
     #USECOMPILERVERSION=13.1.0
     #USECOMPILERVERSION=13.2.0
-    USECOMPILERVERSION=14.2.0
+    # USECOMPILERVERSION=14.2.0
+    USECOMPILERVERSION=15.2.0
 
     # OpenMPI
     MPINAMES='openmpi'
     #USEMPIVERSION=4.1.5
     #USEMPIVERSION=4.1.6
-    USEMPIVERSION=5.0.6
+    #USEMPIVERSION=5.0.6
+    USEMPIVERSION=5.0.8
 
     # MPICH
-    #MPINAMES='mpich'
+    # MPINAMES='mpich'
     #USEMPIVERSION=4.1.2
+    # USEMPIVERSION=4.3.1
 
     # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
     # This will use the older ch3:sock channel that does not busy poll.
@@ -123,7 +126,8 @@ fi
 DOWNLOADPATH="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
 CONFIGFLAGS="--with-pic --enable-fortran --enable-fortran2003 --disable-shared"
 
-HDF5VERSION=1.14.5 # Old download link dows not work anymore
+# HDF5VERSION=1.14.5 # Old download link dows not work anymore
+HDF5VERSION=1.14.6 # Old download link dows not work anymore
 # new download link: https://support.hdfgroup.org/releases/hdf5/v1_14/v1_14_5/downloads/hdf5-1.14.5.tar.gz
 HDF5VERSIONSHORT=${HDF5VERSION%.*}
 DOWNLOADPATH="https://support.hdfgroup.org/releases/hdf5/v${HDF5VERSIONSHORT//./_}/v${HDF5VERSION//./_}/downloads/hdf5-${HDF5VERSION}.tar.gz"
