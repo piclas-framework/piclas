@@ -318,6 +318,10 @@ REAL                  :: GravityDir(3)      ! Direction of gravity force
 LOGICAL               :: SkipGranularUpdate ! Flag to skip granular species position, velocity and temperature update
                                             ! used only for benchmark TC
 LOGICAL               :: UseStateBGDistri   ! Flag for using a fix background distribution (given by the state file)
+real                  :: BGGValueForGranularSpec(5,100) ! Array for 100 virtuell DSMC particles within a cell, when using BGG
+                                                        ! (1:3,:): v_x, v_y, v_z
+                                                        ! (4,:): e_rot
+                                                        ! (5,:): W_g
 REAL                  :: ForceAverage(5)
 REAL                  :: SumForceAverage(5)
 

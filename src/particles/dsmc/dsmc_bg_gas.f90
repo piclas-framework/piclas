@@ -361,7 +361,7 @@ SUBROUTINE BGGas_InsertParticles()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM, Species
 USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime,LBPauseTime
@@ -393,6 +393,8 @@ DO iPart = 1, PDM%ParticleVecLength
     IF(BGGas%UseRegions) THEN
       IF(BGGas%RegionElemType(PEM%LocalElemID(iPart)).EQ.0) CYCLE
     END IF
+    ! Skip granular particles
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) CYCLE
     ! Get a free particle index
     iNewPart = iNewPart + 1
     PositionNbr = GetNextFreePosition()

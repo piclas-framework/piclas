@@ -82,7 +82,7 @@ USE MOD_DSMC_Vars                   ,ONLY: ParticleWeighting
 USE MOD_part_RHS                    ,ONLY: CalcPartPosInRotRef
 USE MOD_TimeDisc_Vars               ,ONLY: dt
 USE MOD_Particle_Vars               ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep, Species, PartState, LastPartPos, PartSpecies
-USE MOD_Particle_Vars               ,ONLY: PartVeloRotRef, LastPartVeloRotRef, UseStateBGDistri
+USE MOD_Particle_Vars               ,ONLY: PartVeloRotRef, LastPartVeloRotRef
 !-----
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -113,7 +113,6 @@ IF(ParticleWeighting%PerformCloning) CALL SetInClones()
 InterPlanePartNumber = 0
 ! 1) Loop over all particles that are still inside
 DO i = 1,PDM%ParticleVecLength
-  IF((UseStateBGDistri).AND.(Species(PartSpecies(i))%InterID.NE.100)) CYClE
 #ifdef IMPA
   IF(doPartInExists)THEN
     DoParticle=PDM%ParticleInside(i).AND.DoParticle_In(i)

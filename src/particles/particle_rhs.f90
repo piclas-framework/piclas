@@ -36,6 +36,10 @@ INTERFACE PartRHS
   PROCEDURE PartRHS
 END INTERFACE
 
+INTERFACE PushGranularSpecies
+  PROCEDURE PushGranularSpecies
+END INTERFACE
+
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToImp
@@ -43,7 +47,7 @@ PUBLIC :: PartRHS
 PUBLIC :: CalcPartRHSSingleParticle
 PUBLIC :: CalcPartRHSRotRefFrame
 PUBLIC :: CalcPartPosInRotRef
-PUBLIC :: CalcPosAndVeloForGranularSpecies
+PUBLIC :: PushGranularSpecies
 !----------------------------------------------------------------------------------------------------------------------------------
 
 ABSTRACT INTERFACE
@@ -836,6 +840,78 @@ END IF
 END SUBROUTINE CalcPartPosInRotRef
 
 
+SUBROUTINE PushGranularSpecies()
+!===================================================================================================================================
+! Routine for the calculation of the new velocity and position of granular species
+!===================================================================================================================================
+! MODULES
+USE MOD_Particle_Vars           ,ONLY: PEM, BGGValueForGranularSpec, UseVarTimeStep, PartTimeStep, VarTimeStep
+USE MOD_DSMC_Vars               ,ONLY: BGGas
+USE MOD_Mesh_Vars               ,ONLY: nElems,offSetElem
+USE MOD_Particle_Vars           ,ONLY: Species, PartSpecies
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_Part_Tools              ,ONLY: CalcVelocity_maxwell_particle, CalcERot_particle
+USE MOD_TimeDisc_Vars           ,ONLY: dt
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!INTEGER, INTENT(IN)           :: 
+!REAL, INTENT(IN)              :: 
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                     :: iElem, iLoop, iPart, nPart, BGGSpecID, CNElemID
+LOGICAL                     :: GranularSpecInside
+REAL                        :: ElemVolume, dtVar
+!===================================================================================================================================
+  DO iElem = 1, nElems ! element/cell main loop
+    ! check: at least one granular particle is within the cell
+    iPart = PEM%pStart(iElem)
+    nPart = PEM%pNumber(iElem)
+    DO iLoop = 1, nPart
+      IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+        GranularSpecInside = .TRUE.
+        EXIT
+      END IF
+      iPart = PEM%pNext(iPart)
+    END DO
+    IF(.NOT.GranularSpecInside) CYCLE  ! no granular particle within the cell
+    IF(BGGas%NumberOfSpecies.GT.0) THEN
+      BGGSpecID = BGGas%MapBGSpecToSpec(1) !  bggSpec==1, currently only 1 BGG Spec is allowed with Granular flow
+      BGGValueForGranularSpec = 0.0   ! reset virtuell DSMC particle array
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      ElemVolume = ElemVolume_Shared(CNElemID)
+      IF(BGGas%Distribution(1,7,iElem).GT.0.) THEN ! skip empty cells
+        BGGValueForGranularSpec(5,1:100) = BGGas%Distribution(1,7,iElem) * ElemVolume / 100.  ! W_g
+        DO iPart = 1,100  
+          BGGValueForGranularSpec(1:3,iPart) = CalcVelocity_maxwell_particle(BGGSpecID,BGGas%Distribution(1,4:6,iElem)) &  ! velo
+                                            + BGGas%Distribution(1,1:3,iElem)
+          BGGValueForGranularSpec(4,iPart) = CalcERot_particle(BGGSpecID,BGGas%Distribution(1,9,iElem),iPart)  ! e_rot
+        END DO
+      END IF
+    END IF
+    iPart = PEM%pStart(iElem)
+    nPart = PEM%pNumber(iElem)
+    DO iLoop = 1, nPart
+      IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+        IF (UseVarTimeStep) THEN
+          dtVar = dt * PartTimeStep(iPart)
+        ELSE
+          dtVar = dt
+        END IF
+        IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
+        CALL CalcPosAndVeloForGranularSpecies(iPart,dtVar)    
+      END IF
+      iPart = PEM%pNext(iPart)
+    END DO
+  END DO ! iElem Loop
+
+END SUBROUTINE PushGranularSpecies
+
+
 SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
 !===================================================================================================================================
 ! Routine for the calculation of the new velocity and position of granular species using a Leapfrog integration
@@ -844,7 +920,7 @@ SUBROUTINE CalcPosAndVeloForGranularSpecies(iPart,dtVar)
 ! 2. Fluid-particle interaction
 !===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars ,ONLY: PartState, GravityDir, UseGravitation, SkipGranularUpdate
+USE MOD_Particle_Vars ,ONLY: PartState, GravityDir, UseGravitation, SkipGranularUpdate, PEM, LastPartPos
 USE MOD_Globals_Vars  ,ONLY: GravityAccelerationEarth
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -864,7 +940,8 @@ IF(UseGravitation) THEN
 END IF
 ! 2.Fluid-particle interaction
 CALL CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
-
+LastPartPos(1:3,iPart)=PartState(1:3,iPart)
+PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
 IF(.NOT.SkipGranularUpdate) THEN
   ! New velocity and position
   ! 1. leapfrog step v(t+dt/2):
@@ -887,9 +964,9 @@ SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, SkipGranularUpdate,ForceAverage
+USE MOD_Particle_Vars           ,ONLY: PartState, PEM, Species, PartSpecies, SkipGranularUpdate,ForceAverage, BGGValueForGranularSpec
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, PI
-USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn
+USE MOD_DSMC_Vars               ,ONLY: SpecDSMC, PartStateIntEn, BGGas
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars               ,ONLY: offSetElem
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
@@ -916,22 +993,19 @@ ElemID = PEM%LocalElemID(iPart)
 SpecIDSolid = PartSpecies(iPart)
 ElemVolume = ElemVolume_Shared(GetCNElemID(ElemID+offSetElem))
 
-nPart = PEM%pNumber(ElemID)
-
-locPart = PEM%pStart(ElemID)
-
-DO iLoop = 1, nPart
-  SpecID = PartSpecies(locPart)
-  IF(Species(SpecID)%InterID.NE.100) THEN
-    c_r = PartState(4:6,locPart) - PartState(4:6,iPart)
+IF(BGGas%NumberOfSpecies.GT.0) THEN
+  DO iLoop = 1, 100
+    IF(BGGValueForGranularSpec(5,iLoop).LE.0.) CYCLE ! skip empty cells
+    SpecID = BGGas%MapBGSpecToSpec(1)
+    c_r = BGGValueForGranularSpec(1:3,iLoop) - PartState(4:6,iPart)
     c_r_abs = VECNORM(c_r)
     ASSOCIATE(&
       R_p     =>  SpecDSMC(SpecIDSolid)%dref / 2.0 ,&
       T_p     =>  PartStateIntEn( 1,iPart),&
-      W_g     =>  Species(SpecID)%MacroParticleFactor,&
+      W_g     =>  BGGValueForGranularSpec(5,iLoop),&
       m_g     =>  Species(SpecID)%MassIC ,&
       tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
-      e_rot   =>  PartStateIntEn( 2,locPart) ,&
+      e_rot   =>  BGGValueForGranularSpec(4,iLoop) ,&
       Lambda  =>  SpecDSMC(SpecID)%Xi_Rot &
       )
       Force = Force + c_r * W_g * (PI * R_p * R_p) / ElemVolume &
@@ -941,9 +1015,35 @@ DO iLoop = 1, nPart
       Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / ElemVolume &
       * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
     END ASSOCIATE
-  END IF
-  locPart = PEM%pNext(locPart)
-END DO
+  END DO
+ELSE
+  nPart = PEM%pNumber(ElemID)
+  locPart = PEM%pStart(ElemID)
+  DO iLoop = 1, nPart
+    SpecID = PartSpecies(locPart)
+    IF(Species(SpecID)%InterID.NE.100) THEN
+      c_r = PartState(4:6,locPart) - PartState(4:6,iPart)
+      c_r_abs = VECNORM(c_r)
+      ASSOCIATE(&
+        R_p     =>  SpecDSMC(SpecIDSolid)%dref / 2.0 ,&
+        T_p     =>  PartStateIntEn( 1,iPart),&
+        W_g     =>  Species(SpecID)%MacroParticleFactor,&
+        m_g     =>  Species(SpecID)%MassIC ,&
+        tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
+        e_rot   =>  PartStateIntEn( 2,locPart) ,&
+        Lambda  =>  SpecDSMC(SpecID)%Xi_Rot &
+        )
+        Force = Force + c_r * W_g * (PI * R_p * R_p) / ElemVolume &
+                      * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
+                      * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
+  
+        Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / ElemVolume &
+        * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
+      END ASSOCIATE
+    END IF
+    locPart = PEM%pNext(locPart)
+  END DO
+END IF ! BGG Distribution
 
 Pt(:) = Pt(:) + Force(:) / Species(SpecIDSolid)%MassIC
 IF(.NOT.SkipGranularUpdate) THEN

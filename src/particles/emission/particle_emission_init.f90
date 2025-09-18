@@ -453,6 +453,9 @@ IF(.NOT.ANY(BGGas%BackgroundSpecies)) CALL CollectiveStop(__STAMP__,&
   'ERROR: The drift-diffusion electron fluid model requires at least one species to be of type SpaceIC=background')
 #endif /*drift_diffusion*/
 
+IF((UseGranularSpecies).AND.(BGGas%NumberOfSpecies.GT.1)) CALL CollectiveStop(__STAMP__,&
+  'ERROR: Granular species works only with a maximum of 1 BGG species')
+
 END SUBROUTINE InitializeVariablesSpeciesInits
 
 

@@ -586,7 +586,6 @@ IF(ANY(Species(:)%InterID.EQ.100)) THEN
   END IF
   SkipGranularUpdate = GETLOGICAL('SkipGranularUpdate')
   ForceAverage = 0.0
-  UseStateBGDistri = GETLOGICAL('UseStateBackgroundDistribution')
 END IF
 !-- Get PIC deposition (skip DSMC, FP-Flow and BGS-Flow related timediscs)
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
