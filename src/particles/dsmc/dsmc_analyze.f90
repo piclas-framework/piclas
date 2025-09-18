@@ -340,7 +340,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC, PartStateIntEn, DSMC, CollisMode,
 USE MOD_DSMC_Vars              ,ONLY: DSMC_SolutionPressTens
 USE MOD_Part_tools             ,ONLY: GetParticleWeight
 USE MOD_Particle_Vars          ,ONLY: PartState, PDM, PartSpecies, PEM, Species, DoVirtualCellMerge, VirtMergedCells
-USE MOD_Particle_Vars          ,ONLY: SamplePressTensHeatflux
+USE MOD_Particle_Vars          ,ONLY: SamplePressTensHeatflux, usevMPF
 USE MOD_Mesh_Vars              ,ONLY: offSetElem, nElems
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBPauseTime
@@ -354,15 +354,28 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                       :: iPart, iElem, iSpec
-REAL                          :: partWeight, TotalMass(nElems), totalWeight(nElems), totalWeight2(nElems), totalWeight3(nElems)
-REAL                          :: vBulk(3,nElems), presstens(3,nElems), heatflux(3,nElems), V_rel(3), vmag2
+REAL                          :: partWeight
+REAL                          :: V_rel(3), vmag2
+REAL,ALLOCATABLE              :: TotalMass(:), totalWeight(:), totalWeight2(:), totalWeight3(:)
+REAL,ALLOCATABLE              :: vBulk(:,:), presstens(:,:), heatflux(:,:)
 #if USE_LOADBALANCE
 REAL                          :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 DSMC%SampNum = DSMC%SampNum + 1
-vBulk = 0.0; presstens = 0.0; heatflux = 0.0
-TotalMass = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
+
+IF(SamplePressTensHeatflux) THEN
+  ALLOCATE(TotalMass(nElems))
+  ALLOCATE(totalWeight(nElems))
+  ALLOCATE(totalWeight2(nElems))
+  ALLOCATE(totalWeight3(nElems))
+  TotalMass = 0.0; totalWeight = 0.0; totalWeight2 = 0.0; totalWeight3 = 0.0
+  ALLOCATE(vBulk(3,nElems))
+  ALLOCATE(presstens(3,nElems))
+  ALLOCATE(heatflux(3,nElems))
+  vBulk = 0.0; presstens = 0.0; heatflux = 0.0
+END IF
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -382,11 +395,11 @@ DO iPart=1,PDM%ParticleVecLength
     DSMC_Solution(7,iElem,iSpec) = DSMC_Solution(7,iElem, iSpec) + partWeight
     IF (SamplePressTensHeatflux) THEN
       ! Calculate bulk velocity, total mass and total weights
-      vBulk(1:3,iElem) = PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
+      vBulk(1:3,iElem) = vBulk(1:3,iElem) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
       TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
-      totalWeight(iElem) = totalWeight(iElem) + partWeight
-      totalWeight2(iElem) = totalWeight(iElem) + partWeight*partWeight
-      totalWeight3(iElem) = totalWeight(iElem) + partWeight*partWeight*partWeight
+      totalWeight(iElem)  = totalWeight(iElem)  + partWeight
+      totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
+      totalWeight3(iElem) = totalWeight3(iElem) + partWeight*partWeight*partWeight
     END IF
     ! Internal energy: rotational, vibrational, electronic
     IF(useDSMC)THEN
@@ -434,23 +447,33 @@ IF (SamplePressTensHeatflux) THEN
         IF (VirtMergedCells(iElem)%isMerged) iElem = VirtMergedCells(iElem)%MasterCell - offSetElem
       END IF
       partWeight = GetParticleWeight(iPart)
+      ! always include MPF to compute total pressure/heatflux values
+      IF (.NOT.usevMPF) partWeight = partWeight * Species(iSpec)%MacroParticleFactor
       V_rel(1:3)=PartState(4:6,iPart)-vBulk(1:3,iElem)
       vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
       ! Sample pressure tensor (shear stress) and heatflux
       presstens(1,iElem) = presstens(1,iElem) + V_rel(1)*V_rel(2)*Species(iSpec)%MassIC*partWeight
       presstens(2,iElem) = presstens(2,iElem) + V_rel(1)*V_rel(3)*Species(iSpec)%MassIC*partWeight
       presstens(3,iElem) = presstens(3,iElem) + V_rel(2)*V_rel(3)*Species(iSpec)%MassIC*partWeight
-      heatflux(1:3,iElem) = heatflux(1:3,iElem) + V_rel(1:3) * vmag2 * partWeight*Species(iSpec)%MassIC
+      heatflux(1:3,iElem) = heatflux(1:3,iElem) + 0.5 * V_rel(1:3) * vmag2 * partWeight*Species(iSpec)%MassIC
     END IF
   END DO
   DO iElem = 1, nElems
     ! Pressure tensor
-    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) &
+    DSMC_SolutionPressTens(1:3,iElem) = DSMC_SolutionPressTens(1:3,iElem) + presstens(1:3,iElem) * totalWeight(iElem) &
       / (totalWeight(iElem) - totalWeight2(iElem)/totalWeight(iElem))
     ! Heatflux
-    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem)**2 &
-      / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
+    DSMC_SolutionPressTens(4:6,iElem) = DSMC_SolutionPressTens(4:6,iElem) + heatflux(1:3,iElem) * totalWeight(iElem) &
+      * totalWeight(iElem)**2 / (totalWeight(iElem)**3 - 3.*totalWeight(iElem) * totalWeight2(iElem) + 2.*totalWeight3(iElem))
   END DO
+  ! Deallocate temporary arrays
+  DEALLOCATE(TotalMass)
+  DEALLOCATE(totalWeight)
+  DEALLOCATE(totalWeight2)
+  DEALLOCATE(totalWeight3)
+  DEALLOCATE(vBulk)
+  DEALLOCATE(presstens)
+  DEALLOCATE(heatflux)
 END IF
 
 #if USE_LOADBALANCE
@@ -519,6 +542,7 @@ DO iElem = 1, nElems ! element/cell main loop
   ELSE
     nSpecTemp = nSpecies
   END IF
+  CNElemID = GetCNElemID(iElem+offSetElem)
   ASSOCIATE ( Total_Velo     => DSMC_MacroVal(nVarLoc*nSpecTemp+1:nVarLoc*nSpecTemp+3,iElem) ,&
               Total_Temp     => DSMC_MacroVal(nVarLoc*nSpecTemp+4:nVarLoc*nSpecTemp+6,iElem) ,&
               Total_TempMean => DSMC_MacroVal(nVarLoc*nSpecTemp+12,iElem)            ,&
@@ -527,7 +551,7 @@ DO iElem = 1, nElems ! element/cell main loop
               Total_TempRot  => DSMC_MacroVal(nVarLoc*nSpecTemp+9,iElem)             ,&
               Total_Tempelec => DSMC_MacroVal(nVarLoc*nSpecTemp+10,iElem)            ,&
               Total_PartNum  => DSMC_MacroVal(nVarLoc*nSpecTemp+11,iElem)            ,&
-              SimVolume      => ElemVolume_Shared(GetCNElemID(iElem+offSetElem)) &
+              SimVolume      => ElemVolume_Shared(CNElemID) &
               )
     ! compute simulation cell volume
     DO iSpec = 1, nSpecies
@@ -705,8 +729,9 @@ IF (DSMC%CalcQualityFactors) THEN
         IF(VarTimeStep%UseLinearScaling.AND.(Symmetry%Order.EQ.2)) THEN
           ! 2D/Axisymmetric uses a scaling of the time step per particle, no element values are used. For the output simply the cell
           ! midpoint is used to calculate the time step
-          VarTimeStep%ElemFac(iElem) = GetParticleTimeStep(ElemMidPoint_Shared(1,GetCNElemID(iElem + offsetElem)), &
-                                                      ElemMidPoint_Shared(2,GetCNElemID(iElem + offsetElem)))
+          CNElemID = GetCNElemID(iElem+offsetElem)
+          VarTimeStep%ElemFac(iElem) = GetParticleTimeStep(ElemMidPoint_Shared(1,CNElemID), &
+                                                           ElemMidPoint_Shared(2,CNElemID))
         END IF
         DSMC_MacroVal(nVarCount+1,iElem) = VarTimeStep%ElemFac(iElem)
         nVarCount = nVarCount + 1
@@ -803,13 +828,14 @@ IF (SamplePressTensHeatflux) THEN
       IF (VirtMergedCells(iElem)%isMerged) CYCLE
     END IF
     ! Calculation and output of pressure tensor and heatflux only for total values of a mixture
+    CNElemID = GetCNElemID(iElem+offSetElem)
     ASSOCIATE ( Total_PressTensXY => DSMC_MacroVal(nVarCount+1,iElem) ,&
                 Total_PressTensXZ => DSMC_MacroVal(nVarCount+2,iElem) ,&
                 Total_PressTensYZ => DSMC_MacroVal(nVarCount+3,iElem) ,&
                 Total_HeatFluxX   => DSMC_MacroVal(nVarCount+4,iElem) ,&
                 Total_HeatFluxY   => DSMC_MacroVal(nVarCount+5,iElem) ,&
                 Total_HeatFluxZ   => DSMC_MacroVal(nVarCount+6,iElem) ,&
-                SimVolume      => ElemVolume_Shared(GetCNElemID(iElem+offSetElem)))
+                SimVolume      => ElemVolume_Shared(CNElemID))
       IF (SimVolume.GT.0.0) THEN
         Total_PressTensXY = DSMC_SolutionPressTens(1,iElem) / (REAL(DSMC%SampNum) * SimVolume)
         Total_PressTensXZ = DSMC_SolutionPressTens(2,iElem) / (REAL(DSMC%SampNum) * SimVolume)

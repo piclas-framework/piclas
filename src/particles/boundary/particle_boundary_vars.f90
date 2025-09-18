@@ -18,7 +18,6 @@ MODULE MOD_Particle_Boundary_Vars
 ! MODULES
 #if USE_MPI
 USE MOD_Globals
-USE mpi_f08
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -30,6 +29,7 @@ INTEGER                                 :: SurfSampSize                  !> Ener
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)      :: SurfSideSamplingMidPoints     !> Midpoints of subsides of supersampled surface
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
 ! Mesh info
@@ -83,6 +83,9 @@ TYPE(MPI_Win)                           :: BoundaryWallTemp_Shared_Win
 
 REAL,POINTER,DIMENSION(:,:,:)           :: SurfSideArea_Shared           !> Area of supersampled surface side
 TYPE(MPI_Win)                           :: SurfSideArea_Shared_Win
+
+REAL,POINTER,DIMENSION(:,:,:,:)         :: SurfSideSamplingMidPoints_Shared     !> Midpoints of subsides of supersampled surface
+TYPE(MPI_Win)                           :: SurfSideSamplingMidPoints_Shared_Win !> (used in triatracking to determine the subside to sample)
 
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: GlobalSide2SurfHaloSide       ! Mapping Global Side ID to Surf Halo Side ID (exists only on leader procs)
                                                                          !> 1st dim: leader rank
@@ -212,6 +215,7 @@ TYPE tPartBoundary
   INTEGER                                :: SymmetryBC              = 10 ! Same as the default ReflectiveBC but without analysis
   INTEGER                                :: SymmetryAxis            = 11 ! Symmetry axis for axisymmetric simulations (x-axis)
   INTEGER                                :: SymmetryDim             = 12 ! BC for 1D, 2D and axisymmetric simulations in the neglected dimension(s)
+  !INTEGER                                :: VDL                     = 20 ! Particles are shifted away from the wall, deposited and then deleted to form a surface charge model
   CHARACTER(LEN=200)   , ALLOCATABLE     :: SourceBoundName(:)           ! Link part 1 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: TargetBoundCond(:)           ! Link part 2 for mapping PICLas BCs to Particle BC
   INTEGER              , ALLOCATABLE     :: MapToPartBC(:)               ! Map from PICLas BCindex to Particle BC (NOT TO TYPE!)
@@ -268,6 +272,9 @@ TYPE tPartBoundary
                                                                           ! a non-dielectric or a between to different dielectrics
                                                                           ! [.TRUE.] or not [.FALSE.] (requires reflective BC)
                                                                           ! (Default=FALSE.)
+  ! Virtual dielectric layer (VDL)
+  REAL    , ALLOCATABLE                  :: PermittivityVDL(:)            ! Permittivity of the virtual dielectric layer model
+  REAL    , ALLOCATABLE                  :: ThicknessVDL(:)               ! Thickness of the real dielectric layer in the virtual dielectric layer model
   ! Multi rotational periodic and interplane BCs
   LOGICAL                                :: UseRotPeriodicBC            ! Flag for rotational periodicity
   LOGICAL                                :: OutputBCDataForTesting      ! Flag to output boundary parameter which were determined
@@ -289,6 +296,8 @@ TYPE tPartBoundary
   ! Boundary particle output
   LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputHDF5(:) ! Save particle position, velocity and species to
                                                                           ! PartDataBoundary container for writing to .h5 later
+  LOGICAL , ALLOCATABLE                  :: BoundaryParticleOutputEmission(:) ! Include emitted particles in the PartDataBoundary container
+                                                                              ! with a negative species index
 END TYPE
 
 INTEGER                                  :: nPartBound                    ! number of particle boundaries
@@ -298,10 +307,35 @@ TYPE(tPartBoundary)                      :: PartBound                     ! Boun
 ! Boundary particle output
 LOGICAL              :: DoBoundaryParticleOutputHDF5 ! Flag set automatically if particles crossing specific  boundaries are to be saved to .h5 (position of intersection, velocity, species, internal energies)
 LOGICAL              :: DoBoundaryParticleOutputRay ! User-defined flag to output surface SEE or volume ionization emission particles to .h5 based on the ray tracing model
-REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:11,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
+REAL, ALLOCATABLE    :: PartStateBoundary(:,:)     ! (1:12,1:NParts) 1st index: x,y,z,vx,vy,vz,SpecID,Ekin,MPF,time,impact angle, BCindex
 !                                                  !                 2nd index: 1 to number of boundary-crossed particles
-INTEGER, PARAMETER   :: nVarPartStateBoundary=11
+INTEGER, PARAMETER   :: nVarPartStateBoundary=12
 INTEGER              :: PartStateBoundaryVecLength ! Number of boundary-crossed particles
+! Virtual dielectric layer (VDL)
+LOGICAL              :: DoVirtualDielectricLayer      ! Flag set automatically if a VDL permittivity is set >= 0.0
+REAL, ALLOCATABLE    :: ElementThicknessVDL(:)        ! Thickness of first element layer at a VDL boundary
+REAL, ALLOCATABLE    :: ElementThicknessVDLPerSide(:) ! Thickness of first element layer at a VDL boundary per side to account for multiple VDLs within a single element
+REAL, ALLOCATABLE    :: StretchingFactorVDL(:)        ! Thickness of first element layer at a VDL boundary versus actual VDL layer thickness
+
+TYPE, PUBLIC :: VDLSurfMesh
+  REAL,ALLOCATABLE :: U(:,:,:) !<  1: PhiF_From_E      - PhiF calculated from E (2-4)
+                               !<  2: Ex               - E-field from post-processes gradient corrected with ElementThicknessVDL and ThicknessVDL
+                               !<  3: Ey
+                               !<  4: Ez
+                               !<  5: PhiF_Max         - PhiF as Minimum/Maximum of Phi
+                               !<  6: E_From_PhiF_Maxx - E-field from PhiF_Max (Minimum/Maximum of Phi) and ThicknessVDL (thickness of the dielectric layer)
+                               !<  7: E_From_PhiF_Maxy
+                               !<  8: E_From_PhiF_Maxz
+                               !<  9: PhiF_From_Currents - PhiF calculated from the current density and the (uncorrected) electric displacement fields in each element
+                               !< 10: E_From_PhiF_From_Currentsx - E-field from PhiF_From_Currents (current density+electric displacement field) and ThicknessVDL (thickness of the dielectric layer)
+                               !< 11: E_From_PhiF_From_Currentsy
+                               !< 12: E_From_PhiF_From_Currentsz
+                               !< 13: iBC
+                               !< 14: iPartBound
+END TYPE VDLSurfMesh
+
+INTEGER,PARAMETER              :: nVarSurfData=14
+TYPE(VDLSurfMesh),ALLOCATABLE  :: N_SurfVDL(:) !< Electric potential and fields strength on VDL surfaces
 !===================================================================================================================================
 
 END MODULE MOD_Particle_Boundary_Vars

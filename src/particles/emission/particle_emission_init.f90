@@ -50,10 +50,6 @@ CALL prms%CreateRealOption(   'Part-Species[$]-ChargeIC', 'Particle charge of sp
 CALL prms%CreateRealOption(   'Part-Species[$]-MassIC'  , 'Atomic mass of species [$] [kg]', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-MacroParticleFactor' ,'Particle weighting factor: number of simulation particles per real particle for species [$]' , numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(   'Part-Species[$]-TimeStepFactor' ,'Species-specific time step factor, multiplied by the ManualTimeStep [$]' , '1.', numberedmulti=.TRUE.)
-#if defined(IMPA)
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsImplicit'  , 'Flag if specific particle species is implicit', '.FALSE.', numberedmulti=.TRUE.)
-#endif
-CALL prms%CreateLogicalOption(  'Part-Species[$]-IsIMDSpecies', 'Flag if particle species is used for IMD coupling', '.FALSE.', numberedmulti=.TRUE.)
 
 CALL prms%SetSection("Particle Initialization (Inits)")
 
@@ -227,9 +223,6 @@ DO iSpec = 1, nSpecies
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with HDG and/or DSMC')
 #endif /*!(USE_HDG) && !(PP_TimeDiscMethod==4)*/
   END IF
-#if defined(IMPA)
-  Species(iSpec)%IsImplicit            = GETLOGICAL('Part-Species'//TRIM(hilf)//'-IsImplicit')
-#endif
   ALLOCATE(Species(iSpec)%Init(1:Species(iSpec)%NumberOfInits))
   DO iInit = 1, Species(iSpec)%NumberOfInits
     WRITE(UNIT=hilf2,FMT='(I0)') iInit
@@ -469,7 +462,8 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
 USE MOD_Mesh_Vars               ,ONLY: SideToElem
-USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem,DielectricNoParticles
+USE MOD_Dielectric_Vars         ,ONLY: DoDielectric,isDielectricElem_Shared,DielectricNoParticles
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_DSMC_Vars               ,ONLY: useDSMC, DSMC, CollisMode
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SetParticleTimeStep
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
@@ -496,6 +490,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER             :: iSpec,NbrOfParticle,iInit,iPart,PositionNbr,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
+INTEGER             :: CNElemID
 REAL                :: v_thermal, dtVar
 REAL                :: StartT,EndT
 !===================================================================================================================================
@@ -580,9 +575,8 @@ IF(DoDielectric)THEN
   IF(DielectricNoParticles)THEN
     DO iPart = 1,PDM%ParticleVecLength
       ! Remove particles in dielectric elements
-      IF(isDielectricElem(PEM%LocalElemID(iPart)))THEN
-        PDM%ParticleInside(iPart) = .FALSE.
-      END IF
+      CNElemID = GetCNElemID(PEM%GlobalElemID(iPart))
+      IF(isDielectricElem_Shared(CNElemID)) PDM%ParticleInside(iPart) = .FALSE.
     END DO
   END IF
 END IF

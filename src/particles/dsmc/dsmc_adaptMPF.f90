@@ -206,12 +206,13 @@ USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_DSMC_Symmetry
 USE MOD_DSMC_Vars
-USE MOD_Restart_Vars            ,ONLY: DoCatalyticRestart, RestartFile, DoMacroscopicRestart
+USE MOD_Restart_Vars            ,ONLY: RestartFile, DoMacroscopicRestart
 USE MOD_HDF5_Input              ,ONLY: OpenDataFile,CloseDataFile,DatasetExists,ReadArray
 USE MOD_Mesh_Vars               ,ONLY: nGlobalElems, offSetElem, SideToElem, nBCSides, BC
 USE MOD_Globals_Vars            ,ONLY: Pi
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+USE MOD_SurfaceModel_Vars       ,ONLY: DoChemSurface
 USE MOD_Particle_Vars           ,ONLY: Species
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared, ElemMidPoint_Shared, nComputeNodeElems, GEO
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
@@ -256,7 +257,7 @@ ALLOCATE(OptimalMPF_Shared(nGlobalElems))
 ! 3) Determine cell-local weighting factors
 IF (.NOT.CellLocalWeight%SkipAdaption) THEN
   ! Further refinement of elements close to a catalytic surface
-  IF (DoCatalyticRestart) THEN
+  IF (DoChemSurface) THEN
     ALLOCATE(RefineCatElem(1:nComputeNodeElems))
     RefineCatElem = .FALSE.
     DO iSide=1,nBCSides
@@ -285,7 +286,7 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
       ! Adaption based on the particle number per simulation cell
       ELSE ! BGKQualityFactors
         ! Further refinement for the elements close to the symmetry axis or catalytic surfaces
-        IF (DoCatalyticRestart) THEN
+        IF (DoChemSurface) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = CellLocalWeight%Cat_MinPartNum
           ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
@@ -323,7 +324,7 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
       ! Adaption based on the particle number per simulation cell
       ELSE ! FPQualityFactors
         ! Further refinement for the elements close to the symmetry axis or catalytic surfaces
-        IF (DoCatalyticRestart) THEN
+        IF (DoChemSurface) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = CellLocalWeight%Cat_MinPartNum
           ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
@@ -366,7 +367,7 @@ IF (.NOT.CellLocalWeight%SkipAdaption) THEN
       ! Adaption based on the particle number per simulation cell
       ELSE ! DSMCQualityFactors
         ! Further refinement for the elements close to the symmetry axis or catalytic surfaces
-        IF (DoCatalyticRestart) THEN
+        IF (DoChemSurface) THEN
           IF (RefineCatElem(iCNElem)) THEN
             MinPartNum = CellLocalWeight%Cat_MinPartNum
           ELSE IF ((Symmetry%Axisymmetric).AND.(ElemMidPoint_Shared(2,iCNElem).LE.(GEO%ymaxglob*0.05))) THEN
@@ -471,7 +472,7 @@ USE MOD_Particle_Mesh_Vars
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_Mesh_Vars              ,ONLY: nElems
-USE MOD_Mesh_Vars              ,ONLY: offsetElem
+USE MOD_Mesh_Vars              ,ONLY: offsetElem,ELEM_HALOFLAG,ELEM_RANK
 USE MOD_MPI_Shared             ,ONLY: BARRIER_AND_SYNC
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID, GetCNElemID
 USE MOD_MPI_Shared_Vars        ,ONLY: nComputeNodeTotalElems, nLeaderGroupProcs, nProcessors_Global
@@ -871,7 +872,7 @@ DO iElem =1, nElems
   CNElemID = GetCNElemID(iElem+offsetElem)
   ! Set the optimal MPF to zero and recalculate it based on the surrounding node values
   OptimalMPF_Shared(CNElemID) = 0.
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(iElem+offsetElem)))
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   DO iNode = 1, 8
     OptimalMPF_Shared(CNElemID) = OptimalMPF_Shared(CNElemID) + PartWeightAtNode(1,NodeID(iNode))
   END DO

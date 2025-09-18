@@ -87,8 +87,8 @@ IF(DoDeposition.AND.DoDielectricSurfaceCharge.AND.PartBound%Dielectric(iBC))THEN
     CALL DepositParticleOnNodes(ChargeHole, PartState(1:3,ParticleIndex), PEM%GlobalElemID(ParticleIndex))
   END DO
 END IF
-
 END SUBROUTINE DepositPhotonSEEHoles
+
 
 !===================================================================================================================================
 !> Deposit the charge of a single particle on the nodes corresponding to the deposition method 'cell_volweight_mean', where the
@@ -101,7 +101,7 @@ USE MOD_Globals
 USE MOD_Globals            ,ONLY: VECNORM,ElementOnProc
 USE MOD_Globals_Vars       ,ONLY: ElementaryCharge
 USE MOD_Eval_xyz           ,ONLY: GetPositionInRefElem
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared,NodeCoords_Shared,GEO
 USE MOD_Mesh_Tools         ,ONLY: GetCNElemID
 #if USE_LOADBALANCE
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -113,6 +113,7 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExtTmp
 #else
 USE MOD_PICDepo_Vars       ,ONLY: NodeSourceExt
 #endif /*USE_MPI*/
+USE MOD_PICDepo_Vars       ,ONLY: Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
@@ -125,7 +126,7 @@ REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                          :: NodeID(1:8),iNode
+INTEGER                          :: NodeID(1:8),iNode,jNode,jGlobNode
 LOGICAL                          :: SucRefPos
 REAL                             :: norm,PartDistDepo(8),DistSum
 !===================================================================================================================================
@@ -150,33 +151,63 @@ ASSOCIATE( NodeSourceExt => NodeSourceExtTmp )
     alpha2=0.5*(TempPartPos(2)+1.0)
     alpha3=0.5*(TempPartPos(3)+1.0)
 
+    PartDistDepo(1) = (1-alpha1)*(1-alpha2)*(1-alpha3)
+    PartDistDepo(2) =   (alpha1)*(1-alpha2)*(1-alpha3)
+    PartDistDepo(3) =   (alpha1)*  (alpha2)*(1-alpha3)
+    PartDistDepo(4) = (1-alpha1)*  (alpha2)*(1-alpha3)
+    PartDistDepo(5) = (1-alpha1)*(1-alpha2)*  (alpha3)
+    PartDistDepo(6) =   (alpha1)*(1-alpha2)*  (alpha3)
+    PartDistDepo(7) =   (alpha1)*  (alpha2)*  (alpha3)
+    PartDistDepo(8) = (1-alpha1)*  (alpha2)*  (alpha3)
+
     ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
     NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
-    NodeSourceExt(NodeID(1)) = NodeSourceExt(NodeID(1)) + (Charge*(1-alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(2)) = NodeSourceExt(NodeID(2)) + (Charge*  (alpha1)*(1-alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(3)) = NodeSourceExt(NodeID(3)) + (Charge*  (alpha1)*  (alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(4)) = NodeSourceExt(NodeID(4)) + (Charge*(1-alpha1)*  (alpha2)*(1-alpha3))
-    NodeSourceExt(NodeID(5)) = NodeSourceExt(NodeID(5)) + (Charge*(1-alpha1)*(1-alpha2)*  (alpha3))
-    NodeSourceExt(NodeID(6)) = NodeSourceExt(NodeID(6)) + (Charge*  (alpha1)*(1-alpha2)*  (alpha3))
-    NodeSourceExt(NodeID(7)) = NodeSourceExt(NodeID(7)) + (Charge*  (alpha1)*  (alpha2)*  (alpha3))
-    NodeSourceExt(NodeID(8)) = NodeSourceExt(NodeID(8)) + (Charge*(1-alpha1)*  (alpha2)*  (alpha3))
+    DO iNode=1, 8
+      NodeSourceExt(NodeID(iNode)) = NodeSourceExt(NodeID(iNode)) + Charge*PartDistDepo(iNode)
+    END DO ! iNode=1, 8
+
+    ! Periodic contribution
+    IF (GEO%nPeriodicVectors.GT.0) THEN
+      DO iNode=1, 8
+        IF (Periodic_nNodes(NodeID(iNode)).GT.0) THEN
+          DO jNode = Periodic_offsetNode(NodeID(iNode))+1,Periodic_offsetNode(NodeID(iNode))+Periodic_nNodes(NodeID(iNode))
+            jGlobNode = Periodic_Nodes(jNode)
+            NodeSourceExt(jGlobNode) = NodeSourceExt(jGlobNode) + Charge*PartDistDepo(iNode)
+          END DO ! jNode
+        END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+      END DO ! iNode=1, 8
+    END IF
   ELSE
-     NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
-     DO iNode = 1, 8
-       norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
-       IF(norm.GT.0.)THEN
-         PartDistDepo(iNode) = 1./norm
-       ELSE
-         PartDistDepo(:) = 0.
-         PartDistDepo(iNode) = 1.0
-         EXIT
-       END IF ! norm.GT.0.
-     END DO
-     DistSum = SUM(PartDistDepo(1:8))
-     DO iNode = 1, 8
-       NodeSourceExt(NodeInfo_Shared(NodeID(iNode))) = NodeSourceExt(NodeInfo_Shared(NodeID(iNode)))  &
-         +  PartDistDepo(iNode)/DistSum*Charge
-     END DO
+    NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
+    DO iNode = 1, 8
+      norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
+      IF(norm.GT.0.)THEN
+        PartDistDepo(iNode) = 1./norm
+      ELSE
+        PartDistDepo(:) = 0.
+        PartDistDepo(iNode) = 1.0
+        EXIT
+      END IF ! norm.GT.0.
+    END DO
+    DistSum = SUM(PartDistDepo(1:8))
+    DO iNode = 1, 8
+      NodeSourceExt(NodeInfo_Shared(NodeID(iNode))) = NodeSourceExt(NodeInfo_Shared(NodeID(iNode)))  &
+          +  PartDistDepo(iNode)/DistSum*Charge
+    END DO
+
+    ! Periodic contribution
+    IF (GEO%nPeriodicVectors.GT.0) THEN
+      DO iNode=1, 8
+        ASSOCIATE(NodeInfoID => NodeInfo_Shared(NodeID(iNode)))
+          IF (Periodic_nNodes(NodeInfoID).GT.0) THEN
+            DO jNode = Periodic_offsetNode(NodeInfoID)+1,Periodic_offsetNode(NodeInfoID)+Periodic_nNodes(NodeInfoID)
+              jGlobNode                         = Periodic_Nodes(jNode)
+              NodeSourceExt(jGlobNode) = NodeSourceExt(jGlobNode) +  PartDistDepo(iNode)/DistSum*Charge
+            END DO ! jNode
+          END IF ! Periodic_nNodes(NodeID(iNode)).GT.0
+        END ASSOCIATE
+      END DO ! iNode=1, 8
+    END IF
   END IF ! SucRefPos
 #if USE_MPI
 END ASSOCIATE
@@ -197,7 +228,7 @@ SUBROUTINE CalcCellLocNodeVolumes()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Interpolation_Vars ,ONLY: wGP, xGP
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #if USE_MPI
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems, nComputeNodeProcessors, myComputeNodeRank, MPI_COMM_SHARED
@@ -205,8 +236,10 @@ USE MOD_PICDepo_Vars       ,ONLY: NodeVolume_Shared, NodeVolume_Shared_Win
 #else
 USE MOD_Mesh_Vars          ,ONLY: nElems
 #endif
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO,ElemsJ
 USE MOD_PICDepo_Vars       ,ONLY: NodeVolume,Periodic_nNodes,Periodic_offsetNode,Periodic_Nodes
-USE MOD_Particle_Mesh_Vars ,ONLY: ElemsJ, ElemNodeID_Shared, nUniqueGlobalNodes, NodeInfo_Shared,GEO
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
+USE MOD_Mesh_Tools         ,ONLY: GetCNElemID,GetGlobalElemID
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -215,15 +248,17 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: j,k,l,iElem, firstElem, lastElem, iNode, jNode
+INTEGER                          :: i,j,k,firstElem, lastElem, iNode, jNode, iCNElem, iGlobalElem, offSetDofNode, r
 REAL                             :: NodeVolumeLoc(1:nUniqueGlobalNodes)
 #if USE_MPI
 INTEGER                          :: MessageSize
-#if USE_DEBUG
-INTEGER                          :: I
-#endif /*USE_DEBUG*/
 #endif
 INTEGER                          :: NodeID(1:8)
+INTEGER                          :: Nloc
+! TYPE tVdm_BGFieldIn_BGField
+!   REAL, ALLOCATABLE                     :: Vdm(:,:)
+! END TYPE tVdm_BGFieldIn_BGField
+! TYPE(tVdm_BGFieldIn_BGField),ALLOCATABLE    :: Vdm_loc(:)
 !===================================================================================================================================
 NodeVolumeLoc = 0.
 #if USE_MPI
@@ -243,24 +278,29 @@ NodeVolume = 0.0
 firstElem = 1
 lastElem  = nElems
 #endif /*USE_MPI*/
-
 ! ElemNodeID and ElemsJ use compute node elems
-DO iElem = firstElem, lastElem
+DO iCNElem = firstElem, lastElem
 #if USE_MPI
   ASSOCIATE( NodeVolume => NodeVolumeLoc )
 #endif /*USE_MPI*/
-    ! Get UniqueNodeIDs
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
-    DO j=0,PP_N;DO k=0,PP_N;DO l=0,PP_N
-      NodeVolume(NodeID(1)) = NodeVolume(NodeID(1)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(2)) = NodeVolume(NodeID(2)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(3)) = NodeVolume(NodeID(3)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(4)) = NodeVolume(NodeID(4)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.-xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(5)) = NodeVolume(NodeID(5)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(6)) = NodeVolume(NodeID(6)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.-xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(7)) = NodeVolume(NodeID(7)) + 1/ElemsJ(j,k,l,iElem)*((1.+xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-      NodeVolume(NodeID(8)) = NodeVolume(NodeID(8)) + 1/ElemsJ(j,k,l,iElem)*((1.-xGP(j))*(1.+xGP(k))*(1.+xGP(l))*wGP(j)*wGP(k)*wGP(l)/8.)
-    END DO; END DO; END DO
+  iGlobalElem   = GetGlobalElemID(iCNElem)
+  Nloc          = N_DG_Mapping(2,iGlobalElem)
+  offSetDofNode = N_DG_Mapping(3,iGlobalElem)
+  ! Get UniqueNodeIDs
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iCNElem))
+  DO i=0,Nloc;DO j=0,Nloc;DO k=0,Nloc
+    r=k*(Nloc+1)**2+j*(Nloc+1) + i+1
+    ASSOCIATE( sJ => ElemsJ(r+offSetDofNode) , xGP => N_Inter(Nloc)%xGP , wGP => N_Inter(Nloc)%wGP , NV => NodeVolume(:) )
+      NV(NodeID(1)) = NV(NodeID(1)) + 1./sJ*((1.-xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(2)) = NV(NodeID(2)) + 1./sJ*((1.+xGP(i))*(1.-xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(3)) = NV(NodeID(3)) + 1./sJ*((1.+xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(4)) = NV(NodeID(4)) + 1./sJ*((1.-xGP(i))*(1.+xGP(j))*(1.-xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(5)) = NV(NodeID(5)) + 1./sJ*((1.-xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(6)) = NV(NodeID(6)) + 1./sJ*((1.+xGP(i))*(1.-xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(7)) = NV(NodeID(7)) + 1./sJ*((1.+xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+      NV(NodeID(8)) = NV(NodeID(8)) + 1./sJ*((1.-xGP(i))*(1.+xGP(j))*(1.+xGP(k))*wGP(i)*wGP(j)*wGP(k)/8.)
+    END ASSOCIATE
+  END DO; END DO; END DO
 #if USE_MPI
   END ASSOCIATE
 #endif /*USE_MPI*/
@@ -300,15 +340,15 @@ END IF
 #if USE_MPI
 #if USE_DEBUG
 ! Sanity Check: Only check UniqueGlobalNodes that are on the compute node (total)
-DO iElem = firstElem, lastElem
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iElem))
-  DO I = 1, 8
-    IF(NodeVolume(NodeID(I)).LE.0.0)THEN
-      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",I,")) =", NodeVolume(NodeID(I))
-      CALL abort(__STAMP__,'NodeVolume(NodeID(I)) <= 0.0 for NodeID(I) = ',IntInfoOpt=NodeID(I))
+DO iCNElem = firstElem, lastElem
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(1:8,iCNElem))
+  DO i = 1, 8
+    IF(NodeVolume(NodeID(i)).LE.0.0)THEN
+      IPWRITE(UNIT_StdOut,'(I0,A,I0,A,ES25.17E3)') " NodeVolume(NodeID(",i,")) =", NodeVolume(NodeID(i))
+      CALL abort(__STAMP__,'NodeVolume(NodeID(i)) <= 0.0 for NodeID(i) = ',IntInfoOpt=NodeID(i))
     END IF ! NodeVolume(NodeID(1)).LE.0.0
   END DO
-END DO ! I = 1, nUniqueGlobalNodes
+END DO ! i = 1, nUniqueGlobalNodes
 #endif /*USE_DEBUG*/
 #endif /*USE_MPI*/
 
@@ -325,7 +365,7 @@ USE MOD_PreProc
 USE MOD_IO_HDF5
 USE MOD_HDF5_Input,              ONLY:ReadArray,ReadAttribute,File_ID,OpenDataFile,CloseDataFile,DatasetExists
 USE MOD_Particle_Vars,           ONLY:nSpecies
-USE MOD_PICDepo_Vars,            ONLY:PartSource
+!USE MOD_PICDepo_Vars,            ONLY:PartSource
 USE MOD_Mesh_Vars,               ONLY:OffsetElem,nGlobalElems
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -400,8 +440,7 @@ DO iSpec=1,nSpecies
     END IF
   END DO
 END DO
-IF (.NOT.ANY(PartSourceToVar.NE.0)) CALL abort(__STAMP__, &
-  'No PartSource found in TimeAverage-File "'//TRIM(FileName)//'"!!!',999,999.)
+IF (.NOT.ANY(PartSourceToVar.NE.0)) CALL abort(__STAMP__, 'No PartSource found in TimeAverage-File "'//TRIM(FileName))
 DEALLOCATE(VarNames)
 
 !-- read state
@@ -410,26 +449,27 @@ CALL ReadAttribute(File_ID,'N',1,IntScalar=N_HDF5)
 IF(N_HDF5.EQ.PP_N)THEN! No interpolation needed, read solution directly from file
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
+        Tmp_N       => INT(PP_N,IK)     ,&
         nVars       => INT(nVars,IK)     ,&
         PP_nElems   => INT(PP_nElems,IK) ,&
         OffsetElem  => INT(OffsetElem,IK) )
-        CALL ReadArray('DG_Solution',5,(/nVars,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,INT(PP_N,IK)+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
+        CALL ReadArray('DG_Solution',5,(/nVars,Tmp_N+1_IK,Tmp_N+1_IK,Tmp_N+1_IK,PP_nElems/),OffsetElem,5,RealArray=U)
   END ASSOCIATE
 ELSE
-  CALL abort(__STAMP__, &
-        'N_HDF5.NE.PP_N !',999,999.)
+  CALL abort(__STAMP__, 'N_HDF5.NE.PP_N !',999,999.)
 END IF
 CALL CloseDataFile()
 
 !-- save to PartSource
-PartSource(4,:,:,:,:)=0.
+!PartSource(4,:,:,:,:)=0.
 DO iSpec=1,nSpecies
   IF (PartSourceToVar(iSpec).NE.0) THEN
     DO iElem=1,PP_nElems
       DO kk = 0, PP_N
         DO ll = 0, PP_N
           DO mm = 0, PP_N
-            PartSource(4,mm,ll,kk,iElem)=PartSource(4,mm,ll,kk,iElem)+U(PartSourceToVar(iSpec),mm,ll,kk,iElem)
+            CALL abort(__STAMP__,'not implemented')
+            !PartSource(4,mm,ll,kk,iElem)=PartSource(4,mm,ll,kk,iElem)+U(PartSourceToVar(iSpec),mm,ll,kk,iElem)
           END DO
         END DO
       END DO

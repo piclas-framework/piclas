@@ -14,7 +14,7 @@
 
 MODULE MOD_Photon_Tracking
 !===================================================================================================================================
-! Routines for photon tracking in radiave transfer solver
+! Routines for photon tracking in radiative transfer solver
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -62,7 +62,7 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Surfaces      ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_RayTracing_Vars        ,ONLY: Ray
+USE MOD_RayTracing_Vars        ,ONLY: Ray, PerformRayTracing
 USE MOD_Interpolation          ,ONLY: GetNodesAndWeights
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -86,19 +86,18 @@ REAL,ALLOCATABLE                       :: RayXiEQ_SurfSample(:)            ! pos
 REAL                                   :: dRayXiEQ_SurfSample              ! deltaXi in [-1,1]
 !===================================================================================================================================
 
+! Leave routine, when the node has no surface sides (currently, should only happen for a multi-node plasma simulation)
+IF(nComputeNodeSurfTotalSides.EQ.0) RETURN
+
 #if USE_MPI
 CALL Allocate_Shared((/Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSurfSideArea_Shared_Win,PhotonSurfSideArea_Shared)
 CALL MPI_WIN_LOCK_ALL(0,PhotonSurfSideArea_Shared_Win,IERROR)
-CALL Allocate_Shared((/3,Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSurfSideSamplingMidPoints_Shared_Win,PhotonSurfSideSamplingMidPoints_Shared)
-CALL MPI_WIN_LOCK_ALL(0,PhotonSurfSideSamplingMidPoints_Shared_Win,IERROR)
 PhotonSurfSideArea => PhotonSurfSideArea_Shared
-PhotonSurfSideSamplingMidPoints => PhotonSurfSideSamplingMidPoints_Shared
 
 firstSide = INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
 lastSide  = INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
 #else
 ALLOCATE(PhotonSurfSideArea(1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
-ALLOCATE(PhotonSurfSideSamplingMidPoints(1:3,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
 
 firstSide = 1
 lastSide  = nGlobalSurfSides
@@ -108,12 +107,30 @@ lastSide  = nGlobalSurfSides
 IF (myComputeNodeRank.EQ.0) THEN
 #endif /*USE_MPI*/
   PhotonSurfSideArea=0.
-  PhotonSurfSideSamplingMidPoints=0.
 #if USE_MPI
 END IF
 CALL BARRIER_AND_SYNC(PhotonSurfSideArea_Shared_Win,MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(PhotonSurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
+
+! PhotonSurfSideSamplingMidPoints is only required for the actual ray tracing simulation
+IF(PerformRayTracing) THEN
+#if USE_MPI
+  CALL Allocate_Shared((/3,Ray%nSurfSample,Ray%nSurfSample,nComputeNodeSurfTotalSides/),PhotonSurfSideSamplingMidPoints_Shared_Win,PhotonSurfSideSamplingMidPoints_Shared)
+  CALL MPI_WIN_LOCK_ALL(0,PhotonSurfSideSamplingMidPoints_Shared_Win,IERROR)
+  PhotonSurfSideSamplingMidPoints => PhotonSurfSideSamplingMidPoints_Shared
+#else
+  ALLOCATE(PhotonSurfSideSamplingMidPoints(1:3,1:Ray%nSurfSample,1:Ray%nSurfSample,1:nComputeNodeSurfTotalSides))
+#endif /*USE_MPI*/
+
+#if USE_MPI
+  IF (myComputeNodeRank.EQ.0) THEN
+#endif /*USE_MPI*/
+    PhotonSurfSideSamplingMidPoints=0.
+#if USE_MPI
+  END IF
+  CALL BARRIER_AND_SYNC(PhotonSurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+END IF
 
 ! Calculate equidistant surface points
 ALLOCATE(RayXiEQ_SurfSample(0:Ray%nSurfSample))
@@ -184,10 +201,12 @@ DO iSide = firstSide,LastSide
         area=0.
         tmpI2=(RayXiEQ_SurfSample(iSample-1)+RayXiEQ_SurfSample(iSample))/2. ! (a+b)/2
         tmpJ2=(RayXiEQ_SurfSample(jSample-1)+RayXiEQ_SurfSample(jSample))/2. ! (a+b)/2
-        ASSOCIATE( xi => 0.5*(xIP_VISU(iSample)+xIP_VISU(iSample-1)), eta => 0.5*(xIP_VISU(jSample)+xIP_VISU(jSample-1)) )
-          CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
-              ,Point=PhotonSurfSideSamplingMidPoints(1:3,iSample,jSample,iSide))
-        END ASSOCIATE
+        IF(PerformRayTracing) THEN
+          ASSOCIATE( xi => 0.5*(xIP_VISU(iSample)+xIP_VISU(iSample-1)), eta => 0.5*(xIP_VISU(jSample)+xIP_VISU(jSample-1)) )
+            CALL EvaluateBezierPolynomialAndGradient((/xi,eta/),NGeo,3,BezierControlPoints3D(1:3,0:NGeo,0:NGeo,SideID) &
+                ,Point=PhotonSurfSideSamplingMidPoints(1:3,iSample,jSample,iSide))
+          END ASSOCIATE
+        END If
         DO q=0,NGeo
           DO p=0,NGeo
             XiOut(1)=tmp1*Xi_NGeo(p)+tmpI2
@@ -211,7 +230,7 @@ END DO ! iSide = firstSide,lastSide
 
 #if USE_MPI
 CALL BARRIER_AND_SYNC(PhotonSurfSideArea_Shared_Win,MPI_COMM_SHARED)
-CALL BARRIER_AND_SYNC(PhotonSurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
+IF(PerformRayTracing) CALL BARRIER_AND_SYNC(PhotonSurfSideSamplingMidPoints_Shared_Win,MPI_COMM_SHARED)
 #endif /*USE_MPI*/
 
 END SUBROUTINE InitPhotonSurfSample
@@ -223,11 +242,13 @@ END SUBROUTINE InitPhotonSurfSample
 SUBROUTINE FinalizePhotonSurfSample()
 ! MODULES
 USE MOD_Globals
-USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea,PhotonSurfSideSamplingMidPoints
+USE MOD_RayTracing_Vars         ,ONLY: PerformRayTracing
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSurfSideArea,PhotonSurfSideSamplingMidPoints
+USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides
 #if USE_MPI
-USE MOD_MPI_Shared_Vars     ,ONLY: MPI_COMM_SHARED
-USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,PhotonSurfSideSamplingMidPoints_Shared_Win
-USE MOD_Photon_TrackingVars ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win,PhotonSampWall_Shared_Win_allocated
+USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSurfSideSamplingMidPoints_Shared,PhotonSurfSideSamplingMidPoints_Shared_Win
+USE MOD_Photon_TrackingVars     ,ONLY: PhotonSurfSideArea_Shared,PhotonSurfSideArea_Shared_Win,PhotonSampWall_Shared_Win_allocated
 USE MOD_MPI_Shared
 #endif /*USE_MPI*/
 USE MOD_Photon_TrackingVars
@@ -237,37 +258,37 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+
+IF(nComputeNodeSurfTotalSides.EQ.0) RETURN
+
 #if USE_MPI
 ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
-CALL UNLOCK_AND_FREE(PhotonSurfSideSamplingMidPoints_Shared_Win)
 CALL UNLOCK_AND_FREE(PhotonSurfSideArea_Shared_Win)
 IF(PhotonSampWall_Shared_Win_allocated) CALL UNLOCK_AND_FREE(PhotonSampWall_Shared_Win)
 PhotonSampWall_Shared_Win_allocated = .FALSE.
 CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 ADEALLOCATE(PhotonSampWall_Shared)
-ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)
 ADEALLOCATE(PhotonSurfSideArea_Shared)
 #endif /*USE_MPI*/
-
-ADEALLOCATE(PhotonSurfSideSamplingMidPoints)
 ADEALLOCATE(PhotonSurfSideArea)
+
+IF(PerformRayTracing) THEN
+#if USE_MPI
+  ! First, free every shared memory window. This requires MPI_BARRIER as per MPI3.1 specification
+  CALL UNLOCK_AND_FREE(PhotonSurfSideSamplingMidPoints_Shared_Win)
+  CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
+  ADEALLOCATE(PhotonSurfSideSamplingMidPoints_Shared)
+#endif /*USE_MPI*/
+  ADEALLOCATE(PhotonSurfSideSamplingMidPoints)
+END IF
+
 END SUBROUTINE FinalizePhotonSurfSample
 
 
 SUBROUTINE PhotonTriaTracking()
 !===================================================================================================================================
-! Routine for tracking of moving particles and boundary interaction using triangulated sides.
-! 1) Loop over all particles that are still inside
-!    2) Perform tracking until the particle is considered "done" (either localized or deleted)
-!       2a) Perform a check based on the determinant of (3x3) matrix of the vectors from the particle position to the nodes of each
-!           triangle (ParticleInsideQuad3D)
-!       2b) If particle is not within the given element in a), the side through which the particle went is determined by checking
-!           each side of the element (ParticleThroughSideCheck3DFast)
-!       2c) If no sides are found, the particle is deleted (very rare case). If multiple possible sides are found, additional
-!           treatment is required, where the particle path is reconstructed (which side was crossed first) by comparing the ratio
-!           the determinants
-!    3) In case of a boundary, determine the intersection and perform the appropriate boundary interaction (GetBoundaryInteraction)
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc
@@ -721,17 +742,7 @@ END SUBROUTINE PhotonTriaTracking
 
 SUBROUTINE Photon2DSymTracking()
 !===================================================================================================================================
-! Routine for tracking of moving particles and boundary interaction using triangulated sides.
-! 1) Loop over all particles that are still inside
-!    2) Perform tracking until the particle is considered "done" (either localized or deleted)
-!       2a) Perform a check based on the determinant of (3x3) matrix of the vectors from the particle position to the nodes of each
-!           triangle (ParticleInsideQuad3D)
-!       2b) If particle is not within the given element in a), the side through which the particle went is determined by checking
-!           each side of the element (ParticleThroughSideCheck3DFast)
-!       2c) If no sides are found, the particle is deleted (very rare case). If multiple possible sides are found, additional
-!           treatment is required, where the particle path is reconstructed (which side was crossed first) by comparing the ratio
-!           the determinants
-!    3) In case of a boundary, determine the intersection and perform the appropriate boundary interaction (GetBoundaryInteraction)
+!>
 !===================================================================================================================================
 ! MODULES
 USE MOD_Preproc

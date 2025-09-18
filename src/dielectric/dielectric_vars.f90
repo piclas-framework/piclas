@@ -10,11 +10,16 @@
 !
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
+#include "piclas.h"
+
 MODULE MOD_Dielectric_Vars
 !===================================================================================================================================
 !
 !===================================================================================================================================
 ! MODULES
+#if USE_MPI
+USE MOD_Globals
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PUBLIC
@@ -23,14 +28,20 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Dielectric region damping factor
-LOGICAL             :: DoDielectric                   ! True/false switch for Dielectric calculation procedures
+LOGICAL             :: DoDielectric = .FALSE.         ! True/false switch for Dielectric calculation procedures
 LOGICAL             :: DoDielectricSurfaceCharge      ! Flag set automatically if dielectric boundaries are used
 LOGICAL             :: DielectricFluxNonConserving    ! True/false switch for using conserving or non-conserving fluxes at
 !                                                     !dielectric interfaces between a dielectric region and vacuum
 LOGICAL             :: DielectricInitIsDone           ! Initialization flag
 LOGICAL             :: DielectricNoParticles          ! Do not insert/emit particles into dielectric regions (default=T).
-LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if iElem is an element located within the Dielectric.
-!                                                     ! This vector is allocated to (region.1:PP_nElems)
+LOGICAL,ALLOCATABLE :: isDielectricElem(:)            ! True if local element is located within the dielectric
+#ifdef PARTICLES
+LOGICAL,ALLOCATABLE :: isDielectricElem_Global(:)     ! Same but for the global elements, temporary on the compute-node root (1:nGlobalElems)
+LOGICAL,ALLOCPOINT  :: isDielectricElem_Shared(:)     ! Same but for the compute-node element, built for check during tracking (1:nComputeNodeTotalElems)
+#endif /*PARTICLES*/
+#if USE_MPI
+TYPE(MPI_Win)       :: isDielectricElem_Shared_Win
+#endif /*USE_MPI*/
 LOGICAL,ALLOCATABLE :: isDielectricFace(:)            ! True if iFace is a Face located within or on the boarder (interface) of the
 !                                                     ! Dielectric region. This vector is allocated to (1:nSides)
 LOGICAL,ALLOCATABLE :: isDielectricInterFace(:)       ! True if iFace is a Face located on the boarder (interface) of the Dielectric
@@ -65,13 +76,6 @@ INTEGER             :: nDielectricElems,nDielectricFaces,nDielectricInterFaces  
 !                                                                                       ! (mapping)
 INTEGER,ALLOCATABLE :: DielectricToElem(:),DielectricToFace(:),DielectricInterToFace(:) ! Mapping to total element/face list
 INTEGER,ALLOCATABLE :: ElemToDielectric(:),FaceToDielectric(:),FaceToDielectricInter(:) ! Mapping to Dielectric element/face list
-!
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricEps
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricMu
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:)   :: DielectricConstant_inv         ! 1./(EpsR*MuR)
-REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: DielectricGlobal               ! Contains DielectricEps and DielectricMu for HDF5 output
-REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Master              ! face array containing 1./SQRT(EpsR*MuR) for each DOF
-REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_Slave
 
 ! For Poynting vector calculation
 LOGICAL                               :: poyntingusemur_inv             ! True/false depending on dielectric permittivity and
@@ -80,5 +84,35 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Master_inv      ! face a
 REAL,ALLOCATABLE,DIMENSION(:,:,:)     :: Dielectric_MuR_Slave_inv
 ! Charges on dielectric surfaces
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:,:) :: NodeSourceExtGlobal      ! Write NodeSourceExt (external charge density) field to HDF5 file
+
+! Dielectric polynomial in volume
+TYPE N_Dielectric_Vol
+  REAL,ALLOCATABLE  :: DielectricEps(:,:,:)
+  REAL,ALLOCATABLE  :: DielectricMu(:,:,:)
+  REAL,ALLOCATABLE  :: DielectricConstant_inv(:,:,:)
+END TYPE N_Dielectric_Vol
+
+TYPE(N_Dielectric_Vol),ALLOCATABLE :: DielectricVol(:)       !< Dielectric variable for each node and element
+
+! Dielectric polynomial in volume: Dummy container for Riemann solver initialization of surface master sides
+TYPE N_Dielectric_Vol_Dummy
+  REAL,ALLOCATABLE  :: U(:,:,:,:)
+END TYPE N_Dielectric_Vol_Dummy
+
+TYPE(N_Dielectric_Vol_Dummy),ALLOCATABLE :: DielectricVolDummy(:)  !< Dielectric variable for each node and element
+
+! Dielectric polynomial on surface
+TYPE N_Dielectric_Surf
+  REAL,ALLOCATABLE  :: Dielectric_Master(:,:)
+  REAL,ALLOCATABLE  :: Dielectric_Slave(:,:)
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Master(:,:,:)
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Slave(:,:,:)
+#if USE_MPI
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Master2(:,:,:)
+  REAL,ALLOCATABLE  :: Dielectric_dummy_Slave2(:,:,:)
+#endif /*USE_MPI*/
+END TYPE N_Dielectric_Surf
+
+TYPE(N_Dielectric_Surf),ALLOCATABLE :: DielectricSurf(:)       !< Dielectric variable for each node and surface
 !===================================================================================================================================
 END MODULE MOD_Dielectric_Vars

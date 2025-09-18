@@ -454,7 +454,6 @@ FILE(GLOB_RECURSE hdgF90 ./src/hdg/*.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/timeavg_vars.f90
                          ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90)
 
-
 FILE(GLOB_RECURSE fvF90 ./src/fv/*.f90
                         ./src/gradients/*.f90
                         ./src/equations/${PICLAS_EQNSYSNAME}/*.f90)
@@ -518,7 +517,7 @@ ELSE()
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*particle_br_electron_fluid.f90$")
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*superb.f90$")
   LIST(APPEND piclasF90 ${dgF90})
-ENDIF()
+ENDIF(PICLAS_HDG)
 
 #LIST(APPEND piclasF90 ${mainF90})
 IF (PICLAS_PARTICLES)

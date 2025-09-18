@@ -26,24 +26,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitMortar
-  MODULE PROCEDURE InitMortar
-END INTERFACE
-
-INTERFACE MortarBasis_BigToSmall
-  MODULE PROCEDURE MortarBasis_BigToSmall
-END INTERFACE
-
-INTERFACE MortarBasis_SmallToBig
-  MODULE PROCEDURE MortarBasis_SmallToBig
-END INTERFACE
-
-INTERFACE FinalizeMortar
-  MODULE PROCEDURE FinalizeMortar
-END INTERFACE
-
 PUBLIC::InitMortar,FinalizeMortar,MortarBasis_BigToSmall,MortarBasis_SmallToBig
-
 !===================================================================================================================================
 
 CONTAINS
@@ -55,42 +38,55 @@ SUBROUTINE InitMortar()
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals
-USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType
+USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone,NodeType,NMin,NMax
 USE MOD_Interpolation      ,ONLY: GetNodesAndWeights
 USE MOD_Mortar_Vars
-#if USE_LOADBALANCE
+#if USE_LOADBALANCE && (PP_NodeType==1)
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
-#endif /*USE_LOADBALANCE*/
+#endif /*USE_LOADBALANCE && (PP_NodeType==1)*/
+#ifdef maxwell
+USE MOD_PML_vars           ,ONLY: PMLnVar
+#endif /*maxwell*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 #if (PP_NodeType==1)
 REAL                          :: error
-REAL,DIMENSION(0:PP_N)        :: test1,test2,xi_Gauss,w_Gauss  ! Gauss Nodes
+REAL,ALLOCATABLE              :: test1(:),test2(:),xi_Gauss(:),w_Gauss(:)  ! Gauss Nodes
 #endif
+INTEGER           :: Nloc
 !==================================================================================================================================
 IF(MortarInitIsDone.OR.(.NOT.InterpolationInitIsDone))THEN
    CALL abort(__STAMP__,'InitMortar not ready to be called or already called.')
 END IF
 
 ! DG interfaces
-ALLOCATE(M_0_1(0:PP_N,0:PP_N))
-ALLOCATE(M_0_2(0:PP_N,0:PP_N))
-ALLOCATE(M_1_0(0:PP_N,0:PP_N))
-ALLOCATE(M_2_0(0:PP_N,0:PP_N))
-CALL MortarBasis_BigToSmall(0,PP_N,NodeType,   M_0_1,   M_0_2)
-CALL MortarBasis_SmallToBig(0,PP_N,NodeType,   M_1_0,   M_2_0)
+ALLOCATE(N_Mortar(MIN(NMin,0):MAX(NMax,1)))
+DO Nloc = MIN(NMin,0), MAX(NMax,1)
+  ALLOCATE(N_Mortar(Nloc)%M_0_1(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%M_0_2(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%M_1_0(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%M_2_0(0:Nloc,0:Nloc))
+  ALLOCATE(N_Mortar(Nloc)%U_tmp( PP_nVar+PMLnVar,0:Nloc,0:Nloc,1:4))
+  ALLOCATE(N_Mortar(Nloc)%U_tmp2(PP_nVar+PMLnVar,0:Nloc,0:Nloc,1:2))
+  CALL MortarBasis_BigToSmall(0, Nloc, NodeType, N_Mortar(Nloc)%M_0_1, N_Mortar(Nloc)%M_0_2)
+  CALL MortarBasis_SmallToBig(0, Nloc, NodeType, N_Mortar(Nloc)%M_1_0, N_Mortar(Nloc)%M_2_0)
+END DO ! Nloc = NMin, NMax
 
 !> TODO: Make a unit test out of this one
 #if (PP_NodeType==1)
 !Test mean value property 0.5*(0.5+1.5)=1.  !ONLY GAUSS
-test1=0.5
-test2=1.5
-CALL GetNodesAndWeights(PP_N,'GAUSS',xi_Gauss,w_Gauss) !Gauss nodes and integration weights
-error=ABS(0.25*SUM((MATMUL(TRANSPOSE(M_1_0),test1)+MATMUL(TRANSPOSE(M_2_0),test2))*w_Gauss)-1.)
+DO Nloc = NMin, NMax
+  ALLOCATE(test1(0:Nloc), test2(0:Nloc), xi_Gauss(0:Nloc), w_Gauss(0:Nloc))
+  test1=0.5
+  test2=1.5
+  CALL GetNodesAndWeights(Nloc,'GAUSS',xi_Gauss,w_Gauss) !Gauss nodes and integration weights
+  error=ABS(0.25*SUM((MATMUL(TRANSPOSE(N_Mortar(Nloc)%M_1_0),test1)+MATMUL(TRANSPOSE(N_Mortar(Nloc)%M_2_0),test2))*w_Gauss)-1.)
 
-IF(error.GT. 100.*PP_RealTolerance) CALL abort(__STAMP__,'problems in building Mortar',999,error)
+  IF(error.GT. 100.*PP_RealTolerance) CALL abort(__STAMP__,'problems in building Mortar',999,error)
+  DEALLOCATE(test1, test2, xi_Gauss, w_Gauss)
+END DO
 LBWRITE(UNIT_StdOut,'(A)')' Mortar operators built successfully.'
-#endif
+#endif /*(PP_NodeType==1)*/
 
 MortarInitIsDone=.TRUE.
 END SUBROUTINE InitMortar
@@ -104,8 +100,9 @@ END SUBROUTINE InitMortar
 !==================================================================================================================================
 SUBROUTINE MortarBasis_BigToSmall(FVE,N_In,NodeType_In,M_0_1,M_0_2)
 ! MODULES
-USE MOD_Basis,             ONLY: InitializeVandermonde
-USE MOD_Interpolation     ,ONLY: getNodesAndWeights
+USE MOD_globals       ,ONLY: abort
+USE MOD_Basis         ,ONLY: InitializeVandermonde
+USE MOD_Interpolation ,ONLY: getNodesAndWeights
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -127,7 +124,7 @@ IF (FVE.EQ.0) THEN ! DG Element
 
 ELSE ! FV Element
 
-STOP "FV-Subcells not implemented!"
+  CALL abort(__STAMP__,'FV-Subcells not implemented!')
 
 END IF
 
@@ -148,8 +145,9 @@ END SUBROUTINE MortarBasis_BigToSmall
 !==================================================================================================================================
 SUBROUTINE MortarBasis_SmallToBig(FVE,N_In,NodeType_In,M_1_0,M_2_0)
 ! MODULES
-USE MOD_Basis,             ONLY: LegendrePolynomialAndDerivative
-USE MOD_Interpolation     ,ONLY: getNodesAndWeights,GetVandermonde
+USE MOD_globals       ,ONLY: abort
+USE MOD_Basis         ,ONLY: LegendrePolynomialAndDerivative
+USE MOD_Interpolation ,ONLY: getNodesAndWeights,GetVandermonde
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
@@ -194,7 +192,7 @@ IF (FVE.EQ.0) THEN ! DG Element
   M_2_0=MATMUL(Vdm_Leg,MATMUL(TRANSPOSE(Vphi2),VGP))
 
 ELSE ! FV element
-STOP "FV-Subcells not implemented!"
+  CALL abort(__STAMP__,'FV-Subcells not implemented!')
 END IF
 ! later the transposed version is mostly used
 ! ATTENTION: MortarBasis_SmallToBig computes the transposed matrices, which is useful when they are used
@@ -212,10 +210,7 @@ USE MOD_Mortar_Vars
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !==================================================================================================================================
-SDEALLOCATE(M_0_1)
-SDEALLOCATE(M_0_2)
-SDEALLOCATE(M_1_0)
-SDEALLOCATE(M_2_0)
+SDEALLOCATE(N_Mortar)
 MortarInitIsDone=.FALSE.
 END SUBROUTINE FinalizeMortar
 

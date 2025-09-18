@@ -25,19 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE InitEquation
-  MODULE PROCEDURE InitEquation
-END INTERFACE
-INTERFACE ExactFunc
-  MODULE PROCEDURE ExactFunc
-END INTERFACE
-INTERFACE CalcSource
-  MODULE PROCEDURE CalcSource
-END INTERFACE
-INTERFACE DivCleaningDamping
-  MODULE PROCEDURE DivCleaningDamping
-END INTERFACE
-PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping
+PUBLIC::InitEquation,ExactFunc,CalcSource,FinalizeEquation,DivCleaningDamping,InitRefState
 !===================================================================================================================================
 
 PUBLIC::DefineParametersEquation
@@ -76,9 +64,7 @@ CALL prms%CreateIntOption(      'IniExactFunc'     , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Define exact function necessary for '//&
                                                      'linear scalar advection', '-1')
 
-CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'TODO-DEFINE-PARAMETER\n'//&
-                                                     'Switch emission to flux superposition at'//&
-                                                     ' certain positions' , '.FALSE.')
+CALL prms%CreateLogicalOption(  'DoExactFlux'      , 'Switch emission to flux superposition at certain positions' , '.FALSE.')
 CALL prms%CreateRealArrayOption('xDipole'          , 'TODO-DEFINE-PARAMETER\n'//&
                                                      'Base point of electromagnetic dipole', '0. , 0. , 0.')
 CALL prms%CreateRealOption(     'omega'            , 'TODO-DEFINE-PARAMETER\n'//&
@@ -142,8 +128,10 @@ CALL prms%CreateIntOption(      'ExactFluxDir'     , 'TODO-DEFINE-PARAMETER\n'//
                                                      'Flux direction for ExactFlux', '3')
 CALL prms%CreateRealOption(     'ExactFluxPosition', 'TODO-DEFINE-PARAMETER\n'//&
                                                      'x,y, or z-position of interface')
+CALL prms%CreateLogicalOption(  'DoPML'            , 'Activate Perfectly Matched Layer (PML) region for damping incident electromagnetic waves' , '.FALSE.')
 
 END SUBROUTINE DefineParametersEquation
+
 
 SUBROUTINE InitEquation()
 !===================================================================================================================================
@@ -152,14 +140,13 @@ SUBROUTINE InitEquation()
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge,c,c_inv,c2,mu0,eps0
+USE MOD_PML_Vars           ,ONLY: DoPML,PMLnVar,nPMLElems
 USE MOD_ReadInTools
 #ifdef PARTICLES
 USE MOD_Interpolation_Vars ,ONLY: InterpolationInitIsDone
 #endif
 USE MOD_Equation_Vars
-USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCs,BC
 USE MOD_Globals_Vars       ,ONLY: EpsMach
-USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
 USE MOD_Mesh               ,ONLY: GetMeshMinMaxBoundaries
 USE MOD_Utils              ,ONLY: RootsOfBesselFunctions
 USE MOD_ReadInTools        ,ONLY: PrintOption
@@ -174,14 +161,6 @@ USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                          :: nRefStates,iBC,ntmp,iRefState
-INTEGER,ALLOCATABLE              :: RefStates(:)
-LOGICAL                          :: isNew
-REAL                             :: PulseCenter
-REAL,ALLOCATABLE                 :: nRoots(:)
-LOGICAL                          :: DoSide(1:nSides)
-INTEGER                          :: locType,locState,iSide
-REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
 !===================================================================================================================================
 IF(EquationInitIsDone)THEN
 #ifdef PARTICLES
@@ -198,6 +177,13 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
+DoPML = GETLOGICAL('DoPML')
+IF(DoPML)THEN
+  PMLnVar = 24
+ELSE
+  PMLnVar = 0
+  nPMLElems = 0
+END IF
 ! Read correction velocity
 c_corr             = GETREAL('c_corr','1.')
 fDamping           = GETREAL('fDamping','0.999')
@@ -205,15 +191,63 @@ DoParabolicDamping = GETLOGICAL('ParabolicDamping','.FALSE.')
 CentralFlux        = GETLOGICAL('CentralFlux','.FALSE.')
 Beam_t0            = GETREAL('Beam_t0','0.0')
 
+! Speed of light derived factors
 c_corr_c  = c_corr*c
 c_corr_c2 = c_corr*c2
 eta_c     = (c_corr-1.)*c
 
-! default
-WaveLength = -1.
-
 ! Read in boundary parameters
 IniExactFunc = GETINT('IniExactFunc')
+
+BCStateFile=GETSTR('BCStateFile','no file found')
+
+! Read exponent for shape function
+alpha_shape = GETINT('AlphaShape','2')
+rCutoff     = GETREAL('r_cutoff','1.')
+! Compute factor for shape function
+ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
+                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
+
+EquationInitIsDone=.TRUE.
+LBWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
+LBWRITE(UNIT_StdOut,'(132("-"))')
+END SUBROUTINE InitEquation
+
+
+!===================================================================================================================================
+!> Initialize reference state containers used for boundary conditions
+!===================================================================================================================================
+SUBROUTINE InitRefState()
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars       ,ONLY: PI,ElectronMass,ElementaryCharge,c,c_inv,c2,mu0,eps0
+USE MOD_ReadInTools
+USE MOD_Equation_Vars
+USE MOD_Mesh_Vars          ,ONLY: BoundaryType,nBCs,BC
+USE MOD_Globals_Vars       ,ONLY: EpsMach
+USE MOD_Mesh_Vars          ,ONLY: xyzMinMax,nSides,nBCSides
+USE MOD_Mesh               ,ONLY: GetMeshMinMaxBoundaries
+USE MOD_Utils              ,ONLY: RootsOfBesselFunctions
+USE MOD_ReadInTools        ,ONLY: PrintOption
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: nRefStates,iBC,ntmp,iRefState
+INTEGER,ALLOCATABLE              :: RefStates(:)
+LOGICAL                          :: isNew
+REAL                             :: PulseCenter
+REAL,ALLOCATABLE                 :: nRoots(:)
+LOGICAL                          :: DoSide(1:nSides)
+INTEGER                          :: locType,locState,iSide
+REAL                             :: BeamEnergy_loc,BeamFluency_loc,BeamArea_loc
+!===================================================================================================================================
+WaveLength = -1.
 nRefStates=nBCs+1
 nTmp=0
 ALLOCATE(RefStates(nRefStates))
@@ -235,7 +269,8 @@ DO iBC=1,nBCs
     END IF
   END IF
 END DO
-IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux','.FALSE.')
+DoExactFlux=.FALSE.
+IF(nTmp.GT.0) DoExactFlux = GETLOGICAL('DoExactFlux')
 IF(DoExactFlux) CALL InitExactFlux()
 DO iRefState=1,nTmp
   SELECT CASE(RefStates(iRefState))
@@ -265,12 +300,6 @@ DO iRefState=1,nTmp
       SWRITE(UNIT_stdOut,*) 'Wrong value for TEPolarization=', TEPolarization
       CALL abort(__STAMP__,'Wrong value for TEPolarization')
     END IF
-    IF ( (2*PI*TEFrequency*c_inv).LT.(TEModeRoot/TERadius)) THEN
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(k)**2 = ',((2*PI*TEFrequency*c_inv))**2
-      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'kCut**2          = ',TEModeRoot/TERadius**2
-      SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
-      CALL abort(__STAMP__,'kz=SQRT(k**2-kCut**2), but the argument is negative!')
-    END IF
 
     !ExactFluxPosition    = GETREAL('ExactFluxPosition', '0.0') !
     ! compute required roots
@@ -290,17 +319,24 @@ DO iRefState=1,nTmp
           END IF ! locState.EQ.BCIn
         END DO
         ! call function to get radius
-        CALL GetWaveGuideRadius(DoSide)
+        CALL GetWaveGuideRadius(DoSide) ! Determines TERadius
       END IF
     END DO
     IF((TEPolarization.NE.'x').AND.(TEPolarization.NE.'y').AND.(TEPolarization.NE.'r').AND.(TEPolarization.NE.'l'))THEN
-      CALL abort(&
-    __STAMP__&
-    ,' TEPolarization has to be x,y,l or r.')
+      CALL abort(__STAMP__,' TEPolarization has to be x,y,l or r.')
     END IF
     IF(TERadius.LT.0.0)THEN ! not set
       TERadius=GETREAL('TERadius','0.0')
       LBWRITE(UNIT_StdOut,*) ' TERadius not determined automatically. Set waveguide radius to ', TERadius
+    ELSE
+      LBWRITE(UNIT_StdOut,*) ' TERadius determined automatically: ', TERadius
+    END IF
+    IF(TERadius.LE.0.) CALL abort(__STAMP__,'TERadius <= 0:',RealInfoOpt=TERadius)
+    IF ( (2*PI*TEFrequency*c_inv).LT.(TEModeRoot/TERadius)) THEN
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'(k)**2 = ',((2*PI*TEFrequency*c_inv))**2
+      SWRITE(UNIT_stdOut,'(A,E25.14E3)')'kCut**2 = TEModeRoot/TERadius**2 = ',TEModeRoot/TERadius**2
+      SWRITE(UNIT_stdOut,'(A)')'  Maybe frequency too small?'
+      CALL abort(__STAMP__,'kz=SQRT(k**2-kCut**2), but the argument is negative!')
     END IF
 
     ! display cut-off freequncy for this mode
@@ -427,9 +463,7 @@ DO iRefState=1,nTmp
         BeamIdir2   = 2
         BeamMainDir = 3
       ELSE
-        CALL abort(&
-            __STAMP__&
-            ,'RefStates CASE(121,14,15,16): wave vector currently only in x,y,z!')
+        CALL abort(__STAMP__,'RefStates CASE(121,14,15,16): wave vector currently only in x,y,z!')
       END IF
 
       ! determine active time for time-dependent BC: save computational time for BC -> or possible switch to SM BC?
@@ -479,32 +513,7 @@ DO iRefState=1,nTmp
 END DO
 
 DEALLOCATE(RefStates)
-
-BCStateFile=GETSTR('BCStateFile','no file found')
-!WRITE(DefBCState,'(I3,A,I3,A,I3,A,I3,A,I3,A,I3)') &
-!  IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc,',',IniExactFunc
-!IF(BCType_in(1) .EQ. -999)THEN
-!  BCType = GETINTARRAY('BoundaryType',6)
-!ELSE
-!  BCType=BCType_in
-!  SWRITE(UNIT_stdOut,*)'|                   BoundaryType | -> Already read in CreateMPICart!'
-
-!END IF
-!BCState   = GETINTARRAY('BoundaryState',6,TRIM(DefBCState))
-!BoundaryCondition(:,1) = BCType
-!BoundaryCondition(:,2) = BCState
-! Read exponent for shape function
-alpha_shape = GETINT('AlphaShape','2')
-rCutoff     = GETREAL('r_cutoff','1.')
-! Compute factor for shape function
-ShapeFuncPrefix = 1./(2. * beta(1.5, REAL(alpha_shape) + 1.) * REAL(alpha_shape) + 2. * beta(1.5, REAL(alpha_shape) + 1.)) &
-                * (REAL(alpha_shape) + 1.)/(PI*(rCutoff**3))
-
-EquationInitIsDone=.TRUE.
-LBWRITE(UNIT_stdOut,'(A)')' INIT MAXWELL DONE!'
-LBWRITE(UNIT_StdOut,'(132("-"))')
-END SUBROUTINE InitEquation
-
+END SUBROUTINE InitRefState
 
 
 SUBROUTINE ExactFunc(ExactFunction,t_IN,tDeriv,x,resu)
@@ -1017,7 +1026,7 @@ END SELECT
 END SUBROUTINE ExactFunc
 
 
-SUBROUTINE CalcSource(t,coeff,Ut)
+SUBROUTINE CalcSource(t,coeff)
 !===================================================================================================================================
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
@@ -1027,18 +1036,16 @@ USE MOD_Globals_Vars      ,ONLY: PI,eps0
 USE MOD_PreProc
 USE MOD_Equation_Vars     ,ONLY: c_corr,IniExactFunc, DipoleOmega,tPulse,xDipole
 #ifdef PARTICLES
-USE MOD_PICDepo_Vars      ,ONLY: PartSource,DoDeposition
-USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem,ElemToDielectric,DielectricEps,ElemToDielectric
-#if IMPA
-USE MOD_LinearSolver_Vars ,ONLY: ExplicitPartSource
-#endif
+USE MOD_PICDepo_Vars      ,ONLY: PS_N,DoDeposition
+USE MOD_Dielectric_Vars   ,ONLY: DoDielectric,isDielectricElem_Shared,ElemToDielectric,DielectricVol,ElemToDielectric
+USE MOD_Mesh_Tools        ,ONLY: GetCNElemID
 #endif /*PARTICLES*/
-USE MOD_Mesh_Vars         ,ONLY: Elem_xGP
-#if defined(LSERK) || defined(IMPA) || defined(ROS)
+USE MOD_Mesh_Vars         ,ONLY: N_VolMesh, offSetElem
+#if defined(LSERK)
 USE MOD_Equation_Vars     ,ONLY: DoParabolicDamping,fDamping
 USE MOD_TimeDisc_Vars     ,ONLY: sdtCFLOne
-USE MOD_DG_Vars           ,ONLY: U
 #endif /*LSERK*/
+USE MOD_DG_Vars           ,ONLY: N_DG_Mapping,U_N
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1046,7 +1053,6 @@ IMPLICIT NONE
 REAL,INTENT(IN)                 :: t,coeff
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(INOUT)              :: Ut(1:PP_nVar,0:PP_N,0:PP_N,0:PP_N,1:PP_nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: i,j,k,iElem
@@ -1054,54 +1060,48 @@ REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
 #ifdef PARTICLES
+INTEGER                         :: CNElemID,iDielectricElem
 REAL                            :: PartSourceLoc(1:4)
 #endif
 REAL                            :: coeff_loc
+INTEGER                         :: Nloc
 !===================================================================================================================================
 eps0inv = 1./eps0
 #ifdef PARTICLES
 IF(DoDeposition)THEN
   IF(DoDielectric)THEN
     DO iElem=1,PP_nElems
-      IF(isDielectricElem(iElem)) THEN ! 1.) PML version - PML element
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if IMPA
-          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
-#else
-          PartSourceLoc=PartSource(:,i,j,k,iElem)
-#endif
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      CNElemID = GetCNElemID(iElem+offSetElem)
+      IF(isDielectricElem_Shared(CNElemID)) THEN ! Element is in an dielectric region
+        iDielectricElem = ElemToDielectric(iElem)
+        DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
           !  Get PartSource from Particles
-          !Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSource(1:3,i,j,k,iElem) * DielectricEpsR_inv
-          !Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSource(  4,i,j,k,iElem) * c_corr * DielectricEpsR_inv
-          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3) &
-                                                      / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr &
-                                                      / DielectricEps(i,j,k,ElemToDielectric(iElem)) ! only use x
+          !U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSource(1:3,i,j,k) * DielectricEpsR_inv
+          !U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSource(  4,i,j,k) * c_corr * DielectricEpsR_inv
+          U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3) &
+                                                      / DielectricVol(iDielectricElem)%DielectricEps(i,j,k) ! only use x
+          U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr &
+                                                      / DielectricVol(iDielectricElem)%DielectricEps(i,j,k) ! only use x
         END DO; END DO; END DO
-      ELSE
-        DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if IMPA
-          PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
-#else
-          PartSourceLoc=PartSource(:,i,j,k,iElem)
-#endif
+      ELSE ! Normal element in vacuum
+        DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+          PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
           !  Get PartSource from Particles
-          Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
-          Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
+          U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)
+          U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
         END DO; END DO; END DO
       END IF
     END DO
-  ELSE
+  ELSE ! Normal element in vacuum
     DO iElem=1,PP_nElems
-      DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-#if IMPA
-        PartSourceLoc=PartSource(:,i,j,k,iElem)+ExplicitPartSource(:,i,j,k,iElem)
-#else
-        PartSourceLoc=PartSource(:,i,j,k,iElem)
-#endif
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+        PartSourceLoc=PS_N(iElem)%PartSource(:,i,j,k)
         !  Get PartSource from Particles
-        Ut(1:3,i,j,k,iElem) = Ut(1:3,i,j,k,iElem) - eps0inv *coeff* PartSourceloc(1:3)
-        Ut(  8,i,j,k,iElem) = Ut(  8,i,j,k,iElem) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
+        U_N(iElem)%Ut(1:3,i,j,k) = U_N(iElem)%Ut(1:3,i,j,k) - eps0inv *coeff* PartSourceloc(1:3)
+        U_N(iElem)%Ut(  8,i,j,k) = U_N(iElem)%Ut(  8,i,j,k) + eps0inv *coeff* PartSourceloc( 4 ) * c_corr
       END DO; END DO; END DO
     END DO
   END IF
@@ -1115,46 +1115,50 @@ CASE(2,22) ! Coaxial Waveguide - no sources
 CASE(3) ! Resonator         - no sources
 CASE(4) ! Dipole
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(3,i,j,k) = U_N(iElem)%Ut(3,i,j,k) - (shapefunc(r)) *coeff* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
     ! dipole should be neutral
-        Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) *coeff* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(8,i,j,k) = U_N(iElem)%Ut(8,i,j,k) + (shapefunc(r)) *coeff* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
 CASE(40) ! Dipole without initial condition
   coeff_loc = 1.0e-11 ! amplitude scaling
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - (shapefunc(r)) *coeff_loc* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(3,i,j,k) = U_N(iElem)%Ut(3,i,j,k) - (shapefunc(r)) *coeff_loc* Q*d*DipoleOmega * COS(DipoleOmega*t) * eps0inv
     ! dipole should be neutral
-        Ut(8,i,j,k,iElem) = Ut(8,i,j,k,iElem) + (shapefunc(r)) *coeff_loc* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
+        U_N(iElem)%Ut(8,i,j,k) = U_N(iElem)%Ut(8,i,j,k) + (shapefunc(r)) *coeff_loc* c_corr*Q*d*SIN(DipoleOmega*t) * eps0inv
       END IF
     END DO; END DO; END DO
   END DO
 CASE(5) ! TE_34,19 Mode     - no sources
 CASE(7) ! Manufactured Solution
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      U_N(iElem)%Ut(1,i,j,k)=U_N(iElem)%Ut(1,i,j,k) - coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * eps0inv
+      U_N(iElem)%Ut(8,i,j,k)=U_N(iElem)%Ut(8,i,j,k) + coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 CASE(10) !issautier 3D test case with source (Stock et al., divcorr paper), domain [0;1]^3!!!
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      x(:)=Elem_xGP(:,i,j,k,iElem)
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
-      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
-      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(3)*SIN(Pi*x(1))*SIN(Pi*x(2))
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(1))*(SIN(Pi*x(2))+SIN(Pi*x(3)))
-      Ut(2,i,j,k,iElem) =Ut(2,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(2))*(SIN(Pi*x(3))+SIN(Pi*x(1)))
-      Ut(3,i,j,k,iElem) =Ut(3,i,j,k,iElem) - coeff*(COS(t)-1.)*pi*COS(Pi*x(3))*(SIN(Pi*x(1))+SIN(Pi*x(2)))
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*c_corr*SIN(t)*( SIN(pi*x(2))*SIN(pi*x(3)) &
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      x(:)=N_VolMesh(iElem)%Elem_xGP(:,i,j,k)
+      U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(1)*SIN(Pi*x(2))*SIN(Pi*x(3))
+      U_N(iElem)%Ut(2,i,j,k) =U_N(iElem)%Ut(2,i,j,k) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(2)*SIN(Pi*x(3))*SIN(Pi*x(1))
+      U_N(iElem)%Ut(3,i,j,k) =U_N(iElem)%Ut(3,i,j,k) + coeff*(COS(t)- (COS(t)-1.)*2*pi*pi)*x(3)*SIN(Pi*x(1))*SIN(Pi*x(2))
+      U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) - coeff*(COS(t)-1.)*pi*COS(Pi*x(1))*(SIN(Pi*x(2))+SIN(Pi*x(3)))
+      U_N(iElem)%Ut(2,i,j,k) =U_N(iElem)%Ut(2,i,j,k) - coeff*(COS(t)-1.)*pi*COS(Pi*x(2))*(SIN(Pi*x(3))+SIN(Pi*x(1)))
+      U_N(iElem)%Ut(3,i,j,k) =U_N(iElem)%Ut(3,i,j,k) - coeff*(COS(t)-1.)*pi*COS(Pi*x(3))*(SIN(Pi*x(1))+SIN(Pi*x(2)))
+      U_N(iElem)%Ut(8,i,j,k) =U_N(iElem)%Ut(8,i,j,k) + coeff*c_corr*SIN(t)*( SIN(pi*x(2))*SIN(pi*x(3)) &
                                                             +SIN(pi*x(3))*SIN(pi*x(1)) &
                                                             +SIN(pi*x(1))*SIN(pi*x(2)) )
     END DO; END DO; END DO
@@ -1170,17 +1174,20 @@ CASE(41) ! Dipole via temporal Gausspuls
 !TEnd=30.E-9 -> short pulse for 100ns runtime
 IF(1.EQ.2)THEN ! new formulation with divergence correction considered
   DO iElem=1,PP_nElems
-    DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      Ut(1,i,j,k,iElem) =Ut(1,i,j,k,iElem) - coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * eps0inv
-      Ut(8,i,j,k,iElem) =Ut(8,i,j,k,iElem) + coeff*2*pi*COS(2*pi*(Elem_xGP(1,i,j,k,iElem)-t)) * c_corr * eps0inv
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
+      U_N(iElem)%Ut(1,i,j,k) =U_N(iElem)%Ut(1,i,j,k) - coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * eps0inv
+      U_N(iElem)%Ut(8,i,j,k) =U_N(iElem)%Ut(8,i,j,k) + coeff*2*pi*COS(2*pi*(N_VolMesh(iElem)%Elem_xGP(1,i,j,k)-t)) * c_corr * eps0inv
     END DO; END DO; END DO
   END DO
 ELSE ! old/original formulation
-  DO iElem=1,PP_nElems; DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  DO iElem=1,PP_nElems;
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     IF (t.LE.2*tPulse) THEN
-      r = SQRT(DOT_PRODUCT(Elem_xGP(:,i,j,k,iElem)-xDipole,Elem_xGP(:,i,j,k,iElem)-xDipole))
+      r = SQRT(DOT_PRODUCT(N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole,N_VolMesh(iElem)%Elem_xGP(:,i,j,k)-xDipole))
       IF (shapefunc(r) .GT. 0 ) THEN
-        Ut(3,i,j,k,iElem) = Ut(3,i,j,k,iElem) - ((shapefunc(r))*Q*d*COS(DipoleOmega*t)*eps0inv)*&
+        U_N(iElem)%Ut(3,i,j,k) = U_N(iElem)%Ut(3,i,j,k) - ((shapefunc(r))*Q*d*COS(DipoleOmega*t)*eps0inv)*&
                             EXP(-(t-tPulse/5)**2/(2*(tPulse/(4*5))**2))
       END IF
     END IF
@@ -1191,10 +1198,11 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Exactfunction not specified! IniExactFunc = ',IntInfoOpt=IniExactFunc)
 END SELECT ! ExactFunction
 
-#if defined(LSERK) ||  defined(ROS) || defined(IMPA)
+#if defined(LSERK)
 IF(DoParabolicDamping)THEN
-  !Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne/RK_b(iStage)*U(7:8,:,:,:,:)
-  Ut(7:8,:,:,:,:) = Ut(7:8,:,:,:,:) - (1.0-fDamping)*sdtCFLOne*U(7:8,:,:,:,:)
+  DO iElem = 1, PP_nElems
+    U_N(iElem)%Ut(7:8,:,:,:) = U_N(iElem)%Ut(7:8,:,:,:) - (1.0-fDamping)*sdtCFLOne*U_N(iElem)%U(7:8,:,:,:)
+  END DO ! iElem = 1, PP_nElems
 END IF
 #endif /*LSERK*/
 
@@ -1208,7 +1216,8 @@ SUBROUTINE DivCleaningDamping()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_DG_Vars,       ONLY : U
+USE MOD_DG_Vars,       ONLY : U_N,N_DG_Mapping
+USE MOD_Mesh_Vars,     ONLY : offSetElem
 USE MOD_Equation_Vars, ONLY : fDamping,DoParabolicDamping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1218,13 +1227,14 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem
+INTEGER                         :: i,j,k,iElem,Nloc
 !===================================================================================================================================
 IF(DoParabolicDamping) RETURN
 DO iElem=1,PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
     !  Get source from Particles
-    U(7:8,i,j,k,iElem) = U(7:8,i,j,k,iElem) * fDamping
+    U_N(iElem)%U(7:8,i,j,k) = U_N(iElem)%U(7:8,i,j,k) * fDamping
   END DO; END DO; END DO
 END DO
 END SUBROUTINE DivCleaningDamping
@@ -1270,13 +1280,14 @@ SUBROUTINE GetWaveGuideRadius(DoSide)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_PreProc
-USE MOD_Mesh_Vars    ,  ONLY:nSides,Face_xGP
-USE MOD_Equation_Vars,  ONLY:TERadius
+USE MOD_DG_Vars            ,ONLY: DG_Elems_master,DG_Elems_slave
+USE MOD_Mesh_Vars          ,ONLY: nSides,N_SurfMesh
+USE MOD_Equation_Vars      ,ONLY: TERadius
 #if (PP_NodeType==1)
-USE MOD_ChangeBasis,    ONLY:ChangeBasis2D
-USE MOD_Basis,          ONLY:LegGaussLobNodesAndWeights
-USE MOD_Basis,          ONLY:BarycentricWeights,InitializeVandermonde
-USE MOD_Interpolation_Vars, ONLY:xGP,wBary
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+USE MOD_Basis              ,ONLY: LegGaussLobNodesAndWeights
+USE MOD_Basis              ,ONLY: BarycentricWeights,InitializeVandermonde
+USE MOD_Interpolation_Vars ,ONLY: N_Inter
 #endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
@@ -1291,38 +1302,43 @@ LOGICAL,INTENT(IN)      :: DoSide(1:nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                    :: Radius
-INTEGER                 :: iSide,p,q
+INTEGER                 :: iSide,p,q,Nloc
 #if (PP_NodeType==1)
-REAL                    :: xGP_tmp(0:PP_N),wBary_tmp(0:PP_N),wGP_tmp(0:PP_N)
-REAL                    :: Vdm_PolN_GL(0:PP_N,0:PP_N)
+REAL,ALLOCATABLE        :: xGP_tmp(:),wBary_tmp(:),wGP_tmp(:)
+REAL,ALLOCATABLE        :: Vdm_PolN_GL(:,:)
 #endif
-REAL                    :: Face_xGL(1:2,0:PP_N,0:PP_N)
+REAL,ALLOCATABLE        :: Face_xGL(:,:,:)
 !===================================================================================================================================
-
-#if (PP_NodeType==1)
-! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
-! radius requires GL-points
-CALL LegGaussLobNodesAndWeights(PP_N,xGP_tmp,wGP_tmp)
-CALL BarycentricWeights(PP_N,xGP_tmp,wBary_tmp)
-!CALL InitializeVandermonde(PP_N,PP_N,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
-CALL InitializeVandermonde(PP_N,PP_N,wBary,xGP,xGP_tmp,Vdm_PolN_GL)
-#endif
 
 TERadius=0.
 Radius   =0.
 DO iSide=1,nSides
   IF(.NOT.DoSide(iSide)) CYCLE
-#if (PP_NodeType==1)
-  CALL ChangeBasis2D(2,PP_N,PP_N,Vdm_PolN_GL,Face_xGP(1:2,:,:,iSide),Face_xGL)
-#else
-  Face_xGL(1:2,:,:)=Face_xGP(1:2,:,:,iSide)
+  Nloc = MAX(DG_Elems_master(iSide),DG_Elems_slave(iSide))
+  ALLOCATE(Face_xGL(1:2,0:Nloc,0:Nloc))
+#if (PP_NodeType==1) /* for Gauss-points*/
+  ALLOCATE(Vdm_PolN_GL(0:Nloc,0:Nloc))
+  ! get Vandermonde, change from Gauss or Gauss-Lobatto Points to Gauss-Lobatto-Points
+  ! radius requires GL-points
+  ALLOCATE(xGP_tmp(0:Nloc),wBary_tmp(0:Nloc),wGP_tmp(0:Nloc))
+  CALL LegGaussLobNodesAndWeights(Nloc,xGP_tmp,wGP_tmp)
+  CALL BarycentricWeights(Nloc,xGP_tmp,wBary_tmp)
+  !CALL InitializeVandermonde(Nloc,Nloc,wBary_tmp,xGP,xGP_tmp,Vdm_PolN_GL)
+  CALL InitializeVandermonde(Nloc,Nloc,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,xGP_tmp,Vdm_PolN_GL)
+  CALL ChangeBasis2D(2,Nloc,Nloc,Vdm_PolN_GL,N_SurfMesh(iSide)%Face_xGP(1:2,0:Nloc,0:Nloc),Face_xGL(1:2,0:Nloc,0:Nloc))
+#else /* for Gauss-Lobatto-points*/
+  Face_xGL(1:2,:,:)=N_SurfMesh(iSide)%Face_xGP(1:2,:,:)
 #endif
-  DO q=0,PP_N
-    DO p=0,PP_N
+  DO q=0,Nloc
+    DO p=0,Nloc
       Radius=SQRT(Face_xGL(1,p,q)**2+Face_xGL(2,p,q)**2)
       TERadius=MAX(Radius,TERadius)
     END DO ! p
   END DO ! q
+  DEALLOCATE(Face_xGL)
+#if PP_NodeType==1
+  DEALLOCATE(xGP_tmp,wBary_tmp,wGP_tmp,Vdm_PolN_GL)
+#endif /*PP_NodeType==1*/
 END DO
 
 #if USE_MPI
@@ -1364,7 +1380,7 @@ LOGICAL,ALLOCATABLE :: isExactFluxFace(:)     ! true if iFace is a Face located 
 !                                             ! ExactFlux region
 INTEGER,ALLOCATABLE :: ExactFluxToElem(:),ExactFluxToFace(:),ExactFluxInterToFace(:) ! mapping to total element/face list
 INTEGER,ALLOCATABLE :: ElemToExactFlux(:),FaceToExactFlux(:),FaceToExactFluxInter(:) ! mapping to ExactFlux element/face list
-REAL                :: InterFaceRegion(6)
+REAL                :: InterFaceRegion(6),d
 INTEGER             :: nExactFluxElems,nExactFluxFaces,nExactFluxInterFaces
 INTEGER             :: iElem,iSide,SideID,nExactFluxMasterInterFaces,sumExactFluxMasterInterFaces
 !===================================================================================================================================
@@ -1375,19 +1391,26 @@ IF(ExactFluxDir.LE.0)THEN
 END IF
 ExactFluxPosition    = GETREAL('ExactFluxPosition') ! initialize empty to force abort when values is not supplied
 ! set interface region, where one of the bounding box sides coinsides with the ExactFluxPosition in direction of ExactFluxDir
+#if (PP_NodeType==1) /* for Gauss-points*/
+d = 0.0
+#else /*for Gauss-Lobatto-points*/
+! For Gauss-Lobatto, add a small distance because the xGP are now on the interfaces between the elements
+! Scale with ExactFluxPosition
+d = 1e-8*ExactFluxPosition
+#endif
 SELECT CASE(ABS(ExactFluxDir))
 CASE(1) ! x
-  InterFaceRegion(1:6)=(/-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.)/)
+InterFaceRegion(1:6)=(/-HUGE(1.) , ExactFluxPosition + d , -HUGE(1.) , HUGE(1.)              , -HUGE(1.) , HUGE(1.)/)
 CASE(2) ! y
-  InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition,-HUGE(1.),HUGE(1.)/)
+InterFaceRegion(1:6)=(/-HUGE(1.) , HUGE(1.)              , -HUGE(1.) , ExactFluxPosition + d , -HUGE(1.) , HUGE(1.)/)
 CASE(3) ! z
-  InterFaceRegion(1:6)=(/-HUGE(1.),HUGE(1.),-HUGE(1.),HUGE(1.),-HUGE(1.),ExactFluxPosition/)
+InterFaceRegion(1:6)=(/-HUGE(1.) , HUGE(1.)              , -HUGE(1.) , HUGE(1.)              , -HUGE(1.) , ExactFluxPosition + d/)
 CASE DEFAULT
   CALL CollectiveStop(__STAMP__,' Unknown exact flux direction: ExactFluxDir=',IntInfo=ExactFluxDir)
 END SELECT
 
 ! set all elements lower/higher than the ExactFluxPosition to True/False for interface determination
-CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.FALSE.)
+CALL FindElementInRegion(isExactFluxElem,InterFaceRegion,ElementIsInside=.FALSE.,DoRadius=.FALSE.,Radius=-1.,DisplayInfo=.TRUE.)
 
 ! find all faces in the ExactFlux region
 CALL FindInterfacesInRegion(isExactFluxFace,isExactFluxInterFace,isExactFluxElem,info_opt='find all faces in the ExactFlux region')
@@ -1816,4 +1839,3 @@ END IF
 END SUBROUTINE ExactFunc_TE_Circular_Waveguide
 
 END MODULE MOD_Equation
-

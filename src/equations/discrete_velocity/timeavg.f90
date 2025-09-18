@@ -28,23 +28,14 @@ PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-
-INTERFACE InitTimeAverage
-  MODULE PROCEDURE InitTimeAverage
-END INTERFACE
-
-INTERFACE FinalizeTimeAverage
-  MODULE PROCEDURE FinalizeTimeAverage
-END INTERFACE
-
-INTERFACE CalcTimeAverage
-  MODULE PROCEDURE CalcTimeAverage
-END INTERFACE
-
+#if !(PP_TimeDiscMethod==700)
 PUBLIC::InitTimeAverage, FinalizeTimeAverage, CalcTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
 !==================================================================================================================================
 CONTAINS
 
+
+#if !(PP_TimeDiscMethod==700)
 SUBROUTINE InitTimeAverage()
 !==================================================================================================================================
 !> Initializes the time averaging variables and fluctuation/ RMS fluctuation quantities to required time averaged variables
@@ -492,5 +483,6 @@ SDEALLOCATE(DoPowerDensity)
 SDEALLOCATE(PowerDensity)
 #endif /*PARTICLES*/
 END SUBROUTINE FinalizeTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 END MODULE MOD_TimeAverage

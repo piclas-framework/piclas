@@ -6,14 +6,17 @@ The following collection of best practice guidelines are intended to prevent bug
 
 The general rules can be summarized as follows:
 
-1. The first rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
-2. The second rule of MPI is: You do not send subsets of arrays, only complete continuous data ranges.
-3. Third rule of MPI: Someone sends non-continuous data, the simulation is over.
-4. Fourth rule: Only two processors to a single send-receive message.
-5. Fifth rule: Only one processor access (read or write) to a shared memory region.
+1. **The first rule of MPI is**: You do not send subsets of arrays, only complete continuous data ranges.
+2. **The second rule of MPI is**: You do not send subsets of arrays, only complete continuous data ranges.
+3. **Third rule of MPI**: Someone sends non-continuous data, the simulation is over.
+4. **Fourth rule**: Only two processors to a single send-receive message. One sender and one receiver, no more and no less.
+5. **Fifth rule**: Only one processor access (read or write) to a shared memory region.
+6. **Sixth rule**: After nullification of a shared array follows WIN_SYNC and BARRIER because until the sync is complete the status of the memory is undefined, i.e., old or new value or utter nonsense.
 
 Please also read the general implementation information and, e.g., mappings used for elements, sides and nodes in the chapter
 {ref}`developerguide/mpi:MPI Implementation`.
+
+If you want to break the first/second rule, remember that in FORTRAN the last dimension can be used for slicing.
 
 ## Shared Memory Windows
 

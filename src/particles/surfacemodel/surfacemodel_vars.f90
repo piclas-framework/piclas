@@ -34,7 +34,9 @@ INTEGER , ALLOCATABLE            :: SurfModResultSpec(:,:)          ! Resulting 
 CHARACTER(LEN=50) , ALLOCATABLE  :: SurfModEnergyDistribution(:)    ! Energy distribution of the reflected/created particle(s)
 REAL , ALLOCATABLE               :: SurfModEmissionEnergy(:)        ! Energy of emitted particle for surface emission model (only available for SurfaceModel=7)
 REAL , ALLOCATABLE               :: SurfModEmissionYield(:)         ! Emission yield factor for surface emission model (only changable for SurfaceModel=7)
-REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARMfor 2nd SEE
+REAL                             :: BackupVeloABS                   ! Backup of velocity during double-ARM for 2nd SEE
+REAL                             :: ImpactWeight                    ! Weighting factor of impacting particle (stored separately as actual value might be overwritten)
+LOGICAL , ALLOCATABLE            :: SurfModSEEvMPF(:)               ! Flag to enable the scaling of the weights for secondaries based on the yield per surface model (only for 3/4/12) (nPartBound)
 ! === Porous BC ====================================================================================================================
 INTEGER                          :: nPorousBC                       ! Number of porous BCs
 TYPE tPorousBC
@@ -122,14 +124,14 @@ TYPE tSurfReactions
 END TYPE
 TYPE(tSurfReactions), ALLOCATABLE        :: SurfChemReac(:)
 
-REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:,:)     ! Desorption numbers
-REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:,:)       ! Sampling direct impact mechanism
-REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:,:)       ! Adsorption count / heat flux
+REAL,ALLOCATABLE                         :: ChemDesorpWall(:,:,:,:)     ! Desorption numbers
+REAL,ALLOCATABLE                         :: ChemSampWall(:,:,:,:)       ! Sampling direct impact mechanism
+REAL,ALLOCPOINT                          :: ChemWallProp(:,:,:,:)       ! Adsorption count / heat flux
 
 #if USE_MPI
-REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:,:)! Sampling direct impact mechanism
+REAL,POINTER                             :: ChemSampWall_Shared(:,:,:,:)! Sampling direct impact mechanism
 TYPE(MPI_Win)                            :: ChemSampWall_Shared_Win
-REAL,POINTER                             :: ChemWallProp_Shared(:,:,:,:,:)! Adsorption count / heat flux
+REAL,POINTER                             :: ChemWallProp_Shared(:,:,:,:)! Adsorption count / heat flux
 TYPE(MPI_Win)                            :: ChemWallProp_Shared_Win
 #endif
 
@@ -137,9 +139,9 @@ TYPE(MPI_Win)                            :: ChemWallProp_Shared_Win
 REAL                             :: BulkElectronTempSEE             ! Bulk electron temperature for SEE model by Morozov2004
                                                                     ! read-in in Kelvin (when using the SEE mode), but is directly
                                                                     ! converted to eV for usage in the code
-LOGICAL                          :: SurfModSEEelectronTempAutoamtic ! BulkElectronTempSEE = BulkElectronTemp, which is calculated
+LOGICAL                          :: SurfModSEEelectronTempAutomatic ! BulkElectronTempSEE = BulkElectronTemp, which is calculated
                                                                     ! automatically for the first species ID for electrons
-REAL, ALLOCATABLE                :: SurfModSEEPowerFit(:,:)         ! Power-fit coefficients (1=a, 2=b) of the form: a*T(ev)^b
+REAL, ALLOCATABLE                :: SurfModSEEFitCoeff(:,:)         !> Model coefficients (1-3: model dependent, 4: work function in eV; 1:nPartBound)
 
 ! === Sticking coefficient from simple models/interpolation
 REAL, ALLOCATABLE                :: StickingCoefficientData(:,:)    ! Data for the model using non-bounce and condensation probability

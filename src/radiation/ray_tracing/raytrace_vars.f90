@@ -30,6 +30,9 @@ SAVE
 LOGICAL :: UseRayTracing        ! Activate ray tracing based emission (also required for plasma simulation)
 LOGICAL :: PerformRayTracing    ! Activate actual ray tracing algorithms that track rays through the complete mesh (full mesh mode)
 
+INTEGER               :: nRaySides
+INTEGER,ALLOCATABLE   :: RaySide2GlobalSide(:)
+
 TYPE tRayTrace
   REAL    :: PulseDuration      !<
   REAL    :: tShift             !<
@@ -64,6 +67,7 @@ TYPE tRayTrace
   CHARACTER(LEN=255) :: NodeType  !< equidistant or Gauss nodes [-1,1]
 
   INTEGER :: nSurfSample        !< polynomial degree of ray tracing or radiation BC sampling
+  INTEGER :: nSamples           !< Number of samples per ray path for high-order sampling (nSamples*(N+1))
 
 END TYPE
 
@@ -95,6 +99,9 @@ INTEGER,ALLOCATABLE  :: RayElemOffset(:)                  !< Entry offset for hi
 #endif
 REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc1st(:)
 REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc2nd(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc1stError(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyLoc2ndError(:)
+REAL, ALLOCATABLE    :: RayElemPassedEnergyVolError(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorX(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorY(:)
 REAL, ALLOCATABLE    :: RaySecondaryVectorZ(:)

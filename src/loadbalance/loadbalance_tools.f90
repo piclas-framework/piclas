@@ -45,7 +45,7 @@ SUBROUTINE DomainDecomposition()
 USE MOD_Globals
 USE MOD_Globals_Vars         ,ONLY: DomainDecompositionWallTime
 USE MOD_Restart_Vars         ,ONLY: DoRestart
-USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems
+USE MOD_Mesh_Vars            ,ONLY: offsetElem,nElems,nGlobalElems,ELEM_RANK
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTimeField
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars     ,ONLY: ElemTime,PerformLoadBalance
@@ -369,7 +369,7 @@ ELSE
       ! If the load balance step is performed without h5 I/O in the future, this check can be removed
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'ElemTime',ElemTimeExists)
-      IF(.NOT.ElemTimeExists) CALL abort(__STAMP__,'ElemTime does not exit for some processors in .h5 which indicates a corrupt state file')
+      IF(.NOT.ElemTimeExists) CALL abort(__STAMP__,'ElemTime does not exist for some processors in .h5 which indicates a corrupt state file')
       CALL CloseDataFile()
 
       ! Check if the original ElemTime needs to be communicated to all procs for output to a state file

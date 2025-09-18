@@ -37,21 +37,16 @@ SUBROUTINE TimeStepByLSERK()
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Vector
+USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iStage,time
 USE MOD_TimeDisc_Vars          ,ONLY: RK_a,RK_b,RK_c,nRKStages
-USE MOD_TimeDisc_Vars          ,ONLY: Ut_temp,U2t_temp
-USE MOD_DG_Vars                ,ONLY: U,Ut
-USE MOD_PML_Vars               ,ONLY: U2,U2t,DoPML
+USE MOD_TimeDisc_Vars          ,ONLY: Ut_N
+USE MOD_DG_Vars                ,ONLY: U_N
+USE MOD_PML_Vars               ,ONLY: DoPML
 USE MOD_PML                    ,ONLY: PMLTimeDerivative,CalcPMLSource
 USE MOD_Equation               ,ONLY: DivCleaningDamping
 USE MOD_Equation               ,ONLY: CalcSource
 USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm
-#ifdef PP_POIS
-USE MOD_Equation               ,ONLY: DivCleaningDamping_Pois,EvalGradient
-USE MOD_DG                     ,ONLY: DGTimeDerivative_weakForm_Pois
-USE MOD_Equation_Vars          ,ONLY: Phi,Phit,nTotalPhi
-USE MOD_TimeDisc_Vars          ,ONLY: Phit_temp
-#endif /*PP_POIS*/
 #ifdef PARTICLES
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcCoupledPowerPart
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcCoupledPower,PCoupl
@@ -78,6 +73,7 @@ USE MOD_Particle_Vars          ,ONLY: UseSplitAndMerge
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime,LBSplitTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
+USE MOD_PML_Vars               ,ONLY: nPMLElems,PMLToElem
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -92,6 +88,7 @@ INTEGER                       :: iPart
 #if USE_LOADBALANCE
 REAL                          :: tLBStart ! load balance
 #endif /*USE_LOADBALANCE*/
+INTEGER                       :: iElem,iPMLElem
 !===================================================================================================================================
 
 ! RK coefficients
@@ -123,7 +120,7 @@ DO iStage = 1,nRKStages
 #endif /*EXTRAE*/
   IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=1)
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+  CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
   CALL CountPartsPerElem(ResetNumberOfParticles=.TRUE.) !for scaling of tParts of LB. Also done for state output of PartsPerElem
@@ -138,13 +135,10 @@ DO iStage = 1,nRKStages
   CALL LBSplitTime(LB_INTERPOLATION,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) THEN
-    CALL Deposition(stage_opt=2)
+  IF ((time.GE.DelayTime).OR.(iter.EQ.0)) CALL Deposition(stage_opt=2)
 #if USE_LOADBALANCE
-    CALL LBSplitTime(LB_DEPOSITION,tLBStart)
+  CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
-  END IF
-
   IF (time.GE.DelayTime) THEN
     LastPartPos(     1:3,1:PDM%ParticleVecLength)=PartState(   1:3,1:PDM%ParticleVecLength)
     PEM%LastGlobalElemID(1:PDM%ParticleVecLength)=PEM%GlobalElemID(1:PDM%ParticleVecLength)
@@ -242,45 +236,40 @@ DO iStage = 1,nRKStages
 #endif /*USE_LOADBALANCE*/
   CALL DivCleaningDamping()
 
-#ifdef PP_POIS
-  ! Potential
-  CALL DGTimeDerivative_weakForm_Pois(time,tStage,0)
-  CALL DivCleaningDamping_Pois()
-#endif /*PP_POIS*/
-
 #if USE_LOADBALANCE
   CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
   ! EM field
   IF (iStage.EQ.1) THEN
-    Ut_temp = Ut
+    DO iElem = 1, nElems
+      Ut_N(iElem)%Ut_temp = U_N(iElem)%Ut
+      U_N(iElem)%U        = U_N(iElem)%U + Ut_N(iElem)%Ut_temp*b_dt(iStage)
+    END DO ! iElem = 1, nElems
   ELSE
-    Ut_temp = Ut - Ut_temp*RK_a(iStage)
+    DO iElem = 1, nElems
+      Ut_N(iElem)%Ut_temp = U_N(iElem)%Ut - Ut_N(iElem)%Ut_temp*RK_a(iStage)
+      U_N(iElem)%U        = U_N(iElem)%U  + Ut_N(iElem)%Ut_temp*b_dt(iStage)
+    END DO ! iElem = 1, nElems
   END IF
-  U = U + Ut_temp*b_dt(iStage)
-
-#ifdef PP_POIS
-  IF (iStage.EQ.1) THEN
-    Phit_temp = Phit
-  ELSE
-    Phit_temp = Phit - Phit_temp*RK_a(iStage)
-  END IF
-  Phi = Phi + Phit_temp*b_dt(iStage)
-  CALL EvalGradient()
-#endif /*PP_POIS*/
 
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_DG,tLBStart)
 #endif /*USE_LOADBALANCE*/
   ! PML auxiliary variables
-  IF(DoPML) THEN
-    IF (iStage.EQ.1) THEN
-      U2t_temp = U2t
-    ELSE
-      U2t_temp = U2t - U2t_temp*RK_a(iStage)
-    END IF
-    U2 = U2 + U2t_temp*b_dt(iStage)
+  IF(DoPML)THEN
+    DO iPMLElem=1,nPMLElems
+      iElem = PMLToElem(iPMLElem)
+      IF (iStage.EQ.1) THEN
+        !U2t_temp = U2t
+        Ut_N(iElem)%U2t_temp = U_N(iElem)%U2t
+      ELSE
+        !U2t_temp = U2t - U2t_temp*RK_a(iStage)
+        Ut_N(iElem)%U2t_temp = U_N(iElem)%U2t - Ut_N(iElem)%U2t_temp*RK_a(iStage)
+      END IF
+      !U2 = U2 + U2t_temp*b_dt(iStage)
+      U_N(iElem)%U2 = U_N(iElem)%U2 + Ut_N(iElem)%U2t_temp*b_dt(iStage)
+    END DO
   END IF
 #if USE_LOADBALANCE
   CALL LBSplitTime(LB_PML,tLBStart)

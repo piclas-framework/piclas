@@ -14,7 +14,7 @@
 
 MODULE MOD_MCC_XSec
 !===================================================================================================================================
-! Contains the Argon Ionization
+!> Module contains routines for the cross-section data in MCC including read-in, interpolation and calculation of probabilities
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
@@ -128,13 +128,14 @@ ELSE
   IF(DatasetFound) THEN
     SpecXSec(iCase)%UseCollXSec = .TRUE.
     SpecXSec(iCase)%CollXSec_Effective = .FALSE.
-  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found ELASTIC collision cross section.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found ELASTIC collision cross section.'
   ELSE
     LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No data set found. Using standard collision modelling.'
     RETURN
   END IF
 END IF
 
+! Elastic/effective cross-section
 IF(SpecXSec(iCase)%UseCollXSec) THEN
   ! Open the dataset.
   CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
@@ -147,6 +148,29 @@ IF(SpecXSec(iCase)%UseCollXSec) THEN
   SpecXSec(iCase)%CollXSecData = 0.
   ! read data
   CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%CollXSecData(1:2,1:dims(2)), dims, err)
+END IF
+
+! Back-scattering cross-section
+IF (SpeciesDatabase.EQ.'none') THEN
+  dsetname = TRIM('/'//TRIM(spec_pair)//'/BACKSCATTER')
+ELSE
+  dsetname = TRIM(TRIM(spec_pair)//'/BACKSCATTER')
+END IF
+CALL DatasetExists(File_ID_DSMC,TRIM(dsetname),DatasetFound)
+IF(DatasetFound) THEN
+  SpecXSec(iCase)%UseBackScatterXSec = .TRUE.
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': Found BACKSCATTER collision cross section.'
+  ! Open the dataset.
+  CALL H5DOPEN_F(file_id_dsmc, dsetname, dset_id_dsmc, err)
+  ! Get the file space of the dataset.
+  CALL H5DGET_SPACE_F(dset_id_dsmc, FileSpace, err)
+  ! get size
+  CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
+  ! Read-in the effective cross-sections
+  ALLOCATE(SpecXSec(iCase)%BackXSecData(1:2,1:dims(2)))
+  SpecXSec(iCase)%BackXSecData = 0.
+  ! read data
+  CALL H5DREAD_F(dset_id_dsmc, H5T_NATIVE_DOUBLE, SpecXSec(iCase)%BackXSecData(1:2,1:dims(2)), dims, err)
 END IF
 
 ! Close the file.

@@ -31,27 +31,22 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_HDG
 #if USE_PETSC
-Mat                 :: Smat_petsc
-Vec                 :: RHS_petsc
-Vec                 :: lambda_petsc
-KSP                 :: ksp
-Vec                 :: lambda_local_petsc
-VecScatter          :: scatter_petsc
-IS                  :: idx_local_petsc
-IS                  :: idx_global_petsc
-Vec                 :: lambda_local_conductors_petsc
-VecScatter          :: scatter_conductors_petsc
-IS                  :: idx_local_conductors_petsc
-IS                  :: idx_global_conductors_petsc
-INTEGER,ALLOCATABLE :: PETScGlobal(:)         !< PETScGlobal(SideID) maps the local SideID to global PETScSideID
-INTEGER,ALLOCATABLE :: PETScLocalToSideID(:)  !< PETScLocalToSideID(PETScLocalSideID) maps the local PETSc side to SideID
-REAL,ALLOCATABLE    :: Smat_BC(:,:,:,:)       !< side to side matrix for dirichlet (D) BCs, (ngpface,ngpface,6Sides,DSides)
-INTEGER             :: nPETScSides            !< nSides - nDirichletSides
-INTEGER             :: nPETScUniqueSides      !< nPETScSides - nMPISides_YOUR
-INTEGER             :: nPETScUniqueSidesGlobal
+Mat                 :: PETScSystemMatrix        !< Global PETSc System matrix A (A * lambda = rhs)
+Vec                 :: PETScRHS                 !< Right hand side of the PETSc System rhs (Dirichlet BCs, Source terms)
+Vec                 :: PETScSolution            !< Solution vector of the PETSc System (lambda, potential on the sides)
+KSP                 :: PETScSolver              !< Krylov subspace method and preconditioner used in PETSc
+Vec                 :: PETScSolutionLocal       !< Local portion of the solution vector (including YOUR sides!)
+VecScatter          :: PETScScatter             !< Scatter object used to extract the local solution from the global vector
+INTEGER             :: nPETScSides              !< nSides - nDirichletSides
+INTEGER             :: nPETScUniqueSides        !< nPETScSides - nMPISides_YOUR
+INTEGER             :: nLocalPETScDOFs          !< Number of local PETSc DOFs (size of PETSc Vectors & Matrices)
+INTEGER             :: nGlobalPETScDOFs         !< Number of global PETSc DOFs (size of PETSc Vectors & Matrices)
+INTEGER,ALLOCATABLE :: OffsetGlobalPETScDOF(:)  !< offset of each SideID to the global position in the PETSc system
+REAL                :: PETScFieldTime
 INTEGER,ALLOCATABLE :: SmallMortarType(:,:)   !< Type of Mortar side ([1] Type, [2] Side, nSides)
                                               !< [1] Type: mortar type this small side belongs to (1-3)
                                               !< [2] Side: Small side number (1-4)
+INTEGER             :: ZeroPotentialDOF
 #endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 END MODULE MOD_HDG_Vars_PETSc

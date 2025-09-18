@@ -54,14 +54,20 @@ by simple geometrical volumes (e.g. cylinder) can be mapped to different species
     Particles-BGGas-Region1-BaseVector2IC     = (/0.,1.,0./)
 
 Here, a cylinder is defined by two base vectors (from which a normal is determined for the direction of the cylinder height),
-basepoint, radius and cylinder height. The definition of the species is the same as described above, with the addition of an
+basepoint, radius and cylinder height. Whether an element is within a region is determined through the midpoint of the element and
+thus it does not have to be fully enveloped. The definition of the species is the same as described above, with the addition of an
 additional parameter, defining in which region, these properties should be applied to:
 
     Part-Species1-Init1-BGG-Region            = 1
 
-While a species can be part of different regions through multiple inits and multiple species can be part of a single region,
-overlapping regions are not allowed. Whether an element is within a region is determined through the midpoint of the element and
-thus it does not have to be fully enveloped.
+A species can be part of different regions through multiple inits and multiple species can be part of a single region. Overlapping
+regions are allowed, where the latter region overwrites the former. In that case, a warning is displayed during the initialization:
+
+    Warning: Region 3 has been (partially) overwritten by region 4!
+
+It should be noted that the warning might not display every overlap, as the information is determined per processor and reduced by
+the root by determining the maximum region index. You can visualize the regions through the regular DSMC sampling output, where the
+utilized background gas values are written out.
 
 ## Trace species
 
@@ -103,9 +109,15 @@ model is required
     Part-Species2-UseCollXSec = T
 
 The read-in of the cross-section data is based on the provided species name and the species name of the background gas (e.g. if the
-background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). Finally, the
-cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral
-collisions) can be utilized within a simulation for different species.
+background species name is Ar, the code will look for a container named `Ar-electron` in the MCC database). It should contain either an
+`ELASTIC` or `EFFECTIVE` dataset, where the latter must include the other provided cross-sections. The default collision type is
+referred to as *elastic* and corresponds to a momentum exchange, identical to the regular DSMC treatment. If an additional dataset labelled
+`BACKSCATTER` is provided next to the elastic cross-section dataset, a 180° back-scattering in the centre of mass frame collision
+type can be included {cite}`Phelps1994`. If the dataset is found, it will be automatically enabled, as long as the `UseCollXSec` is true.
+
+Finally, the cross-section based collision modelling (e.g. for neutral-charged collisions) and the VHS model (e.g. for neutral-neutral
+collisions) can be utilized within a simulation for different species. Examples can be found in the regression tests
+`regressioncheck/NIG_DSMC/MCC_BGG_Backscatter` and `regressioncheck/NIG_Reservoir/CHEM_RATES_XSec_Chem_Elec-He-e`.
 
 ## Cross-section based vibrational relaxation probability
 

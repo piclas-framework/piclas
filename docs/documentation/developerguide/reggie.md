@@ -170,7 +170,7 @@ To view all stages and tests:
 ```
 gitlab-ci-local --list-all
 ```
-To execute the check-in pipeline locally (i.e. the jobs that were shown with the `--list` command), use
+To execute the check-in pipeline locally (that is the jobs that were shown with the `--list` command), use
 ```
 gitlab-ci-local --shell-isolation
 ```
@@ -201,6 +201,25 @@ If multiple variables are required add them to the command
 gitlab-ci-local --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable CHECK_WARNINGS=True
 ```
 to envoke additional options of the pipeline.
+
+### Example
+To run a specific reggie job, in this case a *weekly* reggie that depends on another job, the following parameters are passed
+```
+DO_RUN_LOCAL="cmake/3.30.3   gcc/14.2.0   mpich/4.1.2/gcc/14.2.0    hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2    hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0    petsc/3.21.6/gcc/14.2.0/mpich/4.1.2"
+gitlab-ci-local --shell-isolation --needs WEK_Radiation --variable DO_RUN_LOCAL=$DO_RUN_LOCAL --variable DO_WEEKLY=T
+```
+where the arguments are listed and explained in the following table
+```{table} gitlab-ci-local variables example
+---
+name: tab:gitlab_ci_local_vars
+---
+  | Parameter                             | Description                                                                         |
+  | ------------------------------------- | ----------------------------------------------------------------------------------- |
+  | --shell-isolation                     | Avoid errors due to parallel writing of the ctags.txt file                          |
+  | --needs WEK_Radiation                 | Run WEK_Radiation, which also requires WEK_DSMC_Radiation                           |
+  | --variable DO_RUN_LOCAL=$DO_RUN_LOCAL | Pass the locally installed and used modules                                         |
+  | --variable DO_WEEKLY=T                | WEK_Radiation is a weekly reggie that requires the DO_WEEKLY to be passed           |
+```
 
 ## Regression Test *Gitlab Runner* Setup for self-hosted Servers
 This section describes the necessary steps to install a [Gitlab Runner](https://docs.gitlab.com/runner/) on a Ubuntu system to run *Gitlab Build Pipelines*.

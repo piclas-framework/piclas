@@ -53,6 +53,7 @@ TYPE tCoilInfo
   REAL                            :: RectVec1(2)                !< Cuboid coil-specific vector in the cross-section plane
   REAL                            :: RectVec2(2)                !< Cuboid coil-specific vector in the cross-section plane
   REAL                            :: Length                     !< Length of coil, calculated from the length vector
+  REAL,ALLOCATABLE                :: CoilNodes(:,:)             !< Geometric information of the coil [1:3,CoilInfo(iCoil)%NumNodes]
 END TYPE tCoilInfo
 
 TYPE(tCoilInfo),ALLOCATABLE       :: CoilInfo(:)                !< Container for the coil information [1:NumOfCoils]
@@ -73,14 +74,17 @@ REAL                              :: BGFieldCurrent             !< Current maxim
 LOGICAL, ALLOCATABLE              :: TimeDepCoil(:)             !< Flag if the coil has a time-dependent current [1:NumOfCoils]
 LOGICAL                           :: UseTimeDepCoil             !< Flag if any coil has a time-dependent current
 INTEGER                           :: nTimePoints                !< Number of time discretization points for the sinusoidal curve
-REAL, ALLOCATABLE                 :: BGFieldTDep(:,:,:,:,:,:)   !< Time-dependent background field
-                                                                !< [1:3,0:NBG,0:NBG,0:NBG,1:PP_nElems,1:nTimePoints]
 
 ! === Permanent Magnets
 
 INTEGER                 :: NumOfPermanentMagnets                !< Total number of permanent magnets
-INTEGER, ALLOCATABLE    :: MagnetFlag(:,:,:,:)                  !< Number of the magnet that occupies the point, otherwise zero
-                                                                !< [0:PP_N,0:PP_N,0:PP_N,1:nElems]
+
+TYPE tPermanentMagnets
+  INTEGER, ALLOCATABLE    :: Flag(:,:,:)                  !< Number of the magnet that occupies the point, otherwise zero
+                                                               !< [0:Nloc,0:Nloc,0:Nloc]
+END TYPE tPermanentMagnets
+
+TYPE(tPermanentMagnets),ALLOCATABLE  :: PermanentMagnets(:)
 
 TYPE tPermanentMagnetInfo
   CHARACTER(LEN=255)    :: Type                                 !< Cuboid, sphere, cylinder, conic

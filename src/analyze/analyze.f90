@@ -26,21 +26,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 !===================================================================================================================================
-
-! GLOBAL VARIABLES
-INTERFACE InitAnalyze
-  MODULE PROCEDURE InitAnalyze
-END INTERFACE
-
-INTERFACE FinalizeAnalyze
-  MODULE PROCEDURE FinalizeAnalyze
-END INTERFACE
-
-INTERFACE PerformAnalyze
-  MODULE PROCEDURE PerformAnalyze
-END INTERFACE
-
-!===================================================================================================================================
 PUBLIC:: DefineParametersAnalyze
 PUBLIC:: InitAnalyze, FinalizeAnalyze, PerformAnalyze
 !===================================================================================================================================
@@ -132,33 +117,37 @@ SUBROUTINE InitAnalyze()
 USE MOD_Globals
 USE MOD_Preproc
 #if PP_nVar>=6
-USE MOD_AnalyzeField          ,ONLY: GetPoyntingIntPlane
+USE MOD_AnalyzeField_Poynting ,ONLY: GetPoyntingIntPlane
 USE MOD_Analyze_Vars          ,ONLY: CalcPoyntingInt
 #endif /*PP_nVar>=6*/
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeInitIsDone,Analyze_dt,DoCalcErrorNorms,OutputErrorNormsToH5
-USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell,OutputTimeFixed,FieldAnalyzeStep
+USE MOD_Analyze_Vars          ,ONLY: OutputTimeFixed,FieldAnalyzeStep
 USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
 USE MOD_Analyze_Vars          ,ONLY: nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
 USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone,Uex,NAnalyze
-USE MOD_IO_HDF5               ,ONLY: AddToElemData,ElementOut
+USE MOD_IO_HDF5               ,ONLY: AddToElemData
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
 USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
 #if !(USE_FV)
+USE MOD_IO_HDF5               ,ONLY: ElementOut
+USE MOD_Analyze_Vars          ,ONLY: CalcPointsPerWavelength,PPWCell
 USE MOD_Equation_vars         ,ONLY: Wavelength
-#endif /*(!USE_FV)*/
 USE MOD_Particle_Mesh_Vars    ,ONLY: ElemCharLength_Shared
 #if USE_MPI && defined(PARTICLES)
 USE MOD_Mesh_Vars             ,ONLY: offSetElem
 #endif /*USE_MPI && defined(PARTICLES)*/
+#endif /*(!USE_FV)*/
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
 #if USE_HDG
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential,PosAverageElectricPotential,CalcElectricTimeDerivative
-USE MOD_AnalyzeField          ,ONLY: GetAverageElectricPotentialPlane
+USE MOD_AnalyzeField_HDG      ,ONLY: GetAverageElectricPotentialPlane
 #ifdef PARTICLES
 USE MOD_PICInterpolation_Vars ,ONLY: useAlgebraicExternalField,AlgebraicExternalField
 #endif /*PARTICLES*/
@@ -188,7 +177,12 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT ANALYZE...'
 
 ! Get logical for calculating the error norms L2 and LInf
+#if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
+DoCalcErrorNorms = .FALSE.
+CALL PrintOption('DSMC, BGK or FP detected, Setting DoCalcErrorNorms','INFO',LogOpt=DoCalcErrorNorms)
+#else
 DoCalcErrorNorms = GETLOGICAL('DoCalcErrorNorms')
+#endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 IF(DoCalcErrorNorms)THEN
   ! Get logical for writing the analytical solution, the error norms L2 and LInf to .h5
@@ -222,7 +216,9 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed')
   doCalcTimeAverage = .FALSE.
 #endif
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 IF(doCalcTimeAverage)  CALL InitTimeAverage()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 FieldAnalyzeStep  = GETINT('Field-AnalyzeStep')
 DoFieldAnalyze    = .FALSE.
@@ -341,17 +337,17 @@ SUBROUTINE CalcError(L_2_Error,L_Inf_Error)
 SUBROUTINE CalcError(time,L_2_Error,L_Inf_Error)
 #endif
 !===================================================================================================================================
-! Calculates L_infinfity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
+! Calculates L_infinity and L_2 norms of state variables using the Analyze Framework (GL points+weights)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_DG_Vars            ,ONLY: U
+USE MOD_DG_Vars            ,ONLY: U_N,N_DG_Mapping
 USE MOD_Equation           ,ONLY: ExactFunc
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze,Uex
-USE MOD_Mesh_Vars          ,ONLY: Elem_xGP,sJ
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze,Uex
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 ! IMPLICIT VARIABLE HANDLING
@@ -367,25 +363,24 @@ REAL,INTENT(OUT)              :: L_2_Error(PP_nVar)   !< L2 error of the solutio
 REAL,INTENT(OUT)              :: L_Inf_Error(PP_nVar) !< LInf error of the solution
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,k,l,m
+INTEGER                       :: iElem,k,l,m,Nloc
 REAL                          :: U_exact(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: U_NAnalyze(1:PP_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: Coords_NAnalyze(3,0:NAnalyze,0:NAnalyze,0:NAnalyze)
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: IntegrationWeight
 !===================================================================================================================================
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! Interpolate the physical position Elem_xGP to the analyze position, needed for exact function
-  CALL ChangeBasis3D(3,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,Elem_xGP(1:3,:,:,:,iElem),Coords_NAnalyze(1:3,:,:,:))
+  CALL ChangeBasis3D(3,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,N_VolMesh(iElem)%Elem_xGP(1:3,:,:,:),Coords_NAnalyze(1:3,:,:,:))
   ! Interpolate the Jacobian to the analyze grid: be careful we interpolate the inverse of the inverse of the jacobian ;-)
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
+  CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,1./N_VolMesh(iElem)%sJ(:,:,:),J_NAnalyze(1:1,:,:,:))
   ! Interpolate the solution to the analyze grid
-  CALL ChangeBasis3D(PP_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,U(1:PP_nVar,:,:,:,iElem),U_NAnalyze(1:PP_nVar,:,:,:))
+  CALL ChangeBasis3D(PP_nVar,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,U_N(iElem)%U(1:PP_nVar,:,:,:),U_NAnalyze(1:PP_nVar,:,:,:))
   DO m=0,NAnalyze
     DO l=0,NAnalyze
       DO k=0,NAnalyze
@@ -434,10 +429,11 @@ SUBROUTINE CalcErrorPartSource(PartSource_nVar,L_2_PartSource,L_Inf_PartSource)
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze,Vdm_GaussN_NAnalyze,wAnalyze
-USE MOD_Mesh_Vars          ,ONLY: sJ
-USE MOD_PICDepo_Vars       ,ONLY: PartSourceOld
+USE MOD_Interpolation_Vars ,ONLY: NAnalyze,N_InterAnalyze,wAnalyze
+USE MOD_Mesh_Vars          ,ONLY: N_VolMesh, offSetElem
+USE MOD_PICDepo_Vars       ,ONLY: PS_N
 USE MOD_Particle_Mesh_Vars ,ONLY: MeshVolume
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -450,9 +446,8 @@ REAL,INTENT(OUT)              :: L_2_PartSource(PartSource_nVar)   !< L2 error o
 REAL,INTENT(OUT)              :: L_Inf_PartSource(PartSource_nVar) !< LInf error of the source
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iElem,k,l,m
+INTEGER                       :: iElem,k,l,m,Nloc
 REAL                          :: J_NAnalyze(1,0:NAnalyze,0:NAnalyze,0:NAnalyze)
-REAL                          :: J_N(1,0:PP_N,0:PP_N,0:PP_N)
 REAL                          :: IntegrationWeight
 
 REAL                          :: PartSource_NAnalyze1(1:PartSource_nVar,0:NAnalyze,0:NAnalyze,0:NAnalyze)
@@ -464,14 +459,14 @@ L_Inf_PartSource(:)=-1.E10
 L_2_PartSource(:)=0.
 ! Interpolate values of Error-Grid from GP's
 DO iElem=1,PP_nElems
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
   ! Interpolate the Jacobian to the analyze grid: be carefull we interpolate the inverse of the inverse of the jacobian ;-)
-  J_N(1,0:PP_N,0:PP_N,0:PP_N)=1./sJ(:,:,:,iElem)
-  CALL ChangeBasis3D(1,PP_N,NAnalyze,Vdm_GaussN_NAnalyze,J_N(1:1,0:PP_N,0:PP_N,0:PP_N),J_NAnalyze(1:1,:,:,:))
-  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
-      ,PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem),PartSource_NAnalyze1(1:PartSource_nVar,:,:,:))
-  CALL ChangeBasis3D(PartSource_nVar,PP_N,NAnalyze,Vdm_GaussN_NAnalyze &
-      ,PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem),PartSource_NAnalyze2(1:PartSource_nVar,:,:,:))
-  PartSourceOld(1:PartSource_nVar,2,:,:,:,iElem)=PartSourceOld(1:PartSource_nVar,1,:,:,:,iElem)
+  CALL ChangeBasis3D(1,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze,1./N_VolMesh(iElem)%sJ(:,:,:),J_NAnalyze(1:1,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze &
+      ,PS_N(iElem)%PartSourceOld(1:PartSource_nVar,1,:,:,:),PartSource_NAnalyze1(1:PartSource_nVar,:,:,:))
+  CALL ChangeBasis3D(PartSource_nVar,Nloc,NAnalyze,N_InterAnalyze(Nloc)%Vdm_GaussN_NAnalyze &
+      ,PS_N(iElem)%PartSourceOld(1:PartSource_nVar,2,:,:,:),PartSource_NAnalyze2(1:PartSource_nVar,:,:,:))
+  PS_N(iElem)%PartSourceOld(1:PartSource_nVar,2,:,:,:) = PS_N(iElem)%PartSourceOld(1:PartSource_nVar,1,:,:,:)
   DO m=0,NAnalyze
     DO l=0,NAnalyze
       DO k=0,NAnalyze
@@ -508,16 +503,18 @@ SUBROUTINE FinalizeAnalyze()
 ! MODULES
 USE MOD_Globals
 #if PP_nVar>=6
-USE MOD_Analyze_Vars       ,ONLY: CalcPoyntingInt
-USE MOD_AnalyzeField       ,ONLY: FinalizePoyntingInt
+USE MOD_Analyze_Vars         ,ONLY: CalcPoyntingInt
+USE MOD_AnalyzeField_Poynting,ONLY: FinalizePoyntingInt
 #endif /*PP_nVar>=6*/
-USE MOD_Analyze_Vars       ,ONLY: PPWCell,AnalyzeInitIsDone
-USE MOD_TimeAverage_Vars   ,ONLY: doCalcTimeAverage
-USE MOD_TimeAverage        ,ONLY: FinalizeTimeAverage
+USE MOD_Analyze_Vars         ,ONLY: PPWCell,AnalyzeInitIsDone
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+USE MOD_TimeAverage_Vars     ,ONLY: doCalcTimeAverage
+USE MOD_TimeAverage          ,ONLY: FinalizeTimeAverage
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #if USE_HDG
-USE MOD_Analyze_Vars       ,ONLY: CalcAverageElectricPotential,EDC
-USE MOD_AnalyzeField       ,ONLY: FinalizeAverageElectricPotential
-USE MOD_Analyze_Vars       ,ONLY: CalcElectricTimeDerivative
+USE MOD_Analyze_Vars         ,ONLY: CalcAverageElectricPotential,EDC
+USE MOD_AnalyzeField_HDG     ,ONLY: FinalizeAverageElectricPotential
+USE MOD_Analyze_Vars         ,ONLY: CalcElectricTimeDerivative
 #endif /*USE_HDG*/
 USE MOD_Interpolation_Vars ,ONLY: UEx
 ! IMPLICIT VARIABLE HANDLINGDG
@@ -548,7 +545,9 @@ IF(CalcElectricTimeDerivative)THEN
 #endif /*USE_MPI*/
 END IF ! CalcElectricTimeDerivative
 #endif /*USE_HDG*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 IF(doCalcTimeAverage) CALL FinalizeTimeAverage
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)) || (PP_TimeDiscMethod==700)*/
 SDEALLOCATE(PPWCell)
 SDEALLOCATE(UEx)
 AnalyzeInitIsDone = .FALSE.
@@ -587,7 +586,7 @@ USE MOD_Analyze_Vars              ,ONLY: DoCalcErrorNorms,OutputErrorNorms,Field
 USE MOD_Analyze_Vars              ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTime
 USE MOD_Restart_Vars              ,ONLY: DoRestart
 USE MOD_TimeDisc_Vars             ,ONLY: iter
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 USE MOD_RecordPoints              ,ONLY: RecordPoints
 #endif
 USE MOD_LoadDistribution          ,ONLY: WriteElemTimeStatistics
@@ -597,6 +596,7 @@ USE MOD_AnalyzeField              ,ONLY: AnalyzeField
 USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 #endif
 #ifdef PARTICLES
+USE MOD_Analyze_Vars              ,ONLY: OutputErrorNormsPart
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
 USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
@@ -627,11 +627,12 @@ USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
-USE MOD_AnalyzeField              ,ONLY: CalcPoyntingIntegral
+USE MOD_AnalyzeField_Poynting     ,ONLY: CalcPoyntingIntegral
 #endif /*PP_nVar>=6*/
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 USE MOD_RecordPoints_Vars         ,ONLY: RP_onProc
-#endif /*defined(LSERK) ||  defined(IMPA) || defined(ROS) || USE_HDG*/
+#endif /*defined(LSERK) || USE_HDG || defined(discrete_velocity)*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers        ,ONLY: LBStartTime,LBPauseTime
 #endif /*USE_LOADBALANCE*/
@@ -643,7 +644,9 @@ USE MOD_TimeDisc_Vars             ,ONLY: time
 USE MOD_Equation_Vars_FV          ,ONLY: WriteDVMSurfaceValues
 USE MOD_DVM_Boundary_Analyze      ,ONLY: WriteDVMSurfToHDF5
 #else
+#if defined(LSERK) || USE_HDG
 USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
+#endif /*defined(LSERK) || USE_HDG*/
 #endif /*discrete_velocity*/
 #if (USE_FV)
 USE MOD_Analyze_FV                ,ONLY: CalcError_FV
@@ -675,6 +678,11 @@ REAL                          :: RECR
 LOGICAL                       :: LastIter
 REAL                          :: L_2_Error(PP_nVar)
 REAL                          :: L_Inf_Error(PP_nVar)
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
+#if USE_LOADBALANCE
+REAL                          :: tLBStart ! load balance
+#endif /*USE_LOADBALANCE*/
+#endif /* LSERK || USE_HDG || defined(discrete_velocity)*/
 #if USE_FV
 #ifdef discrete_velocity
 REAL                          :: L_2_Error_FV(14)
@@ -684,11 +692,6 @@ REAL                          :: L_2_Error_FV(PP_nVar_FV)
 REAL                          :: L_Inf_Error_FV(PP_nVar_FV)
 #endif /*discrete_velocity*/
 #endif /*FV*/
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
-#if USE_LOADBALANCE
-REAL                          :: tLBStart ! load balance
-#endif /*USE_LOADBALANCE*/
-#endif /* LSERK && IMPA && ROS && USE_HDG*/
 REAL                          :: StartAnalyzeTime,EndAnalyzeTime
 CHARACTER(LEN=40)             :: formatStr
 LOGICAL                       :: DoPerformFieldAnalyze
@@ -827,6 +830,9 @@ IF(DoCalcErrorNorms) THEN
 #endif /*PARTICLES*/
   END IF
 END IF
+#if defined(PARTICLES)
+IF(DoPerformErrorCalc) OutputErrorNormsPart = .TRUE.
+#endif /*defined(PARTICLES)*/
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! DVM Surface analyze
@@ -838,7 +844,7 @@ END IF
 #endif /*discrete_velocity*/
 
 ! the following analysis are restricted to Runge-Kutta based time-discs and temporal varying electrodynamic fields
-#if defined(LSERK) || defined(IMPA) || defined(ROS) || USE_HDG || defined(discrete_velocity)
+#if defined(LSERK) || USE_HDG || defined(discrete_velocity)
 
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
@@ -874,7 +880,7 @@ IF(RP_onProc) THEN
 END IF
 
 ! end the analyzes for all Runge-Kutta based time-discs
-#endif /* LSERK && IMPA && ROS && USE_HDG*/
+#endif /* LSERK || USE_HDG || defined(discrete_velocity)*/
 
 
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -1095,7 +1101,9 @@ REAL,INTENT(IN)     :: Time
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if USE_MPI
 REAL                :: rDummy
+#endif /*USE_MPI*/
 LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
@@ -1206,7 +1214,7 @@ USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Mesh_Vars        ,ONLY: nBCs,BoundaryType
 USE MOD_Analyze_Vars     ,ONLY: DoFieldAnalyze,CalcElectricTimeDerivative,EDC
-USE MOD_Equation_Vars    ,ONLY: Et
+!USE MOD_Equation_Vars    ,ONLY: Et
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -1227,8 +1235,8 @@ INTEGER             :: SideID,color
 IF(.NOT.CalcElectricTimeDerivative) RETURN ! Read-in parameter that is set in  InitAnalyze() in analyze.f90
 
 ! Allocate temporal derivative for E: No need to nullify as is it overwritten with E the first time it is used
-ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
-Et = 0.
+!ALLOCATE(Et(1:3,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
+!Et = 0.
 
 ! 1.) Loop over all field BCs and check if the current processor is either the MPI root or has at least one of the BCs that
 ! contribute to the total electric displacement current. If yes, then this processor is part of the communicator

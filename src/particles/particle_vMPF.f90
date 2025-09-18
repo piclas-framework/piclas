@@ -40,9 +40,10 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SplitAndMerge()
 ! MODULES
-USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM
+USE MOD_PARTICLE_Vars         ,ONLY: vMPFMergeThreshold, vMPFSplitThreshold, PEM, nSpecies, PartSpecies,PDM, vMPFSplitAndMergeStep
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_part_tools            ,ONLY: UpdateNextFreePosition
+USE MOD_TimeDisc_Vars         ,ONLY: iter
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers    ,ONLY: LBStartTime, LBElemSplitTime
 #endif /*USE_LOADBALANCE*/
@@ -60,6 +61,9 @@ INTEGER, ALLOCATABLE  :: iPartIndx_Node(:,:), nPart(:)
 REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
+
+IF(MOD(iter,vMPFSplitAndMergeStep).NE.0) RETURN
+
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -137,10 +141,14 @@ USE MOD_Particle_Vars         ,ONLY: PartState, PDM, PartMPF, PartSpecies, Speci
 USE MOD_part_tools            ,ONLY: GetParticleWeight
 USE MOD_DSMC_Vars             ,ONLY: PartStateIntEn, CollisMode, SpecDSMC, DSMC, PolyatomMolDSMC, VibQuantsPar
 USE MOD_Particle_Analyze_Tools,ONLY: CalcTelec, CalcTVibPoly
+USE MOD_Particle_Analyze_Vars ,ONLY: CalcEnergyScalingRatioVMPF,EnergyScalingRatioVMPF
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: LOG_RAN
 #ifdef CODE_ANALYZE
-USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
+#if USE_MPI
+USE MOD_Globals               ,ONLY: myrank
+#endif /*USE_MPI*/
+USE MOD_Globals               ,ONLY: unit_stdout,abort
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING
@@ -474,6 +482,11 @@ END IF
 #ifdef CODE_ANALYZE
 Energy_new = CellEvib_vMPF(iSpec, iElem) + CellEelec_vMPF(iSpec, iElem)
 #endif /* CODE_ANALYZE */
+
+IF(CalcEnergyScalingRatioVMPF) THEN
+  EnergyScalingRatioVMPF(1,iSpec) = EnergyScalingRatioVMPF(1,iSpec) + alpha
+  EnergyScalingRatioVMPF(2,iSpec) = EnergyScalingRatioVMPF(2,iSpec) + 1.
+END IF
 
 DO iLoop = 1, nPartNew
   iPart = iPartIndx_Node(iLoop)
