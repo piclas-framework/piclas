@@ -409,6 +409,10 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 ! -10: KSP_DIVERGED_INDEFINITE_MAT
 ! -11: KSP_DIVERGED_PC_FAILED      -> It was not possible to build or use the requested preconditioner
 ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
+
+#if ((PETSC_VERSION_MAJOR >= 3) && (PETSC_VERSION_MINOR > 22)) || (PETSC_VERSION_MAJOR >= 4)
+! PETSc 3.26.0 requires special TYPE() for variable "reason", which cannot be compared with Fortran INT
+! PETSc 3.26.3 requires special TYPE() for variable "reason", which cannot be compared with Fortran INT
 IF(reason.EQ.KSP_CONVERGED_RTOL_NORMAL               .OR.&
    reason.EQ.KSP_CONVERGED_ATOL_NORMAL               .OR.&
    reason.EQ.KSP_CONVERGED_RTOL                      .OR.&
@@ -419,6 +423,9 @@ IF(reason.EQ.KSP_CONVERGED_RTOL_NORMAL               .OR.&
    reason.EQ.KSP_CONVERGED_CG_CONSTRAINED_DEPRECATED .OR.&
    reason.EQ.KSP_CONVERGED_STEP_LENGTH               .OR.&
    reason.EQ.KSP_CONVERGED_HAPPY_BREAKDOWN) THEN
+#else
+IF(reason.LT.0)THEN
+#endif
   ! Output used memory
   CALL WarningMemusage(Mode=1,Threshold=5.0)
   !  View solver converged reason
@@ -438,7 +445,7 @@ END IF
 ! Get the local DOF subarray
 PetscCallA(VecScatterBegin(PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
 PetscCallA(VecScatterEnd(  PETScScatter, PETScSolution, PETScSolutionLocal, INSERT_VALUES, SCATTER_FORWARD,ierr))
-PetscCallA(VecGetArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
+PetscCallA(VecGetArrayRead(PETScSolutionLocal,lambda_pointer,ierr))
 DOF_stop = 0
 DO SideID=1,nSides
   IF(MaskedSide(SideID).GT.0) CYCLE
@@ -480,7 +487,7 @@ IF(UseFPC) THEN
   END IF ! MPIRoot
 END IF ! UseFPC
 
-PetscCallA(VecRestoreArrayReadF90(PETScSolutionLocal,lambda_pointer,ierr))
+PetscCallA(VecRestoreArrayRead(PETScSolutionLocal,lambda_pointer,ierr))
 #else
   ! HDGLinear
   CALL CG_solver(iVar)

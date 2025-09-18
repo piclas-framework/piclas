@@ -67,26 +67,43 @@ do
     # GCC
     #USECOMPILERVERSION=13.1.0
     #USECOMPILERVERSION=13.2.0
-    # USECOMPILERVERSION=14.2.0
-    USECOMPILERVERSION=15.2.0
+    USECOMPILERVERSION=14.2.0
+    # USECOMPILERVERSION=15.2.0
 
     # OpenMPI
-    MPINAMES='openmpi'
-    #USEMPIVERSION=4.1.5
-    #USEMPIVERSION=4.1.6
-    #USEMPIVERSION=5.0.6
-    USEMPIVERSION=5.0.8
+    #OPENMPIVERSION=4.1.5
+    #OPENMPIVERSION=4.1.6
+    #OPENMPIVERSION=5.0.6
+    OPENMPIVERSION=5.0.8
 
     # MPICH
-    # MPINAMES='mpich'
-    #USEMPIVERSION=4.1.2
-    # USEMPIVERSION=4.3.1
+    # MPICHVERSION=4.1.2
+    # MPICHVERSION=4.2.1
+    MPICHVERSION=4.3.1
 
     # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
     # This will use the older ch3:sock channel that does not busy poll.
     # This channel will be slower for intra-node communication, but it will perform much better in the oversubscription scenario.
-    #MPINAMES='mpich-debug'
-    #USEMPIVERSION=4.1.2
+    #MPICHVERSION=4.1.2
+
+    # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
+    if [[ -n ${MPICHVERSION} ]]; then
+      # Set mpich or mpich-debug
+      # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
+      # This will use the older ch3:sock channel that does not busy poll.
+      # This channel will be slower for intra-node communication, but it will perform much better in the oversubscription scenario.
+      MPINAMES='mpich'
+      #MPINAMES='mpich-debug'
+      USEMPIVERSION=${MPICHVERSION}
+    else
+      if [[ -z ${OPENMPIVERSION} ]]; then
+        echo "${RED}ERROR: Set either OPENMPIVERSION or MPICHVERSION in InstallPETSc.sh when running with '-m'${NC}. Exit."
+        exit
+      else
+        USEMPIVERSION=${OPENMPIVERSION}
+        MPINAMES='openmpi'
+      fi
+    fi
 
     # Force --rerun via 'set'
     echo ""
