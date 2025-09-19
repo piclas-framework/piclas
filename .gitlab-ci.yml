@@ -1446,18 +1446,11 @@ reggie_code_coverage:
     - echo "Generating combined coverage report..."
     - mkdir -p Coverage/cobertura
     # combine coverage reports of all builds and runs
-    - ls -la
-    - ls -la build* || echo "not found"
-    - ls -la Coverage || echo "not found"
-    - echo "${CI_PROJECT_NAMESPACE}, ${CI_PROJECT_NAME}"
-    - echo "${PWD}"
-    - echo "${PWD}/src"
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
-    - ls -la Coverage/cobertura || echo "not found"
     # split coverage.xml file into smaller files since gitlab has a limit of 10MB per file, but seems to have no limit for number of files
     # - python tools/Coverage/split-xml-by-package.py Coverage/cobertura/coverage.xml Coverage/cobertura
   # regex expression the retrieve coverage percentage
-  coverage: '/lines:\s+(\d+(\.\d+)?)%/'
+  coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
   artifacts:
     paths:
       - Coverage
