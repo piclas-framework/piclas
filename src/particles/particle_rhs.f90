@@ -900,14 +900,11 @@ IF(BGGas%NumberOfSpecies.GT.0) THEN
       m_g     =>  Species(SpecID)%MassIC ,&
       tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
       e_rot   =>  BGGValueForGranularSpec(4,iLoop) ,&
-      Lambda  =>  SpecDSMC(SpecID)%Xi_Rot &
-      )
-      Force = Force + c_r * W_g * (PI * R_p * R_p) / ElemVolume &
-                    * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
-                    * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
-
-      Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / ElemVolume &
-      * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
+      Lambda  =>  SpecDSMC(SpecID)%Xi_Rot)
+      ! Force contribution
+      Force(1:3) = Force(1:3) + CalcForceToSolidParticle(c_r,W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume)
+      ! Energy contribution
+      Energy = Energy + CalcEnergyToSolidParticle(W_g,R_p,m_g,c_r_abs,tau_g,e_rot,Lambda,T_p,ElemVolume)
     END ASSOCIATE
   END DO
 ELSE
@@ -925,21 +922,18 @@ ELSE
         m_g     =>  Species(SpecID)%MassIC ,&
         tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
         e_rot   =>  PartStateIntEn( 2,locPart) ,&
-        Lambda  =>  SpecDSMC(SpecID)%Xi_Rot &
-        )
-        Force = Force + c_r * W_g * (PI * R_p * R_p) / ElemVolume &
-                      * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
-                      * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
-
-        Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / ElemVolume &
-        * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
+        Lambda  =>  SpecDSMC(SpecID)%Xi_Rot)
+        ! Force contribution
+        Force(1:3) = Force(1:3) + CalcForceToSolidParticle(c_r,W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume)
+        ! Energy contribution
+        Energy = Energy + CalcEnergyToSolidParticle(W_g,R_p,m_g,c_r_abs,tau_g,e_rot,Lambda,T_p,ElemVolume)
       END ASSOCIATE
     END IF
     locPart = PEM%pNext(locPart)
   END DO
 END IF ! BGG Distribution
 
-Pt(:) = Pt(:) + Force(:) / Species(SpecIDSolid)%MassIC
+Pt(1:3) = Pt(1:3) + Force(1:3) / Species(SpecIDSolid)%MassIC
 IF(.NOT.SkipGranularUpdate) THEN
   PartStateIntEn( 1,iPart) = PartStateIntEn( 1,iPart) + Energy * dtVar &
                             / ( SpecDSMC(SpecIDSolid)%SpecificHeatSolid * Species(SpecIDSolid)%MassIC )
@@ -954,5 +948,48 @@ IF(CalcGranularDragHeat) THEN
 END IF
 
 END SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp
+
+!===============================================================================================================================
+!> Calculate the force contribution of a single particle to a solid particle
+!===============================================================================================================================
+PURE FUNCTION CalcForceToSolidParticle(c_r,W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume)
+! MODULES
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)      :: c_r(1:3),W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume
+!-------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                  :: CalcForceToSolidParticle(1:3)
+!===============================================================================================================================
+
+CalcForceToSolidParticle(1:3) = c_r(1:3) * W_g * (PI * R_p * R_p) / ElemVolume * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
+                                * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
+
+END FUNCTION CalcForceToSolidParticle
+
+!===============================================================================================================================
+!> Calculate the energy contribution of a single particle to a solid particle
+!===============================================================================================================================
+PURE FUNCTION CalcEnergyToSolidParticle(W_g,R_p,m_g,c_r_abs,tau_g,e_rot,Lambda,T_p,ElemVolume)
+! MODULES
+USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)      :: W_g,R_p,m_g,c_r_abs,tau_g,e_rot,T_p,ElemVolume
+INTEGER, INTENT(IN)   :: Lambda
+!-------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                  :: CalcEnergyToSolidParticle
+!===============================================================================================================================
+
+CalcEnergyToSolidParticle = W_g * (PI * R_p * R_p) * tau_g * c_r_abs / ElemVolume &
+                            * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
+
+END FUNCTION CalcEnergyToSolidParticle
 
 END MODULE MOD_part_RHS
