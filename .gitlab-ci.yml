@@ -1440,27 +1440,30 @@ WEK_DVM:
 reggie_code_coverage:
   extends: .defaults
   needs: []
-  # code coverage for all reggies - needs all build jobs and all test jobs
   stage: reggie_code_coverage
   script:
     - echo "Generating combined coverage report..."
-    - mkdir -p Coverage/cobertura
-    # combine coverage reports of all builds and runs
+    - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
+    # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
+    - if [ -d "Coverage/html" ]; then
+        rm -f Coverage/html/*.html || true ;
+      else
+        mkdir Coverage/html ;
+      fi
+    # combine coverage reports of all builds and runs in xml file for displaying coverage in mr diff view
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
-    # split coverage.xml file into smaller files since gitlab has a limit of 10MB per file, but seems to have no limit for number of files
-    # - python tools/Coverage/split-xml-by-package.py Coverage/cobertura/coverage.xml Coverage/cobertura
+    # also in html format to check whole codebase by hand in easier to read format
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
   # regex expression the retrieve coverage percentage
   coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
   artifacts:
     paths:
-      - Coverage
+      - Coverage/html/*.html
       - Coverage/cobertura/*.xml
     expire_in: 1 week
     reports:
       coverage_report:
         coverage_format: cobertura
-        # use smaller files for gitlab artifacts
-        # path: Coverage/cobertura/cobertura*.xml
         path: Coverage/cobertura/*.xml
   rules:
     # //TODO: remove checkin and push after testing
