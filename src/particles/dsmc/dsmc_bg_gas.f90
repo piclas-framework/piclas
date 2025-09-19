@@ -1045,7 +1045,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVarHDF5  = INT(HSize(1),4)
-IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of variables in DSMCState must equal 10!')
+IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of variables in DSMCState is below 10. Something is wrong with the input file!')
 
 nElems_HDF5 = INT(HSize(2),4)
 IF(nElems_HDF5.NE.nGlobalElems) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of global elements does not match number of elements in .h5 file')

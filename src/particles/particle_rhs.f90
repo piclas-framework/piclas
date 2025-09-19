@@ -32,10 +32,6 @@ INTERFACE PartRHS
   PROCEDURE PartRHS
 END INTERFACE
 
-INTERFACE PushGranularSpecies
-  PROCEDURE PushGranularSpecies
-END INTERFACE
-
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalcPartRHS
 PUBLIC :: PartVeloToGammaVelo, GammaVeloToPartVelo
@@ -756,8 +752,6 @@ USE MOD_TimeDisc_Vars           ,ONLY: dt
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-!INTEGER, INTENT(IN)           :: 
-!REAL, INTENT(IN)              :: 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -766,47 +760,47 @@ INTEGER                     :: iElem, iLoop, iPart, nPart, BGGSpecID, CNElemID
 LOGICAL                     :: GranularSpecInside
 REAL                        :: ElemVolume, dtVar
 !===================================================================================================================================
-  DO iElem = 1, nElems ! element/cell main loop
-    ! check: at least one granular particle is within the cell
-    iPart = PEM%pStart(iElem)
-    nPart = PEM%pNumber(iElem)
-    DO iLoop = 1, nPart
-      IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-        GranularSpecInside = .TRUE.
-        EXIT
-      END IF
-      iPart = PEM%pNext(iPart)
-    END DO
-    IF(.NOT.GranularSpecInside) CYCLE  ! no granular particle within the cell
-    IF(BGGas%NumberOfSpecies.GT.0) THEN
-      BGGSpecID = BGGas%MapBGSpecToSpec(1) !  bggSpec==1, currently only 1 BGG Spec is allowed with Granular flow
-      BGGValueForGranularSpec = 0.0   ! reset virtuell DSMC particle array
-      CNElemID = GetCNElemID(iElem+offSetElem)
-      ElemVolume = ElemVolume_Shared(CNElemID)
-      IF(BGGas%Distribution(1,7,iElem).GT.0.) THEN ! skip empty cells
-        BGGValueForGranularSpec(5,1:100) = BGGas%Distribution(1,7,iElem) * ElemVolume / 100.  ! W_g
-        DO iPart = 1,100  
-          BGGValueForGranularSpec(1:3,iPart) = CalcVelocity_maxwell_particle(BGGSpecID,BGGas%Distribution(1,4:6,iElem)) &  ! velo
-                                            + BGGas%Distribution(1,1:3,iElem)
-          BGGValueForGranularSpec(4,iPart) = CalcERot_particle(BGGSpecID,BGGas%Distribution(1,9,iElem),iPart)  ! e_rot
-        END DO
-      END IF
+DO iElem = 1, nElems ! element/cell main loop
+  ! check: at least one granular particle is within the cell
+  iPart = PEM%pStart(iElem)
+  nPart = PEM%pNumber(iElem)
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      GranularSpecInside = .TRUE.
+      EXIT
     END IF
-    iPart = PEM%pStart(iElem)
-    nPart = PEM%pNumber(iElem)
-    DO iLoop = 1, nPart
-      IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
-        IF (UseVarTimeStep) THEN
-          dtVar = dt * PartTimeStep(iPart)
-        ELSE
-          dtVar = dt
-        END IF
-        IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
-        CALL CalcPosAndVeloForGranularSpecies(iPart,dtVar)    
+    iPart = PEM%pNext(iPart)
+  END DO
+  IF(.NOT.GranularSpecInside) CYCLE  ! no granular particle within the cell
+  IF(BGGas%NumberOfSpecies.GT.0) THEN
+    BGGSpecID = BGGas%MapBGSpecToSpec(1) !  bggSpec==1, currently only 1 BGG Spec is allowed with Granular flow
+    BGGValueForGranularSpec = 0.0   ! reset virtual DSMC particle array
+    CNElemID = GetCNElemID(iElem+offSetElem)
+    ElemVolume = ElemVolume_Shared(CNElemID)
+    IF(BGGas%Distribution(1,7,iElem).GT.0.) THEN ! skip empty cells
+      BGGValueForGranularSpec(5,1:100) = BGGas%Distribution(1,7,iElem) * ElemVolume / 100.  ! W_g
+      DO iPart = 1,100
+        BGGValueForGranularSpec(1:3,iPart) = CalcVelocity_maxwell_particle(BGGSpecID,BGGas%Distribution(1,4:6,iElem)) &  ! velo
+                                          + BGGas%Distribution(1,1:3,iElem)
+        BGGValueForGranularSpec(4,iPart) = CalcERot_particle(BGGSpecID,BGGas%Distribution(1,9,iElem),iPart)  ! e_rot
+      END DO
+    END IF
+  END IF
+  iPart = PEM%pStart(iElem)
+  nPart = PEM%pNumber(iElem)
+  DO iLoop = 1, nPart
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) THEN
+      IF (UseVarTimeStep) THEN
+        dtVar = dt * PartTimeStep(iPart)
+      ELSE
+        dtVar = dt
       END IF
-      iPart = PEM%pNext(iPart)
-    END DO
-  END DO ! iElem Loop
+      IF(VarTimeStep%UseSpeciesSpecific) dtVar = dtVar * Species(PartSpecies(iPart))%TimeStepFactor
+      CALL CalcPosAndVeloForGranularSpecies(iPart,dtVar)
+    END IF
+    iPart = PEM%pNext(iPart)
+  END DO
+END DO ! iElem Loop
 
 END SUBROUTINE PushGranularSpecies
 
@@ -936,7 +930,7 @@ ELSE
         Force = Force + c_r * W_g * (PI * R_p * R_p) / ElemVolume &
                       * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
                       * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
-  
+
         Energy = Energy + W_g * (PI * R_p * R_p) * tau_g * c_r_abs / ElemVolume &
         * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
       END ASSOCIATE

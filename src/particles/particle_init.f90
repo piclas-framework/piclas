@@ -209,7 +209,6 @@ CALL prms%CreateLogicalOption(  'UseGravitation' ,'Flag for taking Earths gravit
 CALL prms%CreateRealArrayOption('DirectionOfGravity','Vector points in the direction of gravity force', no=3)
 CALL prms%CreateLogicalOption(  'SkipGranularUpdate' ,'Flag to skip granular species position, velocity and temperature update,'//&
                                 'used only for benchmark test case.', '.FALSE.')
-CALL prms%CreateLogicalOption(  'UseStateBackgroundDistribution' ,'Flag for using a background distribution given by the state file','.FALSE.')
 
 CALL DefineParametersParticleWeighting()
 

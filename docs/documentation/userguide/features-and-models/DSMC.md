@@ -534,7 +534,7 @@ To output the average force and heat acting on the particle, use:
 
     CalcGranularDragHeat = T
 
-The results are written to the `PartAnalyze.csv` file.
+The results are written to the `PartAnalyze.csv` file. Several examples are available as part of the nightly regression testing in e.g. `regressioncheck/NIG_DSMC/GranularFlow_BallisticMotion`.
 
 ## Additional Features
 ### Deletion of Chemistry Products
