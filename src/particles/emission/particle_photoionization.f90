@@ -83,7 +83,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 REAL                  :: t_1, t_2, E_Intensity,vec(3)
-INTEGER               :: NbrOfRepetitions, SideID, iSample, GlobElemID, PartID, BCSideID, iLocSide, locElemID, iSurfSide, CNElemID
+INTEGER               :: NbrOfRepetitions, SideID, GlobElemID, PartID, BCSideID, iLocSide, locElemID, iSurfSide, CNElemID
 INTEGER               :: p, q, iPartBound, SpecID, iPart, NbrOfSEE, iSEEBC
 REAL                  :: RealNbrOfSEE, TimeScalingFactor, MPF
 REAL                  :: Particle_pos(1:3), xi(2)
@@ -100,14 +100,6 @@ REAL                  :: tLBStart
 IF(.NOT.UseRayTracing) RETURN
 ! 2) SEE yield for any BC greater than zero
 IF(.NOT.ANY(PartBound%PhotonSEEYield(:).GT.0.)) RETURN
-
-! TODO: Copied here from InitParticleMesh, which is only built if not TriaSurfaceFlux
-IF(UseBezierControlPoints)THEN
-  IF(.NOT.ALLOCATED(BezierSampleXi)) ALLOCATE(BezierSampleXi(0:Ray%nSurfSample))
-  DO iSample=0,Ray%nSurfSample
-    BezierSampleXi(iSample)=-1.+2.0/Ray%nSurfSample*iSample
-  END DO
-END IF
 
 ! Surf sides are shared, array calculation can be distributed
 !#if USE_MPI

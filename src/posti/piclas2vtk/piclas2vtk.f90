@@ -1749,6 +1749,7 @@ CALL OpenDataFile(InputStateFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,c
 SWRITE(UNIT_stdOut,'(A,A)')' GET NUMBER AND NAMES OF SURFACE-BCSIDES IN HDF5 FILE... '
 CALL GetDataSize(File_ID,'BC_Surf',nDims,HSize,attrib=.true.)
 nSurfBC_HDF5 = INT(HSize(1),4)
+DEALLOCATE(HSize)
 
 SWRITE(UNIT_stdOut,'(A3,A45,A3,I33,A13)')' | ','Number of Surface BCs',' | ',nSurfBC_HDF5,' | HDF5    | '
 ALLOCATE(SurfBCName_HDF5(nSurfBC_HDF5))
