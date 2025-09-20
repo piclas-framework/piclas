@@ -520,9 +520,9 @@ Granular particles interact with walls differently than classical DSMC particles
 
 This parameter is defined per boundary and must be between 0 and 1. A value of 1 means complete energy loss, causing the particle to come to rest upon wall impact, while a value of 0 represents an elastic collision with no energy loss. Note that the assumption of perfectly spherical particles with a constant diameter remains valid, even when energy is lost due to deformation.
 
-### Granular Species Interaction with Background Gas Flow
+### Granular Species Interaction with Background Gas Distribution
 
-It is also possible to define a background flow field with which the granular species interacts. In this way, the dynamics of granular particles in a rarefied gas flow can be simulated using the results of a preceding DSMC simulation. The definition of such a background gas flow is described in detail in Chapter {ref}`sec:background-gas`.
+It is also possible to define a background flow field with which the granular species interacts. In this way, the dynamics of granular particles in a rarefied gas flow can be simulated using the results of a preceding DSMC simulation. The definition of such a background gas distribution is described in detail in Chapter {ref}`sec:background-gas-distribution`. Here, properties of the gas species are generated from the distribution with a fixed sample size of 100, corresponding to 100 gas particles per element.
 
 ### Verification of One-Way Coupling
 

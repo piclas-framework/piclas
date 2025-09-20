@@ -761,6 +761,7 @@ LOGICAL                     :: GranularSpecInside
 REAL                        :: ElemVolume, dtVar
 !===================================================================================================================================
 DO iElem = 1, nElems ! element/cell main loop
+  GranularSpecInside = .FALSE.
   ! check: at least one granular particle is within the cell
   iPart = PEM%pStart(iElem)
   nPart = PEM%pNumber(iElem)
@@ -772,6 +773,7 @@ DO iElem = 1, nElems ! element/cell main loop
     iPart = PEM%pNext(iPart)
   END DO
   IF(.NOT.GranularSpecInside) CYCLE  ! no granular particle within the cell
+  ! generate sample of 100 gas particles from background gas distribution
   IF(BGGas%NumberOfSpecies.GT.0) THEN
     BGGSpecID = BGGas%MapBGSpecToSpec(1) !  bggSpec==1, currently only 1 BGG Spec is allowed with Granular flow
     BGGValueForGranularSpec = 0.0   ! reset virtual DSMC particle array
@@ -786,6 +788,7 @@ DO iElem = 1, nElems ! element/cell main loop
       END DO
     END IF
   END IF
+  ! Loop over solid particles within the element, calculate force and energy contributions and push/update solid particle
   iPart = PEM%pStart(iElem)
   nPart = PEM%pNumber(iElem)
   DO iLoop = 1, nPart
@@ -832,7 +835,7 @@ IF(UseGravitation) THEN
   Pt(:) = GravityDir(:) * GravityAccelerationEarth
 END IF
 ! 2.Fluid-particle interaction
-CALL CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
+CALL CalcFlowGranularInteraction(iPart,Pt,dtVar)
 LastPartPos(1:3,iPart)=PartState(1:3,iPart)
 PEM%LastGlobalElemID(iPart)=PEM%GlobalElemID(iPart)
 IF(.NOT.SkipGranularUpdate) THEN
@@ -848,12 +851,13 @@ END IF
 END SUBROUTINE CalcPosAndVeloForGranularSpecies
 
 
-SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp(iPart,Pt,dtVar)
+SUBROUTINE CalcFlowGranularInteraction(iPart,Pt,dtVar)
 !===================================================================================================================================
 ! Routine for the Calculation of Fluid-Particle Interaction and Bulk Temperature Update of the Granular Particle
 ! This routine calculates the fluid-particle momentum and energy transfer by iterating over all DSMC particles within the same cell
 ! as the granular particle. The individual momentum and energy contributions of each DSMC particle are computed
 ! and used to update the force on the granular particle and its bulk temperature.
+! For the background gas, values are directly generated from the background gas distribution.
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
@@ -876,8 +880,8 @@ REAL, INTENT(INOUT)           :: Pt(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                  :: ElemID, nPart, locPart, iLoop, SpecID, SpecIDSolid, CNElemID
-REAL                     :: Energy, c_r_abs, ElemVolume
-REAL                     :: c_r(3), Force(3)
+REAL                     :: Energy, VeloRelAbs, ElemVolume, ERotGas, WeightGas
+REAL                     :: RadiusSolid, TempSolid, VeloRel(3), Force(3)
 !===================================================================================================================================
 Force = 0.0
 Energy = 0.0
@@ -886,26 +890,22 @@ ElemID = PEM%LocalElemID(iPart)
 SpecIDSolid = PartSpecies(iPart)
 CNElemID = GetCNElemID(ElemID+offSetElem)
 ElemVolume = ElemVolume_Shared(CNElemID)
+RadiusSolid = SpecDSMC(SpecIDSolid)%dref / 2.0
+TempSolid   = PartStateIntEn( 1,iPart)
 
 IF(BGGas%NumberOfSpecies.GT.0) THEN
+  ! Loop over a fixed number of particles
   DO iLoop = 1, 100
     IF(BGGValueForGranularSpec(5,iLoop).LE.0.) CYCLE ! skip empty cells
     SpecID = BGGas%MapBGSpecToSpec(1)
-    c_r = BGGValueForGranularSpec(1:3,iLoop) - PartState(4:6,iPart)
-    c_r_abs = VECNORM(c_r)
-    ASSOCIATE(&
-      R_p     =>  SpecDSMC(SpecIDSolid)%dref / 2.0 ,&
-      T_p     =>  PartStateIntEn( 1,iPart),&
-      W_g     =>  BGGValueForGranularSpec(5,iLoop),&
-      m_g     =>  Species(SpecID)%MassIC ,&
-      tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
-      e_rot   =>  BGGValueForGranularSpec(4,iLoop) ,&
-      Lambda  =>  SpecDSMC(SpecID)%Xi_Rot)
-      ! Force contribution
-      Force(1:3) = Force(1:3) + CalcForceToSolidParticle(c_r,W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume)
-      ! Energy contribution
-      Energy = Energy + CalcEnergyToSolidParticle(W_g,R_p,m_g,c_r_abs,tau_g,e_rot,Lambda,T_p,ElemVolume)
-    END ASSOCIATE
+    WeightGas     = BGGValueForGranularSpec(5,iLoop)
+    VeloRel(1:3)  = BGGValueForGranularSpec(1:3,iLoop) - PartState(4:6,iPart)
+    VeloRelAbs    = VECNORM(VeloRel)
+    ERotGas       = BGGValueForGranularSpec(4,iLoop)
+    ! Force contribution
+    Force(1:3) = Force(1:3) + CalcForceToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,VeloRel)
+    ! Energy contribution
+    Energy = Energy + CalcEnergyToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,ERotGas)
   END DO
 ELSE
   nPart = PEM%pNumber(ElemID)
@@ -913,21 +913,14 @@ ELSE
   DO iLoop = 1, nPart
     SpecID = PartSpecies(locPart)
     IF(Species(SpecID)%InterID.NE.100) THEN
-      c_r = PartState(4:6,locPart) - PartState(4:6,iPart)
-      c_r_abs = VECNORM(c_r)
-      ASSOCIATE(&
-        R_p     =>  SpecDSMC(SpecIDSolid)%dref / 2.0 ,&
-        T_p     =>  PartStateIntEn( 1,iPart),&
-        W_g     =>  Species(SpecID)%MacroParticleFactor,&
-        m_g     =>  Species(SpecID)%MassIC ,&
-        tau_g   =>  SpecDSMC(SpecID)%ThermalACCGranularPart ,&
-        e_rot   =>  PartStateIntEn( 2,locPart) ,&
-        Lambda  =>  SpecDSMC(SpecID)%Xi_Rot)
-        ! Force contribution
-        Force(1:3) = Force(1:3) + CalcForceToSolidParticle(c_r,W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume)
-        ! Energy contribution
-        Energy = Energy + CalcEnergyToSolidParticle(W_g,R_p,m_g,c_r_abs,tau_g,e_rot,Lambda,T_p,ElemVolume)
-      END ASSOCIATE
+      WeightGas     = Species(SpecID)%MacroParticleFactor
+      VeloRel(1:3)  = PartState(4:6,locPart) - PartState(4:6,iPart)
+      VeloRelAbs    = VECNORM(VeloRel)
+      ERotGas       = PartStateIntEn( 2,locPart)
+      ! Force contribution
+      Force(1:3) = Force(1:3) + CalcForceToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,VeloRel)
+      ! Energy contribution
+      Energy = Energy + CalcEnergyToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,ERotGas)
     END IF
     locPart = PEM%pNext(locPart)
   END DO
@@ -947,48 +940,63 @@ IF(CalcGranularDragHeat) THEN
   ForceAverage(5) = ForceAverage(5) + Energy
 END IF
 
-END SUBROUTINE CalcFlowParticleInteractionAndNewPartTemp
+END SUBROUTINE CalcFlowGranularInteraction
 
 !===============================================================================================================================
-!> Calculate the force contribution of a single particle to a solid particle
+!> Calculate the force contribution of a single gas particle to a solid particle
 !===============================================================================================================================
-PURE FUNCTION CalcForceToSolidParticle(c_r,W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume)
+PURE FUNCTION CalcForceToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,VeloRel)
 ! MODULES
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PI
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)      :: c_r(1:3),W_g,R_p,m_g,c_r_abs,tau_g,T_p,ElemVolume
+INTEGER, INTENT(IN)   :: SpecID       !< Index of the gas species
+REAL, INTENT(IN)      :: WeightGas    !< Weight of the gas species
+REAL, INTENT(IN)      :: RadiusSolid  !< Radius of solid particle
+REAL, INTENT(IN)      :: VeloRelAbs   !< Magnitude of relative velocity
+REAL, INTENT(IN)      :: TempSolid    !< Temperature of solid particle
+REAL, INTENT(IN)      :: VeloRel(1:3) !< Relative velocity
+REAL, INTENT(IN)      :: ElemVolume
 !-------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL                  :: CalcForceToSolidParticle(1:3)
 !===============================================================================================================================
 
-CalcForceToSolidParticle(1:3) = c_r(1:3) * W_g * (PI * R_p * R_p) / ElemVolume * ( ( m_g * c_r_abs ) + tau_g / 3.0 &
-                                * SQRT( 2 * PI * m_g * BoltzmannConst * T_p) )
+CalcForceToSolidParticle(1:3) = VeloRel(1:3) * WeightGas * (PI * RadiusSolid * RadiusSolid) / ElemVolume * ((Species(SpecID)%MassIC * VeloRelAbs) &
+  + SpecDSMC(SpecID)%ThermalACCGranularPart / 3.0 * SQRT(2. * PI * Species(SpecID)%MassIC * BoltzmannConst * TempSolid))
 
 END FUNCTION CalcForceToSolidParticle
 
 !===============================================================================================================================
-!> Calculate the energy contribution of a single particle to a solid particle
+!> Calculate the energy contribution of a single gas particle to a solid particle
 !===============================================================================================================================
-PURE FUNCTION CalcEnergyToSolidParticle(W_g,R_p,m_g,c_r_abs,tau_g,e_rot,Lambda,T_p,ElemVolume)
+PURE FUNCTION CalcEnergyToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,ERotGas)
 ! MODULES
 USE MOD_Globals_Vars  ,ONLY: BoltzmannConst, PI
+USE MOD_Particle_Vars ,ONLY: Species
+USE MOD_DSMC_Vars     ,ONLY: SpecDSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL, INTENT(IN)      :: W_g,R_p,m_g,c_r_abs,tau_g,e_rot,T_p,ElemVolume
-INTEGER, INTENT(IN)   :: Lambda
+INTEGER, INTENT(IN)   :: SpecID       !< Index of the gas species
+REAL, INTENT(IN)      :: WeightGas    !< Weight of the gas species
+REAL, INTENT(IN)      :: RadiusSolid  !< Radius of solid particle
+REAL, INTENT(IN)      :: VeloRelAbs   !< Magnitude of relative velocity
+REAL, INTENT(IN)      :: TempSolid    !< Temperature of solid particle
+REAL, INTENT(IN)      :: ERotGas      !< Rotational energy of gas species
+REAL, INTENT(IN)      :: ElemVolume
 !-------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL                  :: CalcEnergyToSolidParticle
 !===============================================================================================================================
 
-CalcEnergyToSolidParticle = W_g * (PI * R_p * R_p) * tau_g * c_r_abs / ElemVolume &
-                            * ( ( 0.5 * m_g * c_r_abs * c_r_abs ) + e_rot - ( 2.0 + 0.5 * Lambda) * BoltzmannConst * T_p )
+CalcEnergyToSolidParticle = WeightGas * (PI * RadiusSolid * RadiusSolid) * SpecDSMC(SpecID)%ThermalACCGranularPart * VeloRelAbs / ElemVolume &
+  * ((0.5 * Species(SpecID)%MassIC * VeloRelAbs * VeloRelAbs) + ERotGas - (2.0 + 0.5 * SpecDSMC(SpecID)%Xi_Rot) * BoltzmannConst * TempSolid)
 
 END FUNCTION CalcEnergyToSolidParticle
 
