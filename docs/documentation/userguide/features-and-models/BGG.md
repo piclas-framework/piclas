@@ -27,6 +27,7 @@ While the VHS model is sufficient to model collisions between neutral species, i
 neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are
 discussed in the following section.
 
+(sec:background-gas-distribution)=
 ## Distribution from DSMC result
 
 A spatially varying background gas distribution may be used by running a stand-alone DSMC simulation beforehand and using a time-averaged

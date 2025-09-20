@@ -361,7 +361,7 @@ SUBROUTINE BGGas_InsertParticles()
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
 USE MOD_DSMC_Vars              ,ONLY: BGGas
-USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM
+USE MOD_PARTICLE_Vars          ,ONLY: PDM, PartSpecies, PEM, Species
 USE MOD_Part_Tools             ,ONLY: GetNextFreePosition
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime,LBPauseTime
@@ -393,6 +393,8 @@ DO iPart = 1, PDM%ParticleVecLength
     IF(BGGas%UseRegions) THEN
       IF(BGGas%RegionElemType(PEM%LocalElemID(iPart)).EQ.0) CYCLE
     END IF
+    ! Skip granular particles
+    IF(Species(PartSpecies(iPart))%InterID.EQ.100) CYCLE
     ! Get a free particle index
     iNewPart = iNewPart + 1
     PositionNbr = GetNextFreePosition()
@@ -1043,7 +1045,7 @@ CALL OpenDataFile(MacroRestartFileName,create=.FALSE.,single=.FALSE.,readOnly=.T
 
 CALL GetDataSize(File_ID,'ElemData',nDims,HSize,attrib=.FALSE.)
 nVarHDF5  = INT(HSize(1),4)
-IF(nVarHDF5.NE.10) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of variables in DSMCState must equal 10!')
+IF(nVarHDF5.LT.10) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of variables in DSMCState is below 10. Something is wrong with the input file!')
 
 nElems_HDF5 = INT(HSize(2),4)
 IF(nElems_HDF5.NE.nGlobalElems) CALL abort(__STAMP__,'ERROR in BGGas_ReadInDistribution: Number of global elements does not match number of elements in .h5 file')

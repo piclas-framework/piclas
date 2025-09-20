@@ -175,6 +175,7 @@ ALLOCATE(BGGas%BackgroundSpecies(nSpecies))
 BGGas%BackgroundSpecies = .FALSE.
 ALLOCATE(BGGas%TraceSpecies(nSpecies))
 BGGas%TraceSpecies = .FALSE.
+BGGas%UseRegions = .FALSE.
 
 BGGas%UseDistribution = GETLOGICAL('Particles-BGGas-UseDistribution')
 BGGas%nRegions = GETINT('Particles-BGGas-nRegions')
@@ -445,6 +446,14 @@ END IF
 IF(.NOT.ANY(BGGas%BackgroundSpecies)) CALL CollectiveStop(__STAMP__,&
   'ERROR: The drift-diffusion electron fluid model requires at least one species to be of type SpaceIC=background')
 #endif /*drift_diffusion*/
+
+IF(UseGranularSpecies) THEN
+  IF(BGGas%NumberOfSpecies.GT.1) CALL CollectiveStop(__STAMP__,&
+    'ERROR: Granular species works only with a maximum of 1 BGG species!')
+  IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) CALL CollectiveStop(__STAMP__,&
+    'ERROR: Granular species works only with a background gas distribution or regions!')
+END IF
+
 
 END SUBROUTINE InitializeVariablesSpeciesInits
 
