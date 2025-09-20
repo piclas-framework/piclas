@@ -1142,7 +1142,6 @@ USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 LOGICAL                           :: AdaptiveDataExists, RunningAverageExists, UseAdaptiveType4, AdaptBCPartNumOutExists
-REAL                              :: WeightingFactor(1:nSpecies)
 REAL,ALLOCATABLE                  :: ElemData_HDF5(:,:), ElemData2_HDF5(:,:,:,:)
 INTEGER                           :: iElem, iSpec, iSF, ElemID, SampleElemID, nVar, GlobalElemID
 INTEGER                           :: nElemReadin, nVarTotal, iVar, nVarArrayStart, nVarArrayEnd
@@ -1249,19 +1248,7 @@ IF(AdaptBCTruncAverage) THEN
         SampleElemID = AdaptBCMapElemToSample(GlobalElemID-offsetElem)
         IF(SampleElemID.GT.0) AdaptBCAverage(1:8,1:SampIterEnd,SampleElemID,1:nSpecies) = ElemData2_HDF5(1:8,nVarArrayStart:nVarArrayEnd,iElem,1:nSpecies)
       END DO
-      ! Scaling of the weighted particle number in case of a macroscopic restart with a particle weighting change
-      IF(DoMacroscopicRestart.AND..NOT.PerformLoadBalance) THEN
-        CALL ReadAttribute(File_ID,'AdaptBCWeightingFactor',nSpecies,RealArray=WeightingFactor)
-        DO iSpec = 1, nSpecies
-          IF(WeightingFactor(iSpec).NE.Species(iSpec)%MacroParticleFactor) THEN
-            AdaptBCAverage(7:8,1:SampIterEnd,:,iSpec) = AdaptBCAverage(7:8,1:SampIterEnd,:,iSpec) * WeightingFactor(iSpec) &
-                                                                                              / Species(iSpec)%MacroParticleFactor
-          END IF
-        END DO
-        LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file and scaled due to MacroscopicRestart.'
-      ELSE
-        LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file.'
-      END IF
+      LBWRITE(*,*) '| TruncateRunningAverage: Sample successfully initiliazed from restart file.'
     END IF
     IF(.NOT.AdaptiveDataExists) THEN
       ! Calculate the macro values initially from the sample for the first iteration
@@ -1283,9 +1270,6 @@ IF(UseAdaptiveType4) THEN
   IF(PerformLoadBalance) THEN
     ! Array is not deallocated during loadbalance
     AdaptBCPartNumOutExists = .TRUE.
-  ELSE IF(DoMacroscopicRestart) THEN
-    ! Reset of the number due to a potentially new weighting factor
-    AdaptBCPartNumOutExists = .FALSE.
   ELSE
     ! Read-in array during restart only with the root as it is distributed onto all procs later
     IF(MPIRoot)THEN
@@ -1299,10 +1283,10 @@ IF(UseAdaptiveType4) THEN
         IF((nSpeciesReadin.EQ.nSpecies).AND.(nSurfacefluxBCsReadin.EQ.MaxSurfacefluxBCs)) THEN
           ! Associate construct for integer KIND=8 possibility
           ASSOCIATE (nSpecies     => INT(nSpecies,IK) ,&
-                     nSurfFluxBCs => INT(MaxSurfacefluxBCs)  )
+                     nSurfFluxBCs => INT(MaxSurfacefluxBCs,IK))
             CALL ReadArray('AdaptBCPartNumOut',2,(/nSpecies,nSurfFluxBCs/),0_IK,1,RealArray=AdaptBCPartNumOut)
           END ASSOCIATE
-          LBWRITE(*,*) '| Surface Flux, Type=4: Number of particles leaving the domain successfully read-in from restart file.'
+          LBWRITE(*,*) '| Surface Flux, Type=4: Number of weighted particles leaving the domain successfully read-in from restart file.'
         ELSE
           LBWRITE(*,*) '| Surface Flux, Type=4: Number of surface flux BCs has changed. Previous number of particles leaving the domain resetted.'
         END IF

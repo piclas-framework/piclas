@@ -433,7 +433,11 @@ IF(.NOT.initTruncAverage) THEN
 #endif /*USE_LOADBALANCE*/
     ! Sample the particle properties
     iSpec = PartSpecies(iPart)
-    partWeight = GetParticleWeight(iPart)
+    IF(usevMPF) THEN
+      partWeight = GetParticleWeight(iPart)
+    ELSE
+      partWeight = GetParticleWeight(iPart) * Species(iSpec)%MacroParticleFactor
+    END IF
     IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
       ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
       AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,iPart) * partWeight
@@ -499,13 +503,8 @@ IF(AdaptBCAverageValBC) THEN
             ! AdaptBCTruncAverage: continuous average of the last AdaptBCSampIter iterations
             IF(AdaptBCSampIter.GT.0) THEN
               ! Calculate the average number density
-              IF(usevMPF) THEN
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
+              AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
                                                       / AdaptBCVolSurfaceFlux(iSpec,iSF)
-              ELSE
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
-                                                      / AdaptBCVolSurfaceFlux(iSpec,iSF) * Species(iSpec)%MacroParticleFactor
-              END IF
               IF(AdaptBCMeanValues(7,iSpec,iSF).GT.1) THEN
                 ! Calculate the average temperature
                 AdaptBCAverageMacroVal(2,iSpec,iSF) = (AdaptBCMeanValues(7,iSpec,iSF)/(AdaptBCMeanValues(7,iSpec,iSF)-1.0)) &
@@ -520,14 +519,8 @@ IF(AdaptBCAverageValBC) THEN
             ! ================================================================
             ! Relaxation factor: updating the macro values with a certain percentage of the current sampled value
               ! Calculate the average number density
-              IF(usevMPF) THEN
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF)
-              ELSE
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
-                    * Species(iSpec)%MacroParticleFactor
-              END IF
+              AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
+                + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF)
               IF(AdaptBCMeanValues(7,iSpec,iSF).GT.1) THEN
                 ! Calculate the average temperature
                 AdaptBCAverageMacroVal(2,iSpec,iSF) = (AdaptBCMeanValues(7,iSpec,iSF)/(AdaptBCMeanValues(7,iSpec,iSF)-1.0)) &
@@ -604,12 +597,7 @@ ELSE              ! .NOT. AdaptBCAverageValBC
               AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCSample(1:3,SampleElemID, iSpec)
             END IF
             ! number density
-            IF(usevMPF) THEN
-              AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID)
-            ELSE
-              AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID) &
-                                                * Species(iSpec)%MacroParticleFactor
-            END IF
+            AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID)
             ! Calculation of the pressure
             IF(AdaptBCSample(7,SampleElemID,iSpec).GT.1) THEN
               ! instantaneous temperature WITHOUT 1/BoltzmannConst
@@ -648,13 +636,8 @@ ELSE              ! .NOT. AdaptBCAverageValBC
                                                 + RelaxationFactor*AdaptBCSample(1:3,SampleElemID, iSpec)
           END IF
           ! Calculation of the number density
-          IF(usevMPF) THEN
-            AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
+          AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
               + RelaxationFactor*AdaptBCSample(8,SampleElemID,iSpec) / ElemVolume_Shared(CNElemID)
-          ELSE
-            AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              + RelaxationFactor*AdaptBCSample(8,SampleElemID,iSpec) / ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor
-          END IF
           ! Calculation of the pressure
           IF (AdaptBCSample(7,SampleElemID,iSpec).GT.1.0) THEN
             ! Compute instantaneous temperature WITHOUT 1/BoltzmannConst

@@ -582,11 +582,13 @@ IF(DoDielectric)THEN
   END IF
 END IF
 
-IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
-  !--- Sampling of near adaptive boundary element values after particle insertion to get initial distribution
-  CALL AdaptiveBCSampling(initSampling_opt=.TRUE.)
-  ! Adaptive BC Type = 4: Approximation of particles leaving the domain, assuming zero bulk velocity, using the fall-back values
-  CALL CalcAdaptBCPartNumOutBackup()
+!--- Sampling of near adaptive boundary element values after particle insertion to get initial distribution
+IF(.NOT.DoRestart) THEN
+  IF(UseAdaptiveBC.OR.(nPorousBC.GT.0)) THEN
+    CALL AdaptiveBCSampling(initSampling_opt=.TRUE.)
+    ! Adaptive BC Type = 4: Approximation of particles leaving the domain, assuming zero bulk velocity, using the fall-back values
+    CALL CalcAdaptBCPartNumOutBackup()
+  END IF
 END IF
 
 IF((DSMC%VibRelaxProb.EQ.2).AND.(CollisMode.GE.2)) CALL SetVarVibProb2Elems()
