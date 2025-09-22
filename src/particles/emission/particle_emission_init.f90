@@ -910,17 +910,17 @@ END SUBROUTINE DetermineInitialParticleNumber
 
 !===================================================================================================================================
 !> Initialize the particle boundary IDs for all emission inits
-!> This routine is only called for DoBoundaryParticleOutputHDF5=T, which is determined in particle boundary init that comes after
-!> the general variable species emission initialization
 !===================================================================================================================================
-SUBROUTINE InitializeVariablesSpeciesBoundary()
+SUBROUTINE InitializeVariablesSpeciesBoundary(FoundPartBoundPhotonSEE)
 ! MODULES
-USE MOD_ReadInTools   ,ONLY: GETINT
-USE MOD_Particle_Vars ,ONLY: Species,nSpecies
+USE MOD_ReadInTools            ,ONLY: GETINT
+USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
+USE MOD_Particle_Boundary_Vars ,ONLY: DoBoundaryParticleOutputHDF5
 ! insert modules here
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
+LOGICAL,INTENT(IN) :: FoundPartBoundPhotonSEE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER       :: iSpec, iInit
@@ -934,8 +934,12 @@ DO iSpec = 1, nSpecies
   DO iInit = 1, Species(iSpec)%NumberOfInits
     WRITE(UNIT=hilf2,FMT='(I0)') iInit
     hilf2=TRIM(hilf)//'-Init'//TRIM(hilf2)
-    ! Read-in of type and particle number for emission per iteration
-    Species(iSpec)%Init(iInit)%PartBCIndex = GETINT('Part-Species'//TRIM(hilf2)//'-PartBCIndex')
+    ! Initialize
+    Species(iSpec)%Init(iInit)%PartBCIndex = 0
+    IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundPhotonSEE)THEN
+      ! Read-in of type and particle number for emission per iteration
+      Species(iSpec)%Init(iInit)%PartBCIndex = GETINT('Part-Species'//TRIM(hilf2)//'-PartBCIndex')
+    END IF
   END DO ! iInit = 1, Species(iSpec)%NumberOfInits
 END DO ! iSpec = 1, nSpecies
 

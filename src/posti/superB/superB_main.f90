@@ -106,7 +106,7 @@ IF(NumOfPermanentMagnets.GT.0) THEN
     PermanentMagnets(iElem)%Flag = 0
   END DO
   SWRITE(UNIT_stdOut,'(132("-"))')
-  SWRITE(UNIT_stdOUT,'(AI0)') ' CALCULATION OF MAGNETIC FIELD FROM PERMANENT MAGNETS - TOTAL NUMBER: ', NumOfPermanentMagnets
+  SWRITE(UNIT_stdOUT,'(A,I0)') ' CALCULATION OF MAGNETIC FIELD FROM PERMANENT MAGNETS - TOTAL NUMBER: ', NumOfPermanentMagnets
   DO iMagnet=1,NumOfPermanentMagnets
     SWRITE(UNIT_stdOUT,'(A,I0)',ADVANCE='NO') ' MAGNETIC POTENTIAL OF MAGNET ', iMagnet
     SELECT CASE(TRIM(PermanentMagnetInfo(iMagnet)%Type))

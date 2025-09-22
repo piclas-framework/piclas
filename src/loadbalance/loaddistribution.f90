@@ -202,7 +202,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   END DO
   ! Sanity check
   IF(.NOT.ALLOCATED(PartInt)) CALL abort(__STAMP__,'PartInt is not allocated') ! Missing call to FillParticleData()
-  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
+  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_INTEGER_INT_KIND,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
   PartIntExists = .TRUE.
 ELSE
   ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
