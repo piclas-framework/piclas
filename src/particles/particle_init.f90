@@ -567,10 +567,6 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 CALL InitializeSpeciesParameter()
-CALL InitializeVariablesSpeciesInits()
-! Which Lorentz boost method should be used?
-CALL InitPartRHS()
-CALL InitializeVariablesPartBoundary()
 
 UseGranularSpecies = .FALSE.
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
@@ -586,6 +582,11 @@ IF(ANY(Species(:)%InterID.EQ.100)) THEN
   ForceAverage = 0.0
 END IF
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+
+CALL InitializeVariablesSpeciesInits()
+! Which Lorentz boost method should be used?
+CALL InitPartRHS()
+CALL InitializeVariablesPartBoundary()
 
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
