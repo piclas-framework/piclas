@@ -450,8 +450,10 @@ IF(.NOT.ANY(BGGas%BackgroundSpecies)) CALL CollectiveStop(__STAMP__,&
 IF(UseGranularSpecies) THEN
   IF(BGGas%NumberOfSpecies.GT.1) CALL CollectiveStop(__STAMP__,&
     'ERROR: Granular species works only with a maximum of 1 BGG species!')
-  IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) CALL CollectiveStop(__STAMP__,&
-    'ERROR: Granular species works only with a background gas distribution or regions!')
+  IF(BGGas%NumberOfSpecies.EQ.1) THEN
+    IF((.NOT.BGGas%UseDistribution).AND.(.NOT.BGGas%UseRegions)) CALL CollectiveStop(__STAMP__,&
+      'ERROR: Granular species works only with a background gas distribution or regions!')
+  END IF
 END IF
 
 
