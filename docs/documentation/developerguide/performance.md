@@ -378,6 +378,17 @@ OpenMPI handles its memory independently, so memcheck will always report memory 
 suppressions hides these false-positives. Combining memcheck with the GCC sanitize flag should provide full memory coverage.
 When PETSc is used, please refer to the [PETSc documentation](https://petsc.org/release/faq/#valgrind).
 
+If piclas is compiled with `CMAKE_BUILD_TYPE=Sanitize`, problems with the asan library might occur
+
+    ASan runtime does not come first in initial library list; you should either link runtime to your application or manually preload it with LD_PRELOAD.
+
+Solutions to this problem can be found
+[here](https://stackoverflow.com/questions/59853730/asan-issue-with-asan-library-loading/59894695#59894695) and a tested and working
+solution is setting the following option
+
+    export ASAN_OPTIONS=verify_asan_link_order=0
+
+
 #### Massif
 Massif keeps track of the current memory usage as well as the overall heap usage. It helps finding code segments that hold on to
 memory after they should not. Run it with

@@ -482,9 +482,24 @@ IF(.NOT.IsLoadBalance) THEN
   END IF
 
   SDEALLOCATE(tCurrent)
+#if defined(PARTICLES)
+  SDEALLOCATE(MPInElemSend)
+  SDEALLOCATE(MPIoffsetElemSend)
+  SDEALLOCATE(MPInElemRecv)
+  SDEALLOCATE(MPIoffsetElemRecv)
+  SDEALLOCATE(MPInPartSend)
+  SDEALLOCATE(MPIoffsetPartSend)
+  SDEALLOCATE(MPInPartRecv)
+  SDEALLOCATE(MPIoffsetPartRecv)
+#endif /*defined(PARTICLES)*/
+  SDEALLOCATE(MPInSideSend)
+  SDEALLOCATE(MPIoffsetSideSend)
+  SDEALLOCATE(MPInSideRecv)
+  SDEALLOCATE(MPIoffsetSideRecv)
   InitLoadBalanceIsDone = .FALSE.
 
   SDEALLOCATE(offsetElemMPIOld)
+  SDEALLOCATE(ElemTime)
 #endif /*USE_LOADBALANCE*/
 END IF
 
