@@ -860,10 +860,11 @@ SUBROUTINE InitializeVariablesRandomNumbers()
 ! Initialize the variables first
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals          ,ONLY: abort,MPIRoot
+USE MOD_Globals          ,ONLY: abort
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
 USE MOD_Particle_Vars
 #if USE_LOADBALANCE
+USE MOD_Globals          ,ONLY: MPIRoot
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -881,7 +882,7 @@ CHARACTER(32)         :: hilf
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
-! SIZE	(Optional) Shall be a scalar and of type default INTEGER, with INTENT(OUT). It specifies the minimum size of the arrays
+! SIZE  (Optional) Shall be a scalar and of type default INTEGER, with INTENT(OUT). It specifies the minimum size of the arrays
 !                  used with the PUT and GET arguments.
 CALL RANDOM_SEED(SIZE = SeedSize)    ! Specifies compiler specific minimum number of seeds
 ALLOCATE(Seeds(SeedSize))
@@ -1421,8 +1422,8 @@ IF(.NOT. uRandomExists) THEN
     Seeds(iSeed) = GoodSeeds
   END DO
 END IF
-! PUT	(Optional) Shall be an array of type default INTEGER and rank one. It is INTENT(IN) and the size of the array must be
-!                larger than or equal to the number returned by the SIZE argument.
+! PUT  (Optional) Shall be an array of type default INTEGER and rank one. It is INTENT(IN) and the size of the array must be
+!                 larger than or equal to the number returned by the SIZE argument.
 CALL RANDOM_SEED(PUT = Seeds)
 
 END SUBROUTINE InitRandomSeed
@@ -1675,4 +1676,3 @@ END IF
 END SUBROUTINE InitPartDataSize
 
 END MODULE MOD_ParticleInit
-
