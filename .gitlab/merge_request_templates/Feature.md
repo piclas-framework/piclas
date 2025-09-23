@@ -30,3 +30,6 @@
     * [ ] `PICLAS_SHARED_MEMORY = PICLAS_COMM_TYPE_NODE` for splitting at 2 processes per logical node
 * [ ] New feature description in appropriate documentation (user/developer guide)
 * [ ] Are there new/changed shared memory windows? Check if the [rules in the dev guide are being followed](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html#shared-memory-windows).
+* [ ] Run code coverage regression check (`DO_CODE_COVERAGE=T`) and check that
+  * [ ] all new features are tested (visible as green/red bars next to each code line in merge request diff view)
+  * [ ] overall coverage increases

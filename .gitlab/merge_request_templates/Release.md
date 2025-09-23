@@ -29,7 +29,7 @@ Update the library versions and push the most recent version of the `master.dev`
     - [ ] Check correct (updated) version output and commit hash.
     - [ ] Check AppImage integrity by running `md5sum -c md5sum.txt`.
     - [ ] Select [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and set "Run for branch name or tag" to the required `feature.branch.name` and supply `DO_TEST_APPIMAGE` as "Input variable key" and set it to the latest artifact (get the name "piclas-binaries-vX.X.X" from [piclas-testing GitHub Workflows](https://github.com/scopplestone/piclas-testing/actions), e.g., `piclas-binaries-v3.5.0` for "Input variable value".
-    
+
     ```
     DO_TEST_APPIMAGE = piclas-binaries-vX.X.X
     ```
@@ -41,6 +41,7 @@ Update the library versions and push the most recent version of the `master.dev`
 * [ ] Check-in
 * [ ] Nightly
 * [ ] Weekly
+* [ ] Code Coverage
 
 ## Deploy master branch to GitHub
 When the `Merge` button for this merge request is pushed, start the deployment of the master branch to GitHub via [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and

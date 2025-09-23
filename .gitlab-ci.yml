@@ -1447,6 +1447,7 @@ reggie_code_coverage:
     # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
     - if [ -d "Coverage/html" ]; then
         rm -f Coverage/html/*.html || true ;
+        rm -f Coverage/html/*.css || true ;
       else
         mkdir Coverage/html ;
       fi
@@ -1458,9 +1459,9 @@ reggie_code_coverage:
   coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
   artifacts:
     paths:
-      - Coverage/html/*.html
-      - Coverage/cobertura/*.xml
+      - Coverage/html
     expire_in: 1 week
+    when: on_success
     reports:
       coverage_report:
         coverage_format: cobertura
