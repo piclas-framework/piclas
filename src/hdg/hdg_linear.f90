@@ -411,18 +411,17 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 ! -11: KSP_DIVERGED_PCSETUP_FAILED_DEPRECATED
 
 #if ((PETSC_VERSION_MAJOR >= 3) && (PETSC_VERSION_MINOR > 22)) || (PETSC_VERSION_MAJOR >= 4)
-! PETSc 3.26.0 requires special TYPE() for variable "reason", which cannot be compared with Fortran INT
-! PETSc 3.26.3 requires special TYPE() for variable "reason", which cannot be compared with Fortran INT
-IF(reason.EQ.KSP_CONVERGED_RTOL_NORMAL               .OR.&
-   reason.EQ.KSP_CONVERGED_ATOL_NORMAL               .OR.&
-   reason.EQ.KSP_CONVERGED_RTOL                      .OR.&
-   reason.EQ.KSP_CONVERGED_ATOL                      .OR.&
-   reason.EQ.KSP_CONVERGED_ITS                       .OR.&
-   reason.EQ.KSP_CONVERGED_NEG_CURVE                 .OR.&
-   reason.EQ.KSP_CONVERGED_CG_NEG_CURVE_DEPRECATED   .OR.&
-   reason.EQ.KSP_CONVERGED_CG_CONSTRAINED_DEPRECATED .OR.&
-   reason.EQ.KSP_CONVERGED_STEP_LENGTH               .OR.&
-   reason.EQ.KSP_CONVERGED_HAPPY_BREAKDOWN) THEN
+! PETSc 3.26.0 and onwards requires special TYPE() for variable "reason", which cannot be compared with Fortran INT
+IF(.NOT.(reason.EQ.KSP_CONVERGED_RTOL_NORMAL               .OR.&
+         reason.EQ.KSP_CONVERGED_ATOL_NORMAL               .OR.&
+         reason.EQ.KSP_CONVERGED_RTOL                      .OR.&
+         reason.EQ.KSP_CONVERGED_ATOL                      .OR.&
+         reason.EQ.KSP_CONVERGED_ITS                       .OR.&
+         reason.EQ.KSP_CONVERGED_NEG_CURVE                 .OR.&
+         reason.EQ.KSP_CONVERGED_CG_NEG_CURVE_DEPRECATED   .OR.&
+         reason.EQ.KSP_CONVERGED_CG_CONSTRAINED_DEPRECATED .OR.&
+         reason.EQ.KSP_CONVERGED_STEP_LENGTH               .OR.&
+         reason.EQ.KSP_CONVERGED_HAPPY_BREAKDOWN)) THEN
 #else
 IF(reason.LT.0)THEN
 #endif
@@ -432,7 +431,7 @@ IF(reason.LT.0)THEN
   PetscCallA(KSPConvergedReasonView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
   !  View solver info
   PetscCallA(KSPView(PETScSolver,PETSC_VIEWER_STDOUT_WORLD,ierr))
-  IPWRITE(*,*) 'reason:', reason
+  IPWRITE(*,*) 'PETSc convergence failed with reason:', reason
   CALL Abort(__STAMP__,'ERROR: PETSc not converged')
 END IF
 
