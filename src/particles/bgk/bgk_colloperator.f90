@@ -268,7 +268,7 @@ END DO
 ! 7.) Vibrational energy of the molecules: Ensure energy conservation by scaling the new vibrational states with the factor alpha
 IF(ANY(Species(:)%InterID.EQ.2).OR.ANY(Species(:)%InterID.EQ.20)) THEN
   CALL EnergyConsVib(nPart, totalWeight, nVibRelax, VibRelaxWeightSpec, iPartIndx_NodeRelaxVib, NewEnVib, OldEn, nXiVibDOF, &
-    VibEnergyDOF, Xi_VibSpecNew, TEqui)
+    VibEnergyDOF, Xi_VibSpecNew, TEqui,totalWeight2)
 END IF
 
 ! Remaining vibrational + translational energy + old rotational energy for translation and rotation
@@ -281,7 +281,7 @@ END DO
 
 ! 8.) Determine the new particle state and ensure energy conservation by scaling the new velocities with the factor alpha
 ! Calculation of scaling factor alpha
-alpha = SQRT(OldEn/NewEn*(3.*(totalWeight-1.))/(Xi_RotTotal+3.*(totalWeight-1.)))
+alpha = SQRT(OldEn/NewEn*(3.*(totalWeight-totalWeight2/totalWeight))/(Xi_RotTotal+3.*(totalWeight-totalWeight2/totalWeight)))
 ! Calculation of the final particle velocities with vBulkAll (average flow velocity before relaxation), scaling factor alpha,
 ! the particle velocity PartState(4:6,iPart) after the relaxation but before the energy conservation and vBulk (average value of
 ! the latter)
@@ -310,7 +310,7 @@ DO iSpec = 1, nSpecies
   ! statistical Bhatnagar-Gross-Krook method including internal degrees of freedom", subitted to Phys. Fluids, August 2023
   IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
     IF (NewEnRot(iSpec).GT.0.0) THEN
-      alphaRot(iSpec) = OldEn/NewEnRot(iSpec)*(Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)/(Xi_RotTotal+3.*(totalWeight-1.)))
+      alphaRot(iSpec) = OldEn/NewEnRot(iSpec)*(Xi_RotSpec(iSpec)*RotRelaxWeightSpec(iSpec)/(Xi_RotTotal+3.*(totalWeight-totalWeight2/totalWeight)))
     ELSE
       alphaRot(iSpec) = 0.0
     END IF
@@ -1334,7 +1334,7 @@ END SUBROUTINE SampleFromTargetDistr
 
 
 SUBROUTINE EnergyConsVib(nPart, totalWeight, nVibRelax, VibRelaxWeightSpec, iPartIndx_NodeRelaxVib, NewEnVib, OldEn, nXiVibDOF, &
-    VibEnergyDOF, Xi_VibSpec, TEqui)
+    VibEnergyDOF, Xi_VibSpec, TEqui,totalWeight2)
 !===================================================================================================================================
 !> Routine to ensure energy conservation when including vibrational degrees of freedom (continuous and quantized)
 !===================================================================================================================================
@@ -1352,6 +1352,7 @@ INTEGER, INTENT(IN)           :: nPart, nXiVibDOF
 INTEGER, INTENT(IN)           :: nVibRelax, iPartIndx_NodeRelaxVib(nPart)
 REAL, INTENT(IN)              :: VibRelaxWeightSpec(nSpecies), Xi_VibSpec(nSpecies), totalWeight
 REAL, INTENT(IN)              :: NewEnVib(nSpecies), VibEnergyDOF(nVibRelax,nXiVibDOF), TEqui!, EVibTtransSpecMean(nSpecies)
+REAL, INTENT(IN)              :: totalWeight2
 REAL, INTENT(INOUT)           :: OldEn
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -1374,7 +1375,7 @@ IF(BGKDoVibRelaxation) THEN
     ! EVibTtransSpecMean(iSpec)*VibRelaxWeightSpec(iSpec) is energy that should be in vibration
     DO iSpec = 1, nSpecies
       IF (NewEnVib(iSpec).GT.0.0) THEN
-        alpha(iSpec) = OldEn/NewEnVib(iSpec)*(Xi_VibSpec(iSpec)*VibRelaxWeightSpec(iSpec)/(3.*(totalWeight-1.)+Xi_VibTotal))
+        alpha(iSpec) = OldEn/NewEnVib(iSpec)*(Xi_VibSpec(iSpec)*VibRelaxWeightSpec(iSpec)/(3.*(totalWeight-totalWeight2/totalWeight)+Xi_VibTotal))
       ELSE
         alpha(iSpec) = 0.
       END IF
