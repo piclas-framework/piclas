@@ -397,9 +397,6 @@ DO iPart=1,PDM%ParticleVecLength
       ! Calculate bulk velocity, total mass and total weights
       vBulk(1:3,iElem) = vBulk(1:3,iElem) + PartState(4:6,iPart)*Species(iSpec)%MassIC*partWeight
       TotalMass(iElem) = TotalMass(iElem) + Species(iSpec)%MassIC*partWeight
-      totalWeight(iElem)  = totalWeight(iElem)  + partWeight
-      totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
-      totalWeight3(iElem) = totalWeight3(iElem) + partWeight*partWeight*partWeight
     END IF
     ! Internal energy: rotational, vibrational, electronic
     IF(useDSMC)THEN
@@ -449,6 +446,9 @@ IF (SamplePressTensHeatflux) THEN
       partWeight = GetParticleWeight(iPart)
       ! always include MPF to compute total pressure/heatflux values
       IF (.NOT.usevMPF) partWeight = partWeight * Species(iSpec)%MacroParticleFactor
+      totalWeight(iElem)  = totalWeight(iElem)  + partWeight
+      totalWeight2(iElem) = totalWeight2(iElem) + partWeight*partWeight
+      totalWeight3(iElem) = totalWeight3(iElem) + partWeight*partWeight*partWeight
       V_rel(1:3)=PartState(4:6,iPart)-vBulk(1:3,iElem)
       vmag2 = V_rel(1)**2 + V_rel(2)**2 + V_rel(3)**2
       ! Sample pressure tensor (shear stress) and heatflux
