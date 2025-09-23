@@ -62,7 +62,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-IF(MOD(iter,vMPFSplitAndMergeStep).NE.0) RETURN
+IF(MOD(iter,INT(vMPFSplitAndMergeStep,8)).NE.0) RETURN
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
