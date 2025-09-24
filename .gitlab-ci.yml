@@ -403,6 +403,9 @@ stages:
 
 reggie_download:
   extends: .default_build_param
+  rules:
+    # Overwrite the rules from default_build_param to ensure that reggie is available when the appimages are tested
+    - when: on_success
   artifacts:
     paths: [reggie]
   cache:
@@ -1449,9 +1452,8 @@ github:
 # Stage "appimage": Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_create_appimage:
+  tags: [withmodules-concurrent]
   stage: appimage
-  tags:
-    - withmodules-concurrent
   rules:
     - if: '$DO_CREATE_APPIMAGE'
   script:
@@ -1467,9 +1469,9 @@ github_create_appimage:
 # Stage "appimage": Download the AppImages from the piclas-testing repository and test them
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_test_appimage:
+  tags: [withmodules-concurrent]
+  needs: [reggie_download]
   stage: appimage
-  tags:
-    - withmodules-concurrent
   rules:
     - if: '$DO_TEST_APPIMAGE'
   script:
