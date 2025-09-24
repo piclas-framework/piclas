@@ -173,18 +173,10 @@ stages:
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: pull
-  rules:
-    # If the pipeline is for an appimage test run, the job is not added to the pipeline.
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
-    # In all other cases, the job is added to the pipeline, with when: on_success
-    - when: on_success
 
 .defaults_checkin: &defaults_checkin
   <<: *defaults
   rules:
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -211,8 +203,6 @@ stages:
       paths: [build_maxwell_only]
       policy: pull
   rules:
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -240,8 +230,6 @@ stages:
 .defaults_poisson_checkin: &defaults_poisson_checkin
   <<: *defaults_poisson
   rules:
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -273,8 +261,6 @@ stages:
 .defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
   <<: *defaults_drift_diffusion
   rules:
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -306,8 +292,6 @@ stages:
 .defaults_DVM_checkin: &defaults_DVM_checkin
   <<: *defaults_DVM
   rules:
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -345,8 +329,6 @@ stages:
 .defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
   <<: *defaults_poisson_petsc
   rules:
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
@@ -399,8 +381,6 @@ stages:
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
   <<: *defaults_DSMC
   rules:
-    - if: '$DO_TEST_APPIMAGE'
-      when: never
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
 
