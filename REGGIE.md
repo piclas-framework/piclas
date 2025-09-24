@@ -98,6 +98,7 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 |    1    |  heatflux_relax   |                  |              nDim=1,2,3, EDDVM/DUGKS, (cons)ESBGK/Shakhov/G13BGK              |   nProcs=1    | final L2 error norm |  [Link](regressioncheck/CHE_DVM/heatflux_relax/readme.md)   |
 |    2    |     Sod_shock     |                  | EDDVM/DUGKS, (cons)ESBGK/Shakhov/SNBGK/G13BGK, minmax/Venkatakrishnan limiter | nProcs=1,2,7  | final L2 error norm |     [Link](regressioncheck/CHE_DVM/Sod_shock/readme.md)     |
 |    3    | Sod_shock_restart |                  |                               DVM macro restart                               |  nProcs=1,3   | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock_restart/readme.md) |
+|    4    | RELAX_N2 |                  |                               DVM with inner energies                               |  nProcs=1   | final L2 error norm | [Link](regressioncheck/CHE_DVM/RELAX_N2/readme.md) |
 
 
 ## Nightly

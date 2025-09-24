@@ -279,11 +279,13 @@ END IF
 StrVarNames_FV(offsetSpec+15+DVMnInnerE) = 'RelaxationFactor'
 
 ! Read Boundary information / RefStates / perform sanity check
-IniRefState_FV = GETINT('IniRefState-FV')
-nRefState_FV=CountOption('RefState-FV')/DVMnSpecies
+IniRefState_FV = GETINT('IniRefState-FV')*DVMnSpecies
+nRefState_FV=CountOption('RefState-FV')
 IF(IniRefState_FV.GT.nRefState_FV)THEN
   CALL CollectiveStop(__STAMP__,&
-    'ERROR: Ini not defined! (Ini,nRefState_FV):',IniRefState_FV,REAL(nRefState_FV))
+    'ERROR: Ini not defined! (Ini*nSpecies,nRefState_FV):',IniRefState_FV,REAL(nRefState_FV))
+ELSE
+  nRefState_FV=nRefState_FV/DVMnSpecies
 END IF
 
 IF(nRefState_FV .GT. 0)THEN
@@ -509,7 +511,7 @@ REAL                            :: WallVelo1, WallTemp1, WallVelo2, WallTemp2
 REAL                            :: SecondDist(PP_nVar_FV)
 REAL                            :: SodMacro_L(5), SodMacro_R(5), SodMacro_LL(5), SodMacro_M(5), SodMacro_RR(5)
 REAL                            :: gamma, Ggamma, beta, pL, pR, pM, cL, cR, cM, vs
-REAL                            :: mu, tau, ErelaxRot
+REAL                            :: mu, tau, ErelaxRot, ErelaxVib
 INTEGER                         :: iSpec,vFirstID,vLastID
 !==================================================================================================================================
 Resu=0.
@@ -622,9 +624,15 @@ DO iSpec=1,DVMnSpecies
       CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
     END IF
 
-  CASE(8) ! Rotational relaxation
-    ErelaxRot = 8000*BoltzmannConst*DVMSpecData(iSpec)%Xi_Rot/2.
-    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec,ErelaxRot=ErelaxRot)
+  CASE(8) ! Inner degrees relaxation
+    ErelaxRot = 7500.*BoltzmannConst*DVMSpecData(iSpec)%Xi_Rot/2.
+    ErelaxVib = DVMSpecData(iSpec)%T_Vib*BoltzmannConst/(EXP(DVMSpecData(iSpec)%T_Vib/5000.)-1)
+    CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec,ErelaxRot=ErelaxRot,ErelaxVib=ErelaxVib)
+    IF (tIn.GT.0.) THEN ! relaxation
+      MacroVal(:) = RefState_FV(:,iSpec,1)
+      MacroVal(5) = 7876.94 ! eq temperature (from simulation results, not analytical)
+      CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
+    END IF
 
   CASE(11) !Grad 13 uniform init with perturbation (two stream instability)
     CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec)

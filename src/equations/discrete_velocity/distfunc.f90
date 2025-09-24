@@ -140,11 +140,11 @@ DO iSpec=1, DVMnSpecies
   END IF
   IF (PRESENT(Erot)) Erot(iSpec) = densErot/dens
   IF (PRESENT(Evib)) Evib(iSpec) = densEvib/dens
-  IF (PRESENT(Trot)) THEN
+  IF (PRESENT(Trot).AND.densErot.GT.0.) THEN
     Trot(iSpec) = 2.*densErot/dens/BoltzmannConst/Sp%Xi_Rot
     Trot(total) = Trot(total) + Trot(iSpec)*dens
   END IF
-  IF (PRESENT(Tvib)) THEN
+  IF (PRESENT(Tvib).AND.densEvib.GT.0.) THEN
     Tvib(iSpec) = Sp%T_Vib/(LOG(1.+BoltzmannConst*Sp%T_Vib*dens/densEvib))
     Tvib(total) = Tvib(total) + Tvib(iSpec)*dens
   END IF
@@ -403,6 +403,7 @@ DO iSpec = 1, DVMnSpecies
     ELSE
       EdiffVib = -Evib(iSpec) * 30./(4.-2.*Sp%omegaVHS)/(6.-2.*Sp%omegaVHS)/Prandtl/Sp%Z_Vib
     END IF
+    ErelaxVib(iSpec) = Evib(iSpec) + EdiffVib
     ErelaxTrans = ErelaxTrans - EdiffVib
   END IF
   END ASSOCIATE
