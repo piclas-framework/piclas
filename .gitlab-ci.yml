@@ -1467,8 +1467,7 @@ github_test_appimage:
     - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
     - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
-    - module purge || true;
-    - module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5 || true;
+    - module pu && module load gcc/14.2.0 openmpi/4.1.6/gcc/14.2.0
     - rm -rf piclas-testing || true ;
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing
