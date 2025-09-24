@@ -1474,6 +1474,8 @@ github_test_appimage:
   stage: appimage
   rules:
     - if: '$DO_TEST_APPIMAGE'
+  cache:
+    - *reggie_cache
   script:
     - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
