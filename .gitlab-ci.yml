@@ -147,6 +147,9 @@ stages:
     # If the pipeline is for an appimage test run, the job is not added to the pipeline.
     - if: '$DO_TEST_APPIMAGE'
       when: never
+    # If the pipeline is for an appimage build run, the job is not added to the pipeline.
+    - if: '$DO_CREATE_APPIMAGE'
+      when: never
     # In all other cases, the job is added to the pipeline, with when: on_success
     - when: on_success
 
