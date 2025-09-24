@@ -174,7 +174,7 @@ REAL,ALLOCATABLE               :: Udvm(:,:,:,:,:)
 REAL                           :: tau,dtMV
 INTEGER                        :: iSpec
 INTEGER(KIND=IK)               :: nValDVM
-REAL                           :: Erot(DVMnSpecies+1)
+REAL                           :: Trot(DVMnSpecies+1),Tvib(DVMnSpecies+1)
 #endif /*discrete_velocity*/
 INTEGER                        :: i,j,k
 #if USE_HDG
@@ -427,10 +427,11 @@ DO iElem=1,INT(PP_nElems)
   DO k=0,N_FV
     DO j=0,N_FV
       DO i=0,N_FV
-        CALL MacroValuesFromDistribution(MacroVal,Ureco(:,i,j,k,iElem),dtMV,tau,1,Erot=Erot)
+        CALL MacroValuesFromDistribution(MacroVal,Ureco(:,i,j,k,iElem),dtMV,tau,1,Trot=Trot,Tvib=Tvib)
         DO iSpec=1,DVMnSpecies+1 !n species + total values
           Udvm((DVMnMacro+DVMnInnerE)*(iSpec-1)+1:(DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE,i,j,k,iElem) = MacroVal(1:DVMnMacro,iSpec)
-          IF (DVMnInnerE.GT.0) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+1,i,j,k,iElem) = Erot(iSpec)
+          IF (DVMnInnerE.GT.0) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+1,i,j,k,iElem) = Trot(iSpec)
+          IF (DVMnInnerE.GT.1) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+2,i,j,k,iElem) = Tvib(iSpec)
         END DO
         Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,i,j,k,iElem) = dt_Min(DT_MIN)/tau
       END DO

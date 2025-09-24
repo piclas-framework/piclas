@@ -112,12 +112,19 @@ DO MortarSideID=firstMortarSideID,lastMortarSideID
                                           + Gradient_elem(2,Sp%nVarReduced+upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,Sp%nVarReduced+upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
             END IF
-            IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+            IF (Sp%Xi_Rot.GT.0.) THEN
             ! rotational energy reduced distribution
               U_tmp(Sp%nVarERotStart+upos) = U_in_master(Sp%nVarERotStart+upos,MortarSideID) &
                                           + Gradient_elem(1,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
                                           + Gradient_elem(2,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
                                           + Gradient_elem(3,Sp%nVarERotStart+upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
+            END IF
+            IF (Sp%T_Vib.GT.0.) THEN
+            ! vibrational energy reduced distribution
+              U_tmp(Sp%nVarEVibStart+upos) = U_in_master(Sp%nVarEVibStart+upos,MortarSideID) &
+                                          + Gradient_elem(1,Sp%nVarEVibStart+upos,ElemID)*(FaceToFace(1)-Sp%Velos(iVel,1)*dt/2.) &
+                                          + Gradient_elem(2,Sp%nVarEVibStart+upos,ElemID)*(FaceToFace(2)-Sp%Velos(jVel,2)*dt/2.) &
+                                          + Gradient_elem(3,Sp%nVarEVibStart+upos,ElemID)*(FaceToFace(3)-Sp%Velos(kVel,3)*dt/2.)
             END IF
           END DO; END DO; END DO
           vFirstID = vFirstID + Sp%nVar

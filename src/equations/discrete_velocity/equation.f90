@@ -66,6 +66,8 @@ CALL prms%CreateRealOption(     'DVM-Species[$]-omegaVHS',      'Variable Hard S
 CALL prms%CreateRealOption(     'DVM-Species[$]-T_Ref',         'VHS reference temperature', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-d_Ref',         'VHS reference diameter', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Z_Rot',         'Rotational collision number', '5.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-Z_Vib',         'Vibrational collision number', '250.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'DVM-Species[$]-T_Vib',         'Characteristic vibrational temperature', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Mass',          'Molecular mass', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'DVM-Species[$]-Charge',          'Electrical charge', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'DVM-Species[$]-InteractionID' , 'ID for identification of particles \n'//&
@@ -175,11 +177,18 @@ DO iSpec = 1, DVMnSpecies
   Sp%nVarReduced      = Sp%nVelos(1)*Sp%nVelos(2)*Sp%nVelos(3) !number of velocity points, potentially using reduced distribution
   Sp%nVar             = Sp%nVarReduced
   IF (DVMDim.LT.3) Sp%nVar = Sp%nVar + Sp%nVarReduced ! variables for translational energy reduced distribution
-  IF ((DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20)) THEN
-     ! variables for rotational energy reduced distribution
+  IF (Sp%Xi_Rot.GT.0) THEN
+    IF (.NOT.(DVMBGKModel.EQ.1.OR.DVMBGKModel.EQ.3)) CALL abort(__STAMP__,&
+         'DVM error: Inner energies only tested for ESBGK and Maxwell BGK model!')
+    ! variables for rotational energy reduced distribution
     Sp%nVar = Sp%nVar + Sp%nVarReduced
     Sp%nVarErotStart = Sp%nVarReduced
     IF (DVMDim.LT.3) Sp%nVarErotStart = Sp%nVarErotStart + Sp%nVarReduced
+    IF (Sp%T_Vib.GT.0.) THEN
+      ! variables for vibrational energy reduced distribution
+      Sp%nVar = Sp%nVar + Sp%nVarReduced
+      Sp%nVarEvibStart = Sp%nVarErotStart + Sp%nVarReduced
+    END IF
   END IF
   PP_nVar_FV          = PP_nVar_FV + Sp%nVar
   LBWRITE(UNIT_stdOut,*)'DVM species '//TRIM(hilf)//':', Sp%nVelos(1), 'x', Sp%nVelos(2), 'x', Sp%nVelos(3),' velocities!'
@@ -239,7 +248,10 @@ DO iSpec = 1, DVMnSpecies
   StrVarNames_FV(offsetSpec+13) = 'Spec'//TRIM(SpecID)//'_HeatfluxY'
   StrVarNames_FV(offsetSpec+14) = 'Spec'//TRIM(SpecID)//'_HeatfluxZ'
   IF (DVMnInnerE.GT.0) THEN
-    StrVarNames_FV(offsetSpec+15) = 'Spec'//TRIM(SpecID)//'_ERot'
+    StrVarNames_FV(offsetSpec+15) = 'Spec'//TRIM(SpecID)//'_TRot'
+    IF (DVMnInnerE.GT.1) THEN
+      StrVarNames_FV(offsetSpec+16) = 'Spec'//TRIM(SpecID)//'_TVib'
+    END IF
   END IF
 END DO
 
@@ -259,7 +271,10 @@ StrVarNames_FV(offsetSpec+12) = 'Total_HeatfluxX'
 StrVarNames_FV(offsetSpec+13) = 'Total_HeatfluxY'
 StrVarNames_FV(offsetSpec+14) = 'Total_HeatfluxZ'
 IF (DVMnInnerE.GT.0) THEN
-  StrVarNames_FV(offsetSpec+15) = 'Total_ERot'
+  StrVarNames_FV(offsetSpec+15) = 'Total_TRot'
+  IF (DVMnInnerE.GT.1) THEN
+    StrVarNames_FV(offsetSpec+16) = 'Total_TVib'
+  END IF
 END IF
 StrVarNames_FV(offsetSpec+15+DVMnInnerE) = 'RelaxationFactor'
 
@@ -400,6 +415,10 @@ IF(SpeciesDatabase.NE.'none') THEN
               ReadFromGroup=.TRUE.)
             IF(PolyMol.EQ.1) CALL Abort(__STAMP__,'! Simulation of Polyatomic Molecules with DVM not possible yet!!!')
           END IF
+          IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+            CALL ReadAttribute(file_id_specdb,'CharaTempVib',1,DatasetName = dsetname,RealScalar=Sp%T_Vib,ReadFromGroup=.TRUE.)
+            CALL PrintOption('CharaTempVib','DB',RealOpt=Sp%T_Vib)
+          END IF
       END IF
       IF(DVMColl) THEN
         ! Reference temperature
@@ -436,21 +455,27 @@ DO iSpec = 1, DVMnSpecies
     Sp%omegaVHS            = GETREAL('DVM-Species'//TRIM(hilf)//'-omegaVHS')
     Sp%T_Ref               = GETREAL('DVM-Species'//TRIM(hilf)//'-T_Ref')
     Sp%d_Ref               = GETREAL('DVM-Species'//TRIM(hilf)//'-d_Ref')
+    IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+      Sp%T_Vib             = GETREAL('DVM-Species'//TRIM(hilf)//'-T_Vib')
+    END IF
   END IF
   Sp%mu_Ref              = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
   Sp%R_S                 = BoltzmannConst / Sp%Mass
   IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
-    ! diatomic molecule (not more for now)
     Sp%Xi_Rot              = 2
     Sp%Z_Rot               = GETREAL('DVM-Species'//TRIM(hilf)//'-Z_Rot')
+    Sp%Z_Vib               = GETREAL('DVM-Species'//TRIM(hilf)//'-Z_Vib')
   ELSE
     Sp%Xi_Rot              = 0
     Sp%Z_Rot               = 1.
+    Sp%Z_Vib               = 1.
+    Sp%T_Vib               = 0.
   END IF
   END ASSOCIATE
 END DO ! iSpec
 
 IF (ANY(DVMSpecData(:)%Xi_Rot.GT.0)) DVMnInnerE = DVMnInnerE + 1
+IF (ANY(DVMSpecData(:)%T_Vib.GT.0)) DVMnInnerE = DVMnInnerE + 1
 
 IF(DVMnSpecies.GT.0)THEN
   LBWRITE (UNIT_stdOut,'(68(". "))')

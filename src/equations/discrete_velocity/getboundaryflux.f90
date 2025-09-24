@@ -52,7 +52,6 @@ CONTAINS
 !==================================================================================================================================
 SUBROUTINE InitBC()
 ! MODULES
-USE MOD_Preproc
 USE MOD_Globals
 USE MOD_Equation_Vars_FV  ,ONLY: EquationInitIsDone_FV
 #if USE_HDG
@@ -136,6 +135,7 @@ INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFi
 REAL                                 :: MacroVal(DVMnMacro), vnormal
 REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr,tau,prefac
 REAL                                 :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
+REAL                                 :: Evib(DVMnSpecies+1), ErelaxVib(DVMnSpecies)
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -219,16 +219,22 @@ DO iBC=1,nBCs
             IF (DVMDim.LT.3) THEN
               UPrim_boundary(Sp%nVarReduced+upos)=UPrim_master(Sp%nVarReduced+upos_sp,SideID)! + MovTerm
             END IF
-            IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+            IF (Sp%Xi_Rot.GT.0.) THEN
               UPrim_boundary(Sp%nVarErotStart+upos)=UPrim_master(Sp%nVarErotStart+upos_sp,SideID)! + MovTerm
+            END IF
+            IF (Sp%T_Vib.GT.0.) THEN
+              UPrim_boundary(Sp%nVarEvibStart+upos)=UPrim_master(Sp%nVarEvibStart+upos_sp,SideID)! + MovTerm
             END IF
           ELSE
             UPrim_boundary(upos)=UPrim_master(upos,SideID)
             IF (DVMDim.LT.3) THEN
               UPrim_boundary(Sp%nVarReduced+upos)=UPrim_master(Sp%nVarReduced+upos,SideID)
             END IF
-            IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
+            IF (Sp%Xi_Rot.GT.0.) THEN
               UPrim_boundary(Sp%nVarErotStart+upos)=UPrim_master(Sp%nVarErotStart+upos,SideID)
+            END IF
+            IF (Sp%T_Vib.GT.0.) THEN
+              UPrim_boundary(Sp%nVarEvibStart+upos)=UPrim_master(Sp%nVarEvibStart+upos,SideID)
             END IF
           END IF
         END DO; END DO; END DO
@@ -242,8 +248,8 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       IF (DVMMethod.GT.0) THEN
-        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
+        CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot,Evib=Evib)
+        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,ErelaxVib,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Evib(1:DVMnSpecies),Pr)
         IF (dt.EQ.0.) THEN
           prefac = 1.
         ELSE
@@ -263,7 +269,8 @@ DO iBC=1,nBCs
         IF (BCType.EQ.24) MacroVal(5) = MacroVal(5)+Face_xGP(1,SideID)*BCTempGrad
         ! IF (BCType.EQ.25) MacroVal(5) = MacroVal(5)+(9.-Face_xGP(1,SideID))*2.*BCTempGrad
         CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
-        CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID,SideID),NormVec(:,SideID),prefac,MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
+        CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID,SideID),NormVec(:,SideID),prefac, &
+                MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec),ErelaxVib(iSpec))
         vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
       END DO
       CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))

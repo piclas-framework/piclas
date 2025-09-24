@@ -66,9 +66,12 @@ TYPE tSpeciesData
   INTEGER         :: InterID
   INTEGER         :: Xi_Rot
   REAL            :: Z_Rot
+  REAL            :: Z_Vib
+  REAL            :: T_Vib
   INTEGER         :: nVar
   INTEGER         :: nVarReduced
   INTEGER         :: nVarErotStart
+  INTEGER         :: nVarEvibStart
   INTEGER         :: nVelos(3)
   REAL            :: VeloMin(3)
   REAL            :: VeloMax(3)

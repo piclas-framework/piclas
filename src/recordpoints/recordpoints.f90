@@ -377,6 +377,7 @@ INTEGER                 :: iRP,ElemID
 REAL                    :: tau, prefac, MacroVal(DVMnMacro,DVMnSpecies+1), fTarget(PP_nVar_FV), rho, Pr
 INTEGER                 :: iSpec, vFirstID, vLastID
 REAL                    :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
+REAL                    :: Evib(DVMnSpecies+1), ErelaxVib(DVMnSpecies)
 #else
 INTEGER                 :: i,j,k,Nloc
 REAL                    :: L_eta_zeta_RP
@@ -394,8 +395,10 @@ DO iRP=1,nRP
 #endif /*discrete_velocity*/
 #ifdef discrete_velocity
         IF (t.GT.0..AND.DVMColl.AND.DVMMethod.GT.0) THEN
-          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,RP_ElemID(iRP)),dt,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot)
-          CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,MacroVal(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Pr)
+          CALL MacroValuesFromDistribution(MacroVal,U_FV(:,RP_ElemID(iRP)),dt,tau,1, &
+                                            MassDensity=rho,PrandtlNumber=Pr,Erot=Erot,Evib=Evib)
+          CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,ErelaxVib,MacroVal(5,DVMnSpecies+1), &
+                                    Erot(1:DVMnSpecies),Evib(1:DVMnSpecies),Pr)
           SELECT CASE(DVMMethod)
             CASE(1)
               prefac = tau*(1.-EXP(-dt/tau))/dt
@@ -406,7 +409,8 @@ DO iRP=1,nRP
           vLastID = 0
           DO iSpec=1,DVMnSpecies
             vLastID = vLastID + DVMSpecData(iSpec)%nVar
-            CALL TargetDistribution(MacroVal(:,DVMnSpecies+1),fTarget(vFirstID:vLastID),iSpec,MacroVal(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec))
+            CALL TargetDistribution(MacroVal(:,DVMnSpecies+1),fTarget(vFirstID:vLastID),iSpec,MacroVal(1,iSpec),rho,Pr, &
+                                                                          ErelaxTrans,ErelaxRot(iSpec),ErelaxVib(iSpec))
             vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
           END DO
           U_RP(:,iRP)=U_FV(:,RP_ElemID(iRP))*prefac + fTarget(:)*(1.-prefac)
