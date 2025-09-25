@@ -507,7 +507,7 @@ END DO; END DO; END DO
 
 END SUBROUTINE MaxwellDistributionCons
 
-SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell,iSpec,densSpec,ErelaxRot,ErelaxVib)
+SUBROUTINE MaxwellDistribution(MacroVal,fMaxwell,iSpec,densSpec,ERot,EVib)
 !===================================================================================================================================
 ! Maxwell distribution from macro values
 !===================================================================================================================================
@@ -522,7 +522,7 @@ IMPLICIT NONE
 INTEGER, INTENT(IN)              :: iSpec
 REAL,INTENT(OUT)                 :: fMaxwell(DVMSpecData(iSpec)%nVar)
 REAL, INTENT(IN)                 :: MacroVal(DVMnMacro)
-REAL, INTENT(IN), OPTIONAL       :: densSpec,ErelaxRot,ErelaxVib
+REAL, INTENT(IN), OPTIONAL       :: densSpec,ERot,EVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -550,13 +550,13 @@ DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(
   END IF
   IF (DVMSpecData(iSpec)%InterID.EQ.2.OR.DVMSpecData(iSpec)%InterID.EQ.20) THEN
     ! molecules with rotational DOF
-    IF (PRESENT(ErelaxRot)) THEN
-      fMaxwell(DVMSpecData(iSpec)%nVarErotStart+upos) = fMaxwell(upos)*ErelaxRot
+    IF (PRESENT(ERot)) THEN
+      fMaxwell(DVMSpecData(iSpec)%nVarErotStart+upos) = fMaxwell(upos)*ERot
     ELSE
       fMaxwell(DVMSpecData(iSpec)%nVarErotStart+upos) = fMaxwell(upos)*Temp*BoltzmannConst*DVMSpecData(iSpec)%Xi_Rot/2.
     END IF
-    IF (PRESENT(ErelaxVib)) THEN
-      fMaxwell(DVMSpecData(iSpec)%nVarEvibStart+upos) = fMaxwell(upos)*ErelaxVib
+    IF (PRESENT(EVib)) THEN
+      fMaxwell(DVMSpecData(iSpec)%nVarEvibStart+upos) = fMaxwell(upos)*EVib
     ELSE
       TvibRatio = DVMSpecData(iSpec)%T_Vib/Temp
       IF(CHECKEXP(TvibRatio)) THEN
@@ -656,10 +656,10 @@ pressTens(2,3)   = MacroVal(11)
 pressTens(3,2)   = MacroVal(11)
 TtransRel = 2.*ErelaxTrans/BoltzmannConst/3.
 
-pressTens = (1.-1./Prandtl)*pressTens*TtransRel/Temp/densTotal/DVMSpecData(iSpec)%Mass
-pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*TtransRel/Prandtl
-pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*TtransRel/Prandtl
-pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*TtransRel/Prandtl
+pressTens = (1.-1./Prandtl)*pressTens/densTotal/DVMSpecData(iSpec)%Mass
+pressTens(1,1) = pressTens(1,1)+DVMSpecData(iSpec)%R_S*(TtransRel-(1.-1./Prandtl)*Temp)
+pressTens(2,2) = pressTens(2,2)+DVMSpecData(iSpec)%R_S*(TtransRel-(1.-1./Prandtl)*Temp)
+pressTens(3,3) = pressTens(3,3)+DVMSpecData(iSpec)%R_S*(TtransRel-(1.-1./Prandtl)*Temp)
 
 CALL INV33(pressTens,ilambda,ldet)
 IF (ldet.LE.0.) THEN

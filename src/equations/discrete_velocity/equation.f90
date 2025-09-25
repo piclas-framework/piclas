@@ -178,8 +178,8 @@ DO iSpec = 1, DVMnSpecies
   Sp%nVar             = Sp%nVarReduced
   IF (DVMDim.LT.3) Sp%nVar = Sp%nVar + Sp%nVarReduced ! variables for translational energy reduced distribution
   IF (Sp%Xi_Rot.GT.0) THEN
-    IF (.NOT.(DVMBGKModel.EQ.1.OR.DVMBGKModel.EQ.3)) CALL abort(__STAMP__,&
-         'DVM error: Inner energies only tested for ESBGK and Maxwell BGK model!')
+    IF (.NOT.(DVMBGKModel.EQ.1)) CALL abort(__STAMP__,&
+         'DVM error: Inner energies only implemented for ESBGK model!')
     ! variables for rotational energy reduced distribution
     Sp%nVar = Sp%nVar + Sp%nVarReduced
     Sp%nVarErotStart = Sp%nVarReduced
