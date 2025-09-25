@@ -38,13 +38,14 @@ SUBROUTINE ReadExternalFieldFromHDF5( DataSet, ExternalField, DeltaExternalField
 !===================================================================================================================================
 !> Read-in of spatially variable external magnetic field or macroscopic species data (n, T, vx, vy and vz) from .h5 file
 !> Check for different fields in the file: x,y,z or x,r or y,r or z,r to determine a possible axial symmetry
-!> as well as 
+!> as well as
 !> a) Bx, By, Bz or Br, Bz etc. (magnetic fields)
 !> b) vx, vy, vz or vr, vz etc. (macroscopic data)
 !===================================================================================================================================
 ! use module
 !USE MOD_IO_HDF5
 USE MOD_Globals
+USE MOD_Globals_Vars     ,ONLY: EpsMach
 #if USE_MPI
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
@@ -54,7 +55,7 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)     :: DataSet               !< dataset name to read from .h5
-CHARACTER(LEN=255),INTENT(IN)   :: FileNameExternalField !< data read from .h5
+CHARACTER(LEN=255),INTENT(IN)   :: FileNameExternalField !< data read from .h5, e.g., read via 'PIC-variableExternalField'
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 REAL,ALLOCATABLE,INTENT(OUT)    :: ExternalField(:,:)    !< array to be read
@@ -76,7 +77,7 @@ INTEGER(HID_T)                  :: file_id_loc                       ! File iden
 INTEGER(HID_T)                  :: dset_id_loc                       ! Dataset identifier
 INTEGER(HID_T)                  :: filespace                         ! filespace identifier
 LOGICAL                         :: DatasetFound,AttributeFound,NaNDetected
-REAL                            :: delta,deltaOld
+REAL                            :: delta,deltaOld,epsComp
 INTEGER                         :: iDirMax
 !===================================================================================================================================
 ! Defaults
@@ -180,10 +181,14 @@ DO iDir = 1, iDirMax
   deltaOld = -1.0
   DO j = 1, NbrOfColumns-1
     delta = ExternalField(iDir,j+1)-ExternalField(iDir,j)
+    epsComp = ExternalField(iDir,j+1) * epsMach
     !write(*,*) delta
-    IF((deltaOld.GT.0.).AND.(delta.GT.0.))THEN
-      !WRITE (*,*) "delta,deltaOld =", iDir,j,delta,deltaOld
-      IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) CALL abort(__STAMP__,'External field: not equidistant.')
+    IF((deltaOld.GT.epsComp).AND.(delta.GT.epsComp))THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) THEN
+        SWRITE (*,*) "ExternalField(iDir,j+1),ExternalField(iDir,j)", ExternalField(iDir,j+1),ExternalField(iDir,j)
+        SWRITE (*,*) "iDir,j,delta,deltaOld =", iDir,j,delta,deltaOld
+        CALL abort(__STAMP__,'ERROR in external magnetic field: provided input is not equidistant.')
+      END IF
     END IF ! deltaOld.GT.0.
     ! Backup old value
     IF(delta.GT.0.)THEN

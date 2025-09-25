@@ -47,6 +47,7 @@ PROCEDURE(PostCollisionVeloVec),POINTER :: PostCollVec    !< pointer defining th
 PUBLIC :: DiceDeflectedVelocityVector4Coll
 PUBLIC :: DiceVelocityVector4Coll
 PUBLIC :: PostCollVec
+PUBLIC :: VelocityCOMBackscatter
 !===================================================================================================================================
 
 CONTAINS
@@ -63,6 +64,7 @@ FUNCTION DiceDeflectedVelocityVector4Coll(iPair,ForceUnitVector) RESULT(VeloVec)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals       ,ONLY: VECNORM
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_DSMC_Vars     ,ONLY: Coll_pData, CollInf
 USE MOD_Part_Tools    ,ONLY: DiceUnitVector
@@ -77,9 +79,8 @@ LOGICAL,INTENT(IN),OPTIONAL :: ForceUnitVector
 REAL                       :: VeloVec(3) ! post-collision relative velocity vector cRela*
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!REAL                       :: alphaVSS               ! Variable Soft Sphere scattering exponent
-!REAL                       :: ur, vr, wr             ! pre-collision relative velocity cRela=(/ur,vr,wr/) for transformation
-REAL                       :: cRela,CRelaTrafo               ! absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
+REAL                       :: cRela               !> absolute value of pre-coll relative velocity abs(cRela), Bird1994 (2.3),(2.8)
+REAL                       :: VeloRel(3),VeloMag,VeloYZMag
 REAL                       :: rRan, rotAngle, cos_scatAngle, sin_scatAngle
 REAL,DIMENSION(3,3)        :: trafoMatrix
 INTEGER                    :: iPart1, iPart2, iSpec1, iSpec2
@@ -95,7 +96,6 @@ iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
 iSpec1 = PartSpecies(iPart1)
 iSpec2 = PartSpecies(iPart2)
-!alphaVSS= CollInf%alphaVSS(iSpec1,iSpec2)
 
 cRela = SQRT(Coll_pData(iPair)%cRela2)  ! absolute value of post-collision relative velocity
 IF (CollInf%alphaVSS(iSpec1,iSpec2).NE.1.0 .AND. .NOT.ForceUnitVector_loc) THEN ! VSS
@@ -115,35 +115,26 @@ IF (CollInf%alphaVSS(iSpec1,iSpec2).NE.1.0 .AND. .NOT.ForceUnitVector_loc) THEN 
   VeloVec(2) = cRela * sin_scatAngle * COS(rotAngle) ! y-component between collision and reference plane
   VeloVec(3) = cRela * sin_scatAngle * SIN(rotAngle) ! z-component between collision and reference plane
 
-! !ALTER ORDER JUST FOR DEBUGGING: NOT VALID FOR VSS !to be solved
-!  VeloVec(3) = - cRela * cos_scatAngle
-!  VeloVec(1) = cRela * sin_scatAngle * COS(rotAngle)
-!  VeloVec(2) = cRela * sin_scatAngle * SIN(rotAngle)
-! for VSS the direction of the velocity is no longer negligible
-  !cRelaOld(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
-  ASSOCIATE ( ur => PartState(4,iPart1) - PartState(4,iPart2) , &
-              vr => PartState(5,iPart1) - PartState(5,iPart2) , &
-              wr => PartState(6,iPart1) - PartState(6,iPart2) )
-    IF ((vr.NE.0.) .AND. (wr.NE.0.)) THEN ! if no radial component: collision plane and laboratory identical-> no transformation
-      CrelaTrafo = SQRT(ur**2 + vr**2 + wr**2)
-      ! axis transformation from reduced- mass frame back to center-of-mass frame
-      ! via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
-  !    WRITE(*,*) "Entered transformation" !to be solved
-      ! initializing rotation matrix
-      trafoMatrix(1,1) = ur / cRelaTrafo
-      trafoMatrix(1,2) = 0
-      trafoMatrix(1,3) = SQRT (vr ** 2 + wr ** 2) / cRelaTrafo
-      trafoMatrix(2,1) = vr / cRelaTrafo
-      trafoMatrix(2,2) = wr / SQRT (vr ** 2 + wr ** 2)
-      trafoMatrix(2,3) = - ur * vr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
-      trafoMatrix(3,1) = wr / cRelaTrafo
-      trafoMatrix(3,2) = - vr / SQRT (vr ** 2 + wr ** 2)
-      trafoMatrix(3,3) = - ur * wr / (cRelaTrafo * SQRT (vr ** 2 + wr ** 2))
+  VeloRel(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
 
-      ! relative post collision v elocity transformation from reduced mass to COM frame
-      VeloVec(:) = MATMUL (trafoMatrix , VeloVec)
-    END IF ! transformation
-  END ASSOCIATE
+  ! if no radial component: collision plane and laboratory identical-> no transformation
+  IF ((VeloRel(2).NE.0.) .AND. (VeloRel(3).NE.0.)) THEN
+    VeloMag = VECNORM(VeloRel(1:3))
+    VeloYZMag = SQRT(VeloRel(2)**2 + VeloRel(3)**2)
+    ! axis transformation from reduced- mass frame back to center-of-mass frame via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
+    ! initializing rotation matrix
+    trafoMatrix(1,1) = VeloRel(1) / VeloMag
+    trafoMatrix(1,2) = 0.
+    trafoMatrix(1,3) = VeloYZMag / VeloMag
+    trafoMatrix(2,1) = VeloRel(2) / VeloMag
+    trafoMatrix(2,2) = VeloRel(3) / VeloYZMag
+    trafoMatrix(2,3) = -VeloRel(1) * VeloRel(2) / (VeloMag * VeloYZMag)
+    trafoMatrix(3,1) = VeloRel(3) / VeloMag
+    trafoMatrix(3,2) = -VeloRel(2) / VeloYZMag
+    trafoMatrix(3,3) = -VeloRel(1) * VeloRel(3) / (VeloMag * VeloYZMag)
+    ! relative post collision velocity transformation from reduced mass to COM frame
+    VeloVec(:) = MATMUL(trafoMatrix , VeloVec)
+  END IF ! transformation
 ELSE
   VeloVec(:) = CRela * DiceUnitVector()
 END IF ! VSS
@@ -176,5 +167,57 @@ IF(PRESENT(ForceUnitVector)) THEN
 END IF
 END FUNCTION DiceVelocityVector4Coll
 
+
+!===================================================================================================================================
+!> Backscattering in the centre of mass plane
+!===================================================================================================================================
+PPURE FUNCTION VelocityCOMBackscatter(iPair) RESULT(VeloVec)
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+USE MOD_Globals         ,ONLY: VECNORM
+USE MOD_Particle_Vars   ,ONLY: PartState
+USE MOD_DSMC_Vars       ,ONLY: Coll_pData
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)  :: iPair
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL                :: VeloVec(3)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iPart1, iPart2
+REAL                :: VeloRel(3),VeloMag,VeloYZMag,trafoMatrix(3,3)
+!===================================================================================================================================
+
+iPart1 = Coll_pData(iPair)%iPart_p1
+iPart2 = Coll_pData(iPair)%iPart_p2
+
+VeloVec(1) = -SQRT(Coll_pData(iPair)%cRela2)                  ! x-component in collision plane
+VeloVec(2) = 0.0
+VeloVec(3) = 0.0
+
+VeloRel(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
+
+! if no radial component: collision plane and laboratory identical-> no transformation
+IF ((VeloRel(2).NE.0.) .AND. (VeloRel(3).NE.0.)) THEN
+  VeloMag = VECNORM(VeloRel(1:3))
+  VeloYZMag = SQRT(VeloRel(2)**2 + VeloRel(3)**2)
+  ! axis transformation from reduced- mass frame back to center-of-mass frame via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
+  ! initializing rotation matrix
+  trafoMatrix(1,1) = VeloRel(1) / VeloMag
+  trafoMatrix(1,2) = 0.
+  trafoMatrix(1,3) = VeloYZMag / VeloMag
+  trafoMatrix(2,1) = VeloRel(2) / VeloMag
+  trafoMatrix(2,2) = VeloRel(3) / VeloYZMag
+  trafoMatrix(2,3) = -VeloRel(1) * VeloRel(2) / (VeloMag * VeloYZMag)
+  trafoMatrix(3,1) = VeloRel(3) / VeloMag
+  trafoMatrix(3,2) = -VeloRel(2) / VeloYZMag
+  trafoMatrix(3,3) = -VeloRel(1) * VeloRel(3) / (VeloMag * VeloYZMag)
+  ! relative post collision velocity transformation from reduced mass to COM frame
+  VeloVec(:) = MATMUL(trafoMatrix , VeloVec)
+END IF ! transformation
+
+END FUNCTION VelocityCOMBackscatter
 
 END MODULE MOD_DSMC_CollisVec

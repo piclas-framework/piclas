@@ -24,16 +24,9 @@ PRIVATE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_LOADBALANCE && USE_FV
-INTERFACE MoveCoords_FV
-  MODULE PROCEDURE MoveCoords_FV
-END INTERFACE
 
-INTERFACE MoveMetrics_FV
-  MODULE PROCEDURE MoveMetrics_FV
-END INTERFACE
-
-PUBLIC::MoveCoords_FV
-PUBLIC::MoveMetrics_FV
+PUBLIC::ExchangeVolMesh_FV
+PUBLIC::ExchangeMetrics_FV
 !==================================================================================================================================
 
 CONTAINS
@@ -41,7 +34,7 @@ CONTAINS
 !==================================================================================================================================
 !> This routine rearranges the coordinates along the space-filling curve
 !==================================================================================================================================
-SUBROUTINE MoveCoords_FV()
+SUBROUTINE ExchangeVolMesh_FV()
 ! MODULES
 USE MOD_Globals
 USE MOD_PreProc
@@ -110,10 +103,10 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! CALL DisplayMessageAndTime(WallTime,'DONE',DisplayDespiteLB=.TRUE.,DisplayLine=.FALSE.)
 END IF
 
-END SUBROUTINE MoveCoords_FV
+END SUBROUTINE ExchangeVolMesh_FV
 
 
-SUBROUTINE MoveMetrics_FV()
+SUBROUTINE ExchangeMetrics_FV()
 !===================================================================================================================================
 !> This routine rearranges the metrics along the space-filling curve
 !===================================================================================================================================
@@ -219,7 +212,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   CALL DisplayMessageAndTime(WallTime,'DONE',DisplayDespiteLB=.TRUE.,DisplayLine=.FALSE.)
 END IF
 
-END SUBROUTINE MoveMetrics_FV
+END SUBROUTINE ExchangeMetrics_FV
 #endif /*USE_LOADBALANCE && USE_FV*/
 
 END MODULE MOD_LoadBalance_Metrics_FV

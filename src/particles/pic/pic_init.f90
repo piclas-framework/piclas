@@ -35,17 +35,20 @@ CONTAINS
 !==================================================================================================================================
 SUBROUTINE DefineParametersPIC()
 ! MODULES
-USE MOD_Globals
-USE MOD_PICDepo_Method            ,ONLY: DefineParametersDepositionMethod
 USE MOD_PICInterpolation          ,ONLY: DefineParametersPICInterpolation
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_PICDepo_Method            ,ONLY: DefineParametersDepositionMethod
 USE MOD_PICDepo                   ,ONLY: DefineParametersPICDeposition
 USE MOD_InitializeBackgroundField ,ONLY: DefineParametersBGField
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 IMPLICIT NONE
 !==================================================================================================================================
 CALL DefineParametersPICInterpolation() ! Get PIC Interpolation parameters
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL DefineParametersDepositionMethod() ! Get PIC-DoDeposition and PIC-Deposition-Type
 CALL DefineParametersPICDeposition()    ! Get more PIC Deposition parameters
 CALL DefineParametersBGField()          ! Get PIC Background field parameters
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 END SUBROUTINE DefineParametersPIC
 
 
@@ -56,13 +59,15 @@ SUBROUTINE InitPIC()
 ! MODULES
 USE MOD_Globals
 USE MOD_PICInterpolation          ,ONLY: InitializeParticleInterpolation
-USE MOD_PICDepo                   ,ONLY: InitializeDeposition
 USE MOD_PIC_Vars                  ,ONLY: PICInitIsDone
-USE MOD_PICInterpolation_Vars     ,ONLY: useBGField
-USE MOD_InitializeBackgroundField ,ONLY: InitializeBackgroundField
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_PICInterpolation_Vars     ,ONLY: useBGField
+USE MOD_PICDepo                   ,ONLY: InitializeDeposition
+USE MOD_InitializeBackgroundField ,ONLY: InitializeBackgroundField
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -80,8 +85,10 @@ LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT PIC ...'
 
 CALL InitializeParticleInterpolation()
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 CALL InitializeDeposition()
 IF(useBGField) CALL InitializeBackgroundField()
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 PICInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT PIC DONE!'

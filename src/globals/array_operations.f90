@@ -63,7 +63,7 @@ INTEGER                           :: ALLOCSTAT
 ALLOCATE(TempVec(NewSize),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL ABORT(&
 __STAMP__&
-,'Cannot allocate new Array in ChangeSizeArray')
+,'Cannot allocate new Array in ChangeSizeArrayLOG1! Requested size is: ', IntInfoOpt=NewSize)
 
 ! Write old data to new memory space
 IF(NewSize.GT.OldSize) THEN
@@ -104,7 +104,7 @@ INTEGER                           :: ALLOCSTAT
 ALLOCATE(TempVec(SIZE(Vec,1),NewSize),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL ABORT(&
 __STAMP__&
-,'Cannot allocate new Array in ChangeSizeArray')
+,'Cannot allocate new Array in ChangeSizeArrayLOG2! Requested size is: ', IntInfoOpt=NewSize)
 
 ! Write old data to new memory space
 IF(NewSize.GT.OldSize) THEN
@@ -145,7 +145,7 @@ INTEGER                           :: ALLOCSTAT
 ALLOCATE(TempVec(NewSize),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL ABORT(&
 __STAMP__&
-,'Cannot allocate new Array in ChangeSizeArray')
+,'Cannot allocate new Array in ChangeSizeArrayINT1! Requested size is: ', IntInfoOpt=NewSize)
 
 ! Write old data to new memory space
 IF(NewSize.GT.OldSize) THEN
@@ -186,7 +186,7 @@ INTEGER                           :: ALLOCSTAT
 ALLOCATE(TempVec(SIZE(Vec,1),NewSize),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL ABORT(&
 __STAMP__&
-,'Cannot allocate new Array in ChangeSizeArray')
+,'Cannot allocate new Array in ChangeSizeArrayINT2! Requested size is: ', IntInfoOpt=NewSize)
 
 ! Write old data to new memory space
 IF(NewSize.GT.OldSize) THEN
@@ -227,7 +227,7 @@ INTEGER                           :: ALLOCSTAT
 ALLOCATE(TempVec(NewSize),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL ABORT(&
 __STAMP__&
-,'Cannot allocate new Array in ChangeSizeArray')
+,'Cannot allocate new Array in ChangeSizeArrayREAL1! Requested size is: ', IntInfoOpt=NewSize)
 
 ! Write old data to new memory space
 IF(NewSize.GT.OldSize) THEN
@@ -268,7 +268,7 @@ INTEGER                           :: ALLOCSTAT
 ALLOCATE(TempVec(SIZE(Vec,1),NewSize),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL ABORT(&
 __STAMP__&
-,'Cannot allocate new Array in ChangeSizeArray')
+,'Cannot allocate new Array in ChangeSizeArrayREAL2! Requested size is: ', IntInfoOpt=NewSize)
 
 ! Write old data to new memory space
 IF(NewSize.GT.OldSize) THEN
@@ -309,7 +309,7 @@ INTEGER                           :: ALLOCSTAT
 ALLOCATE(TempVec(SIZE(Vec,1),SIZE(Vec,2),NewSize),STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL ABORT(&
 __STAMP__&
-,'Cannot allocate new Array in ChangeSizeArray')
+,'Cannot allocate new Array in ChangeSizeArrayREAL3! Requested size is: ', IntInfoOpt=NewSize)
 
 ! Write old data to new memory space
 IF(NewSize.GT.OldSize) THEN

@@ -42,7 +42,6 @@ SUBROUTINE DefineParametersPICInterpolation()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools    ,ONLY: prms
-USE MOD_PICDepo_Method ,ONLY: DefineParametersDepositionMethod
 IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("PIC Interpolation")
@@ -111,7 +110,9 @@ SUBROUTINE InitializeParticleInterpolation
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_ReadInTools
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 USE MOD_Particle_Vars         ,ONLY: PDM
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_PICInterpolation_Vars
 USE MOD_ReadInTools           ,ONLY: PrintOption
 #if USE_LOADBALANCE
@@ -125,8 +126,10 @@ USE MOD_LoadBalance_Vars      ,ONLY: PerformLoadBalance
 ! OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 INTEGER                   :: ALLOCSTAT
 REAL                      :: scaleExternalField
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #ifdef CODE_ANALYZE
 CHARACTER(LEN=20)         :: tempStr
 #endif /*CODE_ANALYZE*/
@@ -139,6 +142,7 @@ IF(.NOT.DoInterpolation) THEN
   RETURN
 END IF
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 InterpolationType = GETSTR('PIC-Interpolation-Type','particle_position')
 
 InterpolationElemLoop = GETLOGICAL('PIC-InterpolationElemLoop')
@@ -189,6 +193,7 @@ CASE('particle_position')
 CASE DEFAULT
   CALL abort(__STAMP__ ,'Unknown InterpolationType ['//TRIM(ADJUSTL(InterpolationType))//'] in pic_interpolation.f90')
 END SELECT
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 #ifdef CODE_ANALYZE
 ! Initialize analytic solutions for particle time integration (checking the order of convergence for time discretizations)
@@ -253,9 +258,9 @@ USE MOD_PIC_Vars
 USE MOD_PICInterpolation_Vars ,ONLY: FieldAtParticle,DoInterpolation,InterpolationType
 USE MOD_PICInterpolation_Vars ,ONLY: InterpolationElemLoop
 USE MOD_SuperB_Vars           ,ONLY: UseTimeDepCoil
-USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5
+! USE MOD_HDF5_Output_Fields    ,ONLY: WriteBGFieldToHDF5
 #if USE_HDG
-USE MOD_AnalyzeField          ,ONLY: CalculateAverageElectricPotential
+USE MOD_AnalyzeField_HDG      ,ONLY: CalculateAverageElectricPotential
 USE MOD_Analyze_Vars          ,ONLY: CalcAverageElectricPotential
 #endif /*USE_HDG*/
 USE MOD_PICInterpolation_tools,ONLY:GetExternalFieldAtParticle,GetInterpolatedFieldPartPos
@@ -364,6 +369,7 @@ END SELECT
 END SUBROUTINE InterpolateFieldToSingleParticle
 
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 SUBROUTINE ReadVariableExternalField()
 !===================================================================================================================================
 ! ATTENTION: The external field needs to be defined on equidistant data-points as either .csv or .h5 file
@@ -487,6 +493,7 @@ END IF
 
 LBWRITE(UNIT_stdOut,'(A,I4.0,A)')' Found ', ncounts,' data points.'
 END SUBROUTINE ReadVariableExternalFieldFromCSV
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
 
 SUBROUTINE GetTimeDependentBGField()
@@ -495,37 +502,40 @@ SUBROUTINE GetTimeDependentBGField()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Interpolation_Vars ,ONLY: BGField
-USE MOD_SuperB_Vars        ,ONLY: nTimePoints, BGFieldTDep, BGFieldFrequency
+USE MOD_Interpolation_Vars ,ONLY: N_BG
+USE MOD_SuperB_Vars        ,ONLY: nTimePoints, BGFieldFrequency
 USE MOD_TimeDisc_Vars      ,ONLY: Time
+USE MOD_Mesh_Vars          ,ONLY: nElems
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER :: iTime
+INTEGER :: iTime, iElem
 REAL    :: timestep,t,Period
 !===================================================================================================================================
 
 ! Check frequency and calculate time within the period
 ASSOCIATE( f => BGFieldFrequency )
-  IF(f.GT.0.)THEN
-    Period   = 1./f
-    timestep = 1./(f*REAL(nTimePoints-1))
-    t        = MOD(Time,Period)
-    iTime    = FLOOR(t/timestep)+1
-    IF(iTime.EQ.nTimePoints) iTime = iTime - 1 ! sanity check
-    ! Interpolate the Background field linear between two timesteps
-    ASSOCIATE( y1 => BGFieldTDep(:,:,:,:,:,iTime)   ,&
-               y2 => BGFieldTDep(:,:,:,:,:,iTime+1) )
-      BGField(:,:,:,:,:) = y2 + ((y2-y1)/timestep) * (t - iTime * timestep)
-    END ASSOCIATE
-  ELSE
-    Period   = 0.
-    timestep = 0.
-    t        = 0.
-    BGField(:,:,:,:,:) = BGFieldTDep(:,:,:,:,:,1)
-  END IF ! f.GT.0.
+  DO iElem =1, nElems
+    IF(f.GT.0.)THEN
+      Period   = 1./f
+      timestep = 1./(f*REAL(nTimePoints-1))
+      t        = MOD(Time,Period)
+      iTime    = FLOOR(t/timestep)+1
+      IF(iTime.EQ.nTimePoints) iTime = iTime - 1 ! sanity check
+      ! Interpolate the Background field linear between two timesteps
+      ASSOCIATE( y1 => N_BG(iElem)%BGFieldTDep(:,:,:,:,iTime)   ,&
+                 y2 => N_BG(iElem)%BGFieldTDep(:,:,:,:,iTime+1) )
+        N_BG(iElem)%BGField(:,:,:,:) = y2 + ((y2-y1)/timestep) * (t - iTime * timestep)
+      END ASSOCIATE
+    ELSE
+      Period   = 0.
+      timestep = 0.
+      t        = 0.
+      N_BG(iElem)%BGField(:,:,:,:) = N_BG(iElem)%BGFieldTDep(:,:,:,:,1)
+    END IF ! f.GT.0.
+  END DO
 END ASSOCIATE
 
 ! CALL WriteBGFieldToHDF5(Time)

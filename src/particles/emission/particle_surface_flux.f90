@@ -43,7 +43,7 @@ USE MOD_Mesh_Vars               ,ONLY: SideToElem, offsetElem
 USE MOD_Part_Tools              ,ONLY: GetNextFreePosition
 USE MOD_Part_Emission_Tools     ,ONLY: SetParticleChargeAndMass, SetParticleMPF
 USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance, CalcSurfFluxInfo, nPartIn, PartEkinIn
-USE MOD_Particle_Analyze_Tools  ,ONLY: CalcEkinPart
+USE MOD_Particle_Analyze_Pure   ,ONLY: CalcEkinPart
 USE MOD_Particle_Mesh_Tools     ,ONLY: GetGlobalNonUniqueSideID
 USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCPartNumOut
 USE MOD_Particle_Surfaces_Vars  ,ONLY: SurfFluxSideSize, TriaSurfaceFlux, BCdata_auxSF
@@ -51,9 +51,6 @@ USE MOD_Particle_TimeStep       ,ONLY: GetParticleTimeStep
 USE MOD_Timedisc_Vars           ,ONLY: RKdtFrac, dt
 USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 USE MOD_DSMC_PolyAtomicModel    ,ONLY: DSMC_SetInternalEnr
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-#endif /*IMPA*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: nSurfacefluxPerElem
 USE MOD_LoadBalance_Timers      ,ONLY: LBStartTime, LBElemSplitTime, LBPauseTime
@@ -233,9 +230,6 @@ DO iSpec=1,nSpecies
             PartState(4:5,ParticleIndexNbr) = particle_xis(2*(iPart-1)+1:2*(iPart-1)+2) !use velo as dummy-storage for xi!
           END IF
           LastPartPos(1:3,ParticleIndexNbr)=PartState(1:3,ParticleIndexNbr)
-#if defined(IMPA) || defined(ROS)
-          IF(TrackingMethod.EQ.REFMAPPING) CALL GetPositionInRefElem(PartState(1:3,ParticleIndexNbr),PartPosRef(1:3,ParticleIndexNbr),globElemId)
-#endif /*IMPA*/
           PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
           PDM%dtFracPush(ParticleIndexNbr) = .TRUE.
           PDM%IsNewPart(ParticleIndexNbr) = .TRUE.
@@ -494,12 +488,6 @@ SUBROUTINE AnalyzePartPos(ParticleIndexNbr)
 USE MOD_Globals
 USE MOD_Particle_Vars      ,ONLY: LastPartPos, PDM
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
-#ifdef IMPA
-USE MOD_Particle_Vars      ,ONLY: PartDtFrac,PartIsImplicit
-#endif /*IMPA*/
-#if  defined(IMPA) || defined(ROS)
-USE MOD_Timedisc_Vars      ,ONLY: iStage
-#endif
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -517,10 +505,6 @@ IF(   (LastPartPos(1,ParticleIndexNbr).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(La
   .OR.(LastPartPos(3,ParticleIndexNbr).GT.GEO%zmaxglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,ParticleIndexNbr),GEO%zmaxglob) &
   .OR.(LastPartPos(3,ParticleIndexNbr).LT.GEO%zminglob).AND. .NOT.ALMOSTEQUAL(LastPartPos(3,ParticleIndexNbr),GEO%zminglob) ) THEN
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' ParticleInside ',PDM%ParticleInside(ParticleIndexNbr)
-#ifdef IMPA
-  IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PartIsImplicit ', PartIsImplicit(ParticleIndexNbr)
-  IPWRITE(UNIt_stdOut,'(I0,A18,ES25.14)')                       ' PartDtFrac ', PartDtFrac(ParticleIndexNbr)
-#endif /*IMPA*/
   IPWRITE(UNIt_stdOut,'(I0,A18,L1)')                            ' PDM%IsNewPart ', PDM%IsNewPart(ParticleIndexNbr)
   IPWRITE(UNIt_stdOut,'(I0,A18,1X,A18,1X,A18)')                  '    min ', ' value ', ' max '
   IPWRITE(UNIt_stdOut,'(I0,A2,1X,ES25.14,1X,ES25.14,1X,ES25.14)') ' x', GEO%xminglob, LastPartPos(1,ParticleIndexNbr) &
@@ -529,13 +513,7 @@ IF(   (LastPartPos(1,ParticleIndexNbr).GT.GEO%xmaxglob).AND. .NOT.ALMOSTEQUAL(La
                                                                 , GEO%ymaxglob
   IPWRITE(UNIt_stdOut,'(I0,A2,1X,ES25.14,1X,ES25.14,1X,ES25.14)') ' z', GEO%zminglob, LastPartPos(3,ParticleIndexNbr) &
                                                                 , GEO%zmaxglob
-  CALL abort(&
-     __STAMP__ &
-#if  defined(IMPA) || defined(ROS)
-     ,' LastPartPos outside of mesh. iPart=, iStage',ParticleIndexNbr,REAL(iStage))
-#else
-     ,' LastPartPos outside of mesh. iPart=',ParticleIndexNbr)
-#endif
+  CALL abort(__STAMP__,' LastPartPos outside of mesh. iPart=',ParticleIndexNbr)
 END IF
 END SUBROUTINE AnalyzePartPos
 #endif /*CODE_ANALYZE*/
@@ -890,6 +868,10 @@ IF(ParticleWeighting%UseSubdivision) THEN
               * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub)+ RandVal)
       PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
     END DO
+  ELSE
+    CALL RANDOM_NUMBER(RandVal)
+    PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%PartDensity / Species(iSpec)%MacroParticleFactor &
+      * dtVar*RKdtFrac * Species(iSpec)%Surfaceflux(iSF)%SurfFluxSubSideData(iSample,jSample,iSide)%nVFR + RandVal)
   END IF
 ELSE
   CALL RANDOM_NUMBER(RandVal)
@@ -1665,9 +1647,9 @@ IF(UseRotRefFrame) THEN
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
     PositionNbr = GetNextFreePosition(i)
     ! Detect if particle is within a RotRefDomain
-    PDM%InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
+    InRotRefFrame(PositionNbr) = InRotRefFrameCheck(PositionNbr)
     ! Initialize velocity in the rotational frame of reference
-    IF(PDM%InRotRefFrame(PositionNbr)) THEN
+    IF(InRotRefFrame(PositionNbr)) THEN
       PartVeloRotRef(1:3,PositionNbr) = PartState(4:6,PositionNbr) - CROSS(RotRefFrameOmega(1:3),PartState(1:3,PositionNbr))
     END IF
   END DO
@@ -1688,8 +1670,10 @@ USE MOD_PreProc
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi, ElementaryCharge, eps0
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: Species, VarTimeStep
-USE MOD_Equation_Vars           ,ONLY: E
+!USE MOD_Equation_Vars           ,ONLY: E
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
+USE MOD_DG_Vars                 ,ONLY: N_DG_Mapping,U_N
+USE MOD_Mesh_Vars               ,ONLY: offSetElem
 ! ROUTINES
 USE MOD_ProlongToFace           ,ONLY: ProlongToFace_Elementlocal
 IMPLICIT NONE
@@ -1701,7 +1685,9 @@ INTEGER, INTENT(OUT)        :: PartInsSubSide
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                        :: EFieldFace(1:3,0:PP_N,0:PP_N), EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
+REAL                        :: EFaceMag, CurrentDensity, WallTemp, WorkFunction, RandVal1, dtVar
+REAL, ALLOCATABLE           :: EFieldFace(:,:,:)
+INTEGER                     :: NLoc
 !===================================================================================================================================
 ASSOCIATE(SF => Species(iSpec)%Surfaceflux(iSF))
 
@@ -1711,12 +1697,13 @@ IF(VarTimeStep%UseSpeciesSpecific) THEN
 ELSE
   dtVar = dt
 END IF
-
+Nloc = N_DG_Mapping(2,ElemID+offSetElem)
+ALLOCATE(EFieldFace(3,0:Nloc,0:Nloc))
 ! 1) Determine the electric field at the surface
-CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=E(:,:,:,:,ElemID),Uface=EFieldFace)
+CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=U_N(ElemID)%E(1:3,:,:,:) ,Uface=EFieldFace, Nloc=Nloc)
 
 ! 2) Average the e-field vector and calculate magnitude
-EFaceMag = (PP_N+1)**2
+EFaceMag = (Nloc+1)**2
 EFaceMag = VECNORM((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
 
 ! 3) Calculate the work function with the Schottky effect and the new current density [A/m2]

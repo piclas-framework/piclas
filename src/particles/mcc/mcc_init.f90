@@ -178,6 +178,8 @@ END IF
 
 ALLOCATE(SpecXSec(CollInf%NumCase))
 SpecXSec(:)%UseCollXSec = .FALSE.
+SpecXSec(:)%UseBackScatterXSec = .FALSE.
+SpecXSec(:)%BackNumColl = 0.
 SpecXSec(:)%UseVibXSec = .FALSE.
 SpecXSec(:)%UseElecXSec = .FALSE.
 SpecXSec(:)%NumElecLevel = 0
@@ -213,6 +215,52 @@ DO iSpec = 1, nSpecies
           ,'ERROR: Both species defined to use collisional cross-section, define only the source species with UseCollXSec!')
       ! Store the energy value in J (read-in was in eV)
       SpecXSec(iCase)%CollXSecData(1,:) = SpecXSec(iCase)%CollXSecData(1,:) * ElementaryCharge
+      ! Backscatter cross-section
+      IF(SpecXSec(iCase)%UseBackScatterXSec) THEN
+        SpecXSec(iCase)%BackXSecData(1,:) = SpecXSec(iCase)%BackXSecData(1,:) * ElementaryCharge
+        ! Array bounds of collisional cross-section data
+        MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
+        ! Maximum energy value of cross-section data
+        MaxEnergyColl = SpecXSec(iCase)%CollXSecData(1,MaxDim)
+        ! Determine whether the maximal energy level of backscattering levels is greater than the provided collisional level
+        NumLevel = COUNT(SpecXSec(iCase)%BackXSecData(1,:).GT.MaxEnergyColl)
+        ! Abort in case of EFFECTIVE or resizing the CollXSecData array in case of ELASTIC, if vibrational energy levels are above
+        IF(NumLevel.GT.0) THEN
+          IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+            CALL abort(__STAMP__,'ERROR: Effective cross-section has a smaller energy range than the backscattering cross-section!')
+          ELSE
+            ! Allocate a temporary array for the new collisional cross-section data
+            ALLOCATE(CollXSecDataTemp(1:2,1:MaxDim+NumLevel))
+            ! Store the old array in the new temporary array
+            CollXSecDataTemp(1:2,1:MaxDim) = SpecXSec(iCase)%CollXSecData(1:2,1:MaxDim)
+            ! Determine the bounds of backscattering energy levels to be added to the collision array
+            MaxDimLevel = UBOUND(SpecXSec(iCase)%BackXSecData,DIM=2)
+            ! Add the energy levels but not the cross-section, it will added in the next step
+            CollXSecDataTemp(1,MaxDim+1:MaxDim+NumLevel) = SpecXSec(iCase)%BackXSecData(1,MaxDimLevel-NumLevel+1:MaxDimLevel)
+            CollXSecDataTemp(2,MaxDim+1:MaxDim+NumLevel) = 0.
+            CALL MOVE_ALLOC(CollXSecDataTemp,SpecXSec(iCase)%CollXSecData)
+            LBWRITE(*,*) 'Resizing CollXSecData array from ', MaxDim, ' to ', UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
+            MaxDim = UBOUND(SpecXSec(iCase)%CollXSecData,dim=2)
+          END IF
+        END IF
+        ! Interpolate the backscattering cross section at the energy levels of the collision collision cross section and add the
+        ! backscattering probability
+        DO iStep = 1, MaxDim
+          CrossSection = InterpolateCrossSection(SpecXSec(iCase)%BackXSecData,SpecXSec(iCase)%CollXSecData(1,iStep))
+          ! When no effective cross-section is available, the vibrational cross-section has to be added to the collisional
+          IF(SpecXSec(iCase)%CollXSec_Effective) THEN
+            IF(CrossSection.GT.SpecXSec(iCase)%CollXSecData(2,iStep)) THEN
+              SWRITE(*,*) 'backscattering cross-section: ', CrossSection
+              SWRITE(*,*) 'Effective cross-section: ', SpecXSec(iCase)%CollXSecData(2,iStep)
+              SWRITE(*,*) 'Effective cross-section should be greater as the backscattering is supposed to be part of the effective cross-section.'
+              SWRITE(*,*) 'Check the last value of the backscattering data, the cross-section should be zero, otherwise the last value will be taken for energies outside the backscattering data.'
+              CALL abort(__STAMP__,'ERROR: Effective cross-section is smaller than the interpolated backscattering level cross-section!')
+            END IF
+          ELSE
+            SpecXSec(iCase)%CollXSecData(2,iStep) = SpecXSec(iCase)%CollXSecData(2,iStep) + CrossSection
+          END IF
+        END DO
+      END IF
     END IF
     ! Read-in vibrational cross sections
     IF(SpecDSMC(iSpec)%UseVibXSec.OR.SpecDSMC(jSpec)%UseVibXSec) CALL ReadVibXSec(iCase, iSpec, jSpec)

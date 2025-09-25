@@ -28,23 +28,14 @@ PRIVATE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
-
-INTERFACE InitTimeAverage
-  MODULE PROCEDURE InitTimeAverage
-END INTERFACE
-
-INTERFACE FinalizeTimeAverage
-  MODULE PROCEDURE FinalizeTimeAverage
-END INTERFACE
-
-INTERFACE CalcTimeAverage
-  MODULE PROCEDURE CalcTimeAverage
-END INTERFACE
-
+#if !(PP_TimeDiscMethod==700)
 PUBLIC::InitTimeAverage, FinalizeTimeAverage, CalcTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
 !==================================================================================================================================
 CONTAINS
 
+
+#if !(PP_TimeDiscMethod==700)
 SUBROUTINE InitTimeAverage()
 !==================================================================================================================================
 !> Initializes the time averaging variables and fluctuation/ RMS fluctuation quantities to required time averaged variables
@@ -341,7 +332,7 @@ USE MOD_Globals
 USE MOD_PreProc
 USE MOD_FV_Vars                ,ONLY: U_FV
 USE MOD_Mesh_Vars              ,ONLY: MeshFile,nElems
-USE MOD_HDF5_Output            ,ONLY: WriteTimeAverage
+USE MOD_HDF5_Output_State      ,ONLY: WriteTimeAverage
 USE MOD_Globals_Vars           ,ONLY: smu0
 USE MOD_Timeaverage_Vars       ,ONLY: UAvg,UFluc,CalcAvg,iAvg,FlucAvgMap,dtAvg,dtold,nVarAvg,nVarFluc,nVarFlucHasAvg &
                                ,VarnamesAvgOut,VarNamesFlucOut,DoPoyntingVectorAvg
@@ -492,5 +483,6 @@ SDEALLOCATE(DoPowerDensity)
 SDEALLOCATE(PowerDensity)
 #endif /*PARTICLES*/
 END SUBROUTINE FinalizeTimeAverage
+#endif /*!(PP_TimeDiscMethod==700)*/
 
 END MODULE MOD_TimeAverage

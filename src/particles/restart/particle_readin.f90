@@ -48,10 +48,8 @@ USE MOD_DSMC_Vars              ,ONLY: UseDSMC,DSMC,PolyatomMolDSMC,SpecDSMC,Part
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_HDF5_Input_Particles   ,ONLY: ReadEmissionVariablesFromHDF5,ReadNodeSourceExtFromHDF5
 USE MOD_Particle_Vars          ,ONLY: PartInt,PartData,nSpecies,Species
-USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PartSourceOld
 ! Restart
-USE MOD_Restart_Vars           ,ONLY: RestartFile,InterpolateSolution,RestartNullifySolution
-USE MOD_Restart_Vars           ,ONLY: DoMacroscopicRestart
+USE MOD_Restart_Vars           ,ONLY: RestartFile,RestartNullifySolution,DoMacroscopicRestart
 ! HDG
 #if USE_HDG
 USE MOD_Part_BR_Elecron_Fluid  ,ONLY: CreateElectronsFromBRFluid
@@ -62,19 +60,31 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld,ElemInfoRank_Shared
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_LoadBalance_Vars       ,ONLY: MPInPartSend,MPInPartRecv,MPIoffsetPartSend,MPIoffsetPartRecv
-USE MOD_LoadBalance_Vars       ,ONLY: PartSourceLB,NodeSourceExtEquiLB
 USE MOD_Mesh_Vars              ,ONLY: nElems
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared
-USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID
 USE MOD_Mesh_Vars              ,ONLY: offsetElem
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_PICDepo_Vars           ,ONLY: NodeSourceExt
+USE MOD_LoadBalance_Vars       ,ONLY: NodeSourceExtEquiLB
+USE MOD_Interpolation_Vars     ,ONLY: NMax
 USE MOD_Particle_Vars          ,ONLY: DelayTime
-USE MOD_PICDepo_Vars           ,ONLY: PartSource
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemNodeID_Shared,NodeInfo_Shared,nUniqueGlobalNodes
+USE MOD_PICDepo_Vars           ,ONLY: PS_N
 USE MOD_TimeDisc_Vars          ,ONLY: time
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+USE MOD_Mesh_Vars              ,ONLY: ELEM_RANK
 #endif /*USE_LOADBALANCE*/
 USE MOD_Particle_Vars          ,ONLY: VibQuantData,ElecDistriData,AD_Data
 USE MOD_Particle_Vars          ,ONLY: PartDataSize,PartIntSize,PartDataVarNames
+USE MOD_ChangeBasis            ,ONLY: ChangeBasis3D
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+USE MOD_PICDepo_Vars           ,ONLY: DoDeposition,RelaxDeposition,PS_N
+USE MOD_Restart_Vars           ,ONLY: InterpolateSolution,N_Restart
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping
+USE MOD_Interpolation_Vars     ,ONLY: PREF_VDM
+USE MOD_Interpolation_Vars     ,ONLY: N_Inter
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -89,28 +99,32 @@ INTEGER,PARAMETER                  :: ELEM_LastPartInd  = 2
 ! Counters
 INTEGER(KIND=IK)                   :: locnPart,offsetnPart
 INTEGER                            :: iElem
-INTEGER                            :: FirstElemInd,LastelemInd,i,j,k
+INTEGER                            :: FirstElemInd,LastelemInd
 INTEGER                            :: MaxQuantNum,iPolyatMole,iSpec,iVar,MaxElecQuant,iRead
 ! VarNames
 CHARACTER(LEN=255),ALLOCATABLE     :: StrVarNames_HDF5(:)
 LOGICAL,ALLOCATABLE                :: VariableMapped(:)
 ! HDF5 checkes
-LOGICAL                            :: VibQuantDataExists,changedVars,DGSourceExists
+LOGICAL                            :: VibQuantDataExists,changedVars
 LOGICAL                            :: ElecDistriDataExists,AD_DataExists
 LOGICAL                            :: FileVersionExists
 REAL                               :: FileVersionHDF5Real
 INTEGER                            :: FileVersionHDF5Int
 INTEGER                            :: PartDataSize_HDF5              ! number of entries in each line of PartData
-REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
 ! Temporary arrays
 INTEGER(KIND=IK),ALLOCATABLE       :: PartIntTmp(:,:)
 #if USE_LOADBALANCE
 ! LoadBalance
 INTEGER(KIND=IK)                   :: PartRank
-INTEGER                            :: offsetPartSend,offsetPartRecv,CNElemID
+INTEGER                            :: offsetPartSend,offsetPartRecv
 INTEGER,PARAMETER                  :: N_variables=1
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 REAL,ALLOCATABLE                   :: NodeSourceExtEquiLBTmp(:,:,:,:,:)
 INTEGER                            :: NodeID(1:8)
+INTEGER                            :: CNElemID
+REAL,ALLOCATABLE                   :: PartSource(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: PartSourceTmp(:,:,:,:,:)
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #if USE_MPI
 ! MPI
 INTEGER                            :: iProc
@@ -126,6 +140,13 @@ TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
 INTEGER(KIND=MPI_ADDRESS_KIND)     :: MPI_DISPLACEMENT(1)
 #endif /*USE_LOADBALANCE*/
 CHARACTER(LEN=32)                  :: hilf
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+REAL,ALLOCATABLE                   :: PartSource_HDF5(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: Uloc(:,:,:,:),PartSourceloc(:,:,:,:)
+LOGICAL                            :: DGSourceExists
+INTEGER                            :: i,j,k
+INTEGER                            :: Nloc
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 !===================================================================================================================================
 
 FirstElemInd = offsetElem+1
@@ -135,57 +156,100 @@ LastElemInd  = offsetElem+PP_nElems
 IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Restarting particles during loadbalance...'
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
   ! 1.) relax deposition
-  ! 2.) particle delay time active
+  ! 2.) particle delay time active (t<tDelay)
   IF (DoDeposition .AND. (RelaxDeposition.OR.(time.LT.DelayTime))) THEN
-    ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,nElems))
+    ! Store in Nmax^3 array
+    ALLOCATE(PartSource(1:4,0:NMax,0:NMax,0:NMax,nElemsOld))
+    DO iElem = 1, nElemsOld
+      Nloc = N_DG_Mapping(2,iElem+offsetElemOld)
+      IF(Nloc.EQ.Nmax)THEN
+        PartSource(:,:,:,:,iElem) = PS_N(iElem)%PartSource(:,:,:,:)
+      ELSE
+        PartSource(:,:,:,:,iElem) = 0.
+        DO k=0,Nloc
+          DO j=0,Nloc
+            DO i=0,Nloc
+              PartSource(:,i,j,k,iElem) = PS_N(iElem)%PartSource(:,i,j,k)
+            END DO
+          END DO
+        END DO
+      END IF ! Nloc.Eq.Nmax
+    END DO ! iElem = 1, nElems
+
+    ALLOCATE(PartSourceTmp(1:4,0:NMax,0:NMax,0:NMax,nElems))
     ASSOCIATE (&
             counts_send  => INT(MPInElemSend     ) ,&
             disp_send    => INT(MPIoffsetElemSend) ,&
             counts_recv  => INT(MPInElemRecv     ) ,&
             disp_recv    => INT(MPIoffsetElemRecv))
       ! Communicate PartSource over MPI
-      MPI_LENGTH       = 4*(PP_N+1)**3
+      MPI_LENGTH       = 4*(NMax+1)**3
       MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
       MPI_TYPE         = MPI_DOUBLE_PRECISION
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
       CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
 
-      CALL MPI_ALLTOALLV(PartSourceLB,counts_send,disp_send,MPI_STRUCT,PartSource_HDF5,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
+      CALL MPI_ALLTOALLV(PartSource,counts_send,disp_send,MPI_STRUCT,PartSourceTmp,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
       CALL MPI_TYPE_FREE(MPI_STRUCT,iError)
     END ASSOCIATE
-    DEALLOCATE(PartSourceLB)
+    CALL MOVE_ALLOC(PartSourceTmp,PartSource)
 
+    DEALLOCATE(PS_N)
+    ! the local DG solution in physical and reference space
+    ALLOCATE(PS_N(1:nElems))
     ! 1.) relax deposition
     IF(RelaxDeposition)THEN
-      DO iElem =1,PP_nElems
+      DO iElem =1,nElems
         DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
 #if ((USE_HDG) && (PP_nVar==1))
-          PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
-          PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          !PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          !PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          CALL abort(__STAMP__,'not implemented')
 #else
-          PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-          PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          !PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          !PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+          CALL abort(__STAMP__,'not implemented')
 #endif
         END DO; END DO; END DO
       END DO
     END IF ! RelaxDeposition
 
-    ! 2.) particle delay time active
+
+    ! 2.) particle delay time active. Deposition is not performed, therefore the values must be communicated
     IF(time.LT.DelayTime)THEN
-      DO iElem =1,PP_nElems
-        DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+      DO iElem = 1, nElems
+        Nloc = N_DG_Mapping(2,iElem+offSetElem)
+        ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+        DO k=0,Nloc
+          DO j=0,Nloc
+            DO i=0,Nloc
 #if ((USE_HDG) && (PP_nVar==1))
-          PartSource(1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          !PartSource(1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+          CALL abort(__STAMP__,'not implemented')
 #else
-          PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+              !PartSource(1:4,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+              PS_N(iElem)%PartSource(:,i,j,k) = PartSource(:,i,j,k,iElem)
 #endif
-        END DO; END DO; END DO
-      END DO
+            END DO
+          END DO
+        END DO
+      END DO ! iElem = 1, PP_nElems
     END IF ! time.LE.DelayTime
+    DEALLOCATE(PartSource)
+  ELSE
+    ! Re-allocate the source terms
+    SDEALLOCATE(PS_N)
+    ALLOCATE(PS_N(1:nElems))
+    DO iElem = 1, nElems
+      Nloc = N_DG_Mapping(2,iElem+offSetElem)
+      ALLOCATE(PS_N(iElem)%PartSource(1:4,0:Nloc,0:Nloc,0:Nloc))
+      PS_N(iElem)%PartSource = 0.
+    END DO
   END IF ! (DoDeposition .AND. RelaxDeposition)
 
   ! ------------------------------------------------
@@ -231,6 +295,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
     END DO!iElem
     DEALLOCATE(NodeSourceExtEquiLBTmp)
   END IF ! DoDeposition.AND.DoDielectricSurfaceCharge
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 
   ! ------------------------------------------------
   ! Check and set sizes
@@ -429,35 +494,64 @@ ELSE
   ! ------------------------------------------------
   ! PartSource
   ! ------------------------------------------------
+! Read-in of dimensions of the field array (might have an additional dimension, i.e., rank is 6 instead of 5)
   IF(.NOT.RestartNullifySolution)THEN ! Use the solution in the restart file
-    !-- read PartSource if relaxation is performed (might be needed for RestartHDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
+    !-- read PartSource if relaxation is performed (might be needed for RecomputeEFieldHDG)
     IF (DoDeposition .AND. RelaxDeposition) THEN
       CALL OpenDataFile(RestartFile,create=.FALSE.,single=.FALSE.,readOnly=.TRUE.,communicatorOpt=MPI_COMM_PICLAS)
       CALL DatasetExists(File_ID,'DG_Source',DGSourceExists)
       IF(DGSourceExists)THEN
+        CALL GetDataSize(File_ID,'DG_Source',nDims,HSize)
+        DEALLOCATE(HSize)
         IF(.NOT.InterpolateSolution)THEN! No interpolation needed, read solution directly from file
-          ALLOCATE(PartSource_HDF5(1:4,0:PP_N,0:PP_N,0:PP_N,PP_nElems))
 
-          ! Associate construct for integer KIND=8 possibility
-          ASSOCIATE (&
-                    PP_NTmp       => INT(PP_N,IK)       ,&
-                    OffsetElemTmp => INT(OffsetElem,IK) ,&
-                    PP_nElemsTmp  => INT(PP_nElems,IK))
-            CALL ReadArray('DG_Source' ,5,(/4_IK,PP_NTmp+1,PP_NTmp+1,PP_NTmp+1,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
-          END ASSOCIATE
+          IF(N_Restart.LT.1) CALL abort(__STAMP__,'N_Restart<1 is not allowed. Check correct initailisation of N_Restart!')
 
-          DO iElem =1,PP_nElems
-            DO k=0, PP_N; DO j=0, PP_N; DO i=0, PP_N
+          IF(nDims.EQ.2)THEN
+            CALL abort(__STAMP__,'Read-in not implemented for 2D DG_Source')
+          ELSE ! nDims.EQ.5
+            ! Associate construct for integer KIND=8 possibility
+            ASSOCIATE (&
+                      Nres          => INT(N_Restart,IK)       ,&
+                      OffsetElemTmp => INT(OffsetElem,IK) ,&
+                      PP_nElemsTmp  => INT(PP_nElems,IK))
+              ALLOCATE(PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,PP_nElems))
+              CALL ReadArray('DG_Source' ,5,(/4_IK,Nres+1_IK,Nres+1_IK,Nres+1_IK,PP_nElemsTmp/),OffsetElemTmp,5,RealArray=PartSource_HDF5)
+
+              DO iElem =1,PP_nElems
+                Nloc = N_DG_Mapping(2,iElem+offSetElem)
+                ALLOCATE(PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+
+                IF(Nloc.EQ.N_Restart)THEN
+                  PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc) = PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem)
+                ELSEIF(Nloc.GT.N_Restart)THEN
+                  ! N_Restart -> Nloc (e.g. 1 -> 5)
+                  CALL ChangeBasis3D(4, N_Restart, Nloc, PREF_VDM(N_Restart, Nloc)%Vdm, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+                ELSE
+                  ! N_Restart -> Nloc (e.g. 5 -> 1)
+                  ALLOCATE(Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                  !transform the slave side to the same degree as the master: switch to Legendre basis
+                  CALL ChangeBasis3D(4, N_Restart, N_Restart, N_Inter(N_Restart)%sVdm_Leg, PartSource_HDF5(1:4,0:Nres,0:Nres,0:Nres,iElem), Uloc(1:4,0:Nres,0:Nres,0:Nres))
+                  ! switch back to nodal basis
+                  CALL ChangeBasis3D(4, Nloc, Nloc, N_Inter(Nloc)%Vdm_Leg, Uloc(1:4,0:Nloc,0:Nloc,0:Nloc), PartSourceloc(1:4,0:Nloc,0:Nloc,0:Nloc))
+                  DEALLOCATE(Uloc)
+                END IF ! Nloc.EQ.N_Restart
+
+                DO k=0, Nloc; DO j=0, Nloc; DO i=0, Nloc
 #if ((USE_HDG) && (PP_nVar==1))
-              PartSourceOld(1,1,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
-              PartSourceOld(1,2,i,j,k,iElem) = PartSource_HDF5(4,i,j,k,iElem)
+                  PS_N(iElem)%PartSourceOld(1  ,1,i,j,k) = PartSourceloc(  4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1  ,2,i,j,k) = PartSourceloc(  4,i,j,k)
 #else
-              PartSourceOld(1:4,1,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
-              PartSourceOld(1:4,2,i,j,k,iElem) = PartSource_HDF5(1:4,i,j,k,iElem)
+                  PS_N(iElem)%PartSourceOld(1:4,1,i,j,k) = PartSourceloc(1:4,i,j,k)
+                  PS_N(iElem)%PartSourceOld(1:4,2,i,j,k) = PartSourceloc(1:4,i,j,k)
 #endif
-            END DO; END DO; END DO
-          END DO
+                END DO; END DO; END DO
 
+                DEALLOCATE(PartSourceloc)
+              END DO
+            END ASSOCIATE
+          END IF ! nDims.EQ.2
           DEALLOCATE(PartSource_HDF5)
         ELSE ! We need to interpolate the solution to the new computational grid
           CALL abort(__STAMP__,' Restart with changed polynomial degree not implemented for DG_Source!')
@@ -465,6 +559,7 @@ ELSE
       END IF ! DGSourceExists
       CALL CloseDataFile()
     END IF ! DoDeposition .AND. RelaxDeposition
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
   END IF ! IF(.NOT. RestartNullifySolution)
 
   IF (DoMacroscopicRestart) RETURN

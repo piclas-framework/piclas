@@ -66,16 +66,11 @@ IMPLICIT NONE
 CALL prms%SetSection('BGM')
 
 ! Background mesh init variables
-CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'&
-  , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh.'//&
-  ' They should be of the similar size as the smallest cells of the used mesh for simulation.'&
-  , '0. , 0. , 0.')
-CALL prms%CreateRealArrayOption('Part-FactorFIBGM'&
-  , 'Factor with which the background mesh will be scaled.'&
-  , '1. , 1. , 1.')
-CALL prms%CreateRealOption(     'Part-SafetyFactor'           , 'Factor to scale the halo region with MPI', '1.0')
-CALL prms%CreateRealOption(     'Particles-HaloEpsVelo'       , 'Halo region velocity [m/s]', '0.')
-CALL prms%CreateLogicalOption(     'Part-ForceFIBGM'       , 'Force the build of the FIBGM, for debugging issues only', 'FALSE')
+CALL prms%CreateRealArrayOption('Part-FIBGMdeltas'      , 'Define the deltas for the Cartesian Fast-Init-Background-Mesh. They should be of the similar size as the smallest cells of the used mesh for simulation.', '0. , 0. , 0.')
+CALL prms%CreateRealArrayOption('Part-FactorFIBGM'      , 'Factor with which the background mesh will be scaled.', '1. , 1. , 1.')
+CALL prms%CreateRealOption(     'Part-SafetyFactor'     , 'Factor to scale the halo region with MPI', '1.0')
+CALL prms%CreateRealOption(     'Particles-HaloEpsVelo' , 'Halo region velocity [m/s]', '0.')
+CALL prms%CreateLogicalOption(  'Part-ForceFIBGM'       , 'Force the build of the FIBGM, for debugging issues only', 'FALSE')
 
 
 END SUBROUTINE DefineParametersParticleBGM
@@ -90,6 +85,7 @@ SUBROUTINE BuildBGMAndIdentifyHaloRegion()
 !----------------------------------------------------------------------------------------------------------------------------------!
 #if USE_MPI
 USE mpi_f08
+USE MOD_Mesh_Vars              ,ONLY: ELEM_HALOFLAG,ELEM_RANK,readFEMconnectivity
 #endif /*USE_MPI*/
 USE MOD_Globals
 USE MOD_Preproc
@@ -205,12 +201,13 @@ REAL                           :: BoundingBoxVolume
 CHARACTER(LEN=255)             :: hilf
 ! Mortar
 INTEGER                        :: iMortar,NbElemID,NbSideID,nMortarElems!,nFoundSides,nlocSides,i
-#else
-REAL                           :: halo_eps
-#endif /*USE_MPI*/
+INTEGER                        :: ElemInfoSizeLoc
 #ifdef CODE_ANALYZE
 INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #endif /*CODE_ANALYZE*/
+#else
+REAL                           :: halo_eps
+#endif /*USE_MPI*/
 REAL                           :: StartT,EndT ! Timer
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
 INTEGER                        :: iSpec, iInit
@@ -997,13 +994,18 @@ ELSE
   ADEALLOCATE(MPISideBoundsOfElemCenter_Shared)
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
-  IF (MeshHasPeriodic)    CALL CheckPeriodicSides   (EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (PartBound%UseRotPeriodicBC) CALL CheckRotPeriodicSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  IF (PartBound%UseInterPlaneBC) CALL CheckInterPlaneSides(EnlargeBGM)
-  CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-
+  IF (MeshHasPeriodic) THEN
+    CALL CheckPeriodicSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
+  IF (PartBound%UseRotPeriodicBC) THEN
+    CALL CheckRotPeriodicSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
+  IF (PartBound%UseInterPlaneBC) THEN
+    CALL CheckInterPlaneSides(EnlargeBGM)
+    CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
+  END IF
   ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
   !
   !   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with
@@ -1070,9 +1072,15 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
     END DO ! iProc = 1,nProcessors
   END IF
 
+  IF(readFEMconnectivity)THEN
+    ElemInfoSizeLoc = ALLELEMINFOSIZE
+  ELSE
+    ElemInfoSizeLoc = ELEMINFOSIZE
+  END IF ! readFEMconnectivity
+
   ! Mortar sides: Only multi-node
   DO iElem = firstElem, lastElem
-    ASSOCIATE(posElem => (iElem-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+    ASSOCIATE(posElem => (iElem-1)*ElemInfoSizeLoc + (ELEM_HALOFLAG-1))
     CALL MPI_FETCH_AND_OP(dummyInt,ElemDone,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_NO_OP,ElemInfo_Shared_Win,iError)
     CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
     END ASSOCIATE
@@ -1091,7 +1099,7 @@ ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
 
           ! Element not previously flagged
           IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).LT.1) THEN
-            ASSOCIATE(posElem => (ElemID-1)*ELEMINFOSIZE + (ELEM_HALOFLAG-1))
+            ASSOCIATE(posElem => (ElemID-1)*ElemInfoSizeLoc + (ELEM_HALOFLAG-1))
               ! Attention: This can produce ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 4 when Mortar interfaces are present
               CALL MPI_FETCH_AND_OP(haloChange,dummyInt,MPI_INTEGER,0,INT(posElem*SIZE_INT,MPI_ADDRESS_KIND),MPI_REPLACE,ElemInfo_Shared_Win,iError)
               CALL MPI_WIN_FLUSH(0,ElemInfo_Shared_Win,iError)
@@ -1883,7 +1891,7 @@ USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
 USE MOD_Particle_Mesh_Vars
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
 !USE MOD_PICDepo_Vars       ,ONLY: DoDeposition
 #endif /*USE_LOADBALANCE*/
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1901,21 +1909,9 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  !   CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
   CALL UNLOCK_AND_FREE(GlobalSide2CNTotalSide_Shared_Win)
 #if USE_LOADBALANCE
 END IF
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
-#endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-#if USE_LOADBALANCE
-END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
 #endif /*USE_LOADBALANCE*/
 
 CALL UNLOCK_AND_FREE(BoundsOfElem_Shared_Win)
@@ -1930,6 +1926,7 @@ IF(GEO%InitFIBGM) THEN
 END IF
 ! Mapping arrays are only allocated if not running on one node
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+  CALL UNLOCK_AND_FREE(GlobalElem2CNTotalElem_Shared_Win)
   CALL UNLOCK_AND_FREE(CNTotalElem2GlobalElem_Shared_Win)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 CALL UNLOCK_AND_FREE(CNTotalSide2GlobalSide_Shared_Win)
@@ -1940,11 +1937,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 #if USE_LOADBALANCE
 IF (.NOT.PerformLoadBalance) THEN
 #endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  ! IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-  !   ADEALLOCATE(GlobalElem2CNTotalElem)
-  !   ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  ! END IF ! nComputeNodeProcessors.NE.nProcessors_Global
   ADEALLOCATE(GlobalSide2CNTotalSide)
   ADEALLOCATE(GlobalSide2CNTotalSide_Shared)
 #if USE_LOADBALANCE
@@ -1973,26 +1965,13 @@ END IF
 IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
   ADEALLOCATE(CNTotalElem2GlobalElem)
   ADEALLOCATE(CNTotalElem2GlobalElem_Shared)
+  ADEALLOCATE(GlobalElem2CNTotalElem)
+  ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
 END IF ! nComputeNodeProcessors.NE.nProcessors_Global
 ADEALLOCATE(CNTotalSide2GlobalSide)
 ADEALLOCATE(CNTotalSide2GlobalSide_Shared)
 
 CALL FinalizeHaloInfo()
-
-#if USE_LOADBALANCE
-! This will be deallocated in FinalizeDeposition() when using load balance
-!IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)).AND.DoDeposition) )THEN
-! Note that no inquiry for DoDeposition is made here because the surface charging container is to be preserved
-IF(.NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) )THEN
-#endif /*USE_LOADBALANCE*/
-  ! Mapping arrays are only allocated if not running on one node
-  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
-    ADEALLOCATE(GlobalElem2CNTotalElem)
-    ADEALLOCATE(GlobalElem2CNTotalElem_Shared)
-  END IF ! nComputeNodeProcessors.NE.nProcessors_Global
-#if USE_LOADBALANCE
-END IF ! .NOT. ((PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) .AND. DoDeposition)
-#endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 
 END SUBROUTINE FinalizeBGM
@@ -2007,7 +1986,7 @@ SUBROUTINE WriteHaloInfo()
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,offsetElem,ELEM_HALOFLAG
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars        ,ONLY: myComputeNodeRank,myLeaderGroupRank,nLeaderGroupProcs
 USE MOD_MPI_Shared_Vars        ,ONLY: MPI_COMM_SHARED,MPI_COMM_LEADERS_SHARED
@@ -2108,7 +2087,7 @@ SUBROUTINE CheckPeriodicSides(EnlargeBGM)
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
 USE MOD_Preproc
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
@@ -2303,7 +2282,7 @@ SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
-USE MOD_Mesh_Vars               ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars               ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
@@ -2414,7 +2393,7 @@ SUBROUTINE CheckInterPlaneSides(EnlargeBGM)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_MPI_Shared_Vars
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems,ELEM_HALOFLAG
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nComputeNodeElems
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI

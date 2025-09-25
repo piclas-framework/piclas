@@ -1,6 +1,40 @@
 (sec:PIC)=
 # Particle-In-Cell
 
+A particle-in-cell (PIC) simulation requires the selection of the equation system to be solved, either Maxwell's (electromagnetic)
+or Poisson's (electrostatic), during the compilation of PICLas. Additionally, the time discretization method has to be selected:
+
+    PICLAS_EQNSYSNAME     = poisson
+    PICLAS_TIMEDISCMETHOD = Leapfrog / Boris-Leapfrog / Higuera-Cary / RK3 / RK4 / RK14
+
+The same applies for a coupled PIC-DSMC/MCC simulation, where DSMC/MCC can be enabled through the parameter file.
+
+(sec:PIC-lorentz-force)=
+## Lorentz force
+
+To calculate the acceleration of a charged particle within electromagnetic fields, the Lorentz force is calculated according to
+
+$$ \vec{F} = q (\vec{E}+\vec{v} \times \vec{B}), $$
+
+where $q$ is the charge, $\vec{E}$ is the electric field, $\vec{v}$ is the velocity vector, and $\vec{B}$ is the magnetic field.
+Different types are implemented, which can be selected through
+
+    Part-LorentzType = non-relativistic
+
+The available options are summarized in the following.
+
+| **Part-LorentzType** |                                                **Description**                                                |
+| :------------------: | :-----------------------------------------------------------------------------------------------------------: |
+|  `non-relativistic`  |              Classic non-relativistic calculation, where $v$ is the particle velocity (default)               |
+|    `relativistic`    |   Simple relativistic treatment by dividing with the Lorentz factor: $\gamma = 1/\sqrt{1-\frac{v^2}{c^2}}$    |
+|  `relativistic-new`  |                                        Matrix transformation approach                                         |
+|  `relativistic-EM`   |           Application of the Lorentz factor correction to the perpendicular component of the force            |
+|    `constant-EM`     | Identical to `relativistic-EM` but uses the user-input of a fixed electromagnetic field (`PIC-externalField`) |
+
+It should be noted that in case of an electrostatic simulation using the Poisson solver, the acceleration is merely dependent
+on the electric field. The exceptions are the options `relativistic-EM` and `constant-EM`, which allow to use a constant external magnetic field
+in combination with the Poisson solver and `Boris-Leapfrog` time discretization method.
+
 (sec:PIC-deposition)=
 ## Charge and Current Deposition
 

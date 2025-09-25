@@ -25,17 +25,6 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-#if USE_MPI
-INTERFACE ApplyWeightDistributionMethod
-  MODULE PROCEDURE ApplyWeightDistributionMethod
-END INTERFACE
-#endif /*USE_MPI*/
-
-INTERFACE WriteElemTimeStatistics
-  MODULE PROCEDURE WriteElemTimeStatistics
-END INTERFACE
-
 #if USE_MPI
 PUBLIC::ApplyWeightDistributionMethod
 PUBLIC::WeightDistribution_Equal
@@ -213,7 +202,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   END DO
   ! Sanity check
   IF(.NOT.ALLOCATED(PartInt)) CALL abort(__STAMP__,'PartInt is not allocated') ! Missing call to FillParticleData()
-  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
+  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_INTEGER_INT_KIND,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
   PartIntExists = .TRUE.
 ELSE
   ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
@@ -1232,15 +1221,20 @@ END SUBROUTINE freeList
 !===================================================================================================================================
 SUBROUTINE WriteElemTimeStatistics(WriteHeader,time_opt,iter_opt)
 ! MODULES
+USE MOD_TimeDisc_Vars    ,ONLY: tStart,tEnd,tWallRemaining
 USE MOD_LoadBalance_Vars ,ONLY: TargetWeight,nLoadBalanceSteps,CurrentImbalance,MinWeight,MaxWeight,WeightSum
 USE MOD_Globals          ,ONLY: MPIRoot,FILEEXISTS,unit_stdout,abort,nProcessors,ProcessMemUsage,nProcessors
 USE MOD_Globals_Vars     ,ONLY: SimulationEfficiency,PID,WallTime,InitializationWallTime,ReadMeshWallTime,memory
 USE MOD_Globals_Vars     ,ONLY: DomainDecompositionWallTime,CommMeshReadinWallTime
 USE MOD_Restart_Vars     ,ONLY: DoRestart
+USE MOD_Mesh_Vars        ,ONLY: nGlobalDOFs
 #ifdef PARTICLES
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 USE MOD_Globals          ,ONLY: nGlobalNbrOfParticles
+#if USE_HDG && USE_PETSC
+USE MOD_HDG_Vars_PETSc    ,ONLY: PETScFieldTime
+#endif /*USE_HDG && USE_PETSC*/
 #endif /*PARTICLES*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars  ,ONLY: myComputeNodeRank,myLeaderGroupRank
@@ -1267,15 +1261,20 @@ REAL                                     :: time_loc
 CHARACTER(LEN=22),PARAMETER              :: outfile='ElemTimeStatistics.csv'
 INTEGER                                  :: ioUnit,I
 CHARACTER(LEN=150)                       :: formatStr
-#ifdef PARTICLES
+#if defined(PARTICLES)
+REAL                                     :: ElemTimeFieldOut
 REAL                                     :: SumElemTime,ElemTimeFieldPercent,ElemTimePartPercent
-INTEGER,PARAMETER                        :: nOutputVar=23
+INTEGER,PARAMETER                        :: nOutputVar=27
 #else
-INTEGER,PARAMETER                        :: nOutputVar=18
-#endif /*PARTICLES*/
+INTEGER,PARAMETER                        :: nOutputVar=22
+#endif /*defined(PARTICLES)*/
 CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER(LEN=255) :: &
     'time'                   , &
+    'tStartSim'              , &
+    'tEndSim'                , &
+    'ETA[h]'                 , &
     'Procs'                  , &
+    'nGlobalDOFs'            , &
     'MinWeight'              , &
     'MaxWeight'              , &
     'CurrentImbalance'       , &
@@ -1292,13 +1291,13 @@ CHARACTER(LEN=255),DIMENSION(nOutputVar) :: StrVarNames(nOutputVar)=(/ CHARACTER
     'MemoryUsed'             , &
     'MemoryAvailable'        , &
     'MemoryTotal'              &
-#ifdef PARTICLES
+#if defined(PARTICLES)
   , '#Particles'             , &
     'FieldTime'              , &
     'PartTime'               , &
     'FieldTimePercent'       , &
     'PartTimePercent'          &
-#endif /*PARTICLES*/
+#endif /*defined(PARTICLES)*/
     /)
 CHARACTER(LEN=255)         :: tmpStr(nOutputVar) ! needed because PerformAnalyze is called multiple times at the beginning
 CHARACTER(LEN=1000)        :: tmpStr2
@@ -1427,14 +1426,22 @@ IF(PRESENT(time_opt))THEN
 ELSE
   time_loc = -1.
 END IF
+
 #ifdef PARTICLES
+! Add time spent in the PETSc solver, only locally for the output for now
+#if USE_HDG && USE_PETSC
+ElemTimeFieldOut = ElemTimeField + PETScFieldTime
+#else
+ElemTimeFieldOut = ElemTimeField
+#endif
+
 ! Calculate elem time proportions for field and particle routines
-SumElemTime=ElemTimeField+ElemTimePart
+SumElemTime=ElemTimeFieldOut+ElemTimePart
 IF(SumElemTime.LE.0.)THEN
   ElemTimeFieldPercent = 0.
   ElemTimePartPercent  = 0.
 ELSE
-  ElemTimeFieldPercent = 100. * ElemTimeField / SumElemTime
+  ElemTimeFieldPercent = 100. * ElemTimeFieldOut / SumElemTime
   ElemTimePartPercent  = 100. * ElemTimePart / SumElemTime
 END IF ! ElemTimeField+ElemTimePart.LE.0.
 #endif /*PARTICLES*/
@@ -1444,7 +1451,11 @@ IF (FILEEXISTS(outfile)) THEN
   WRITE(formatStr,'(A2,I2,A14,A1)')'(',nOutputVar,CSVFORMAT,')'
   WRITE(tmpStr2,formatStr)&
             " ",time_loc                ,&
+      delimiter,tStart                  ,&
+      delimiter,tEnd                    ,&
+      delimiter,tWallRemaining          ,&
       delimiter,REAL(nProcessors)       ,&
+      delimiter,REAL(nGlobalDOFs)       ,&
       delimiter,MinWeight               ,&
       delimiter,MaxWeight               ,&
       delimiter,CurrentImbalance        ,&
@@ -1463,7 +1474,7 @@ IF (FILEEXISTS(outfile)) THEN
       delimiter,memory(3)                &
 #ifdef PARTICLES
      ,delimiter,REAL(nGlobalNbrOfParticles(3)),&
-      delimiter,ElemTimeField              ,&
+      delimiter,ElemTimeFieldOut           ,&
       delimiter,ElemTimePart               ,&
       delimiter,ElemTimeFieldPercent       ,&
       delimiter,ElemTimePartPercent

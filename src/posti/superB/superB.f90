@@ -11,19 +11,17 @@
 ! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 !==================================================================================================================================
 #include "piclas.h"
-
+#if USE_SUPER_B
 PROGRAM SuperB_standalone
 !===================================================================================================================================
 !> Standalone version of SuperB for the calculation of magnetic fields
 !===================================================================================================================================
 ! MODULES
 USE MOD_Commandline_Arguments
-!USE MOD_Globals               ,ONLY: doPrintHelp,iError,MPIRoot,StartTime,UNIT_stdOut,PiclasTime,SetStackSizeUnlimited
-USE MOD_Globals!               ,ONLY: CollectiveStop
+USE MOD_Globals
 USE MOD_Globals_Init          ,ONLY: InitGlobals
 USE MOD_SuperB_Init           ,ONLY: DefineParametersSuperB, FinalizeSuperB
 USE MOD_SuperB                ,ONLY: SuperB
-USE MOD_SuperB_Vars           ,ONLY: BGFieldTDep
 USE MOD_Globals_Vars          ,ONLY: ParameterFile
 USE MOD_ReadInTools           ,ONLY: prms,PrintDefaultparameterFile,ExtractparameterFile
 USE MOD_Interpolation         ,ONLY: InitInterpolation
@@ -34,11 +32,9 @@ USE MOD_Interpolation         ,ONLY: DefineParametersInterpolation
 USE MOD_IO_HDF5               ,ONLY: DefineParametersIO
 USE MOD_Output                ,ONLY: DefineParametersOutput
 USE MOD_Mesh                  ,ONLY: DefineParametersMesh,FinalizeMesh
-#if !(USE_FV) || (USE_HDG)
 USE MOD_Equation              ,ONLY: DefineParametersEquation
 USE MOD_Equation              ,ONLY: InitEquation
-#endif
-USE MOD_Interpolation_Vars    ,ONLY: BGField,BGFieldAnalytic
+USE MOD_Interpolation_Vars    ,ONLY: N_BG
 USE MOD_Mesh                  ,ONLY: InitMesh
 #ifdef PARTICLES
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
@@ -79,7 +75,7 @@ SWRITE(UNIT_stdOut,'(A)') "                         M=                          
 SWRITE(UNIT_stdOut,'(A)') "                        MM                                                      "
 SWRITE(UNIT_stdOut,'(A)') "                        ~~                                                      "
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.0"
+SWRITE(UNIT_stdOut,'(A)')"superB version 1.0.1"
 SWRITE(UNIT_stdOut,'(132("="))')
 
 GETTIME(StartTime)
@@ -94,19 +90,17 @@ IF ((nArgs.GT.1) .OR. ((nArgs.EQ.0).AND.(doPrintHelp.EQ.0)) ) THEN
     'or superB --help [option/section name] to print help for a single parameter, parameter sections or all parameters.')
 END IF
 
-!CALL InitDefineParameters()
+! Read-in of TimeStampLength and setting of TimeStampLenStr/TimeStampLenStr2, currently not required
+! CALL prms%CreateIntOption('TimeStampLength' , 'Length of the floating number time stamp' , '21')
+! WRITE(UNIT=TimeStampLenStr2,FMT='(I0)') TimeStampLength-4
+! WRITE(UNIT=TimeStampLenStr ,FMT='(I0)') TimeStampLength
 
 CALL DefineParametersIO()
 CALL DefineParametersGlobals()
 CALL DefineParametersInterpolation()
 CALL DefineParametersOutput()
 CALL DefineParametersMesh()
-#if USE_FV
-CALL abort(__STAMP__,'SuperB not implemented with FV!')
-#endif
-#if !(USE_FV) || (USE_HDG)
 CALL DefineParametersEquation()
-#endif
 CALL DefineParametersSuperB()
 #if USE_MPI
 CALL DefineParametersMPIShared()
@@ -134,16 +128,14 @@ CALL InitIOHDF5()
 CALL InitGlobals()
 #ifdef PARTICLES
 Symmetry%Order = 3
-#endif
+#endif /*PARTICLES*/
 #if USE_MPI
 CALL InitMPIShared()
 #endif /*USE_MPI*/
 
 ! Initialization
 CALL InitInterpolation()
-#if !(USE_FV) || (USE_HDG)
 CALL InitEquation()
-#endif
 
 CALL InitMesh(3) ! 0: only read and build Elem_xGP,
                  ! 1: as 0 + build connectivity
@@ -155,9 +147,7 @@ CALL InitMesh(3) ! 0: only read and build Elem_xGP,
 CALL SuperB()
 
 ! Deallocation of BGField
-SDEALLOCATE(BGFieldTDep)
-SDEALLOCATE(BGField)
-SDEALLOCATE(BGFieldAnalytic)
+SDEALLOCATE(N_BG)
 ! Finalize SuperB
 CALL FinalizeSuperB()
 CALL FinalizeMesh()
@@ -172,6 +162,7 @@ SWRITE(UNIT_stdOut,'(132("="))')
 ! We also have to finalize MPI itself here
 CALL MPI_FINALIZE(iError)
 IF(iError .NE. 0) STOP 'MPI finalize error'
-#endif
+#endif /*USE_MPI*/
 
 END PROGRAM SuperB_standalone
+#endif /*USE_SUPER_B*/

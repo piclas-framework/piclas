@@ -60,7 +60,9 @@ TYPE tElementOut
   TYPE(tElementOut),POINTER             :: next         => NULL()     !< next list item
 END TYPE
 
-TYPE(tElementOut),POINTER    :: ElementOut   => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOut      => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOutRay   => NULL() !< linked list of output pointers
+TYPE(tElementOut),POINTER    :: ElementOutNloc  => NULL() !< linked list of output pointers
 
 INTERFACE InitIOHDF5
   MODULE PROCEDURE InitIOHDF5
@@ -130,9 +132,6 @@ USE MOD_ReadInTools ,ONLY: GETLOGICAL
 #if USE_MPI
 USE MOD_Globals     ,ONLY: MPIRoot
 #endif /*USE_MPI*/
-#ifdef INTEL
-USE IFPORT
-#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -220,6 +219,10 @@ INTEGER,INTENT(IN),OPTIONAL  :: userblockSize   !< size of the file to be prepen
 ! LOCAL VARIABLES
 INTEGER(HSIZE_T)               :: userblockSize_loc, tmp, tmp2
 INTEGER(HSIZE_T),PARAMETER     :: userblockSize_512=512 ! For correct type comparison
+#if !(USE_MPI)
+INTEGER :: dummy_int
+LOGICAL :: dummy_log
+#endif /*!(USE_MPI)*/
 !==================================================================================================================================
 LOGWRITE(*,'(A)')'  OPEN HDF5 FILE "'//TRIM(FileString)//'" ...'
 
@@ -272,6 +275,13 @@ END IF
 IF(iError.NE.0) CALL abort(__STAMP__,'ERROR: Could not open or create file '//TRIM(FileString))
 
 LOGWRITE(*,*)'...DONE!'
+
+#if !(USE_MPI)
+! Suppress compiler warning
+RETURN
+dummy_int = communicatorOpt
+dummy_log = single
+#endif /*!(USE_MPI)*/
 END SUBROUTINE OpenDataFile
 
 
@@ -371,8 +381,7 @@ IF(PRESENT(eval))THEN
   eout%eval       => Eval
   nOpts=nOpts+1
 ENDIF
-IF(nOpts.NE.1) CALL Abort(__STAMP__,'More then one optional argument passed to AddToElemData.')
-
+IF(nOpts.NE.1) CALL Abort(__STAMP__,'More than one optional argument passed to AddToElemData for: '//TRIM(VarName))
 END SUBROUTINE AddToElemData
 
 

@@ -28,7 +28,7 @@ PRIVATE
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DefineParametersParticleBoundary, InitializeVariablesPartBoundary, InitParticleBoundarySurfSides, FinalizeParticleBoundary
 PUBLIC :: InitAdaptiveWallTemp, InitRotPeriodicMapping, InitRotPeriodicInterPlaneMapping
-PUBLIC :: InitPartStateBoundary
+PUBLIC :: InitPartStateBoundary,InitVirtualDielectricLayer
 !===================================================================================================================================
 
 CONTAINS
@@ -43,12 +43,6 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Particle Boundaries")
 
-CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
-CALL prms%CreateRealOption(     'PartBound-RotPeriodicTol' , 'Tolerance for rotationally periodic BCs: symmetry angle is '//&
-                                'multiplied by 1-x to slightly move the particle / cell center into the domain','1E-4')
-CALL prms%CreateLogicalOption(  'PartBound-OutputBCDataForTesting' , 'Flag to enable output of information which was automatically '//&
-                                'determined for regression testing purposes, currently: Min/Max of multiple rot periodic BCs, '//&
-                                'interplane positions along RotPeriodicAxi', '.FALSE.')
 CALL prms%CreateIntOption(      'Part-nBounds', 'Number of particle boundaries.', '1')
 CALL prms%CreateStringOption(   'Part-Boundary[$]-SourceName', &
                                   'No Default. Source Name of Boundary[i]. Has to be selected for all'//&
@@ -63,14 +57,35 @@ CALL prms%CreateStringOption(   'Part-Boundary[$]-Condition', &
                                   '- rot_periodic.\n'//&
                                   'If condition=reflective (Part-Boundary[$]-=PB): PB-MomentumACC,PB-WallTemp,PB-TransACC,PB-VibACC,PB-RotACC,'//&
                                   'PB-WallVelo,SpeciesSwaps.\nIf condition=periodic:Part-nPeriodicVectors', 'open', numberedmulti=.TRUE.)
+
+! Rotationally periodic BCs
+CALL prms%CreateIntOption(      'Part-RotPeriodicAxi' , 'Axis of rotational periodicity: x = 1, y = 2, z = 3')
+CALL prms%CreateRealOption(     'PartBound-RotPeriodicTol' , 'Tolerance for rotationally periodic BCs: symmetry angle is '//&
+                                'multiplied by 1-x to slightly move the particle / cell center into the domain','1E-4')
+CALL prms%CreateLogicalOption(  'PartBound-OutputBCDataForTesting' , 'Flag to enable output of information which was automatically '//&
+                                'determined for regression testing purposes, currently: Min/Max of multiple rot periodic BCs, '//&
+                                'interplane positions along RotPeriodicAxi', '.FALSE.')
+CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
+                                'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
+CALL prms%CreateIntOption(      'Part-Boundary[$]-AssociatedPlane'  &
+                                , 'Corresponding intermediate planes in case of multiple rotationally periodic BCs' , numberedmulti=.TRUE.)
+!CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
+
+! Dielectric surface modelling
 CALL prms%CreateLogicalOption('Part-Boundary[$]-Dielectric' , 'Define if particle boundary [$] is a '//&
                               'dielectric interface, i.e. an interface between a dielectric and a non-dielectric or a between two'//&
                               ' different dielectrics [.TRUE.] or not [.FALSE.] (requires reflective BC and species swap for nSpecies)'&
                               , '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Boundary[$]-PermittivityVDL', 'Permittivity of the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', '0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(   'Part-Boundary[$]-ThicknessVDL'   , 'Thickness of the real dielectric layer in the virtual dielectric layer model. Impacting particles will be removed and deposited in the volume via CVWM.', numberedmulti=.TRUE.)
 CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput' , 'Define if the properties of particles impacting on '//&
                               'boundary [$] are to be stored in an additional .h5 file for post-processing analysis [.TRUE.] '//&
-                              'or not [.FALSE.].'&
-                              , '.FALSE.', numberedmulti=.TRUE.)
+                              'or not [.FALSE.].', '.FALSE.', numberedmulti=.TRUE.)
+CALL prms%CreateLogicalOption('Part-Boundary[$]-BoundaryParticleOutput-Emission' , 'Define if the emitted particles on '//&
+                              'boundary [$] are to be stored in the same .h5 file with a negative species index for post-processing analysis [.TRUE.] '//&
+                              'or not [.FALSE.].', '.FALSE.', numberedmulti=.TRUE.)
+! Radiative equilibrium temperature
+CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-UseAdaptedWallTemp', &
                                 'Use an adapted wall temperature, calculated if Part-AdaptWallTemp = T, otherwise read-in '//&
                                 'from the restart file','.FALSE.', numberedmulti=.TRUE.)
@@ -78,6 +93,8 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RadiativeEmissivity',  &
                                 'Radiative emissivity of the boundary used to determine the wall temperature assuming a '//&
                                 'radiative equilibrium at the wall, Part-Boundary1-UseAdaptedWallTemp = T and ' //&
                                 'Part-AdaptWallTemp = T must be set', '1.', numberedmulti=.TRUE.)
+
+! Fixed wall temperature and accommodation coefficients
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp'  &
                                 , 'Wall temperature (in [K]) of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -96,9 +113,8 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotACC'  &
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ElecACC '  &
                                 , 'Electronic accommodation coefficient of reflective particle boundary [$].' &
                                 , '0.', numberedmulti=.TRUE.)
-                                CALL prms%CreateRealOption(     'Part-Boundary[$]-DeformEnergyLoss '  &
-                                , 'Energy dissipation through deformation with a wall collision (only granular species) [$].' &
-                                , '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-DeformEnergyLoss ', 'Energy dissipation through deformation with a wall collision (only granular species) [$].' , '0.', numberedmulti=.TRUE.)
+! Photo-ionization SEE
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-PhotonSpecularReflection'  &
                                 , 'Enables a perfect specular reflection for photons (FALSE: diffuse with PhotonEnACC) [$].' &
                                 , '.FALSE.', numberedmulti=.TRUE.)
@@ -117,9 +133,12 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-PhotonSEE-MacroParticleFactor'
 CALL prms%CreateIntOption(      'Part-Boundary[$]-PhotonSEE-ElectronSpecies'  &
                                 , 'Secondary photo-electron species index [$].' &
                                 , numberedmulti=.TRUE.)
+!
 CALL prms%CreateLogicalOption(  'Part-Boundary[$]-Resample', &
                                   'Sample particle properties from equilibrium distribution after reflection', '.FALSE.'&
                                 , numberedmulti=.TRUE.)
+
+! Rotational and linear wall velocity
 CALL prms%CreateRealArrayOption('Part-Boundary[$]-WallVelo'  &
                                 , 'Velocity (global x,y,z in [m/s]) of reflective particle boundary [$].' &
                                 , '0. , 0. , 0.', numberedmulti=.TRUE.)
@@ -134,11 +153,8 @@ CALL prms%CreateRealOption(     'Part-Boundary[$]-RotFreq'  &
                                 , numberedmulti=.TRUE.)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-RotAxis'  &
                                 , 'Definition of rotation axis, only major axis: x=1,y=2,z=3.' , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(      'Part-Boundary[$]-RotPeriodicAngle' , 'Angle and Direction of rotation periodicity, either + or - '//&
-                                'Note: Rotation direction based on right-hand rule!', numberedmulti=.TRUE.)
-CALL prms%CreateIntOption(      'Part-Boundary[$]-AssociatedPlane'  &
-                                , 'Corresponding intermediate planes in case of multiple rotationally periodic BCs' , numberedmulti=.TRUE.)
-!CALL prms%CreateLogicalOption(  'Part-RotPeriodicReBuild', 'Force re-creation of rotational periodic mapping (which might already exist in the mesh file).', '.FALSE.')
+
+! Temperature gradient
 CALL prms%CreateRealOption(     'Part-Boundary[$]-WallTemp2'  &
                                 , 'Second wall temperature (in [K]) of reflective particle boundary for a temperature gradient.' &
                                 , '0.', numberedmulti=.TRUE.)
@@ -151,6 +167,8 @@ CALL prms%CreateRealArrayOption('Part-Boundary[$]-TempGradEnd'  &
 CALL prms%CreateIntOption(      'Part-Boundary[$]-TempGradDir', 'Optional definition of the temperature '//&
                                 'gradient direction along a major axis: x = 1, y = 2, z = 3. Default = 0: Gradient is along '//&
                                 'the vector defined by the start and end values', '0', numberedmulti=.TRUE.)
+
+! Reaction surface modelling (including SEE)
 CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 , 'Defining surface to be treated reactively by defining Model used for particle surface interaction. If any >0 then look in section SurfaceModel.\n'//&
                                 '0: Maxwell scattering\n'//&
@@ -165,33 +183,22 @@ CALL prms%CreateIntOption(      'Part-Boundary[$]-SurfaceModel'  &
                                 '10: SEE-I when Ar+ bombards copper by J.G. Theis "Computing the Paschen curve for argon with speed-limited particle-in-cell simulation", 2021 (originates from Phelps1999)\n'// &
                                 '11: SEE-E when e- bombard quartz (SiO2) by A. Dunaevsky, "Secondary electron emission from dielectric materials of a Hall thruster with segmented electrodes", 2003\n'//&
                                 '20: Catalytic reaction model', '0', numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector'  &
-                                , 'Lattice vector for the respective crystal structure [m]'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell'  &
-                                , 'Number of molecules in the unit area (defined by the lattice vector)'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage'  &
-                                , 'Initial coverage of the surface by an adsorbed species'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage'  &
-                                , 'Initial coverage of the surface by an adsorbed species'&
-                                , numberedmulti=.TRUE.)
-CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage'  &
-                                , 'Maximal coverage valure for the surface (default = 1.)'&
-                                , numberedmulti=.TRUE.)
+
+! Catalytic reaction model
+CALL prms%CreateRealOption(     'Part-Boundary[$]-LatticeVector', 'Lattice vector for the respective crystal structure [m]', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-NbrOfMol-UnitCell', 'Number of molecules in the unit area (defined by the lattice vector)', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-Coverage', 'Initial coverage of the surface by an adsorbed species', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-Species[$]-MaxCoverage', 'Initial coverage of the surface by an adsorbed species', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Boundary[$]-MaxTotalCoverage', 'Maximal coverage value for the surface', '1.', numberedmulti=.TRUE.)
+
+! Species swap
 CALL prms%SetSection('Particle Boundaries: Species Swap')
 CALL prms%CreateIntOption(      'Part-Boundary[$]-NbrOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER\n'//&
-                                  'Number of Species to be changed at wall.', '0', numberedmulti=.TRUE.)
+                                , 'Number of species to be changed at wall.', '0', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Boundary[$]-ProbOfSpeciesSwaps'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Probability of SpeciesSwaps at wall', '1.', numberedmulti=.TRUE.)
-CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]'  &
-                                , 'TODO-DEFINE-PARAMETER'//&
-                                  'Species to be changed at wall (out=: delete)', '0 , 0'&
+                                , 'Probability of SpeciesSwaps at wall', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateIntArrayOption( 'Part-Boundary[$]-SpeciesSwaps[$]','Species to be changed at wall (out=: delete)', '0 , 0'&
                                 , numberedmulti=.TRUE.)
-CALL prms%CreateLogicalOption(  'Part-AdaptWallTemp','Perform wall temperature adaptation at every macroscopic output.', '.FALSE.')
 
 END SUBROUTINE DefineParametersParticleBoundary
 
@@ -209,19 +216,20 @@ USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
 USE MOD_Particle_Vars          ,ONLY: nSpecies, PartMeshHasPeriodicBCs, RotRefFrameAxis, SpeciesDatabase, Species, usevMPF
+USE MOD_Particle_Vars          ,ONLY: InterPlanePartIndx, PDM
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound,DoBoundaryParticleOutputHDF5,DoVirtualDielectricLayer
 USE MOD_Particle_Boundary_Vars ,ONLY: nVarPartStateBoundary
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
 USE MOD_Particle_Surfaces_Vars ,ONLY: BCdata_auxSF
 USE MOD_Particle_Emission_Init ,ONLY: InitializeVariablesSpeciesBoundary
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType,DoHaloDepo,DoDeposition
+#if USE_HDG
+USE MOD_PICDepo_Vars           ,ONLY: DoDirichletDeposition
+#endif /*USE_HDG*/
 USE MOD_HDF5_input             ,ONLY: OpenDataFile, ReadArray, DatasetExists, GetDataSize, nDims, HSize, CloseDataFile
 USE MOD_SurfaceModel_Vars      ,ONLY: StickingCoefficientData
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars          ,ONLY: PartMeshHasReflectiveBCs
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -236,11 +244,12 @@ USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 INTEGER               :: iPartBound, iBC, iPBC, iSwaps, MaxNbrOfSpeciesSwaps, RotAxis, nRotPeriodicBCs, TempGradDir
 INTEGER               :: dummy_int
 REAL                  :: omegaTemp, RotFreq
-CHARACTER(32)         :: hilf , hilf2
+CHARACTER(32)         :: hilf,hilf2
 CHARACTER(200)        :: tmpString
 CHARACTER(LEN=64)     :: dsetname
-LOGICAL               :: StickingCoefficientExists,FoundPartBoundSEE
+LOGICAL               :: StickingCoefficientExists,FoundPartBoundPhotonSEE,BoundaryUsesSEE,AnyBoundaryUsesSEE
 INTEGER               :: iInit,iSpec
+INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 ! Read in boundary parameters
 dummy_int  = CountOption('Part-nBounds') ! check if Part-nBounds is present in .ini file
@@ -362,23 +371,29 @@ END IF
 ALLOCATE(PartBound%Dielectric(1:nPartBound))
 PartBound%Dielectric      = .FALSE.
 DoDielectricSurfaceCharge = .FALSE.
-DoHaloDepo                = .FALSE. ! dielectric surfaces or implicit particle deposition
+DoHaloDepo                = .FALSE. ! dielectric surfaces
+! Dielectric Surfaces
+ALLOCATE(PartBound%PermittivityVDL(1:nPartBound))
+PartBound%PermittivityVDL = 0.0
+ALLOCATE(PartBound%ThicknessVDL(1:nPartBound))
+PartBound%ThicknessVDL = 0.0
+DoVirtualDielectricLayer  = .FALSE.
 ! Surface particle output to .h5
 ALLOCATE(PartBound%BoundaryParticleOutputHDF5(1:nPartBound))
 PartBound%BoundaryParticleOutputHDF5=.FALSE.
 DoBoundaryParticleOutputHDF5=.FALSE.
+ALLOCATE(PartBound%BoundaryParticleOutputEmission(1:nPartBound))
+PartBound%BoundaryParticleOutputEmission=.FALSE.
 
 PartMeshHasPeriodicBCs= .FALSE.
 PartBound%UseRotPeriodicBC     = .FALSE.
 nRotPeriodicBCs       = 0
 PartBound%UseInterPlaneBC      = .FALSE.
+AnyBoundaryUsesSEE    = .FALSE.
 
 ! Read-in flag for output of boundary-related data in a csv for regression testing
 PartBound%OutputBCDataForTesting         = GETLOGICAL('PartBound-OutputBCDataForTesting')
 
-#if defined(IMPA) || defined(ROS)
-PartMeshHasReflectiveBCs=.FALSE.
-#endif
 DO iPartBound=1,nPartBound
   WRITE(UNIT=hilf,FMT='(I0)') iPartBound
   tmpString = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-Condition','open'))
@@ -387,9 +402,6 @@ DO iPartBound=1,nPartBound
   CASE('open')
     PartBound%TargetBoundCond(iPartBound) = PartBound%OpenBC          ! definitions see typesdef_pic
   CASE('reflective')
-#if defined(IMPA) || defined(ROS)
-    PartMeshHasReflectiveBCs=.TRUE.
-#endif
     PartBound%TargetBoundCond(iPartBound) = PartBound%ReflectiveBC
     PartBound%MomentumACC(iPartBound)     = GETREAL('Part-Boundary'//TRIM(hilf)//'-MomentumACC')
     IF(PartBound%MomentumACC(iPartBound).EQ.0.0) THEN
@@ -405,7 +417,8 @@ DO iPartBound=1,nPartBound
     PartBound%DeformEnergyLoss(iPartBound)             = GETREAL('Part-Boundary'//TRIM(hilf)//'-DeformEnergyLoss')
     PartBound%Resample(iPartBound)                     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Resample')
     PartBound%WallVelo(1:3,iPartBound)                 = GETREALARRAY('Part-Boundary'//TRIM(hilf)//'-WallVelo',3)
-    PartBound%RotVelo(iPartBound)                      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
+
+    ! Photon-induced secondary electron emission
     PartBound%PhotonSpecularReflection(iPartBound)     = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-PhotonSpecularReflection')
     PartBound%PhotonEnACC(iPartBound)                  = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonEnACC')
     PartBound%PhotonSEEYield(iPartBound)               = GETREAL('Part-Boundary'//TRIM(hilf)//'-PhotonSEE-Yield')
@@ -418,6 +431,9 @@ DO iPartBound=1,nPartBound
                                                                       TRIM(hilf2))
       END IF
     END IF
+
+    ! Rotationally periodic boundary conditions
+    PartBound%RotVelo(iPartBound)         = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-RotVelo')
     IF(PartBound%RotVelo(iPartBound)) THEN
       RotFreq                             = GETREAL('Part-Boundary'//TRIM(hilf)//'-RotFreq')
       RotAxis                             = GETINT('Part-Boundary'//TRIM(hilf)//'-RotAxis')
@@ -433,14 +449,14 @@ DO iPartBound=1,nPartBound
           CALL abort(__STAMP__,'ERROR Rotational Wall Velocity: Axis must be between 1 and 3. Selected axis: ',IntInfoOpt=RotRefFrameAxis)
       END SELECT
     END IF
-    ! Utilize an adaptive wall temparature
+
+    ! Adaptive wall temperature model
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     ! Activate wall temperature output in the DSMCSurfState, required for the initialization of the array as well
     IF(PartBound%UseAdaptedWallTemp(iPartBound)) PartBound%OutputWallTemp = .TRUE.
     PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
-    ! Selection of the surface model (e.q. SEE, sticking, etc.)
-    PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
-    ! Impose a wall temperature gradient
+
+    ! Wall temperature gradient model
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
       ! Activate wall temperature output in the DSMCSurfState
@@ -469,42 +485,51 @@ DO iPartBound=1,nPartBound
         CALL abort(__STAMP__,'ERROR Wall Temperature Gradient: gradient vector appears to be zero!')
       END IF
     END IF
-    ! check for correct surfacemodel input
+
+    ! Surface Model (e.q. SEE, sticking, etc.)
+    PartBound%SurfaceModel(iPartBound)    = GETINT('Part-Boundary'//TRIM(hilf)//'-SurfaceModel')
+    BoundaryUsesSEE = .FALSE.
     IF (PartBound%SurfaceModel(iPartBound).GT.0)THEN
       IF (.NOT.useDSMC) CALL abort(__STAMP__,'Cannot use surfacemodel>0 with useDSMC=F for particle boundary: ',iPartBound)
       SELECT CASE (PartBound%SurfaceModel(iPartBound))
-      CASE (0,2)
+      CASE (0,2) ! Default: no surface model
         PartBound%Reactive(iPartBound)        = .FALSE.
-      CASE (1)
+      CASE (1) ! Sticking coefficient model using tabulated, empirical values
         PartBound%Reactive(iPartBound)        = .FALSE.
         IF(TRIM(SpeciesDatabase).EQ.'none') &
           CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: SpeciesDatabase is required for the boundary #', iPartBound)
       CASE (20)
         PartBound%Reactive(iPartBound)        = .TRUE.
-      CASE (SEE_MODELS_ID)
+        PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector')
+        PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell')
+        DO iSpec=1, nSpecies
+          WRITE(UNIT=hilf2,FMT='(I0)') iSpec
+          PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage')
+          PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage')
+          IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
+            CALL abort(__STAMP__,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
+          END IF
+        END DO
+        PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
+        PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage')
+        ! Check if the maximum of the coverage is reached
+        IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
+          CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
+        END IF
+      CASE (SEE_MODELS_ID) ! See ./src/piclas.h for numbers
         ! SEE models require reactive BC
         PartBound%Reactive(iPartBound)        = .TRUE.
+        BoundaryUsesSEE = .TRUE.
+        AnyBoundaryUsesSEE = .TRUE.
+      CASE (VDL_MODEL_ID) ! VDL - cannot be actively selected! See ./src/piclas.h for numbers
+        CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-SurfaceModel = VDL_MODEL_ID,SEE_VDL_MODEL_ID cannot be selected!')
       CASE DEFAULT
         CALL abort(__STAMP__,'Error in particle init: only allowed SurfaceModels: 0,1,2,20,SEE_MODELS_ID! SurfaceModel=',&
                   IntInfoOpt=PartBound%SurfaceModel(iPartBound))
       END SELECT
     END IF
-    PartBound%LatticeVec(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-LatticeVector', '0.')
-    PartBound%MolPerUnitCell(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-NbrOfMol-UnitCell', '1.')
-    DO iSpec=1, nSpecies
-      WRITE(UNIT=hilf2,FMT='(I0)') iSpec
-      PartBound%CoverageIni(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-Coverage', '0.')
-      PartBound%MaxCoverage(iPartBound, iSpec) = GETREAL('Part-Boundary'//TRIM(hilf)//'-Species'//TRIM(hilf2)//'-MaxCoverage', '1.')
-      IF (PartBound%CoverageIni(iPartBound, iSpec).GT.PartBound%MaxCoverage(iPartBound, iSpec)) THEN
-        CALL abort(__STAMP__,'ERROR: Surface coverage can not be larger than the maximum value', iPartBound)
-      END IF
-    END DO
-    PartBound%TotalCoverage(iPartBound) = SUM(PartBound%CoverageIni(iPartBound,:))
-    PartBound%MaxTotalCoverage(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-MaxTotalCoverage', '1.')
-    ! Check if the maximum of the coverage is reached
-    IF (PartBound%TotalCoverage(iPartBound).GT.PartBound%MaxTotalCoverage(iPartBound)) THEN
-      CALL abort(__STAMP__,'ERROR: Maximum surface coverage reached.', iPartBound)
-    END IF
+
+    ! Species Swap
     IF (PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) THEN
       !read Species to be changed at wall (in, out), out=0: delete
       PartBound%ProbOfSpeciesSwaps(iPartBound)= GETREAL('Part-Boundary'//TRIM(hilf)//'-ProbOfSpeciesSwaps','1.')
@@ -516,8 +541,9 @@ DO iPartBound=1,nPartBound
       IF(PartBound%Reactive(iPartBound)) CALL abort(__STAMP__&
           ,'ERROR: Species swap is only supported in combination with Maxwell scattering (SurfModel = 0). PartBound: ',iPartBound)
     END IF
+
     ! Dielectric Surfaces
-    PartBound%Dielectric(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
+    PartBound%Dielectric(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-Dielectric')
     ! Sanity check: PartBound%Dielectric=T requires supplying species swap for every species
     IF(PartBound%Dielectric(iPartBound))THEN
       IF((PartBound%NbrOfSpeciesSwaps(iPartBound).LT.(nSpecies-BGGas%NumberOfSpecies)).AND.&
@@ -526,19 +552,49 @@ DO iPartBound=1,nPartBound
             ' for every species (except background gas species) or\n   '//&
             'b) surface model that is reactive (Part-BoundaryX-SurfaceModel)!')
       ELSE
-        DoDielectricSurfaceCharge = .TRUE.
-        DoHaloDepo                = .TRUE.
+        DoDielectricSurfaceCharge = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
+        DoHaloDepo                = .TRUE. ! Activate deposition in the halo region (shape function)
         IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
             'PartBound%Dielectric=T requires cell_volweight_mean (12) as deposition method')
       END IF ! PartBound%NbrOfSpeciesSwaps(iPartBound).NE.nSpecies
     END IF ! PartBound%Dielectric(iPartBound)
+
+    ! Virtual dielectric layer (VDL)
+    PartBound%PermittivityVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-PermittivityVDL')
+    IF(PartBound%PermittivityVDL(iPartBound).GT.0.0)THEN
+      IF(.NOT.DoDeposition) CALL abort(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDeposition=T')
+      IF(TRIM(DepositionType).NE.'cell_volweight_mean') CALL CollectiveStop(__STAMP__,&
+        'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires cell_volweight_mean (12) as deposition method')
+      IF(PartBound%NbrOfSpeciesSwaps(iPartBound).GT.0) CALL CollectiveStop(__STAMP__,&
+        'Part-BoundaryX-PermittivityVDL cannot be combined with Part-Boundary'//TRIM(hilf)//'-NbrOfSpeciesSwaps')
+      IF(PartBound%Dielectric(iPartBound)) CALL CollectiveStop(__STAMP__,&
+        'Part-BoundaryX-PermittivityVDL cannot be combined with Part-Boundary'//TRIM(hilf)//'-Dielectric')
+#if USE_HDG
+      IF(DoDirichletDeposition) CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires PIC-DoDirichletDeposition=F')
+#else
+      CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL requires HDG!')
+#endif /*USE_HDG*/
+      ! VDL settings
+      PartBound%ThicknessVDL(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-ThicknessVDL')
+      DoVirtualDielectricLayer           = .TRUE. ! Global setting indicating that VDL is active
+      PartBound%Reactive(iPartBound)     = .TRUE. ! VDL requires reactive BC for analysis
+      DoDielectricSurfaceCharge          = .TRUE. ! Global setting indicating surface charging via VDL or PartBound%Dielectric
+      DoHaloDepo                         = .TRUE. ! Activate deposition in the halo region (shape function)
+      ! Check if pure VDL or SEE+VDL boundary. Only set SurfaceModel=99 when not other model is present
+      IF(.NOT.BoundaryUsesSEE) PartBound%SurfaceModel(iPartBound) = 99 ! VDL only
+#if !((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))
+      CALL abort(__STAMP__,'VDL model not implemented for the given time discretisation!')
+#endif /*!((PP_TimeDiscMethod==500) || (PP_TimeDiscMethod==501) || (PP_TimeDiscMethod==502) || (PP_TimeDiscMethod==506) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509))*/
+    ELSEIF(PartBound%PermittivityVDL(iPartBound).LT.0.0)THEN
+      CALL abort(__STAMP__,'Part-Boundary'//TRIM(hilf)//'-PermittivityVDL cannot be negative')
+    END IF ! PartBound%PermittivityVDL(iPartBound)
+
+
   CASE('periodic')
     PartBound%TargetBoundCond(iPartBound) = PartBound%PeriodicBC
     PartMeshHasPeriodicBCs = .TRUE.
   CASE('symmetric')
-#if defined(IMPA) || defined(ROS)
-    PartMeshHasReflectiveBCs=.TRUE.
-#endif
     PartBound%TargetBoundCond(iPartBound) = PartBound%SymmetryBC
     PartBound%WallVelo(1:3,iPartBound)    = (/0.,0.,0./)
   CASE('symmetric_axis')
@@ -571,22 +627,25 @@ DO iPartBound=1,nPartBound
   PartBound%SourceBoundName(iPartBound) = TRIM(GETSTR('Part-Boundary'//TRIM(hilf)//'-SourceName'))
   ! Surface particle output to .h5
   PartBound%BoundaryParticleOutputHDF5(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput')
-  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) DoBoundaryParticleOutputHDF5=.TRUE.
+  IF(PartBound%BoundaryParticleOutputHDF5(iPartBound)) THEN
+    DoBoundaryParticleOutputHDF5=.TRUE.
+    PartBound%BoundaryParticleOutputEmission(iPartBound)      = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-BoundaryParticleOutput-Emission')
+  END IF
 END DO
 
 ! Check if there is an particle init with photon SEE
-FoundPartBoundSEE=.FALSE.
+FoundPartBoundPhotonSEE=.FALSE.
 SpecLoop: DO iSpec=1,nSpecies
   DO iInit=1, Species(iSpec)%NumberOfInits
     IF(StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE'))THEN
-      FoundPartBoundSEE = .TRUE.
+      FoundPartBoundPhotonSEE = .TRUE.
       EXIT SpecLoop
     END IF ! StringBeginsWith(Species(iSpec)%Init(iInit)%SpaceIC,'photon_SEE')
   END DO
 END DO SpecLoop
 
 ! Connect emission inits to particle boundaries for output
-IF(DoBoundaryParticleOutputHDF5.OR.FoundPartBoundSEE) CALL InitializeVariablesSpeciesBoundary()
+CALL InitializeVariablesSpeciesBoundary(FoundPartBoundPhotonSEE)
 
 PartBound%AdaptWallTemp = GETLOGICAL('Part-AdaptWallTemp')
 
@@ -654,6 +713,12 @@ IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   CALL CloseDataFile()
 END IF
 
+IF(AnyBoundaryUsesSEE) THEN
+  ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in InitializeVariablesPartBoundary: Cannot allocate InterPlanePartIndx array!')
+  InterPlanePartIndx = 0
+END IF
+
 !-- Sanity check: Mesh requires specific boundary conditions for 1D/2D/axisymmetric simulations
 IF(Symmetry%Order.LT.3) THEN
   IF(.NOT.ANY(PartBound%TargetBoundCond.EQ.PartBound%SymmetryDim)) THEN
@@ -667,6 +732,129 @@ IF(Symmetry%Order.LT.3) THEN
 END IF
 
 END SUBROUTINE InitializeVariablesPartBoundary
+
+
+!===================================================================================================================================
+!> Initialize the required side and element containers for the virtual dielectric layer model
+!===================================================================================================================================
+SUBROUTINE InitVirtualDielectricLayer()
+! MODULES
+use mod_globals
+USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
+USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL,nVarSurfData
+USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDLPerSide
+USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID,GetCNElemID
+USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Mesh_Vars              ,ONLY: ElemToSide,offSetElem
+USE MOD_Mesh_Tools             ,ONLY: GetCNSideID
+USE MOD_Particle_Surfaces      ,ONLY: CalcNormAndTangTriangle
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
+USE MOD_DG_Vars                ,ONLY: N_DG_Mapping,U_N
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars       ,ONLY: UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iElem,BCSideID,BCType,iPartBound,GlobalElemID,GlobalNonUniqueSideID,iLocSide,SideID,CNElemID
+INTEGER             :: iSide,Nloc,iNode
+REAL,DIMENSION(3)   :: NormVec,x
+REAL,DIMENSION(4,6) :: distances
+!===================================================================================================================================
+
+! 1) Determine volume container ElementThicknessVDL that holds the approximate thickness of the element with respect to the boundary
+ALLOCATE(ElementThicknessVDL(1:nElems))
+ElementThicknessVDL = 0.
+ALLOCATE(ElementThicknessVDLPerSide(1:nBCSides))
+ElementThicknessVDLPerSide = 0.
+CALL AddToElemData(ElementOut,'ElementThicknessVDL',RealArray=ElementThicknessVDL(1:nElems))
+
+! Loop over all local boundary sides
+DO BCSideID=1,nBCSides
+
+  ! Exclude periodic sides
+  BCType = Boundarytype(BC(BCSideID),BC_TYPE)
+  IF(BCType.EQ.1) CYCLE ! Skip periodic side
+
+  ! Exclude non-VDL boundaries
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+  IF(ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0)THEN
+    ! Get local and global element index
+    iElem        = SideToElem(S2E_ELEM_ID,BCSideID)
+    GlobalElemID = GetGlobalElemID(iElem)
+
+    ! Get normal vector
+    DO iLocSide=1,6
+      GlobalNonUniqueSideID = GetGlobalNonUniqueSideID(GlobalElemID,iLocSide)
+      SideID                = ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+      ! Approximate normal vector by assuming planar boundary side
+      CALL CalcNormAndTangTriangle(TriNum=1, nVec=NormVec, SideID=GlobalNonUniqueSideID)
+      IF(SideID.EQ.BCSideID) EXIT ! Exit loop when correct side is found
+    END DO
+
+    ! Calculate the projected distance for each of the 6 sides
+    CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,GlobalNonUniqueSideID))
+    DO iLocSide = 1 , 6
+      DO iNode = 1 , 4
+        x(1:3) = NodeCoords_Shared(1:3,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
+        distances(iNode,iLocSide) = DOT_PRODUCT(x,NormVec)
+      END DO ! iNode = 1, 4
+    END DO
+
+    ElementThicknessVDLPerSide(BCSideID) = MAXVAL(distances) - MINVAL(distances)
+    ! Store the value in the element-wise output, might overwrite values when an element has more than 1 side
+    ElementThicknessVDL(iElem) = ElementThicknessVDLPerSide(BCSideID)
+    ! Sanity check
+    IF(ElementThicknessVDLPerSide(BCSideID).LT.0.) CALL abort(__STAMP__,'ElementThicknessVDLPerSide(BCSideID) is negative for BCSideID=',IntInfoOpt=BCSideID)
+  END IF ! ABS(PartBound%PermittivityVDL(iPartBound)).GT.0.0
+
+END DO ! BCSideID=1,nBCSides
+
+! 2) Calculate the stretching factor for each cell StretchingFactorVDL
+ALLOCATE(StretchingFactorVDL(1:nElems))
+StretchingFactorVDL = 0.
+CALL AddToElemData(ElementOut,'StretchingFactorVDL',RealArray=StretchingFactorVDL(1:nElems))
+DO BCSideID=1,nBCSides
+  ! Get the local element index
+  iElem = SideToElem(S2E_ELEM_ID,BCSideID)
+  ! Get particle boundary index
+  iPartBound = PartBound%MapToPartBC(BC(BCSideID))
+  ! Skip sides that are not a VDL boundary (these sides are still in the list of sides)
+  IF(PartBound%ThicknessVDL(iPartBound).GT.0.0)THEN
+    ! Calculate the ratio
+    StretchingFactorVDL(iElem) = ElementThicknessVDLPerSide(BCSideID) / PartBound%ThicknessVDL(iPartBound)
+  END IF
+END DO ! BCSideID=1,nBCSides
+
+! 3) Initialize surface container for the corrected electric field
+ALLOCATE(N_SurfVDL(1:nBCSides))
+DO iSide = 1, nBCSides
+  iElem = SideToElem(S2E_ELEM_ID,iSide)
+  ! Allocate with polynomial degree of the element
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  ALLOCATE(N_SurfVDL(iSide)%U(nVarSurfData,0:Nloc,0:Nloc))
+  N_SurfVDL(iSide)%U = 0.
+END DO ! iSide = 1, nBCSides
+
+#if USE_LOADBALANCE
+! Not "LB via MPI" means during 1st initialisation
+IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
+#endif /*USE_LOADBALANCE*/
+  DO iElem = 1, nElems
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    ALLOCATE(U_N(iElem)%PhiF(1:3,0:Nloc,0:Nloc,0:Nloc))
+    U_N(iElem)%PhiF = 0.
+  END DO ! iElem = 1, nElems
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+
+END SUBROUTINE InitVirtualDielectricLayer
 
 
 SUBROUTINE InitParticleBoundarySurfSides()
@@ -684,6 +872,7 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: GlobalSide2SurfSide,SurfSide2GlobalSide
 #if USE_MPI
+USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG,ELEM_RANK
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
@@ -762,6 +951,9 @@ GlobalSide2SurfSideProc = -1
 nComputeNodeSurfSides   = 0
 nSurfSidesProc          = 0
 ReflectiveOrOpenBCFound = .FALSE.
+#if USE_MPI
+nComputeNodeInnerBCs    = 0
+#endif /*USE_MPI*/
 
 ! Check every BC side
 DO iSide = firstSide,lastSide
@@ -904,7 +1096,6 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
   ! Determine the number of surface output sides (inner BCs are not counted twice and rotationally periodic BCs excluded)
 #if USE_MPI
   IF (myComputeNodeRank.EQ.0) THEN
-    nComputeNodeInnerBCs = 0
 #endif /*USE_MPI*/
     nComputeNodeSurfOutputSides = 0
     DO iSurfSide = 1,nComputeNodeSurfSides
@@ -1475,7 +1666,7 @@ SUBROUTINE BuildParticleBoundaryRotPeriodic(notMappedTotal)
 USE MOD_Globals
 USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfTotalSides,SurfSide2GlobalSide,PartBound,nRotPeriodicSides
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping, NumRotPeriodicNeigh, SurfSide2RotPeriodicSide,MaxNumRotPeriodicNeigh
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared, ElemInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeCoords_Shared, ElemSideNodeID_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID, GetGlobalElemID
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, NodeInfo_Shared, NodeToElemInfo, NodeToElemMapping
 USE MOD_Mesh_Vars               ,ONLY: LostRotPeriodicSides,nElems
@@ -1483,6 +1674,8 @@ USE MOD_Analyze_Vars            ,ONLY: CalcMeshInfo
 USE MOD_IO_HDF5                 ,ONLY: AddToElemData,ElementOut
 USE MOD_HDF5_Output_ElemData    ,ONLY: WriteLostRotPeriodicSidesToHDF5
 #if USE_MPI
+USE MOD_Particle_Mesh_Vars      ,ONLY: ElemInfo_Shared
+USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2RotPeriodicSide_Shared,SurfSide2RotPeriodicSide_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: Rot2Glob_temp_Shared,Rot2Glob_temp_Shared_Win
 USE MOD_Particle_Boundary_Vars  ,ONLY: RotPeriodicSideMapping_temp_Shared,RotPeriodicSideMapping_temp_Shared_Win
@@ -1789,6 +1982,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
       END DO jSideLoop ! jSide = 1, nRotPeriodicSides
 
       ! Check if iSide could not be mapped to any other side
+#if USE_MPI
       IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
         IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.3) THEN
           ! Found side on element that is a neighbor element in rot halo region (they have halo flag 3)
@@ -1797,6 +1991,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
           RotPeriodicSideMapping_temp(iSide,NumRotPeriodicNeigh(iSide)) = 0
         END IF
       END IF ! NumRotPeriodicNeigh(iSide).EQ.0
+#endif /*USE_MPI*/
 
     END DO iSideLoop ! iSide = firstSide, lastSide
 
@@ -1838,6 +2033,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
         END DO kNodeLoop
       END DO
       NumRotPeriodicNeigh(iSide) = NewNeighNumber
+#if USE_MPI
       ! Check if iSide still could not be mapped to any other side.
       IF(NumRotPeriodicNeigh(iSide).EQ.0) THEN
         SideID = Rot2Glob_temp(iSide)
@@ -1848,6 +2044,7 @@ IF(nComputeNodeSurfTotalSides.GT.0)THEN
           IF(ElemInfo_Shared(ELEM_HALOFLAG,SideInfo_Shared(SIDE_ELEMID,SideID)).EQ.1) abortAfterWriteOut = .TRUE.
         END IF
       END IF
+#endif /*USE_MPI*/
     END DO
 
     ! (4) reallocate array due to number of potential rotational periodic sides
@@ -1971,9 +2168,11 @@ INTEGER                           :: ALLOCSTAT
 LOGICAL                           :: HasInterPlaneOnProc(nPartBound)
 !===================================================================================================================================
 
-ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
-InterPlanePartIndx = 0
+IF(.NOT.ALLOCATED(InterPlanePartIndx)) THEN
+  ALLOCATE(InterPlanePartIndx(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_boundary_init.f90: Cannot allocate InterPlanePartIndx array!')
+  InterPlanePartIndx = 0
+END IF
 
 HasInterPlaneOnProc = .FALSE.
 
@@ -2243,7 +2442,10 @@ SDEALLOCATE(PartBound%MolPerUnitCell)
 SDEALLOCATE(PartBound%Reactive)
 SDEALLOCATE(PartBound%Dielectric)
 SDEALLOCATE(PartBound%BoundaryParticleOutputHDF5)
+SDEALLOCATE(PartBound%BoundaryParticleOutputEmission)
 SDEALLOCATE(PartBound%RadiativeEmissivity)
+SDEALLOCATE(PartBound%PermittivityVDL)
+SDEALLOCATE(PartBound%ThicknessVDL)
 
 ! Mapping arrays are allocated even if the node does not have sampling surfaces
 #if USE_MPI
@@ -2296,6 +2498,11 @@ IF(.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)))THEN
 #if USE_LOADBALANCE
 END IF ! PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+
+SDEALLOCATE(ElementThicknessVDL)
+SDEALLOCATE(ElementThicknessVDLPerSide)
+SDEALLOCATE(StretchingFactorVDL)
+SDEALLOCATE(N_SurfVDL)
 
 END SUBROUTINE FinalizeParticleBoundary
 

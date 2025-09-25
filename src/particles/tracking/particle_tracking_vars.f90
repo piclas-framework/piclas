@@ -54,16 +54,12 @@ INTEGER,ALLOCATABLE :: ListDistance(:)             ! the corresponding element i
 
 TYPE tTrackingInfo
   INTEGER           :: CurrElem
-  INTEGER           :: LocSide
   INTEGER           :: LastSide
-  INTEGER           :: GlobSide
-  INTEGER           :: flip
-  INTEGER           :: TriNum
   REAL              :: xi
   REAL              :: eta
-  REAL              :: alpha
-  REAL              :: PartTrajectory(1:3)
-  REAL              :: LengthPartTrajectory
+  REAL              :: alpha                  ! Distance travelled up to boundary interaction
+  REAL              :: PartTrajectory(1:3)    ! Normalized vector particle trajectory
+  REAL              :: LengthPartTrajectory   ! Length of the particle trajectory
   INTEGER           :: p=1
   INTEGER           :: q=1
 END TYPE

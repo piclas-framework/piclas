@@ -571,7 +571,7 @@ SUBROUTINE AnalyticParticleMovement(time,iter)
 ! MODULES
 USE MOD_Preproc
 USE MOD_Globals               ,ONLY: UNIT_StdOut,MPIRoot
-USE MOD_Analyze_Vars          ,ONLY: OutputErrorNorms
+USE MOD_Analyze_Vars          ,ONLY: OutputErrorNormsPart
 USE MOD_Particle_Analyze_Vars ,ONLY: TrackParticlePosition
 USE MOD_PICInterpolation_Vars ,ONLY: L_2_Error_Part,AnalyticPartDim
 ! IMPLICIT VARIABLE HANDLING
@@ -589,11 +589,11 @@ CHARACTER(LEN=40)             :: formatStr
 !===================================================================================================================================
 
 CALL CalcErrorParticle(time,iter,PartStateAnalytic)
-IF(MPIRoot.AND.OutputErrorNorms) THEN
+IF(MPIRoot.AND.OutputErrorNormsPart) THEN
   WRITE(UNIT_StdOut,'(A13,ES16.7)')' Sim time  : ',time
   WRITE(formatStr,'(A5,I1,A7)')'(A13,',AnalyticPartDim,'ES16.7)'
   WRITE(UNIT_StdOut,formatStr)' L2_Part   : ',L_2_Error_Part
-  OutputErrorNorms=.FALSE.
+  OutputErrorNormsPart=.FALSE.
 END IF
 IF(TrackParticlePosition) CALL WriteParticleTrackingDataAnalytic(time,iter,PartStateAnalytic) ! new function
 

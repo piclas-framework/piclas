@@ -13,6 +13,7 @@
 #include "piclas.h"
 
 MODULE MOD_FV
+#if USE_FV
 !===================================================================================================================================
 ! Contains the initialization of the FV global variables
 ! Computes the different FV spatial operators/residuals(Ut_FV) using U_FV
@@ -149,13 +150,16 @@ USE MOD_Prolong_FV        ,ONLY: ProlongToFace_FV
 USE MOD_Gradients         ,ONLY: GetGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation_FV       ,ONLY: CalcSource_FV
+#if !(PP_TimeDiscMethod==700)
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
-USE MOD_FillMortar        ,ONLY: U_Mortar,Flux_Mortar
+#endif /*!(PP_TimeDiscMethod==700)*/
+USE MOD_FillMortar_FV     ,ONLY: U_Mortar_FV,Flux_Mortar_FV
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
 #if USE_MPI
 USE MOD_Mesh_Vars         ,ONLY: nSides
 USE MOD_MPI_Vars
-USE MOD_MPI               ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV,FinishExchangeMPIData
+USE MOD_MPI               ,ONLY: FinishExchangeMPIData
+USE MOD_MPI_FV            ,ONLY: StartReceiveMPIDataFV,StartSendMPIDataFV
 #if defined(PARTICLES) && defined(LSERK)
 USE MOD_Particle_Vars     ,ONLY: DelayTime
 USE MOD_TimeDisc_Vars     ,ONLY: time
@@ -170,19 +174,24 @@ USE MOD_LoadBalance_Timers,ONLY: LBStartTime,LBPauseTime,LBSplitTime
 #endif /*USE_LOADBALANCE*/
 #endif /*USE_MPI*/
 #ifdef drift_diffusion
-USE MOD_Interpolation_Vars,ONLY: wGP
-USE MOD_Equation_Vars     ,ONLY: E
+USE MOD_Interpolation_Vars,ONLY: N_Inter
+USE MOD_DG_Vars           ,ONLY: U_N,N_DG_Mapping
+USE MOD_Mesh_Vars         ,ONLY: offsetElem
 #if USE_MPI
 USE MOD_MPI               ,ONLY: StartReceiveMPIData,StartSendMPIData
 #endif /*USE_MPI*/
 #endif
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
 REAL,INTENT(IN)                 :: t,tStage
 LOGICAL,INTENT(IN)              :: doSource
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: CNElemID, iElem
+INTEGER                         :: CNElemID, iElem, Nloc
 #ifdef drift_diffusion
 INTEGER                         :: i,j,k
 REAL                            :: U_DD(1:PP_nVar_FV+3,0:0,0:0,0:0,PP_nElems) ! U_FV(1:PP_nVar_FV) + E(1:3)
@@ -203,9 +212,11 @@ CALL LBStartTime(tLBStart)
 !> 1.b) Add averaged E field to the solution vector
 U_DD(:,:,:,:,:) = 0.
 DO iElem = 1, PP_nElems
-  DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
+  Nloc = N_DG_Mapping(2,iElem+offSetElem)
+  DO k=0,NLoc; DO j=0,NLoc; DO i=0,NLoc
     U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,iElem) = U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,iElem) &
-                                                 + wGP(i)*wGP(j)*wGP(k)*E(1:3,i,j,k,iElem)/((PP_N+1.)**3) !need jacobi here for noncartesian
+                                                 + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)&
+                                                 * U_N(iElem)%E(1:3,i,j,k)/((NLoc+1.)**3) !need jacobi here for noncartesian
   END DO; END DO; END DO
   U_DD(1:PP_nVar_FV,0,0,0,iElem) = U_FV(1:PP_nVar_FV,0,0,0,iElem)
 END DO
@@ -229,7 +240,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
-CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.TRUE.) !not working
+CALL U_Mortar_FV(U_master_FV,U_slave_FV,doMPISides=.TRUE.) !not working
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
@@ -242,7 +253,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
-CALL U_Mortar(U_master_FV,U_slave_FV,doMPISides=.FALSE.) !not working
+CALL U_Mortar_FV(U_master_FV,U_slave_FV,doMPISides=.FALSE.) !not working
 
 !> A.) Send particles
 #if USE_MPI
@@ -295,7 +306,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! fill the all surface fluxes on this proc
 CALL FillFlux(t,Flux_Master_FV,Flux_Slave_FV,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
-CALL Flux_Mortar(Flux_Master_FV,Flux_Slave_FV,doMPISides=.FALSE.)
+CALL Flux_Mortar_FV(Flux_Master_FV,Flux_Slave_FV,doMPISides=.FALSE.)
 
 !> 4.) Compute surface integral contribution and add to ut
 CALL SurfInt(Flux_Master_FV,Flux_Slave_FV,Ut_FV,doMPISides=.FALSE.)
@@ -311,7 +322,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 !FINALIZE Fluxes for MPI Sides
-CALL Flux_Mortar(Flux_Master_FV,Flux_Slave_FV,doMPISides=.TRUE.)
+CALL Flux_Mortar_FV(Flux_Master_FV,Flux_Slave_FV,doMPISides=.TRUE.)
 CALL SurfInt(Flux_Master_FV,Flux_Slave_FV,Ut_FV,doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
@@ -379,7 +390,6 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 
 
-
 SUBROUTINE FinalizeFV()
 !===================================================================================================================================
 ! Deallocate global variable U_FV (solution) and Ut_FV (fv time derivative).
@@ -421,4 +431,5 @@ END IF
 FVInitIsDone = .FALSE.
 END SUBROUTINE FinalizeFV
 
+#endif /*USE_FV*/
 END MODULE MOD_FV

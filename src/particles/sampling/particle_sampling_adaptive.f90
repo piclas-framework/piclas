@@ -22,7 +22,10 @@ MODULE MOD_Particle_Sampling_Adapt
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-PUBLIC :: DefineParametersParticleSamplingAdaptive, InitAdaptiveBCSampling, AdaptiveBCSampling, FinalizeParticleSamplingAdaptive
+PUBLIC :: DefineParametersParticleSamplingAdaptive
+PUBLIC :: InitAdaptiveBCSampling
+PUBLIC :: AdaptiveBCSampling, CalcAdaptBCPartNumOutBackup
+PUBLIC :: FinalizeParticleSamplingAdaptive
 !===================================================================================================================================
 
 CONTAINS
@@ -85,8 +88,7 @@ USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
 ! LOCAL VARIABLES
 LOGICAL                           :: UseAdaptiveType4
 INTEGER                           :: iElem, iSpec, iSF, iSide, ElemID, SampleElemID, GlobalSideID, GlobalElemID, currentBC
-INTEGER                           :: jSample, iSample, BCSideID
-INTEGER                           :: nSurfacefluxBCs
+INTEGER                           :: jSample, iSample, BCSideID, nSurfacefluxBCs, CNElemID
 #if USE_MPI
 INTEGER                           :: offSetElemAdaptBCSampleMPI(0:nProcessors-1)
 #endif
@@ -143,7 +145,8 @@ DO iSpec=1,nSpecies
         END DO; END DO
       END IF
       ! Calculate the sum of the cell volumes adjacent to the surface flux
-      AdaptBCVolSurfaceFlux(iSpec,iSF) = AdaptBCVolSurfaceFlux(iSpec,iSF) + ElemVolume_Shared(GetCNElemID(ElemID+offsetElem))
+      CNElemID = GetCNElemID(ElemID+offsetElem)
+      AdaptBCVolSurfaceFlux(iSpec,iSF) = AdaptBCVolSurfaceFlux(iSpec,iSF) + ElemVolume_Shared(CNElemID)
       ! Only add elements once
       IF(AdaptBCMapElemToSample(ElemID).NE.0) CYCLE
       ! Add the element to the BC sampling
@@ -430,7 +433,11 @@ IF(.NOT.initTruncAverage) THEN
 #endif /*USE_LOADBALANCE*/
     ! Sample the particle properties
     iSpec = PartSpecies(iPart)
-    partWeight = GetParticleWeight(iPart)
+    IF(usevMPF) THEN
+      partWeight = GetParticleWeight(iPart)
+    ELSE
+      partWeight = GetParticleWeight(iPart) * Species(iSpec)%MacroParticleFactor
+    END IF
     IF(AdaptBCTruncAverage.AND..NOT.initSampling) THEN
       ! Store the samples of the last AdaptBCSampIter and replace the oldest with the newest sample
       AdaptBCAverage(1:3,TruncIter,SampleElemID, iSpec) = AdaptBCAverage(1:3,TruncIter,SampleElemID,iSpec) + PartState(4:6,iPart) * partWeight
@@ -496,13 +503,8 @@ IF(AdaptBCAverageValBC) THEN
             ! AdaptBCTruncAverage: continuous average of the last AdaptBCSampIter iterations
             IF(AdaptBCSampIter.GT.0) THEN
               ! Calculate the average number density
-              IF(usevMPF) THEN
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
+              AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
                                                       / AdaptBCVolSurfaceFlux(iSpec,iSF)
-              ELSE
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = AdaptBCMeanValues(8,iSpec,iSF) / REAL(SamplingIteration) &
-                                                      / AdaptBCVolSurfaceFlux(iSpec,iSF) * Species(iSpec)%MacroParticleFactor
-              END IF
               IF(AdaptBCMeanValues(7,iSpec,iSF).GT.1) THEN
                 ! Calculate the average temperature
                 AdaptBCAverageMacroVal(2,iSpec,iSF) = (AdaptBCMeanValues(7,iSpec,iSF)/(AdaptBCMeanValues(7,iSpec,iSF)-1.0)) &
@@ -517,14 +519,8 @@ IF(AdaptBCAverageValBC) THEN
             ! ================================================================
             ! Relaxation factor: updating the macro values with a certain percentage of the current sampled value
               ! Calculate the average number density
-              IF(usevMPF) THEN
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF)
-              ELSE
-                AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
-                  + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/REAL(SamplingIteration)/AdaptBCVolSurfaceFlux(iSpec,iSF) &
-                    * Species(iSpec)%MacroParticleFactor
-              END IF
+              AdaptBCAverageMacroVal(1,iSpec,iSF) = (1-RelaxationFactor) * AdaptBCAverageMacroVal(1,iSpec,iSF) &
+                + RelaxationFactor * AdaptBCMeanValues(8,iSpec,iSF)/AdaptBCVolSurfaceFlux(iSpec,iSF)
               IF(AdaptBCMeanValues(7,iSpec,iSF).GT.1) THEN
                 ! Calculate the average temperature
                 AdaptBCAverageMacroVal(2,iSpec,iSF) = (AdaptBCMeanValues(7,iSpec,iSF)/(AdaptBCMeanValues(7,iSpec,iSF)-1.0)) &
@@ -601,12 +597,7 @@ ELSE              ! .NOT. AdaptBCAverageValBC
               AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCSample(1:3,SampleElemID, iSpec)
             END IF
             ! number density
-            IF(usevMPF) THEN
-              AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID)
-            ELSE
-              AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID) &
-                                                * Species(iSpec)%MacroParticleFactor
-            END IF
+            AdaptBCMacroVal(4,SampleElemID,iSpec) = AdaptBCSample(8,SampleElemID,iSpec) / REAL(SamplingIteration) / ElemVolume_Shared(CNElemID)
             ! Calculation of the pressure
             IF(AdaptBCSample(7,SampleElemID,iSpec).GT.1) THEN
               ! instantaneous temperature WITHOUT 1/BoltzmannConst
@@ -645,13 +636,8 @@ ELSE              ! .NOT. AdaptBCAverageValBC
                                                 + RelaxationFactor*AdaptBCSample(1:3,SampleElemID, iSpec)
           END IF
           ! Calculation of the number density
-          IF(usevMPF) THEN
-            AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
+          AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
               + RelaxationFactor*AdaptBCSample(8,SampleElemID,iSpec) / ElemVolume_Shared(CNElemID)
-          ELSE
-            AdaptBCMacroVal(4,SampleElemID,iSpec) = (1-RelaxationFactor)*AdaptBCMacroVal(4,SampleElemID,iSpec) &
-              + RelaxationFactor*AdaptBCSample(8,SampleElemID,iSpec) / ElemVolume_Shared(CNElemID)*Species(iSpec)%MacroParticleFactor
-          END IF
           ! Calculation of the pressure
           IF (AdaptBCSample(7,SampleElemID,iSpec).GT.1.0) THEN
             ! Compute instantaneous temperature WITHOUT 1/BoltzmannConst
@@ -677,6 +663,64 @@ ELSE              ! .NOT. AdaptBCAverageValBC
 END IF            ! AdaptBCAverageValBC
 
 END SUBROUTINE AdaptiveBCSampling
+
+
+SUBROUTINE CalcAdaptBCPartNumOutBackup()
+!===================================================================================================================================
+!> Approximate the number of particles leaving the domain for the surface flux, adaptive type = 4
+!> Assuming zero bulk velocity, using the fall-back values
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
+USE MOD_TimeDisc_Vars           ,ONLY: ManualTimeStep, RKdtFrac
+USE MOD_Mesh_Vars               ,ONLY: SideToElem
+USE MOD_Particle_Vars           ,ONLY: Species,nSpecies,VarTimeStep
+USE MOD_Particle_Sampling_Vars  ,ONLY: AdaptBCMacroVal, AdaptBCMapElemToSample, AdaptBCPartNumOut
+USE MOD_Particle_Surfaces_Vars  ,ONLY: BCdata_auxSF, SurfFluxSideSize, SurfMeshSubSideData
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER             :: iSpec,iSF,iSide,ElemID,SampleElemID,currentBC,jSample,iSample,BCSideID
+REAL                :: v_thermal, dtVar
+!===================================================================================================================================
+
+DO iSpec=1,nSpecies
+  ! Species-specific time step
+  IF(VarTimeStep%UseSpeciesSpecific) THEN
+    dtVar = ManualTimeStep * RKdtFrac * Species(iSpec)%TimeStepFactor
+  ELSE
+    dtVar = ManualTimeStep * RKdtFrac
+  END IF
+  DO iSF=1,Species(iSpec)%nSurfacefluxBCs
+    currentBC = Species(iSpec)%Surfaceflux(iSF)%BC
+    ! Skip processors without a surface flux
+    IF (BCdata_auxSF(currentBC)%SideNumber.EQ.0) CYCLE
+    ! Skip other regular surface flux and other types
+    IF(.NOT.Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) CYCLE
+    ! Calculate the velocity for the surface flux with the thermal velocity assuming a zero bulk velocity
+    v_thermal = SQRT(2.*BoltzmannConst*Species(iSpec)%Surfaceflux(iSF)%MWTemperatureIC/Species(iSpec)%MassIC) / (2.0*SQRT(PI))
+    ! Loop over sides on the surface flux
+    DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
+      BCSideID=BCdata_auxSF(currentBC)%SideList(iSide)
+      ElemID = SideToElem(S2E_ELEM_ID,BCSideID)
+      SampleElemID = AdaptBCMapElemToSample(ElemID)
+      IF(SampleElemID.GT.0) THEN
+        DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
+          AdaptBCPartNumOut(iSpec,iSF) = AdaptBCPartNumOut(iSpec,iSF) + AdaptBCMacroVal(4,SampleElemID,iSpec) &
+            * dtVar * SurfMeshSubSideData(iSample,jSample,BCSideID)%area * v_thermal
+        END DO; END DO
+      END IF  ! SampleElemID.GT.0
+    END DO    ! iSide=1,BCdata_auxSF(currentBC)%SideNumber
+  END DO      ! iSF=1,Species(iSpec)%nSurfacefluxBCs
+END DO        ! iSpec=1,nSpecies
+
+END SUBROUTINE CalcAdaptBCPartNumOutBackup
 
 
 SUBROUTINE FinalizeParticleSamplingAdaptive(IsLoadBalance)

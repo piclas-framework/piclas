@@ -132,10 +132,6 @@ USE MOD_SuperB_Vars
 USE MOD_Globals_Vars       ,ONLY: PI
 USE MOD_Interpolation_Vars ,ONLY: BGFieldVTKOutput
 USE MOD_ReadInTools        ,ONLY: PrintOption
-USE MOD_Interpolation_Vars ,ONLY: NodeTypeGL,NodeType
-USE MOD_Mesh_Vars          ,ONLY: Vdm_GL_N
-USE MOD_Interpolation_Vars ,ONLY: NAnalyze
-USE MOD_Interpolation      ,ONLY: GetVandermonde
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -151,12 +147,6 @@ REAL               :: FrequencyTmp
 
 ! Get logical for calculating the error norms L2 and LInf of magnetic field
 DoCalcErrorNormsSuperB = GETLOGICAL('DoCalcErrorNormsSuperB')
-
-IF(DoCalcErrorNormsSuperB)THEN
-  ! Get Vandermonde from Gauss-Lobatto (GL) nodes to Gauss (G)
-  ALLOCATE(Vdm_GL_N(0:PP_N,0:NAnalyze))
-  CALL GetVandermonde(NAnalyze , NodeTypeGL   , PP_N , NodeType , Vdm_GL_N , modal=.FALSE.)
-END IF ! DoCalcErrorNormsSuperB
 
 ! Output of the magnets/coils as separate VTK files
 BGFieldVTKOutput     = GETLOGICAL('PIC-CalcBField-OutputVTK')
@@ -330,14 +320,21 @@ SUBROUTINE FinalizeSuperB()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_SuperB_Vars
+USE MOD_Mesh_Vars     ,ONLY: nElems
+USE MOD_Interpolation_Vars, ONLY: N_BG
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES 
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
+INTEGER         :: iElem
 !===================================================================================================================================
 SDEALLOCATE(TimeDepCoil)
-SDEALLOCATE(BGFieldTDep)
+IF(ALLOCATED(N_BG))THEN
+  DO iElem = 1, nElems
+    SDEALLOCATE(N_BG(iElem)%BGFieldTDep)
+  END DO
+END IF ! ALLOCATED(N_BG)
 END SUBROUTINE FinalizeSuperB
 
 END MODULE MOD_SuperB_Init

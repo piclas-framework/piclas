@@ -27,11 +27,7 @@ PUBLIC::ParticleRefTracking
 
 CONTAINS
 
-#ifdef IMPA
-SUBROUTINE ParticleRefTracking(doParticle_In)
-#else
 SUBROUTINE ParticleRefTracking()
-#endif
 !===================================================================================================================================
 ! Reference Tracking for particle without treatment of each inner faces
 !===================================================================================================================================
@@ -52,13 +48,6 @@ USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps2
 USE MOD_Particle_Tracking_Vars ,ONLY: nTracks,Distance,ListDistance,CartesianPeriodic
 USE MOD_Particle_Vars          ,ONLY: PDM,PEM,PartState,PartPosRef,LastPartPos,PartSpecies
 USE MOD_Utils                  ,ONLY: InsertionSort
-#if defined(IMPA) || defined(ROS)
-USE MOD_Particle_Vars          ,ONLY: PartStateN
-USE MOD_TimeDisc_Vars          ,ONLY: iStage
-#endif /*IMPA OR ROS*/
-#if defined(IMPA)
-USE MOD_Particle_Vars          ,ONLY: PartIsImplicit
-#endif
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: nTracksPerElem
 USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemPauseTime, LBPauseTime
@@ -67,17 +56,10 @@ USE MOD_LoadBalance_Timers     ,ONLY: LBStartTime, LBElemPauseTime, LBPauseTime
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-#ifdef IMPA
-LOGICAL,INTENT(IN),OPTIONAL      :: doParticle_In(1:PDM%ParticleVecLength)
-#endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-#ifdef IMPA
-LOGICAL                           :: doParticle
-LOGICAL                           :: doPartInExists
-#endif
 ! Counters
 INTEGER                           :: iPart
 ! Elements
@@ -99,22 +81,9 @@ REAL                              :: epsElement
 REAL                              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-#ifdef IMPA
-doPartInExists=.FALSE.
-IF(PRESENT(DoParticle_IN)) doPartInExists=.TRUE.
-#endif /*IMPA*/
 
 DO iPart=1,PDM%ParticleVecLength
-#ifdef IMPA
-  IF(doPartInExists)THEN
-    DoParticle=PDM%ParticleInside(iPart).AND.DoParticle_In(iPart)
-  ELSE
-    DoParticle=PDM%ParticleInside(iPart)
-  END IF
-  IF(DoParticle)THEN
-#else
   IF (PDM%ParticleInside(iPart)) THEN
-#endif /*IMPA*/
     LastElemID = PEM%LastGlobalElemID(iPart)
     ElemID     = LastElemID
     CNElemID   = GetCNElemID(ElemID)
@@ -138,23 +107,10 @@ DO iPart=1,PDM%ParticleVecLength
                              ,PartIsMoved                                                                         &
                              ,1)
       IF(PartIsDone) THEN
-#ifdef IMPA
-        IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
-#endif /*IMPA*/
         CYCLE ! particle has left domain by a boundary condition
       END IF
 
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-!      ! particle has not encountered any boundary condition
-!      IF (.NOT.PartIsMoved) THEN
-!        CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),ElemID)
-!      ! particle is reflected at a wall
-!      ELSE
-!#endif
-        CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),ElemID)
-!#if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)
-!      END IF
-!#endif
+      CALL GetPositionInRefElem(PartState(1:3,iPart),PartPosRef(1:3,iPart),ElemID)
 
       ! particle is inside
       IF(MAXVAL(ABS(PartPosRef(1:3,iPart))).LT.1.0) THEN
@@ -315,9 +271,6 @@ DO iPart=1,PDM%ParticleVecLength
       CNTestElem = GetCNElemID(TestElem)
       IF(CNTestElem.LE.0.)THEN
         epsElement = MAXVAL(ElemEpsOneCell)
-#if defined(ROS) || defined(IMPA)
-        TestElem = PEM%GlobalElemID(iPart)
-#endif
       ELSE
         epsElement = ElemEpsOneCell(CNTestElem)
       END IF
@@ -341,28 +294,6 @@ DO iPart=1,PDM%ParticleVecLength
           IPWRITE(UNIT_stdOut,'(I0,A,3(1X,E15.8))') ' LastPartPos            ', LastPartPos(1:3,iPart)
           Vec=PartState(1:3,iPart)-LastPartPos(1:3,iPart)
           IPWRITE(UNIT_stdOut,'(I0,A,1X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-#ifdef IMPA
-          IPWRITE(UNIT_stdOut,'(I0,A,1X,L1)') ' Implicit                ', PartIsImplicit(iPart)
-#endif
-#if defined(ROS) || defined(IMPA)
-          IPWRITE(UNIT_stdOut,'(I0,A,I0)')             ' CurrentStage:    ', iStage
-          Vec=PartState(1:3,iPart)-PartStateN(1:3,iPart)
-          IPWRITE(UNIT_stdOut,'(I0,A,1X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-          IPWRITE(UNIT_stdOut,'(I0,A,3(1X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
-#if USE_MPI
-          InElem=PEM%GlobalElemID(ipart)
-          IF(InElem.LE.PP_nElems)THEN
-            IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = F'
-            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' ElemID                ', InElem+offSetElem
-          ELSE
-            IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem = T'
-!            IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid-N              ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-!                                                             + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
-          END IF
-#else
-          IPWRITE(UNIt_stdOut,'(I0,A,I0)') ' elemid-N                 ', PEM%GlobalElemID(ipart)+offsetelem
-#endif
-#endif /*ROS or IMPA*/
 #if USE_MPI
           InElem=PEM%GlobalElemID(iPart)
           IF(InElem.LE.PP_nElems)THEN
@@ -422,9 +353,6 @@ DO iPart=1,PDM%ParticleVecLength
                                  ,PartIsMoved                                                                             &
                                  ,1)
           IF (PartIsDone) THEN
-#ifdef IMPA
-            IF(.NOT.PDM%ParticleInside(iPart)) DoParticle=.FALSE.
-#endif /*IMPA*/
             CYCLE
           END IF
 
@@ -450,36 +378,7 @@ DO iPart=1,PDM%ParticleVecLength
               IPWRITE(UNIt_stdOut,'(I0,A2,1X,E27.16,1X,E27.16,1X,E27.16)') ' z', GEO%zminglob, PartState(3,iPart), GEO%zmaxglob
               Vec=PartState(1:3,iPart)-LastPartPos(1:3,iPart)
               IPWRITE(UNIT_stdOut,'(I0,A,1X,E15.8)') ' displacement /halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-#if defined(ROS) || defined(IMPA)
-              IPWRITE(UNIT_stdOut,'(I0,A,I0)')             ' CurrentStage:    ', iStage
-              Vec=PartState(1:3,iPart)-PartStateN(1:3,iPart)
-              IPWRITE(UNIT_stdOut,'(I0,A,1X,E15.8)') ' displacementN/halo_eps ', DOT_PRODUCT(Vec,Vec)/halo_eps2
-              IPWRITE(UNIT_stdOut,'(I0,A,3(1X,E15.8))') ' PartStateN             ', PartStateN(1:3,iPart)
-#if USE_MPI
-              inelem=PEM%GlobalElemID(ipart)
-              IF(inelem.LE.PP_nElems)THEN
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' elemid-N               ', inelem
-              ELSE
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
-!                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' elemid-N         ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,inelem)) &
-!                                                                 + PartHaloElemToProc(NATIVE_ELEM_ID,inelem)
-              END IF
-              IF(testelem.LE.PP_nElems)THEN
-                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = F'
-                IPWRITE(UNIT_stdout,'(I0,A,I0)') ' testelem-N            ', testelem
-              ELSE
-!                IPWRITE(UNIT_stdout,'(I0,A)') ' halo-elem-N = T'
-!                IPWRITE(UNIT_stdOut,'(I0,A,I0)') ' testelem-N       ', offsetelemmpi(PartHaloElemToProc(NATIVE_PROC_ID,testelem)) &
-                                                               !+ PartHaloElemToProc(NATIVE_ELEM_ID,testelem)
-              END IF
-
-#endif
-#endif /*ROS or IMPA*/
               IPWRITE(UNIT_StdOut,*) "PEM%GlobalElemID(ipart) =", PEM%GlobalElemID(ipart)
-#if defined(IMPA)
-              IPWRITE(UNIT_stdOut,'(I0,A,1X,L1)') ' Implicit               ', PartIsImplicit(iPart)
-#endif
 #if USE_MPI
               inelem=PEM%GlobalElemID(ipart)
               IF(inelem.LE.PP_nElems)THEN
@@ -808,12 +707,6 @@ USE MOD_Particle_Tracking_Vars,      ONLY:FastPeriodic
 #if USE_MPI
 USE MOD_Particle_MPI_Vars,           ONLY:PartShiftVector
 #endif /*USE_MPI*/
-#ifdef IMPA
-USE MOD_Particle_Vars,               ONLY: PEM
-#endif /*IMPA*/
-#ifdef ROS
-USE MOD_Particle_Vars,               ONLY: PEM
-#endif /*ROS*/
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT VARIABLES
@@ -1084,12 +977,6 @@ END IF
 #if USE_MPI
 PartShiftVector(1:3,PartID)=-PartState(1:3,PartID)+PartShiftvector(1:3,PartID)
 #endif /*USE_MPI*/
-
-IF(isMoved)THEN
-#if defined(IMPA) || defined(ROS)
-  PEM%PeriodicMoved(PartID)=.TRUE.
-#endif
-END IF
 
 IF(PRESENT(isMovedOut)) isMovedOut=isMoved
 

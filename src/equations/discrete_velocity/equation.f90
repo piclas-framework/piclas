@@ -12,6 +12,29 @@
 !==================================================================================================================================
 #include "piclas.h"
 
+MODULE MOD_Equation
+!===================================================================================================================================
+! Dummy module
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+PRIVATE
+PUBLIC::InitEquation,DefineParametersEquation
+!===================================================================================================================================
+CONTAINS
+
+SUBROUTINE InitEquation()
+  ! USE MOD_Equation_FV,ONLY:InitEquation_FV
+  ! CALL InitEquation_FV()
+END SUBROUTINE InitEquation
+
+SUBROUTINE DefineParametersEquation()
+  ! USE MOD_Equation_FV,ONLY:DefineParametersEquation_FV
+  ! CALL DefineParametersEquation_FV()
+END SUBROUTINE DefineParametersEquation
+END MODULE MOD_Equation
+
 MODULE MOD_Equation_FV
 !===================================================================================================================================
 ! Add comments please!

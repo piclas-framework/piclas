@@ -137,3 +137,8 @@ at best using the multi-node feature `PICLAS_SHARED_MEMORY=OMPI_COMM_TYPE_CORE`
 - One of these bugs was specifically fixed in
   [1a151c24bab7ea22809d3d7554ff5ddf18379cf1](https://github.com/piclas-framework/piclas/commit/1a151c24bab7ea22809d3d7554ff5ddf18379cf1)
 
+### PETSc
+
+To check whether any PETSc objects have not been freed after the `PetscFinalize` call, prepend the following parameters:
+
+    PETSC_OPTIONS=-malloc_debug ./piclas parameter.ini

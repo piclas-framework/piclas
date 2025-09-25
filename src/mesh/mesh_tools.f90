@@ -24,24 +24,6 @@ PRIVATE
 ! GLOBAL VARIABLES (PUBLIC)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-
-INTERFACE GetGlobalElemID
-  PROCEDURE GetGlobalElemID
-END INTERFACE
-
-INTERFACE GetCNElemID
-  PROCEDURE GetCNElemID
-END INTERFACE
-
-INTERFACE GetGlobalSideID
-  PROCEDURE GetGlobalSideID
-END INTERFACE
-
-INTERFACE GetCNSideID
-  PROCEDURE GetCNSideID
-END INTERFACE
-
-!----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: GetGlobalElemID
 PUBLIC :: GetCNElemID
 PUBLIC :: GetGlobalSideID
@@ -411,11 +393,11 @@ USE MOD_PreProc
 USE MOD_globals   ,ONLY: abort
 USE MOD_Mesh_Vars ,ONLY: MortarType,SideToElem,MortarInfo
 USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_HDG_Vars  ,ONLY: nGP_face, iLocSides
+USE MOD_HDG_Vars  ,ONLY: iLocSides
 USE MOD_Mesh_Vars ,ONLY: nSides
 #if USE_MPI
 USE MOD_MPI_Vars  ,ONLY: RecRequest_U,SendRequest_U
-USE MOD_MPI       ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
+USE MOD_MPI       ,ONLY: StartReceiveMPIDataInt,StartSendMPIDataInt,FinishExchangeMPIData
 #endif /*USE_MPI*/
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
@@ -426,11 +408,11 @@ INTEGER :: iSide,SideID,iLocSide,iMortar,nMortars,MortarSideID
 !===================================================================================================================================
 ! Exchange iLocSides from master to slaves: Send MINE, receive YOUR direction
 SDEALLOCATE(iLocSides)
-ALLOCATE(iLocSides(PP_nVar,nGP_face,nSides))
-iLocSides = -100.
+ALLOCATE(iLocSides(PP_nVar,nSides))
+iLocSides = -100
 DO iSide = 1, nSides
   ! Get local side ID for each side ID
-  iLocSides(:,:,iSide) = REAL(SideToElem(S2E_LOC_SIDE_ID,iSide))
+  iLocSides(:,iSide) = SideToElem(S2E_LOC_SIDE_ID,iSide)
 
   ! Small virtual mortar master side (blue) is encountered with MortarType(1,iSide) = 0
   ! Blue (small mortar master) side writes as yellow (big mortar master) for consistency (you spin me right round baby right round)
@@ -443,7 +425,7 @@ DO iSide = 1, nSides
         IF(iSide.EQ.SideID)THEN
           iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
           IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-            iLocSides(:,:,iSide) = REAL(iLocSide)
+            iLocSides(:,iSide) = iLocSide
           ELSE
             CALL abort(__STAMP__,'This big mortar side must be master')
           END IF !iLocSide.NE.-1
@@ -455,8 +437,8 @@ DO iSide = 1, nSides
 END DO
 
 ! At Mortar interfaces: Send my loc side ID (normal master or small mortar master sides) to the slave sides
-CALL StartReceiveMPIData( 1 , iLocSides , 1 , nSides , RecRequest_U  , SendID=1 ) ! Receive YOUR
-CALL StartSendMPIData(    1 , iLocSides , 1 , nSides , SendRequest_U , SendID=1 ) ! Send MINE
+CALL StartReceiveMPIDataInt( 1 , iLocSides , 1 , nSides , RecRequest_U  , SendID=1 ) ! Receive YOUR
+CALL StartSendMPIDataInt(    1 , iLocSides , 1 , nSides , SendRequest_U , SendID=1 ) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=1)
 END SUBROUTINE GetMasteriLocSides
 #endif /*USE_MPI*/
@@ -465,20 +447,22 @@ END SUBROUTINE GetMasteriLocSides
 !===================================================================================================================================
 !> Transform lambda solution from local coordinate system into master orientation for iSide and return as array "MasterSide"
 !===================================================================================================================================
-SUBROUTINE LambdaSideToMaster(iSide,MasterSide)
+SUBROUTINE LambdaSideToMaster(ExtraDim,iSide,MasterSide,NSide)
 ! MODULES
 USE MOD_PreProc
-USE MOD_globals   ,ONLY: abort
-USE MOD_HDG_Vars  ,ONLY: lambda, nGP_face, iLocSides
-USE MOD_Mesh_Vars ,ONLY: MortarType,SideToElem,MortarInfo
-USE MOD_Mesh_Vars ,ONLY: firstMortarInnerSide,lastMortarInnerSide
-USE MOD_Mappings  ,ONLY: CGNS_SideToVol2
-USE MOD_Mesh_Vars ,ONLY: lastMPISide_MINE
+USE MOD_globals            ,ONLY: abort
+USE MOD_HDG_Vars           ,ONLY: nGP_face, iLocSides, HDG_Surf_N
+USE MOD_Mesh_Vars          ,ONLY: MortarType,SideToElem,MortarInfo
+USE MOD_Mesh_Vars          ,ONLY: firstMortarInnerSide,lastMortarInnerSide
+USE MOD_Mappings           ,ONLY: CGNS_SideToVol2
+USE MOD_Mesh_Vars          ,ONLY: lastMPISide_MINE
+USE MOD_Interpolation_Vars ,ONLY: NMax
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)                           :: iSide
-REAL,DIMENSION(PP_nVar,nGP_face),INTENT(OUT) :: MasterSide
+INTEGER,INTENT(IN)                                          :: ExtraDim,iSide,NSide
+REAL,DIMENSION(PP_nVar,nGP_face(NMax)+ExtraDim),INTENT(OUT) :: MasterSide ! +1 comes from the NSide info that is sent additionally
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER          :: p,q,r,rr,pq(1:2)
@@ -489,21 +473,33 @@ INTEGER          :: SideID,iLocSide,iMortar,nMortars,MortarSideID
 ! When slave sides are encountered, get the iLocSide ID from the neighbouring master, because later the orientation of the data
 ! is assumed to be in the master orientation
 IF(iSide.GT.lastMPISide_MINE)THEN
-  iLocSide = NINT(iLocSides(1,1,iSide))
+  iLocSide = iLocSides(1,iSide)
 ELSE
   iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
 END IF ! iSide.GT.lastMPISide_MINE
 
 !1 of 2: Master element with iLocSide = SideToElem(S2E_LOC_SIDE_ID,iSide)
 IF(iLocSide.NE.-1)THEN ! MINE side
-  DO q=0,PP_N
-    DO p=0,PP_N
-      pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-      r  = q    *(PP_N+1)+p    +1
-      rr = pq(2)*(PP_N+1)+pq(1)+1
-      MasterSide(:,r:r) = lambda(:,rr:rr,iSide)
+
+  ! Store NSide
+  MasterSide = 0.
+  IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSide
+
+  ! Store lambda
+  DO q=0,NSide
+    DO p=0,NSide
+      pq=CGNS_SideToVol2(NSide,p,q,iLocSide)
+      r  = q    *(NSide+1)+p    +1
+      rr = pq(2)*(NSide+1)+pq(1)+1
+      MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
     END DO
   END DO !p,q
+
+  ! Do we need to map to NMax?
+  !IF(NSide.NE.NMax)THEN
+  !  ! From low to high
+  !  CALL ChangeBasis2D(PP_nVar, NSide, NMax, PREF_VDM(NSide,NMax)%Vdm, MasterSide(:,1:nGP_face(NSide)), MasterSide(:,1:nGP_face(NMax)))
+  !END IF ! NSide.NE.NMax
   RETURN
 END IF !iLocSide.NE.-1
 
@@ -519,12 +515,15 @@ IF(MortarType(1,iSide).EQ.0)THEN
       IF(iSide.EQ.SideID)THEN
         iLocSide = SideToElem(S2E_LOC_SIDE_ID,MortarSideID)
         IF(iLocSide.NE.-1)THEN ! MINE side (big mortar)
-          DO q=0,PP_N
-            DO p=0,PP_N
-              pq=CGNS_SideToVol2(PP_N,p,q,iLocSide)
-              r  = q    *(PP_N+1)+p    +1
-              rr = pq(2)*(PP_N+1)+pq(1)+1
-              MasterSide(:,r:r) = lambda(:,rr:rr,iSide)
+          ! Store NSide
+          IF(ExtraDim.GT.0) MasterSide(:,nGP_face(NMax)+1) = NSide
+          ! Store lambda
+          DO q=0,NSide
+            DO p=0,NSide
+              pq=CGNS_SideToVol2(NSide,p,q,iLocSide)
+              r  = q    *(NSide+1)+p    +1
+              rr = pq(2)*(NSide+1)+pq(1)+1
+              MasterSide(:,r:r) = HDG_Surf_N(iSide)%lambda(:,rr:rr)
             END DO
           END DO !p,q
         ELSE

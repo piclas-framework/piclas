@@ -28,29 +28,53 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_HDG
-INTEGER             :: nGP_vol                !< =(PP_N+1)**3
-INTEGER             :: nGP_face               !< =(PP_N+1)**2
+INTEGER,ALLOCATABLE :: nGP_vol(:)  !< =(PP_N+1)**3
+INTEGER,ALLOCATABLE :: nGP_face(:) !< =(PP_N+1)**2
 
 LOGICAL             :: useHDG=.FALSE.
 LOGICAL             :: ExactLambda =.FALSE.   !< Flag to initialize exact function for lambda
-REAL,ALLOCATABLE    :: InvDhat(:,:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
-REAL,ALLOCATABLE    :: Ehat(:,:,:,:)          !< Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
-REAL,ALLOCATABLE    :: wGP_vol(:)             !< 3D quadrature weights
-REAL,ALLOCATABLE    :: JwGP_vol(:,:)          !< 3D quadrature weights*Jacobian for all elements
-REAL,ALLOCATABLE    :: lambda(:,:,:)          !< lambda, ((PP_N+1)^2,nSides)
-REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
-REAL,ALLOCATABLE    :: iLocSides(:,:,:)       !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
-REAL,ALLOCATABLE    :: RHS_vol(:,:,:)         !< Source RHS
+LOGICAL             :: UseNSideMin =.FALSE.   !< Flag to use NSideMin instead of NSideMax for the sides
+
+! HDG volume variables
+TYPE, PUBLIC :: HDG_Vol_N_Type
+  REAL,ALLOCATABLE    :: Ehat(:,:,:)          !< Ehat matrix (nGP_Face,nGP_vol,6sides,nElems)
+  REAL,ALLOCATABLE    :: InvDhat(:,:)         !< Inverse of Dhat matrix (nGP_vol,nGP_vol,nElems)
+  REAL,ALLOCATABLE    :: JwGP_vol(:)          !< 3D quadrature weights*Jacobian for all elements
+  REAL,ALLOCATABLE    :: RHS_vol(:,:)         !< Source RHS
+  REAL,ALLOCATABLE    :: Smat(:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)
+  REAL,ALLOCATABLE    :: NonlinVolumeFac(:)   !< Factor for Volumeintegration necessary for nonlinear sources
+END TYPE HDG_Vol_N_Type
+
+TYPE(HDG_Vol_N_Type),ALLOCATABLE :: HDG_Vol_N(:)      !<
+
+! HDG side variables
+TYPE HDG_Surf_N_Type
+  REAL,ALLOCATABLE    :: lambda(:,:)          !< lambda, ((NSideMin+1)^2,nSides) where NSideMin is the minimum of the two faces
+  REAL,ALLOCATABLE    :: Precond(:,:)         !< block diagonal preconditioner for lambda(nGP_face, nGP-face, nSides)
+  REAL,ALLOCATABLE    :: InvPrecondDiag(:)    !< 1/diagonal of Precond
+  REAL,ALLOCATABLE    :: qn_face(:,:)         !< for Neumann BC
+  REAL,ALLOCATABLE    :: RHS_face(:,:)        !<
+  REAL,ALLOCATABLE    :: mv(:,:)              !<
+  REAL,ALLOCATABLE    :: R(:,:)               !<
+  REAL,ALLOCATABLE    :: V(:,:)               !<
+  REAL,ALLOCATABLE    :: Z(:,:)               !<
+#if USE_MPI
+  REAL,ALLOCATABLE    :: buf(:,:)
+  REAL,ALLOCATABLE    :: buf2(:,:)
+#endif
+END TYPE HDG_Surf_N_Type
+
+! DG solution (JU or U) vectors)
+TYPE(HDG_Surf_N_Type),ALLOCATABLE :: HDG_Surf_N(:) !< Solution variable for each equation, node and element,
+
 REAL,ALLOCATABLE    :: Tau(:)                 !< Stabilization parameter, per element
-REAL,ALLOCATABLE    :: Smat(:,:,:,:,:)        !< side to side matrix, (ngpface, ngpface, 6sides, 6sides, nElems)
-REAL,ALLOCATABLE    :: Precond(:,:,:)         !< block diagonal preconditioner for lambda(nGP_face, nGP-face, nSides)
-REAL,ALLOCATABLE    :: InvPrecondDiag(:,:)    !< 1/diagonal of Precond
-REAL,ALLOCATABLE    :: qn_face(:,:,:)         !< for Neumann BC
+REAL,ALLOCATABLE    :: lambdaLB(:,:,:)        !< lambda, ((PP_N+1)^2,nSides)
+INTEGER,ALLOCATABLE :: iLocSides(:,:)         !< iLocSides, ((PP_N+1)^2,nSides) - used for I/O and ALLGATHERV of lambda
 REAL,ALLOCATABLE    :: qn_face_MagStat(:,:,:) !< for Neumann BC
 INTEGER             :: nDirichletBCsides
 INTEGER             :: nNeumannBCsides
 INTEGER             :: nConductorBCsides      !< Number of processor-local sides that are conductors (FPC) in [1:nBCSides]
-LOGICAL             :: SetZeroPotentialDOF    !< Flag to set a single DOF, if only periodic and Neumann boundaries are present
+INTEGER             :: ZeroPotentialSide      !< (local) SideID of the side where the potential of one DOF is set to zero
 INTEGER,ALLOCATABLE :: ConductorBC(:)
 INTEGER,ALLOCATABLE :: DirichletBC(:)
 INTEGER,ALLOCATABLE :: NeumannBC(:)
@@ -61,13 +85,8 @@ INTEGER             :: AdaptIterNewton
 INTEGER             :: AdaptIterNewtonToLinear
 INTEGER             :: AdaptIterNewtonOld
 INTEGER             :: HDGNonLinSolver        !< 1 Newton, 2 Fixpoint
-REAL,ALLOCATABLE    :: NonlinVolumeFac(:,:)   !< Factor for Volumeintegration necessary for nonlinear sources
 !mappings
 INTEGER             :: sideDir(6),pm(6),dirPm2iSide(2,3)
-REAL,ALLOCATABLE    :: delta(:,:)
-REAL,ALLOCATABLE    :: LL_minus(:,:),LL_plus(:,:)
-REAL,ALLOCATABLE    :: Domega(:,:)
-REAL,ALLOCATABLE    :: Lomega_m(:),Lomega_p(:)
 !CG parameters
 INTEGER             :: PrecondType=0          !< 0: none 1: block diagonal 2: only diagonal 3:Identity, debug
 INTEGER             :: MaxIterCG
@@ -80,7 +99,6 @@ INTEGER             :: HDGSkip, HDGSkipInit
 REAL                :: HDGSkip_t0
 INTEGER,ALLOCATABLE :: MaskedSide(:)          !< 1:nSides: all sides which are set to zero in matvec
 !mortar variables
-REAL,ALLOCATABLE    :: IntMatMortar(:,:,:,:)  !< Interpolation matrix for mortar: (nGP_face,nGP_Face,1:4(iMortar),1:3(MortarType))
 INTEGER,ALLOCATABLE :: SmallMortarInfo(:)     !< 1:nSides: info on small Mortar sides:
                                               !< -1: is neighbor small mortar , 0: not a small mortar, 1: small mortar on big side
 LOGICAL             :: HDGDisplayConvergence  !< Display divergence criteria: Iterations, Runtime and Residual
@@ -163,6 +181,7 @@ TYPE tFPC
                                                     !<   2: iUniqueFPC (i-th FPC group ID)
                                                     !<   3: number of BCSides for each FPC group
   INTEGER,ALLOCATABLE         :: GroupGlobal(:)     !< Sum of nSides associated with each i-th FPC boundary
+  LOGICAL,ALLOCATABLE         :: BConProc(:)        !< True, if iUniqueFPCBC is on current process
 END TYPE
 
 TYPE(tFPC)   :: FPC
@@ -238,54 +257,6 @@ END TYPE
 TYPE(tBV)   :: BiasVoltage
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
-
-#if USE_MPI
-!no interface for reshape inout vector
-!INTERFACE Mask_MPIsides
-!  MODULE PROCEDURE Mask_MPIsides
-!END INTERFACE
-
-PUBLIC :: Mask_MPIsides
-#endif /*USE_MPI*/
-
-CONTAINS
-
-#if USE_MPI
-!===================================================================================================================================
-!> communicate contribution from MPI slave sides to MPI master sides  and set slaves them to zero afterwards.
-!===================================================================================================================================
-SUBROUTINE Mask_MPIsides(firstdim,v)
-! MODULES
-USE MOD_MPI_Vars
-USE MOD_Mesh_Vars      ,ONLY: nSides
-USE MOD_Mesh_Vars      ,ONLY: nMPIsides_YOUR,nMPIsides,nMPIsides_MINE
-USE MOD_MPI            ,ONLY: StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData
-
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN   ) :: firstdim
-REAL   ,INTENT(INOUT) :: v(firstdim,nGP_face, nSides)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL    :: vbuf(firstdim,nGP_Face,nMPISides_MINE)
-INTEGER :: startbuf,endbuf
-!===================================================================================================================================
-
-startbuf=nSides-nMPISides+1
-endbuf=nSides-nMPISides+nMPISides_MINE
-IF(nMPIsides_MINE.GT.0)vbuf=v(:,:,startbuf:endbuf)
-CALL StartReceiveMPIData(firstdim,v,1,nSides,RecRequest_U ,SendID=2)  ! Receive MINE
-CALL StartSendMPIData(   firstdim,v,1,nSides,SendRequest_U,SendID=2)  ! Send YOUR
-CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2) ! Send YOUR - receive MINE
-IF(nMPIsides_MINE.GT.0) v(:,:,startbuf:endbuf)=v(:,:,startbuf:endbuf)+vbuf
-IF(nMPIsides_YOUR.GT.0) v(:,:,nSides-nMPIsides_YOUR+1:nSides)=0. !set send buffer to zero!
-
-END SUBROUTINE Mask_MPIsides
-#endif /*USE_MPI*/
 
 
 #endif /*USE_HDG*/

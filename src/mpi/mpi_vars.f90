@@ -26,9 +26,13 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE(MPI_Request),ALLOCATABLE :: SendRequest_U(:),SendRequest_Flux(:),SendRequest_gradUx(:),SendRequest_gradUy(:),SendRequest_gradUz(:)
+#if USE_FV
+TYPE(MPI_Request),ALLOCATABLE :: SendRequest_gradUx(:), SendRequest_gradUy(:), SendRequest_gradUz(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecRequest_gradUx(:), RecRequest_gradUy(:), RecRequest_gradUz(:)
+#endif /*USE_FV*/
+TYPE(MPI_Request),ALLOCATABLE :: SendRequest_U(:),SendRequest_Flux(:)
 TYPE(MPI_Request),ALLOCATABLE :: SendRequest_U2(:),RecRequest_U2(:)
-TYPE(MPI_Request),ALLOCATABLE :: RecRequest_U(:),RecRequest_Flux(:),RecRequest_gradUx(:),RecRequest_gradUy(:),RecRequest_gradUz(:)
+TYPE(MPI_Request),ALLOCATABLE :: RecRequest_U(:),RecRequest_Flux(:)
 TYPE(MPI_Request),ALLOCATABLE :: SendRequest_Geo(:),RecRequest_Geo(:)
 INTEGER             :: iNbProc
 INTEGER             :: nSendVal,nRecVal,DataSizeSide
@@ -44,6 +48,38 @@ INTEGER,ALLOCATABLE   :: offsetMPISides_YOUR(:)! gives position of send/recv blo
 INTEGER,ALLOCATABLE   :: offsetElemMPI(:)      ! gives offset position of elements of all procs
 INTEGER,ALLOCATABLE   :: nMPISides_send(:,:),nMPISides_rec(:,:)
 INTEGER,ALLOCATABLE   :: OffsetMPISides_send(:,:),OffsetMPISides_rec(:,:)
+INTEGER,ALLOCATABLE   :: DataSizeSideSend(:,:),DataSizeSideRec(:,:)
+INTEGER,ALLOCATABLE   :: DataSizeSurfSendMax(:,:),DataSizeSurfRecMax(:,:)
+INTEGER,ALLOCATABLE   :: DataSizeSurfSendMin(:,:),DataSizeSurfRecMin(:,:)
+#if !(USE_HDG)
+INTEGER,ALLOCATABLE   ::  DataSizeSideSendMaster(:,:), DataSizeSideRecMaster(:,:) !< Master is only required for Maxwell (with Dielectric)
+#endif /*not USE_HDG*/
+
+TYPE tExchangeData
+  REAL,ALLOCATABLE      :: FaceDataSendU(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvU(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSendFlux(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvFlux(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSendVec(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvVec(:,:)
+  REAL,ALLOCATABLE      :: FaceDataSendSurf(:)
+  REAL,ALLOCATABLE      :: FaceDataRecvSurf(:)
+#if !(USE_HDG)
+  REAL,ALLOCATABLE      :: FaceDataSendUMaster(:,:)
+  REAL,ALLOCATABLE      :: FaceDataRecvUMaster(:,:)
+#endif /*not USE_HDG*/
+END TYPE tExchangeData
+
+TYPE(tExchangeData), ALLOCATABLE :: DGExchange(:)
+
+TYPE tSurfExchange
+  REAL,ALLOCATABLE      :: SurfDataSend(:)
+  REAL,ALLOCATABLE      :: SurfDataRecv(:)
+  REAL,ALLOCATABLE      :: SurfDataSend2(:)
+  REAL,ALLOCATABLE      :: SurfDataRecv2(:)
+END TYPE tSurfExchange
+
+TYPE(tSurfExchange), ALLOCATABLE :: SurfExchange(:)
 #endif /*USE_MPI*/
 
 #if defined(MEASURE_MPI_WAIT)

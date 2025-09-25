@@ -20,20 +20,7 @@ MODULE MOD_Particle_MPI_Boundary_Sampling
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-
 #if USE_MPI
-INTERFACE InitSurfCommunication
-  MODULE PROCEDURE InitSurfCommunication
-END INTERFACE
-
-INTERFACE ExchangeSurfData
-  MODULE PROCEDURE ExchangeSurfData
-END INTERFACE
-
-INTERFACE FinalizeSurfCommunication
-  MODULE PROCEDURE FinalizeSurfCommunication
-END INTERFACE
-
 PUBLIC :: InitSurfCommunication
 PUBLIC :: ExchangeSurfData, ExchangeChemSurfData
 PUBLIC :: FinalizeSurfCommunication
@@ -48,6 +35,7 @@ SUBROUTINE InitSurfCommunication()
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 USE MOD_Globals
+USE MOD_Mesh_Vars               ,ONLY: ELEM_RANK
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SHARED,MPI_COMM_LEADERS_SURF
 USE MOD_MPI_Shared_Vars         ,ONLY: nComputeNodeProcessors
 USE MOD_MPI_Shared_Vars         ,ONLY: myLeaderGroupRank,nLeaderGroupProcs
@@ -231,7 +219,12 @@ CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SHARED,leadersGroup,IERROR)
 CALL MPI_COMM_GROUP(MPI_COMM_LEADERS_SURF  ,surfGroup   ,IERROR)
 
 ! Finally translate global rank to local rank
-CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup,nLeaderGroupProcs,MPIRankSharedLeader,surfGroup,MPIRankSurfLeader,IERROR)
+CALL MPI_GROUP_TRANSLATE_RANKS(leadersGroup , nLeaderGroupProcs , MPIRankSharedLeader,&
+                               surfGroup    , MPIRankSurfLeader , IERROR)
+! This operation marks a group object for deallocation. The handle group is set to MPI_GROUP_NULL by the call.
+! Any ongoing operation using this group will complete normally.
+CALL MPI_GROUP_FREE(leadersGroup, IERROR)
+CALL MPI_GROUP_FREE(surfGroup, IERROR)
 IF (mySurfRank.EQ.0) THEN
 #if USE_LOADBALANCE
   IF(.NOT.PerformLoadBalance)&
@@ -421,14 +414,13 @@ IMPLICIT NONE
 INTEGER                         :: iProc,SideID,iSpec
 INTEGER                         :: iPos,p,q
 INTEGER                         :: MessageSize,iSurfSide,SurfSideID
-INTEGER                         :: nValues, SurfChemVarNum, SurfChemSampSize
+INTEGER                         :: nValues, SurfChemSampSize
 TYPE(MPI_Request)               :: RecvRequest(0:nSurfLeaders-1),SendRequest(0:nSurfLeaders-1)
 !===================================================================================================================================
 ! nodes without sampling surfaces do not take part in this routine
 IF (.NOT.SurfTotalSideOnNode) RETURN
 
-SurfChemVarNum   = 2
-SurfChemSampSize = SurfChemVarNum * nSpecies
+SurfChemSampSize = nSpecies + 1
 ! collect the information from the proc-local shadow arrays in the compute-node shared array
 MessageSize = SurfChemSampSize*nSurfSample*nSurfSample*nComputeNodeSurfTotalSides
 IF (myComputeNodeRank.EQ.0) THEN
@@ -482,14 +474,14 @@ IF (myComputeNodeRank.EQ.0) THEN
       ! Assemble message
       DO q = 1,nSurfSample
         DO p = 1,nSurfSample
-          DO iSpec =1, nSpecies
-            SurfSendBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum) = ChemSampWall_Shared(iSpec,:,p,q,SurfSideID)
-            iPos = iPos + SurfChemVarNum
+          DO iSpec =1, nSpecies+1
+            SurfSendBuf(iProc)%content(iPos+1) = ChemSampWall_Shared(iSpec,p,q,SurfSideID)
+            iPos = iPos + 1
           END DO
         END DO ! p=0,nSurfSample
       END DO ! q=0,nSurfSample
 
-      ChemSampWall_Shared(:,:,:,:,SurfSideID)=0.
+      ChemSampWall_Shared(:,:,:,SurfSideID)=0.
     END DO ! iSurfSide = 1,SurfMapping(iProc)%nSendSurfSides
   END DO
 
@@ -543,10 +535,10 @@ IF (myComputeNodeRank.EQ.0) THEN
       SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
       DO q=1,nSurfSample
         DO p=1,nSurfSample
-          DO iSpec =1, nSpecies
-            ChemSampWall_Shared(iSpec,:,p,q,SurfSideID) = ChemSampWall_Shared(iSpec,:,p,q,SurfSideID) &
-                                                  + SurfRecvBuf(iProc)%content(iPos+1:iPos+SurfChemVarNum)
-            iPos = iPos + SurfChemVarNum
+          DO iSpec =1, nSpecies+1
+            ChemSampWall_Shared(iSpec,p,q,SurfSideID) = ChemSampWall_Shared(iSpec,p,q,SurfSideID) &
+                                                  + SurfRecvBuf(iProc)%content(iPos+1)
+            iPos = iPos + 1
           END DO
         END DO ! p = 0,nSurfSample
       END DO ! q = 0,nSurfSample

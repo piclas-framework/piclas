@@ -66,13 +66,14 @@ INTEGER, INTENT(IN)           :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: iPart, iLoop, nPart, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc
+INTEGER                       :: iPart, iLoop, nPart, nPartMerged, iMergeElem, iLoopLoc, locElem, nPartLoc, CNElemID
 INTEGER, ALLOCATABLE          :: iPartIndx(:)                 !< List of particles in the cell required for pairing
 REAL                          :: elemVolume
 INTEGER                       :: nPartTemp
 !===================================================================================================================================
 
 nPart = PEM%pNumber(iElem)
+CNElemID = GetCNElemID(iElem+offSetElem)
 
 IF(UseGranularSpecies) THEN
 ! Get real nPart without granular species
@@ -124,7 +125,7 @@ IF (DoVirtualCellMerge) THEN
     END DO
     elemVolume = VirtMergedCells(iELem)%MergedVolume
   ELSE
-    elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+    elemVolume = ElemVolume_Shared(CNElemID)
   END IF
 ELSE
   nPartMerged = nPart
@@ -143,7 +144,7 @@ ELSE
     ! Choose next particle in the element
     iPart = PEM%pNext(iPart)
   END DO
-  elemVolume = ElemVolume_Shared(GetCNElemID(iElem+offSetElem))
+  elemVolume = ElemVolume_Shared(CNElemID)
 END IF
 
 ! 2.) Perform pairing (random pairing or nearest neighbour pairing) and collision (including the decision for a reaction/relaxation)
@@ -1409,11 +1410,12 @@ SUBROUTINE DSMC_CalcSubNodeVolumes2D(iElem, NodeDepth, Node)
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
-USE MOD_Particle_Mesh_Vars     ,ONLY: SymmetrySide
-USE MOD_Mesh_Vars,              ONLY : SurfElem, Face_xGP
 USE MOD_Preproc
-USE MOD_ChangeBasis,            ONLY : ChangeBasis2D
+USE MOD_DSMC_Vars          ,ONLY: OctreeVdm, tNodeVolume
+USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh, offSetElem
+USE MOD_Particle_Mesh_Vars ,ONLY: SymmetrySide
+USE MOD_ChangeBasis        ,ONLY: ChangeBasis2D
+USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1425,33 +1427,34 @@ CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                                 :: j, k , NumOfPoints,SideID
-REAL                                    :: DetLocal(1,0:PP_N,0:PP_N)
-REAL                                    :: FaceLocal(2,0:PP_N,0:PP_N)
+INTEGER                                 :: j, k , NumOfPoints,SideID, Nloc
+REAL, ALLOCATABLE                       :: DetLocal(:,:,:)
+REAL, ALLOCATABLE                       :: FaceLocal(:,:,:)
 REAL, ALLOCATABLE                       :: DetJac(:,:,:)
 REAL, ALLOCATABLE                       :: FacexGP(:,:,:)
 REAL, ALLOCATABLE                       :: LocalVdm(:,:)
 INTEGER                                 :: LocalDepth
 !===================================================================================================================================
-  LocalDepth = 1
-  NumOfPoints = 2**NodeDepth
-  SideID = SymmetrySide(iElem,1)
+LocalDepth = 1
+NumOfPoints = 2**NodeDepth
+SideID = SymmetrySide(iElem,1)
+Nloc = N_DG_Mapping(2, iElem+offSetElem)
+ALLOCATE(DetLocal(1,0:Nloc,0:Nloc), FaceLocal(2,0:Nloc,0:Nloc))
+DO j=0, Nloc; DO k=0, Nloc
+  DetLocal(1,j,k)=N_SurfMesh(SideID)%SurfElem(j,k)
+END DO; END DO
 
-  DO j=0, PP_N; DO k=0, PP_N
-    DetLocal(1,j,k)=SurfElem(j,k,SideID)
-  END DO; END DO
+DO j=0, Nloc; DO k=0, Nloc
+  FaceLocal(1:2,j,k) = N_SurfMesh(SideID)%Face_xGP(1:2,j,k)
+END DO; END DO
 
-  DO j=0, PP_N; DO k=0, PP_N
-    FaceLocal(1:2,j,k) = Face_xGP(1:2,j,k,SideID)
-  END DO; END DO
-
-  ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1))
-  ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:PP_N))
-  ALLOCATE(FacexGP(2,0:NumOfPoints - 1,0:NumOfPoints - 1))
-  CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm)
-  CALL ChangeBasis2D(1, PP_N, NumOfPoints - 1, LocalVdm ,DetLocal(:,:,:),DetJac(:,:,:))
-  CALL ChangeBasis2D(2, PP_N, NumOfPoints - 1, LocalVdm ,FaceLocal(:,:,:),FacexGP(:,:,:))
-  CALL AddNodeVolumes2D(NodeDepth, Node, DetJac, OctreeVdm, iElem, FacexGP)
+ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1))
+ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:Nloc))
+ALLOCATE(FacexGP(2,0:NumOfPoints - 1,0:NumOfPoints - 1))
+CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm, Nloc)
+CALL ChangeBasis2D(1, Nloc, NumOfPoints - 1, LocalVdm ,DetLocal( 1:1,0:Nloc,0:Nloc),DetJac( 1:1,0:NumOfPoints - 1,0:NumOfPoints - 1))
+CALL ChangeBasis2D(2, Nloc, NumOfPoints - 1, LocalVdm ,FaceLocal(1:2,0:Nloc,0:Nloc),FacexGP(1:2,0:NumOfPoints - 1,0:NumOfPoints - 1))
+CALL AddNodeVolumes2D(NodeDepth, Node, DetJac, OctreeVdm, iElem, FacexGP)
 
 END SUBROUTINE DSMC_CalcSubNodeVolumes2D
 
@@ -1461,82 +1464,85 @@ SUBROUTINE DSMC_CalcSubNodeVolumes3D(iElem, NodeDepth, Node)
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
-  USE MOD_Mesh_Vars,              ONLY : sJ
-  USE MOD_Preproc
-  USE MOD_ChangeBasis,            ONLY : ChangeBasis3D
+USE MOD_DSMC_Vars,              ONLY : OctreeVdm, tNodeVolume
+USE MOD_Mesh_Vars,              ONLY : N_VolMesh, offSetElem
+USE MOD_Preproc
+USE MOD_ChangeBasis,            ONLY : ChangeBasis3D
+USE MOD_DG_Vars,                ONLY : N_DG_Mapping
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                       :: iElem
-  INTEGER, INTENT(IN)                       :: NodeDepth
-  CLASS(tNodeVolume), INTENT(INOUT)         :: Node
+INTEGER, INTENT(IN)                       :: iElem
+INTEGER, INTENT(IN)                       :: NodeDepth
+CLASS(tNodeVolume), INTENT(INOUT)         :: Node
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                                 :: j, k ,l, NumOfPoints
-  REAL                                    :: DetLocal(1,0:PP_N,0:PP_N,0:PP_N)
-  REAL, ALLOCATABLE                       :: DetJac(:,:,:,:)
-  REAL, ALLOCATABLE                       :: LocalVdm(:,:)
-  INTEGER                                 :: LocalDepth
+INTEGER                                 :: j, k ,l, NumOfPoints, Nloc
+REAL, ALLOCATABLE                       :: DetLocal(:,:,:,:)
+REAL, ALLOCATABLE                       :: DetJac(:,:,:,:)
+REAL, ALLOCATABLE                       :: LocalVdm(:,:)
+INTEGER                                 :: LocalDepth
 !===================================================================================================================================
-  LocalDepth = 1
-  NumOfPoints = 2**NodeDepth
+LocalDepth = 1
+NumOfPoints = 2**NodeDepth
+Nloc = N_DG_Mapping(2, iElem+offSetElem)
+ALLOCATE(DetLocal(1,0:Nloc, 0:Nloc, 0:Nloc))
+DO j=0, Nloc; DO k=0, Nloc; DO l=0, Nloc
+  DetLocal(1,j,k,l)=1./N_VolMesh(iElem)%sJ(j,k,l)
+END DO; END DO; END DO
 
-  DO j=0, PP_N; DO k=0, PP_N; DO l=0, PP_N
-    DetLocal(1,j,k,l)=1./sJ(j,k,l,iElem)
-  END DO; END DO; END DO
-
-  ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1,0:NumOfPoints - 1))
-  ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:PP_N))
-  CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm)
-  CALL ChangeBasis3D(1,PP_N, NumOfPoints - 1, LocalVdm, DetLocal(:,:,:,:),DetJac(:,:,:,:))
-  CALL AddNodeVolumes(NodeDepth, Node, DetJac, OctreeVdm)
+ALLOCATE( DetJac(1,0:NumOfPoints - 1,0:NumOfPoints - 1,0:NumOfPoints - 1))
+ALLOCATE(LocalVdm(0:NumOfPoints - 1,0:Nloc))
+CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdm, Nloc)
+CALL ChangeBasis3D(1,Nloc, NumOfPoints - 1, LocalVdm, DetLocal(1:1,0:Nloc,0:Nloc,0:Nloc),DetJac(1:1,0:NumOfPoints-1,0:NumOfPoints-1,0:NumOfPoints-1))
+CALL AddNodeVolumes(NodeDepth, Node, DetJac, OctreeVdm)
 
 END SUBROUTINE DSMC_CalcSubNodeVolumes3D
 
-RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc)
+RECURSIVE SUBROUTINE InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc, Nloc)
 !===================================================================================================================================
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : tOctreeVdm
-  USE MOD_Preproc
-  USE MOD_Interpolation_Vars,     ONLY : xGP, wBary
-  USE MOD_Basis,                  ONLY : InitializeVandermonde
+USE MOD_DSMC_Vars,              ONLY : tOctreeVdm
+USE MOD_Preproc
+USE MOD_Interpolation_Vars,     ONLY : N_Inter
+USE MOD_Basis,                  ONLY : InitializeVandermonde
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                       :: NodeDepth
-  INTEGER, INTENT(INOUT)                    :: LocalDepth
-  REAL, INTENT(OUT)                         :: LocalVdm(0:2**NodeDepth-1,0:PP_N)
-  TYPE (tOctreeVdm), POINTER, INTENT(INOUT) :: OctreeVdmLoc
+INTEGER, INTENT(IN)                       :: NodeDepth
+INTEGER, INTENT(INOUT)                    :: LocalDepth
+INTEGER, INTENT(IN)                       :: Nloc
+REAL, INTENT(OUT)                         :: LocalVdm(0:2**NodeDepth-1,0:Nloc)
+TYPE (tOctreeVdm), POINTER, INTENT(INOUT) :: OctreeVdmLoc
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER                                   :: i, NodePointNum
+INTEGER                                   :: i, NodePointNum
 !===================================================================================================================================
-  IF (.NOT.ASSOCIATED(OctreeVdmLoc)) THEN
-    NULLIFY(OctreeVdmLoc)
-    ALLOCATE(OctreeVdmLoc)
-    NodePointNum = 2**LocalDepth - 1
-    ALLOCATE(OctreeVdmLoc%Vdm(0:NodePointNum, 0:PP_N), OctreeVdmLoc%xGP(0:NodePointNum))
-    DO i=0,NodePointNum
-      OctreeVdmLoc%xGP(i) = -1.0 + 2./(1.+NodePointNum) * ((REAL(i)+1.) - 0.5)
-    END DO
-    OctreeVdmLoc%wGP = 2./REAL(1.0+NodePointNum)
-    CALL InitializeVandermonde(PP_N,NodePointNum,wBary,xGP,OctreeVdmLoc%xGP,OctreeVdmLoc%Vdm)
-  END IF
-  IF (LocalDepth.EQ.NodeDepth) THEN
-    LocalVdm = OctreeVdmLoc%Vdm
-  ELSE
-    LocalDepth = LocalDepth + 1
-    CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc%SubVdm)
-  END IF
+IF (.NOT.ASSOCIATED(OctreeVdmLoc)) THEN
+  NULLIFY(OctreeVdmLoc)
+  ALLOCATE(OctreeVdmLoc)
+  NodePointNum = 2**LocalDepth - 1
+  ALLOCATE(OctreeVdmLoc%Vdm(0:NodePointNum, 0:Nloc), OctreeVdmLoc%xGP(0:NodePointNum))
+  DO i=0,NodePointNum
+    OctreeVdmLoc%xGP(i) = -1.0 + 2./(1.+NodePointNum) * ((REAL(i)+1.) - 0.5)
+  END DO
+  OctreeVdmLoc%wGP = 2./REAL(1.0+NodePointNum)
+  CALL InitializeVandermonde(Nloc,NodePointNum,N_Inter(Nloc)%wBary,N_Inter(Nloc)%xGP,OctreeVdmLoc%xGP,OctreeVdmLoc%Vdm)
+END IF
+IF (LocalDepth.EQ.NodeDepth) THEN
+  LocalVdm = OctreeVdmLoc%Vdm
+ELSE
+  LocalDepth = LocalDepth + 1
+  CALL InitVanderOct(LocalVdm, NodeDepth, LocalDepth, OctreeVdmLoc%SubVdm, Nloc)
+END IF
 END SUBROUTINE InitVanderOct
 
 RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesIn)
@@ -1544,22 +1550,22 @@ RECURSIVE SUBROUTINE AddNodeVolumes(NodeDepth, Node, DetJac, VdmLocal, SubNodesI
 ! Pairing subroutine for octree and nearest neighbour, decides whether to create a new octree node or start nearest neighbour search
 !===================================================================================================================================
 ! MODULES
-  USE MOD_DSMC_Vars,              ONLY : tOctreeVdm, tNodeVolume
+USE MOD_DSMC_Vars,              ONLY : tOctreeVdm, tNodeVolume
 ! IMPLICIT VARIABLE HANDLING
-  IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-  INTEGER, INTENT(IN)                       :: NodeDepth
-  INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
-  CLASS(tNodeVolume), INTENT(INOUT)         :: Node
-  REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
-  TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
+INTEGER, INTENT(IN)                       :: NodeDepth
+INTEGER, INTENT(IN), OPTIONAL             :: SubNodesIn(:)
+CLASS(tNodeVolume), INTENT(INOUT)         :: Node
+REAL, INTENT(INOUT)                       :: DetJac(1,0:2**NodeDepth-1,0:2**NodeDepth-1,0:2**NodeDepth-1)
+TYPE (tOctreeVdm), INTENT(OUT), POINTER   :: VdmLocal
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-  INTEGER, ALLOCATABLE                       :: SubNodesOut(:)
-  INTEGER                                    :: OldNodeNum, NewNodeNum, j, VolPos(3), iNode
+INTEGER, ALLOCATABLE                       :: SubNodesOut(:)
+INTEGER                                    :: OldNodeNum, NewNodeNum, j, VolPos(3), iNode
 !===================================================================================================================================
 IF (PRESENT(SubNodesIn)) THEN
   OldNodeNum = SIZE(SubNodesIn)
@@ -2028,7 +2034,7 @@ REAL,INTENT(IN)               :: x_in(2)                               !< physic
 REAL,INTENT(INOUT)            :: xi_Out(2)  ! Interpolated Pos
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                       :: i,j,k, iNode, SideID
+INTEGER                       :: i,j,k, iNode, SideID, CNElemID
 REAL                          :: xi(2)
 REAL                          :: P(2,4), F(2), dF_inv(2,2), s(2)
 REAL, PARAMETER               :: EPS=1E-10
@@ -2040,7 +2046,8 @@ REAL                          :: T_inv(2,2), DP(2), T(2,2)
 ! 1.1.) initial guess from linear part:
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,CNElemID)+1)
 END DO
 T(:,1) = 0.5 * (P(:,2)-P(:,1))
 T(:,2) = 0.5 * (P(:,4)-P(:,1))
@@ -2112,12 +2119,13 @@ INTEGER, INTENT(IN)             :: iElem
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iNode
+INTEGER                         :: SideID, iNode, CNElemID
 REAL                            :: MapToGeo2D(2),P(2,4)
 !===================================================================================================================================
 SideID = SymmetrySide(iElem,2)
 DO iNode = 1,4
-  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,GetCNElemID(iElem+offSetElem))+1)
+  CNElemID = GetCNElemID(iElem+offSetElem)
+  P(1:2,iNode) = NodeCoords_Shared(1:2,ElemSideNodeID_Shared(iNode,SideID,CNElemID)+1)
 END DO
 
 MapToGeo2D =0.25*(P(:,1)*(1-xi(1)) * (1-xi(2)) &

@@ -174,21 +174,13 @@ n = size(A,1)
 ! using partial pivoting with row interchanges.
 CALL DGETRF(n, n, Ainv, n, ipiv, info)
 
-IF(info.NE.0)THEN
-    CALL abort(&
-__STAMP__&
-,' Matrix is numerically singular!')
-END IF
+IF(info.NE.0) CALL abort(__STAMP__,' Matrix is numerically singular!')
 
 ! DGETRI computes the inverse of a matrix using the LU factorization
 ! computed by DGETRF.
 CALL DGETRI(n, Ainv, n, ipiv, work, n, info)
 
-IF(info.NE.0)THEN
-    CALL abort(&
-__STAMP__&
-,' Matrix inversion failed!')
-END IF
+IF(info.NE.0) CALL abort(__STAMP__,' Matrix inversion failed!')
 END FUNCTION INV
 
 SUBROUTINE INV33(M,MInv,detM)
@@ -306,6 +298,9 @@ INTEGER            :: i,j,jStart,jEnd
 REAL               :: dummy,eps
 REAL               :: arrayNchooseK(0:N_In,0:N_In)
 !===================================================================================================================================
+! Sanity check
+IF(BezierElevation.LT.0) CALL abort(__STAMP__,'BezierElevation<0 is not allowed. Check correct initialisation of BezierElevation.')
+
 ! store the coefficients
 ALLOCATE(FacNchooseK(0:N_In,0:N_In))
 FacNchooseK(:,:) = 0.
@@ -329,8 +324,7 @@ DO i=0,N_In
 END DO !j
 
 ! 3.) build array with binomial coeffs (fractions) for elevation
-IF(N_In+BezierElevation.GE.171) CALL Abort(&
-__STAMP__&
+IF(N_In+BezierElevation.GE.171) CALL abort(__STAMP__&
 ,'Bezier elevation to polynomial degrees greater/equal 171 is forbidden! exit.',171,REAL(N_In+BezierElevation))
 
 ElevationMatrix(0,0) = 1.
@@ -343,11 +337,8 @@ DO i=1,N_In+BezierElevation-1 ! from 0+1 to p_new-1 -> remove the edge points
     ElevationMatrix(i,j)=CHOOSE_large(N_In,j)*CHOOSE_large(BezierElevation,i-j) / CHOOSE_large(N_In+BezierElevation,i)
   END DO
   eps=ABS(SUM(ElevationMatrix(i,:))-1.0)
-  IF(eps>1e-12) CALL Abort(&
-__STAMP__&
-,'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
+  IF(eps>1e-12) CALL abort(__STAMP__,'The line of the elevation matrix does not sum to unity! 1-1=',0,eps)
 END DO
-
 ! Invert Vandermonde
 #ifdef VDM_ANALYTICAL
 ! Computes sVdm_Leg in  buildLegendreVdm() via analytical expression (only works for Lagrange polynomials, hence the "analytical"
@@ -362,8 +353,7 @@ sVdm_Bezier=INVERSE(Vdm_Bezier)
 dummy=SUM(ABS(MATMUL(sVdm_Bezier,Vdm_Bezier)))-REAL(N_In+1)
 ! Tolerance used to be 1.0E-13, now depending on PP_RealTolerance, which yields approx. 8.88e-14 when PP_RealTolerance = 2.22e-16
 ! (gradually reduced due to not fail), now depending on PP_RealTolerance
-IF(ABS(dummy).GT.400.*PP_RealTolerance) CALL abort(&
-__STAMP__&
+IF(ABS(dummy).GT.400.*PP_RealTolerance) CALL abort(__STAMP__&
 ,'problems in Bezier Vandermonde: check (Vdm_Bezier)^(-1)*Vdm_Bezier := I has a value of',RealInfoOpt=dummy)
 END SUBROUTINE BuildBezierVdm
 
@@ -609,8 +599,7 @@ END DO
 CALL InitializeVandermonde(N_In,N_In,wBary_Loc,xi_In,xGauss,Vdm_Lag)
 sVdm_Leg=MATMUL(Vdm_Leg_Gauss,Vdm_Lag)
 dummy=ABS(SUM(ABS(MATMUL(sVdm_Leg,Vdm_Leg)))/(N_In+1.)-1.)
-IF(dummy.GT.15.*PP_RealTolerance) CALL abort(__STAMP__,&
-                                         'buildLegendreVdm: problems in MODAL<->NODAL Vandermonde ',999,dummy)
+IF(dummy.GT.15.*PP_RealTolerance) CALL abort(__STAMP__,'buildLegendreVdm: problems in MODAL<->NODAL Vandermonde ',999,dummy)
 #else
 ! Lapack
 sVdm_Leg=INVERSE(Vdm_Leg)
@@ -618,8 +607,7 @@ sVdm_Leg=INVERSE(Vdm_Leg)
 !check (Vdm_Leg)^(-1)*Vdm_Leg := I
 dummy=ABS(SUM(ABS(MATMUL(sVdm_Leg,Vdm_Leg)))/(N_In+1.)-1.)
 ! Tolerance used to be PP_RealTolerance
-IF(dummy.GT.10.*PP_RealTolerance) CALL abort(__STAMP__,&
-                                         'problems in Legendre Vandermonde ',999,dummy)
+IF(dummy.GT.10.*PP_RealTolerance) CALL abort(__STAMP__,'problems in Legendre Vandermonde ',999,dummy)
 #endif
 END SUBROUTINE buildLegendreVdm
 
@@ -825,9 +813,7 @@ ELSE ! N_in>1
         xGP(iGP)=xGP(iGP)+dx
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO !iter
-      CALL abort(&
-__STAMP__&
-,'Code stopped!',999,999.)
+      CALL abort(__STAMP__,'Code stopped!')
     END IF ! (iter.GT.nIter)
     CALL LegendrePolynomialAndDerivative(N_in+1,xGP(iGP),L_Np1,Lder_Np1)
     xGP(N_in-iGP)=-xGP(iGP)
@@ -944,9 +930,7 @@ IF(N_in.GT.1)THEN
         xGP(iGP)=xGP(iGP)+dx
         IF(abs(dx).LT.Tol*abs(xGP(iGP))) EXIT
       END DO ! iter
-      CALL abort(&
-__STAMP__&
-,'Code stopped!',999,999.)
+      CALL abort(__STAMP__,'Code stopped!')
     END IF ! (iter.GT.nIter)
     CALL qAndLEvaluation(N_in,xGP(iGP),q,qder,L)
     xGP(N_in-iGP)=-xGP(iGP)
@@ -1165,17 +1149,13 @@ INTEGER(KIND=8)    :: I
 !===================================================================================================================================
 !print*,"stop"
 !stop
-IF(N_in.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+IF(N_in.LT.0) CALL abort(__STAMP__,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 IF(N_in.EQ.0)THEN
   FACTORIAL = 1 !! debug, should be one!!!!
 ELSE
   FACTORIAL = PRODUCT((/(I, I = 1, N_in)/))
 END IF
-IF(FACTORIAL.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
+IF(FACTORIAL.LT.0) CALL abort(__STAMP__,'FACTORIAL is negative. This is not allowed! ',999,REAL(FACTORIAL))
 END FUNCTION FACTORIAL
 
 
@@ -1200,16 +1180,12 @@ INTEGER         :: I
 !===================================================================================================================================
 !print*,"stop"
 !stop
-IF(N_in.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
+IF(N_in.LT.0) CALL abort(__STAMP__,'FACTORIAL of a negative integer number not allowed! ',999,REAL(N_in))
 FACTORIAL_REAL=1.
 DO I=2,N_in
   FACTORIAL_REAL=FACTORIAL_REAL*REAL(I,8)
 END DO
-IF(FACTORIAL_REAL.LT.0) CALL abort(&
-__STAMP__&
-,'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
+IF(FACTORIAL_REAL.LT.0) CALL abort(__STAMP__,'FACTORIAL is negative. This is not allowed! ',999,FACTORIAL_REAL)
 END FUNCTION FACTORIAL_REAL
 
 
