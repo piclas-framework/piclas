@@ -125,7 +125,7 @@ REAL                           :: StartT,EndT
 CHARACTER(LEN=255)             :: hilf
 INTEGER                        :: k,iLocElem, Nloc, nRecvDofs, nSendDofs, globElem
 LOGICAL                        :: InInterPlaneRegion
-REAL                           :: InterPlaneDistance
+REAL                           :: InterPlaneDistance,a,b
 INTEGER                        :: iDim
 !=================================================================================================================================
 
@@ -827,9 +827,19 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
   END IF
 
   DO iSide = 1, nExchangeSides
+
+    ! Directional distance calculation due to tolerance problems that lead to "non-symmetric exchange procs"
+    ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
+    IF (ProcID.LT.myrank) THEN
+      a = VECNORM(BoundsOfElemCenter(1:3) - MPISideBoundsOfElemCenter(1:3,iSide))
+      b = MPI_halo_eps + BoundsOfElemCenter(4) + MPISideBoundsOfElemCenter(4,iSide)
+    ELSE
+      a = VECNORM(MPISideBoundsOfElemCenter(1:3,iSide) - BoundsOfElemCenter(1:3))
+      b = MPI_halo_eps + MPISideBoundsOfElemCenter(4,iSide) + BoundsOfElemCenter(4)
+    END IF ! ProcID.LE.myrank
+
     ! compare distance of centers with sum of element outer radii+halo_eps
-    IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter(1:3,iSide)) &
-        .GT. MPI_halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter(4,iSide)) THEN
+    IF (a.GT.b) THEN
 
       ! Also check periodic directions. Only MPI sides of the local proc are
       ! taken into account, so do not perform additional case distinction

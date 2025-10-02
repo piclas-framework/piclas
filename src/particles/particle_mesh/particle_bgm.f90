@@ -208,9 +208,9 @@ INTEGER,ALLOCATABLE            :: NumberOfElements(:)
 #else
 REAL                           :: halo_eps
 #endif /*USE_MPI*/
-REAL                           :: StartT,EndT ! Timer
+REAL                           :: StartT,EndT,b
 REAL                           :: FIBGMdeltas1(3),ElemWeights(3),FIBGMdeltas2(3),a
-INTEGER                        :: iSpec, iInit
+INTEGER                        :: iSpec, iInit, ProcID
 INTEGER                        :: nFIBGMElems, nFIBGMElems_target, iDim, PseudoSymmetryOrder
 !===================================================================================================================================
 
@@ -965,8 +965,21 @@ ELSE
       ! END ASSOCIATE
 
       ! compare distance of centers with sum of element outer radii+halo_eps
-      IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
-          .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter_Shared(4,iElem) ) CYCLE
+      ! IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
+          ! .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter_Shared(4,iElem) ) CYCLE
+
+      ! Directional distance calculation due to tolerance problems that lead to "non-symmetric exchange procs"
+      ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
+      IF (ProcID.LT.myrank) THEN
+        a = VECNORM(BoundsOfElemCenter(1:3) - MPISideBoundsOfElemCenter_Shared(1:3,iElem))
+        b = halo_eps + BoundsOfElemCenter(4) + MPISideBoundsOfElemCenter_Shared(4,iElem)
+      ELSE
+        a = VECNORM(MPISideBoundsOfElemCenter_Shared(1:3,iElem) - BoundsOfElemCenter(1:3))
+        b = halo_eps + MPISideBoundsOfElemCenter_Shared(4,iElem) + BoundsOfElemCenter(4)
+      END IF ! ProcID.LE.myrank
+
+      ! compare distance of centers with sum of element outer radii+halo_eps
+      IF (a.GT.b) CYCLE
       ElemInsideHalo = .TRUE.
       EXIT
     END DO ! iElem = 1, ComputeNodeBorderElems
