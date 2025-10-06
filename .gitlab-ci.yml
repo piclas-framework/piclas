@@ -119,6 +119,10 @@ before_script:
     else
       COVERAGE_CMAKE_FLAG="";
     fi
+  - if [ -n "${DO_REGGIE_COVERAGE}" ]; then
+      if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
+      COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
+    fi # //TODO: export coverage run so not every reggie call has to be adapted??
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -758,7 +762,8 @@ maxwell_only:
   <<: *defaults_maxwell_only
   stage: reggie_checkin
   script:
-    - cd build_maxwell_only ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas -d2
+  # //TODO
+    - cd build_maxwell_only ; coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage -m reggie.reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas -d2
 
 poisson_release:
   <<: *defaults_poisson_checkin
@@ -794,7 +799,8 @@ discrete_velocity:
   <<: *defaults_DVM_checkin
   stage: reggie_checkin
   script:
-    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
+    #//TODO
+    - cd build_DVM ; coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage -m reggie.reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
@@ -1446,6 +1452,31 @@ code_coverage:
         path: Coverage/cobertura/*.xml
   rules:
     - if: '$DO_CODE_COVERAGE'
+    #//TODO: only for testing
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage "reggie_coverage": Collect all coverage data from reggie itself
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+reggie_coverage:
+  extends: .defaults
+  needs: []
+  stage: code_coverage
+  script:
+    - echo "Generating coverage report for reggie..."
+    - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
+  artifacts:
+    paths:
+      # reggie coverage files
+      - Coverage/reggie
+    expire_in: 1 month
+    when: on_success
+  rules:
+    - if: '$DO_REGGIE_COVERAGE'
+    #//TODO: only for testing
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
