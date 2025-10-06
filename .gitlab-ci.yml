@@ -135,7 +135,8 @@ stages:
   - reggie_nightly
   - reggie_weekly
   - reggie_tutorials
-  - reggie_code_coverage
+  - code_coverage
+  - reggie_coverage
   - deploy
   - appimage
 
@@ -189,19 +190,16 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_nightly: &defaults_nightly
   <<: *defaults
   rules:
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_weekly: &defaults_weekly
   <<: *defaults
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for other maxwell tests with PICLAS_DEBUG_MEMORY=ON
@@ -219,7 +217,6 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson tests
@@ -247,19 +244,16 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_nightly: &defaults_poisson_nightly
   <<: *defaults_poisson
   rules:
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_weekly: &defaults_poisson_weekly
   <<: *defaults_poisson
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for drift_diffusion tests
@@ -281,19 +275,16 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_drift_diffusion_nightly: &defaults_drift_diffusion_nightly
   <<: *defaults_drift_diffusion
   rules:
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_drift_diffusion_weekly: &defaults_drift_diffusion_weekly
   <<: *defaults_drift_diffusion
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DVM tests
@@ -315,19 +306,16 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_DVM_nightly: &defaults_DVM_nightly
   <<: *defaults_DVM
   rules:
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_DVM_weekly: &defaults_DVM_weekly
   <<: *defaults_DVM
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
@@ -355,19 +343,16 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_petsc_nightly: &defaults_poisson_petsc_nightly
   <<: *defaults_poisson_petsc
   rules:
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_petsc_weekly: &defaults_poisson_petsc_weekly
   <<: *defaults_poisson_petsc
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_poisson_build_petsc_lib: &defaults_poisson_build_petsc_lib
   extends: .default_param
@@ -383,7 +368,6 @@ stages:
       policy: pull
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for DSMC tests (pull only)
@@ -411,19 +395,16 @@ stages:
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_DSMC_nightly: &defaults_DSMC_nightly
   <<: *defaults_DSMC
   rules:
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 .defaults_DSMC_weekly: &defaults_DSMC_weekly
   <<: *defaults_DSMC
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
@@ -604,12 +585,12 @@ build_DSMC:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
         cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all ;
@@ -628,7 +609,7 @@ build_drift_diffusion:
   stage: build
   script:
     - mkdir -p build_drift_diffusion ; cd build_drift_diffusion
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON ${COVERAGE_CMAKE_FLAG}; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -647,7 +628,7 @@ build_DVM:
   stage: build
   script:
     - mkdir -p build_DVM ; cd build_DVM
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF ${COVERAGE_CMAKE_FLAG}; $GENERATOR -j $NCORES all
 
 build_hopr:
   extends: .default_build_param
@@ -670,7 +651,6 @@ build_hopr:
     #- rm output.txt;
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 build_hopr_in_piclas:
   tags: [withmodules-concurrent]
@@ -687,7 +667,6 @@ build_hopr_in_piclas:
     #- if: '$DO_NODE_SPLIT'
       #when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 build_no_git:
   tags: [withmodules-concurrent]
@@ -703,7 +682,6 @@ build_no_git:
     - $GENERATOR -j $NCORES all
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 build_outside_repository:
   tags: [withmodules-concurrent]
@@ -720,7 +698,6 @@ build_outside_repository:
     - cd .. ; rm -r build-piclas-outside ;
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 build_no_git_libs:
   tags: [withmodules-concurrent]
@@ -740,7 +717,6 @@ build_no_git_libs:
     - ls bin/piclas
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 build_petsc_in_piclas:
   tags: [withmodules-concurrent]
@@ -757,12 +733,11 @@ build_petsc_in_piclas:
   stage: build_weekly
   script:
     - mkdir -p build_petsc_lib ; cd build_petsc_lib
-    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
-    - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
+    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ${COVERAGE_CMAKE_FLAG} ..
+    - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ${COVERAGE_CMAKE_FLAG} ..."
     - $GENERATOR -j $NCORES all
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 run_build_petsc_in_piclas:
   <<: *defaults_poisson_build_petsc_lib
@@ -1047,7 +1022,6 @@ NIG_PIC_poisson_Leapfrog_single_node_Release:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 NIG_poisson:
   <<: *defaults_nightly
@@ -1119,7 +1093,6 @@ WEK_PIC_poisson_Leapfrog_Debug: # This uses the same reggie as NIG_PIC_poisson_L
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # Sme reggies only work on single node, e.g., ray tracing
 WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_PIC_poisson_Leapfrog_single_node_Release but compile everything with CMAKE_BUILD_TYPE = Debug
@@ -1133,7 +1106,6 @@ WEK_PIC_poisson_Leapfrog_single_node_Debug: # This uses the same reggie as NIG_P
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_PIC_poisson_Leapfrog:
   <<: *defaults_weekly
@@ -1152,7 +1124,6 @@ WEK_Photoionization_release_RK3:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Photoionization_debug_RK3:
   <<: *defaults_poisson_weekly
@@ -1165,7 +1136,6 @@ WEK_Photoionization_debug_RK3:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Photoionization_petsc_release_RK3:
   <<: *defaults_poisson_petsc_nightly
@@ -1178,7 +1148,6 @@ WEK_Photoionization_petsc_release_RK3:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Photoionization_petsc_debug_RK3:
   <<: *defaults_poisson_petsc_nightly
@@ -1191,7 +1160,6 @@ WEK_Photoionization_petsc_debug_RK3:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Photoionization_release_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1204,7 +1172,6 @@ WEK_Photoionization_release_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Photoionization_debug_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1217,7 +1184,6 @@ WEK_Photoionization_debug_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # --- nightly
 
@@ -1232,7 +1198,6 @@ NIG_Photoionization_petsc_release_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Photoionization_petsc_debug_Leapfrog:
   <<: *defaults_poisson_petsc_weekly
@@ -1245,7 +1210,6 @@ WEK_Photoionization_petsc_debug_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # Raytracing regression tests
 # TODO: Rename stage to WEK_ when it is finalized
@@ -1260,7 +1224,6 @@ NIG_Raytracing_release_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_NIGHTLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Raytracing_debug_Leapfrog:
   <<: *defaults_poisson_weekly
@@ -1273,7 +1236,6 @@ WEK_Raytracing_debug_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 # TODO: Rename stage to WEK_ when it is finalized
 NIG_Raytracing_debug_Leapfrog:
@@ -1287,7 +1249,6 @@ NIG_Raytracing_debug_Leapfrog:
     - if: '$DO_NODE_SPLIT'
       when: never
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 NIG_Radiation:
   <<: *defaults_nightly
@@ -1421,7 +1382,6 @@ WEK_Radiation:
     - reggie -e ./bin/piclas ${REGGIEDIR}
   rules:
     - if: '$DO_WEEKLY'
-    - if: '$DO_CODE_COVERAGE'
 
 WEK_Reservoir:
   <<: *defaults_DSMC_weekly
@@ -1448,12 +1408,12 @@ WEK_DVM:
     - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_code_coverage": Collect all coverage data
+# Stage "code_coverage": Collect all coverage data from executable
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-reggie_code_coverage:
+code_coverage:
   extends: .defaults
   needs: []
-  stage: reggie_code_coverage
+  stage: code_coverage
   script:
     - echo "Generating combined coverage report..."
     - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
@@ -1465,15 +1425,20 @@ reggie_code_coverage:
         mkdir Coverage/html ;
       fi
     # combine coverage reports of all builds and runs in xml file for displaying coverage in mr diff view
+    - FIND=$(cd Coverage; ls *.json)
+    - echo -e "Using files:\n$FIND\nfor gcovr execution"
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
-    # also in html format to check whole codebase by hand in easier to read format
+    # also in html format to check whole codebase by hand (easier to read compared to xml)
     - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
   # regex expression the retrieve coverage percentage
   coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
   artifacts:
     paths:
+      # html for visual output
       - Coverage/html
-    expire_in: 1 week
+      # json files to check if all builds are read in for combined coverage report (TODO maybe remove due to memory usage)
+      - Coverage/*.json
+    expire_in: 1 month
     when: on_success
     reports:
       coverage_report:
