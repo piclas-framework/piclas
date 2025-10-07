@@ -32,7 +32,7 @@ PUBLIC :: GetRadialDistance2D
 
 CONTAINS
 
-SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt)
+SUBROUTINE CalcWallSample(PartID,SurfSideID,SampleType,SurfaceNormal_opt,PartPosImpact_opt)
 !===================================================================================================================================
 !> Sample the energy of particles before and after a wall interaction for the determination of macroscopic properties such as heat
 !> flux and force per area
@@ -45,6 +45,7 @@ USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC,AmbipolElecVelo
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
 USE MOD_part_tools                ,ONLY: GetParticleWeight
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
+USE MOD_Particle_Boundary_Vars    ,ONLY: TorqueOutput, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
 #if USE_HDG
 USE MOD_Particle_Vars             ,ONLY: ResetVDLSpecID
 #endif/*USE_HDG*/
@@ -54,12 +55,12 @@ IMPLICIT NONE
 ! INPUT VARIABLES
 INTEGER,INTENT(IN)                 :: PartID,SurfSideID
 CHARACTER(*),INTENT(IN)            :: SampleType
-REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3)
+REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3),PartPosImpact_opt(1:3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL            :: ETrans, ETransAmbi, ERot, EVib, EElec, MomArray(1:3), MassIC, MPF
+REAL            :: ETrans, ETransAmbi, ERot, EVib, EElec, MomArray(1:3), MassIC, MPF, TorqueArray(1:3)
 INTEGER         :: ETransID, ERotID, EVibID, EElecID, SpecID, SubP, SubQ
 !===================================================================================================================================
 MomArray(:)=0.
@@ -98,6 +99,12 @@ END IF
 SELECT CASE (TRIM(SampleType))
 CASE ('old')
   MomArray(1:3)   = MassIC * PartState(4:6,PartID) * MPF
+  IF(TorqueOutput) THEN
+    ! Store info of impacting particle for possible surface charging
+    TorqueArray(1) = ( PartPosImpact_opt(2) * MomArray(3) - PartPosImpact_opt(3) * MomArray(2) )
+    TorqueArray(2) = ( PartPosImpact_opt(3) * MomArray(1) - PartPosImpact_opt(1) * MomArray(3) )
+    TorqueArray(3) = ( PartPosImpact_opt(1) * MomArray(2) - PartPosImpact_opt(2) * MomArray(1) )
+  END IF
   ETransID = SAMPWALL_ETRANSOLD
   ERotID   = SAMPWALL_EROTOLD
   EVibID   = SAMPWALL_EVIBOLD
@@ -138,6 +145,11 @@ CASE ('old')
 CASE ('new')
   ! must be old_velocity-new_velocity
   MomArray(1:3)   = -MassIC * PartState(4:6,PartID) * MPF
+  IF(TorqueOutput) THEN
+    TorqueArray(1) = -( PartPosImpact_opt(2) * MomArray(3) - PartPosImpact_opt(3) * MomArray(2) )
+    TorqueArray(2) = -( PartPosImpact_opt(3) * MomArray(1) - PartPosImpact_opt(1) * MomArray(3) )
+    TorqueArray(3) = -( PartPosImpact_opt(1) * MomArray(2) - PartPosImpact_opt(2) * MomArray(1) )
+  END IF
   ETransID = SAMPWALL_ETRANSNEW
   ERotID   = SAMPWALL_EROTNEW
   EVibID   = SAMPWALL_EVIBNEW
@@ -156,6 +168,12 @@ SampWallState(SAMPWALL_DELTA_MOMENTUMY,SubP,SubQ,SurfSideID) = SampWallState(SAM
 SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) + MomArray(3)
 !----  Sampling the energy (translation) accommodation at walls
 SampWallState(ETransID ,SubP,SubQ,SurfSideID) = SampWallState(ETransID ,SubP,SubQ,SurfSideID) + ETrans * MPF
+!----  Sampling torque
+IF(TorqueOutput) THEN
+  SampWallState(SWITorqueCoefficientX,SubP,SubQ,SurfSideID) = SampWallState(SWITorqueCoefficientX,SubP,SubQ,SurfSideID) + TorqueArray(1)
+  SampWallState(SWITorqueCoefficientY,SubP,SubQ,SurfSideID) = SampWallState(SWITorqueCoefficientY,SubP,SubQ,SurfSideID) + TorqueArray(2)
+  SampWallState(SWITorqueCoefficientZ,SubP,SubQ,SurfSideID) = SampWallState(SWITorqueCoefficientZ,SubP,SubQ,SurfSideID) + TorqueArray(3)
+END IF
 IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
     IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN

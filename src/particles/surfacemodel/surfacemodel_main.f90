@@ -53,7 +53,7 @@ USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, nSurfSample
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints, TorqueOutput
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution, ImpactWeight
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -161,7 +161,13 @@ IF(DoSample) THEN
   END IF
   ! Sample momentum, heatflux and collision counter on surface (Check if particle is still inside is required, since particles can
   ! be removed in the case of UseCircularInflow and nPorousBC. These particles shall not be sampled.)
-  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
+  IF(PDM%ParticleInside(PartID)) THEN
+    IF(TorqueOutput) THEN
+      CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc,PartPosImpact_opt=PartPosImpact)
+    ELSE
+      CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
+    END IF
+  END IF
 END IF
 !===================================================================================================================================
 ! 2.) Species Swap
@@ -359,7 +365,15 @@ END IF
 IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface (only the original impacting particle, not the newly created parts
   ! through SurfaceModelParticleEmission), checking if the particle was deleted/absorbed/adsorbed at the wall
-  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  IF(PDM%ParticleInside(PartID)) THEN
+    IF(TorqueOutput) THEN
+      CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc,PartPosImpact_opt=PartPosImpact)
+    ELSE
+      CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+    END IF
+  END IF
+
+
 END IF
 
 END SUBROUTINE SurfaceModelling
