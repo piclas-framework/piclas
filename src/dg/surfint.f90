@@ -144,8 +144,10 @@ INTEGER,INTENT(IN) :: flip,locSideID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: p,q,l
-!INTEGER            :: firstSideID,lastSideID
+INTEGER            :: p,q
+#if (PP_NodeType==1)
+INTEGER            :: l
+#endif
 #if (PP_NodeType>1)
 REAL            ::L_hatMinus0,L_hatPlusN
 #endif
@@ -496,7 +498,10 @@ INTEGER,INTENT(IN) :: flip,locSideID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER            :: p,q,l
+INTEGER            :: p,q
+#if (PP_NodeType==1)
+INTEGER            :: l
+#endif
 #if (PP_NodeType>1)
 REAL            ::L_HatMinus0,L_HatPlusN
 #endif

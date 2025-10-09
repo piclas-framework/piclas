@@ -163,6 +163,15 @@ stages:
     name: "${CI_PIPELINE_ID}-${CI_COMMIT_REF_NAME}-${CI_JOB_NAME}"
     expire_in: 1 day
     when: on_failure
+  rules:
+    # If the pipeline is for an appimage test run, the job is not added to the pipeline.
+    - if: '$DO_TEST_APPIMAGE'
+      when: never
+    # If the pipeline is for an appimage build run, the job is not added to the pipeline.
+    - if: '$DO_CREATE_APPIMAGE'
+      when: never
+    # In all other cases, the job is added to the pipeline, with when: on_success
+    - when: on_success
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Default parameters for the testing stage only (reusing the previous template)
@@ -421,6 +430,9 @@ stages:
 
 reggie_download:
   extends: .default_build_param
+  rules:
+    # Overwrite the rules from default_build_param to ensure that reggie is available when the appimages are tested
+    - when: on_success
   artifacts:
     paths: [reggie]
   cache:
@@ -1526,9 +1538,8 @@ github:
 # Stage "appimage": Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_create_appimage:
+  tags: [withmodules-concurrent]
   stage: appimage
-  tags:
-    - withmodules-concurrent
   rules:
     - if: '$DO_CREATE_APPIMAGE'
   script:
@@ -1544,17 +1555,18 @@ github_create_appimage:
 # Stage "appimage": Download the AppImages from the piclas-testing repository and test them
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_test_appimage:
+  tags: [withmodules-concurrent]
+  needs: [reggie_download]
   stage: appimage
-  tags:
-    - withmodules-concurrent
   rules:
     - if: '$DO_TEST_APPIMAGE'
+  cache:
+    - *reggie_cache
   script:
     - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
     - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
-    - module purge || true;
-    - module load  cmake/3.26.4  gcc/13.2.0  openmpi/4.1.5/gcc/13.2.0      hdf5/1.14.0/gcc/13.2.0/openmpi/4.1.5      hopr/master/gcc/13.2.0/openmpi/4.1.5/hdf5/1.14.0      petsc/3.19.3/gcc/13.2.0/openmpi/4.1.5 || true;
+    - module pu && module load gcc/14.2.0 openmpi/4.1.6/gcc/14.2.0
     - rm -rf piclas-testing || true ;
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing

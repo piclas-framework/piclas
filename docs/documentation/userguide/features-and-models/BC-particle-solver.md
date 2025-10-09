@@ -237,16 +237,6 @@ The available conditions (`Part-BoundaryX-SurfaceModel=`) are described in the t
 |     13      | Secondary electron emission due to electron impact according to the Vaughan formula described in Ref. {cite}`Villemant2019`                                                                                                   |
 |     20      | Finite-rate catalysis model, Section {ref}`sec:catalytic-surface`                                                                                                                            |
 
-For surface sampling output, where the surface is split into, e.g., $3\times3$ sub-surfaces, the following parameters mus be set
-
-    BezierSampleN                 = 3
-    DSMC-nSurfSample              = 3
-    Part-WriteMacroSurfaceValues  = T
-    Particles-DSMC-CalcSurfaceVal = T
-    Part-IterationForMacroVal     = 200
-
-where `BezierSampleN=DSMC-nSurfSample`. In this example, sampling is performed over and every 200 iterations.
-
 ### Empirical model for a sticking coefficient
 
 To model the sticking of gas particles on cold surfaces, an empirical model is available, which is based on experimental measurements. The sticking coefficient is modelled through the product of a non-bounce probability $B(\alpha)$ and a condensation probability $C(\alpha,T)$
@@ -321,7 +311,7 @@ where electrons of species `C` are emitted from boundary `B` on the impact of sp
 |        uniform-energy | Random velocity vector and random uniform distribution of the remaining impact energy                                                                                                           |                    -                     |
 | Chung-Everhart-cosine | Angle distribution according to $\cos$ in the normal direction, equally distributed in the tangential direction, and a Chung-Everhart distribution of the energy $f = \frac{E}{(E+W)^4}$        | {cite}`Chung1974`, {cite}`Greenwood2002` |
 |                cosine | Angle distribution according to $\cos$ in the normal direction, equally distributed in the tangential direction                                                                                 |                                          |
-     
+
 For the `Chung-Everhart-cosine` distribution, in the case of 2 or more secondaries, we are currently sampling each energy independently, which can result in an energy
 addition and thus energy conservation violation. An output to monitor the percentage of violations and energy addition as a percentage of the impact energy per SEE event can be enabled through `CalcEnergyViolationSEE = T`.
 

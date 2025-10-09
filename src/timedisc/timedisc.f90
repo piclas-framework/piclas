@@ -86,10 +86,12 @@ USE MOD_LoadDistribution       ,ONLY: WriteElemTimeStatistics
 #endif /*USE_MPI*/
 #ifdef PARTICLES
 USE MOD_Particle_Localization  ,ONLY: CountPartsPerElem
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_FV) || (USE_HDG)
-USE MOD_HDF5_Output_Particles  ,ONLY: WriteElectroMagneticPICFieldToHDF5
-#endif
+USE MOD_HDF5_Output_Particles_PIC ,ONLY: WriteElectroMagneticPICFieldToHDF5
+#endif /*!(USE_FV) || (USE_HDG)*/
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcEMFieldOutput
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 USE MOD_HDF5_Output_Particles  ,ONLY: FillParticleData
 #endif /*PARTICLES*/
 #ifdef PARTICLES
@@ -125,6 +127,7 @@ USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
 USE MOD_Part_Tools             ,ONLY: ReduceMaxParticleNumber
 #endif
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -223,9 +226,11 @@ IF(MeasureTrackTime)THEN
   tTracking=0
   tLocalization=0
 END IF
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 #if !(USE_FV) || (USE_HDG)
 IF(CalcEMFieldOutput) CALL WriteElectroMagneticPICFieldToHDF5() ! Write magnetic field to file
-#endif
+#endif /*!(USE_FV) || (USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
 #endif /*PARTICLES*/
 
 ! No computation needed if tEnd=tStart!
@@ -308,6 +313,7 @@ DO !iter_t=0,MaxIter
 
   ! Calling the analyze routines in last iteration
   finalIter = ALMOSTEQUAL(dt,dt_Min(DT_END))
+  IF(finalIter) DoWriteStateToHDF5 = .TRUE.
 
 #if defined(PARTICLES) && USE_HDG
   ! Depending on kinetic/BR model, set the reference electron temperature for t^n+1, therefore "add" -dt to the calculation

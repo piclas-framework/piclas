@@ -202,7 +202,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   END DO
   ! Sanity check
   IF(.NOT.ALLOCATED(PartInt)) CALL abort(__STAMP__,'PartInt is not allocated') ! Missing call to FillParticleData()
-  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_DOUBLE_PRECISION,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
+  CALL MPI_GATHERV(PartInt,nElemsOld,MPI_INTEGER_INT_KIND,PartIntGlob,ElemPerProc,offsetElemMPIOld(0:nProcessors-1),MPI_INTEGER_INT_KIND,0,MPI_COMM_PICLAS,iError)
   PartIntExists = .TRUE.
 ELSE
   ! Readin of PartInt: Read in only by MPIRoot in single mode because the root performs the distribution of elements (domain decomposition)
@@ -1232,6 +1232,9 @@ USE MOD_Mesh_Vars        ,ONLY: nGlobalDOFs
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimeField
 USE MOD_LoadBalance_Vars ,ONLY: ElemTimePart
 USE MOD_Globals          ,ONLY: nGlobalNbrOfParticles
+#if USE_HDG && USE_PETSC
+USE MOD_HDG_Vars_PETSc    ,ONLY: PETScFieldTime
+#endif /*USE_HDG && USE_PETSC*/
 #endif /*PARTICLES*/
 #if USE_MPI
 USE MOD_MPI_Shared_Vars  ,ONLY: myComputeNodeRank,myLeaderGroupRank
@@ -1245,9 +1248,6 @@ USE MOD_StringTools      ,ONLY: set_formatting,clear_formatting
 #if defined(MEASURE_MPI_WAIT)
 USE MOD_MPI_Vars          ,ONLY: MPIW8TimeMM,MPIW8CountMM
 #endif /*defined(MEASURE_MPI_WAIT)*/
-#if USE_HDG && USE_PETSC
-USE MOD_HDG_Vars_PETSc    ,ONLY: PETScFieldTime
-#endif /*USE_HDG && USE_PETSC*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!

@@ -1059,11 +1059,12 @@ REAL,INTENT(IN)                 :: t,coeff
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: i,j,k,iElem,iDielectricElem,CNElemID
+INTEGER                         :: i,j,k,iElem
 REAL                            :: eps0inv, x(1:3)
 REAL                            :: r           ! for Dipole
 REAL,PARAMETER                  :: Q=1, d=1    ! for Dipole
 #ifdef PARTICLES
+INTEGER                         :: CNElemID,iDielectricElem
 REAL                            :: PartSourceLoc(1:4)
 #endif
 REAL                            :: coeff_loc

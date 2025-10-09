@@ -23,6 +23,7 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: SetUpCoils, SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, BiotSavart, Jefimenko, WriteCoilVTK
+PUBLIC :: WriteLinearConductorVTK
 !===================================================================================================================================
 
 INTERFACE SetUpCoils
@@ -76,7 +77,7 @@ INTEGER, INTENT(IN) :: iCoil
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A,I2)',ADVANCE='NO') ' Set up coil: ', iCoil
+SWRITE(UNIT_stdOut,'(A,I0)',ADVANCE='NO') ' SET-UP COIL ', iCoil
 
 ! Select different coil types
 SELECT CASE(TRIM(CoilInfo(iCoil)%Type))
@@ -89,12 +90,21 @@ CASE('rectangle')
 CASE('linear')
   CALL SetUpLinearConductor(iCoil)
 CASE DEFAULT
-  CALL abort(__STAMP__,'Unknown (time-dependent) coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
+  CALL abort(__STAMP__,'ERROR in SetUpCoils: Unknown (time-dependent) coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
 END SELECT
 
 ! Output to VTK
-IF(BGFieldVTKOutput) CALL WriteCoilVTK(iCoil)
-SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') 'DONE'
+IF(BGFieldVTKOutput) THEN
+  ! Output geometry of everything except linear conductors, which are output later altogether
+  IF(TRIM(CoilInfo(iCoil)%Type).EQ.'linear') THEN
+    ALLOCATE(CoilInfo(iCoil)%CoilNodes(1:3, 1:CoilInfo(iCoil)%NumNodes))
+    CoilInfo(iCoil)%CoilNodes(1:3, 1:CoilInfo(iCoil)%NumNodes) = CoilNodes(1:3, 1:CoilInfo(iCoil)%NumNodes)
+  ELSE
+    CALL WriteCoilVTK(iCoil)
+  END IF
+END IF
+
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='YES') ' DONE!'
 
 END SUBROUTINE SetUpCoils
 
@@ -376,7 +386,7 @@ REAL                :: segmentLength, segmentToDOFLengthP3, currentDirection(3),
 CHARACTER(LEN=40)   :: formatStr
 INTEGER             :: ExactFunctionNumber    ! Number of exact function to be used for the calculation of the analytical solution
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A)') '...Calculation of the B-Field'
+SWRITE(UNIT_stdOut,'(A,I0)',ADVANCE='NO') ' CALCULATION OF B-FIELD - COIL ', iCoil
 
 ! Iterate over all DOFs
 DO iElem=1,nElems
@@ -417,9 +427,7 @@ IF(DoCalcErrorNormsSuperB)THEN
   CASE('linear')
     ExactFunctionNumber = 10
   CASE DEFAULT
-    CALL abort(&
-        __STAMP__&
-        ,'Cannot calculate L2/LInf error for coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
+    CALL abort(__STAMP__,'ERROR in BiotSavart: Cannot calculate L2/LInf error for coil type ['//TRIM(CoilInfo(iCoil)%Type)//']')
   END SELECT
 
   ! Get L2 errors
@@ -432,6 +440,8 @@ IF(DoCalcErrorNormsSuperB)THEN
     WRITE(UNIT_StdOut,formatStr)' L_Inf_ErrorSuperB     : ',L_Inf_ErrorSuperB
   END IF
 END IF ! DoCalcErrorNormsSuperB
+
+SWRITE(UNIT_stdOut,'(A)') ' DONE!'
 
 END SUBROUTINE BiotSavart
 
@@ -530,7 +540,7 @@ INTEGER, INTENT(IN) :: iCoil
 CHARACTER(LEN=26)  :: myFileName
 INTEGER            :: iNode, iElem, nNodes
 !===================================================================================================================================
-SWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' ... Write coil #',iCoil,' to VTK file ...'
+SWRITE(UNIT_stdOut,'(A,I0,A)',ADVANCE='NO') ' AND WRITE GEOMETRY TO VTK FILE'
 WRITE(myFileName,'(A9,I3.3,A4)')'CoilMesh_',iCoil,'.vtk'
 nNodes = CoilInfo(iCoil)%NumNodes
 
@@ -562,6 +572,116 @@ WRITE(1112,*)''
 CLOSE(1112)
 
 END SUBROUTINE WriteCoilVTK
+
+
+SUBROUTINE WriteLinearConductorVTK()
+!===================================================================================================================================
+!> Write linear conductors to a single VTK
+!===================================================================================================================================
+! MODULES
+USE MOD_Globals
+USE MOD_SuperB_Vars ,ONLY: NumOfCoils, CoilInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(LEN=26)  :: myFileName
+INTEGER            :: iCoil, iNode, iElem, nNodes, nNodesTotal, nCellsTotal, nodeOffset
+!===================================================================================================================================
+nNodesTotal = 0
+nCellsTotal = 0
+
+! Count total nodes and cells
+DO iCoil=1,NumOfCoils
+  ! Skip other types
+  IF(TRIM(CoilInfo(iCoil)%Type).NE.'linear') CYCLE
+  nNodes = CoilInfo(iCoil)%NumNodes
+  nNodesTotal = nNodesTotal + nNodes
+  ! Each coil contributes (nNodes-1) line segments
+  IF(nNodes .GT. 1) nCellsTotal = nCellsTotal + (nNodes - 1)
+END DO
+
+! Leave routine if no linear conductors were used
+IF(nNodesTotal.EQ.0) RETURN
+
+SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' WRITE GEOMETRY OF LINEAR CONDUCTORS TO VTK'
+WRITE(myFileName,'(A19)')'LinearConductor.vtk'
+
+OPEN(1112,FILE=myFileName,STATUS='replace')
+WRITE(1112,'(A)')'# vtk DataFile Version 2.0'
+WRITE(1112,'(A)')'Debug Mesh'
+WRITE(1112,'(A)')'ASCII'
+WRITE(1112,'(A)')'DATASET UNSTRUCTURED_GRID'
+WRITE(1112,'(A)')''
+WRITE(1112,'(A,I0,A)')'POINTS ',nNodesTotal,' FLOAT'
+
+! Write all points
+DO iCoil=1,NumOfCoils
+  ! Skip other types
+  IF(TRIM(CoilInfo(iCoil)%Type).NE.'linear') CYCLE
+  nNodes = CoilInfo(iCoil)%NumNodes
+  DO iNode=1,nNodes
+    WRITE(1112,*) CoilInfo(iCoil)%CoilNodes(1:3, iNode)
+  END DO
+END DO
+
+WRITE(1112,*)''
+WRITE(1112,'(A,I0,1X,I0)')'CELLS ',nCellsTotal, 3*nCellsTotal
+
+! Write connectivity for each conductor separately
+nodeOffset = 0
+DO iCoil=1,NumOfCoils
+  ! Skip other types
+  IF(TRIM(CoilInfo(iCoil)%Type).NE.'linear') CYCLE
+  nNodes = CoilInfo(iCoil)%NumNodes
+
+  ! Create line segments within this coil only
+  DO iNode=1,nNodes-1
+    WRITE(1112,'(I0)',ADVANCE="NO") 2
+    WRITE(1112,'(1X,I0)',ADVANCE="NO") nodeOffset + iNode - 1
+    WRITE(1112,'(1X,I0)',ADVANCE="NO") nodeOffset + iNode
+    WRITE(1112,*)''
+  END DO
+
+  ! Update node offset for next coil
+  nodeOffset = nodeOffset + nNodes
+END DO
+
+WRITE(1112,*)''
+WRITE(1112,'(A,I0)')'CELL_TYPES ',nCellsTotal
+DO iElem=1,nCellsTotal
+  WRITE(1112,'(1X,I0)',ADVANCE="NO") 3
+END DO
+WRITE(1112,*)''
+
+! Add cell data for current values
+WRITE(1112,*)''
+WRITE(1112,'(A,I0)')'CELL_DATA ',nCellsTotal
+WRITE(1112,'(A)')'SCALARS Current FLOAT'
+WRITE(1112,'(A)')'LOOKUP_TABLE default'
+
+! Write current value for each cell (line segment)
+DO iCoil=1,NumOfCoils
+  ! Skip other types
+  IF(TRIM(CoilInfo(iCoil)%Type).NE.'linear') CYCLE
+  nNodes = CoilInfo(iCoil)%NumNodes
+
+  ! Write current value for each line segment in this coil
+  DO iNode=1,nNodes-1
+    WRITE(1112,*) CoilInfo(iCoil)%Current
+  END DO
+END DO
+
+CLOSE(1112)
+
+SWRITE(UNIT_stdOut,'(A)') ' DONE!'
+
+END SUBROUTINE WriteLinearConductorVTK
+
 #endif /* USE_SUPER_B */
 
 END MODULE MOD_SuperB_Coil

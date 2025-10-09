@@ -62,7 +62,7 @@ REAL                  :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
 
-IF(MOD(iter,vMPFSplitAndMergeStep).NE.0) RETURN
+IF(MOD(iter,INT(vMPFSplitAndMergeStep,8)).NE.0) RETURN
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -145,7 +145,10 @@ USE MOD_Particle_Analyze_Vars ,ONLY: CalcEnergyScalingRatioVMPF,EnergyScalingRat
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst
 USE MOD_Globals               ,ONLY: LOG_RAN
 #ifdef CODE_ANALYZE
-USE MOD_Globals               ,ONLY: unit_stdout,myrank,abort
+#if USE_MPI
+USE MOD_Globals               ,ONLY: myrank
+#endif /*USE_MPI*/
+USE MOD_Globals               ,ONLY: unit_stdout,abort
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 #endif /* CODE_ANALYZE */
 ! IMPLICIT VARIABLE HANDLING

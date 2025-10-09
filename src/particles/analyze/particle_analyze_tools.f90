@@ -97,6 +97,9 @@ LOGICAL,INTENT(IN)                 :: CalcNumSpec_IN,CalcSimNumSpec_IN ! Flags f
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iPart, iSpec
+#if !(USE_MPI)
+LOGICAL :: dummy_log
+#endif /*!(USE_MPI)*/
 !===================================================================================================================================
 
 NumSpec    = 0.
@@ -165,6 +168,11 @@ IF(CalcSimNumSpec_IN)THEN
 #endif /*USE_MPI*/
 END IF ! CalcSimNumSpec_IN
 
+#if !(USE_MPI)
+! Suppress compiler warning
+RETURN
+dummy_log = calcnumspec_in
+#endif /*!(USE_MPI)*/
 END SUBROUTINE CalcNumPartsOfSpec
 
 

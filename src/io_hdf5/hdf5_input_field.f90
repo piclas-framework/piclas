@@ -45,6 +45,7 @@ SUBROUTINE ReadExternalFieldFromHDF5( DataSet, ExternalField, DeltaExternalField
 ! use module
 !USE MOD_IO_HDF5
 USE MOD_Globals
+USE MOD_Globals_Vars     ,ONLY: EpsMach
 #if USE_MPI
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_MPI*/
@@ -76,7 +77,7 @@ INTEGER(HID_T)                  :: file_id_loc                       ! File iden
 INTEGER(HID_T)                  :: dset_id_loc                       ! Dataset identifier
 INTEGER(HID_T)                  :: filespace                         ! filespace identifier
 LOGICAL                         :: DatasetFound,AttributeFound,NaNDetected
-REAL                            :: delta,deltaOld
+REAL                            :: delta,deltaOld,epsComp
 INTEGER                         :: iDirMax
 !===================================================================================================================================
 ! Defaults
@@ -180,10 +181,14 @@ DO iDir = 1, iDirMax
   deltaOld = -1.0
   DO j = 1, NbrOfColumns-1
     delta = ExternalField(iDir,j+1)-ExternalField(iDir,j)
+    epsComp = ExternalField(iDir,j+1) * epsMach
     !write(*,*) delta
-    IF((deltaOld.GT.0.).AND.(delta.GT.0.))THEN
-      !WRITE (*,*) "delta,deltaOld =", iDir,j,delta,deltaOld
-      IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) CALL abort(__STAMP__,'External field: not equidistant.')
+    IF((deltaOld.GT.epsComp).AND.(delta.GT.epsComp))THEN
+      IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) THEN
+        SWRITE (*,*) "ExternalField(iDir,j+1),ExternalField(iDir,j)", ExternalField(iDir,j+1),ExternalField(iDir,j)
+        SWRITE (*,*) "iDir,j,delta,deltaOld =", iDir,j,delta,deltaOld
+        CALL abort(__STAMP__,'ERROR in external magnetic field: provided input is not equidistant.')
+      END IF
     END IF ! deltaOld.GT.0.
     ! Backup old value
     IF(delta.GT.0.)THEN

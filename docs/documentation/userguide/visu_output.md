@@ -388,9 +388,11 @@ which must be supplied for each particle species `x` separately.
 ## Particle Flow and Surface Sampling
 
 Flow field and surface outputs are available when the DSMC, BGK and FP methods are utilized (standalone or coupled with PIC) and
-stored in `*_DSMCState_*.h5`. A sampling over a certain number of iterations is performed to calculate the average macroscopic
-values such as number density, bulk velocity and temperature from the microscopic particle information. Two variants are available
-in PICLas, allowing to sample a certain amount of the simulation duration or to sample continuously during the simulation and
+stored in `*_DSMCState_*.h5` and `*_DSMCSurfState_*.h5`. A sampling over a certain number of iterations is performed to calculate the average macroscopic
+values such as number density, bulk velocity and temperature from the microscopic particle information. Surface outputs include the species-specific impact
+counter per iteration of simulation particles, the force per area [N/m2] in $x$, $y$, and $z$ and the heat flux [W/m2].
+
+Two variants are available in PICLas, allowing to sample a certain amount of the simulation duration or to sample continuously during the simulation and
 output the result after the given number of iterations.
 
 The first variant is usually utilized to sample at the end of a simulation, when the steady state condition is reached. The first
@@ -399,6 +401,7 @@ parameter `Part-TimeFracForSampling` defines the percentage that shall be sample
 
     Part-TimeFracForSampling = 0.1
     Particles-NumberForDSMCOutputs = 2
+    Particles-DSMC-CalcSurfaceVal = T
 
 `Particles-NumberForDSMCOutputs` defines the number of outputs during the sampling time. Example: The simulation end time is
 $T_\mathrm{end}=1$, thus sampling will begin at $T=0.9$ and the first output will be written at $T=0.95$. At this point the sample
@@ -407,11 +410,15 @@ previous result but contains the sample of the complete sampling duration. It sh
 at e.g. $T=0.95$, sampling with the given parameters will begin immediately.
 
 The second variant can be used to produce outputs for unsteady simulations, while still to be able to sample for a number of
-iterations (Parameter: `Part-IterationForMacroVal`). The first two flags allow to enable the output of flow field/volume and
-surface values, respectively.
+iterations (Parameter: `Part-IterationForMacroVal`). The first flag enables the output of flow field/volume and
+surface values, while the second and third flag allow to enable the volume and surface outputs separately:
 
+    ! Enable volume and surface sampling
+    Part-WriteMacroValues = T
+    ! or enable them separately
     Part-WriteMacroVolumeValues = T
     Part-WriteMacroSurfaceValues = T
+    ! Number of sampling iterations
     Part-IterationForMacroVal = 100
 
 Example: The simulation end time is $T_\mathrm{end}=1$ with a time step of $\Delta t = 0.001$. With the parameters given above,
@@ -427,13 +434,7 @@ Parameters indicating the quality of the simulation (e.g. the maximal collision 
 
     Particles-DSMC-CalcQualityFactors = T
 
-Output and sampling on surfaces can be enabled by
-
-    Particles-DSMC-CalcSurfaceVal = T
-
-By default this will include the species-specific impact counter per iteration of simulation particles, the force per area in $x$,
-$y$, and $z$ and the heat flux. The output of the surface-sampled data is written to `*_DSMCSurfState_*.h5`. Additional surface
-values can be sampled by using
+Additional particle impact values can be sampled by using
 
     CalcSurfaceImpact = T
 
@@ -441,6 +442,12 @@ which calculates the species-dependent averaged impact energy (trans, rot, vib, 
 (between particle trajectory and surface normal vector, e.g. an impact vector perpendicular to the surface corresponds to an
 impact angle of $0^{\circ}$), number of real particle impacts over the sampling duration and number of real particle impacts
 per area per second.
+
+The surface can be split into equidistant sub-surfaces to increase the surface resolution. The following parameter must be set
+
+    Part-nSurfSample = 3
+
+resulting in a $3\times3$ subsides per original surface side.
 
 (sec:sampling-elec-excitation)=
 ### Electronic excitation

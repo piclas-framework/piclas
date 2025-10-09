@@ -45,14 +45,15 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SurfaceModelling(PartID,SideID,GlobalElemID,n_Loc)
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec
+USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,VECNORM
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
 USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, nSurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution, ImpactWeight
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -91,8 +92,8 @@ INTEGER            :: ProductSpec(1:2) !< 1: product species of incident particl
                                        !< with respective species
 INTEGER            :: ProductSpecNbr   !< number of emitted particles for ProductSpec(2)
 REAL               :: TempErgy         !< temperature, energy or velocity used for VeloFromDistribution
-REAL               :: Xitild,Etatild
-INTEGER            :: PartSpecImpact, locBCID, SurfSideID
+REAL               :: Xitild,Etatild,distance,distanceMin
+INTEGER            :: PartSpecImpact, locBCID, SurfSideID, p, q
 LOGICAL            :: SpecularReflectionOnly,DoSample
 REAL               :: ChargeImpact,PartPosImpact(1:3) !< Charge and position of impact of bombarding particle
 REAL               :: ChargeRefl                      !< Charge of reflected particle
@@ -135,15 +136,29 @@ IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(Part
 ! Sampling
 DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
 IF(DoSample) THEN
+  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
-    TrackInfo%p = 1 ; TrackInfo%q = 1
+    IF(nSurfSample.GT.1)THEN
+      distanceMin = HUGE(1.)
+      DO p = 1, nSurfSample
+        DO q = 1, nSurfSample
+          distance = VECNORM(PartPosImpact(1:3) - SurfSideSamplingMidPoints(1:3,p,q,SurfSideID))
+          IF(distance.LT.distanceMin)THEN
+            TrackInfo%p = p
+            TrackInfo%q = q
+            distanceMin = distance
+          END IF ! distance.LT.distanceMin
+        END DO ! q = 1, nSurfSample
+      END DO ! p = 1, nSurfSample
+    ELSE
+      TrackInfo%p = 1 ; TrackInfo%q = 1
+    END IF
   ELSE
     Xitild  = MIN(MAX(-1.,TrackInfo%xi ),0.99)
     Etatild = MIN(MAX(-1.,TrackInfo%eta),0.99)
     TrackInfo%p = INT((Xitild +1.0)/dXiEQ_SurfSample)+1
     TrackInfo%q = INT((Etatild+1.0)/dXiEQ_SurfSample)+1
   END IF
-  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
   ! Sample momentum, heatflux and collision counter on surface (Check if particle is still inside is required, since particles can
   ! be removed in the case of UseCircularInflow and nPorousBC. These particles shall not be sampled.)
   IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)

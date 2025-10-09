@@ -27,6 +27,7 @@ While the VHS model is sufficient to model collisions between neutral species, i
 neutral-electron interaction. For this purpose, the cross-section based collision probabilities should be utilized, which are
 discussed in the following section.
 
+(sec:background-gas-distribution)=
 ## Distribution from DSMC result
 
 A spatially varying background gas distribution may be used by running a stand-alone DSMC simulation beforehand and using a time-averaged
@@ -54,14 +55,20 @@ by simple geometrical volumes (e.g. cylinder) can be mapped to different species
     Particles-BGGas-Region1-BaseVector2IC     = (/0.,1.,0./)
 
 Here, a cylinder is defined by two base vectors (from which a normal is determined for the direction of the cylinder height),
-basepoint, radius and cylinder height. The definition of the species is the same as described above, with the addition of an
+basepoint, radius and cylinder height. Whether an element is within a region is determined through the midpoint of the element and
+thus it does not have to be fully enveloped. The definition of the species is the same as described above, with the addition of an
 additional parameter, defining in which region, these properties should be applied to:
 
     Part-Species1-Init1-BGG-Region            = 1
 
-While a species can be part of different regions through multiple inits and multiple species can be part of a single region,
-overlapping regions are not allowed. Whether an element is within a region is determined through the midpoint of the element and
-thus it does not have to be fully enveloped.
+A species can be part of different regions through multiple inits and multiple species can be part of a single region. Overlapping
+regions are allowed, where the latter region overwrites the former. In that case, a warning is displayed during the initialization:
+
+    Warning: Region 3 has been (partially) overwritten by region 4!
+
+It should be noted that the warning might not display every overlap, as the information is determined per processor and reduced by
+the root by determining the maximum region index. You can visualize the regions through the regular DSMC sampling output, where the
+utilized background gas values are written out.
 
 ## Trace species
 

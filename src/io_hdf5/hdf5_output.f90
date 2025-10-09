@@ -387,6 +387,9 @@ INTEGER                        :: irank
 INTEGER                        :: rankTest
 INTEGER(HSIZE_T)               :: dimsTest(rank)
 INTEGER(HSIZE_T)               :: maxDimsTest(rank)
+#if !(USE_MPI)
+LOGICAL :: dummy_log
+#endif /*!(USE_MPI)*/
 !===================================================================================================================================
 LOGWRITE(*,'(A,I1.1,A,A,A)')' WRITE ',Rank,'D ARRAY "',TRIM(DataSetName),'" TO HDF5 FILE...'
 
@@ -510,6 +513,12 @@ CALL H5SCLOSE_F(MemSpace, iError)
 CALL H5DCLOSE_F(DSet_ID, iError)
 
 LOGWRITE(*,*)'...DONE!'
+
+#if !(USE_MPI)
+! Suppress compiler warnings
+RETURN
+dummy_log = collective
+#endif /*!(USE_MPI)*/
 END SUBROUTINE WriteArrayToHDF5
 
 

@@ -567,10 +567,6 @@ DoDeposition    = GETLOGICAL('PIC-DoDeposition')
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
 
 CALL InitializeSpeciesParameter()
-CALL InitializeVariablesSpeciesInits()
-! Which Lorentz boost method should be used?
-CALL InitPartRHS()
-CALL InitializeVariablesPartBoundary()
 
 UseGranularSpecies = .FALSE.
 #if (PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)
@@ -586,6 +582,11 @@ IF(ANY(Species(:)%InterID.EQ.100)) THEN
   ForceAverage = 0.0
 END IF
 #endif /*(PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400)*/
+
+CALL InitializeVariablesSpeciesInits()
+! Which Lorentz boost method should be used?
+CALL InitPartRHS()
+CALL InitializeVariablesPartBoundary()
 
 !-- Get PIC interpolation (could be skipped above, but DSMC octree requires some interpolation variables, which are allocated before
 ! init DSMC determines whether DSMC%UseOctree is true or false)
@@ -859,10 +860,11 @@ SUBROUTINE InitializeVariablesRandomNumbers()
 ! Initialize the variables first
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_ReadInTools
+USE MOD_Globals          ,ONLY: abort
+USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
 USE MOD_Particle_Vars
 #if USE_LOADBALANCE
+USE MOD_Globals          ,ONLY: MPIRoot
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
@@ -880,7 +882,9 @@ CHARACTER(32)         :: hilf
 ! Read print flags
 printRandomSeeds = GETLOGICAL('printRandomSeeds','.FALSE.')
 nRandomSeeds = GETINT('Part-NumberOfRandomSeeds','0')
-CALL RANDOM_SEED(Size = SeedSize)    ! Specifies compiler specific minimum number of seeds
+! SIZE  (Optional) Shall be a scalar and of type default INTEGER, with INTENT(OUT). It specifies the minimum size of the arrays
+!                  used with the PUT and GET arguments.
+CALL RANDOM_SEED(SIZE = SeedSize)    ! Specifies compiler specific minimum number of seeds
 ALLOCATE(Seeds(SeedSize))
 Seeds(:)=1 ! to ensure a solid run when an unfitting number of seeds is provided in ini
 IF(nRandomSeeds.EQ.-1) THEN
@@ -941,6 +945,11 @@ IF(UseRayTracing)THEN
   ! Automatically activate when UseRayTracing = T
   DSMC%CalcSurfaceVal = .TRUE.
   CALL PrintOption('Surface sampling activated (UseRayTracing=T): Particles-DSMC-CalcSurfaceVal','INFO',&
+      LogOpt=DSMC%CalcSurfaceVal)
+ELSE IF(PartBound%OutputWallTemp) THEN
+  ! Automatically activate for AdaptiveWallTemp/WallTempGrad
+  DSMC%CalcSurfaceVal = .TRUE.
+  CALL PrintOption('Surface sampling activated (OutputWallTemp=T): Particles-DSMC-CalcSurfaceVal','INFO',&
       LogOpt=DSMC%CalcSurfaceVal)
 ELSE
   DSMC%CalcSurfaceVal = GETLOGICAL('Particles-DSMC-CalcSurfaceVal')
@@ -1413,7 +1422,9 @@ IF(.NOT. uRandomExists) THEN
     Seeds(iSeed) = GoodSeeds
   END DO
 END IF
-CALL RANDOM_SEED(PUT=Seeds)
+! PUT  (Optional) Shall be an array of type default INTEGER and rank one. It is INTENT(IN) and the size of the array must be
+!                 larger than or equal to the number returned by the SIZE argument.
+CALL RANDOM_SEED(PUT = Seeds)
 
 END SUBROUTINE InitRandomSeed
 
@@ -1665,4 +1676,3 @@ END IF
 END SUBROUTINE InitPartDataSize
 
 END MODULE MOD_ParticleInit
-
