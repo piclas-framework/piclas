@@ -624,3 +624,17 @@ IF(PICLAS_CTAGS)
     ADD_DEPENDENCIES(piclas tags)
   ENDIF(CTAGS_PATH)
 ENDIF(PICLAS_CTAGS)
+
+# =========================================================================
+# Code Coverage
+# =========================================================================
+OPTION(PICLAS_CODE_COVERAGE "Generate additional files for code coverage" OFF)
+# Get environment variable, only strings so use "ON"
+IF("$ENV{PICLAS_CODE_COVERAGE}" STREQUAL "ON")
+  SET(PICLAS_CODE_COVERAGE "$ENV{PICLAS_CODE_COVERAGE}")
+ENDIF()
+# set coverage flag for compiler
+IF(PICLAS_CODE_COVERAGE)
+  SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} --coverage")
+  MESSAGE(STATUS "Compiling for code coverage")
+ENDIF()

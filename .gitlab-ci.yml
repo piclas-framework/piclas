@@ -114,15 +114,20 @@ before_script:
   - if [ -n "${DO_CODE_COVERAGE}" ]; then
       export CODE_COVERAGE=True;
       if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
-      echo "DO_CODE_COVERAGE activated. Setting CMAKE_Fortran_FLAGS to --coverage";
-      COVERAGE_CMAKE_FLAG="-DCMAKE_Fortran_FLAGS=\"--coverage\"";
-    else
-      COVERAGE_CMAKE_FLAG="";
+      export PICLAS_CODE_COVERAGE=ON ;
+      echo "PICLAS_CODE_COVERAGE=ON" ;
     fi
-  - if [ -n "${DO_REGGIE_COVERAGE}" ]; then
+  - |
+    if [ -n "${DO_REGGIE_COVERAGE}" ]; then
       if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
+      echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
       COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
-    fi # //TODO: export coverage run so not every reggie call has to be adapted??
+      reggie() {
+        coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=../reggie -m reggie.reggie "$@"
+      }
+      echo "Exporting reggie function call to 'coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=../reggie -m reggie.reggie "$@"' to get coverage data."
+      export -f reggie
+    fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -454,7 +459,7 @@ build:
   stage: build
   script:
     - mkdir -p build ; cd build
-    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ${COVERAGE_CMAKE_FLAG} ; ninja -j0 all
+    - cmake -GNinja .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON ; ninja -j0 all
 
 build_maxwell_only:
   extends: .default_build_param
@@ -469,7 +474,7 @@ build_maxwell_only:
   stage: build
   script:
     - mkdir -p build_maxwell_only ; cd build_maxwell_only
-    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake ..  -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DPICLAS_PARTICLES=OFF -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -496,10 +501,10 @@ build_poisson:
   stage: build
   script:
     - mkdir -p build_poisson_release_RK3 ; cd build_poisson_release_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_RK3 ; cd build_poisson_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     # Check greater than 10, see https://regex101.com/ for details
     # - if [[ "$NWARN" =~ ^(1[1-9]|[2-9]+\d+|1\d\d+)$ ]]; then
@@ -509,10 +514,10 @@ build_poisson:
       fi
     - cd ..
     - mkdir -p build_poisson_release_Leapfrog ; cd build_poisson_release_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_debug_Leapfrog ; cd build_poisson_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [ -n "$WARN" ]; then echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; fi
     # Check greater than 10, see https://regex101.com/ for details
@@ -544,20 +549,20 @@ build_poisson_petsc:
   stage: build
   script:
     - mkdir -p build_poisson_petsc_release_RK3 ; cd build_poisson_petsc_release_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_RK3 ; cd build_poisson_petsc_debug_RK3
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
     - cd ..
     - mkdir -p build_poisson_petsc_release_Leapfrog ; cd build_poisson_petsc_release_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_poisson_petsc_debug_Leapfrog ; cd build_poisson_petsc_debug_Leapfrog
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_EQNSYSNAME=poisson -DLIBS_USE_PETSC=ON -DPICLAS_CODE_ANALYZE=ON -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
 
 build_DSMC:
@@ -581,10 +586,10 @@ build_DSMC:
   stage: build
   script:
     - mkdir -p build_DSMC_release ; cd build_DSMC_release
-    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all
     - cd ..
     - mkdir -p build_DSMC_debug ; cd build_DSMC_debug
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF ; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -592,12 +597,12 @@ build_DSMC:
     - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
-        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all ;
+        cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
       fi
     - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
-        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ${COVERAGE_CMAKE_FLAG} ; $GENERATOR -j $NCORES all ;
+        cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
       fi
 
 build_drift_diffusion:
@@ -613,7 +618,7 @@ build_drift_diffusion:
   stage: build
   script:
     - mkdir -p build_drift_diffusion ; cd build_drift_diffusion
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON ${COVERAGE_CMAKE_FLAG}; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=drift_diffusion -DPICLAS_TIMEDISCMETHOD=Explicit-FV -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all 2>&1 | tee compile_output.txt
     - WARN=$(grep "Warning:" compile_output.txt || true); if [ -n "$WARN" ]; then NWARN=$(echo "$WARN" | wc -l); echo "Found the following compiler warnings:"; echo "$WARN"; echo "Found $NWARN warning(s)"; else NWARN=0; fi
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
@@ -632,7 +637,7 @@ build_DVM:
   stage: build
   script:
     - mkdir -p build_DVM ; cd build_DVM
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF ${COVERAGE_CMAKE_FLAG}; $GENERATOR -j $NCORES all
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
 
 build_hopr:
   extends: .default_build_param
@@ -737,8 +742,8 @@ build_petsc_in_piclas:
   stage: build_weekly
   script:
     - mkdir -p build_petsc_lib ; cd build_petsc_lib
-    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ${COVERAGE_CMAKE_FLAG} ..
-    - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ${COVERAGE_CMAKE_FLAG} ..."
+    - cmake -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DPICLAS_CODE_ANALYZE=ON -DLIBS_BUILD_HDF5=OFF -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON ..
+    - echo " Compiling with Poisson, RK3 and self-built PETSc (-DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=RK3 -DLIBS_USE_PETSC=ON -DLIBS_BUILD_PETSC=ON) ..."
     - $GENERATOR -j $NCORES all
   rules:
     - if: '$DO_WEEKLY'
@@ -762,8 +767,7 @@ maxwell_only:
   <<: *defaults_maxwell_only
   stage: reggie_checkin
   script:
-  # //TODO
-    - cd build_maxwell_only ; coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage -m reggie.reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas -d2
+    - cd build_maxwell_only ; reggie ../regressioncheck/CHE_maxwell/maxwell -e ./bin/piclas
 
 poisson_release:
   <<: *defaults_poisson_checkin
@@ -799,8 +803,7 @@ discrete_velocity:
   <<: *defaults_DVM_checkin
   stage: reggie_checkin
   script:
-    #//TODO
-    - cd build_DVM ; coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage -m reggie.reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
+    - cd build_DVM ; reggie ../regressioncheck/CHE_DVM -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_feature_checkin": Run most simple reggie features with previous builds on check-in (must be very fast)
@@ -1452,9 +1455,6 @@ code_coverage:
         path: Coverage/cobertura/*.xml
   rules:
     - if: '$DO_CODE_COVERAGE'
-    #//TODO: only for testing
-    - if: '$DO_CHECKIN'
-    - if: '$CI_PIPELINE_SOURCE == "push"'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_coverage": Collect all coverage data from reggie itself
@@ -1470,13 +1470,10 @@ reggie_coverage:
     paths:
       # reggie coverage files
       - Coverage/reggie
-    expire_in: 1 month
+    expire_in: 1 week
     when: on_success
   rules:
     - if: '$DO_REGGIE_COVERAGE'
-    #//TODO: only for testing
-    - if: '$DO_CHECKIN'
-    - if: '$CI_PIPELINE_SOURCE == "push"'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
