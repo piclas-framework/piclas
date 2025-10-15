@@ -132,7 +132,6 @@ The first and second base vector span a plane, where a circle with the given rad
 To define the cuboid the following parameters are required:
 
     Part-Species1-Init1-SpaceIC               = cuboid
-    Part-Species1-Init1-RadiusIC              = 1
     Part-Species1-Init1-CuboidHeightIC        = 1
     Part-Species1-Init1-BasePointIC           = (/ 0.0, 0.0, 0.0 /)
     Part-Species1-Init1-BaseVector1IC         = (/ 1.0, 0.0, 0.0 /)
