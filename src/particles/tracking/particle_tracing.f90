@@ -704,7 +704,6 @@ USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Particle_Vars               ,ONLY: PDM
 #ifdef CODE_ANALYZE
 USE MOD_Mesh_Vars                   ,ONLY: NGeo
-USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
 USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID

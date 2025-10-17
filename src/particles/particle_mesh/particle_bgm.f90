@@ -311,7 +311,7 @@ ELSE
   ! Check if emission only cell-local
   GEO%InitFIBGM = .FALSE.
 
-  ! FIBGM needed in every emmision except cell_local
+  ! FIBGM needed in every emmision except cell_local and background
   DO iSpec=1,nSpecies
     DO iInit=1,Species(iSpec)%NumberOfInits
       IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
@@ -1855,10 +1855,11 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
   .OR. GEO%ForceFIBGM ) THEN
     DeleteFIBGM=.FALSE.
 END IF
-! FIBGM needed in every non-initial emmision except cell_local and background
+! FIBGM needed in every emmision except cell_local and background
 DO iSpec=1,nSpecies
   DO iInit=1,Species(iSpec)%NumberOfInits
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0) THEN
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
+       TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background') THEN
       DeleteFIBGM=.FALSE.
     END IF
   END DO

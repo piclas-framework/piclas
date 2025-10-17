@@ -24,10 +24,6 @@ PRIVATE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
-INTERFACE SinglePointToElement
-  MODULE PROCEDURE SinglePointToElement
-END INTERFACE
-
 INTERFACE LocateParticleInElement
   MODULE PROCEDURE LocateParticleInElement
 END INTERFACE
@@ -123,6 +119,10 @@ ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
 #endif
 
 SinglePointToElement = -1
+
+! Sanity check
+IF(ANY(ABS(GEO%FIBGMdeltas).LE.0.0))&
+  CALL abort(__STAMP__,' Error in SinglePointToElement(): GEO%FIBGMdeltas not set. Set Part-ForceFIBGM=T and contact developers.')
 
 ! --- get background mesh cell of point
 iBGM = CEILING((Pos3D(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
