@@ -90,7 +90,7 @@ USE MOD_Gradients              ,ONLY: GetGradients
 USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
-USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE
+USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE, DVMColl
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -433,7 +433,11 @@ DO iElem=1,INT(PP_nElems)
           IF (DVMnInnerE.GT.0) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+1,i,j,k,iElem) = Trot(iSpec)
           IF (DVMnInnerE.GT.1) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+2,i,j,k,iElem) = Tvib(iSpec)
         END DO
-        Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+        IF (tau.GT.0.) THEN
+          Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+        ELSE
+          Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,i,j,k,iElem) = 0.
+        END IF
       END DO
     END DO
   END DO

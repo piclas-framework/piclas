@@ -422,17 +422,17 @@ IF(SpeciesDatabase.NE.'none') THEN
             CALL PrintOption('CharaTempVib','DB',RealOpt=Sp%T_Vib)
           END IF
       END IF
-      IF(DVMColl) THEN
-        ! Reference temperature
-        CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=Sp%T_Ref,ReadFromGroup=.TRUE.)
-        CALL PrintOption('Tref','DB',RealOpt=Sp%T_Ref)
-        ! Reference diameter
-        CALL ReadAttribute(file_id_specdb,'dref',1,DatasetName = dsetname,RealScalar=Sp%d_Ref,ReadFromGroup=.TRUE.)
-        CALL PrintOption('dref','DB',RealOpt=Sp%d_Ref)
-        ! Viscosity exponent
-        CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=Sp%omegaVHS,ReadFromGroup=.TRUE.)
-        CALL PrintOption('omega','DB',RealOpt=Sp%omegaVHS)
-      END IF
+      ! IF(DVMColl) THEN
+      ! Reference temperature
+      CALL ReadAttribute(file_id_specdb,'Tref',1,DatasetName = dsetname,RealScalar=Sp%T_Ref,ReadFromGroup=.TRUE.)
+      CALL PrintOption('Tref','DB',RealOpt=Sp%T_Ref)
+      ! Reference diameter
+      CALL ReadAttribute(file_id_specdb,'dref',1,DatasetName = dsetname,RealScalar=Sp%d_Ref,ReadFromGroup=.TRUE.)
+      CALL PrintOption('dref','DB',RealOpt=Sp%d_Ref)
+      ! Viscosity exponent
+      CALL ReadAttribute(file_id_specdb,'omega',1,DatasetName = dsetname,RealScalar=Sp%omegaVHS,ReadFromGroup=.TRUE.)
+      CALL PrintOption('omega','DB',RealOpt=Sp%omegaVHS)
+      ! END IF
     ELSE
       Sp%DoOverwriteParameters = .TRUE.
       SWRITE(*,*) 'WARNING: DataSet not found: ['//TRIM(dsetname)//'] ['//TRIM(SpeciesDatabase)//']'
@@ -461,7 +461,7 @@ DO iSpec = 1, DVMnSpecies
       Sp%T_Vib             = GETREAL('DVM-Species'//TRIM(hilf)//'-T_Vib')
     END IF
   END IF
-  Sp%mu_Ref              = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
+  Sp%mu_Ref  = 30.*SQRT(Sp%Mass*BoltzmannConst*Sp%T_Ref/Pi)/(4.*(4.-2.*Sp%omegaVHS)*(6.-2.*Sp%omegaVHS)*Sp%d_Ref**2.)
   Sp%R_S                 = BoltzmannConst / Sp%Mass
   IF (Sp%InterID.EQ.2.OR.Sp%InterID.EQ.20) THEN
     Sp%Xi_Rot              = 2

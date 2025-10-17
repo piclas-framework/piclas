@@ -62,7 +62,7 @@ LOGICAL,INTENT(IN):: output
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
 REAL    :: MacroVal(DVMnMacro), tau, vnormal, prefac, MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr
-INTEGER :: iVel, jVel, kVel, upos, upos_sp, iSpec, vFirstID, vLastID
+INTEGER :: iVel, jVel, kVel, upos, upos_sp, iSpec, vFirstID, vLastID, BCorient
 REAL    :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
 REAL    :: Evib(DVMnSpecies+1), Erelaxvib(DVMnSpecies)
 !==================================================================================================================================
@@ -89,64 +89,43 @@ CASE(2) ! exact BC = Dirichlet BC !!
 
 CASE(3) ! specular reflection
   UPrim_boundary(:)=UPrim_master(:)-gradUinside(:)
-  DO iSpec=1,DVMnSpecies
-    IF(DVMVeloDisc(iSpec).EQ.2.AND.ANY((DVMSpecData(iSpec)%VeloMin+DVMSpecData(iSpec)%VeloMax).NE.0.)) THEN
-      CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
-    END IF
-  END DO
-  IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not working (yet?)') !THEN
-  !   IF (DVMVeloDisc.NE.3) CALL abort(__STAMP__,'DVM specular bc error: moving wall only with Gauss-Hermite disc')
-  !   CALL MacroValuesFromDistribution(MacroVal,UPrim_boundary(:),dt/2.,tau,2)
-  !   Sin=0.
-  !   Sout=0.
-  !   DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-  !     upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-  !     weight = DVMWeights(iVel,1)*DVMWeights(jVel,2)*DVMWeights(kVel,3)
-  !     vnormal = DVMVelos(iVel,1)*NormVec(1) + DVMVelos(jVel,2)*NormVec(2) + DVMVelos(kVel,3)*NormVec(3)
-  !     vwall = DVMVelos(iVel,1)*RefState_FV(2,BCState) + DVMVelos(jVel,2)*RefState_FV(3,BCState) + DVMVelos(kVel,3)*RefState_FV(4,BCState)
-  !     IF (vnormal.LT.0.) THEN !inflow
-  !       Sin = Sin + 2.*weight*vwall*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpecData%R_S/MacroVal(5)/2.) &
-  !       /DVMSpecData%R_S/MacroVal(5)/(2.*Pi*DVMSpecData%R_S*MacroVal(5))**(DVMDim/2.)
-  !     ELSE IF (vnormal.GT.0.) THEN
-  !       Sout = Sout + weight*UPrim_boundary(upos)
-  !     ELSE
-  !       Sout = Sout + 2.*weight*UPrim_boundary(upos)
-  !     END IF
-  !   END DO; END DO; END DO
-  !   WallDensity = Sout/(1-Sin)
-  ! END IF
+  IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not implemented')
+  IF      (ABS(ABS(NormVec(1)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
+    BCorient=1
+  ELSE IF (ABS(ABS(NormVec(2)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
+    BCorient=2
+  ELSE IF (ABS(ABS(NormVec(3)) - 1.).LE.1e-6) THEN !z-perpendicular boundary
+    BCorient=3
+  ELSE
+    CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
+  END IF
   vFirstID=0
   DO iSpec=1,DVMnSpecies
     ASSOCIATE(Sp => DVMSpecData(iSpec))
+    IF(DVMVeloDisc(iSpec).EQ.2.AND.(Sp%VeloMin(BCorient)+Sp%VeloMax(BCorient)).NE.0.) THEN
+      CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
+    END IF
     DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
       upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
       vnormal = Sp%Velos(iVel,1)*NormVec(1) + Sp%Velos(jVel,2)*NormVec(2) + Sp%Velos(kVel,3)*NormVec(3)
-      ! vwall = Sp%Velos(iVel,1)*RefState_FV(2,BCState) + Sp%Velos(jVel,2)*RefState_FV(3,BCState) + Sp%Velos(kVel,3)*RefState_FV(4,BCState)
-      IF (ABS(ABS(NormVec(1)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
+      SELECT CASE(BCorient)
+      CASE(1) !x-perpendicular boundary
         upos_sp=(Sp%nVelos(1)+1-iVel)+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-      ELSE IF (ABS(ABS(NormVec(2)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
+      CASE(2) !y-perpendicular boundary
         upos_sp=iVel+(Sp%nVelos(2)-jVel)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-      ELSE IF (ABS(ABS(NormVec(3)) - 1.).LE.1e-6) THEN !z-perpendicular boundary
+      CASE(3) !z-perpendicular boundary
         upos_sp=iVel+(jVel-1)*Sp%nVelos(1)+(Sp%nVelos(3)-kVel)*Sp%nVelos(1)*Sp%nVelos(2) + vFirstID
-      ELSE
-        CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
-      END IF
+      END SELECT
       IF (vnormal.LT.0.) THEN !inflow
-        ! IF (BCState.NE.0) THEN
-        !   MovTerm = 2.*WallDensity*EXP(-(DVMVelos(iVel,1)**2.+DVMVelos(jVel,2)**2.+DVMVelos(kVel,3)**2.)/DVMSpecData%R_S/MacroVal(5)/2.) &
-        !   /DVMSpecData%R_S/MacroVal(5)/(2.*Pi*DVMSpecData%R_S*MacroVal(5))**(DVMDim/2.)
-        ! ELSE
-        !   MovTerm = 0.
-        ! END IF
-        gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos_sp))! - MovTerm)
+        gradU(upos) = 2.*(UPrim_master(upos) - UPrim_boundary(upos_sp))
         IF (DVMDim.LT.3) THEN
-          gradU(Sp%nVarReduced+upos) = 2.*(UPrim_master(Sp%nVarReduced+upos) - UPrim_boundary(Sp%nVarReduced+upos_sp))! - MovTerm)
+          gradU(Sp%nVarReduced+upos) = 2.*(UPrim_master(Sp%nVarReduced+upos) - UPrim_boundary(Sp%nVarReduced+upos_sp))
         END IF
         IF (Sp%Xi_Rot.GT.0.) THEN
-          gradU(Sp%nVarErotStart+upos)=2.*(UPrim_master(Sp%nVarErotStart+upos) - UPrim_boundary(Sp%nVarErotStart+upos_sp))! + MovTerm
+          gradU(Sp%nVarErotStart+upos)=2.*(UPrim_master(Sp%nVarErotStart+upos) - UPrim_boundary(Sp%nVarErotStart+upos_sp))
         END IF
         IF (Sp%T_Vib.GT.0.) THEN
-          gradU(Sp%nVarEvibStart+upos)=2.*(UPrim_master(Sp%nVarEvibStart+upos) - UPrim_boundary(Sp%nVarEvibStart+upos_sp))! + MovTerm
+          gradU(Sp%nVarEvibStart+upos)=2.*(UPrim_master(Sp%nVarEvibStart+upos) - UPrim_boundary(Sp%nVarEvibStart+upos_sp))
         END IF
       ELSE
         gradU(upos) = 2.*gradUinside(upos)
