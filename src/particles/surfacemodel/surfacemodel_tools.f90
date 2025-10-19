@@ -699,7 +699,7 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
   !---- Rotational energy accommodation
   ! model identical to the one used for initial rotational energy sampling
   CALL RANDOM_NUMBER(RanNum)
-  IF(RotACC.LE.RanNum) THEN
+  IF(RotACC.GT.RanNum) THEN
     PartStateIntEn(2,PartID) = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
   END IF
 #if (PP_TimeDiscMethod==400)
@@ -709,7 +709,7 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
 #endif
     !---- Vibrational energy accommodation
     CALL RANDOM_NUMBER(RanNum)
-    IF(VibACC.LE.RanNum) THEN
+    IF(VibACC.GT.RanNum) THEN
       IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
         iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
         VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
@@ -725,7 +725,7 @@ IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
           PartStateIntEn(1,PartID) = PartStateIntEn(1,PartID) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) &
                                    * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
         END DO
-      ELSE        
+      ELSE
         IF(DSMC%VibAHO) THEN ! AHO
           ! calculate vib quant number of wall based on wall temperature
           IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
@@ -766,7 +766,7 @@ END IF
 IF (DSMC%ElectronicModel.GT.0) THEN
   IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
     CALL RANDOM_NUMBER(RanNum)
-    IF (RanNum.LT.ElecACC) THEN
+    IF (ElecACC.GT.RanNum) THEN
       PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
     END IF
   END IF
@@ -886,11 +886,11 @@ CALL RANDOM_NUMBER(RanNum)
 VeloCz      = SQRT(-LOG(RanNum))
 Fak_D       = VeloCrad**2 + VeloCz**2
 CALL RANDOM_NUMBER(RanNum)
-IF(TransACC.LE.RanNum) THEN
+IF(TransACC.GT.RanNum) THEN
   EtraNew     = BoltzmannConst * WallTemp * Fak_D
 ELSE
   EtraNew     = EtraOld
-END IF  
+END IF
 Cmr         = SQRT(2.0 * EtraNew / (Species(SpecID)%MassIC * Fak_D))
 CALL RANDOM_NUMBER(RanNum)
 Phi     = 2.0 * PI * RanNum
