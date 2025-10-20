@@ -417,7 +417,7 @@ END SUBROUTINE PrintWarning
 !==================================================================================================================================
 !> \brief Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
 !>
-!> Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!> Safely terminate program using a soft MPI_FINALIZE in the MPI case and writes the error message only on the root.
 !> Terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
 !> This routine can only be used if ALL processes are guaranteed to generate the same error at the same time!
 !> Prime use is to exit FLEXI without MPI errors and with a single error message if some parameters are not set in the init
