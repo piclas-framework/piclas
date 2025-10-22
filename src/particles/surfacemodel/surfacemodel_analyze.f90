@@ -100,7 +100,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 CHARACTER(32)       :: hilf
 REAL                :: ElemMidPointPos, MinBoundPos, MaxBoundPos
-REAL,ALLOCATABLE    :: MinBound(:), MaxBound(:)
+INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
 INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
 INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
 INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound
@@ -140,7 +140,10 @@ END IF
 
 CalcSurfOutputPerGroup = GETLOGICAL('Surf-OutputPerGroup')
 IF(CalcSurfOutputPerGroup) THEN
+  DoSurfModelAnalyze = .TRUE.
   SurfaceGroup%nGroups = GETINT('Surf-nGroups')
+  ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
+  GroupOutput = 0.0
   ALLOCATE(MinBound(SurfaceGroup%nGroups))
   MinBound = 0
   ALLOCATE(MaxBound(SurfaceGroup%nGroups))
@@ -171,7 +174,10 @@ IF(CalcSurfOutputPerGroup) THEN
     SideLoop1: DO iSide = firstSide, lastSide
       SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
       MinBoundPos = 0.0
-      IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MinBound(iGroup)) THEN
+      IF(MinBound(iGroup).EQ.-1) THEN
+        MinBoundPos = -HUGE(1.)
+        EXIT SideLoop1
+      ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MinBound(iGroup)) THEN
         ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
         CNElemID  = GetCNElemID(ElemID)
         LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
@@ -182,7 +188,10 @@ IF(CalcSurfOutputPerGroup) THEN
     SideLoop2: DO iSide = firstSide, lastSide
       SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
       MaxBoundPos = 0.0
-      IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MaxBound(iGroup)) THEN
+      IF(MaxBound(iGroup).EQ.-1) THEN
+        MaxBoundPos = HUGE(1.)
+        EXIT SideLoop2
+      ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MaxBound(iGroup)) THEN
         ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
         CNElemID  = GetCNElemID(ElemID)
         LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
@@ -202,20 +211,19 @@ IF(CalcSurfOutputPerGroup) THEN
         ElemMidPointPos = ElemMidPoint_Shared(RotAxisDir,CNElemID)
         IF((ElemMidPointPos.GT.MinBoundPos).AND.(ElemMidPointPos.LT.MaxBoundPos)) THEN
           SurfaceGroup%SurfSide2GroupID(iSide) = iGroup
+          BoundLoop: DO iPartBound = 1, nPartBound
+            IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+            IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
+              SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / ABS(PartBound%RotPeriodicAngle(iPartBound))
+            END IF
+          END DO BoundLoop
         END IF
-        BoundLoop: DO iPartBound = 1, nPartBound
-          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
-          IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
-            SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / PartBound%RotPeriodicAngle(iPartBound)
-          END IF
-        END DO BoundLoop
       END IF
     END DO SideLoop3 ! iSide = firstSide, lastSide
   END DO GroupLoop
   DEALLOCATE(MinBound)
   DEALLOCATE(MaxBound)
   DEALLOCATE(GroupIDToBCID)
-  GroupIDToBCID = 0
 END If
 
 
@@ -291,7 +299,7 @@ LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
-INTEGER             :: iBC,iPartBound,iSEE,iBPO,iSpec
+INTEGER             :: iBC,iPartBound,iSEE,iBPO,iSpec, iGroup
 REAL                :: charge,TotalElectricCharge
 #if USE_HDG
 INTEGER             :: iEDCBC,i,iBoundary,iPartBound2
@@ -337,6 +345,14 @@ IF(MPIRoot)THEN
           ELSE IF(PorousBC(iBC)%Type.EQ.'sensor') THEN
             CALL WriteDataHeaderInfo(unit_index,'Pressure-Sensor',OutputCounter,iLoop_in=iBC)
           END IF
+        END DO
+      END IF
+      IF(CalcSurfOutputPerGroup) THEN
+        DO iGroup = 1, SurfaceGroup%nGroups
+          CALL WriteDataHeaderInfo(unit_index,'Torque-Mx-Group',OutputCounter,iLoop_in=iGroup)
+          CALL WriteDataHeaderInfo(unit_index,'Torque-My-Group',OutputCounter,iLoop_in=iGroup)
+          CALL WriteDataHeaderInfo(unit_index,'Torque-Mz-Group',OutputCounter,iLoop_in=iGroup)
+          CALL WriteDataHeaderInfo(unit_index,'Heatflux-Group',OutputCounter,iLoop_in=iGroup)
         END DO
       END IF
       IF(CalcBoundaryParticleOutput)THEN
@@ -402,6 +418,7 @@ END IF
 !===================================================================================================================================
 IF (CalcSurfCollCounter)        CALL GetCollCounter(SurfCollNum,AdsorptionNum,DesorptionNum)
 IF (CalcPorousBCInfo)           CALL GetPorousBCInfo()
+IF(CalcSurfOutputPerGroup)      CALL GetGroupInfo()
 #if USE_MPI
 IF (CalcBoundaryParticleOutput) CALL SyncBoundaryParticleOutput()
 IF (CalcCurrentSEE)             CALL SyncElectronSEE()
@@ -426,6 +443,14 @@ IF(MPIRoot)THEN
         CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(4,iBC))
       END IF
       CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(5,iBC))
+    END DO
+  END IF
+  IF(CalcSurfOutputPerGroup) THEN
+    DO iGroup = 1, SurfaceGroup%nGroups
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(1,iGroup))
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(2,iGroup))
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(3,iGroup))
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(4,iGroup))
     END DO
   END IF
   IF(CalcBoundaryParticleOutput)THEN
@@ -832,6 +857,85 @@ IF(MPIRoot)THEN
 END IF
 
 END SUBROUTINE GetPorousBCInfo
+
+
+!===================================================================================================================================
+!> Communicate group data across all ranks
+!===================================================================================================================================
+SUBROUTINE GetGroupInfo()
+! MODULES
+USE MOD_Globals
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup
+#if USE_MPI
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iGroup, counter
+REAL,ALLOCATABLE   :: SendBuff(:)
+!===================================================================================================================================
+! Test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!  DO iGroup = 1, SurfaceGroup%nGroups
+!    SurfaceGroup%SampState(1,iGroup) = 1
+!    SurfaceGroup%SampState(2,iGroup) = 2
+!    SurfaceGroup%SampState(3,iGroup) = 3
+!    SurfaceGroup%SampState(4,iGroup) = 4
+!  END DO
+! Test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+#if USE_MPI
+ALLOCATE(SendBuff(4*SurfaceGroup%nGroups))
+SendBuff = 0.0
+counter = 0
+DO iGroup = 1, SurfaceGroup%nGroups
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(1,iGroup)
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(2,iGroup)
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(3,iGroup)
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(4,iGroup)
+END DO
+
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,4*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+ELSE
+  CALL MPI_REDUCE(SendBuff,SendBuff,4*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+END IF
+
+counter = 0
+DO iGroup = 1, SurfaceGroup%nGroups
+  counter = counter + 1
+  SurfaceGroup%SampState(1,iGroup) = SendBuff(counter) 
+  counter = counter + 1
+  SurfaceGroup%SampState(2,iGroup) = SendBuff(counter) 
+  counter = counter + 1
+  SurfaceGroup%SampState(3,iGroup) = SendBuff(counter) 
+  counter = counter + 1
+  SurfaceGroup%SampState(4,iGroup) = SendBuff(counter) 
+END DO
+#endif /*USE_MPI*/
+
+
+IF(MPIRoot)THEN
+  DO iGroup = 1, SurfaceGroup%nGroups
+    GroupOutput(1,iGroup) = SurfaceGroup%SampState(1,iGroup)
+    GroupOutput(2,iGroup) = SurfaceGroup%SampState(2,iGroup)
+    GroupOutput(3,iGroup) = SurfaceGroup%SampState(3,iGroup)
+    GroupOutput(4,iGroup) = SurfaceGroup%SampState(4,iGroup)
+  END DO
+END IF
+! reset samp array
+SurfaceGroup%SampState = 0.0
+
+END SUBROUTINE GetGroupInfo
 
 
 !===================================================================================================================================
@@ -1348,6 +1452,7 @@ IF(CalcCurrentSEE)THEN
 END IF ! CalcCurrentSEE
 
 IF(CalcSurfOutputPerGroup) THEN
+  SDEALLOCATE(GroupOutput)
   SDEALLOCATE(SurfaceGroup%SymmetryFactor)
   SDEALLOCATE(SurfaceGroup%SurfSide2GroupID)
   SDEALLOCATE(SurfaceGroup%SampState)

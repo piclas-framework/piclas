@@ -41,6 +41,10 @@ REAL,ALLOCATABLE              :: PorousBCOutput(:,:)  ! 1: Counter of impinged p
                                                       ! 3: Pumping speed [m3/s] used to calculate the removal prob.
                                                       ! 4: Removal probability [0-1]
                                                       ! 5: Pressure at the BC normalized with the user-given pressure
+REAL,ALLOCATABLE              :: GroupOutput(:,:)     ! 1: Group torque Mx
+                                                      ! 2: Group torque My
+                                                      ! 3: Group torque Mz
+                                                      ! 4: Group heatflux
 
 ! --- BoundaryParticleOutput = BPO
 LOGICAL                       :: CalcBoundaryParticleOutput !< Flag for activating this output
@@ -69,7 +73,7 @@ TYPE tSurfaceGroup
                                                               ! 1-3: torque (M_x, M_y, M_z)
                                                               ! 4  : heat flux
   INTEGER,ALLOCATABLE           :: SurfSide2GroupID(:)        ! Mapping from SurfSideID to GroupID
-    REAL,ALLOCATABLE            :: SymmetryFactor(:)
+  REAL,ALLOCATABLE            :: SymmetryFactor(:)
 END TYPE
 
 TYPE(tSurfaceGroup)   :: SurfaceGroup

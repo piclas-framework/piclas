@@ -521,6 +521,7 @@ USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea
+USE MOD_SurfaceModel_Analyze_Vars  ,ONLY: SurfaceGroup
 #if USE_MPI
 USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
@@ -707,9 +708,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Output of torque calculation
       IF (TorqueOutput) THEN
         nVarCount = nVarCount + 1
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
+        !MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SurfaceGroup%SurfSide2GroupID(iSurfSide)
         nVarCount = nVarCount + 1
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSampleTemp
+        !MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSampleTemp
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SurfaceGroup%SymmetryFactor(iSurfSide)
         nVarCount = nVarCount + 1
         MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientZ,p,q,iSurfSide) / TimeSampleTemp
       END IF
