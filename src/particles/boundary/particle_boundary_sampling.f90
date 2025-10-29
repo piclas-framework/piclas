@@ -60,6 +60,8 @@ CALL prms%CreateIntOption(      'Part-nSurfSample'  , 'Define NxN equidistant su
 CALL prms%CreateLogicalOption(  'CalcSurfaceImpact' , 'Sample average impact energy of particles for each species (trans, rot, '//&
                                                             'vib), impact vector and angle.','.FALSE.')
 CALL prms%CreateLogicalOption(  'TorqueOutput' , 'Activate torque calculation / output at wall BCs ','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-OutputPerGroup'       , 'Analyze the torque and heatflux per '//&
+                                                              'group of surfaces that are defined by user','.FALSE.')
 END SUBROUTINE DefineParametersParticleBoundarySampling
 
 
@@ -74,56 +76,57 @@ SUBROUTINE InitParticleBoundarySampling()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Basis                   ,ONLY: LegendreGaussNodesAndWeights
-USE MOD_Mesh_Vars               ,ONLY: NGeo,nBCs,BoundaryName
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
-USE MOD_Particle_Boundary_Vars  ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName
-USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSide2GlobalSide
-USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC, DoChemSurface
-USE MOD_Particle_Boundary_Vars  ,ONLY: CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea,SurfSampSize,SurfOutputSize,SurfSpecOutputSize,SurfSideSamplingMidPoints
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState, SWIVarTimeStep, SWIStickingCoefficient
-USE MOD_Particle_Boundary_Vars  ,ONLY: TorqueOutput, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber
-USE MOD_Particle_Boundary_Vars  ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal
-USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared,NodeCoords_Shared
-USE MOD_Particle_Mesh_Vars      ,ONLY: ElemSideNodeID_Shared
-USE MOD_Particle_Surfaces       ,ONLY: EvaluateBezierPolynomialAndGradient
-USE MOD_Particle_Surfaces_Vars  ,ONLY: BezierControlPoints3D
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Vars           ,ONLY: nSpecies,UseVarTimeStep,VarTimeStep
-USE MOD_Symmetry_Vars           ,ONLY: Symmetry
-USE MOD_ReadInTools             ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
-USE MOD_Particle_Mesh_Tools     ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
-USE MOD_Interpolation           ,ONLY: GetNodesAndWeights
+USE MOD_Basis                     ,ONLY: LegendreGaussNodesAndWeights
+USE MOD_Mesh_Vars                 ,ONLY: NGeo,nBCs,BoundaryName
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfTotalSideOnNode
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfSample,dXiEQ_SurfSample,PartBound,XiEQ_SurfSample
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfSides,nComputeNodeSurfTotalSides,nComputeNodeSurfOutputSides
+USE MOD_Particle_Boundary_Vars    ,ONLY: nSurfBC,SurfBCName
+USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalSurfSides
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, DoChemSurface
+USE MOD_Particle_Boundary_Vars    ,ONLY: CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideArea,SurfSampSize,SurfOutputSize,SurfSpecOutputSize,SurfSideSamplingMidPoints
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState, SWIVarTimeStep, SWIStickingCoefficient
+USE MOD_Particle_Boundary_Vars    ,ONLY: TorqueOutput, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactEnergy
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactVector
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactAngle
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactNumber
+USE MOD_Particle_Boundary_Vars    ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared,NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: ElemSideNodeID_Shared
+USE MOD_Particle_Surfaces         ,ONLY: EvaluateBezierPolynomialAndGradient
+USE MOD_Particle_Surfaces_Vars    ,ONLY: BezierControlPoints3D
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
+USE MOD_Particle_Vars             ,ONLY: nSpecies,UseVarTimeStep,VarTimeStep
+USE MOD_Symmetry_Vars             ,ONLY: Symmetry
+USE MOD_ReadInTools               ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
+USE MOD_Particle_Mesh_Tools       ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
+USE MOD_Interpolation             ,ONLY: GetNodesAndWeights
 #if USE_MPI
 USE MOD_MPI_Shared
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_SHARED
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
-USE MOD_MPI_Shared_Vars         ,ONLY: myComputeNodeRank,nComputeNodeProcessors
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideArea_Shared,SurfSideArea_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfSideSamplingMidPoints_Shared,SurfSideSamplingMidPoints_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallState_Shared,SampWallState_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactEnergy_Shared,SampWallImpactEnergy_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactVector_Shared,SampWallImpactVector_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactAngle_Shared,SampWallImpactAngle_Shared_Win
-USE MOD_Particle_Boundary_Vars  ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SURF,mySurfRank
+USE MOD_MPI_Shared_Vars           ,ONLY: myComputeNodeRank,nComputeNodeProcessors
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideArea_Shared,SurfSideArea_Shared_Win
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints_Shared,SurfSideSamplingMidPoints_Shared_Win
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState_Shared,SampWallState_Shared_Win
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity_Shared,SampWallPumpCapacity_Shared_Win
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactEnergy_Shared,SampWallImpactEnergy_Shared_Win
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactVector_Shared,SampWallImpactVector_Shared_Win
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactAngle_Shared,SampWallImpactAngle_Shared_Win
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfOutputPerGroup
 #else
-USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalOutputSides
+USE MOD_MPI_Shared_Vars           ,ONLY: mySurfRank
+USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalOutputSides
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
-USE MOD_LoadBalance_Vars        ,ONLY: PerformLoadBalance
+USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -162,6 +165,8 @@ END IF
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
 TorqueOutput = GETLOGICAL('TorqueOutput')
+
+CalcSurfOutputPerGroup = GETLOGICAL('Surf-OutputPerGroup')
 
 ! Flag if there is at least one surf side on the node (sides in halo region do also count)
 SurfTotalSideOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
@@ -205,6 +210,9 @@ IF(TorqueOutput) THEN
   SWITorqueCoefficientY = SurfSampSize - 1
   SWITorqueCoefficientZ = SurfSampSize
   SurfOutputSize = SurfOutputSize + 3
+END IF
+IF (CalcSurfOutputPerGroup) THEN
+  SurfOutputSize = SurfOutputSize + 2 ! groupID and group symmetry_fac
 END IF
 
 !> Leader communication
@@ -521,7 +529,7 @@ USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfSideArea
-USE MOD_SurfaceModel_Analyze_Vars  ,ONLY: SurfaceGroup
+USE MOD_SurfaceModel_Analyze_Vars  ,ONLY: SurfaceGroup, CalcSurfOutputPerGroup
 #if USE_MPI
 USE MOD_MPI_Shared                 ,ONLY: BARRIER_AND_SYNC
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
@@ -708,14 +716,20 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Output of torque calculation
       IF (TorqueOutput) THEN
         nVarCount = nVarCount + 1
-        !MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SurfaceGroup%SurfSide2GroupID(iSurfSide)
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
         nVarCount = nVarCount + 1
-        !MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSampleTemp
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SurfaceGroup%SymmetryFactor(iSurfSide)
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSampleTemp
         nVarCount = nVarCount + 1
         MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientZ,p,q,iSurfSide) / TimeSampleTemp
       END IF
+      ! Output of group definition and group symmetry factor
+      IF (CalcSurfOutputPerGroup) THEN
+        nVarCount = nVarCount + 1
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SurfaceGroup%SurfSide2GroupID(iSurfSide)
+        nVarCount = nVarCount + 1
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SurfaceGroup%SymmetryFactor(iSurfSide)
+      END IF
+
 
       ! --- Species-specific output (in a separate array)
       DO iSpec=1,nSpecies
@@ -796,22 +810,23 @@ SUBROUTINE WriteSurfSampleToHDF5(MeshFileName,OutputTime)
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: ProjectName
-USE MOD_DSMC_Vars               ,ONLY: CollisMode
-USE MOD_HDF5_Output             ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
+USE MOD_Globals_Vars               ,ONLY: ProjectName
+USE MOD_DSMC_Vars                  ,ONLY: CollisMode
+USE MOD_HDF5_Output                ,ONLY: WriteAttributeToHDF5,WriteArrayToHDF5,WriteHDF5Header
 USE MOD_IO_HDF5
-USE MOD_MPI_Shared_Vars         ,ONLY: mySurfRank
-USE MOD_SurfaceModel_Vars       ,ONLY: nPorousBC, DoChemSurface
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfSample,CalcSurfaceImpact
-USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalOutputSides
-USE MOD_Particle_boundary_Vars  ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
-USE MOD_Particle_Boundary_Vars  ,ONLY: nSurfBC,SurfBCName, PartBound
-USE MOD_Particle_Boundary_Vars  ,ONLY: SurfOutputSize,SurfSpecOutputSize
-USE MOD_Particle_Boundary_Vars  ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, TorqueOutput
-USE MOD_Particle_Vars           ,ONLY: nSpecies
+USE MOD_MPI_Shared_Vars            ,ONLY: mySurfRank
+USE MOD_SurfaceModel_Vars          ,ONLY: nPorousBC, DoChemSurface
+USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
+USE MOD_Particle_Boundary_Vars     ,ONLY: nGlobalOutputSides
+USE MOD_Particle_boundary_Vars     ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
+USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfBC,SurfBCName, PartBound
+USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOutputSize,SurfSpecOutputSize
+USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, TorqueOutput
+USE MOD_SurfaceModel_Analyze_Vars  ,ONLY: CalcSurfOutputPerGroup
+USE MOD_Particle_Vars              ,ONLY: nSpecies
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars  ,ONLY: nGlobalSurfSides
-USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF
+USE MOD_Particle_Boundary_Vars     ,ONLY: nGlobalSurfSides
+USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF
 #endif
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! IMPLICIT VARIABLE HANDLING
@@ -920,6 +935,8 @@ IF (mySurfRank.EQ.0) THEN
   IF (TorqueOutput) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueX')
   IF (TorqueOutput) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueY')
   IF (TorqueOutput) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueZ')
+  IF (CalcSurfOutputPerGroup) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'GroupID')
+  IF (CalcSurfOutputPerGroup) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Group_Symmetry_fac')
 
   CALL WriteAttributeToHDF5(File_ID,'VarNamesSurface',nVar2D_Total,StrArray=Str2DVarNames)
 

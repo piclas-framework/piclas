@@ -73,7 +73,8 @@ TYPE tSurfaceGroup
                                                               ! 1-3: torque (M_x, M_y, M_z)
                                                               ! 4  : heat flux
   INTEGER,ALLOCATABLE           :: SurfSide2GroupID(:)        ! Mapping from SurfSideID to GroupID
-  REAL,ALLOCATABLE            :: SymmetryFactor(:)
+  REAL,ALLOCATABLE              :: SymmetryFactor(:)
+  REAL,ALLOCATABLE              :: Area(:)
 END TYPE
 
 TYPE(tSurfaceGroup)   :: SurfaceGroup

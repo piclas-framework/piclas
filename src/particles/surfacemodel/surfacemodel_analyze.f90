@@ -43,8 +43,6 @@ CALL prms%SetSection("Surface Analyze")
 CALL prms%CreateIntOption(      'Surface-AnalyzeStep'       , 'Analyze is performed each Nth time step for surfaces','1')
 CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'      , 'Analyze the number of surface collision and number of '//&
                                                               'adsorbed/desorbed particles per species','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-OutputPerGroup'       , 'Analyze the torque and heatflux per '//&
-                                                              'group of surfaces that are defined by user','.FALSE.')
 CALL prms%CreateLogicalOption(  'Surf-CalcPorousBCInfo'     , 'Calculate output of porous BCs such pumping speed, removal '//&
                                                               'probability and pressure. Values are averaged over the whole porous BC.'//&
                                                               'Disabled per default, but automatically enabled if a sensor is detected.')
@@ -78,16 +76,6 @@ USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_Analyze_Vars              ,ONLY: DoSurfModelAnalyze
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, PorousBC
 USE MOD_SurfaceModel_Analyze_Vars
-USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound
-#if USE_MPI
-USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides
-#else
-USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalSurfSides
-#endif /*USE_MPI*/
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
-USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
-USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, NodeCoords_Shared
-USE MOD_Particle_Mesh_Vars        ,ONLY: ElemSideNodeID_Shared, ElemMidPoint_Shared
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -98,12 +86,12 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-CHARACTER(32)       :: hilf
-REAL                :: ElemMidPointPos, MinBoundPos, MaxBoundPos
-INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
-INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
-INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
-INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound
+!CHARACTER(32)       :: hilf
+!REAL                :: ElemMidPointPos, MinBoundPos, MaxBoundPos
+!INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
+!INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
+!INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
+!INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
 !===================================================================================================================================
 IF(SurfModelAnalyzeInitIsDone)THEN
   CALL abort(__STAMP__,'InitParticleAnalyse already called.')
@@ -132,105 +120,11 @@ IF(CalcSurfCollCounter)THEN
   ALLOCATE(SurfAnalyzeCount(1:nSpecies),SurfAnalyzeNumOfAds(1:nSpecies),SurfAnalyzeNumOfDes(1:nSpecies))
   SurfAnalyzeCount = 0; SurfAnalyzeNumOfAds = 0;  SurfAnalyzeNumOfDes = 0
 END IF
-
-
-
-
-
-
-CalcSurfOutputPerGroup = GETLOGICAL('Surf-OutputPerGroup')
+!-- Surface Group output
 IF(CalcSurfOutputPerGroup) THEN
   DoSurfModelAnalyze = .TRUE.
-  SurfaceGroup%nGroups = GETINT('Surf-nGroups')
-  ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
-  GroupOutput = 0.0
-  ALLOCATE(MinBound(SurfaceGroup%nGroups))
-  MinBound = 0
-  ALLOCATE(MaxBound(SurfaceGroup%nGroups))
-  MaxBound = 0
-  ALLOCATE(GroupIDToBCID(SurfaceGroup%nGroups))
-  GroupIDToBCID = 0
-#if USE_MPI
-    firstSide = 1 ! INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
-    lastSide  = nComputeNodeSurfTotalSides ! INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
-#else
-    firstSide = 1
-    lastSide  = nGlobalSurfSides
-#endif /*USE_MPI*/
-  ALLOCATE(SurfaceGroup%SymmetryFactor(lastSide))
-  SurfaceGroup%SymmetryFactor = 0.0
-  ALLOCATE(SurfaceGroup%SurfSide2GroupID(lastSide))
-  SurfaceGroup%SurfSide2GroupID = 0
-  ALLOCATE(SurfaceGroup%SampState(4,SurfaceGroup%nGroups))
-  SurfaceGroup%SampState = 0.0
-!  SurfaceGroup%GroupSideID = 0
-  RotAxisDir = PartBound%RotPeriodicAxis
-  GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
-    WRITE(UNIT=hilf,FMT='(I0)') iGroup
-    GroupIDToBCID(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-BoundaryID')
-    MinBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MinInterplaneID')
-    MaxBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MaxInterplaneID')
-! First: 2 loops to define max and min position of the group
-    SideLoop1: DO iSide = firstSide, lastSide
-      SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-      MinBoundPos = 0.0
-      IF(MinBound(iGroup).EQ.-1) THEN
-        MinBoundPos = -HUGE(1.)
-        EXIT SideLoop1
-      ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MinBound(iGroup)) THEN
-        ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
-        CNElemID  = GetCNElemID(ElemID)
-        LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-        MinBoundPos = NodeCoords_Shared(RotAxisDir,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-        EXIT SideLoop1
-      END IF
-    END DO SideLoop1
-    SideLoop2: DO iSide = firstSide, lastSide
-      SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-      MaxBoundPos = 0.0
-      IF(MaxBound(iGroup).EQ.-1) THEN
-        MaxBoundPos = HUGE(1.)
-        EXIT SideLoop2
-      ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MaxBound(iGroup)) THEN
-        ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
-        CNElemID  = GetCNElemID(ElemID)
-        LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
-        MaxBoundPos = NodeCoords_Shared(RotAxisDir,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
-        EXIT SideLoop2
-      END IF
-    END DO SideLoop2
-! Calculating the number of sides per group and build up mapping
-    SurfaceGroup%SymmetryFactor(iGroup) = 0.0
-    SideLoop3: DO iSide = firstSide, lastSide
-      SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
-      IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.GroupIDToBCID(iGroup)) THEN
-        ! Get atached Elem
-        ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
-        CNElemID  = GetCNElemID(ElemID)
-        ! Get Elem Mid point position in rotaxi direction
-        ElemMidPointPos = ElemMidPoint_Shared(RotAxisDir,CNElemID)
-        IF((ElemMidPointPos.GT.MinBoundPos).AND.(ElemMidPointPos.LT.MaxBoundPos)) THEN
-          SurfaceGroup%SurfSide2GroupID(iSide) = iGroup
-          BoundLoop: DO iPartBound = 1, nPartBound
-            IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
-            IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
-              SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / ABS(PartBound%RotPeriodicAngle(iPartBound))
-            END IF
-          END DO BoundLoop
-        END IF
-      END IF
-    END DO SideLoop3 ! iSide = firstSide, lastSide
-  END DO GroupLoop
-  DEALLOCATE(MinBound)
-  DEALLOCATE(MaxBound)
-  DEALLOCATE(GroupIDToBCID)
+  CALL InitSurfaceGroupOutput()
 END If
-
-
-
-
-
-
 !-- Porous Boundaries
 IF(nPorousBC.GT.0)THEN
   ! Output for porous BC: Pump averaged values
@@ -865,7 +759,8 @@ END SUBROUTINE GetPorousBCInfo
 SUBROUTINE GetGroupInfo()
 ! MODULES
 USE MOD_Globals
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup, SurfaceAnalyzeStep
+USE MOD_Timedisc_Vars             ,ONLY: dt
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
 #endif /*USE_MPI*/
@@ -880,14 +775,13 @@ IMPLICIT NONE
 INTEGER            :: iGroup, counter
 REAL,ALLOCATABLE   :: SendBuff(:)
 !===================================================================================================================================
-! Test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!  DO iGroup = 1, SurfaceGroup%nGroups
-!    SurfaceGroup%SampState(1,iGroup) = 1
-!    SurfaceGroup%SampState(2,iGroup) = 2
-!    SurfaceGroup%SampState(3,iGroup) = 3
-!    SurfaceGroup%SampState(4,iGroup) = 4
-!  END DO
-! Test!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+DO iGroup = 1, SurfaceGroup%nGroups
+  SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / (dt * SurfaceAnalyzeStep)
+  SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / (dt * SurfaceAnalyzeStep)
+  SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / (dt * SurfaceAnalyzeStep)
+  SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (dt * SurfaceAnalyzeStep * SurfaceGroup%Area(iGroup))
+END DO
 
 #if USE_MPI
 ALLOCATE(SendBuff(4*SurfaceGroup%nGroups))
@@ -1408,6 +1302,133 @@ END DO ! iSEE = 1, SEE%NPartBoundaries
 
 END SUBROUTINE InitCalcElectronSEE
 
+!===================================================================================================================================
+!> Allocate the required arrays (mappings and containers) for Surface Group Definition
+!===================================================================================================================================
+SUBROUTINE InitSurfaceGroupOutput()
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: PI
+USE MOD_Preproc
+USE MOD_ReadInTools               ,ONLY: GETINT
+USE MOD_SurfaceModel_Analyze_Vars
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound, nSurfSample, SurfSideArea
+#if USE_MPI
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides
+#else
+USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalSurfSides
+#endif /*USE_MPI*/
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: ElemSideNodeID_Shared, ElemMidPoint_Shared
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32)       :: hilf
+REAL                :: ElemMidPointPos, MinBoundPos, MaxBoundPos
+INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
+INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
+INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
+INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
+!===================================================================================================================================
+SurfaceGroup%nGroups = GETINT('Surf-nGroups')
+ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
+GroupOutput = 0.0
+ALLOCATE(MinBound(SurfaceGroup%nGroups))
+MinBound = 0
+ALLOCATE(MaxBound(SurfaceGroup%nGroups))
+MaxBound = 0
+ALLOCATE(GroupIDToBCID(SurfaceGroup%nGroups))
+GroupIDToBCID = 0
+#if USE_MPI
+  firstSide = 1 ! INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = nComputeNodeSurfTotalSides ! INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nGlobalSurfSides
+#endif /*USE_MPI*/
+ALLOCATE(SurfaceGroup%SymmetryFactor(lastSide))
+SurfaceGroup%SymmetryFactor = 0.0
+ALLOCATE(SurfaceGroup%SurfSide2GroupID(lastSide))
+SurfaceGroup%SurfSide2GroupID = 0
+ALLOCATE(SurfaceGroup%SampState(4,SurfaceGroup%nGroups))
+SurfaceGroup%SampState = 0.0
+ALLOCATE(SurfaceGroup%Area(SurfaceGroup%nGroups))
+SurfaceGroup%Area = 0.0
+!  SurfaceGroup%GroupSideID = 0
+RotAxisDir = PartBound%RotPeriodicAxis
+GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
+  WRITE(UNIT=hilf,FMT='(I0)') iGroup
+  GroupIDToBCID(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-BoundaryID')
+  MinBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MinInterplaneID')
+  MaxBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MaxInterplaneID')
+! First: 2 loops to define max and min position of the group
+  SideLoop1: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    MinBoundPos = 0.0
+    IF(MinBound(iGroup).EQ.-1) THEN
+      MinBoundPos = -HUGE(1.)
+      EXIT SideLoop1
+    ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MinBound(iGroup)) THEN
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+      MinBoundPos = NodeCoords_Shared(RotAxisDir,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+      EXIT SideLoop1
+    END IF
+  END DO SideLoop1
+  SideLoop2: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    MaxBoundPos = 0.0
+    IF(MaxBound(iGroup).EQ.-1) THEN
+      MaxBoundPos = HUGE(1.)
+      EXIT SideLoop2
+    ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MaxBound(iGroup)) THEN
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+      MaxBoundPos = NodeCoords_Shared(RotAxisDir,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+      EXIT SideLoop2
+    END IF
+  END DO SideLoop2
+! Calculating the number of sides per group and build up mapping
+  SideLoop3: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.GroupIDToBCID(iGroup)) THEN
+      ! Get atached Elem
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      ! Get Elem Mid point position in rotaxi direction
+      ElemMidPointPos = ElemMidPoint_Shared(RotAxisDir,CNElemID)
+      IF((ElemMidPointPos.GT.MinBoundPos).AND.(ElemMidPointPos.LT.MaxBoundPos)) THEN
+        IF (SurfaceGroup%SurfSide2GroupID(iSide).NE.0) CALL abort(__STAMP__, &
+        'ERROR in group definition: A surface is defined in more than one group. Overlapping group definitions are not allowed.')
+        SurfaceGroup%SurfSide2GroupID(iSide) = iGroup
+        DO q = 1,nSurfSample
+          DO p = 1,nSurfSample
+            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
+          END DO ! q=1,nSurfSample
+        END DO ! p=1,nSurfSample
+        BoundLoop: DO iPartBound = 1, nPartBound
+          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+          IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
+            SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / ABS(PartBound%RotPeriodicAngle(iPartBound))
+          END IF
+        END DO BoundLoop
+      END IF
+    END IF
+  END DO SideLoop3 ! iSide = firstSide, lastSide
+END DO GroupLoop
+DEALLOCATE(MinBound)
+DEALLOCATE(MaxBound)
+DEALLOCATE(GroupIDToBCID)
+
+END SUBROUTINE InitSurfaceGroupOutput
+
 
 
 !===================================================================================================================================
@@ -1456,6 +1477,7 @@ IF(CalcSurfOutputPerGroup) THEN
   SDEALLOCATE(SurfaceGroup%SymmetryFactor)
   SDEALLOCATE(SurfaceGroup%SurfSide2GroupID)
   SDEALLOCATE(SurfaceGroup%SampState)
+  SDEALLOCATE(SurfaceGroup%Area)
 END IF
 
 END SUBROUTINE FinalizeSurfaceModelAnalyze
