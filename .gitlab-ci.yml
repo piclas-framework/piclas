@@ -150,6 +150,9 @@ stages:
     # If the pipeline is for an appimage build run, the job is not added to the pipeline.
     - if: '$DO_CREATE_APPIMAGE'
       when: never
+    # If the pipeline is for pushing the master branch to GitHub
+    - if: '$DO_DEPLOY'
+      when: never
     # In all other cases, the job is added to the pipeline, with when: on_success
     - when: on_success
 
@@ -1488,4 +1491,5 @@ github_test_appimage:
     - gh run download -n ${DO_TEST_APPIMAGE}
     - ls -l
     - module li
+    - ./piclasLeapfrogHDG --help | head -n 12
     - ./tools/testAppImages.sh . regressioncheck
