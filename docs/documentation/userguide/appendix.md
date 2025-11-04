@@ -6,7 +6,9 @@ The following list summarizes all **tested combinations** of the required librar
 
 | Dev |  PICLas Version  |    System   |   CMake  |  Compiler |            MPI             |  HDF5  |  PETSc |
 | --- |  :------------:  | :---------: | :------: |  :------: | :------------------------: | :----: | :----: |
-|  SC | 4.0.0 (Oct 2025) | boltzreggie |  3.31.1  | gcc14.2.0 | openmpi-5.0.8, mpich-4.3.1 | 1.14.6 |   -    |
+|  SC | 4.0.0 (Oct 2025) | boltzreggie |  4.0.4   | gcc14.2.0 | openmpi-5.0.8, mpich-4.3.1 | 1.14.6 | 3.23.6 |
+|  PN | 4.0.0 (Jul 2025) |    Vulcan   |  3.22.3  | gcc14.3.0 | openmpi-5.0.7              | 1.12.1 | 3.21.6 |
+|  SC | 3.6.0 (Jun 2025) |      PC     |  3.30.0  | gcc14.2.0 | mpich-4.3.1                | 1.14.5 | 3.21.6 |
 |  SC | 2.3.0 (Nov 2021) |      PC     |  3.21.3  | gcc11.2.0 | openmpi-4.1.1              | 1.12.1 |   -    |
 |  SC | 2.2.0 (Nov 2021) |      PC     |  3.17.0  | gcc10.1.0 | openmpi-4.0.2              | 1.10.5 |   -    |
 |  AM | 2.1.0 (Nov 2021) |      PC     |  3.17.0  | gcc9.3.0  | openmpi-3.1.6              | 1.10.6 |   -    |
