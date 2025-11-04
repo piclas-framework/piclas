@@ -113,7 +113,7 @@ do
     # MPICH
     # MPICHVERSION=4.1.2
     # MPICHVERSION=4.2.1
-    MPICHVERSION=4.3.1
+    # MPICHVERSION=4.3.1
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
@@ -150,8 +150,8 @@ done
 # PETSCVERSION=3.20.6
 # PETSCVERSION=3.21.6
 # PETSCVERSION=3.22.2 # currently does not work
-# PETSCVERSION=3.22.5 # error during configure with GCC 15.2.0
-PETSCVERSION=3.23.0 # error during configure with GCC 15.2.0
+PETSCVERSION=3.22.5 # error during configure with GCC 15.2.0
+# PETSCVERSION=3.23.0 # error during configure with GCC 15.2.0
 # PETSCVERSION=3.23.6
 
 # CMake version. Leave commented out to use default

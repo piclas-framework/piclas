@@ -79,7 +79,7 @@ do
     # MPICH
     # MPICHVERSION=4.1.2
     # MPICHVERSION=4.2.1
-    MPICHVERSION=4.3.1
+    # MPICHVERSION=4.3.1
 
     # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
     # This will use the older ch3:sock channel that does not busy poll.

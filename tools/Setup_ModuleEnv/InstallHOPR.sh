@@ -123,7 +123,7 @@ do
 
     # MPICHVERSION=4.1.2
     # MPICHVERSION=4.2.1
-    MPICHVERSION=4.3.1
+    # MPICHVERSION=4.3.1
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
