@@ -100,12 +100,6 @@ END IF
 SELECT CASE (TRIM(SampleType))
 CASE ('old')
   MomArray(1:3)   = MassIC * PartState(4:6,PartID) * MPF
-  IF(TorqueOutput) THEN
-    ! Store info of impacting particle for possible surface charging
-    TorqueArray(1) = ( PartPosImpact_opt(2) * MomArray(3) - PartPosImpact_opt(3) * MomArray(2) )
-    TorqueArray(2) = ( PartPosImpact_opt(3) * MomArray(1) - PartPosImpact_opt(1) * MomArray(3) )
-    TorqueArray(3) = ( PartPosImpact_opt(1) * MomArray(2) - PartPosImpact_opt(2) * MomArray(1) )
-  END IF
   ETransID = SAMPWALL_ETRANSOLD
   ERotID   = SAMPWALL_EROTOLD
   EVibID   = SAMPWALL_EVIBOLD
@@ -146,11 +140,6 @@ CASE ('old')
 CASE ('new')
   ! must be old_velocity-new_velocity
   MomArray(1:3)   = -MassIC * PartState(4:6,PartID) * MPF
-  IF(TorqueOutput) THEN
-    TorqueArray(1) = -( PartPosImpact_opt(2) * MomArray(3) - PartPosImpact_opt(3) * MomArray(2) )
-    TorqueArray(2) = -( PartPosImpact_opt(3) * MomArray(1) - PartPosImpact_opt(1) * MomArray(3) )
-    TorqueArray(3) = -( PartPosImpact_opt(1) * MomArray(2) - PartPosImpact_opt(2) * MomArray(1) )
-  END IF
   ETransID = SAMPWALL_ETRANSNEW
   ERotID   = SAMPWALL_EROTNEW
   EVibID   = SAMPWALL_EVIBNEW
@@ -171,6 +160,9 @@ SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) = SampWallState(SAM
 SampWallState(ETransID ,SubP,SubQ,SurfSideID) = SampWallState(ETransID ,SubP,SubQ,SurfSideID) + ETrans * MPF
 !----  Sampling torque
 IF(TorqueOutput) THEN
+  TorqueArray(1) = PartPosImpact_opt(2) * MomArray(3) - PartPosImpact_opt(3) * MomArray(2)
+  TorqueArray(2) = PartPosImpact_opt(3) * MomArray(1) - PartPosImpact_opt(1) * MomArray(3)
+  TorqueArray(3) = PartPosImpact_opt(1) * MomArray(2) - PartPosImpact_opt(2) * MomArray(1)
   SampWallState(SWITorqueCoefficientX,SubP,SubQ,SurfSideID) = SampWallState(SWITorqueCoefficientX,SubP,SubQ,SurfSideID) + TorqueArray(1)
   SampWallState(SWITorqueCoefficientY,SubP,SubQ,SurfSideID) = SampWallState(SWITorqueCoefficientY,SubP,SubQ,SurfSideID) + TorqueArray(2)
   SampWallState(SWITorqueCoefficientZ,SubP,SubQ,SurfSideID) = SampWallState(SWITorqueCoefficientZ,SubP,SubQ,SurfSideID) + TorqueArray(3)
@@ -504,6 +496,15 @@ INTEGER            :: iGroup
     CASE DEFAULT
       CALL abort(__STAMP__,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
     END SELECT
+  ! Sample the time step for the correct determination of the heat flux
+    SurfaceGroup%Counter(iGroup) = SurfaceGroup%Counter(iGroup) + 1
+    IF (UseVarTimeStep) THEN
+      SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) &
+                                                                + PartTimeStep(PartID)
+    ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
+      SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) &
+                                                                + Species(SpecID)%TimeStepFactor
+    END IF
   END IF
 
 END SUBROUTINE SampleSurfaceGroupProperties

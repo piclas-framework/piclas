@@ -759,6 +759,7 @@ END SUBROUTINE GetPorousBCInfo
 SUBROUTINE GetGroupInfo()
 ! MODULES
 USE MOD_Globals
+  USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, VarTimeStep
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup, SurfaceAnalyzeStep
 USE MOD_Timedisc_Vars             ,ONLY: dt
 #if USE_MPI
@@ -774,17 +775,11 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 INTEGER            :: iGroup, counter
 REAL,ALLOCATABLE   :: SendBuff(:)
+REAL               :: TimeSample, TimeSampleTemp
 !===================================================================================================================================
 
-DO iGroup = 1, SurfaceGroup%nGroups
-  SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / (dt * SurfaceAnalyzeStep)
-  SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / (dt * SurfaceAnalyzeStep)
-  SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / (dt * SurfaceAnalyzeStep)
-  SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (dt * SurfaceAnalyzeStep * SurfaceGroup%Area(iGroup))
-END DO
-
 #if USE_MPI
-ALLOCATE(SendBuff(4*SurfaceGroup%nGroups))
+ALLOCATE(SendBuff(6*SurfaceGroup%nGroups))
 SendBuff = 0.0
 counter = 0
 DO iGroup = 1, SurfaceGroup%nGroups
@@ -796,12 +791,16 @@ DO iGroup = 1, SurfaceGroup%nGroups
   SendBuff(counter) = SurfaceGroup%SampState(3,iGroup)
   counter = counter + 1
   SendBuff(counter) = SurfaceGroup%SampState(4,iGroup)
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%VarTimeStep(iGroup)
+  counter = counter + 1
+  SendBuff(counter) = REAL(SurfaceGroup%Counter(iGroup))
 END DO
 
 IF(MPIRoot)THEN
-  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,4*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
 ELSE
-  CALL MPI_REDUCE(SendBuff,SendBuff,4*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+  CALL MPI_REDUCE(SendBuff,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
 END IF
 
 counter = 0
@@ -813,10 +812,26 @@ DO iGroup = 1, SurfaceGroup%nGroups
   counter = counter + 1
   SurfaceGroup%SampState(3,iGroup) = SendBuff(counter) 
   counter = counter + 1
-  SurfaceGroup%SampState(4,iGroup) = SendBuff(counter) 
+  SurfaceGroup%SampState(4,iGroup) = SendBuff(counter)
+  counter = counter + 1
+  SurfaceGroup%VarTimeStep(iGroup) = SendBuff(counter)
+  counter = counter + 1
+  SurfaceGroup%Counter(iGroup) = INT(SendBuff(counter))
 END DO
 #endif /*USE_MPI*/
 
+TimeSample = dt * SurfaceAnalyzeStep
+DO iGroup = 1, SurfaceGroup%nGroups
+  IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
+    TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
+  ELSE
+    TimeSampleTemp = TimeSample
+  END IF
+  SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSampleTemp
+  SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSampleTemp
+  SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
+  SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
+END DO
 
 IF(MPIRoot)THEN
   DO iGroup = 1, SurfaceGroup%nGroups
@@ -828,6 +843,8 @@ IF(MPIRoot)THEN
 END IF
 ! reset samp array
 SurfaceGroup%SampState = 0.0
+SurfaceGroup%VarTimeStep = 0.0
+SurfaceGroup%Counter = 0
 
 END SUBROUTINE GetGroupInfo
 
@@ -1359,6 +1376,10 @@ ALLOCATE(SurfaceGroup%SampState(4,SurfaceGroup%nGroups))
 SurfaceGroup%SampState = 0.0
 ALLOCATE(SurfaceGroup%Area(SurfaceGroup%nGroups))
 SurfaceGroup%Area = 0.0
+ALLOCATE(SurfaceGroup%VarTimeStep(SurfaceGroup%nGroups))
+SurfaceGroup%VarTimeStep = 0.0
+ALLOCATE(SurfaceGroup%Counter(SurfaceGroup%nGroups))
+SurfaceGroup%Counter = 0.0
 !  SurfaceGroup%GroupSideID = 0
 RotAxisDir = PartBound%RotPeriodicAxis
 GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
@@ -1478,6 +1499,8 @@ IF(CalcSurfOutputPerGroup) THEN
   SDEALLOCATE(SurfaceGroup%SurfSide2GroupID)
   SDEALLOCATE(SurfaceGroup%SampState)
   SDEALLOCATE(SurfaceGroup%Area)
+  SDEALLOCATE(SurfaceGroup%VarTimeStep)
+  SDEALLOCATE(SurfaceGroup%Counter)
 END IF
 
 END SUBROUTINE FinalizeSurfaceModelAnalyze
