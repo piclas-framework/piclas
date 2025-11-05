@@ -384,8 +384,9 @@ IF(UseFPC) THEN
 END IF
 
 ! Reset the RHS of the first DOF if ZeroPotential must be set
-IF(mpiRoot.AND.ZeroPotentialDOF >= 0) THEN
-  PetscCallA(VecSetValue(PETScRHS,ZeroPotentialDOF,0,INSERT_VALUES,ierr))
+IF(mpiRoot.AND.ZeroPotentialDOF.GE.0) THEN
+  ! Note that sice PETSc 3.24, VecSetValue checks the data type of the arguments. The value 0 is not allowed, but 0.0 is correct
+  PetscCallA(VecSetValue(PETScRHS,ZeroPotentialDOF,0.0,INSERT_VALUES,ierr))
 END IF
 
 PetscCallA(VecAssemblyBegin(PETScRHS,ierr))
@@ -412,8 +413,15 @@ PetscCallA(KSPGetResidualNorm(PETScSolver,petscnorm,ierr))
 
 #if ((PETSC_VERSION_MAJOR >= 3) && (PETSC_VERSION_MINOR > 22)) || (PETSC_VERSION_MAJOR >= 4)
 ! PETSc 3.26.0 and onwards requires special TYPE() for variable "reason", which cannot be compared with Fortran INT
+#if ((PETSC_VERSION_MAJOR >= 3) && (PETSC_VERSION_MINOR >= 24))
+! 3.24: Deprecate KSP_CONVERGED_RTOL_NORMAL in favor of KSP_CONVERGED_RTOL_NORMAL_EQUATIONS and
+!                 KSP_CONVERGED_ATOL_NORMAL in favor of KSP_CONVERGED_ATOL_NORMAL_EQUATIONS
+IF(.NOT.(reason.EQ.KSP_CONVERGED_RTOL_NORMAL_EQUATIONS     .OR.&
+         reason.EQ.KSP_CONVERGED_ATOL_NORMAL_EQUATIONS     .OR.&
+#else
 IF(.NOT.(reason.EQ.KSP_CONVERGED_RTOL_NORMAL               .OR.&
          reason.EQ.KSP_CONVERGED_ATOL_NORMAL               .OR.&
+#endif
          reason.EQ.KSP_CONVERGED_RTOL                      .OR.&
          reason.EQ.KSP_CONVERGED_ATOL                      .OR.&
          reason.EQ.KSP_CONVERGED_ITS                       .OR.&
