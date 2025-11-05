@@ -87,16 +87,16 @@ before_script:
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
       module purge || true;
-      module load  cmake/4.0.4  gcc/14.2.0  openmpi/5.0.8/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.8      hopr/master/gcc/14.2.0/openmpi/5.0.8/hdf5/1.14.6      petsc/3.23.6/gcc/14.2.0/openmpi/5.0.8 || true;
+      module load  cmake/4.0.4  gcc/14.2.0  openmpi/5.0.8/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.8      hopr/master/gcc/14.2.0/openmpi/5.0.8/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.8 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
-      module load  cmake/4.0.4  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.23.6/gcc/14.2.0/mpich/4.3.1 || true;
+      module load  cmake/4.0.4  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
-      module load  cmake/4.0.4  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.23.6/gcc/14.2.0/mpich/4.3.1 || true;
+      module load  cmake/4.0.4  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
     fi
   - if [ -n "${DO_MPICH_DEBUG}" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
