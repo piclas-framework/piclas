@@ -991,6 +991,10 @@ IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
+#if USE_MPI
+! Communicator is created before SurfTotalSideOnNode inquiry
+IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SURF,iERROR)
+#endif /*USE_MPI*/
 
 ! Return if no sampling surfaces on node
 IF (.NOT.SurfTotalSideOnNode) RETURN
@@ -1013,10 +1017,6 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iERROR)
 
 ! Communication is handled in particle_mpi_boundary_sampling.f90
 CALL FinalizeSurfCommunication()
-
-IF(MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
-  CALL MPI_COMM_FREE(MPI_COMM_LEADERS_SURF,iERROR)
-END IF
 
 ADEALLOCATE(SampWallState_Shared)
 ADEALLOCATE(SampWallPumpCapacity_Shared)

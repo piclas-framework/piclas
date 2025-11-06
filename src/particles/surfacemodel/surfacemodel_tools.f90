@@ -677,16 +677,13 @@ REAL,INTENT(IN)       :: WallTemp
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
+INTEGER               :: SpecID, VibQuantWall
 REAL                  :: RanNum
 REAL                  :: VibACC, RotACC, ElecACC
-REAL                  :: ErotNew, ErotWall, EVibNew
 REAL                  :: GroundLevel, VibPartitionTemp
 ! Polyatomic Molecules
-REAL                  :: VibQuantNewR
-REAL, ALLOCATABLE     :: RanNumPoly(:), VibQuantNewRPoly(:)
+REAL, ALLOCATABLE     :: RanNumPoly(:)
 INTEGER               :: iPolyatMole, iDOF, VibDOF
-INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! Requires the usage of DSMC and CollisMode = 2/3
@@ -701,103 +698,66 @@ ElecACC   = PartBound%ElecACC(locBCID)
 IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
   !---- Rotational energy accommodation
   ! model identical to the one used for initial rotational energy sampling
-  ErotWall = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
-  ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
-
-  PartStateIntEn(2,PartID) = ErotNew
-
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RotACC.GT.RanNum) THEN
+    PartStateIntEn(2,PartID) = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
+  END IF
 #if (PP_TimeDiscMethod==400)
   IF (BGKDoVibRelaxation) THEN
 #elif (PP_TimeDiscMethod==300)
   IF (FPDoVibRelaxation) THEN
 #endif
     !---- Vibrational energy accommodation
-    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
-      EvibNew = 0.0
-      iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-      VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
-      ALLOCATE(RanNumPoly(VibDOF),VibQuantWallPoly(VibDOF),VibQuantNewRPoly(VibDOF),VibQuantNewPoly(VibDOF),VibQuantTemp(VibDOF))
-      CALL RANDOM_NUMBER(RanNumPoly)
-      VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+    CALL RANDOM_NUMBER(RanNum)
+    IF(VibACC.GT.RanNum) THEN
+      IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
+        VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
+        ALLOCATE(RanNumPoly(VibDOF))
         CALL RANDOM_NUMBER(RanNumPoly)
-        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      END DO
-      VibQuantNewRPoly(:) = VibQuantsPar(PartID)%Quants(:) + VibACC*(VibQuantWallPoly(:) - VibQuantsPar(PartID)%Quants(:))
-      VibQuantNewPoly = INT(VibQuantNewRPoly)
-      DO iDOF = 1, VibDOF
-        EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-          EvibNew = EvibNew + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-          VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-        ELSE
-          VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-        END IF
-      END DO
-    ELSE
-      IF(DSMC%VibAHO) THEN ! AHO
-        ! calculate vib quant number matching PartStateIntEn(1,PartID)
-        VibQuant = 2
-        DO WHILE (PartStateIntEn(1,PartID).GE.AHO%VibEnergy(SpecID,VibQuant))
-          ! energy is larger than vib energy for this quantum number --> increase quantum number and try again
-          VibQuant = VibQuant + 1
-          ! exit if this quantum number is larger as the table length (dissociation level is reached)
-          IF (VibQuant.GT.AHO%NumVibLevels(SpecID)) EXIT
+        VibQuantsPar(PartID)%Quants(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantsPar(PartID)%Quants.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+          CALL RANDOM_NUMBER(RanNumPoly)
+          VibQuantsPar(PartID)%Quants(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
         END DO
-        ! accept VibQuant - 1 as quantum number
-        VibQuant = VibQuant - 1
-        ! calculate vib quant number of wall based on wall temperature
-        IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
-          GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
-          CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
-          VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
-          CALL RANDOM_NUMBER(RanNum)
-          ! acceptance is higher for lower levels
-          DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
-            ! select random quantum number and calculate partition function
+        PartStateIntEn(1,PartID) = 0.0
+        DO iDOF = 1, VibDOF
+          PartStateIntEn(1,PartID) = PartStateIntEn(1,PartID) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) &
+                                   * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+        END DO
+      ELSE
+        IF(DSMC%VibAHO) THEN ! AHO
+          ! calculate vib quant number of wall based on wall temperature
+          IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
+            GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
             CALL RANDOM_NUMBER(RanNum)
             VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
             VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
             CALL RANDOM_NUMBER(RanNum)
-          END DO
-        ! use ground state quantum number
-        ELSE
-          VibQuantWall = 1
-        END IF
-        ! calculate new quantum number based on vibrational accommodation coefficient
-        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-        VibQuantNew = INT(VibQuantNewR)
-        ! calculate new energy with this quantum number
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew+1)
-        ELSE
-          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew)
-        END IF
-
-      ELSE ! SHO
-        VibQuant = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
-        CALL RANDOM_NUMBER(RanNum)
-        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-        DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+            ! acceptance is higher for lower levels
+            DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
+              ! select random quantum number and calculate partition function
+              CALL RANDOM_NUMBER(RanNum)
+              VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
+              VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
+              CALL RANDOM_NUMBER(RanNum)
+            END DO
+            PartStateIntEn(1,PartID) = AHO%VibEnergy(SpecID,VibQuantWall)
+          ! use ground state quantum number
+          ELSE
+            PartStateIntEn(1,PartID) = AHO%VibEnergy(SpecID,1)
+          END IF
+        ELSE ! SHO
           CALL RANDOM_NUMBER(RanNum)
           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-        END DO
-        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-        VibQuantNew = INT(VibQuantNewR)
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-        ELSE
-          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+          DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+            CALL RANDOM_NUMBER(RanNum)
+            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
+          END DO
+          PartStateIntEn(1,PartID) = (VibQuantWall + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
         END IF
       END IF
-    END IF
-
-    IF(SpecDSMC(SpecID)%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
-    PartStateIntEn(1,PartID) = EvibNew
+    END IF ! DO vib relax: VibACC.LE.RanNum
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
   END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
@@ -806,7 +766,7 @@ END IF
 IF (DSMC%ElectronicModel.GT.0) THEN
   IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
     CALL RANDOM_NUMBER(RanNum)
-    IF (RanNum.LT.ElecACC) THEN
+    IF (ElecACC.GT.RanNum) THEN
       PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
     END IF
   END IF
@@ -925,8 +885,12 @@ VeloCrad    = SQRT(-LOG(RanNum))
 CALL RANDOM_NUMBER(RanNum)
 VeloCz      = SQRT(-LOG(RanNum))
 Fak_D       = VeloCrad**2 + VeloCz**2
-
-EtraNew     = EtraOld + TransACC * (BoltzmannConst * WallTemp * Fak_D - EtraOld)
+CALL RANDOM_NUMBER(RanNum)
+IF(TransACC.GT.RanNum) THEN
+  EtraNew     = BoltzmannConst * WallTemp * Fak_D
+ELSE
+  EtraNew     = EtraOld
+END IF
 Cmr         = SQRT(2.0 * EtraNew / (Species(SpecID)%MassIC * Fak_D))
 CALL RANDOM_NUMBER(RanNum)
 Phi     = 2.0 * PI * RanNum
