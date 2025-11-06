@@ -1037,6 +1037,11 @@ END IF
 ! 3) Calculate the actual number of particles per side
 IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
   ! Adaptive Type = 4
+  IF(ParticleWeighting%PerformCloning) THEN
+    MPF = Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide)
+  ELSE
+    MPF = Species(iSpec)%MacroParticleFactor
+  END IF
   IF(ParticleWeighting%UseSubdivision) THEN
     ! Subdivide the side into smaller subsides to improve distribution
     PartInsSubSide = 0
@@ -1050,14 +1055,15 @@ IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
                 / Species(iSpec)%MacroParticleFactor + RandVal1)
         PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
       END DO
+    ELSE
+      ! Side parallel to rotational axis
+      CALL RANDOM_NUMBER(RandVal1)
+      PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)         &
+                        * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar / Species(iSpec)%MassIC + AdaptBCPartNumOut(iSpec,iSF)) &
+                        / MPF +RandVal1)
     END IF
   ELSE
-    IF(ParticleWeighting%PerformCloning) THEN
-      MPF = Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide)
-    ELSE
-      MPF = Species(iSpec)%MacroParticleFactor
-    END IF
-    ! No subdivision due to axisymmetry and weighting (for other particle weighting methods: weight is included in nVFR)
+    ! No subdivision due to axisymmetry and weighting
     CALL RANDOM_NUMBER(RandVal1)
     PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)         &
                       * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar / Species(iSpec)%MassIC + AdaptBCPartNumOut(iSpec,iSF)) &
@@ -1076,9 +1082,13 @@ ELSE
                 * dtVar * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) * vSF + RandVal1)
         PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
       END DO
+    ELSE
+      ! Side parallel to rotational axis
+      CALL RANDOM_NUMBER(RandVal1)
+      PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
     END IF
   ELSE
-    ! No subdivision due to axisymmetry and weighting (for other particle weighting methods: weight is included in nVFR)
+    ! No subdivision due to axisymmetry and weighting
     CALL RANDOM_NUMBER(RandVal1)
     PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
   END IF
