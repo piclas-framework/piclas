@@ -299,6 +299,13 @@ DO iBC=1,nBCs
       CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
+  CASE(8) !dirichlet zero
+    DO iSide=1,nBCLoc
+      SideID=BCSideID(iBC,iSide)
+      UPrim_boundary=0.0
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
+    END DO
+
   CASE DEFAULT ! unknown BCType
     CALL abort(__STAMP__,&
          'no BC defined in DVM/getboundaryflux.f90!')

@@ -1170,8 +1170,8 @@ DO iElem =1, nElems
     Eloc = 0.
     ! average Lorentz force in element
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      Eloc(1:3) = Eloc(1:3) + U_N(iElem)%E(1:3,i,j,k) &
-                            * N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)/((Nloc+1.)**3)
+      Eloc(1:3) = Eloc(1:3) + U_N(iElem)%E(1:3,i,j,k)/((Nloc+1.)**3) !&
+                            !* N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)/((Nloc+1.)**3)
     END DO; END DO; END DO
   END IF
 #endif
@@ -1242,14 +1242,18 @@ DO iElem =1, nElems
       ! forceTerm = - DVMAccel(1)*(gamma*(U(upos2,iElem)-U(upos1,iElem)) &
       !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
       U_FV(upos+vFirstID,iElem) = U_FV(upos+vFirstID,iElem) + forceTerm*tDeriv/2. !t/2 for strang splitting
+      IF (U_FV(upos+vFirstID,iElem).LT.0.) U_FV(upos+vFirstID,iElem) = 0.
       IF (DVMDim.LT.3) THEN
         U_FV(Sp%nVarReduced+upos+vFirstID,iElem) = U_FV(Sp%nVarReduced+upos+vFirstID,iElem) + forceTerm2*tDeriv/2.
+        IF (U_FV(Sp%nVarReduced+upos+vFirstID,iElem).LT.0.) U_FV(Sp%nVarReduced+upos+vFirstID,iElem) = 0.
       END IF
       IF (Sp%Xi_Rot.GT.0) THEN
         U_FV(Sp%nVarErotStart+upos+vFirstID,iElem) = U_FV(Sp%nVarErotStart+upos+vFirstID,iElem) + forceTermRot*tDeriv/2.
+        IF (U_FV(Sp%nVarErotStart+upos+vFirstID,iElem).LT.0.) U_FV(Sp%nVarErotStart+upos+vFirstID,iElem) = 0.
       END IF
       IF (Sp%T_Vib.GT.0) THEN
         U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem) = U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem) + forceTermVib*tDeriv/2.
+        IF (U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem).LT.0.) U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem) = 0.
       END IF
     END DO; END DO; END DO
     vFirstID = vFirstID + Sp%nVar

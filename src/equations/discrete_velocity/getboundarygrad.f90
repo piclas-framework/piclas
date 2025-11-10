@@ -276,6 +276,10 @@ CASE(6) ! constant pressure
   gradU = UPrim_master - UPrim_boundary
 
 CASE(7) ! open outlet
+  gradU = UPrim_master ! - 0.
+
+
+CASE(8) ! dirichlet zero
   gradU = 0.
 
 CASE DEFAULT ! unknown BCType
