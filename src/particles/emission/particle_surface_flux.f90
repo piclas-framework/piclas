@@ -1001,7 +1001,7 @@ END SELECT
 
 ! Set the velocity vector and determine the velocity magnitude
 VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
-VeloIC = VECNORM(VeloVec)
+VeloIC = VECNORM3D(VeloVec)
 IF (ABS(VeloIC).GT.0.) THEN
   VeloVecIC = VeloVec / VeloIC
 ELSE
@@ -1158,7 +1158,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   ! Get the sampled velocity vector
   VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
   ! Determine the velocity magnitude
-  VeloIC = VECNORM(VeloVec)
+  VeloIC = VECNORM3D(VeloVec)
   IF (ABS(VeloIC).GT.0.) THEN
     ! Calculate the normalized velocity vector
     VeloVecIC = VeloVec / VeloIC
@@ -1168,7 +1168,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     ! Using the old velocity vector, overwriting the sampled value with the old one
     VeloVec(1:3) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
     AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
-    VeloIC = VECNORM(VeloVec)
+    VeloIC = VECNORM3D(VeloVec)
     IF(ABS(VeloIC).GT.0.) THEN
       VeloVecIC = VeloVec / VeloIC
     ELSE
@@ -1375,7 +1375,7 @@ IF(SF%Adaptive) THEN !SF%Adaptive
   VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
   vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
   ! Velocity magnitude
-  VeloIC = VECNORM(VeloVec)
+  VeloIC = VECNORM3D(VeloVec)
   IF (ABS(VeloIC).GT.0.) THEN
     VeloVecIC = VeloVec / VeloIC
   ELSE
@@ -1704,7 +1704,7 @@ CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=U_N(ElemID)%E(1:3
 
 ! 2) Average the e-field vector and calculate magnitude
 EFaceMag = (Nloc+1)**2
-EFaceMag = VECNORM((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
+EFaceMag = VECNORM3D((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
 
 ! 3) Calculate the work function with the Schottky effect and the new current density [A/m2]
 WallTemp = PartBound%WallTemp(SF%BC)

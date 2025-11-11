@@ -51,6 +51,7 @@ FILESUMWARN=0
 EXEERR=0
 TABERR=0
 SHMPOINTERROR=0
+VECNORMERROR=0
 MPICOMMWORLDERR=0
 SPECDBERR=0
 
@@ -189,6 +190,24 @@ if [ -n "$CHANGED" ]; then
       fi
     fi
 
+    # Check for old deprecated function
+    # OLD: FUNCTION VECNORM(v1)
+    # NEW: FUNCTION VECNORM3D(v1)
+    if [ "$ext" = "f90" ]; then
+      # -i, --ignore-case         ignore case distinctions in patterns and data
+      # -r, --recursive           like --directories=recurse
+      # -P, --perl-regexp         PATTERNS are Perl regular expressions
+      #   \b                      word boundary
+      # -o, --only-matching       show only nonempty parts of lines that match
+      VECNORMMATCH=$(grep -iPo '\bVECNORM\(' "$file")
+      if [ -n "${VECNORMMATCH}" ]; then
+        ERROR=1
+        VECNORMERROR=1
+        # -H, --with-filename       print file name with output lines
+        VECNORMLINES=$(grep -HniP '\bVECNORM\(' "$file")
+      fi
+    fi
+
     # Check if file is SpeciesDatabase.h5, which is not allowed to be changed
     if [ "$file" = "SpeciesDatabase.h5" ]; then
       # Error header
@@ -220,34 +239,38 @@ if [ -n "$CHANGED" ]; then
   fi
 
   if [ "$EXEERR" -ne 0 ]; then
-    printf "\n${RED}The following file(s) are executable, which is not allowed. Remove the execute permission via 'chmod -x filename' to fix the files. Run 'git add' on the fixed files and then 'git commit' afterwards.${NC}\n"
+    printf "\n${RED}ERROR: The following file(s) are executable, which is not allowed. Remove the execute permission via 'chmod -x filename' to fix the files. Run 'git add' on the fixed files and then 'git commit' afterwards.${NC}\n"
     printf "%s\n" "${EXELINE}"
   fi
 
   if [ "$TABERR" -ne 0 ]; then
-    printf "\n${RED}The following file(s) contain tabs (see https://en.wikipedia.org/wiki/Tab_key), which is not allowed. Remove the tab stops from all files. Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "\n${RED}ERROR: The following file(s) contain tabs (see https://en.wikipedia.org/wiki/Tab_key), which is not allowed. Remove the tab stops from all files. Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
     printf "%s\n" "${TABLINE}"
   fi
 
   if [ "$SHMPOINTERROR" -ne 0 ]; then
-    printf "\n${RED}The following file(s) contain a combination of SHM array, function pointer and a sum, which is not allowed.\nMove the function pointer to a new line and store the index in a separate integer variable to access the SHM.\nRun 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "\n${RED}ERROR: The following file(s) contain a combination of SHM array, function pointer and a sum, which is not allowed.\nMove the function pointer to a new line and store the index in a separate integer variable to access the SHM.\nRun 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
     printf "%s\n" "${SHMPOINTLINES}"
   fi
 
+  if [ "$VECNORMERROR" -ne 0 ]; then
+    printf "\n${RED}ERROR: The following file(s) contain a deprecated function, which is not allowed.\nFUNCTION VECNORM(v1) has been renamed to FUNCTION VECNORM3D(v1).\nRun 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "%s\n" "${VECNORMLINES}"
+  fi
+
   if [ "$SPECDBERR" -ne 0 ]; then
-    printf "\n${RED}SpeciesDatabase.h5 has been changed, which is not allowed. Remove changes from this file (e.g. via 'git checkout SpeciesDatabase.h5'). Run 'git add' on the fixed file and 'git commit' afterwards.${NC}\n"
+    printf "\n${RED}ERROR: SpeciesDatabase.h5 has been changed, which is not allowed. Remove changes from this file (e.g. via 'git checkout SpeciesDatabase.h5'). Run 'git add' on the fixed file and 'git commit' afterwards.${NC}\n"
     printf "%s\n" "${SPECDBLINE}"
   fi
 
   if [ "$MPICOMMWORLDERR" -ne 0 ]; then
-    printf "${RED}The following file(s) contain MPI_COMM_WORLD, which is not allowed. Replace them all by MPI_COMM_PICLAS, except when calling MPI_COMM_DUP(). Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
+    printf "${RED}ERROR: The following file(s) contain MPI_COMM_WORLD, which is not allowed. Replace them all by MPI_COMM_PICLAS, except when calling MPI_COMM_DUP(). Run 'git add' on the fixed files and 'git commit' afterwards.${NC}\n"
     printf "$MPICOMMWORLDLINE"
   fi
 
   # Abort if hook encountered any error
   if [ "$ERROR" -ne 0 ]; then
-    echo "------------------------------------------------------------------------------------------------------------------------------------"
-    echo "Commit rejected! If you still want to commit your work by ignoring the errors, you can override this check by passing 'GIT_OVERRIDE_LIMITS=1' to git, e.g., run 'GIT_OVERRIDE_LIMITS=1 git commit'."
+    echo "\nCommit rejected! If you still want to commit your work by ignoring the errors, you can override this check by passing 'GIT_OVERRIDE_LIMITS=1' to git, e.g., run 'GIT_OVERRIDE_LIMITS=1 git commit'."
     exit 1
   fi
 

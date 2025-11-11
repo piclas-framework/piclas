@@ -186,7 +186,7 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.14E3))') ' Velocity:          ', PartState(4:6,iPart)
      PartTrajectory=PartState(1:3,iPart) - LastPartPos(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.14E3))') ' PartTrajectory:    ', PartTrajectory
-     IPWRITE(UNIT_stdOut,'(I0,A,ES25.14E3)')      ' lengthPT:          ', VECNORM(PartTrajectory)
+     IPWRITE(UNIT_stdOut,'(I0,A,ES25.14E3)')      ' lengthPT:          ', VECNORM3D(PartTrajectory)
      CALL abort(&
          __STAMP__ &
          ,'ERROR: Lastpartpos in wrong element. PartID:',iPart)

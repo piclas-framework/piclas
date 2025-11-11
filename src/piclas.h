@@ -7,6 +7,13 @@
 #define PetscCallA(a) CALL a; PetscCall(ierr)
 #endif
 
+#if ((PETSC_VERSION_MAJOR >= 3) && (PETSC_VERSION_MINOR > 22)) || (PETSC_VERSION_MAJOR >= 4)
+! pass
+#else
+#define VecRestoreArrayRead VecRestoreArrayReadF90
+#define VecGetArrayRead VecGetArrayReadF90
+#endif
+
 ! Abbrevations
 #ifndef __FILENAME__
 #define __FILENAME__ __FILE__

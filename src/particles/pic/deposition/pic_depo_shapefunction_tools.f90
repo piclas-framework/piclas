@@ -674,7 +674,7 @@ DO kk = kmin,kmax
         CNElemID = GetCNElemID(globElemID)
         localElem = globElemID-offSetElem
         IF (ChargeSFDone(CNElemID)) CYCLE
-        !IF (VECNORM(Position(1:3)-ElemBaryNgeo(1:3,CNElemID)).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
+        !IF (VECNORM3D(Position(1:3)-ElemBaryNgeo(1:3,CNElemID)).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
         IF (SFNorm(Position(1:3)-ElemBaryNgeo(1:3,CNElemID)).GT.(r_sf+ElemRadiusNGeo(CNElemID))) CYCLE
 #if USE_LOADBALANCE
         IF ((localElem.GE.1).AND.localElem.LE.nElems) nDeposPerElem(localElem)=nDeposPerElem(localElem)+1
@@ -998,7 +998,7 @@ PPURE REAL FUNCTION SFNorm(v1)
 !============================================================================================================================
 ! Return the shape function norm by calculating the corresponding 1D, 2D or 3D distance from the input vector 'v1'
 !============================================================================================================================
-USE MOD_Globals      ,ONLY: VECNORM
+USE MOD_Globals      ,ONLY: VECNORM3D
 USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -1018,7 +1018,7 @@ CASE (1)
 CASE (2)
   SFNorm = SQRT(v1(dim_sf_dir1)**2+v1(dim_sf_dir2)**2)
 CASE (3)
-  SFNorm = VECNORM(v1)
+  SFNorm = VECNORM3D(v1)
 CASE DEFAULT
   SFNorm = 0.
 END SELECT
@@ -1030,7 +1030,7 @@ PPURE REAL FUNCTION SFRadius2(v1)
 !============================================================================================================================
 ! Return the squared distance by calculating the corresponding 1D, 2D or 3D value from the input vector 'v1'
 !============================================================================================================================
-USE MOD_Globals      ,ONLY: VECNORM
+USE MOD_Globals      ,ONLY: VECNORM3D
 USE MOD_PICDepo_Vars ,ONLY: dim_sf,dim_sf_dir,dim_sf_dir1,dim_sf_dir2
 !-----------------------------------------------------------------------------------------------------------------------------------
 IMPLICIT NONE
@@ -1062,7 +1062,7 @@ PPURE FUNCTION GetPartPosShifted(iCase,PartPos)
 !============================================================================================================================
 ! Return the shape function norm by calculating the corresponding 1D, 2D or 3D distance from the input vector 'vec'
 !============================================================================================================================
-USE MOD_Globals            ,ONLY: VECNORM
+USE MOD_Globals            ,ONLY: VECNORM3D
 USE MOD_PICDepo_Vars       ,ONLY: dim_sf,dim_sf_dir1,dim_sf_dir2,dim_sf_dir,dim_periodic_vec1,dim_periodic_vec2
 USE MOD_Particle_Mesh_Vars ,ONLY: PeriodicSFCaseMatrix
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO

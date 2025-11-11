@@ -328,7 +328,7 @@ SUBROUTINE CalculateElectricPotentialAndFieldBoundaryVDL()
 #if USE_MPI
 USE MOD_Globals
 #endif
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC
 USE MOD_DG_Vars                ,ONLY: U_N,N_DG_Mapping
 USE MOD_Particle_Boundary_Vars ,ONLY: N_SurfVDL,PartBound,ElementThicknessVDLPerSide
@@ -411,14 +411,14 @@ DO SideID=1,nBCSides
             ! Get minimum of Phi as Phi_F (Phi_Max)
             N_SurfVDL(SideID)%U(5:5,p,q) = MIN(MinOfElem,MinOfFace)
             ! Reconstruct Phi_F from E
-            N_SurfVDL(SideID)%U(1:1,p,q) = -VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
+            N_SurfVDL(SideID)%U(1:1,p,q) = -VECNORM3D(E)*PartBound%ThicknessVDL(iPartBound)
             ! Reconstruct E from Phi_Max via E = Phi/d
             N_SurfVDL(SideID)%U(6:8,p,q) = -N_SurfVDL(SideID)%U(5,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
           ELSE
             ! Get maximum of Phi as Phi_F (Phi_Max)
             N_SurfVDL(SideID)%U(5:5,p,q) = MAX(MaxOfElem,MaxOfFace)
             ! Reconstruct Phi_F from E
-            N_SurfVDL(SideID)%U(1:1,p,q) =  VECNORM(E)*PartBound%ThicknessVDL(iPartBound)
+            N_SurfVDL(SideID)%U(1:1,p,q) =  VECNORM3D(E)*PartBound%ThicknessVDL(iPartBound)
             ! Reconstruct E from Phi_Max via E = Phi/d
             N_SurfVDL(SideID)%U(6:8,p,q) =  N_SurfVDL(SideID)%U(5,p,q)/PartBound%ThicknessVDL(iPartBound)*normal
           END IF ! Edir.GT.0

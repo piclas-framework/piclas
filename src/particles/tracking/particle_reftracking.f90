@@ -475,7 +475,7 @@ LOGICAL                       :: isHit,doubleCheck
 
 ! Calculate particle trajectory
 PartTrajectory       = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
+lengthPartTrajectory = VECNORM3D(PartTrajectory(1:3))
 
 ! Check if the particle moved at all. If not, tracking is done
 CNElemID = GetCNElemID(ElemID)
@@ -502,7 +502,7 @@ DO WHILE(DoTracing)
     IF (PeriMoved) THEN
       IF(GEO%nPeriodicVectors.EQ.3) CYCLE
       PartTrajectory       = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-      lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
+      lengthPartTrajectory = VECNORM3D(PartTrajectory(1:3))
     ELSE
       IF (GEO%nPeriodicVectors.EQ.3) RETURN
     END IF
@@ -1028,7 +1028,7 @@ tmpVec              = PartTrajectory
 LastPartPos(1:3,PartID) = ElemBaryNGeo(:,GetCNElemID(ElemID))
 
 PartTrajectory       = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
+lengthPartTrajectory = VECNORM3D(PartTrajectory(1:3))
 IF (lengthPartTrajectory.GT.0) PartTrajectory = PartTrajectory/lengthPartTrajectory
 
 locAlpha  = -1.0

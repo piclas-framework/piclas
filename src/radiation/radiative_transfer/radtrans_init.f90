@@ -141,7 +141,7 @@ IF (RadObservationPointMethod.GT.0) THEN
   RadObservationPoint%MidPoint = GETREALARRAY('Radiation-ObservationMidPoint',3)
   RadObservationPoint%ViewDirection = GETREALARRAY('Radiation-ObservationViewDirection',3)
   IF(.NOT.ALL(RadObservationPoint%ViewDirection(:).EQ.0.)) THEN
-    RadObservationPoint%ViewDirection = RadObservationPoint%ViewDirection / VECNORM(RadObservationPoint%ViewDirection)
+    RadObservationPoint%ViewDirection = RadObservationPoint%ViewDirection / VECNORM3D(RadObservationPoint%ViewDirection)
   END IF
   RadObservationPoint%SlitFunction = GETREALARRAY('Radiation-ObservationSlitFunction',2)
   IF(RadObservationPoint%SlitFunction(1).GT.RadObservationPoint%SlitFunction(2)) THEN
@@ -555,7 +555,7 @@ DO iNode = 1, 8
   NodePoint(1:3) = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+iNode)
   ConeDist = DOT_PRODUCT(NodePoint(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
   ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
-  orthoDist = VECNORM(NodePoint(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+  orthoDist = VECNORM3D(NodePoint(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
   IF (orthoDist.LE.ConeRadius) THEN
     NodeInCone(iNode) = .TRUE.
   END IF
@@ -579,7 +579,7 @@ ELSE IF (ANY(NodeInCone)) THEN
       END DO
       ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
       ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
-      orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+      orthoDist = VECNORM3D(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
       IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
     END DO
   END ASSOCIATE
@@ -608,7 +608,7 @@ ELSE
             END DO
             ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
             ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
-            orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+            orthoDist = VECNORM3D(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
             IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
           END DO
         END ASSOCIATE
@@ -632,7 +632,7 @@ ELSE
               END DO
               ConeDist = DOT_PRODUCT(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3), RadObservationPoint%ViewDirection(1:3))
               ConeRadius = TAN(RadObservationPoint%AngularAperture/2.) * ConeDist
-              orthoDist = VECNORM(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
+              orthoDist = VECNORM3D(RandomPos(1:3) - RadObservationPoint%StartPoint(1:3) - ConeDist*RadObservationPoint%ViewDirection(1:3))
               IF (orthoDist.LE.ConeRadius)  RadTransObsVolumeFrac(ElemID) = RadTransObsVolumeFrac(ElemID) + 1./REAL(MCVar)
             END DO
           END ASSOCIATE
@@ -702,7 +702,7 @@ SideLoop: DO iLocSide=1,nlocSides
           RadObservationPOI(1:3, ElemID) = RadObservationPOI(4:6, ElemID)
           RadObservationPOI(4:6, ElemID) = IntersectionPos(1:3)
         END IF
-        RadObservationPOI(7, ElemID) = VECNORM(RadObservationPOI(4:6, ElemID)-RadObservationPOI(1:3, ElemID))
+        RadObservationPOI(7, ElemID) = VECNORM3D(RadObservationPOI(4:6, ElemID)-RadObservationPOI(1:3, ElemID))
         EXIT SideLoop
       END IF
     END IF
@@ -728,7 +728,7 @@ IF (ElemInCone.AND.(nThroughSide.NE.2)) THEN
     length = -RadObservationPoint%StartPoint(2)/RadObservationPoint%ViewDirection(2)
     RadObservationPOI(2:3, ElemID) = 0.0
     RadObservationPOI(1, ElemID) = RadObservationPoint%StartPoint(1) + length*RadObservationPoint%ViewDirection(1)
-    RadObservationPOI(7, ElemID) = VECNORM(RadObservationPOI(4:6, ElemID)-RadObservationPOI(1:3, ElemID))
+    RadObservationPOI(7, ElemID) = VECNORM3D(RadObservationPOI(4:6, ElemID)-RadObservationPOI(1:3, ElemID))
     RETURN
   END IF
   CALL abort(&

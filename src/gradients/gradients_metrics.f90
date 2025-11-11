@@ -150,7 +150,7 @@ DO ElemID = 1, nElems
 #endif
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
     dElem(:) = dslave(:,SideID) - dmaster(:,SideID) !doesnt matter if elem is slave or master, dElem is always "squared"
-    gradWeight = 1/VECNORM(dElem)**2
+    gradWeight = 1/VECNORM3D(dElem)**2
     dMatrix(1:PP_dim,1) = dMatrix(1:PP_dim,1) + gradWeight*dElem(1)*dElem(1:PP_dim)
     dMatrix(1:PP_dim,2) = dMatrix(1:PP_dim,2) + gradWeight*dElem(2)*dElem(1:PP_dim)
 #if PP_dim == 3

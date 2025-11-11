@@ -92,6 +92,7 @@ The following list contains the **recommended library combinations** for the Int
 
 | PICLas Version | CMake  | Compiler  |            MPI             |  HDF5  | PETSc  |
 | :------------: | :----: | :-------: | :------------------------: | :----: | :----: |
+|     4.1.0      | 4.2.1  | gcc14.2.0 | openmpi-5.0.8, mpich-4.3.1 | 1.14.6 | 3.22.5 |
 | 3.6.0 - 4.0.0  | 3.31.1 | gcc14.2.0 | openmpi-5.0.6, mpich-4.1.2 | 1.14.0 | 3.21.6 |
 |     3.4.0      | 3.31.1 | gcc13.2.0 | openmpi-4.1.5, mpich-4.1.2 | 1.14.0 | 3.19.3 |
 |     3.3.0      | 3.26.4 | gcc13.2.0 |       openmpi-4.1.5        | 1.14.0 | 3.19.3 |
