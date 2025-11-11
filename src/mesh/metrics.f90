@@ -747,7 +747,7 @@ END SUBROUTINE CalcSurfMetrics
 !==================================================================================================================================
 SUBROUTINE SurfMetricsFromJa(Nloc,NormalDir,TangDir,NormalSign,Ja_Face,NormVec,TangVec1,TangVec2,SurfElem)
 ! MODULES
-USE MOD_Globals       ,ONLY: CROSS,abort
+USE MOD_Globals       ,ONLY: CROSS,abort,DOTPRODUCT
 #if USE_HDG
 USE MOD_Symmetry_Vars ,ONLY: Symmetry
 #endif /*USE_HDG*/
@@ -768,6 +768,7 @@ REAL,INTENT(OUT)   ::  SurfElem(  0:Nloc,0:Nloc) !< element face surface area
 ! LOCAL VARIABLES
 INTEGER            :: p,q
 CHARACTER(32)      :: hilf
+REAL               :: tmp
 !==================================================================================================================================
 WRITE(UNIT=hilf,FMT='(I0)') Nloc
 DO q=0,Nloc; DO p=0,Nloc
@@ -786,9 +787,9 @@ DO q=0,Nloc; DO p=0,Nloc
     SurfElem(  p,q) = SQRT(SurfElem(p,q))
     NormVec( :,p,q) = NormalSign*Ja_Face(NormalDir,:,p,q)/SurfElem(p,q)
     TangVec1(:,p,q) = Ja_Face(TangDir,:,p,q) - SUM(Ja_Face(TangDir,:,p,q)*NormVec(:,p,q)) * NormVec(:,p,q)
-    TangVec1(:,p,q) = SUM(TangVec1(:,p,q)**2)
-    IF(ANY(ABS(TangVec1(:,p,q)).LE.0.0)) CALL abort(__STAMP__,'SUM(TangVec1(:,p,q)**2) <= 0')
-    TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(TangVec1(:,p,q))
+    tmp = DOTPRODUCT(TangVec1(:,p,q))
+    IF(tmp.LE.0.0) CALL abort(__STAMP__,'SUM(TangVec1(:,p,q)**2) <= 0')
+    TangVec1(:,p,q) = TangVec1(:,p,q)/SQRT(tmp)
     TangVec2(:,p,q) = CROSS(NormVec(:,p,q),TangVec1(:,p,q))
   END IF ! SurfElem(p,q).LT.0.
 END DO; END DO ! p,q
