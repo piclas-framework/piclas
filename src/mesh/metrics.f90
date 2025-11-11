@@ -318,8 +318,14 @@ SmallestscaledJacRef=HUGE(1.)
       dXCL_NGeo(3,:,i,j,k)=dXCL_NGeo(3,:,i,j,k) + DCL_NGeo(k,ll)*XCL_Ngeo(:,i,j,ll)
     END DO !l=0,N
 #if USE_HDG
-    ! AXISYMMETRIC HDG
-    IF(Symmetry%Axisymmetric) dXCL_Ngeo(3,3,i,j,k)=PI*XCL_Ngeo(2,i,j,k)
+    IF(Symmetry%Order==1) THEN
+      dXCL_Ngeo(3,3,i,j,k)=1.
+      dXCL_Ngeo(2,2,i,j,k)=1.
+    ELSEIF(Symmetry%Axisymmetric) THEN
+      dXCL_Ngeo(3,3,i,j,k)=PI*XCL_Ngeo(2,i,j,k)
+    ELSEIF(Symmetry%Order==2) THEN
+      dXCL_Ngeo(3,3,i,j,k)=1.
+    END IF
 #endif /*USE_HDG*/
   END DO; END DO; END DO !i,j,k=0,Ngeo
 
@@ -389,8 +395,14 @@ SmallestscaledJacRef=HUGE(1.)
         dXCL(3,:)=dXCL(3,:) + NInfo(Nloc)%DCL_N(k,ll)*NInfo(Nloc)%XCL_N(:,i,j,ll)
       END DO !l=0,N
 #if USE_HDG
-      ! AXISYMMETRIC HDG
-      IF(Symmetry%Axisymmetric) dXCL(:,3)=PI * NInfo(Nloc)%XCL_N(2,i,j,k)
+      IF(Symmetry%Order==1) THEN
+        dXCL(:,3)=1.
+        dXCL(:,2)=1.
+      ELSEIF(Symmetry%Axisymmetric) THEN
+        dXCL(:,3)=PI * NInfo(Nloc)%XCL_N(2,i,j,k)
+      ELSEIF(Symmetry%Order==2) THEN
+        dXCL(:,3)=1.
+      END IF
 #endif /*USE_HDG*/
       END ASSOCIATE
     END DO; END DO; END DO !i,j,k=0,N

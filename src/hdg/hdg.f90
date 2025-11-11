@@ -132,6 +132,7 @@ USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC
 #if defined(PARTICLES)
 USE MOD_HDG_Init              ,ONLY: InitBV
 #endif /*defined(PARTICLES)*/
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -511,7 +512,7 @@ END DO !iElem
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
 DO iElem=1,PP_nElems
-  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
+  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./Symmetry%Order))  !1/h ~ 1/vol^(1/3) (volref=8)
 END DO !iElem
 
 CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
