@@ -199,12 +199,12 @@ if [ -n "$CHANGED" ]; then
       # -P, --perl-regexp         PATTERNS are Perl regular expressions
       #   \b                      word boundary
       # -o, --only-matching       show only nonempty parts of lines that match
-      VECNORMMATCH=$(grep -iPo '\bVECNORM\(' "$file")
+      VECNORMMATCH=$(grep -iPo '\bVECNORM\(' "$file" | grep -iv "PetscCall")
       if [ -n "${VECNORMMATCH}" ]; then
         ERROR=1
         VECNORMERROR=1
         # -H, --with-filename       print file name with output lines
-        VECNORMLINES=$(grep -HniP '\bVECNORM\(' "$file")
+        VECNORMLINES=$(grep -HniP '\bVECNORM\(' "$file" | grep -iv "PetscCall")
       fi
     fi
 
