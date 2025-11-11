@@ -162,11 +162,11 @@ Therefore, the quasi-neutrality parameter must be above 0.5 and at least 20 part
 independent of their charge value.
 
 **PIC Particle Time Step**
-The maximum allowed time step within the PIC schemes can be estimated by
+The maximum allowed time step within the PIC schemes, which was derived in {cite}`Birdsall1980` can be estimated by
 
 $$\Delta_{t,\mathrm{PIC}}<\frac{0.2}{\omega_{p}}$$
 
-where $\omega_{p}$ is the (cold) plasma frequency (only calculated for valid elements, see above).
+where $\omega_{p}$ is the (cold) plasma frequency that is only calculated within valid elements, see above.
 The calculation is activated by
 
     CalcPICTimeStep = T
