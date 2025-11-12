@@ -120,11 +120,11 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactVector_Shared,SampWallImp
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactAngle_Shared,SampWallImpactAngle_Shared_Win
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactNumber_Shared,SampWallImpactNumber_Shared_Win
 USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfOutputPerGroup
 #else
 USE MOD_MPI_Shared_Vars           ,ONLY: mySurfRank
 USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalOutputSides
 #endif /*USE_MPI*/
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfOutputPerGroup
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
