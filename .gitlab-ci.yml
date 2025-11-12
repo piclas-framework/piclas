@@ -123,9 +123,9 @@ before_script:
       echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
       COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
       reggie() {
-        coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=../reggie -m reggie.reggie "$@"
+        coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"
       }
-      echo "Exporting reggie function call to 'coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=../reggie -m reggie.reggie "$@"' to get coverage data."
+      echo "Exporting reggie function call to 'coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"' to get coverage data."
       export -f reggie
     fi
 
@@ -256,6 +256,7 @@ stages:
         - build_poisson_debug_RK3
         - build_poisson_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_checkin: &defaults_poisson_checkin
   <<: *defaults_poisson
@@ -287,6 +288,7 @@ stages:
       paths:
         - build_drift_diffusion
       policy: pull
+    - *coverage_cache
 
 .defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
   <<: *defaults_drift_diffusion
@@ -318,6 +320,7 @@ stages:
       paths:
         - build_DVM
       policy: pull
+    - *coverage_cache
 
 .defaults_DVM_checkin: &defaults_DVM_checkin
   <<: *defaults_DVM
@@ -355,6 +358,7 @@ stages:
         - build_poisson_petsc_debug_RK3
         - build_poisson_petsc_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
   <<: *defaults_poisson_petsc
@@ -384,6 +388,7 @@ stages:
       paths:
         - build_petsc_lib
       policy: pull
+    - *coverage_cache
   rules:
     - if: '$DO_WEEKLY'
 
@@ -407,6 +412,7 @@ stages:
         - build_DSMC_N1
         - build_radiation
       policy: pull
+    - *coverage_cache
 
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
   <<: *defaults_DSMC

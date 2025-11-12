@@ -41,7 +41,6 @@ Update the library versions and push the most recent version of the `master.dev`
 * [ ] Check-in
 * [ ] Nightly
 * [ ] Weekly
-* [ ] Code Coverage
 
 ## Deploy master branch to GitHub
 When the `Merge` button for this merge request is pushed, start the deployment of the master branch to GitHub via [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and
