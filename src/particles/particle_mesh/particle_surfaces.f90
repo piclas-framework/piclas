@@ -346,9 +346,9 @@ IF(PRESENT(area)) THEN
 END IF
 
 IF(PRESENT(midpoint)) THEN
-  midpoint(1) = xNod + (Vector1(1)+Vector2(1))/2.
-  midpoint(2) = yNod + (Vector1(2)+Vector2(2))/2.
-  midpoint(3) = zNod + (Vector1(3)+Vector2(3))/2.
+  midpoint(1) = xNod + (Vector1(1)+Vector2(1))/3.
+  midpoint(2) = yNod + (Vector1(2)+Vector2(2))/3.
+  midpoint(3) = zNod + (Vector1(3)+Vector2(3))/3.
 END IF
 
 IF(PRESENT(ndist)) THEN
