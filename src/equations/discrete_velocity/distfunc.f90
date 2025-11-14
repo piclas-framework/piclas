@@ -1023,8 +1023,8 @@ DO iElem =1, nElems
         END IF
       CASE(1) !EDDVM
         relaxFac = tDeriv/tau/2.
-        IF (CHECKEXP(3.*relaxFac)) THEN
-          prefac = (EXP(-relaxFac)-EXP(-3.*relaxFac))/(1.-EXP(-relaxFac))/2.
+        IF (CHECKEXP(relaxFac)) THEN
+          prefac = EXP(-relaxFac)*(1.+EXP(-relaxFac))/2.
         ELSE
           prefac = 0.
         END IF
@@ -1041,8 +1041,8 @@ DO iElem =1, nElems
       SELECT CASE(DVMMethod)
       CASE(1)
         relaxFac = tDeriv/tau
-        IF (CHECKEXP(2.*relaxFac)) THEN
-          prefac = 2.*(EXP(-relaxFac)-EXP(-2.*relaxFac))/(1.-EXP(-2.*relaxFac))
+        IF (CHECKEXP(relaxFac)) THEN
+          prefac = EXP(-relaxFac)*2./(1.+EXP(-relaxFac))
         ELSE
           prefac = 0.
         END IF

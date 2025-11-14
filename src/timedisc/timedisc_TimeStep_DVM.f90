@@ -49,7 +49,9 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 ! initial rescaling if initialized with non-equilibrium flow
-IF (DVMColl.AND.DVMMethod.GT.0.AND.(IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.iter.EQ.0) CALL RescaleInit(dt)
+IF (DVMColl.AND.DVMMethod.GT.0..AND.iter.EQ.0) THEN
+  IF (IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.5.OR.IniExactFunc_FV.EQ.6) CALL RescaleInit(dt)
+END IF
 
 IF (ANY(DVMAccel.NE.0.)) CALL ForceStep(dt)
 
