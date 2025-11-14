@@ -2143,7 +2143,7 @@ USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide
-REAL                            :: triarea(2), trimidpoint(3,2)
+REAL                            :: triarea(2), y_nodes(4)
 #if USE_MPI
 REAL                            :: CNVolume
 INTEGER                         :: offsetElemCNProc
@@ -2223,8 +2223,8 @@ DO BCSideID=1,nBCSides
       ! The volume calculated at this point (final volume for the 2D case) corresponds to the cell face area (z-dimension=1) in
       ! the xy-plane.
       ElemVolume_Shared(CNElemID) = 0.0
-      CALL CalcNormAndTangTriangle(area=triarea(1),midpoint=trimidpoint(:,1),TriNum=1, SideID=SideID)
-      CALL CalcNormAndTangTriangle(area=triarea(2),midpoint=trimidpoint(:,2),TriNum=2, SideID=SideID)
+      CALL CalcNormAndTangTriangle(area=triarea(1),TriNum=1, SideID=SideID)
+      CALL CalcNormAndTangTriangle(area=triarea(2),TriNum=2, SideID=SideID)
       ElemVolume_Shared(CNElemID) = triarea(1) + triarea(2)
       ! Characteristic length is compared to the mean free path as the condition to refine the mesh. For the 2D/axisymmetric case
       ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
@@ -2234,7 +2234,9 @@ DO BCSideID=1,nBCSides
       ! Centroid calculation (with triangles): c = (A1*c1 + A2*c2) / A
       ! Volume calculation: V = 2 * pi * c_y * A.
       IF (Symmetry%Axisymmetric) THEN
-        ElemVolume_Shared(CNElemID) = 2. * Pi * (triarea(1) * trimidpoint(2,1) + triarea(2) * trimidpoint(2,2))
+        y_nodes = NodeCoords_Shared(2,ElemSideNodeID_Shared(1:4,iLocSide,CNElemID)+1)
+        ElemVolume_Shared(CNElemID) = 2. * Pi * (triarea(1) * (y_nodes(1) + y_nodes(2) + y_nodes(3)) + &
+                                                 triarea(2) * (y_nodes(1) + y_nodes(3) + y_nodes(4))) / 3.0
       END IF
       SymmetryBCExists = .TRUE.
     END IF      ! Greater z-coord
