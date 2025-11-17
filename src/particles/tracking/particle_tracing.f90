@@ -186,7 +186,7 @@ DO iPart=1,PDM%ParticleVecLength
      IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.14E3))') ' Velocity:          ', PartState(4:6,iPart)
      PartTrajectory=PartState(1:3,iPart) - LastPartPos(1:3,iPart)
      IPWRITE(UNIT_stdOut,'(I0,A,3(1X,ES25.14E3))') ' PartTrajectory:    ', PartTrajectory
-     IPWRITE(UNIT_stdOut,'(I0,A,ES25.14E3)')      ' lengthPT:          ', VECNORM(PartTrajectory)
+     IPWRITE(UNIT_stdOut,'(I0,A,ES25.14E3)')      ' lengthPT:          ', VECNORM3D(PartTrajectory)
      CALL abort(&
          __STAMP__ &
          ,'ERROR: Lastpartpos in wrong element. PartID:',iPart)
@@ -704,7 +704,6 @@ USE MOD_Particle_Tracking_Vars      ,ONLY: TrackInfo
 USE MOD_Particle_Vars               ,ONLY: PDM
 #ifdef CODE_ANALYZE
 USE MOD_Mesh_Vars                   ,ONLY: NGeo
-USE MOD_Particle_Localization       ,ONLY: SinglePointToElement
 USE MOD_Particle_Surfaces_Vars      ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars          ,ONLY: ElemBaryNGeo
 USE MOD_Mesh_Tools                  ,ONLY: GetCNElemID

@@ -667,8 +667,13 @@ PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
 PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matrix
 ! Conservative guess for the number of nonzeros: With mortars at most 12 sides with Nmax.
+#if (PETSC_VERSION_MAJOR >= 3) && (PETSC_VERSION_MINOR > 21)
+PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER_ARRAY,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER_ARRAY,22 * nGP_face(NMax),PETSC_NULL_INTEGER_ARRAY,ierr))
+#else
 PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+#endif
 PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
 PetscCallA(MatSetOption(PETScSystemMatrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)) ! Column oriented for more convenient set up
 
@@ -936,7 +941,6 @@ END SUBROUTINE CalculateElectricTimeDerivative
 !===================================================================================================================================
 SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL(UpdatePhiF)
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC

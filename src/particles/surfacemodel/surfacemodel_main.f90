@@ -45,7 +45,7 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SurfaceModelling(PartID,SideID,GlobalElemID,n_Loc)
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,VECNORM
+USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,VECNORM3D
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
@@ -142,7 +142,7 @@ IF(DoSample) THEN
       distanceMin = HUGE(1.)
       DO p = 1, nSurfSample
         DO q = 1, nSurfSample
-          distance = VECNORM(PartPosImpact(1:3) - SurfSideSamplingMidPoints(1:3,p,q,SurfSideID))
+          distance = VECNORM3D(PartPosImpact(1:3) - SurfSideSamplingMidPoints(1:3,p,q,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             TrackInfo%p = p
             TrackInfo%q = q
@@ -384,7 +384,7 @@ SUBROUTINE SpeciesSwap(PartID,SideID,targetSpecies_IN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals                 ,ONLY: abort,VECNORM
+USE MOD_Globals                 ,ONLY: abort,VECNORM3D
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartSpecies
@@ -484,7 +484,7 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 !===================================================================================================================================
 SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
 USE MOD_Particle_Vars          ,ONLY: LastPartPos, PartSpecies, PartState
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
@@ -510,7 +510,7 @@ PartState(1:3,PartID) = LastPartPos(1:3,PartID) - (PartBound%ThicknessVDL(iPartB
 ! Set tracking variables
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
-TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+TrackInfo%lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE

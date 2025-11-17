@@ -1248,7 +1248,7 @@ DO iReg = 1, BGGas%nRegions
       BGGas%Region(iReg)%BaseVector2IC = GETREALARRAY('Particles-BGGas-Region'//TRIM(hilf2)//'-BaseVector2IC',3)
       ! Determine the normal vector of the cylinder from base vectors
       BGGas%Region(iReg)%NormalVector = CROSS(BGGas%Region(iReg)%BaseVector1IC,BGGas%Region(iReg)%BaseVector2IC)
-      IF (VECNORM(BGGas%Region(iReg)%NormalVector).EQ.0) THEN
+      IF (VECNORM3D(BGGas%Region(iReg)%NormalVector).EQ.0) THEN
         CALL abort(__STAMP__,'BaseVectors are parallel!')
       ELSE
         BGGas%Region(iReg)%NormalVector = UNITVECTOR(BGGas%Region(iReg)%NormalVector)

@@ -311,7 +311,7 @@ ELSE
   ! Check if emission only cell-local
   GEO%InitFIBGM = .FALSE.
 
-  ! FIBGM needed in every emmision except cell_local
+  ! FIBGM needed in every emmision except cell_local and background
   DO iSpec=1,nSpecies
     DO iInit=1,Species(iSpec)%NumberOfInits
       IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
@@ -965,16 +965,16 @@ ELSE
       ! END ASSOCIATE
 
       ! compare distance of centers with sum of element outer radii+halo_eps
-      ! IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
+      ! IF (VECNORM3D(BoundsOfElemCenter(1:3)-MPISideBoundsOfElemCenter_Shared(1:3,iElem)) &
           ! .GT. halo_eps+BoundsOfElemCenter(4)+MPISideBoundsOfElemCenter_Shared(4,iElem) ) CYCLE
 
       ! Directional distance calculation due to tolerance problems that lead to "non-symmetric exchange procs"
       ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
       IF (ProcID.LT.myrank) THEN
-        a = VECNORM(BoundsOfElemCenter(1:3) - MPISideBoundsOfElemCenter_Shared(1:3,iElem))
+        a = VECNORM3D(BoundsOfElemCenter(1:3) - MPISideBoundsOfElemCenter_Shared(1:3,iElem))
         b = halo_eps + BoundsOfElemCenter(4) + MPISideBoundsOfElemCenter_Shared(4,iElem)
       ELSE
-        a = VECNORM(MPISideBoundsOfElemCenter_Shared(1:3,iElem) - BoundsOfElemCenter(1:3))
+        a = VECNORM3D(MPISideBoundsOfElemCenter_Shared(1:3,iElem) - BoundsOfElemCenter(1:3))
         b = halo_eps + MPISideBoundsOfElemCenter_Shared(4,iElem) + BoundsOfElemCenter(4)
       END IF ! ProcID.LE.myrank
 
@@ -1855,10 +1855,11 @@ IF(StringBeginsWith(DepositionType,'shape_function') & ! FIBGM needed for depo o
   .OR. GEO%ForceFIBGM ) THEN
     DeleteFIBGM=.FALSE.
 END IF
-! FIBGM needed in every non-initial emmision except cell_local and background
+! FIBGM needed in every emmision except cell_local and background
 DO iSpec=1,nSpecies
   DO iInit=1,Species(iSpec)%NumberOfInits
-    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.Species(iSpec)%Init(iInit)%ParticleEmissionType.GT.0) THEN
+    IF(TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'cell_local'.AND.&
+       TRIM(Species(iSpec)%Init(iInit)%SpaceIC).NE.'background') THEN
       DeleteFIBGM=.FALSE.
     END IF
   END DO
@@ -2137,7 +2138,7 @@ DO iElem = firstElem,lastElem
   BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,2,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-  BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
+  BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
                                       BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
                                       BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
@@ -2149,7 +2150,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
     LocalBoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,2,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
-    LocalBoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
+    LocalBoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
                                              BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
                                              BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
 
@@ -2159,7 +2160,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
         ! check two directions
         DO iDir = -1, 1, 2
           ! check if element is within halo_eps of periodically displaced element
-          IF (VECNORM( BoundsOfElemCenter(1:3) + GEO%PeriodicVectors(1:3,1)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
+          IF (VECNORM3D( BoundsOfElemCenter(1:3) + GEO%PeriodicVectors(1:3,1)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
                   .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
           ! add element back to halo region
@@ -2177,7 +2178,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
           DO iDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                           &
+            IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                           &
                       + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
                       .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
@@ -2196,7 +2197,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
             DO iDir = -1, 1, 2
               DO jDir = -1, 1, 2
                 ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+                IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                             &
                           + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir)                                  &
                           + GEO%PeriodicVectors(1:3,jPeriodicVector)*REAL(jDir) - LocalBoundsOfElemCenter(1:3) ) &
                           .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
@@ -2221,7 +2222,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
           ! check if element is within halo_eps of periodically displaced element
           DO iDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-            IF (VECNORM( BoundsOfElemCenter(1:3)                                                           &
+            IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                           &
                       + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir) - LocalBoundsOfElemCenter(1:3))&
                       .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
 
@@ -2238,7 +2239,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
             DO iDir = -1, 1, 2
               DO jDir = -1, 1, 2
                 ! check if element is within halo_eps of periodically displaced element
-                IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+                IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                             &
                           + GEO%PeriodicVectors(1:3,iPeriodicVector)*REAL(iDir)                                  &
                           + GEO%PeriodicVectors(1:3,jPeriodicVector)*REAL(jDir) - LocalBoundsOfElemCenter(1:3) ) &
                           .GT. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4)) CYCLE
@@ -2258,7 +2259,7 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
           DO jDir = -1, 1, 2
             DO kDir = -1, 1, 2
             ! check if element is within halo_eps of periodically displaced element
-              IF (VECNORM( BoundsOfElemCenter(1:3)                                                             &
+              IF (VECNORM3D( BoundsOfElemCenter(1:3)                                                             &
                         + GEO%PeriodicVectors(1:3,1)*REAL(iDir)                                  &
                         + GEO%PeriodicVectors(1:3,2)*REAL(jDir)                                  &
                         + GEO%PeriodicVectors(1:3,3)*REAL(kDir) - LocalBoundsOfElemCenter(1:3) ) &
@@ -2335,9 +2336,9 @@ DO iElem = firstElem ,lastElem
   BoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,2,iElem)),                                                   &
                                SUM(   BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-  BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
-                                      BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
-                                      BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+  BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iElem)-BoundsOfElem_Shared(1,1,iElem),                     &
+                                        BoundsOfElem_Shared(2  ,2,iElem)-BoundsOfElem_Shared(1,2,iElem),                     &
+                                        BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
   ! Sort out elements which are not at rotationally periodic BC
   IsPotentialRotElem = .TRUE.
@@ -2363,9 +2364,9 @@ DO iElem = firstElem ,lastElem
     LocalBoundsOfElemCenter(1:3) = (/ SUM(   BoundsOfElem_Shared(1:2,1,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,2,iLocElem)),                                         &
                                       SUM(   BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
-    LocalBoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
-                                             BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
-                                             BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+    LocalBoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2  ,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem),        &
+                                               BoundsOfElem_Shared(2  ,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),        &
+                                               BoundsOfElem_Shared(2  ,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     !   3. Rotate the global element and check the distance of all compute-node elements to
     !      this element and flag it with halo flag 3 if the element can be reached by a particle
     DO iPartBound = 1, nPartBound
@@ -2378,13 +2379,13 @@ DO iElem = firstElem ,lastElem
       END ASSOCIATE
       RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
       ! check if element is within halo_eps of rotationally displaced element
-      IF (VECNORM( RotBoundsOfElemCenter(1:3)                               &
+      IF (VECNORM3D( RotBoundsOfElemCenter(1:3)                               &
                  - LocalBoundsOfElemCenter(1:3))                            &
               .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
         ! add element back to halo region
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
         IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
-      END IF ! VECNORM( ...
+      END IF ! VECNORM3D( ...
     END DO ! nPartBound
   END DO ! iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
 END DO ! firstElem,lastElem
@@ -2443,9 +2444,9 @@ DO iPartBound = 1,nPartBound
     BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iLocElem)),                                     &
                                     SUM(BoundsOfElem_Shared(1:2,2,iLocElem)),                                     &
                                     SUM(BoundsOfElem_Shared(1:2,3,iLocElem)) /) / 2.
-    BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
-                                        BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
-                                        BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
+    BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iLocElem)-BoundsOfElem_Shared(1,1,iLocElem), &
+                                          BoundsOfElem_Shared(2,2,iLocElem)-BoundsOfElem_Shared(1,2,iLocElem),      &
+                                          BoundsOfElem_Shared(2,3,iLocElem)-BoundsOfElem_Shared(1,3,iLocElem) /) / 2.)
     InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
     IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
       InInterPlaneRegion = .TRUE.
@@ -2461,9 +2462,9 @@ DO iPartBound = 1,nPartBound
       BoundsOfElemCenter(1:3) = (/    SUM(BoundsOfElem_Shared(1:2,1,iElem)),                                     &
                                       SUM(BoundsOfElem_Shared(1:2,2,iElem)),                                     &
                                       SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-      BoundsOfElemCenter(4) = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
-                                          BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),      &
-                                          BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      BoundsOfElemCenter(4) = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem), &
+                                            BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),      &
+                                            BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
       InterPlaneDistance = ABS(PartBound%RotAxisPosition(iPartBound) - BoundsOfElemCenter(k))
       IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
         ! add element back to halo region

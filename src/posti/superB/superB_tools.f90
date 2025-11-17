@@ -159,14 +159,14 @@ REAL                 :: IntegrationWeight
 TYPE tVdm_GL_N
   REAL, ALLOCATABLE                     :: Vdm(:,:)
 END TYPE tVdm_GL_N
-TYPE(tVdm_GL_N),ALLOCATABLE    :: Vdm_GL_N(:) 
+TYPE(tVdm_GL_N),ALLOCATABLE    :: Vdm_GL_N(:)
 !===================================================================================================================================
 ! Initialize errors
 L_Inf_Error(:)=-1.E10
 L_2_Error(:)=0.
 ALLOCATE(Vdm_GL_N(Nmin:Nmax))
 DO Nloc = Nmin, Nmax
-  ALLOCATE(Vdm_GL_N(Nloc)%Vdm(0:Nloc,0:NAnalyze)) 
+  ALLOCATE(Vdm_GL_N(Nloc)%Vdm(0:Nloc,0:NAnalyze))
   CALL GetVandermonde(NAnalyze , NodeTypeGL   , Nloc , NodeType , Vdm_GL_N(Nloc)%Vdm , modal=.FALSE.)
 END DO
 
@@ -185,8 +185,8 @@ DO iElem=1,PP_nElems
        DO k=0,NAnalyze
          CALL ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,Coords_NAnalyze(1:3,k,l,m),U_exact)
          L_Inf_Error(1:3) = MAX(L_Inf_Error(1:3),abs(U_NAnalyze(:,k,l,m) - U_exact))
-         ASSOCIATE( U_NAnalyze_Abs => VECNORM(U_NAnalyze(1:3,k,l,m)) ,&
-                    U_exact_Abs    => VECNORM(U_exact)             )
+         ASSOCIATE( U_NAnalyze_Abs => VECNORM3D(U_NAnalyze(1:3,k,l,m)) ,&
+                    U_exact_Abs    => VECNORM3D(U_exact)             )
            L_Inf_Error(4) = MAX(L_Inf_Error(4),ABS(U_NAnalyze_Abs-U_exact_Abs))
            IntegrationWeight = wAnalyze(k)*wAnalyze(l)*wAnalyze(m)*J_NAnalyze(1,k,l,m)
            ! To sum over the elements, We compute here the square of the L_2 error
@@ -227,7 +227,7 @@ SUBROUTINE ExactFuncSuperB(ExactFunctionNumber,iCoilOrMagnet,x,resu)
 !   2X : Magnets
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals       ,ONLY: Abort,VECNORM,UNITVECTOR,CROSSNORM,DOTPRODUCT
+USE MOD_Globals       ,ONLY: Abort,VECNORM3D,UNITVECTOR,CROSSNORM,DOTPRODUCT
 USE MOD_Globals       ,ONLY: SphericalCoordinates,TransformVectorFromSphericalCoordinates
 USE MOD_Globals_Vars  ,ONLY: Pi,mu0
 USE MOD_SuperB_Vars   ,ONLY: CoilInfo,PermanentMagnetInfo
@@ -252,18 +252,18 @@ CASE(10) ! linear conductor
              a    => x(1:3) - CoilInfo(iCoilOrMagnet)%BasePoint(1:3) ,&
              I    => CoilInfo(iCoilOrMagnet)%Current                  )
     ! project DOF vector in local coordinate system onto Lvec
-    ASSOCIATE( b => UNITVECTOR(DOT_PRODUCT(a,Lvec)*Lvec)*VECNORM(a),&
-               L => VECNORM(Lvec) )
+    ASSOCIATE( b => UNITVECTOR(DOT_PRODUCT(a,Lvec)*Lvec)*VECNORM3D(a),&
+               L => VECNORM3D(Lvec) )
       ! calculate the radial vector "c" in local coordinate system
       ASSOCIATE( c => a-b          ,&
-                 R => VECNORM(a-b) )
+                 R => VECNORM3D(a-b) )
         Resu(1:3) = CROSSNORM(b,c) * (mu0*I/(2.*Pi*R)) * (L/2.0) / SQRT((L/2.)**2 + R**2)
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
 CASE(20) ! Spherical hard magnet
   ! Calculate DOF vector "a" in local coordinate system
-  ASSOCIATE( c1 => (mu0/3.)*VECNORM(PermanentMagnetInfo(1)%Magnetisation(1:3))*PermanentMagnetInfo(1)%Radius**3 ,&
+  ASSOCIATE( c1 => (mu0/3.)*VECNORM3D(PermanentMagnetInfo(1)%Magnetisation(1:3))*PermanentMagnetInfo(1)%Radius**3 ,&
               P => x(1:3) - PermanentMagnetInfo(1)%BasePoint(1:3)                                               )
 
     ! Get spherical coordinates

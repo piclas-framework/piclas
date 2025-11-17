@@ -75,6 +75,8 @@ load_module () {
 # Check command line arguments
 RERUNMODE=0
 LOADMODULES=1
+# Initialize empty
+CMAKEVERSION=
 # default to openmpi
 WHICHMPI='openmpi'
 for ARG in "$@"
@@ -96,18 +98,22 @@ do
   if [ ${ARG} == "--modules" ] || [ ${ARG} == "-m" ]; then
     LOADMODULES=0
     # Set desired versions
-    #GCCVERSION=12.2.0
-    #GCCVERSION=13.2.0
+    # GCCVERSION=12.2.0
+    # GCCVERSION=13.2.0
     GCCVERSION=14.2.0
+    # GCCVERSION=15.2.0
 
     # OPENMPI
-    #OPENMPIVERSION=4.1.4
-    #OPENMPIVERSION=4.1.5
-    #OPENMPIVERSION=4.1.6
-    OPENMPIVERSION=5.0.6
+    # OPENMPIVERSION=4.1.4
+    # OPENMPIVERSION=4.1.5
+    # OPENMPIVERSION=4.1.6
+    # OPENMPIVERSION=5.0.6
+    OPENMPIVERSION=5.0.8
 
     # MPICH
-    MPICHVERSION=4.1.2
+    # MPICHVERSION=4.1.2
+    # MPICHVERSION=4.2.1
+    # MPICHVERSION=4.3.1
 
     # chose which mpi you want to have installed (openmpi or mpich), default is openmpi
     if [[ -n ${MPICHVERSION} ]]; then
@@ -126,7 +132,6 @@ do
         MPIVERSION=${OPENMPIVERSION}
       fi
     fi
-
   fi
 
   # Check if re-run mode is selected by the user
@@ -137,14 +142,23 @@ do
 done
 
 # DOWNLOAD and INSTALL PETSc (example PETSc-3.17.0)
-#PETSCVERSION=3.17.0
-#PETSCVERSION=3.18.4
-#PETSCVERSION=3.19.3
-#PETSCVERSION=3.19.6
-#PETSCVERSION=3.20.4
-#PETSCVERSION=3.20.6
-PETSCVERSION=3.21.6
-#PETSCVERSION=3.22.2 # currently does not work
+# PETSCVERSION=3.17.0
+# PETSCVERSION=3.18.4
+# PETSCVERSION=3.19.3
+# PETSCVERSION=3.19.6
+# PETSCVERSION=3.20.4
+# PETSCVERSION=3.20.6
+# PETSCVERSION=3.21.6
+# PETSCVERSION=3.22.2 # currently does not work
+PETSCVERSION=3.22.5 # error during configure with GCC 15.2.0 and GCC 14.2.0 in combination with OpenMPI 5.0.6 or 5.0.8
+# PETSCVERSION=3.23.0 # error during configure with GCC 15.2.0
+# PETSCVERSION=3.23.6
+# PETSCVERSION=3.24.1
+
+# CMake version. Leave commented out to use default
+CMAKEVERSION=3.31.1
+# CMAKEVERSION=4.1.2
+if [[ -n ${CMAKEVERSION} ]]; then  CMAKEVERSION="cmake/${CMAKEVERSION}"; else CMAKEVERSION='cmake'; fi;
 
 # Activate DEBUGGING MODE with ON/OFF
 DEBUG=OFF
@@ -220,7 +234,7 @@ if [ ! -e "${MODULEFILE}" ]; then
   module purge
   load_module "gcc/${GCCVERSION}"
   load_module "${WHICHMPI}/${MPIVERSION}/gcc/${GCCVERSION}"
-  module load cmake
+  module load ${CMAKEVERSION}
   module list
   echo " "
   echo -e "$GREEN""Important: If the compilation step fails, run the script again and if it still fails \n1) try compiling single, .i.e., remove -j from make -j or \n2) try make -j 2 (not all available threads)$NC"
@@ -240,10 +254,11 @@ if [ ! -e "${MODULEFILE}" ]; then
     while true; do
       echo " "
       echo "${YELLOW}${CLONEDIR} already exists.${NC}"
-      echo "${YELLOW}Do you want to continue the installation with the existing files under ${CLONEDIR} (y/n)?${NC}"
+      echo "${YELLOW}Do you want to continue the installation with the existing files under ${CLONEDIR}?${NC}"
       # Inquiry
       if [[ ${RERUNMODE} -eq 0 ]]; then
-        read -p "${YELLOW}Otherwise the directory will be removed and a fresh installation will be performed. [Y/n]${NC}" yn
+        echo "${YELLOW}Otherwise the directory will be removed and a fresh installation will be performed.${NC}"
+        read -p "${YELLOW}Press [y] for a continued installation or [n] for a fresh installation [y/n]${NC}" yn
       else
         yn=y
       fi
@@ -296,6 +311,8 @@ if [ ! -e "${MODULEFILE}" ]; then
     echo -e "$RED""Failed: Cannot find MPI directory ${MPIINSTALLDIR}$NC"
     exit
   fi
+
+  # CXXFLAGS="${CXXFLAGS} -fPIC" \
   ./configure PETSC_ARCH=arch-linux \
       --prefix=${PETSCINSTALLDIR} \
       --with-mpi-dir=${MPIINSTALLDIR} \
@@ -313,23 +330,25 @@ if [ ! -e "${MODULEFILE}" ]; then
       --download-parmetis \
       ${BLAS_SUPPORT}
 
+  # CXXFLAGS='${CXXFLAGS} -fPIC' \\
   if [ ${PIPESTATUS[0]} -ne 0 ]; then
+    pwd
     echo " "
-    echo -e "$RED""Failed command: [./configure PETSC_ARCH=arch-linux \
-      --prefix=${PETSCINSTALLDIR} \
-      --with-mpi-dir=${MPIINSTALLDIR} \
-      --with-debugging=${WITHDEBUG} \
-      COPTFLAGS='-O3 -march=native -mtune=native' \
-      CXXOPTFLAGS='-O3 -march=native -mtune=native' \
-      FOPTFLAGS='-O3 -march=native -mtune=native' \
-      --with-shared-libraries=1 \
-      --with-mpi-f90module-visibility=0 \
-      --with-bison=0 \
-      --download-hypre \
-      --download-mumps \
-      --download-scalapack \
-      --download-metis \
-      --download-parmetis \
+    echo -e "${RED}Failed command: [./configure PETSC_ARCH=arch-linux \\
+      --prefix=${PETSCINSTALLDIR} \\
+      --with-mpi-dir=${MPIINSTALLDIR} \\
+      --with-debugging=${WITHDEBUG} \\
+      COPTFLAGS='-O3 -march=native -mtune=native' \\
+      CXXOPTFLAGS='-O3 -march=native -mtune=native' \\
+      FOPTFLAGS='-O3 -march=native -mtune=native' \\
+      --with-shared-libraries=1 \\
+      --with-mpi-f90module-visibility=0 \\
+      --with-bison=0 \\
+      --download-hypre \\
+      --download-mumps \\
+      --download-scalapack \\
+      --download-metis \\
+      --download-parmetis \\
       ${BLAS_SUPPORT}]$NC"
     exit
   else

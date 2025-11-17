@@ -225,7 +225,7 @@ DO WHILE (.NOT.PartisDone)
     GlobSideTemp = 0
     isMortarSideTemp = .FALSE.
     TrackInfo%PartTrajectory(1:3)=PartState(1:3,i) - LastPartPos(1:3,i)
-    TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+    TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
     IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory = TrackInfo%PartTrajectory &
                                                                               / TrackInfo%lengthPartTrajectory
     nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
@@ -449,7 +449,7 @@ DO WHILE (.NOT.PartisDone)
     END IF  ! SideInfo_Shared(SIDE_BCID,SideID).GT./.LE. 0
     CNElemID = GetCNElemID(ElemID)
     IF (CNElemID.LT.1) THEN
-      IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM(PartState(1:3,i)-LastPartPos(1:3,i))
+      IPWRITE(UNIT_StdOut,*) "VECNORM3D(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM3D(PartState(1:3,i)-LastPartPos(1:3,i))
       IPWRITE(UNIT_StdOut,*) " PartState(1:3,i)  : ", PartState(1:3,i)
       IPWRITE(UNIT_StdOut,*) " LastPartPos(1:3,i): ", LastPartPos(1:3,i)
       IPWRITE(UNIT_StdOut,*) " PartState(4:6,i)  : ", PartState(4:6,i)
@@ -549,7 +549,7 @@ DO WHILE (.NOT.PartisDone)
   ! 1a) The side through which the particle went is determined by checking each side of the element (ParticleThroughSideCheck1D2D)
   NrOfThroughSides = 0
   TrackInfo%PartTrajectory(1:3)=PartState(1:3,i) - LastPartPos(1:3,i)
-  TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+  TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
   IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory = TrackInfo%PartTrajectory &
                                                                             / TrackInfo%lengthPartTrajectory
   nlocSides = ElemInfo_Shared(ELEM_LASTSIDEIND,ElemID) -  ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID)
@@ -629,7 +629,7 @@ DO WHILE (.NOT.PartisDone)
     CNElemID = GetCNElemID(ElemID)
 
     IF (CNElemID.LT.1) THEN
-      IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM(PartState(1:3,i)-LastPartPos(1:3,i))
+      IPWRITE(UNIT_StdOut,*) "VECNORM3D(PartState(1:3,i)-LastPartPos(1:3,i)): ", VECNORM3D(PartState(1:3,i)-LastPartPos(1:3,i))
       IPWRITE(UNIT_StdOut,*) " PartState(1:3,i)  : ", PartState(1:3,i)
       IPWRITE(UNIT_StdOut,*) " LastPartPos(1:3,i): ", LastPartPos(1:3,i)
       IPWRITE(UNIT_StdOut,*) " PartState(4:6,i)  : ", PartState(4:6,i)

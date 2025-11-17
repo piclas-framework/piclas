@@ -900,7 +900,7 @@ IF(BGGas%NumberOfSpecies.GT.0) THEN
     SpecID = BGGas%MapBGSpecToSpec(1)
     WeightGas     = BGGValueForGranularSpec(5,iLoop)
     VeloRel(1:3)  = BGGValueForGranularSpec(1:3,iLoop) - PartState(4:6,iPart)
-    VeloRelAbs    = VECNORM(VeloRel)
+    VeloRelAbs    = VECNORM3D(VeloRel)
     ERotGas       = BGGValueForGranularSpec(4,iLoop)
     ! Force contribution
     Force(1:3) = Force(1:3) + CalcForceToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,VeloRel)
@@ -915,7 +915,7 @@ ELSE
     IF(Species(SpecID)%InterID.NE.100) THEN
       WeightGas     = Species(SpecID)%MacroParticleFactor
       VeloRel(1:3)  = PartState(4:6,locPart) - PartState(4:6,iPart)
-      VeloRelAbs    = VECNORM(VeloRel)
+      VeloRelAbs    = VECNORM3D(VeloRel)
       ERotGas       = PartStateIntEn( 2,locPart)
       ! Force contribution
       Force(1:3) = Force(1:3) + CalcForceToSolidParticle(SpecID,WeightGas,RadiusSolid,VeloRelAbs,TempSolid,ElemVolume,VeloRel)
