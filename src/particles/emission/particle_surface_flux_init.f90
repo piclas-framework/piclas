@@ -520,7 +520,7 @@ DO iSpec=1,nSpecies
     END IF !.NOT.VeloIsNormal
     IF (.NOT.SF%VeloIsNormal) THEN
       !--- normalize VeloVecIC
-      IF (.NOT. ALL(SF%VeloVecIC(:).EQ.0.)) SF%VeloVecIC = SF%VeloVecIC / VECNORM(SF%VeloVecIC)
+      IF (.NOT. ALL(SF%VeloVecIC(:).EQ.0.)) SF%VeloVecIC = SF%VeloVecIC / VECNORM3D(SF%VeloVecIC)
     END IF
     SF%MWTemperatureIC       = GETREAL('Part-Species'//TRIM(hilf2)//'-MWTemperatureIC')
     SF%PartDensity           = GETREAL('Part-Species'//TRIM(hilf2)//'-PartDensity')

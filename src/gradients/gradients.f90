@@ -247,7 +247,7 @@ DO ElemID = 1, nElems
 #endif
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
     flip=ElemToSide(E2S_FLIP,locSideID,ElemID)
-    gradWeight = 1/VECNORM(Grad_dx_master(:,SideID)-Grad_dx_slave(:,SideID))**2
+    gradWeight = 1/VECNORM3D(Grad_dx_master(:,SideID)-Grad_dx_slave(:,SideID))**2
     IF (flip.EQ.0) THEN !master
       maxDiff = MAX(maxDiff,-Diff_side(:,SideID))
       minDiff = MIN(minDiff,-Diff_side(:,SideID))
@@ -341,7 +341,7 @@ IF (.NOT.doMPISides) THEN
     DO locSideID2=1,6
       SideID2=ElemToSide(E2S_SIDE_ID,locSideID2,ElemID)
       IF (SideID2.LE.lastBCSide) CYCLE
-      gradWeight = 1/VECNORM(Grad_dx_master(:,SideID2)-Grad_dx_slave(:,SideID2))**2
+      gradWeight = 1/VECNORM3D(Grad_dx_master(:,SideID2)-Grad_dx_slave(:,SideID2))**2
       diffUinside(:) = diffUinside(:) - Grad_dx_master(1,SideID)*gradWeight*Grad_SysSol_BC(1,SideID2)*Diff_side(:,SideID2) &
                                       - Grad_dx_master(2,SideID)*gradWeight*Grad_SysSol_BC(2,SideID2)*Diff_side(:,SideID2) &
                                       - Grad_dx_master(3,SideID)*gradWeight*Grad_SysSol_BC(3,SideID2)*Diff_side(:,SideID2)

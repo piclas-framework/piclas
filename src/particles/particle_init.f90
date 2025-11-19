@@ -864,9 +864,11 @@ USE MOD_Globals          ,ONLY: abort
 USE MOD_ReadInTools      ,ONLY: GETLOGICAL,GETINT
 USE MOD_Particle_Vars
 #if USE_LOADBALANCE
-USE MOD_Globals          ,ONLY: MPIRoot
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE MOD_Globals          ,ONLY: MPIRoot
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------

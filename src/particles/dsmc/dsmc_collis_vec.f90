@@ -64,7 +64,7 @@ FUNCTION DiceDeflectedVelocityVector4Coll(iPair,ForceUnitVector) RESULT(VeloVec)
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
-USE MOD_Globals       ,ONLY: VECNORM
+USE MOD_Globals       ,ONLY: VECNORM3D
 USE MOD_Globals_Vars  ,ONLY: Pi
 USE MOD_DSMC_Vars     ,ONLY: Coll_pData, CollInf
 USE MOD_Part_Tools    ,ONLY: DiceUnitVector
@@ -119,7 +119,7 @@ IF (CollInf%alphaVSS(iSpec1,iSpec2).NE.1.0 .AND. .NOT.ForceUnitVector_loc) THEN 
 
   ! if no radial component: collision plane and laboratory identical-> no transformation
   IF ((VeloRel(2).NE.0.) .AND. (VeloRel(3).NE.0.)) THEN
-    VeloMag = VECNORM(VeloRel(1:3))
+    VeloMag = VECNORM3D(VeloRel(1:3))
     VeloYZMag = SQRT(VeloRel(2)**2 + VeloRel(3)**2)
     ! axis transformation from reduced- mass frame back to center-of-mass frame via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
     ! initializing rotation matrix
@@ -174,7 +174,7 @@ END FUNCTION DiceVelocityVector4Coll
 PPURE FUNCTION VelocityCOMBackscatter(iPair) RESULT(VeloVec)
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
-USE MOD_Globals         ,ONLY: VECNORM
+USE MOD_Globals         ,ONLY: VECNORM3D
 USE MOD_Particle_Vars   ,ONLY: PartState
 USE MOD_DSMC_Vars       ,ONLY: Coll_pData
 IMPLICIT NONE
@@ -201,7 +201,7 @@ VeloRel(1:3) = PartState(4:6,iPart1) - PartState(4:6,iPart2)
 
 ! if no radial component: collision plane and laboratory identical-> no transformation
 IF ((VeloRel(2).NE.0.) .AND. (VeloRel(3).NE.0.)) THEN
-  VeloMag = VECNORM(VeloRel(1:3))
+  VeloMag = VECNORM3D(VeloRel(1:3))
   VeloYZMag = SQRT(VeloRel(2)**2 + VeloRel(3)**2)
   ! axis transformation from reduced- mass frame back to center-of-mass frame via Bird1994 p.36 (2.22)=A*b MATMUL for performance reasons
   ! initializing rotation matrix

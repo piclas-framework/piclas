@@ -536,7 +536,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
         END IF ! BCindex.GT.0
 
         ! compare distance of centers with sum of element outer radii+halo_eps
-        IF (VECNORM(BoundsOfElemCenter(1:3)-MPISideBoundsOfNbElemCenter(1:3,iSide)) &
+        IF (VECNORM3D(BoundsOfElemCenter(1:3)-MPISideBoundsOfNbElemCenter(1:3,iSide)) &
             .GT. MPI_halo_eps_woshape+BoundsOfElemCenter(4)+MPISideBoundsOfNbElemCenter(4,iSide)) THEN
 
           ! Also check periodic directions. Only MPI sides of the local proc are
@@ -675,12 +675,12 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
               END ASSOCIATE
               RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
               ! check if element is within halo_eps of rotationally displaced element
-              IF ( VECNORM(RotBoundsOfElemCenter(1:3) - MPISideBoundsOfNbElemCenter(1:3,iSide))    &
+              IF ( VECNORM3D(RotBoundsOfElemCenter(1:3) - MPISideBoundsOfNbElemCenter(1:3,iSide))    &
                       .LE.(MPI_halo_eps_woshape+BoundsOfElemCenter(4) + MPISideBoundsOfNbElemCenter(4,iSide)) ) THEN
                 ! flag the proc as exchange proc (in halo region)
                 IsExchangeElem(localElem) = .TRUE.
                 CYCLE ElemLoop
-              END IF ! VECNORM( RotBoundsOfElemCenter ...
+              END IF ! VECNORM3D( RotBoundsOfElemCenter ...
             END DO ! nPartBound
             ! End check rot periodic Elems and if iSide is on rot periodic BC
           END IF ! PartBound%UseRotPeriodicBC
@@ -831,10 +831,10 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     ! Directional distance calculation due to tolerance problems that lead to "non-symmetric exchange procs"
     ProcID = ElemInfo_Shared(ELEM_RANK,ElemID)
     IF (ProcID.LT.myrank) THEN
-      a = VECNORM(BoundsOfElemCenter(1:3) - MPISideBoundsOfElemCenter(1:3,iSide))
+      a = VECNORM3D(BoundsOfElemCenter(1:3) - MPISideBoundsOfElemCenter(1:3,iSide))
       b = MPI_halo_eps + BoundsOfElemCenter(4) + MPISideBoundsOfElemCenter(4,iSide)
     ELSE
-      a = VECNORM(MPISideBoundsOfElemCenter(1:3,iSide) - BoundsOfElemCenter(1:3))
+      a = VECNORM3D(MPISideBoundsOfElemCenter(1:3,iSide) - BoundsOfElemCenter(1:3))
       b = MPI_halo_eps + MPISideBoundsOfElemCenter(4,iSide) + BoundsOfElemCenter(4)
     END IF ! ProcID.LE.myrank
 
@@ -1009,7 +1009,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
           alpha = PartBound%RotPeriodicAngle(iPartBound) * PartBound%RotPeriodicTol
           RotBoundsOfElemCenter(1:3) = RotateVectorAroundAxis(BoundsOfElemCenter(1:3),PartBound%RotPeriodicAxis,alpha)
           ! check if element is within halo_eps of rotationally displaced element
-          IF (VECNORM( RotBoundsOfElemCenter(1:3)                                           &
+          IF (VECNORM3D( RotBoundsOfElemCenter(1:3)                                           &
                      - MPISideBoundsOfElemCenter(1:3,iSide))                                &
                   .LE. MPI_halo_eps+BoundsOfElemCenter(4)                                   & !-BoundsOfElemCenter(5) &
                      + MPISideBoundsOfElemCenter(4,iSide) ) THEN

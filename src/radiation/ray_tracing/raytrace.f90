@@ -571,16 +571,16 @@ END IF
 
 IF (RadObservationPointMethod.EQ.1) THEN
    Dist(1:3) = Point(1:3) - RadObservationPoint%MidPoint(1:3)
-   absdistnorm = VECNORM(Dist(1:3))
+   absdistnorm = VECNORM3D(Dist(1:3))
    DistNorm(1:3) = Dist(1:3)/absdistnorm
-   cosTheta = DOT_PRODUCT(RadObservationPoint%ViewDirection(1:3),DistNorm(1:3))/(VECNORM(RadObservationPoint%ViewDirection(1:3))*VECNORM(DistNorm(1:3)))
+   cosTheta = DOT_PRODUCT(RadObservationPoint%ViewDirection(1:3),DistNorm(1:3))/(VECNORM3D(RadObservationPoint%ViewDirection(1:3))*VECNORM3D(DistNorm(1:3)))
    spaceangle = cosTheta * RadObservationPoint%Area/(absdistnorm*absdistnorm)
 !  ProjectedDist(1:3) = Dist(1:3) - DOT_PRODUCT(RadObservationPoint%ViewDirection(1:3),Dist(1:3))*RadObservationPoint%ViewDirection(1:3)
-!  ClosestPoint(1:3) = RadObservationPoint%MidPoint(1:3) + RadObservationPoint%Diameter/2.*ProjectedDist(1:3)/VECNORM(ProjectedDist(1:3))
-!  FarthestPoint(1:3) = RadObservationPoint%MidPoint(1:3) - RadObservationPoint%Diameter/2.*ProjectedDist(1:3)/VECNORM(ProjectedDist(1:3))
+!  ClosestPoint(1:3) = RadObservationPoint%MidPoint(1:3) + RadObservationPoint%Diameter/2.*ProjectedDist(1:3)/VECNORM3D(ProjectedDist(1:3))
+!  FarthestPoint(1:3) = RadObservationPoint%MidPoint(1:3) - RadObservationPoint%Diameter/2.*ProjectedDist(1:3)/VECNORM3D(ProjectedDist(1:3))
 !  Vec1(1:3) = ClosestPoint(1:3) - Point(1:3)
 !  Vec2(1:3) = FarthestPoint(1:3) - Point(1:3)
-!  fullangle = ACOS(DOT_PRODUCT(Vec1,Vec2)/(VECNORM(Vec1)*VECNORM(Vec2)))
+!  fullangle = ACOS(DOT_PRODUCT(Vec1,Vec2)/(VECNORM3D(Vec1)*VECNORM3D(Vec2)))
   SetPhotonEnergy = SetPhotonEnergy * spaceangle/(4.*Pi)
 ELSEIF (RadObservationPointMethod.EQ.2) THEN
   IF (RadObservationPoint%CalcFullSpectra) THEN
@@ -668,12 +668,12 @@ IF (RadObservationPointMethod.EQ.1) THEN
   SetPhotonStartDirection(1:3) = MATMUL(RadObservationPoint%OrthoNormBasis, SetPhotonStartDirection(1:3))
   SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) + RadObservationPoint%MidPoint(1:3)
   SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) - PhotonProps%PhotonPos(1:3)
-  SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) / VECNORM(SetPhotonStartDirection(1:3))
+  SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) / VECNORM3D(SetPhotonStartDirection(1:3))
 ELSEIF (RadObservationPointMethod.EQ.2) THEN
 !    SetPhotonStartDirection(1:3) = RadObservationPoint%MidPoint(1:3)
 !    SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) - RadObservationPoint%ViewDirection(1:3)
   SetPhotonStartDirection(1:3) = -RadObservationPoint%ViewDirection(1:3)
-  SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) / VECNORM(SetPhotonStartDirection(1:3))
+  SetPhotonStartDirection(1:3) = SetPhotonStartDirection(1:3) / VECNORM3D(SetPhotonStartDirection(1:3))
 ELSE
   SELECT CASE(RadMod)
   CASE(1)

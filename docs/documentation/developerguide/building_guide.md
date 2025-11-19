@@ -21,6 +21,16 @@ Run pip to install the required extensions and packages for compiling the user g
 
     python3 -m pip install --exists-action=w --no-cache-dir -r requirements.txt
 
+If the requirements need updating, check the following websites
+
+- [sphinx](https://pypi.org/project/Sphinx/)
+- [sphinx_rtd_theme](https://pypi.org/project/sphinx-rtd-theme/)
+- [sphinx_rtd_size](https://pypi.org/project/sphinx-rtd-size/)
+- [readthedocs-sphinx-search](https://pypi.org/project/readthedocs-sphinx-search/)
+- [myst_parser](https://pypi.org/project/myst-parser/)
+- [sphinxcontrib.bibtex](https://pypi.org/project/sphinxcontrib-bibtex/)
+
+
 Make sure that *latexmk* is installed on the system for compiling the PDF version of the user guide. For Ubuntu, follow
 [this link](https://zoomadmin.com/HowToInstall/UbuntuPackage/latexmk) for installation.
 
