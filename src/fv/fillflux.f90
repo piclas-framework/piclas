@@ -125,7 +125,7 @@ IF(.NOT.doMPISides)THEN
       ! ADD moments de fluxmaster(1:nbcsides) TO SURFOUTPUT
       DO SideID=1,nBCSides
         CALL IntegrateFluxValues(MacroVal,Flux_Master(:,SideID))
-        DVMSurfaceValues(1:4,SideID) = MacroVal(2:5)
+        DVMSurfaceValues(1:4,1,1,SideID) = MacroVal(2:5)
       END DO
     END IF
   END IF

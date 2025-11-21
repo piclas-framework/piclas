@@ -86,7 +86,7 @@ TYPE(tSpeciesData),ALLOCATABLE :: DVMSpecData(:)
 CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames_FV(:)
 
 LOGICAL              :: WriteDVMSurfaceValues
-REAL,ALLOCATABLE     :: DVMSurfaceValues(:,:)
+REAL,ALLOCATABLE     :: DVMSurfaceValues(:,:,:,:)
 INTEGER              :: nVarDVMSurf=4
 
 LOGICAL              :: EquationInitIsDone_FV=.FALSE.!< Init switch
