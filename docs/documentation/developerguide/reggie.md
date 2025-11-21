@@ -158,7 +158,7 @@ Per default, `DO_CHECKIN`, `DO_NIGHTLY`, `DO_WEEKLY`, `DO_NODE_SPLIT` and `DO_CO
 
 ## Code Coverage
 
-Code coverage information can be inspected in multiple ways: on GitLab, by downloading GitLab artifacts and inspecting the data locally or even by running the tests locally in the first place.
+Code coverage information can be inspected in multiple ways: on GitLab, by downloading GitLab artifacts and inspecting the data locally, or by running the tests locally in the first place. By default, all lines containing `Call Abort()` or `Call CollectiveStop()` are not considered when creating coverage reports.
 
 ### Coverage on GitLab
 

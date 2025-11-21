@@ -445,11 +445,13 @@ reggie_download:
   artifacts:
     paths: [reggie]
   cache:
-    key: "reggie"
-    paths: [reggie]
-    policy: push
+    - key: "reggie"
+      paths: [reggie]
+      policy: push
+    - *coverage_cache
   stage: build
   script:
+    - if [ -n "${DO_CODE_COVERAGE}" ]; then rm -rf Coverage || true; fi
     # Check if the "reggie" directory contains a ".git" directory
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
     # Check if the "reggie" directory exists and remove it before cloning it again
@@ -1446,6 +1448,8 @@ code_coverage:
   stage: code_coverage
   script:
     - echo "Generating combined coverage report..."
+    # old coverage .json files are removed in the reggie_download stage, since it should only be done once
+    # (otherwise the new reports will be deleted in each job) and in the beginning
     - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
     # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
     - if [ -d "Coverage/html" ]; then
@@ -1466,7 +1470,7 @@ code_coverage:
     paths:
       # html for visual output
       - Coverage/html
-      # json files to check if all builds are read in for combined coverage report (TODO maybe remove due to memory usage)
+      # json files to check if all builds are read in for combined coverage report
       - Coverage/*.json
     expire_in: 1 month
     when: on_success
