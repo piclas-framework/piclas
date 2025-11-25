@@ -127,7 +127,7 @@ DO iSpec=1, DVMnSpecies
   MacroVal(2:4,iSpec) = rhoU(1:3)/dens/Sp%Mass
   MacroVal(5,iSpec) = (densEtr - 0.5*(DOTPRODUCT(rhoU))/dens/Sp%Mass)*2./3./dens/BoltzmannConst
   IF (.NOT.(PRESENT(charge)).AND.MacroVal(5,iSpec).LE.0) THEN
-    CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
+    ! CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
   ELSE IF (.NOT.(PRESENT(charge))) THEN
     mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
     IF((Sp%InterID.EQ.2).OR.(Sp%InterID.EQ.20)) THEN ! inner DOF
@@ -171,7 +171,7 @@ MacroVal(1,total) = densTotal
 IF (PRESENT(MassDensity)) MassDensity = rhoTotal
 MacroVal(2:4,total) = rhoUTotal(1:3)/rhoTotal
 MacroVal(5,total) = (densEtrTotal - 0.5*(DOTPRODUCT(rhoUTotal))/rhoTotal)*2./3./densTotal/BoltzmannConst
-IF (MacroVal(5,total).LE.0) CALL abort(__STAMP__,'DVM negative total temperature!')
+IF (MacroVal(5,total).LE.0) RETURN !CALL abort(__STAMP__,'DVM negative total temperature!')
 
 vFirstID = 0
 DO iSpec=1, DVMnSpecies
