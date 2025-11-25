@@ -2143,7 +2143,7 @@ USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide
-REAL                            :: radius, triarea(2)
+REAL                            :: triarea(2), y_nodes(4)
 #if USE_MPI
 REAL                            :: CNVolume
 INTEGER                         :: offsetElemCNProc
@@ -2230,15 +2230,13 @@ DO BCSideID=1,nBCSides
       ! the third dimension is not considered as particle interaction occurs in the xy-plane, effectively reducing the refinement
       ! requirement.
       ElemCharLength_Shared(CNElemID) = SQRT(ElemVolume_Shared(CNElemID))
-      ! Axisymmetric case: The volume is multiplied by the circumference to get the volume of the ring. The cell face in the
-      ! xy-plane is rotated around the x-axis. The radius is the middle point of the cell face.
+      ! Axisymmetric case: The cell face in the xy-plane is rotated around the x-axis. The radius is the centroid of the cell face.
+      ! Centroid calculation (with triangles): c = (A1*c1 + A2*c2) / A
+      ! Volume calculation: V = 2 * pi * c_y * A.
       IF (Symmetry%Axisymmetric) THEN
-        radius = 0.
-        DO iNode = 1, 4
-          radius = radius + NodeCoords_Shared(2,ElemSideNodeID_Shared(iNode,iLocSide,CNElemID)+1)
-        END DO
-        radius = radius / 4.
-        ElemVolume_Shared(CNElemID) = ElemVolume_Shared(CNElemID) * 2. * Pi * radius
+        y_nodes = NodeCoords_Shared(2,ElemSideNodeID_Shared(1:4,iLocSide,CNElemID)+1)
+        ElemVolume_Shared(CNElemID) = 2. * Pi * (triarea(1) * (y_nodes(1) + y_nodes(2) + y_nodes(3)) + &
+                                                 triarea(2) * (y_nodes(1) + y_nodes(3) + y_nodes(4))) / 3.0
       END IF
       SymmetryBCExists = .TRUE.
     END IF      ! Greater z-coord
