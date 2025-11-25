@@ -450,6 +450,7 @@ CALL GatheredWriteArray(FileName,create=.FALSE.,&
     nVal=      (/nValDVM, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
     offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
     collective=.TRUE.,RealArray=Udvm)
+SDEALLOCATE(Udvm)
 #endif
 #ifdef drift_diffusion
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
