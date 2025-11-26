@@ -132,6 +132,7 @@ USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC
 #if defined(PARTICLES)
 USE MOD_HDG_Init              ,ONLY: InitBV
 #endif /*defined(PARTICLES)*/
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -161,6 +162,8 @@ REAL              :: StartT,EndT
 #if USE_PETSC
 CHARACTER(100)    :: hilf
 #endif /*USE_PETSC*/
+REAL              :: SurfArea
+INTEGER           :: p,q
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -511,7 +514,18 @@ END DO !iElem
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
 DO iElem=1,PP_nElems
-  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
+  IF(Symmetry%Axisymmetric) THEN
+    ! z length is not 1 in axisymmetric case -> Calculate using surface area instead of volume
+    SideID = ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    SurfArea = 0.
+    DO q=0,Nloc; DO p=0,Nloc
+      SurfArea = SurfArea + N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+    END DO; END DO !p,q
+    Tau(iElem)=2./(SurfArea**(1./Symmetry%Order))
+  ELSE
+    Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./Symmetry%Order))  !1/h ~ 1/vol^(1/DIM) (volref=8)
+  END IF
 END DO !iElem
 
 CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
