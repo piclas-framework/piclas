@@ -59,7 +59,7 @@ REAL                            :: densEtr, densErot, densEvib
 REAL                            :: rhoTotal, densTotal, rhoUTotal(3)
 REAL                            :: densEtrTotal, densErotTotal, densEvibTotal
 REAL                            :: cVel(3), cMag2, cVelTotal(3), cMag2Total
-REAL                            :: mu(DVMnSpecies+1), thermalcond(DVMnSpecies+1), cP
+REAL                            :: mu(DVMnSpecies+1), thermalcond(DVMnSpecies+1), Xi_Vib(DVMnSpecies+1), cP
 REAL                            :: PressTens(6), Heatflux(3)
 REAL                            :: PressTensTotal(6), HeatfluxTotal(3)
 REAL                            :: weight, prefac, Phi, Prandtl, PrandtlCorr1, PrandtlCorr2, relaxFac
@@ -84,6 +84,7 @@ tau = 0.
 cP = 0.
 mu = 0.
 thermalcond = 0.
+Xi_Vib = 0.
 PrandtlCorr1 = 0.
 PrandtlCorr2 = 0.
 total = DVMnSpecies+1
@@ -126,18 +127,7 @@ DO iSpec=1, DVMnSpecies
   MacroVal(1,iSpec) = dens
   MacroVal(2:4,iSpec) = rhoU(1:3)/dens/Sp%Mass
   MacroVal(5,iSpec) = (densEtr - 0.5*(DOTPRODUCT(rhoU))/dens/Sp%Mass)*2./3./dens/BoltzmannConst
-  IF (.NOT.(PRESENT(charge)).AND.MacroVal(5,iSpec).LE.0) THEN
-    ! CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
-  ELSE IF (.NOT.(PRESENT(charge))) THEN
-    mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
-    IF((Sp%InterID.EQ.2).OR.(Sp%InterID.EQ.20)) THEN ! inner DOF
-      ! Istomin et. al., "Eucken correction in high-temperature gases with electronic excitation", J. Chem. Phys. 140,
-      ! 184311 (2014)
-      thermalcond(iSpec) = 0.25 * (15. + 2. * Sp%Xi_Rot * 1.328) * mu(iSpec) * BoltzmannConst / Sp%Mass
-    ELSE ! atoms
-      thermalcond(iSpec) = 0.25 * 15. * mu(iSpec) * BoltzmannConst / Sp%Mass
-    END IF
-  END IF
+
   IF (PRESENT(Erot)) Erot(iSpec) = densErot/dens
   IF (PRESENT(Evib)) Evib(iSpec) = densEvib/dens
   IF (PRESENT(Trot).AND.densErot.GT.0.) THEN
@@ -147,6 +137,20 @@ DO iSpec=1, DVMnSpecies
   IF (PRESENT(Tvib).AND.densEvib.GT.0.) THEN
     Tvib(iSpec) = Sp%T_Vib/(LOG(1.+BoltzmannConst*Sp%T_Vib*dens/densEvib))
     Tvib(total) = Tvib(total) + Tvib(iSpec)*dens
+  END IF
+
+  IF (.NOT.(PRESENT(charge)).AND.MacroVal(5,iSpec).LE.0) THEN
+    ! CALL abort(__STAMP__,'DVM negative temperature! Species n°',IntInfoOpt=iSpec)
+  ELSE IF (.NOT.(PRESENT(charge))) THEN
+    mu(iSpec) = Sp%mu_Ref*(MacroVal(5,iSpec)/Sp%T_Ref)**(Sp%omegaVHS+0.5)
+    IF((Sp%InterID.EQ.2).OR.(Sp%InterID.EQ.20)) THEN ! inner DOF
+      IF (densEvib.GT.0.) Xi_Vib(iSpec) = 2.*densEvib*LOG(1.+BoltzmannConst*Sp%T_Vib*dens/densEvib)/(dens*BoltzmannConst*Sp%T_Vib)
+      ! Istomin et. al., "Eucken correction in high-temperature gases with electronic excitation", J. Chem. Phys. 140,
+      ! 184311 (2014)
+      thermalcond(iSpec) = 0.25 * (15. + 2. * (Sp%Xi_Rot+Xi_Vib(iSpec)) * 1.328) * mu(iSpec) * BoltzmannConst / Sp%Mass
+    ELSE ! atoms
+      thermalcond(iSpec) = 0.25 * 15. * mu(iSpec) * BoltzmannConst / Sp%Mass
+    END IF
   END IF
 
   rhoTotal = rhoTotal + Sp%Mass*dens
@@ -249,9 +253,9 @@ DO iSpec=1, DVMnSpecies
     END DO
     mu(total) = mu(total) + MacroVal(1,iSpec)*mu(iSpec)/Phi
     thermalcond(total) = thermalcond(total) + MacroVal(1,iSpec)*thermalcond(iSpec)/Phi
-    cP = cP + ((5.+Sp%Xi_Rot)/2.) * BoltzmannConst * MacroVal(1,iSpec)/rhoTotal
-    PrandtlCorr1 = PrandtlCorr1 + (5.+Sp%Xi_Rot)*MacroVal(1,iSpec)/Sp%Mass
-    PrandtlCorr2 = PrandtlCorr2 + (5.+Sp%Xi_Rot)*MacroVal(1,iSpec)
+    cP = cP + ((5.+Sp%Xi_Rot+Xi_Vib(iSpec))/2.) * BoltzmannConst * MacroVal(1,iSpec)/rhoTotal
+    PrandtlCorr1 = PrandtlCorr1 + (5.+Sp%Xi_Rot+Xi_Vib(iSpec))*MacroVal(1,iSpec)/Sp%Mass
+    PrandtlCorr2 = PrandtlCorr2 + (5.+Sp%Xi_Rot+Xi_Vib(iSpec))*MacroVal(1,iSpec)
   ELSE
     mu(total) = mu(1)
     thermalcond(total) = thermalcond(1)
@@ -263,7 +267,7 @@ END DO
 IF (DVMnSpecies.GT.1) THEN
   Prandtl = cP*mu(total)/thermalcond(total)*PrandtlCorr1*rhoTotal/PrandtlCorr2/densTotal !Pr = alpha * cP * mu / K
 ELSE
-  Prandtl = 2.*(DVMSpecData(1)%Xi_Rot + 5.)/(2.*DVMSpecData(1)%Xi_Rot + 15.)
+  Prandtl = 2.*((DVMSpecData(1)%Xi_Rot + Xi_Vib(1)) + 5.)/(2.*(DVMSpecData(1)%Xi_Rot + Xi_Vib(1)) + 15.)
 END IF
 tau = mu(total)/BoltzmannConst/densTotal/MacroVal(5,total)
 IF (DVMBGKModel.EQ.1) tau = tau/Prandtl !ESBGK
