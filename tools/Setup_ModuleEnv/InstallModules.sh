@@ -52,7 +52,8 @@ calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 #MODULEVERSION='4.6.1'
 #MODULEVERSION='5.0.0'
 #MODULEVERSION='5.0.1'
-MODULEVERSION='5.3.1'
+#MODULEVERSION='5.3.1'
+MODULEVERSION='5.6.1'
 
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
