@@ -642,7 +642,6 @@ DO iSurfSide = 1,nComputeNodeSurfSides
     DO p = 1,nSurfSample
       ! --- Default output (force per area, heat flux, simulation particle impact per iteration, boundary index)
       CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
-
       IF(CounterSum.GT.0.0) THEN
         ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
         IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
@@ -650,7 +649,6 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         ELSE
           TimeSampleTemp = TimeSample
         END IF
-
         ! Force per area in x,y,z-direction
         MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
                                               / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
@@ -715,12 +713,21 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       END IF
       ! Output of torque calculation
       IF (TorqueOutput) THEN
-        nVarCount = nVarCount + 1
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
-        nVarCount = nVarCount + 1
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSampleTemp
-        nVarCount = nVarCount + 1
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientZ,p,q,iSurfSide) / TimeSampleTemp
+        IF(CounterSum.GT.0.0) THEN
+          nVarCount = nVarCount + 1
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
+          nVarCount = nVarCount + 1
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSampleTemp
+          nVarCount = nVarCount + 1
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientZ,p,q,iSurfSide) / TimeSampleTemp
+        ELSE
+          nVarCount = nVarCount + 1
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = 0.0
+          nVarCount = nVarCount + 1
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = 0.0
+          nVarCount = nVarCount + 1
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = 0.0
+        END IF
       END IF
       ! Output of group definition and group symmetry factor
       IF (CalcSurfOutputPerGroup) THEN
