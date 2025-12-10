@@ -55,7 +55,7 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
 INTEGER                                 :: SWIVarTimeStep
 INTEGER                                 :: SWIStickingCoefficient
 
-LOGICAL                                 :: TorqueOutput                 !> Calculate torque about x-, y-, z-axis
+LOGICAL                                 :: CalcTorque                 !> Calculate torque about x-, y-, z-axis
 INTEGER                                 :: SWITorqueCoefficientX
 INTEGER                                 :: SWITorqueCoefficientY
 INTEGER                                 :: SWITorqueCoefficientZ

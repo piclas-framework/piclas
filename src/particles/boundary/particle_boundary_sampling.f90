@@ -59,9 +59,7 @@ CALL prms%SetSection("Particle Boundary Sampling")
 CALL prms%CreateIntOption(      'Part-nSurfSample'  , 'Define NxN equidistant supersampling of surfaces. Default: NGeo', '1')
 CALL prms%CreateLogicalOption(  'CalcSurfaceImpact' , 'Sample average impact energy of particles for each species (trans, rot, '//&
                                                             'vib), impact vector and angle.','.FALSE.')
-CALL prms%CreateLogicalOption(  'TorqueOutput' , 'Activate torque calculation / output at wall BCs ','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-OutputPerGroup'       , 'Analyze the torque and heatflux per '//&
-                                                              'group of surfaces that are defined by user','.FALSE.')
+CALL prms%CreateLogicalOption(  'CalcTorque'        , 'Activate torque calculation / output at wall BCs ','.FALSE.')
 END SUBROUTINE DefineParametersParticleBoundarySampling
 
 
@@ -88,7 +86,7 @@ USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, DoChemSurface
 USE MOD_Particle_Boundary_Vars    ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideArea,SurfSampSize,SurfOutputSize,SurfSpecOutputSize,SurfSideSamplingMidPoints
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState, SWIVarTimeStep, SWIStickingCoefficient
-USE MOD_Particle_Boundary_Vars    ,ONLY: TorqueOutput, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
+USE MOD_Particle_Boundary_Vars    ,ONLY: CalcTorque, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactEnergy
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactVector
@@ -124,7 +122,7 @@ USE MOD_Particle_MPI_Boundary_Sampling,ONLY: InitSurfCommunication
 USE MOD_MPI_Shared_Vars           ,ONLY: mySurfRank
 USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalOutputSides
 #endif /*USE_MPI*/
-USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfOutputPerGroup
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SurfaceGroup, CalcSurfOutputPerGroup
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -164,9 +162,19 @@ END IF
 ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
 CalcSurfaceImpact = GETLOGICAL('CalcSurfaceImpact')
 
-TorqueOutput = GETLOGICAL('TorqueOutput')
+! Sampling of torque
+CalcTorque = GETLOGICAL('CalcTorque')
 
-CalcSurfOutputPerGroup = GETLOGICAL('Surf-OutputPerGroup')
+! Sampling of integral group values for heat flux and torque (groups are defined in InitSurfModelAnalyze)
+SurfaceGroup%nGroups = GETINT('Surf-nGroups')
+IF(SurfaceGroup%nGroups.GT.0) THEN
+  CalcSurfOutputPerGroup = .TRUE.
+  IF(.NOT.CalcTorque) THEN
+    CALL abort(__STAMP__,'ERROR in InitParticleBoundarySampling: Surf-nGroups > 1 requires CalcTorque = T!')
+  END IF
+ELSE
+  CalcSurfOutputPerGroup = .FALSE.
+END IF
 
 ! Flag if there is at least one surf side on the node (sides in halo region do also count)
 SurfTotalSideOnNode = MERGE(.TRUE.,.FALSE.,nComputeNodeSurfTotalSides.GT.0)
@@ -204,7 +212,7 @@ IF (DoChemSurface) THEN
   SurfOutputSize = SurfOutputSize + 1 ! Heat-Flux
 END IF
 ! Torque calculation
-IF(TorqueOutput) THEN
+IF(CalcTorque) THEN
   SurfSampSize = SurfSampSize + 3
   SWITorqueCoefficientX = SurfSampSize - 2
   SWITorqueCoefficientY = SurfSampSize - 1
@@ -520,7 +528,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides, BoundaryWallTem
 USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
 USE MOD_Particle_Boundary_vars     ,ONLY: SurfOutputSize, SWIVarTimeStep, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal, MacroSurfaceSpecVal
-USE MOD_Particle_Boundary_Vars     ,ONLY: TorqueOutput, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
+USE MOD_Particle_Boundary_Vars     ,ONLY: CalcTorque, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,UseVarTimeStep,VarTimeStep
 USE MOD_Symmetry_Vars              ,ONLY: Symmetry
@@ -712,7 +720,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
         MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = ChemWallProp(nSpecies+1,p, q, iSurfSide)/ (SurfSideArea(p,q,iSurfSide)*ActualTime)
       END IF
       ! Output of torque calculation
-      IF (TorqueOutput) THEN
+      IF (CalcTorque) THEN
         IF(CounterSum.GT.0.0) THEN
           nVarCount = nVarCount + 1
           MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
@@ -828,7 +836,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: nGlobalOutputSides
 USE MOD_Particle_boundary_Vars     ,ONLY: nComputeNodeSurfOutputSides,offsetComputeNodeSurfOutputSide
 USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOutputSize,SurfSpecOutputSize
-USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, TorqueOutput
+USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CalcTorque
 USE MOD_SurfaceModel_Analyze_Vars  ,ONLY: CalcSurfOutputPerGroup
 USE MOD_Particle_Vars              ,ONLY: nSpecies
 #if USE_MPI
@@ -939,9 +947,9 @@ IF (mySurfRank.EQ.0) THEN
   IF (PartBound%OutputWallTemp) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Wall_Temperature')
   IF (ANY(PartBound%SurfaceModel.EQ.1)) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Sticking_Coefficient')
   IF (DoChemSurface) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Catalytic_HeatFlux')
-  IF (TorqueOutput) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueX')
-  IF (TorqueOutput) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueY')
-  IF (TorqueOutput) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueZ')
+  IF (CalcTorque) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueX')
+  IF (CalcTorque) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueY')
+  IF (CalcTorque) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Total_TorqueZ')
   IF (CalcSurfOutputPerGroup) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'GroupID')
   IF (CalcSurfOutputPerGroup) CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Group_Symmetry_fac')
 

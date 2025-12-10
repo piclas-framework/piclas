@@ -52,13 +52,15 @@ CALL prms%CreateIntOption(      'BPO-NPartBoundaries'       , 'Number of boundar
 CALL prms%CreateIntArrayOption( 'BPO-PartBoundaries'        , 'Vector (length BPO-NPartBoundaries) with the numbers of each Part-Boundary', no=0)
 CALL prms%CreateIntOption(      'BPO-NSpecies'              , 'Number of species used for CalcBoundaryParticleOutput')
 CALL prms%CreateIntArrayOption( 'BPO-Species'               , 'Vector (length BPO-NSpecies) with the corresponding Species IDs', no=0)
+!-- SEE analysis
 CALL prms%CreateLogicalOption(  'CalcCurrentSEE'            , 'Count the electron emission from BCs where SEE is active','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcEnergyViolationSEE'    , 'Count the number and amount of energy conservation violations during SEE '//&
                                                               'using the Chung-Everhart distribution for multiple secondaries','.FALSE.')
+!-- Surface groups
+CALL prms%CreateIntOption( 'Surf-nGroups'                   , 'Number of surface groups', '0')
 CALL prms%CreateIntOption( 'Surf-Group[$]-BoundaryID'       , 'Linking Surface group to according boundary.', '0',numberedmulti=.TRUE.)
 CALL prms%CreateIntOption( 'Surf-Group[$]-MinInterplaneID'  , 'Linking Surface group to according boundary.', '0',numberedmulti=.TRUE.)
 CALL prms%CreateIntOption( 'Surf-Group[$]-MaxInterplaneID'  , 'Linking Surface group to according boundary.', '0',numberedmulti=.TRUE.)
-CALL prms%CreateIntOption( 'Surf-nGroups'                   , 'Number of surface groups')
 
 END SUBROUTINE DefineParametersSurfModelAnalyze
 
@@ -86,15 +88,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-!CHARACTER(32)       :: hilf
-!REAL                :: ElemMidPointPos, MinBoundPos, MaxBoundPos
-!INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
-!INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
-!INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
-!INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
 !===================================================================================================================================
 IF(SurfModelAnalyzeInitIsDone)THEN
-  CALL abort(__STAMP__,'InitParticleAnalyse already called.')
+  CALL abort(__STAMP__,'InitSurfModelAnalyze already called.')
   RETURN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -806,11 +802,11 @@ END IF
 counter = 0
 DO iGroup = 1, SurfaceGroup%nGroups
   counter = counter + 1
-  SurfaceGroup%SampState(1,iGroup) = SendBuff(counter) 
+  SurfaceGroup%SampState(1,iGroup) = SendBuff(counter)
   counter = counter + 1
-  SurfaceGroup%SampState(2,iGroup) = SendBuff(counter) 
+  SurfaceGroup%SampState(2,iGroup) = SendBuff(counter)
   counter = counter + 1
-  SurfaceGroup%SampState(3,iGroup) = SendBuff(counter) 
+  SurfaceGroup%SampState(3,iGroup) = SendBuff(counter)
   counter = counter + 1
   SurfaceGroup%SampState(4,iGroup) = SendBuff(counter)
   counter = counter + 1
@@ -1352,7 +1348,6 @@ INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
 INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
 INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
 !===================================================================================================================================
-SurfaceGroup%nGroups = GETINT('Surf-nGroups')
 ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
 GroupOutput = 0.0
 ALLOCATE(MinBound(SurfaceGroup%nGroups))
@@ -1380,14 +1375,14 @@ ALLOCATE(SurfaceGroup%VarTimeStep(SurfaceGroup%nGroups))
 SurfaceGroup%VarTimeStep = 0.0
 ALLOCATE(SurfaceGroup%Counter(SurfaceGroup%nGroups))
 SurfaceGroup%Counter = 0.0
-!  SurfaceGroup%GroupSideID = 0
 RotAxisDir = PartBound%RotPeriodicAxis
+! Loop over surface groups and read-in boundary and interplane IDs
 GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
   WRITE(UNIT=hilf,FMT='(I0)') iGroup
   GroupIDToBCID(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-BoundaryID')
   MinBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MinInterplaneID')
   MaxBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MaxInterplaneID')
-! First: 2 loops to define max and min position of the group
+  ! First: 2 loops to define max and min position of the group
   SideLoop1: DO iSide = firstSide, lastSide
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
     MinBoundPos = 0.0
@@ -1416,7 +1411,7 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
       EXIT SideLoop2
     END IF
   END DO SideLoop2
-! Calculating the number of sides per group and build up mapping
+  ! Calculating the number of sides per group and build up mapping
   SideLoop3: DO iSide = firstSide, lastSide
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
     IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.GroupIDToBCID(iGroup)) THEN
