@@ -144,8 +144,6 @@ stages:
   - reggie_nightly
   - reggie_weekly
   - reggie_tutorials
-  - code_coverage
-  - reggie_coverage
   - deploy
   - appimage
 
@@ -434,6 +432,21 @@ stages:
     - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".pre": always executed at the start of each pipeline
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+cleanup:
+  tags: [withmodules-concurrent]
+  stage: .pre
+  script:
+    - if [ -d "Coverage" ]; then
+      rm -rf Coverage;
+      echo "Old coverage files deleted";
+      fi
+  rules:
+    - if: '$DO_CODE_COVERAGE'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -451,7 +464,6 @@ reggie_download:
     - *coverage_cache
   stage: build
   script:
-    - if [ -n "${DO_CODE_COVERAGE}" ]; then rm -rf Coverage || true; fi
     # Check if the "reggie" directory contains a ".git" directory
     # Check if the .day file exists under "reggie/.day" and move it here if that is the case
     # Check if the "reggie" directory exists and remove it before cloning it again
@@ -1440,15 +1452,15 @@ WEK_DVM:
     - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "code_coverage": Collect all coverage data from executable
+# Stage ".post": Collect coverage data
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 code_coverage:
   extends: .defaults
-  needs: []
-  stage: code_coverage
+  stage: .post
+  needs: [cleanup]
   script:
     - echo "Generating combined coverage report..."
-    # old coverage .json files are removed in the reggie_download stage, since it should only be done once
+    # old coverage .json files are removed in the .pre stage (cleanup job), since it should only be done once
     # (otherwise the new reports will be deleted in each job) and in the beginning
     - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
     # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
@@ -1481,13 +1493,10 @@ code_coverage:
   rules:
     - if: '$DO_CODE_COVERAGE'
 
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
-# Stage "reggie_coverage": Collect all coverage data from reggie itself
-# ----------------------------------------------------------------------------------------------------------------------------------------------------
 reggie_coverage:
   extends: .defaults
-  needs: []
-  stage: code_coverage
+  stage: .post
+  needs: [cleanup]
   script:
     - echo "Generating coverage report for reggie..."
     - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
