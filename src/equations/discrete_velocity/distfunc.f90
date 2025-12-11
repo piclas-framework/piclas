@@ -1291,10 +1291,10 @@ DO iSpec=1, DVMnSpecies
       densE = densE + weight*0.5*(Sp%Velos(iVel,1)**2.+Sp%Velos(jVel,2)**2.+Sp%Velos(kVel,3)**2.)*U(upos)
     END IF
     IF (Sp%Xi_Rot.GT.0) THEN
-      densE = densE + weight*U(Sp%nVarErotStart+upos)
+      densE = densE + weight*U(Sp%nVarErotStart+upos)/Sp%Mass
     END IF
     IF (Sp%T_Vib.GT.0) THEN
-      densE = densE + weight*U(Sp%nVarEvibStart+upos)
+      densE = densE + weight*U(Sp%nVarEvibStart+upos)/Sp%Mass
     END IF
   END DO; END DO; END DO
 
