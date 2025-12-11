@@ -29,6 +29,7 @@ INTEGER(KIND=8)               :: SurfaceAnalyzeStep       ! Analyze of surface i
 LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
                                                           ! adsorbed particles per species
 LOGICAL                       :: CalcPorousBCInfo         ! Calculate output for porous BCs (averaged over whole BC)
+LOGICAL                       :: CalcSurfOutputPerGroup   ! Calculate torque and heatflux per defiened group of surfaces
 
 ! Output variables
 INTEGER,ALLOCATABLE           :: SurfAnalyzeCount(:)      ! Counter of surface collisions
@@ -40,6 +41,10 @@ REAL,ALLOCATABLE              :: PorousBCOutput(:,:)  ! 1: Counter of impinged p
                                                       ! 3: Pumping speed [m3/s] used to calculate the removal prob.
                                                       ! 4: Removal probability [0-1]
                                                       ! 5: Pressure at the BC normalized with the user-given pressure
+REAL,ALLOCATABLE              :: GroupOutput(:,:)     ! 1: Group torque Mx
+                                                      ! 2: Group torque My
+                                                      ! 3: Group torque Mz
+                                                      ! 4: Group heatflux
 
 ! --- BoundaryParticleOutput = BPO
 LOGICAL                       :: CalcBoundaryParticleOutput !< Flag for activating this output
@@ -61,6 +66,20 @@ TYPE tBoundaryParticleOutput
 END TYPE
 
 TYPE(tBoundaryParticleOutput)   :: BPO
+
+TYPE tSurfaceGroup
+  INTEGER                       :: nGroups                    !< Total number of groups defiened by user
+  REAL,ALLOCATABLE              :: SampState(:,:)             ! Sampling array for Group (1:4, 1:nGroups)
+                                                              ! 1-3: torque (M_x, M_y, M_z)
+                                                              ! 4  : heat flux
+  INTEGER,ALLOCATABLE           :: SurfSide2GroupID(:)        ! Mapping from SurfSideID to GroupID
+  REAL,ALLOCATABLE              :: SymmetryFactor(:)
+  REAL,ALLOCATABLE              :: Area(:)
+  REAL,ALLOCATABLE              :: VarTimeStep(:)             ! Sum timestep weigthing factor for variable time step
+  INTEGER,ALLOCATABLE           :: Counter(:)                 ! Total number of wall interactions per group
+END TYPE
+
+TYPE(tSurfaceGroup)   :: SurfaceGroup
 
 !-- Photon/Electron SEE emission counter
 LOGICAL :: CalcCurrentSEE         !< Read-in flag to count the electron emission from photon- and electron/ion-SEE BCs

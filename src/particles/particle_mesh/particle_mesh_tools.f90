@@ -2142,7 +2142,7 @@ USE MOD_Symmetry_Vars           ,ONLY: Symmetry
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: SideID, iLocSide, iNode, BCSideID, locElemID, CNElemID, iSide
+INTEGER                         :: SideID, iLocSide, BCSideID, locElemID, CNElemID, iSide
 REAL                            :: triarea(2), y_nodes(4)
 #if USE_MPI
 REAL                            :: CNVolume
