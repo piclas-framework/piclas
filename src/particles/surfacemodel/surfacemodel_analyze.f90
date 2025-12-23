@@ -818,15 +818,19 @@ END DO
 
 TimeSample = dt * SurfaceAnalyzeStep
 DO iGroup = 1, SurfaceGroup%nGroups
-  IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
-    TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
+  IF(SurfaceGroup%Counter(iGroup).GT.0) THEN
+    IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
+      TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
+    ELSE
+      TimeSampleTemp = TimeSample
+    END IF
+    SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSampleTemp
+    SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSampleTemp
+    SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
+    SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
   ELSE
-    TimeSampleTemp = TimeSample
+    SurfaceGroup%SampState = 0.0
   END IF
-  SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSampleTemp
-  SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSampleTemp
-  SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
-  SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
 END DO
 
 IF(MPIRoot)THEN
@@ -1374,7 +1378,7 @@ SurfaceGroup%Area = 0.0
 ALLOCATE(SurfaceGroup%VarTimeStep(SurfaceGroup%nGroups))
 SurfaceGroup%VarTimeStep = 0.0
 ALLOCATE(SurfaceGroup%Counter(SurfaceGroup%nGroups))
-SurfaceGroup%Counter = 0.0
+SurfaceGroup%Counter = 0
 RotAxisDir = PartBound%RotPeriodicAxis
 ! Loop over surface groups and read-in boundary and interplane IDs
 GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
