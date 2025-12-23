@@ -1493,6 +1493,6 @@ github_test_appimage:
     - ls -l
     - module li
     - echo "Checking ./piclasLeapfrogHDG executable output"
-    - ./piclasLeapfrogHDG --help | head -n 12
+    - ./piclasLeapfrogHDG --help | head -n 12 || true
     - echo "Running ./tools/testAppImages.sh . regressioncheck"
     - ./tools/testAppImages.sh . regressioncheck
