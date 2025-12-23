@@ -1480,7 +1480,7 @@ github_test_appimage:
   cache:
     - *reggie_cache
   script:
-    - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
+    - if [ -z "${DO_TEST_APPIMAGE}" ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact ${DO_TEST_APPIMAGE}"; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
     - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
     - module pu && module load gcc/14.2.0 openmpi/4.1.6/gcc/14.2.0
@@ -1488,8 +1488,11 @@ github_test_appimage:
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing
     - source /var/lib/gitlab-runner/.bashrc
+    - echo "Downloading '${DO_TEST_APPIMAGE}' artifacts from piclas-testing via 'gh run download -n ${DO_TEST_APPIMAGE}'"
     - gh run download -n ${DO_TEST_APPIMAGE}
     - ls -l
     - module li
+    - echo "Checking ./piclasLeapfrogHDG executable output"
     - ./piclasLeapfrogHDG --help | head -n 12
+    - echo "Running ./tools/testAppImages.sh . regressioncheck"
     - ./tools/testAppImages.sh . regressioncheck
