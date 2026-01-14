@@ -630,7 +630,7 @@ DO iSpec=1,DVMnSpecies
     CALL GradDistribution(RefState_FV(:,iSpec,1),Resu(vFirstID:vLastID),iSpec,ErelaxRot=ErelaxRot,ErelaxVib=ErelaxVib)
     IF (tIn.GT.0.) THEN ! relaxation
       MacroVal(:) = RefState_FV(:,iSpec,1)
-      MacroVal(5) = 7876.94 ! eq temperature (from simulation results, not analytical)
+      MacroVal(5) = 7877. ! eq temperature (from simulation results, not analytical)
       CALL MaxwellDistribution(MacroVal,Resu(vFirstID:vLastID),iSpec)
     END IF
 

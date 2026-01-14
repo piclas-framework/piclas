@@ -18,7 +18,8 @@ Overview of the test cases performed after a commit.
 |    5    |              [CHE_DSMC](#che_dsmc)               |                        DSMC                        |                                                                                                                                                                                                          |                |                  |                                                                                     |
 |    7    |            [CHE_BGK](#che_bgkfpflow)             |                      BGK-Flow                      |                                                                                                                                                                                                          |                |                  |                                                                                     |
 |    8    |           [CHE_FPFlow](#che_bgkfpflow)           |                      FP-Flow                       |                                                                                                                                                                                                          |                |                  |                                                                                     |
-|    9    |               [CHE_DVM](#che_dvm)                |                 discrete_velocity                  |                                                                                                                                                                                                          |                |                  |                                                                                     |
+|    9    |               [CHE_DVM](#che_dvm_plasma)                |                 discrete_velocity                  |                                                                                                                                                                                                          |                |                  |                                                                                     |
+|    10    |               [CHE_DVM_plasma](#che_dvm_plasma)                |                 discrete_velocity, PLOESMA                  |                                                                                                                                                                                                          |                |                  |                                                                                     |
 
 
 #### CHE_PIC_maxwell_RK4
@@ -92,7 +93,7 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 |         |         RELAX_CH4         |                  |                               CH4: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_CH4/readme.md)         |
 |         |         RELAX_N2          |                  |                                N2: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_N2/readme.md)          |
 
-#### CHE_DVM
+#### CHE_DVM(_plasma)
 
 | **No.** |     **Case**      | **CMAKE-CONFIG** |                                  **Feature**                                  | **Execution** |    **Comparing**    |                         **Readme**                          |
 | :-----: | :---------------: | :--------------: | :---------------------------------------------------------------------------: | :-----------: | :-----------------: | :---------------------------------------------------------: |
@@ -100,6 +101,7 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 |    2    |     Sod_shock     |                  | EDDVM/DUGKS, (cons)ESBGK/Shakhov/SNBGK/G13BGK, minmax/Venkatakrishnan limiter | nProcs=1,2,7  | final L2 error norm |     [Link](regressioncheck/CHE_DVM/Sod_shock/readme.md)     |
 |    3    | Sod_shock_restart |                  |                               DVM macro restart                               |  nProcs=1,3   | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock_restart/readme.md) |
 |    4    | RELAX_N2 |                  |                               DVM with inner energies                               |  nProcs=1   | final L2 error norm | [Link](regressioncheck/CHE_DVM/RELAX_N2/readme.md) |
+|    5    | landau_damping |                  |                               DVM plasma solver                               |  nProcs=1,2,7   | FieldAnalyze.csv | [Link](regressioncheck/CHE_DVM_plasma/landau_damping/readme.md) |
 
 
 ## Nightly

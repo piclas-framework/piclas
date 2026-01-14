@@ -312,6 +312,37 @@ stages:
     - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for DVM plasma tests
+.defaults_DVM_plasma: &defaults_DVM_plasma
+  extends: .default_param
+  needs: [build_DVM_plasma]
+  artifacts:
+    paths:
+      - build_DVM_plasma
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
+      paths:
+        - build_DVM_plasma
+      policy: pull
+
+.defaults_DVM_plasma_checkin: &defaults_DVM_plasma_checkin
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_DVM_plasma_nightly: &defaults_DVM_plasma_nightly
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_DVM_plasma_weekly: &defaults_DVM_plasma_weekly
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for poisson + PETSC tests
 .defaults_poisson_petsc: &defaults_poisson_petsc
   extends: .default_param
@@ -627,6 +658,21 @@ build_DVM:
     - mkdir -p build_DVM ; cd build_DVM
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
 
+build_DVM_plasma:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_DVM_plasma]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
+      paths: [build_DVM_plasma]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_DVM_plasma ; cd build_DVM_plasma
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
+
 build_hopr:
   extends: .default_build_param
   artifacts:
@@ -845,6 +891,12 @@ CHE_poisson_periodic:
   stage: reggie_feature_checkin
   script:
     - cd build ; reggie ../regressioncheck/CHE_poisson_periodic
+
+CHE_DVM_plasma:
+  <<: *defaults_DVM_plasma_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build_DVM_plasma ; reggie ../regressioncheck/CHE_DVM_plasma -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
