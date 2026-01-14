@@ -640,7 +640,7 @@ DO iSpec=1,DVMnSpecies
       print*, 'perturbation at x = ',x(1)
       Resu(vFirstID:vLastID)=1.1*Resu(vFirstID:vLastID)
     END IF
-    IF (iSpec.GE.2.AND.tIn.EQ.0..AND.x(1).LT.-0.49) THEN
+    IF (iSpec.GE.2.AND.tIn.EQ.0..AND.ABS(x(1)).LT.0.005) THEN
       print*, 'perturbation at x = ',x(1)
       Resu(vFirstID:vLastID)=0.9*Resu(vFirstID:vLastID)
     END IF

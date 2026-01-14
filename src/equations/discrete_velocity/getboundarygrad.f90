@@ -276,11 +276,11 @@ CASE(6) ! constant pressure
   gradU = UPrim_master - UPrim_boundary
 
 CASE(7) ! open outlet
-  gradU = UPrim_master ! - 0.
+  gradU = 0.
 
 
 CASE(8) ! dirichlet zero
-  gradU = 0.
+  gradU = UPrim_master
 
 CASE DEFAULT ! unknown BCType
   CALL abort(__STAMP__,&
