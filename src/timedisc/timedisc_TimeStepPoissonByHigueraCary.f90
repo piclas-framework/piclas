@@ -35,7 +35,7 @@ SUBROUTINE TimeStepPoissonByHigueraCary()
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals_Vars           ,ONLY: c_inv,c2_inv
-USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR, VECNORM
+USE MOD_Globals                ,ONLY: Abort, LocalTime, CROSS, DOTPRODUCT, UNITVECTOR
 USE MOD_PreProc
 USE MOD_TimeDisc_Vars          ,ONLY: dt,iter,time
 USE MOD_HDG                    ,ONLY: HDG

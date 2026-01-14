@@ -1001,7 +1001,7 @@ END SELECT
 
 ! Set the velocity vector and determine the velocity magnitude
 VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
-VeloIC = VECNORM(VeloVec)
+VeloIC = VECNORM3D(VeloVec)
 IF (ABS(VeloIC).GT.0.) THEN
   VeloVecIC = VeloVec / VeloIC
 ELSE
@@ -1037,6 +1037,11 @@ END IF
 ! 3) Calculate the actual number of particles per side
 IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
   ! Adaptive Type = 4
+  IF(ParticleWeighting%PerformCloning) THEN
+    MPF = Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide)
+  ELSE
+    MPF = Species(iSpec)%MacroParticleFactor
+  END IF
   IF(ParticleWeighting%UseSubdivision) THEN
     ! Subdivide the side into smaller subsides to improve distribution
     PartInsSubSide = 0
@@ -1050,14 +1055,15 @@ IF(Species(iSpec)%Surfaceflux(iSF)%AdaptiveType.EQ.4) THEN
                 / Species(iSpec)%MacroParticleFactor + RandVal1)
         PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
       END DO
+    ELSE
+      ! Side parallel to rotational axis
+      CALL RANDOM_NUMBER(RandVal1)
+      PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)         &
+                        * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar / Species(iSpec)%MassIC + AdaptBCPartNumOut(iSpec,iSF)) &
+                        / MPF +RandVal1)
     END IF
   ELSE
-    IF(ParticleWeighting%PerformCloning) THEN
-      MPF = Species(iSpec)%Surfaceflux(iSF)%WeightingFactor(iSide)
-    ELSE
-      MPF = Species(iSpec)%MacroParticleFactor
-    END IF
-    ! No subdivision due to axisymmetry and weighting (for other particle weighting methods: weight is included in nVFR)
+    ! No subdivision due to axisymmetry and weighting
     CALL RANDOM_NUMBER(RandVal1)
     PartInsSubSide = INT(Species(iSpec)%Surfaceflux(iSF)%ConstMassflowWeight(iSample,jSample,iSide)         &
                       * (Species(iSpec)%Surfaceflux(iSF)%AdaptiveMassflow * dtVar / Species(iSpec)%MassIC + AdaptBCPartNumOut(iSpec,iSF)) &
@@ -1076,9 +1082,13 @@ ELSE
                 * dtVar * Species(iSpec)%Surfaceflux(iSF)%nVFRSub(iSide,iSub) * vSF + RandVal1)
         PartInsSubSide = PartInsSubSide + ParticleWeighting%PartInsSide(iSub)
       END DO
+    ELSE
+      ! Side parallel to rotational axis
+      CALL RANDOM_NUMBER(RandVal1)
+      PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
     END IF
   ELSE
-    ! No subdivision due to axisymmetry and weighting (for other particle weighting methods: weight is included in nVFR)
+    ! No subdivision due to axisymmetry and weighting
     CALL RANDOM_NUMBER(RandVal1)
     PartInsSubSide = INT(ElemPartDensity / Species(iSpec)%MacroParticleFactor * dtVar * nVFR + RandVal1)
   END IF
@@ -1158,7 +1168,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
   ! Get the sampled velocity vector
   VeloVec(1:3) = AdaptBCMacroVal(1:3,SampleElemID,iSpec)
   ! Determine the velocity magnitude
-  VeloIC = VECNORM(VeloVec)
+  VeloIC = VECNORM3D(VeloVec)
   IF (ABS(VeloIC).GT.0.) THEN
     ! Calculate the normalized velocity vector
     VeloVecIC = VeloVec / VeloIC
@@ -1168,7 +1178,7 @@ DO iSide=1,BCdata_auxSF(currentBC)%SideNumber
     ! Using the old velocity vector, overwriting the sampled value with the old one
     VeloVec(1:3) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
     AdaptBCMacroVal(1:3,SampleElemID,iSpec) = AdaptBCBackupVelocity(1:3,SampleElemID,iSpec)
-    VeloIC = VECNORM(VeloVec)
+    VeloIC = VECNORM3D(VeloVec)
     IF(ABS(VeloIC).GT.0.) THEN
       VeloVecIC = VeloVec / VeloIC
     ELSE
@@ -1375,7 +1385,7 @@ IF(SF%Adaptive) THEN !SF%Adaptive
   VeloVec(3) = AdaptBCMacroVal(DSMC_VELOZ,SampleElemID,iSpec)
   vec_nIn(1:3) = SurfMeshSubSideData(iSample,jSample,BCSideID)%vec_nIn(1:3)
   ! Velocity magnitude
-  VeloIC = VECNORM(VeloVec)
+  VeloIC = VECNORM3D(VeloVec)
   IF (ABS(VeloIC).GT.0.) THEN
     VeloVecIC = VeloVec / VeloIC
   ELSE
@@ -1704,7 +1714,7 @@ CALL ProlongToFace_Elementlocal(nVar=3,locSideID=iLocSide,Uvol=U_N(ElemID)%E(1:3
 
 ! 2) Average the e-field vector and calculate magnitude
 EFaceMag = (Nloc+1)**2
-EFaceMag = VECNORM((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
+EFaceMag = VECNORM3D((/SUM(EFieldFace(1,:,:))/EFaceMag, SUM(EFieldFace(2,:,:))/EFaceMag, SUM(EFieldFace(3,:,:))/EFaceMag/))
 
 ! 3) Calculate the work function with the Schottky effect and the new current density [A/m2]
 WallTemp = PartBound%WallTemp(SF%BC)

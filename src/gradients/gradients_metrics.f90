@@ -159,7 +159,7 @@ DO ElemID = 1, nElems
 #endif
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
     dElem(:) = dslave(:,SideID) - dmaster(:,SideID) !doesnt matter if elem is slave or master, dElem is always "squared"
-    gradWeight = 1/VECNORM(dElem)**2
+    gradWeight = 1/DOTPRODUCT(dElem)
     dMatrix(1:PP_dim,1) = dMatrix(1:PP_dim,1) + gradWeight*dElem(1)*dElem(1:PP_dim)
     dMatrix(1:PP_dim,2) = dMatrix(1:PP_dim,2) + gradWeight*dElem(2)*dElem(1:PP_dim)
 #if PP_dim == 3
@@ -190,14 +190,14 @@ DO ElemID = 1, nElems
     IF (flip.EQ.0) THEN
       ! b = weight*(dmaster - dslave)
       Grad_SysSol_master(:,SideID) = dmaster(:,SideID) - dslave(:,SideID)
-      Grad_SysSol_master(:,SideID) = Grad_SysSol_master(:,SideID)/VECNORM(Grad_SysSol_master(:,SideID))**2
+      Grad_SysSol_master(:,SideID) = Grad_SysSol_master(:,SideID)/DOTPRODUCT(Grad_SysSol_master(:,SideID))
       ! x = A^-1 * b
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,Grad_SysSol_master(1:PP_dim,SideID),PP_dim,info_dgesv)
       IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error: info_dgesv.NE.0')
     ELSE
       ! b = weight*(dslave - dmaster)
       Grad_SysSol_slave(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
-      Grad_SysSol_slave(:,SideID) = Grad_SysSol_slave(:,SideID)/VECNORM(Grad_SysSol_slave(:,SideID))**2
+      Grad_SysSol_slave(:,SideID) = Grad_SysSol_slave(:,SideID)/DOTPRODUCT(Grad_SysSol_slave(:,SideID))
       ! x = A^-1 * b
       CALL DGESV(PP_dim,1,dMatrix,PP_dim,IPIV,Grad_SysSol_slave(1:PP_dim,SideID),PP_dim,info_dgesv)
       IF(info_dgesv.NE.0) CALL abort(__STAMP__,'Grad metrics error: info_dgesv.NE.0')
@@ -241,7 +241,7 @@ DO ElemID = 1, nElems
       IF (SideID.LE.lastBCSide) CYCLE
       !Grad_SysSol_BC calculated with slave -> master direction
       Grad_SysSol_BC(:,SideID) = dslave(:,SideID) - dmaster(:,SideID)
-      gradWeight = 1/VECNORM(Grad_SysSol_BC(:,SideID))**2
+      gradWeight = 1/DOTPRODUCT(Grad_SysSol_BC(:,SideID))
       Grad_SysSol_BC(:,SideID) = Grad_SysSol_BC(:,SideID)*gradWeight
       IF (singleDir.GT.0) THEN ! 1x1 system (simple division)
         Grad_SysSol_BC(:,SideID) = 0.

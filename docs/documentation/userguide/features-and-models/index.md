@@ -5,6 +5,7 @@
 maxdepth: 1
 caption: Table of Contents
 ---
+p-adaption.md
 particle-tracking.md
 poisson-field-solver.md
 BC-field-solver.md

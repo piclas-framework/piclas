@@ -132,6 +132,7 @@ USE MOD_HDG_Init              ,ONLY: InitFPC,InitEPC
 #if defined(PARTICLES)
 USE MOD_HDG_Init              ,ONLY: InitBV
 #endif /*defined(PARTICLES)*/
+USE MOD_Symmetry_Vars         ,ONLY: Symmetry
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -161,6 +162,8 @@ REAL              :: StartT,EndT
 #if USE_PETSC
 CHARACTER(100)    :: hilf
 #endif /*USE_PETSC*/
+REAL              :: SurfArea
+INTEGER           :: p,q
 !===================================================================================================================================
 IF(HDGInitIsDone)THEN
    LBWRITE(*,*) "InitHDG already called."
@@ -511,7 +514,18 @@ END DO !iElem
 !stabilization parameter
 ALLOCATE(Tau(PP_nElems))
 DO iElem=1,PP_nElems
-  Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./3.))  !1/h ~ 1/vol^(1/3) (volref=8)
+  IF(Symmetry%Axisymmetric) THEN
+    ! z length is not 1 in axisymmetric case -> Calculate using surface area instead of volume
+    SideID = ElemToSide(E2S_SIDE_ID,ZETA_MINUS,iElem)
+    Nloc = N_DG_Mapping(2,iElem+offSetElem)
+    SurfArea = 0.
+    DO q=0,Nloc; DO p=0,Nloc
+      SurfArea = SurfArea + N_SurfMesh(SideID)%SurfElem(p,q)*N_Inter(Nloc)%wGP(p)*N_Inter(Nloc)%wGP(q)
+    END DO; END DO !p,q
+    Tau(iElem)=2./(SurfArea**(1./Symmetry%Order))
+  ELSE
+    Tau(iElem)=2./((SUM(HDG_Vol_N(iElem)%JwGP_vol(:)))**(1./Symmetry%Order))  !1/h ~ 1/vol^(1/DIM) (volref=8)
+  END IF
 END DO !iElem
 
 CALL Elem_Mat(0_8) ! takes iter=0 (kind=8)
@@ -667,8 +681,13 @@ PetscCallA(MatCreate(PETSC_COMM_WORLD,PETScSystemMatrix,ierr))
 PetscCallA(MatSetSizes(PETScSystemMatrix,PETSC_DECIDE,PETSC_DECIDE,nGlobalPETScDOFs,nGlobalPETScDOFs,ierr))
 PetscCallA(MatSetType(PETScSystemMatrix,MATSBAIJ,ierr)) ! Symmetric sparse matrix
 ! Conservative guess for the number of nonzeros: With mortars at most 12 sides with Nmax.
+#if (PETSC_VERSION_MAJOR >= 3) && (PETSC_VERSION_MINOR > 21)
+PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER_ARRAY,ierr))
+PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER_ARRAY,22 * nGP_face(NMax),PETSC_NULL_INTEGER_ARRAY,ierr))
+#else
 PetscCallA(MatSEQSBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
 PetscCallA(MatMPISBAIJSetPreallocation(PETScSystemMatrix,1,22 * nGP_face(NMax),PETSC_NULL_INTEGER,22 * nGP_face(NMax),PETSC_NULL_INTEGER,ierr))
+#endif
 PetscCallA(MatZeroEntries(PETScSystemMatrix,ierr))
 PetscCallA(MatSetOption(PETScSystemMatrix,MAT_ROW_ORIENTED,PETSC_FALSE,ierr)) ! Column oriented for more convenient set up
 
@@ -936,7 +955,6 @@ END SUBROUTINE CalculateElectricTimeDerivative
 !===================================================================================================================================
 SUBROUTINE CalculatePhiAndEFieldFromCurrentsVDL(UpdatePhiF)
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Globals_Vars           ,ONLY: eps0
 USE MOD_TimeDisc_Vars          ,ONLY: dt
 USE MOD_Mesh_Vars              ,ONLY: N_SurfMesh,SideToElem,nBCSides,N_SurfMesh,offSetElem,BC

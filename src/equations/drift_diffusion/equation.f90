@@ -173,7 +173,7 @@ SUBROUTINE CalcSource(t,coeff,Ut)
 !===================================================================================================================================
 ! MODULES
 USE MOD_PreProc
-USE MOD_Globals           ,ONLY: vecnorm
+USE MOD_Globals           ,ONLY: VECNORM3D
 USE MOD_FV_Vars           ,ONLY: U_FV
 USE MOD_Transport_Data    ,ONLY: CalcDriftDiffusionCoeff
 USE MOD_DSMC_Vars         ,ONLY: BGGas
@@ -207,8 +207,8 @@ DO ElemID = 1, PP_nElems
     E_avg(:) = E_avg(:) + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)*U_N(ElemID)%E(1:3,i,j,k)/((Nloc+1.)**3)
   END DO; END DO; END DO
 
-  CALL CalcDriftDiffusionCoeff(VECNORM(E_avg),BGGas%NumberDensity(iSpec),mu,D,ionRate)
-  Ut(1,ElemID) = Ut(1,ElemID) + ionRate*mu*VECNORM(E_avg)*U_FV(1,ElemID)
+  CALL CalcDriftDiffusionCoeff(VECNORM3D(E_avg),BGGas%NumberDensity(iSpec),mu,D,ionRate)
+  Ut(1,ElemID) = Ut(1,ElemID) + ionRate*mu*VECNORM3D(E_avg)*U_FV(1,ElemID)
 END DO
 
 END SUBROUTINE CalcSource

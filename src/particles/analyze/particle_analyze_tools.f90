@@ -2978,7 +2978,7 @@ SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell()
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
 USE MOD_Preproc
-USE MOD_Globals                ,ONLY: PARTISELECTRON,VECNORM,DOTPRODUCT
+USE MOD_Globals                ,ONLY: PARTISELECTRON,VECNORM3D,DOTPRODUCT
 USE MOD_Globals_Vars           ,ONLY: c2_inv,RelativisticLimit
 USE MOD_Particle_Vars          ,ONLY: PartState
 USE MOD_Particle_Analyze_Vars  ,ONLY: CyclotronFrequencyMaxCell,CyclotronFrequencyMinCell,GyroradiusMinCell,GyroradiusMaxCell
@@ -3015,13 +3015,13 @@ ASSOCIATE( e   => ElementaryCharge,&
       SetFrequency = .FALSE. ! Initialize
       SetRadius    = .FALSE. ! Initialize
       ! Get magnitude of the electron's velocity and the magnetic field at its location
-      PartV  = VECNORM(PartState(4:6,iPart)) ! velocity magnitude
+      PartV  = VECNORM3D(PartState(4:6,iPart)) ! velocity magnitude
       partV2 = PartV*PartV
       iGlobElem  = PEM%GlobalElemID(iPart)
       iElem  = PEM%LocalElemID(iPart)
       IF (partV2.LT.RelativisticLimit)THEN ! |v| < 1000000 when speed of light is 299792458
         field(1:6)   = GetExternalFieldAtParticle(PartState(1:3,iPart)) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
-        B            = VECNORM(field(4:6))
+        B            = VECNORM3D(field(4:6))
         omega_c      = e*B/m_e
         SetFrequency = .TRUE.
         IF(omega_c.GT.0.) SetRadius = .TRUE.
@@ -3033,7 +3033,7 @@ ASSOCIATE( e   => ElementaryCharge,&
         ELSE
           field(1:6)   = GetExternalFieldAtParticle(PartState(1:3,iPart)) + GetInterpolatedFieldPartPos(iGlobElem,iPart)
           gamma1       = 1.0/SQRT(1.-gamma1)
-          B            = VECNORM(field(4:6))
+          B            = VECNORM3D(field(4:6))
           omega_c      = e*B/(gamma1*m_e)
           SetFrequency = .TRUE.
           IF(omega_c.GT.0.) SetRadius = .TRUE.
@@ -3064,7 +3064,7 @@ ASSOCIATE( e   => ElementaryCharge,&
           DO i=0,PP_N
             ASSOCIATE( x => N_VolMesh(iElem)%Elem_xGP(1,i,j,k), y => N_VolMesh(iElem)%Elem_xGP(2,i,j,k), z => N_VolMesh(iElem)%Elem_xGP(3,i,j,k))
               field(1:6) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/N_Inter(PP_N)%xGP(i),N_Inter(PP_N)%xGP(j),N_Inter(PP_N)%xGP(k)/))
-              B = VECNORM(field(4:6))
+              B = VECNORM3D(field(4:6))
               CyclotronFrequencyMaxCell(iElem) = MAX(CyclotronFrequencyMaxCell(iElem), e*B/(m_e) )
             END ASSOCIATE
           END DO ! i
@@ -3079,7 +3079,7 @@ ASSOCIATE( e   => ElementaryCharge,&
           DO i=0,PP_N
             ASSOCIATE( x => N_VolMesh(iElem)%Elem_xGP(1,i,j,k), y => N_VolMesh(iElem)%Elem_xGP(2,i,j,k), z => N_VolMesh(iElem)%Elem_xGP(3,i,j,k))
               field(1:6) = GetExternalFieldAtParticle((/x,y,z/)) + GetEMField(iElem,(/N_Inter(PP_N)%xGP(i),N_Inter(PP_N)%xGP(j),N_Inter(PP_N)%xGP(k)/))
-              B = VECNORM(field(4:6))
+              B = VECNORM3D(field(4:6))
               CyclotronFrequencyMinCell(iElem) = MIN(CyclotronFrequencyMinCell(iElem), e*B/(m_e) )
             END ASSOCIATE
           END DO ! i
@@ -3298,7 +3298,7 @@ SUBROUTINE CalculateMaxPartDisplacement()
 !===================================================================================================================================
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals               ,ONLY: VECNORM
+USE MOD_Globals               ,ONLY: VECNORM3D
 USE MOD_Preproc
 USE MOD_Mesh_Vars             ,ONLY: nElems, offSetElem
 USE MOD_Mesh_Tools            ,ONLY: GetCNElemID
@@ -3330,7 +3330,7 @@ DO iPart = 1, PDM%ParticleVecLength
     MaxVelo(iElem,2) = MAX(MaxVelo(iElem,2),PartState(5,iPart))
     MaxVelo(iElem,3) = MAX(MaxVelo(iElem,3),PartState(6,iPart))
     ! Check for fastest particle in cell
-    IF(VECNORM(PartState(4:6,iPart)).GT.VECNORM(MaxVeloAbs(iElem,1:3)))THEN
+    IF(VECNORM3D(PartState(4:6,iPart)).GT.VECNORM3D(MaxVeloAbs(iElem,1:3)))THEN
       MaxVeloAbs(iElem,1:3) = PartState(4:6,iPart)
     END IF
   END IF
@@ -3339,7 +3339,7 @@ END DO ! iPart = 1, PDM%ParticleVecLength
 ! loop over all elements
 DO iElem=1,PP_nElems
   ! The resulting value must always be below 1.0
-  ASSOCIATE( vAbs => VECNORM(MaxVeloAbs(iElem,1:3)) ,&
+  ASSOCIATE( vAbs => VECNORM3D(MaxVeloAbs(iElem,1:3)) ,&
              vX   => MaxVelo(iElem,1)               ,&
              vY   => MaxVelo(iElem,2)               ,&
              vZ   => MaxVelo(iElem,3)               ,&

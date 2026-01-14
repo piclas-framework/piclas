@@ -67,7 +67,7 @@ DO i = 1, n
     ELSE
       v = -1.0
     END IF
-    PetscCallA(MatSetValues(A, 1, Ii, 1, Jj, v, INSERT_VALUES, ierr))
+    PetscCallA(MatSetValues(A, 1, [Ii], 1, [Jj], [v], INSERT_VALUES, ierr))
   END DO
 END DO
 PetscCallA(MatAssemblyBegin(A, MAT_FINAL_ASSEMBLY, ierr))

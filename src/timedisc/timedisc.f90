@@ -127,6 +127,7 @@ USE MOD_MPI_Vars               ,ONLY: MPIW8TimeSim
 USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPointsPerDebyeLength,CalcPICTimeStep
 USE MOD_Part_Tools             ,ONLY: ReduceMaxParticleNumber
 #endif
+USE MOD_Output_Vars            ,ONLY: DoWriteStateToHDF5
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -314,6 +315,7 @@ DO !iter_t=0,MaxIter
 
   ! Calling the analyze routines in last iteration
   finalIter = ALMOSTEQUAL(dt,dt_Min(DT_END))
+  IF(finalIter) DoWriteStateToHDF5 = .TRUE.
 
 #if defined(PARTICLES) && USE_HDG
   ! Depending on kinetic/BR model, set the reference electron temperature for t^n+1, therefore "add" -dt to the calculation

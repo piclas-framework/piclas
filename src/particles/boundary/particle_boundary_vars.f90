@@ -18,7 +18,6 @@ MODULE MOD_Particle_Boundary_Vars
 ! MODULES
 #if USE_MPI
 USE MOD_Globals
-USE mpi_f08
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -30,6 +29,7 @@ INTEGER                                 :: SurfSampSize                  !> Ener
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: SurfSideArea                  !> Area of supersampled surface side
+REAL,ALLOCPOINT,DIMENSION(:,:,:,:)      :: SurfSideSamplingMidPoints     !> Midpoints of subsides of supersampled surface
 REAL,ALLOCPOINT,DIMENSION(:,:,:)        :: BoundaryWallTemp              !> Wall Temperature for Adaptive Case
 ! ====================================================================
 ! Mesh info
@@ -54,6 +54,11 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
 ! SampWallState indices for optional variables (defined in InitParticleBoundarySampling)
 INTEGER                                 :: SWIVarTimeStep
 INTEGER                                 :: SWIStickingCoefficient
+
+LOGICAL                                 :: CalcTorque                 !> Calculate torque about x-, y-, z-axis
+INTEGER                                 :: SWITorqueCoefficientX
+INTEGER                                 :: SWITorqueCoefficientY
+INTEGER                                 :: SWITorqueCoefficientZ
 
 ! Output container
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)           !> variables,p,q,sides
@@ -83,6 +88,9 @@ TYPE(MPI_Win)                           :: BoundaryWallTemp_Shared_Win
 
 REAL,POINTER,DIMENSION(:,:,:)           :: SurfSideArea_Shared           !> Area of supersampled surface side
 TYPE(MPI_Win)                           :: SurfSideArea_Shared_Win
+
+REAL,POINTER,DIMENSION(:,:,:,:)         :: SurfSideSamplingMidPoints_Shared     !> Midpoints of subsides of supersampled surface
+TYPE(MPI_Win)                           :: SurfSideSamplingMidPoints_Shared_Win !> (used in triatracking to determine the subside to sample)
 
 INTEGER,ALLOCATABLE,DIMENSION(:,:)      :: GlobalSide2SurfHaloSide       ! Mapping Global Side ID to Surf Halo Side ID (exists only on leader procs)
                                                                          !> 1st dim: leader rank

@@ -196,7 +196,7 @@ PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*
 IF(UseRotRefFrame) THEN
   ! Check if rotational frame of reference is used, otherwise mirror the LastPartPos for new particle position
   IF(InRotRefFrame(PartID)) THEN
-    POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM(OldVelo*dtVar)
+    POI_fak = 1.- (TrackInfo%lengthPartTrajectory-TrackInfo%alpha) / VECNORM3D(OldVelo*dtVar)
     ! Determine the correct velocity for the subsequent push in case of a rotational frame of reference at POI
     NewVeloPush(1:3) = PartState(4:6,PartID)
     NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
@@ -220,7 +220,7 @@ END IF
 ! compute moved particle || rest of movement
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
-TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+TrackInfo%lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE
@@ -415,7 +415,7 @@ LastPartPos(1:3,PartID) = POI_vec(1:3)
 TildTrajectory = OldVelo * dtVar
 ! Nullify the components in 1D and 2D to calculate the correct magnitude (2D axisymmetric is not affected)
 IF(Symmetry%Order.EQ.3.OR.Symmetry%Axisymmetric) THEN
-  POI_fak = VECNORM(TildTrajectory)
+  POI_fak = VECNORM3D(TildTrajectory)
 ELSE IF(Symmetry%Order.EQ.2.AND..NOT.Symmetry%Axisymmetric) THEN
   POI_fak = VECNORM2D(TildTrajectory(1:2))
 ELSE IF(Symmetry%Order.EQ.1) THEN
@@ -496,7 +496,7 @@ IF(Symmetry%Axisymmetric) THEN
   TrackInfo%lengthPartTrajectory=SQRT(TrackInfo%PartTrajectory(1)**2 + TrackInfo%PartTrajectory(2)**2)
 ELSE
   TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-  TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+  TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
 END IF
 
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
@@ -677,16 +677,13 @@ REAL,INTENT(IN)       :: WallTemp
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER               :: SpecID, vibQuant, vibQuantNew, VibQuantWall
+INTEGER               :: SpecID, VibQuantWall
 REAL                  :: RanNum
 REAL                  :: VibACC, RotACC, ElecACC
-REAL                  :: ErotNew, ErotWall, EVibNew
 REAL                  :: GroundLevel, VibPartitionTemp
 ! Polyatomic Molecules
-REAL                  :: VibQuantNewR
-REAL, ALLOCATABLE     :: RanNumPoly(:), VibQuantNewRPoly(:)
+REAL, ALLOCATABLE     :: RanNumPoly(:)
 INTEGER               :: iPolyatMole, iDOF, VibDOF
-INTEGER, ALLOCATABLE  :: VibQuantNewPoly(:), VibQuantWallPoly(:), VibQuantTemp(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 
 ! Requires the usage of DSMC and CollisMode = 2/3
@@ -701,103 +698,66 @@ ElecACC   = PartBound%ElecACC(locBCID)
 IF ((Species(SpecID)%InterID.EQ.2).OR.(Species(SpecID)%InterID.EQ.20)) THEN
   !---- Rotational energy accommodation
   ! model identical to the one used for initial rotational energy sampling
-  ErotWall = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
-  ErotNew  = PartStateIntEn(2,PartID) + RotACC *(ErotWall - PartStateIntEn(2,PartID))
-
-  PartStateIntEn(2,PartID) = ErotNew
-
+  CALL RANDOM_NUMBER(RanNum)
+  IF(RotACC.GT.RanNum) THEN
+    PartStateIntEn(2,PartID) = RotInitPolyRoutineFuncPTR(SpecID,WallTemp,PartID)
+  END IF
 #if (PP_TimeDiscMethod==400)
   IF (BGKDoVibRelaxation) THEN
 #elif (PP_TimeDiscMethod==300)
   IF (FPDoVibRelaxation) THEN
 #endif
     !---- Vibrational energy accommodation
-    IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
-      EvibNew = 0.0
-      iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
-      VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
-      ALLOCATE(RanNumPoly(VibDOF),VibQuantWallPoly(VibDOF),VibQuantNewRPoly(VibDOF),VibQuantNewPoly(VibDOF),VibQuantTemp(VibDOF))
-      CALL RANDOM_NUMBER(RanNumPoly)
-      VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      DO WHILE (ALL(VibQuantWallPoly.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+    CALL RANDOM_NUMBER(RanNum)
+    IF(VibACC.GT.RanNum) THEN
+      IF(SpecDSMC(SpecID)%PolyatomicMol) THEN
+        iPolyatMole = SpecDSMC(SpecID)%SpecToPolyArray
+        VibDOF = PolyatomMolDSMC(iPolyatMole)%VibDOF
+        ALLOCATE(RanNumPoly(VibDOF))
         CALL RANDOM_NUMBER(RanNumPoly)
-        VibQuantWallPoly(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
-      END DO
-      VibQuantNewRPoly(:) = VibQuantsPar(PartID)%Quants(:) + VibACC*(VibQuantWallPoly(:) - VibQuantsPar(PartID)%Quants(:))
-      VibQuantNewPoly = INT(VibQuantNewRPoly)
-      DO iDOF = 1, VibDOF
-        EvibNew = EvibNew + (VibQuantNewPoly(iDOF) + DSMC%GammaQuant)*BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewRPoly(iDOF) - VibQuantNewPoly(iDOF))) THEN
-          EvibNew = EvibNew + BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
-          VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF) + 1
-        ELSE
-          VibQuantTemp(iDOF) = VibQuantNewPoly(iDOF)
-        END IF
-      END DO
-    ELSE
-      IF(DSMC%VibAHO) THEN ! AHO
-        ! calculate vib quant number matching PartStateIntEn(1,PartID)
-        VibQuant = 2
-        DO WHILE (PartStateIntEn(1,PartID).GE.AHO%VibEnergy(SpecID,VibQuant))
-          ! energy is larger than vib energy for this quantum number --> increase quantum number and try again
-          VibQuant = VibQuant + 1
-          ! exit if this quantum number is larger as the table length (dissociation level is reached)
-          IF (VibQuant.GT.AHO%NumVibLevels(SpecID)) EXIT
+        VibQuantsPar(PartID)%Quants(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
+        DO WHILE (ALL(VibQuantsPar(PartID)%Quants.GE.PolyatomMolDSMC(iPolyatMole)%MaxVibQuantDOF))
+          CALL RANDOM_NUMBER(RanNumPoly)
+          VibQuantsPar(PartID)%Quants(:) = INT(-LOG(RanNumPoly(:)) * WallTemp / PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(:))
         END DO
-        ! accept VibQuant - 1 as quantum number
-        VibQuant = VibQuant - 1
-        ! calculate vib quant number of wall based on wall temperature
-        IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
-          GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
-          CALL RANDOM_NUMBER(RanNum)
-          VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
-          VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
-          CALL RANDOM_NUMBER(RanNum)
-          ! acceptance is higher for lower levels
-          DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
-            ! select random quantum number and calculate partition function
+        PartStateIntEn(1,PartID) = 0.0
+        DO iDOF = 1, VibDOF
+          PartStateIntEn(1,PartID) = PartStateIntEn(1,PartID) + (VibQuantsPar(PartID)%Quants(iDOF) + DSMC%GammaQuant) &
+                                   * BoltzmannConst*PolyatomMolDSMC(iPolyatMole)%CharaTVibDOF(iDOF)
+        END DO
+      ELSE
+        IF(DSMC%VibAHO) THEN ! AHO
+          ! calculate vib quant number of wall based on wall temperature
+          IF (CHECKEXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))) THEN
+            GroundLevel = EXP(- AHO%VibEnergy(SpecID,1) / (BoltzmannConst * WallTemp))
             CALL RANDOM_NUMBER(RanNum)
             VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
             VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
             CALL RANDOM_NUMBER(RanNum)
-          END DO
-        ! use ground state quantum number
-        ELSE
-          VibQuantWall = 1
-        END IF
-        ! calculate new quantum number based on vibrational accommodation coefficient
-        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-        VibQuantNew = INT(VibQuantNewR)
-        ! calculate new energy with this quantum number
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew+1)
-        ELSE
-          EvibNew = AHO%VibEnergy(SpecID,VibQuantNew)
-        END IF
-
-      ELSE ! SHO
-        VibQuant = NINT(PartStateIntEn(1,PartID)/(BoltzmannConst*SpecDSMC(SpecID)%CharaTVib) - DSMC%GammaQuant)
-        CALL RANDOM_NUMBER(RanNum)
-        VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-        DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+            ! acceptance is higher for lower levels
+            DO WHILE (RanNum .GE. (VibPartitionTemp / GroundLevel))
+              ! select random quantum number and calculate partition function
+              CALL RANDOM_NUMBER(RanNum)
+              VibQuantWall = INT(AHO%NumVibLevels(SpecID) * RanNum + 1.)
+              VibPartitionTemp = EXP(- AHO%VibEnergy(SpecID,VibQuantWall) / (BoltzmannConst * WallTemp))
+              CALL RANDOM_NUMBER(RanNum)
+            END DO
+            PartStateIntEn(1,PartID) = AHO%VibEnergy(SpecID,VibQuantWall)
+          ! use ground state quantum number
+          ELSE
+            PartStateIntEn(1,PartID) = AHO%VibEnergy(SpecID,1)
+          END IF
+        ELSE ! SHO
           CALL RANDOM_NUMBER(RanNum)
           VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
-        END DO
-        VibQuantNewR = VibQuant + VibACC*(VibQuantWall - VibQuant)
-        VibQuantNew = INT(VibQuantNewR)
-        CALL RANDOM_NUMBER(RanNum)
-        IF (RanNum.LT.(VibQuantNewR - VibQuantNew)) THEN
-          EvibNew = (VibQuantNew + DSMC%GammaQuant + 1.0d0)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
-        ELSE
-          EvibNew = (VibQuantNew + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
+          DO WHILE (VibQuantWall.GE.SpecDSMC(SpecID)%MaxVibQuant)
+            CALL RANDOM_NUMBER(RanNum)
+            VibQuantWall = INT(-LOG(RanNum) * WallTemp / SpecDSMC(SpecID)%CharaTVib)
+          END DO
+          PartStateIntEn(1,PartID) = (VibQuantWall + DSMC%GammaQuant)*BoltzmannConst*SpecDSMC(SpecID)%CharaTVib
         END IF
       END IF
-    END IF
-
-    IF(SpecDSMC(SpecID)%PolyatomicMol) VibQuantsPar(PartID)%Quants(:) = VibQuantTemp(:)
-    PartStateIntEn(1,PartID) = EvibNew
+    END IF ! DO vib relax: VibACC.LE.RanNum
 #if (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==300)
   END IF ! FPDoVibRelaxation || BGKDoVibRelaxation
 #endif
@@ -806,7 +766,7 @@ END IF
 IF (DSMC%ElectronicModel.GT.0) THEN
   IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized).AND.(Species(SpecID)%InterID.NE.100)) THEN
     CALL RANDOM_NUMBER(RanNum)
-    IF (RanNum.LT.ElecACC) THEN
+    IF (ElecACC.GT.RanNum) THEN
       PartStateIntEn(3,PartID) = RelaxElectronicShellWall(PartID, WallTemp)
     END IF
   END IF
@@ -819,7 +779,7 @@ REAL FUNCTION GetWallTemperature(PartID,locBCID, SideID)
 !===================================================================================================================================
 !> Determine the wall temperature, current options: determine a temperature based on an imposed gradient or use a fixed temperature
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM3D
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound, BoundaryWallTemp, GlobalSide2SurfSide
 USE MOD_Particle_Vars           ,ONLY: LastPartPos
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
@@ -849,7 +809,7 @@ PPURE REAL FUNCTION CalcWallTempGradient(PointVec,locBCID)
 !===================================================================================================================================
 !> Calculation of the wall temperature at a specific position due to the imposed temperature gradient (WallTemp2.GT.0)
 !===================================================================================================================================
-USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM
+USE MOD_Globals                 ,ONLY: DOTPRODUCT, VECNORM3D
 USE MOD_Globals_Vars            ,ONLY: EpsMach
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 IMPLICIT NONE
@@ -866,7 +826,7 @@ REAL                            :: Bounds(1:3), TempGradLength, PointVec_project
 ASSOCIATE(PB => PartBound)
 PointVec_projected(1:3) = PB%TempGradStart(1:3,locBCID) + DOT_PRODUCT((PointVec(1:3) - PB%TempGradStart(1:3,locBCID)), &
                           PB%TempGradVec(1:3,locBCID)) / DOTPRODUCT(PB%TempGradVec(1:3,locBCID)) * PB%TempGradVec(1:3,locBCID)
-TempGradLength = VECNORM(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM(PB%TempGradVec(1:3,locBCID))
+TempGradLength = VECNORM3D(PointVec_projected(1:3)-PB%TempGradStart(1:3,locBCID)) / VECNORM3D(PB%TempGradVec(1:3,locBCID))
 
 SELECT CASE(PB%TempGradDir(locBCID))
 CASE(0)
@@ -925,8 +885,12 @@ VeloCrad    = SQRT(-LOG(RanNum))
 CALL RANDOM_NUMBER(RanNum)
 VeloCz      = SQRT(-LOG(RanNum))
 Fak_D       = VeloCrad**2 + VeloCz**2
-
-EtraNew     = EtraOld + TransACC * (BoltzmannConst * WallTemp * Fak_D - EtraOld)
+CALL RANDOM_NUMBER(RanNum)
+IF(TransACC.GT.RanNum) THEN
+  EtraNew     = BoltzmannConst * WallTemp * Fak_D
+ELSE
+  EtraNew     = EtraOld
+END IF
 Cmr         = SQRT(2.0 * EtraNew / (Species(SpecID)%MassIC * Fak_D))
 CALL RANDOM_NUMBER(RanNum)
 Phi     = 2.0 * PI * RanNum
@@ -963,7 +927,7 @@ REAL                  :: CalcRotWallVelo(3)
 
 ! Case: rotational axis is NOT one of the major axis (x,y,z)
 ! vec_OrgPOI(1:3) = POI(1:3) - PartBound%RotOrg(1:3,locBCID)
-! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM(PartBound%RotAxis(1:3,locBCID))
+! vec_axi_norm = PartBound%RotAxis(1:3,locBCID) / VECNORM3D(PartBound%RotAxis(1:3,locBCID))
 ! vec_a(1:3) = DOT_PRODUCT(vec_axi_norm,vec_OrgPOI) * vec_axi_norm(1:3)
 ! vec_r(1:3) = vec_OrgPOI(1:3) - vec_a(1:3)
 ! radius = SQRT( vec_r(1)*vec_r(1) + vec_r(2)*vec_r(2) + vec_r(3)*vec_r(3) )

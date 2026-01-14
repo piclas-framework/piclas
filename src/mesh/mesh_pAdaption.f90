@@ -75,7 +75,7 @@ INTEGER(KIND=8) :: nLocalDOFs
 SetBCElemsToNMax = .FALSE. ! Initialize
 
 #if !(PP_TimeDiscMethod==700)
-pAdaptionBCLevel = -1
+pAdaptionBCLevel = 0 ! Initialize with zero to deactiavte. Valid values for the model are -2,-1,1,2 ...
 NDGAllocationIsDone = .FALSE.
 
 ! Read p-adaption specific input data

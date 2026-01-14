@@ -530,7 +530,7 @@ REAL                 :: NormalIC(1:3), RadiusIC, RadiusICGyro, Alpha, GyroVecDir
     SWRITE(*,'(A,3(E21.14,1X))') 'Velocity=', PartState(4:6,iPart)
     CALL abort(__STAMP__,'ERROR in gyrotron_circle spaceIC!',iPart)
   END If
-  IF(ISNAN(VECNORM(Vec3D)))THEN
+  IF(ISNAN(VECNORM3D(Vec3D)))THEN
     SWRITE(*,'(A,3(E21.14,1X))') 'WARNING:! NaN: Velocity=', Vec3D(1:3)
   END If
 
@@ -1149,7 +1149,7 @@ LOGICAL                 :: PartAccepted
     lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
     lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
     lineVector = UNITVECTOR(lineVector)
-    IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+    IF(VECNORM3D(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
   END ASSOCIATE
   chunkSize2=0
   DO i=1,chunkSize
