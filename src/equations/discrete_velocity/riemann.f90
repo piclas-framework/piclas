@@ -66,17 +66,19 @@ IF (DVMColl.AND.DVMMethod.GT.0) THEN
                             ERot_R(1:DVMnSpecies),Evib_R(1:DVMnSpecies),Pr_R)
   SELECT CASE (DVMMethod)
   CASE(1)
-    relaxFac = dt/2./tau_L
-    IF(CHECKEXP(relaxFac)) THEN
-      gamma_L = 2.*tau_L*(1.-EXP(-relaxFac))/dt
-    ELSE
-      gamma_L = 0.
+    gamma_L = 0.
+    IF (tau_L.GT.0.) THEN
+      relaxFac = dt/2./tau_L
+      IF(CHECKEXP(relaxFac)) THEN
+        gamma_L = 2.*tau_L*(1.-EXP(-relaxFac))/dt
+      END IF
     END IF
-    relaxFac = dt/2./tau_R
-    IF(CHECKEXP(relaxFac)) THEN
-      gamma_R = 2.*tau_R*(1.-EXP(-relaxFac))/dt
-    ELSE
-      gamma_R = 0.
+    gamma_R = 0.
+    IF (tau_R.GT.0.) THEN
+      relaxFac = dt/2./tau_R
+      IF(CHECKEXP(relaxFac)) THEN
+        gamma_R = 2.*tau_R*(1.-EXP(-relaxFac))/dt
+      END IF
     END IF
   CASE(2)
     gamma_L = 2.*tau_L/(2.*tau_L+dt/2.)

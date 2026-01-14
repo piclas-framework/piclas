@@ -75,6 +75,7 @@ IF (PRESENT(Erot)) Erot = 0.
 IF (PRESENT(Evib)) Evib = 0.
 IF (PRESENT(Trot)) Trot = 0.
 IF (PRESENT(Tvib)) Tvib = 0.
+IF (PRESENT(PrandtlNumber)) PrandtlNumber = 0.
 PressTens = 0.
 Heatflux = 0.
 PressTensTotal = 0.
@@ -120,13 +121,17 @@ DO iSpec=1, DVMnSpecies
       densEvib = densEvib + weight*U(Sp%nVarEvibStart+upos)
     END IF
   END DO; END DO; END DO
-  IF (dens.LE.0.) THEN ! empty element for this species
+  IF (dens.LE.0.1) THEN ! empty element for this species
     vFirstID = vFirstID + Sp%nVar
     CYCLE
   END IF
   MacroVal(1,iSpec) = dens
   MacroVal(2:4,iSpec) = rhoU(1:3)/dens/Sp%Mass
   MacroVal(5,iSpec) = (densEtr - 0.5*(DOTPRODUCT(rhoU))/dens/Sp%Mass)*2./3./dens/BoltzmannConst
+  IF (MacroVal(5,iSpec).LE.0.) THEN
+    MacroVal(:,iSpec) = 0.
+    CYCLE
+  END IF
 
   IF (PRESENT(Erot)) Erot(iSpec) = densErot/dens
   IF (PRESENT(Evib)) Evib(iSpec) = densEvib/dens
@@ -164,7 +169,7 @@ DO iSpec=1, DVMnSpecies
   vFirstID = vFirstID + Sp%nVar
   END ASSOCIATE
 END DO
-IF (densTotal.LE.0.) RETURN !empty element
+IF (densTotal.LE.0.1.OR.rhoTotal.LE.0.) RETURN !empty element
 IF (PRESENT(Erot)) Erot(total) = densErotTotal/densTotal
 IF (PRESENT(Evib)) Evib(total) = densEvibTotal/densTotal
 IF (PRESENT(Trot)) Trot(total) = Trot(total)/densTotal
@@ -175,7 +180,10 @@ MacroVal(1,total) = densTotal
 IF (PRESENT(MassDensity)) MassDensity = rhoTotal
 MacroVal(2:4,total) = rhoUTotal(1:3)/rhoTotal
 MacroVal(5,total) = (densEtrTotal - 0.5*(DOTPRODUCT(rhoUTotal))/rhoTotal)*2./3./densTotal/BoltzmannConst
-IF (MacroVal(5,total).LE.0) RETURN !CALL abort(__STAMP__,'DVM negative total temperature!')
+IF (MacroVal(5,total).LE.0) THEN
+  MacroVal(:,total) = 0.
+  RETURN !CALL abort(__STAMP__,'DVM negative total temperature!')
+END IF
 
 vFirstID = 0
 DO iSpec=1, DVMnSpecies
@@ -906,7 +914,7 @@ REAL, INTENT(IN)                 :: ErelaxTrans,ErelaxRot,ErelaxVib
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-IF (MacroVal(1).LE.0.) THEN
+IF (MacroVal(1).LE.0..OR.densSpec.LE.0.) THEN
   fTarget=0.
   RETURN
 END IF
@@ -1017,20 +1025,21 @@ DO iElem =1, nElems
       DVMMomentSave(DVMnMacro+3,:,iElem) = Pr
       IF (DVMnInnerE.GT.0) DVMInnerESave(1,1:DVMnSpecies+1,iElem) = Erot(1:DVMnSpecies+1)
       IF (DVMnInnerE.GT.1) DVMInnerESave(2,1:DVMnSpecies+1,iElem) = Evib(1:DVMnSpecies+1)
+      prefac = 0.
       SELECT CASE(DVMMethod)
       CASE(0) !First order
-        relaxFac = tDeriv/tau
-        IF (CHECKEXP(relaxFac)) THEN
-          prefac = EXP(-relaxFac)
-        ELSE
-          prefac = 0.
+        IF (tau.GT.0.) THEN
+          relaxFac = tDeriv/tau
+          IF (CHECKEXP(relaxFac)) THEN
+            prefac = EXP(-relaxFac)
+          END IF
         END IF
       CASE(1) !EDDVM
-        relaxFac = tDeriv/tau/2.
-        IF (CHECKEXP(relaxFac)) THEN
-          prefac = EXP(-relaxFac)*(1.+EXP(-relaxFac))/2.
-        ELSE
-          prefac = 0.
+        IF (tau.GT.0.) THEN
+          relaxFac = tDeriv/tau/2.
+          IF (CHECKEXP(relaxFac)) THEN
+            prefac = EXP(-relaxFac)*(1.+EXP(-relaxFac))/2.
+          END IF
         END IF
       CASE(2) !DUGKS
         prefac = (2.*tau-tDeriv/2.)/(2.*tau+tDeriv)
@@ -1044,11 +1053,12 @@ DO iElem =1, nElems
       IF (DVMnInnerE.GT.1) Evib(1:DVMnSpecies+1) = DVMInnerESave(2,1:DVMnSpecies+1,iElem)
       SELECT CASE(DVMMethod)
       CASE(1)
-        relaxFac = tDeriv/tau
-        IF (CHECKEXP(relaxFac)) THEN
-          prefac = EXP(-relaxFac)*2./(1.+EXP(-relaxFac))
-        ELSE
-          prefac = 0.
+        prefac = 0.
+        IF (tau.GT.0.) THEN
+          relaxFac = tDeriv/tau
+          IF (CHECKEXP(relaxFac)) THEN
+            prefac = EXP(-relaxFac)*2./(1.+EXP(-relaxFac))
+          END IF
         END IF
       CASE(2)
         prefac = (4./3.)-(1./3.)*(2.*tau+2.*tDeriv)/(2.*tau-tDeriv)

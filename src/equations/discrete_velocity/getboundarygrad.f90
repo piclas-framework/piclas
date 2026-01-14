@@ -61,7 +61,7 @@ LOGICAL,INTENT(IN):: output
 ! LOCAL VARIABLES
 INTEGER :: BCType,BCState
 REAL    :: UPrim_boundary(1:PP_nVar_FV), fplus(1:PP_nVar_FV)
-REAL    :: MacroVal(DVMnMacro), tau, vnormal, prefac, MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr
+REAL    :: MacroVal(DVMnMacro), tau, vnormal, prefac, MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr,relaxFac
 INTEGER :: iVel, jVel, kVel, upos, upos_sp, iSpec, vFirstID, vLastID, BCorient
 REAL    :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
 REAL    :: Evib(DVMnSpecies+1), Erelaxvib(DVMnSpecies)
@@ -157,7 +157,13 @@ CASE(4,24,25) ! diffusive order 2 (see Baranger et al. 2019, MCS)
   ELSE
     SELECT CASE(DVMMethod)
     CASE(1)
-      prefac = 2.*tau*(1.-EXP(-dt/tau/2.))/dt ! f from f2~
+      prefac = 0.
+      IF (tau.GT.0.) THEN
+        relaxFac = dt/tau/2.
+        IF (CHECKEXP(relaxFac)) THEN
+          prefac = 2.*tau*(1.-EXP(-relaxFac))/dt ! f from f2~
+        END IF
+      END IF
     CASE(2)
       prefac = 2.*tau/(2.*tau+dt/2.)
     END SELECT

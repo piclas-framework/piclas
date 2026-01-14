@@ -133,7 +133,7 @@ INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV)
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFirstID, vLastID, BCorient
 REAL                                 :: MacroVal(DVMnMacro), vnormal
-REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr,tau,prefac
+REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr,tau,prefac,relaxFac
 REAL                                 :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
 REAL                                 :: Evib(DVMnSpecies+1), ErelaxVib(DVMnSpecies)
 !==================================================================================================================================
@@ -234,7 +234,13 @@ DO iBC=1,nBCs
         ELSE
           SELECT CASE(DVMMethod)
           CASE(1)
-            prefac = 2.*tau*(1.-EXP(-dt/tau/2.))/dt ! f from f2~
+            prefac = 0.
+            IF (tau.GT.0.) THEN
+              relaxFac = dt/tau/2.
+              IF (CHECKEXP(relaxFac)) THEN
+                prefac = 2.*tau*(1.-EXP(-relaxFac))/dt ! f from f2~
+              END IF
+            END IF
           CASE(2)
             prefac = 2.*tau/(2.*tau+dt/2.)
           END SELECT
