@@ -185,9 +185,27 @@ In addition to the report artifact, the data is stored as a GitLab job artifact,
 ### Local coverage tests
 
 Since reggie supports coverage outputs, it can also be generated locally. To enable code coverage information, each executable must be compiled with additional flags via the `PICLAS_CODE_COVERAGE` option. This generates additional `.gcno` and `.gcda` files per object file, which track all compiled lines and the number of calls per line.
+For example, create a build directory and compile the Poisson solver with the Leapfrom time integration scheme
 
-To enable code coverage when using reggie locally, use the `-g` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).  Note that that due to the module names, gcovr must be run with `--include-internal-functions`, otherwise all functions will be excluded. This can be done with the additional reggie2.0 flag `--gcovr_extra`, e.g. `--gcovr_extra \'--include-internal-functions\'`.
+    mkdir build_poisson_code_coverage && cd build_poisson_code_coverage
+    cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_USE_PETSC=ON -DPICLAS_CODE_COVERAGE=ON
+    make -j
 
+To enable code coverage when using reggie locally, use the `-g` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).
+Note that due to the module names, e.g., "__mod_dsmc_MOD_dsmc_main", gcovr must be run with `--include-internal-functions`, otherwise all functions will be excluded.
+This can be done with the additional reggie2.0 flag `--gcovr_extra`, e.g. `--gcovr_extra \'--include-internal-functions\'`.
+
+To run the regression test and create the code coverage data for piclas
+
+    reggie -e bin/piclas ../regressioncheck/CHE_poisson_p_adaption/Laplace_h_N1_pAdaptionType0/ -v 1
+
+and check if the report is created in the output_dir directory
+
+    find . -name *report.html
+
+View the report with any browser
+
+    firefox ./output_dir/Coverage/combined_report/html/combined_report.html
 
 #### Combining single reports
 
