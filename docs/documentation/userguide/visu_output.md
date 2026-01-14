@@ -430,6 +430,11 @@ Additional to the number densities, bulk velocities, and temperatures, the shear
 
     Particles-SamplePressTensHeatflux = T
 
+To enable the calculation and output of torque values based on particle-surface interactions, activate the following option:
+
+    CalcTorque = T
+
+The torque is provided as a three-dimensional vector `Total_Torque`, representing the torque components around the three principal axes (x, y, z).
 Parameters indicating the quality of the simulation (e.g. the maximal collision probability in case of DSMC) can be enabled by
 
     Particles-DSMC-CalcQualityFactors = T
@@ -618,21 +623,16 @@ The parameter `dmdSingleModeOutput` is used to convert only a single specific mo
 Note that each mode is written to a separate output file because a single might can become quite large very quickly and is then too
 large to visualize.
 
+## Surface Group Output
+It is possible to define surface groups for which integral quantities can be computed and written to the `SurfaceAnalyze.csv` file. This feature has been developed specifically for simulations involving rotating bodies in which both rotational periodicity and intermediate plane definitions are used (see Section {ref}`sec:particle-boundary-conditions-rotBC`). To enable the surface group output, the number of groups has to be defined through the parameter:
 
+    Surf-nGroups = 2
 
+The groups can then be defined using the corresponding boundary and interplane IDs:
 
+    Surf-Group1-BoundaryID = 4
+    Surf-Group1-MinInterplaneID = 46
+    Surf-Group1-MaxInterplaneID = 47
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+It is possible to define groups based on geometric regions that span different rotational periodicity angles. However, geometric overlap between groups is not allowed. A value of `-1` can be used for `MinInterplaneID` (`MaxInterplaneID`) to extend the group to the minimum (maximum) boundary of the computational mesh.
+The integral torque and heat flux values for each group are written to the `SurfaceAnalyze.csv` file and corresponds to the full $360^{\circ}$ model.
