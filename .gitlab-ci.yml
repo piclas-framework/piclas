@@ -111,11 +111,15 @@ before_script:
     else
       module list || true ;
     fi
+  # GCOVR_ARGS: - use --include-internal-functions to include all functions starting with '__' (basically every function in piclas)
+  #             - --gcov-ignore-parse-errors Skip lines with parse errors in GCOV files instead of exiting with an error
+  #             - --exclude-lines-by-pattern exclude all lines that start with the regex pattern. Called multiple times for no and one or more (^\s+) leading whitespaces since reggie execution expands wildcards
   - if [ -n "${DO_CODE_COVERAGE}" ]; then
       export CODE_COVERAGE=True;
       if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
       export PICLAS_CODE_COVERAGE=ON ;
       echo "PICLAS_CODE_COVERAGE=ON" ;
+      export GCOVR_ARGS='--include-internal-functions --gcov-ignore-parse-errors all --exclude-lines-by-pattern (?i)^\s+CALL\s+collectivestop --exclude-lines-by-pattern (?i)^CALL\s+collectivestop --exclude-lines-by-pattern (?i)^\s+CALL\s+ABORT --exclude-lines-by-pattern (?i)^CALL\s+ABORT';
     fi
   - |
     if [ -n "${DO_REGGIE_COVERAGE}" ]; then
@@ -472,7 +476,7 @@ reggie_download:
     - if [ ! -d "reggie/.git" ]; then
         if [ -f "reggie/.day" ]; then mv reggie/.day .; fi ;
         if [ -d "reggie" ]; then rm -rf reggie ; fi ;
-        git clone --single-branch -b feature.codecoverage git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
+        git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie ;
         if [ -d "reggie" ]; then cd reggie ; pip install -e . --break-system-packages ; cd .. ; fi ;
         if [ -f ".day" ]; then mv .day reggie/. ; fi ;
       fi

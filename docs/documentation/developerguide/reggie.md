@@ -186,7 +186,7 @@ In addition to the report artifact, the data is stored as a GitLab job artifact,
 
 Since reggie supports coverage outputs, it can also be generated locally. To enable code coverage information, each executable must be compiled with additional flags via the `PICLAS_CODE_COVERAGE` option. This generates additional `.gcno` and `.gcda` files per object file, which track all compiled lines and the number of calls per line.
 
-To enable code coverage when using reggie locally, use the `-v` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).
+To enable code coverage when using reggie locally, use the `-g` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).  Note that that due to the module names, gcovr must be run with `--include-internal-functions`, otherwise all functions will be excluded. This can be done with the additional reggie2.0 flag `--gcovr_extra`, e.g. `--gcovr_extra \'--include-internal-functions\'`.
 
 
 #### Combining single reports

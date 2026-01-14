@@ -177,10 +177,6 @@ END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT MAXWELL ...'
 
-IPWRITE(*,*) "Test for coverage - true"
-IF(.FALSE.)THEN
-  IPWRITE(*,*) "Test for coverage - false"
-END IF
 DoPML = GETLOGICAL('DoPML')
 IF(DoPML)THEN
   PMLnVar = 24
