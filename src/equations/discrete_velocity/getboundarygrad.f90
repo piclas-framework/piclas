@@ -87,14 +87,14 @@ CASE(2) ! exact BC = Dirichlet BC !!
   gradU = UPrim_master - UPrim_boundary
 
 
-CASE(3) ! specular reflection
+CASE(3,13) ! specular reflection
   UPrim_boundary(:)=UPrim_master(:)-gradUinside(:)
   IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not implemented')
-  IF      (ABS(ABS(NormVec(1)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
+  IF      (ALMOSTZERO(ABS(ABS(NormVec(1)) - 1.))) THEN !x-perpendicular boundary
     BCorient=1
-  ELSE IF (ABS(ABS(NormVec(2)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
+  ELSE IF (ALMOSTZERO(ABS(ABS(NormVec(2)) - 1.))) THEN !y-perpendicular boundary
     BCorient=2
-  ELSE IF (ABS(ABS(NormVec(3)) - 1.).LE.1e-6) THEN !z-perpendicular boundary
+  ELSE IF (ALMOSTZERO(ABS(ABS(NormVec(3)) - 1.))) THEN !z-perpendicular boundary
     BCorient=3
   ELSE
     CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
@@ -102,6 +102,12 @@ CASE(3) ! specular reflection
   vFirstID=0
   DO iSpec=1,DVMnSpecies
     ASSOCIATE(Sp => DVMSpecData(iSpec))
+    IF (BCType.EQ.13.AND.Sp%InterID.NE.4) THEN
+      ! absorb ions for plasma sheath
+      gradU(vFirstID+1:vFirstID+Sp%nVar) = gradUinside(vFirstID+1:vFirstID+Sp%nVar)
+      vFirstID = vFirstID + Sp%nVar
+      CYCLE
+    END IF
     IF(DVMVeloDisc(iSpec).EQ.2.AND.(Sp%VeloMin(BCorient)+Sp%VeloMax(BCorient)).NE.0.) THEN
       CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
     END IF
@@ -140,6 +146,7 @@ CASE(3) ! specular reflection
         END IF
       END IF
     END DO; END DO; END DO
+    vFirstID = vFirstID + Sp%nVar
     END ASSOCIATE
   END DO
 

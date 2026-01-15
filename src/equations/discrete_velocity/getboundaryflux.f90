@@ -163,15 +163,15 @@ DO iBC=1,nBCs
       CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))
     END DO
 
-  CASE(3) !specular reflection
+  CASE(3,13) !specular reflection
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       IF (BCState.NE.0) CALL abort(__STAMP__,'DVM specular bc with moving wall not impemented')
-      IF      (ABS(ABS(NormVec(1,SideID)) - 1.).LE.1e-6) THEN !x-perpendicular boundary
+      IF      (ALMOSTZERO(ABS(ABS(NormVec(1,SideID)) - 1.))) THEN !x-perpendicular boundary
         BCorient=1
-      ELSE IF (ABS(ABS(NormVec(2,SideID)) - 1.).LE.1e-6) THEN !y-perpendicular boundary
+      ELSE IF (ALMOSTZERO(ABS(ABS(NormVec(2,SideID)) - 1.))) THEN !y-perpendicular boundary
         BCorient=2
-      ELSE IF (ABS(ABS(NormVec(3,SideID)) - 1.).LE.1e-6) THEN !z-perpendicular boundary
+      ELSE IF (ALMOSTZERO(ABS(ABS(NormVec(3,SideID)) - 1.))) THEN !z-perpendicular boundary
         BCorient=3
       ELSE
         CALL abort(__STAMP__,'Specular reflection only implemented for boundaries perpendicular to velocity grid')
@@ -179,7 +179,14 @@ DO iBC=1,nBCs
       vFirstID=0
       DO iSpec=1,DVMnSpecies
         ASSOCIATE(Sp => DVMSpecData(iSpec))
+        IF (BCType.EQ.13.AND.Sp%InterID.NE.4) THEN
+           ! absorb ions for plasma sheath
+          UPrim_boundary(vFirstID+1:vFirstID+Sp%nVar) = 0.
+          vFirstID = vFirstID + Sp%nVar
+          CYCLE
+        END IF
         IF(DVMVeloDisc(iSpec).EQ.2.AND.(Sp%VeloMin(BCorient)+Sp%VeloMax(BCorient)).NE.0.) THEN
+          print*, iSpec, BCorient, Sp%VeloMin(BCorient), Sp%VeloMax(BCorient)
           CALL abort(__STAMP__,'Specular reflection only implemented for zero-centered velocity grid')
         END IF
         DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
