@@ -90,7 +90,7 @@ USE MOD_Gradients              ,ONLY: GetGradients
 USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
-USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE, DVMColl
+USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE, DVMColl, DVMmultiSpec
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -169,7 +169,7 @@ INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #ifdef discrete_velocity
 INTEGER(KIND=IK)               :: N_FV
 REAL,ALLOCATABLE               :: Ureco(:,:,:,:,:)
-REAL                           :: MacroVal(DVMnMacro,DVMnSpecies+1)
+REAL                           :: MacroVal(DVMnMacro,DVMnSpecies+1)!DVMmultiSpec)
 REAL,ALLOCATABLE               :: Udvm(:,:,:,:,:)
 REAL                           :: tau,dtMV
 INTEGER                        :: iSpec
@@ -259,7 +259,7 @@ nVarOut = 7
 NOut = PP_N
 #endif  /*PP_nVar==1*/
 #elif defined(discrete_velocity) /*DVM*/
-nVarOut = (DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1
+nVarOut = (DVMnMacro+DVMnInnerE)*(DVMnSpecies+DVMmultiSpec)+1
 NOut = N_FV
 ASSOCIATE( StrVarNames => StrVarNames_FV )
 #else /*not USE_HDG*/
@@ -422,28 +422,28 @@ IF (time.EQ.0.) THEN
 ELSE
   dtMV = dt
 ENDIF
-ALLOCATE(Udvm(1:(DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
+ALLOCATE(Udvm(1:(DVMnMacro+DVMnInnerE)*(DVMnSpecies+DVMmultiSpec)+1,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
 DO iElem=1,INT(PP_nElems)
   DO k=0,N_FV
     DO j=0,N_FV
       DO i=0,N_FV
         CALL MacroValuesFromDistribution(MacroVal,Ureco(:,i,j,k,iElem),dtMV,tau,1,Trot=Trot,Tvib=Tvib)
-        DO iSpec=1,DVMnSpecies+1 !n species + total values
+        DO iSpec=1,DVMnSpecies+DVMmultiSpec !n species + total values if multi-species
           Udvm((DVMnMacro+DVMnInnerE)*(iSpec-1)+1:(DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE,i,j,k,iElem) = MacroVal(1:DVMnMacro,iSpec)
           IF (DVMnInnerE.GT.0) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+1,i,j,k,iElem) = Trot(iSpec)
           IF (DVMnInnerE.GT.1) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+2,i,j,k,iElem) = Tvib(iSpec)
         END DO
         IF (tau.GT.0.) THEN
-          Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+          Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+DVMmultiSpec)+1,i,j,k,iElem) = dt_Min(DT_MIN)/tau
         ELSE
-          Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,i,j,k,iElem) = 0.
+          Udvm((DVMnMacro+DVMnInnerE)*(DVMnSpecies+DVMmultiSpec)+1,i,j,k,iElem) = 0.
         END IF
       END DO
     END DO
   END DO
 END DO
 SDEALLOCATE(Ureco)
-nValDVM = INT((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1,IK)
+nValDVM = INT((DVMnMacro+DVMnInnerE)*(DVMnSpecies+DVMmultiSpec)+1,IK)
 CALL GatheredWriteArray(FileName,create=.FALSE.,&
     DataSetName='DVM_Solution', rank=5,&
     nValGlobal=(/nValDVM, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &

@@ -40,6 +40,7 @@ REAL                 :: BCTempGrad            !< Gradient of temperature at the 
 
 LOGICAL              :: DVMColl
 INTEGER              :: DVMnSpecies
+INTEGER              :: DVMmultiSpec
 INTEGER              :: DVMnMacro=14
 INTEGER              :: DVMnInnerE
 INTEGER              :: DVMBGKModel

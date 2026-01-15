@@ -156,6 +156,13 @@ ELSE
 END IF
 
 DVMnSpecies = GETINT('DVM-nSpecies')
+IF (DVMnSpecies.EQ.1) THEN
+  DVMmultiSpec = 0
+ELSE IF (DVMnSpecies.GT.1) THEN
+  DVMmultiSpec = 1
+ELSE
+  CALL abort(__STAMP__,'DVM-nSpecies must be at least 1')
+END IF
 ALLOCATE(DVMSpecData(DVMnSpecies))
 PP_nVar_FV = 0
 
@@ -164,6 +171,7 @@ CALL InitDVMSpecData()
 ALLOCATE(StrVarNames_FV((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1))
 ALLOCATE(DVMVeloDisc(DVMnSpecies))
 
+offsetSpec = 0
 DO iSpec = 1, DVMnSpecies
   LBWRITE (UNIT_stdOut,'(68(". "))')
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -231,31 +239,32 @@ DO iSpec = 1, DVMnSpecies
   END SELECT ! DVMVeloDisc
   END ASSOCIATE
   ! Set output variable names
-  WRITE(SpecID,'(I3.3)') iSpec
-  offsetSpec = (DVMnMacro+DVMnInnerE)*(iSpec-1)
-  StrVarNames_FV(offsetSpec+1)  = 'Spec'//TRIM(SpecID)//'_NumberDensity'
-  StrVarNames_FV(offsetSpec+2)  = 'Spec'//TRIM(SpecID)//'_VelocityX'
-  StrVarNames_FV(offsetSpec+3)  = 'Spec'//TRIM(SpecID)//'_VelocityY'
-  StrVarNames_FV(offsetSpec+4)  = 'Spec'//TRIM(SpecID)//'_VelocityZ'
-  StrVarNames_FV(offsetSpec+5)  = 'Spec'//TRIM(SpecID)//'_Temperature'
-  StrVarNames_FV(offsetSpec+6)  = 'Spec'//TRIM(SpecID)//'_PressureXX'
-  StrVarNames_FV(offsetSpec+7)  = 'Spec'//TRIM(SpecID)//'_PressureYY'
-  StrVarNames_FV(offsetSpec+8)  = 'Spec'//TRIM(SpecID)//'_PressureZZ'
-  StrVarNames_FV(offsetSpec+9)  = 'Spec'//TRIM(SpecID)//'_PressureXY'
-  StrVarNames_FV(offsetSpec+10) = 'Spec'//TRIM(SpecID)//'_PressureXZ'
-  StrVarNames_FV(offsetSpec+11) = 'Spec'//TRIM(SpecID)//'_PressureYZ'
-  StrVarNames_FV(offsetSpec+12) = 'Spec'//TRIM(SpecID)//'_HeatfluxX'
-  StrVarNames_FV(offsetSpec+13) = 'Spec'//TRIM(SpecID)//'_HeatfluxY'
-  StrVarNames_FV(offsetSpec+14) = 'Spec'//TRIM(SpecID)//'_HeatfluxZ'
-  IF (DVMnInnerE.GT.0) THEN
-    StrVarNames_FV(offsetSpec+15) = 'Spec'//TRIM(SpecID)//'_TRot'
-    IF (DVMnInnerE.GT.1) THEN
-      StrVarNames_FV(offsetSpec+16) = 'Spec'//TRIM(SpecID)//'_TVib'
+  IF (DVMnSpecies.GT.1) THEN
+    WRITE(SpecID,'(I3.3)') iSpec
+    StrVarNames_FV(offsetSpec+1)  = 'Spec'//TRIM(SpecID)//'_NumberDensity'
+    StrVarNames_FV(offsetSpec+2)  = 'Spec'//TRIM(SpecID)//'_VelocityX'
+    StrVarNames_FV(offsetSpec+3)  = 'Spec'//TRIM(SpecID)//'_VelocityY'
+    StrVarNames_FV(offsetSpec+4)  = 'Spec'//TRIM(SpecID)//'_VelocityZ'
+    StrVarNames_FV(offsetSpec+5)  = 'Spec'//TRIM(SpecID)//'_Temperature'
+    StrVarNames_FV(offsetSpec+6)  = 'Spec'//TRIM(SpecID)//'_PressureXX'
+    StrVarNames_FV(offsetSpec+7)  = 'Spec'//TRIM(SpecID)//'_PressureYY'
+    StrVarNames_FV(offsetSpec+8)  = 'Spec'//TRIM(SpecID)//'_PressureZZ'
+    StrVarNames_FV(offsetSpec+9)  = 'Spec'//TRIM(SpecID)//'_PressureXY'
+    StrVarNames_FV(offsetSpec+10) = 'Spec'//TRIM(SpecID)//'_PressureXZ'
+    StrVarNames_FV(offsetSpec+11) = 'Spec'//TRIM(SpecID)//'_PressureYZ'
+    StrVarNames_FV(offsetSpec+12) = 'Spec'//TRIM(SpecID)//'_HeatfluxX'
+    StrVarNames_FV(offsetSpec+13) = 'Spec'//TRIM(SpecID)//'_HeatfluxY'
+    StrVarNames_FV(offsetSpec+14) = 'Spec'//TRIM(SpecID)//'_HeatfluxZ'
+    IF (DVMnInnerE.GT.0) THEN
+      StrVarNames_FV(offsetSpec+15) = 'Spec'//TRIM(SpecID)//'_TRot'
+      IF (DVMnInnerE.GT.1) THEN
+        StrVarNames_FV(offsetSpec+16) = 'Spec'//TRIM(SpecID)//'_TVib'
+      END IF
     END IF
+    offsetSpec = offsetSpec + DVMnMacro + DVMnInnerE
   END IF
 END DO
 
-offsetSpec = (DVMnMacro+DVMnInnerE)*DVMnSpecies
 StrVarNames_FV(offsetSpec+1)  = 'Total_NumberDensity'
 StrVarNames_FV(offsetSpec+2)  = 'Total_VelocityX'
 StrVarNames_FV(offsetSpec+3)  = 'Total_VelocityY'
