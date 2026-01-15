@@ -191,13 +191,13 @@ For example, create a build directory and compile the Poisson solver with the Le
     cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_USE_PETSC=ON -DPICLAS_CODE_COVERAGE=ON
     make -j
 
-To enable code coverage when using reggie locally, use the `-g` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).
+To enable code coverage when using reggie locally, use the `-o` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).
 Note that due to the module names, e.g., "__mod_dsmc_MOD_dsmc_main", gcovr must be run with `--include-internal-functions`, otherwise all functions will be excluded.
 This can be done with the additional reggie2.0 flag `--gcovr_extra`, e.g. `--gcovr_extra \'--include-internal-functions\'`.
 
 To run the regression test and create the code coverage data for piclas
 
-    reggie -e bin/piclas ../regressioncheck/CHE_poisson_p_adaption/Laplace_h_N1_pAdaptionType0/ -v 1
+    reggie -e bin/piclas ../regressioncheck/CHE_poisson_p_adaption/Laplace_h_N1_pAdaptionType0/ -o 1
 
 and check if the report is created in the output_dir directory
 
