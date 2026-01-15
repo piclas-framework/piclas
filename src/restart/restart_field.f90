@@ -118,10 +118,10 @@ USE MOD_PML_Vars               ,ONLY: DoPML,PMLToElem,nPMLElems,PMLnVar,isPMLEle
 #endif /*USE_FV*/
 #endif /*USE_HDG*/
 #if USE_LOADBALANCE
-#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG)
+#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG) || USE_FV
 USE MOD_LoadBalance_Vars       ,ONLY: nElemsOld,offsetElemOld
 USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
-#endif /*#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG)*/
+#endif /*#if (defined(PARTICLES) && (USE_HDG)) || !(USE_HDG) || USE_FV*/
 #endif /*USE_LOADBALANCE*/
 #ifdef discrete_velocity /*DVM*/
 USE MOD_DistFunc               ,ONLY: GradDistribution
