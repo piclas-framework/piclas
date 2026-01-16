@@ -919,7 +919,7 @@ USE MOD_Globals_Vars       ,ONLY: eps0, ElementaryCharge
 USE MOD_FV_Vars            ,ONLY: U_FV
 USE MOD_Globals_Vars       ,ONLY: eps0
 USE MOD_DistFunc           ,ONLY: MacroValuesFromDistribution
-USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecies, DVMnMacro
+USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecTot, DVMnMacro
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
