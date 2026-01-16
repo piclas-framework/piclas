@@ -1323,6 +1323,12 @@ NIG_convtest_DVM:
   script:
     - cd build_DVM ; reggie ../regressioncheck/NIG_convtest_DVM
 
+NIG_DVM_plasma:
+  <<: *defaults_DVM_plasma_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM_plasma ; reggie ../regressioncheck/NIG_DVM_plasma
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
