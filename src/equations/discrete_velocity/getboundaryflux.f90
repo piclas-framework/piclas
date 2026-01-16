@@ -116,7 +116,7 @@ USE MOD_Riemann
 USE MOD_TimeDisc_Vars,ONLY : dt
 USE MOD_Equation_FV  ,ONLY: ExactFunc_FV
 USE MOD_DistFunc     ,ONLY: MaxwellDistribution, MaxwellScatteringDVM, MacroValuesFromDistribution, MoleculeRelaxEnergy
-USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMethod, DVMnMacro, BCTempGrad
+USE MOD_Equation_Vars_FV,ONLY: DVMDim,DVMSpecData,DVMVeloDisc,DVMnSpecies, DVMMethod, DVMnMacro, BCTempGrad, DVMnSpecTot
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
@@ -133,9 +133,9 @@ INTEGER                              :: BCType,BCState,nBCLoc
 REAL                                 :: UPrim_boundary(PP_nVar_FV)
 INTEGER                              :: iVel,jVel,kVel,upos, upos_sp, iSpec, vFirstID, vLastID, BCorient
 REAL                                 :: MacroVal(DVMnMacro), vnormal
-REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecies+1),rho,Pr,tau,prefac,relaxFac
-REAL                                 :: Erot(DVMnSpecies+1), ErelaxTrans, ErelaxRot(DVMnSpecies)
-REAL                                 :: Evib(DVMnSpecies+1), ErelaxVib(DVMnSpecies)
+REAL                                 :: MacroValInside(DVMnMacro,DVMnSpecTot),rho,Pr,tau,prefac,relaxFac
+REAL                                 :: Erot(DVMnSpecTot), ErelaxTrans, ErelaxRot(DVMnSpecies)
+REAL                                 :: Evib(DVMnSpecTot), ErelaxVib(DVMnSpecies)
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -235,7 +235,7 @@ DO iBC=1,nBCs
       SideID=BCSideID(iBC,iSide)
       IF (DVMMethod.GT.0) THEN
         CALL MacroValuesFromDistribution(MacroValInside,UPrim_master(:,SideID),dt/2.,tau,1,MassDensity=rho,PrandtlNumber=Pr,Erot=Erot,Evib=Evib)
-        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,ErelaxVib,MacroValInside(5,DVMnSpecies+1),Erot(1:DVMnSpecies),Evib(1:DVMnSpecies),Pr)
+        CALL MoleculeRelaxEnergy(ErelaxTrans,ErelaxRot,ErelaxVib,MacroValInside(5,DVMnSpecTot),Erot(1:DVMnSpecies),Evib(1:DVMnSpecies),Pr)
         IF (dt.EQ.0.) THEN
           prefac = 1.
         ELSE
@@ -262,7 +262,7 @@ DO iBC=1,nBCs
         ! IF (BCType.EQ.25) MacroVal(5) = MacroVal(5)+(9.-Face_xGP(1,SideID))*2.*BCTempGrad
         CALL MaxwellDistribution(MacroVal,UPrim_boundary(vFirstID:vLastID),iSpec)
         CALL MaxwellScatteringDVM(iSpec,UPrim_boundary(vFirstID:vLastID),UPrim_master(vFirstID:vLastID,SideID),NormVec(:,SideID),prefac, &
-                MacroValInside(:,DVMnSpecies+1),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec),ErelaxVib(iSpec))
+                MacroValInside(:,DVMnSpecTot),MacroValInside(1,iSpec),rho,Pr,ErelaxTrans,ErelaxRot(iSpec),ErelaxVib(iSpec))
         vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
       END DO
       CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID))

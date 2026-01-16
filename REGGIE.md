@@ -126,6 +126,7 @@ Overview of the test cases performed during the nightly regression testing.
 |    -    |         [NIG_Photoionization](#nig_photoionization)          |            Poisson, Code Analyze=ON             |        Photoionization of H2 and secondary electron emission and initial load balance        |                                             |                                |                                                                                                |
 |    -    |                     [NIG_DVM](#nig_dvm)                      |                discrete_velocity                |                                             DVM                                              |                                             |                                |                                                                                                |
 |    -    |            [NIG_convtest_DVM](#nig_convtest_dvm)             |                discrete_velocity                |                         Spatio-temporal order of convergence for DVM                         |                                             |                                |                                                                                                |
+|    -    |                     [NIG_DVM_plasma](#nig_dvm_plasma)                      |                discrete_velocity, poisson             |                                             DVM plasma solver                                             |                                             |                                |                                                                                                |
 |    -    |               [NIG_Radiation](#nig_radiation)                |                    Radiation                    |      Radiation timedisc, cell-local emission and radiative transfer (2D rot sym and 3D)      |                                             |                                |                                                                                                |
 |    1    |                   NIG_PIC_maxwell_bgfield                    |                 maxwell,PIC,RK4                 |                                 External Background-field,h5                                 |                  nProcs=2                   |          DG_Solution           |                                                                                                |
 |    3    |                  feature_emission_gyrotron                   |                   maxwell,RK4                   |                                     Part-Inflow,TimeDep                                      | N=1,3,6,9,10, nProcs=1,2,10,25, gyro-circle |   LineIntegration of nPartIn   |                                                                                                |
@@ -501,6 +502,14 @@ Test discrete velocity method: [Link to build](regressioncheck/NIG_convtest_DVM/
 | **No.** |       **Case**        | **CMAKE-CONFIG** |         **Feature**          | **Execution** |           **Comparing**           |                                **Readme**                                |
 | :-----: | :-------------------: | :--------------: | :--------------------------: | :-----------: | :-------------------------------: | :----------------------------------------------------------------------: |
 |    1    | Poiseuille_flow_force |                  | Force-driven Poiseuille flow |   nProcs=4    | Spatio-temporal convergence order | [Link](regressioncheck/NIG_convtest_DVM/Poiseuille_flow_force/readme.md) |
+
+### NIG_DVM_plasma
+
+Test discrete velocity method: [Link to build](regressioncheck/NIG_DVM_plasma/builds.ini).
+
+| **No.** |       **Case**        | **CMAKE-CONFIG** |         **Feature**          | **Execution** | **Comparing** |                           **Readme**                            |
+| :-----: | :-------------------: | :--------------: | :--------------------------: | :-----------: | :-----------: | :-------------------------------------------------------------: |
+|    1    | Plasma sheath |                  | DVM plasma solver |   nProcs=4   |   DG_State    | [Link](regressioncheck/NIG_DVM_plasma/plasma_sheath/readme.md) |
 
 ## Weekly
 

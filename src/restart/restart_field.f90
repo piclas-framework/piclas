@@ -125,7 +125,7 @@ USE MOD_LoadBalance_Vars       ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSen
 #endif /*USE_LOADBALANCE*/
 #ifdef discrete_velocity /*DVM*/
 USE MOD_DistFunc               ,ONLY: GradDistribution
-USE MOD_Equation_Vars_FV       ,ONLY: DVMSpecData, DVMnSpecies
+USE MOD_Equation_Vars_FV       ,ONLY: DVMSpecData, DVMnSpecies, DVMnMacro, DVMnSpecTot
 #endif /*DVM*/
 USE MOD_Mesh_Vars              ,ONLY: nElems,OffsetElem
 ! IMPLICIT VARIABLE HANDLING
@@ -139,7 +139,7 @@ INTEGER(KIND=IK)                   :: Nres8,nVar
 INTEGER(KIND=IK)                   :: OffsetElemTmp,PP_nElemsTmp
 LOGICAL                            :: DG_SolutionExists
 #ifdef discrete_velocity
-REAL                               :: Udvm(14*(DVMnSpecies+1)+1)
+REAL                               :: Udvm(DVMnMacro)
 #endif /*discrete_velocity*/
 #if (USE_FV)
 REAL,ALLOCATABLE                   :: Ureco_FV(:,:,:,:,:)
@@ -944,23 +944,22 @@ ELSE ! Normal restart
 
 #ifdef discrete_velocity
     SWRITE(UNIT_stdOut,*)'Performing DVM restart using Grads 13 moment distribution'
-    ALLOCATE(Ureco_FV(14*(DVMnSpecies+1)+1,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,nElems))
+    ALLOCATE(Ureco_FV(DVMnMacro*(DVMnSpecTot)+1,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,nElems))
     Ureco_FV=0.
     Nres8         = INT(N_Restart_FV,IK)
-    CALL ReadArray('DVM_Solution',5,(/INT(14*(DVMnSpecies+1)+1,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
+    CALL ReadArray('DVM_Solution',5,(/INT(DVMnMacro*(DVMnSpecTot)+1,IK),Nres8+1_IK,Nres8+1_IK,Nres8+1_IK,PP_nElemsTmp/),&
         OffsetElemTmp,5,RealArray=Ureco_FV)
     DO iElem=1,nElems
       ! average reconstructed values to get cell-centered values
-      Udvm = SUM(SUM(SUM(Ureco_FV(:,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,iElem),4),3),2)/(N_Restart_FV+1)**3
       vFirstID=1
       vLastID=0
       offsetMV=0
       DO iSpec=1,DVMnSpecies
+        Udvm = SUM(SUM(SUM(Ureco_FV(offsetMV+1:offsetMV+DVMnMacro,0:N_Restart_FV,0:N_Restart_FV,0:N_Restart_FV,iElem),4),3),2)/(N_Restart_FV+1)**3
         vLastID = vLastID + DVMSpecData(iSpec)%nVar
-        Udvm(offsetMV+6:offsetMV+8)=Udvm(offsetMV+6:offsetMV+8) &
-                                   -SUM(Udvm(offsetMV+6:offsetMV+8))/3. ! traceless pressure tensor for Grad dist
-        CALL GradDistribution(Udvm(offsetMV+1:offsetMV+14),U_FV(vFirstID:vLastID,iElem),iSpec)
-        offsetMV = offsetMV + 14
+        Udvm(6:8)=Udvm(6:8) - SUM(Udvm(6:8))/3. ! traceless pressure tensor for Grad dist
+        CALL GradDistribution(Udvm(1:DVMnMacro),U_FV(vFirstID:vLastID,iElem),iSpec)
+        offsetMV = offsetMV + DVMnMacro
         vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
       END DO
     END DO

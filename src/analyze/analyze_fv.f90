@@ -53,7 +53,7 @@ USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 #ifdef discrete_velocity
 USE MOD_TimeDisc_Vars      ,ONLY: dt
 USE MOD_DistFunc,           ONLY: MacroValuesFromDistribution
-USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecies, DVMnMacro
+USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecTot, DVMnMacro
 #endif /*discrete_velocity*/
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -79,7 +79,7 @@ INTEGER                       :: iElem
 REAL                          :: U_exact(1:PP_nVar_FV)
 INTEGER                       :: offsetElemCNProc,CNElemID
 #ifdef discrete_velocity
-REAL                          :: MacroVal(DVMnMacro,DVMnSpecies+1), MacroVal_exact(DVMnMacro,DVMnSpecies+1), tau, real_dt, rho, rho_exact
+REAL                          :: MacroVal(DVMnMacro,DVMnSpecTot), MacroVal_exact(DVMnMacro,DVMnSpecTot), tau, real_dt, rho, rho_exact
 #endif /*discrete_velocity*/
 !===================================================================================================================================
 IF (OutputErrorNormsToH5) CALL abort(__STAMP__,'OutputErrorNormsToH5 not implemented for FV')
@@ -107,12 +107,12 @@ DO iElem=1,PP_nElems
   ! DVM: calculate errors for the macroscopic values
   CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),real_dt,tau,1,MassDensity=rho)
   CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:),real_dt,tau,1,MassDensity=rho_exact)
-  MacroVal(1,DVMnSpecies+1) = rho
-  MacroVal_exact(1,DVMnSpecies+1) = rho_exact
-  L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:DVMnMacro,DVMnSpecies+1) - MacroVal_exact(1:DVMnMacro,DVMnSpecies+1)))
+  MacroVal(1,DVMnSpecTot) = rho
+  MacroVal_exact(1,DVMnSpecTot) = rho_exact
+  L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:DVMnMacro,DVMnSpecTot) - MacroVal_exact(1:DVMnMacro,DVMnSpecTot)))
   ! To sum over the elements, We compute here the square of the L_2 error
-  L_2_Error = L_2_Error+(MacroVal(1:DVMnMacro,DVMnSpecies+1) - MacroVal_exact(1:DVMnMacro,DVMnSpecies+1))*&
-                        (MacroVal(1:DVMnMacro,DVMnSpecies+1) - MacroVal_exact(1:DVMnMacro,DVMnSpecies+1))*ElemVolume_Shared(CNElemID)
+  L_2_Error = L_2_Error+(MacroVal(1:DVMnMacro,DVMnSpecTot) - MacroVal_exact(1:DVMnMacro,DVMnSpecTot))*&
+                        (MacroVal(1:DVMnMacro,DVMnSpecTot) - MacroVal_exact(1:DVMnMacro,DVMnSpecTot))*ElemVolume_Shared(CNElemID)
 #else
   L_Inf_Error = MAX(L_Inf_Error,abs(U_FV(:,iElem) - U_exact(1:PP_nVar_FV)))
   ! To sum over the elements, We compute here the square of the L_2 error

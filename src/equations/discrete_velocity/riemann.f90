@@ -30,7 +30,7 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 ! MODULES
 USE MOD_PreProc
 USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, TargetDistribution, MoleculeRelaxEnergy
-USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMSpecData, DVMnSpecies, DVMMethod, DVMColl, DVMnMacro
+USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMSpecData, DVMnSpecies, DVMMethod, DVMColl, DVMnMacro, DVMnSpecTot
 USE MOD_TimeDisc_Vars,   ONLY: dt
 USE MOD_Globals,         ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
@@ -46,13 +46,13 @@ REAL,INTENT(OUT)                                 :: F(PP_nVar_FV)
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                             :: MacroVal_L(DVMnMacro,DVMnSpecies+1), MacroVal_R(DVMnMacro,DVMnSpecies+1)
+REAL                                             :: MacroVal_L(DVMnMacro,DVMnSpecTot), MacroVal_R(DVMnMacro,DVMnSpecTot)
 REAL                                             :: tau_L, tau_R, Velo, rho_L, rho_R, Pr_L, Pr_R
 REAL,ALLOCATABLE                                 :: fTarget_L(:), fTarget_R(:), UTemp_L(:), UTemp_R(:)
 REAL                                             :: gamma_R, gamma_L, relaxFac
 INTEGER                                          :: iVel, jVel, kVel, upos, iSpec, vFirstID, vLastID
-REAL                                             :: Erot_L(DVMnSpecies+1),Erot_R(DVMnSpecies+1)
-REAL                                             :: Evib_L(DVMnSpecies+1),Evib_R(DVMnSpecies+1)
+REAL                                             :: Erot_L(DVMnSpecTot),Erot_R(DVMnSpecTot)
+REAL                                             :: Evib_L(DVMnSpecTot),Evib_R(DVMnSpecTot)
 REAL                                             :: ErelaxTrans_L,ErelaxTrans_R
 REAL                                             :: ErelaxRot_L(DVMnSpecies),ErelaxRot_R(DVMnSpecies)
 REAL                                             :: ErelaxVib_L(DVMnSpecies),ErelaxVib_R(DVMnSpecies)
@@ -60,9 +60,9 @@ REAL                                             :: ErelaxVib_L(DVMnSpecies),Ere
 IF (DVMColl.AND.DVMMethod.GT.0) THEN
   CALL MacroValuesFromDistribution(MacroVal_L,U_L,dt/2.,tau_L,1,MassDensity=rho_L,PrandtlNumber=Pr_L,Erot=Erot_L,Evib=Evib_L)
   CALL MacroValuesFromDistribution(MacroVal_R,U_R,dt/2.,tau_R,1,MassDensity=rho_R,PrandtlNumber=Pr_R,Erot=Erot_R,Evib=Evib_R)
-  CALL MoleculeRelaxEnergy(ErelaxTrans_L,ErelaxRot_L,ErelaxVib_L,MacroVal_L(5,DVMnSpecies+1),&
+  CALL MoleculeRelaxEnergy(ErelaxTrans_L,ErelaxRot_L,ErelaxVib_L,MacroVal_L(5,DVMnSpecTot),&
                             ERot_L(1:DVMnSpecies),Evib_L(1:DVMnSpecies),Pr_L)
-  CALL MoleculeRelaxEnergy(ErelaxTrans_R,ErelaxRot_R,ErelaxVib_R,MacroVal_R(5,DVMnSpecies+1),&
+  CALL MoleculeRelaxEnergy(ErelaxTrans_R,ErelaxRot_R,ErelaxVib_R,MacroVal_R(5,DVMnSpecTot),&
                             ERot_R(1:DVMnSpecies),Evib_R(1:DVMnSpecies),Pr_R)
   SELECT CASE (DVMMethod)
   CASE(1)
@@ -94,8 +94,8 @@ DO iSpec=1,DVMnSpecies
   ALLOCATE(UTemp_L(DVMSpecData(iSpec)%nVar))
   ALLOCATE(UTemp_R(DVMSpecData(iSpec)%nVar))
   IF (DVMColl.AND.DVMMethod.GT.0) THEN
-    CALL TargetDistribution(MacroVal_L(:,DVMnSpecies+1),fTarget_L,iSpec,MacroVal_L(1,iSpec),rho_L,Pr_L,ErelaxTrans_L,ErelaxRot_L(iSpec),ErelaxVib_L(iSpec))
-    CALL TargetDistribution(MacroVal_R(:,DVMnSpecies+1),fTarget_R,iSpec,MacroVal_R(1,iSpec),rho_R,Pr_R,ErelaxTrans_R,ErelaxRot_R(iSpec),ErelaxVib_R(iSpec))
+    CALL TargetDistribution(MacroVal_L(:,DVMnSpecTot),fTarget_L,iSpec,MacroVal_L(1,iSpec),rho_L,Pr_L,ErelaxTrans_L,ErelaxRot_L(iSpec),ErelaxVib_L(iSpec))
+    CALL TargetDistribution(MacroVal_R(:,DVMnSpecTot),fTarget_R,iSpec,MacroVal_R(1,iSpec),rho_R,Pr_R,ErelaxTrans_R,ErelaxRot_R(iSpec),ErelaxVib_R(iSpec))
     IF (dt.EQ.0.) THEN
       UTemp_L = 0.
       UTemp_R = 0.

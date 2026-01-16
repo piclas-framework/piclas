@@ -157,9 +157,9 @@ END IF
 
 DVMnSpecies = GETINT('DVM-nSpecies')
 IF (DVMnSpecies.EQ.1) THEN
-  DVMmultiSpec = 0
+  DVMnSpecTot = 1
 ELSE IF (DVMnSpecies.GT.1) THEN
-  DVMmultiSpec = 1
+  DVMnSpecTot = DVMnSpecies + 1 ! +1 for total
 ELSE
   CALL abort(__STAMP__,'DVM-nSpecies must be at least 1')
 END IF
@@ -168,7 +168,7 @@ PP_nVar_FV = 0
 
 CALL InitDVMSpecData()
 
-ALLOCATE(StrVarNames_FV((DVMnMacro+DVMnInnerE)*(DVMnSpecies+1)+1))
+ALLOCATE(StrVarNames_FV((DVMnMacro+DVMnInnerE)*DVMnSpecTot+1))
 ALLOCATE(DVMVeloDisc(DVMnSpecies))
 
 offsetSpec = 0
@@ -309,10 +309,10 @@ END IF
 DVMAccel = GETREALARRAY('DVM-Accel',3)
 BCTempGrad = GETREAL('DVM-BCTempGrad')
 
-ALLOCATE(DVMMomentSave(17,DVMnSpecies+1,nElems))
+ALLOCATE(DVMMomentSave(17,DVMnSpecTot,nElems))
 DVMMomentSave = 0.
 IF (DVMnInnerE.GT.0) THEN
-  ALLOCATE(DVMInnerESave(DVMnInnerE,DVMnSpecies+1,nElems))
+  ALLOCATE(DVMInnerESave(DVMnInnerE,DVMnSpecTot,nElems))
   DVMInnerESave = 0.
 END IF
 

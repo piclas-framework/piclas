@@ -948,7 +948,7 @@ REAL                            :: ElemCharLengthX,dx
 REAL :: dummy_real
 #endif /*PARTICLES*/
 #ifdef discrete_velocity
-REAL                            :: DVMtotalCharge, tau, MacroVal(DVMnMacro,DVMnSpecies+1)
+REAL                            :: DVMtotalCharge, tau, MacroVal(DVMnMacro,DVMnSpecTot)
 #endif
 !===================================================================================================================================
 ASSOCIATE( &
