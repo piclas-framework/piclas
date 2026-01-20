@@ -36,3 +36,5 @@
 * [ ] New feature description in appropriate documentation in the [User and/or Developer Guide](https://piclas.readthedocs.io/en/latest/index.html)
 * [ ] Are there new or changed shared memory windows (SHM)? Check if the [rules in the Developer Guide are being followed](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html#shared-memory-windows).
 * Add line to **Release Notes** for the next **Release X.X.X** under [Merge requests](https://piclas.boltzplatz.eu/piclas/piclas/-/merge_requests) with a short description of this MR. Note that the commit hash is created upon pressing the merge button and is displayed in the **Activity** section afterwards.
+* [ ] Run the regression checks, which should test the new feature (either new tests or existing tests using the added lines) with code coverage (`DO_CODE_COVERAGE=T` or locally to avoid unnecessary runs) and check that
+  * [ ] all new features are tested (visible as green/red bars next to each code line in merge request diff view)

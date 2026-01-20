@@ -343,7 +343,7 @@ ENDIF()
 # Coffee Lib
 # =========================================================================
 OPTION(CMAKE_ANS_COFFEE "Enable coffee lib" OFF)
-MARK_AS_ADVANCED(CMAKE_ANS_COFFEE)
+MARK_AS_ADVANCED(FORCE CMAKE_ANS_COFFEE)
 IF(CMAKE_ANS_COFFEE)
   ADD_DEFINITIONS(-DUSE_COFFEE=1)
 ELSE()
@@ -624,3 +624,18 @@ IF(PICLAS_CTAGS)
     ADD_DEPENDENCIES(piclas tags)
   ENDIF(CTAGS_PATH)
 ENDIF(PICLAS_CTAGS)
+
+# =========================================================================
+# Code Coverage
+# =========================================================================
+OPTION(PICLAS_CODE_COVERAGE "Generate additional files for code coverage" OFF)
+MARK_AS_ADVANCED(FORCE PICLAS_CODE_COVERAGE)
+# Get environment variable, only strings so use "ON"
+IF("$ENV{PICLAS_CODE_COVERAGE}" STREQUAL "ON")
+  SET(PICLAS_CODE_COVERAGE "$ENV{PICLAS_CODE_COVERAGE}")
+ENDIF()
+# set coverage flag for compiler
+IF(PICLAS_CODE_COVERAGE)
+  SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} --coverage")
+  MESSAGE(STATUS "Compiling for code coverage")
+ENDIF()

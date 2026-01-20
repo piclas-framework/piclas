@@ -146,6 +146,8 @@ name: tab:pipeline_vars
 | DO_CHECKIN                    | short tests that are also run, when new commits are pushed                                                                               |    T    |
 | DO_NIGHTLY                    | longer tests, executed every day                                                                                                         |    T    |
 | DO_WEEKLY                     | very long tests, executed once a week                                                                                                    |    T    |
+| DO_CODE_COVERAGE              | Generate coverage data of piclas for all jobs in current pipeline                                                                        |    T    |
+| DO_REGGIE_COVERAGE            | Generate coverage data of reggie2.0 itself for all jobs in current pipeline                                                              |    T    |
 | DO_NODE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where a specific number of cores/threads are grouped in separate nodes (default is 2) |    T    |
 | DO_CORE_SPLIT                 | MPI: virtual CPU splitting for multi-node testing, where each core/thread resembles a separate node                                      |    T    |
 | DO_MPICH                      | MPI: Force compilation using MPICH instead of OpenMPI                                                                                    |    T    |
@@ -153,6 +155,76 @@ name: tab:pipeline_vars
 
 Per default, `DO_CHECKIN`, `DO_NIGHTLY`, `DO_WEEKLY`, `DO_NODE_SPLIT` and `DO_CORE_SPLIT` are tested automatically for the branch
 *master.dev*. For details, see the [Pipeline schedules](https://piclas.boltzplatz.eu/piclas/piclas/-/pipeline_schedules) section in Gitlab.
+
+## Code Coverage
+
+Code coverage information can be inspected in multiple ways: on GitLab, by downloading GitLab artifacts and inspecting the data locally, or by running the tests locally in the first place. By default, all lines containing `Call Abort()` or `Call CollectiveStop()` are not considered when creating coverage reports.
+
+### Coverage on GitLab
+
+For regression testing on GitLab with code coverage, a separate flag `DO_CODE_COVERAGE` is required. This creates a separate stage, which is executed after all other stages. This way the code coverage stage is able to collect the coverage data from all (previous) jobs/runs of the current pipeline. This is done in the following way.
+
+For each job (e.g., CHE_DSMC), the coverage data is collected and stored in a `.json` report file per build. These reports are named after the build and stored in the `Coverage` directory. If the build is reused for another job (e.g., same DSMC build for both CHE_DSMC and NIG_DSMC), the report file is updated. After all jobs in the other stages are finished, the coverage stage starts. The report files from all builds are combined into a single report containing the coverage data from all previously triggered runs/builds of the current pipeline. For example, if only `DO_CODE_COVERAGE` and `DO_CHECKIN` are set, the report will show coverage data from all builds with corresponding runs in the `DO_CHECKIN` case. The output of the coverage stage will also display which `.json` report files are found and therefore used to check whether the correct files and builds are considered.
+
+#### Inspecting data on GitLab
+
+The coverage stage will create a [GitLab report artifact](https://docs.gitlab.com/ci/yaml/artifacts_reports/#artifactsreportscoverage_report), which is used for the visualization. GitLab uses the last created report file of the current branch (if not expired yet) to display the coverage. Keep in mind that new pipelines might change the coverage data if a different set of tests is run. The coverage report is shown in the merge request difference view/changes. A line that was tested is indicated by a green bar to its left, otherwise a red bar appears. This allows inspection of regression tests for new features directly on GitLab. For smaller features/tests, it is recommended to check the coverage locally first to avoid triggering unnecessary tests.
+
+To generate a full coverage report for all available regression tests of PICLas, either:
+* Execute all tests in the same pipeline with `DO_CODE_COVERAGE`, or
+* Combine separate reports manually
+
+On GitLab the coverage is shown as a single number either in the output of the coverage job, on the right side when inspecting the job, or even in the merge request view. The displayed number is the line coverage (different coverage types in "Inspecting data locally"), which is set in `.gitlab-ci.yml`.
+
+Currently the setup does not allow to test node/core split together, since the report can only be created per pipeline. Therefore, the reports have to be combined manually or inspected separately.
+
+#### Inspecting data locally
+
+In addition to the report artifact, the data is stored as a GitLab job artifact, which can be downloaded and inspected locally. This can be done on GitLab in the Pipeline overview on the right under Actions by choosing the Coverage artifact. To get a well-structured view of the data, it is recommended to use the `Coverage/html/coverage.html` file. Total coverage is displayed at the top right and split into three different categories: Lines, Functions and Branches. **Lines** checks how many of the compiled lines were actually executed. Lines that were covered by tests are highlighted in green, while untested lines appear in red. Yellow lines indicate some kind of branching, e.g. an if clause, where one condition was not tested. **Functions** works similarly, but only checks for function calls. So if a file contains only one function and it is called somewhere else, this will result in 100% coverage even if only 10% of lines were executed in this function. Lastly, **Branches** check how many different paths the program could take and then counts how many it did. So this mainly counts if/else statements or case select blocks.
+
+### Local coverage tests
+
+Since reggie supports coverage outputs, it can also be generated locally. To enable code coverage information, each executable must be compiled with additional flags via the `PICLAS_CODE_COVERAGE` option. This generates additional `.gcno` and `.gcda` files per object file, which track all compiled lines and the number of calls per line.
+For example, create a build directory and compile the Poisson solver with the Leapfrom time integration scheme
+
+    mkdir build_poisson_code_coverage && cd build_poisson_code_coverage
+    cmake .. -DPICLAS_EQNSYSNAME=poisson -DPICLAS_TIMEDISCMETHOD=Leapfrog -DLIBS_USE_PETSC=ON -DPICLAS_CODE_COVERAGE=ON
+    make -j
+
+To enable code coverage when using reggie locally, use the `-o` option. More information can be found in the [reggie documentation](https://github.com/reggie-framework/reggie2.0).
+Note that due to the module names, e.g., "__mod_dsmc_MOD_dsmc_main", gcovr must be run with `--include-internal-functions`, otherwise all functions will be excluded.
+This can be done with the additional reggie2.0 flag `--gcovr_extra`, e.g. `--gcovr_extra \'--include-internal-functions\'`.
+
+To run the regression test and create the code coverage data for piclas
+
+    reggie -e bin/piclas ../regressioncheck/CHE_poisson_p_adaption/Laplace_h_N1_pAdaptionType0/ -o 1
+
+and check if the report is created in the output_dir directory
+
+    find . -name *report.html
+
+View the report with any browser
+
+    firefox ./output_dir/Coverage/combined_report/html/combined_report.html
+
+#### Combining single reports
+
+In some cases, it might be helpful to combine single reports of different reggie runs. This can be done using [gcovr](https://github.com/gcovr/gcovr), which is the same tool that reggie2.0 uses itself. For this case, `.json` files are used. Separate reports can be combined with
+```
+gcovr --root <root_dir> --add-tracefile <json_file1> --add-tracefile <json_file2> --html-nested report_name.html
+```
+where `--add-tracefile` takes wildcard arguments as well. The `--html-nested` option generates the same output format as reggie2.0 on GitLab, which is nicely structured analogous to the src directory. `--root` specifies the root directory containing the source files and `report_name.html` the output file.
+
+Note that `<root_dir>` must be the same directory as the one used for the gcovr call that originally created the single report files. E.g. all single reports are created with `--root ~/some_dir`, then the `<root_dir>` for combining the reports must also be `--root ~/some_dir`. Reggie2.0 usually tries to append `src` to the found root directory to exclude UnitTests in the coverage information for piclas. Therefore combining reports generated by reggie2.0 for piclas would be done with
+```
+gcovr --root /path/to/piclas/src --add-tracefile Coverage/*.json --html-nested report_name.html
+```
+
+For more information on gcovr and coverage report formats, see the [gcovr documentation](https://gcovr.com/).
+
+### Reggie coverage
+
+Besides generating code coverage reports of PICLas, it is also possible to generate a report of the reggie tool itself. To do this, set `DO_REGGIE_COVERAGE`, which wraps each reggie call with the [Python coverage tool](https://coverage.readthedocs.io/). This generates a coverage report of all used lines in the reggie module, which is stored as a GitLab artifact. The report can be inspected using the `Coverage/reggie/index.html` file.
 
 ## Local Testing using *gitlab-ci-local*
 
