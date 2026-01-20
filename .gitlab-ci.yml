@@ -43,6 +43,7 @@ workflow:
 # Load modules on new boltzplatz reggie
 before_script:
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+  - export MESHESDIR=True
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
@@ -110,6 +111,27 @@ before_script:
     else
       module list || true ;
     fi
+  # GCOVR_ARGS: - use --include-internal-functions to include all functions starting with '__' (basically every function in piclas)
+  #             - --gcov-ignore-parse-errors Skip lines with parse errors in GCOV files instead of exiting with an error
+  #             - --exclude-lines-by-pattern exclude all lines that start with the regex pattern. Called multiple times for no and one or more (^\s+) leading whitespaces since reggie execution expands wildcards
+  - if [ -n "${DO_CODE_COVERAGE}" ]; then
+      export CODE_COVERAGE=True;
+      if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
+      export PICLAS_CODE_COVERAGE=ON ;
+      echo "PICLAS_CODE_COVERAGE=ON" ;
+      export GCOVR_ARGS='--include-internal-functions --gcov-ignore-parse-errors all --exclude-lines-by-pattern (?i)^\s+CALL\s+collectivestop --exclude-lines-by-pattern (?i)^CALL\s+collectivestop --exclude-lines-by-pattern (?i)^\s+CALL\s+ABORT --exclude-lines-by-pattern (?i)^CALL\s+ABORT';
+    fi
+  - |
+    if [ -n "${DO_REGGIE_COVERAGE}" ]; then
+      if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
+      echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
+      COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
+      reggie() {
+        coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"
+      }
+      echo "Exporting reggie function call to 'coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"' to get coverage data."
+      export -f reggie
+    fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stages
@@ -167,6 +189,11 @@ stages:
   paths: [reggie]
   policy: pull
 
+.coverage_cache: &coverage_cache
+  key: "${CI_COMMIT_REF_SLUG}-coverage"
+  paths: [Coverage]
+  policy: pull-push
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for the standard maxwell tests (utilizing "extends" to merge the other "artifacts" options with the specific path)
 .defaults: &defaults
@@ -179,6 +206,7 @@ stages:
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: pull
+    - *coverage_cache
 
 .defaults_checkin: &defaults_checkin
   <<: *defaults
@@ -208,6 +236,7 @@ stages:
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: pull
+    - *coverage_cache
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
@@ -232,6 +261,7 @@ stages:
         - build_poisson_debug_RK3
         - build_poisson_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_checkin: &defaults_poisson_checkin
   <<: *defaults_poisson
@@ -263,6 +293,7 @@ stages:
       paths:
         - build_drift_diffusion
       policy: pull
+    - *coverage_cache
 
 .defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
   <<: *defaults_drift_diffusion
@@ -294,6 +325,7 @@ stages:
       paths:
         - build_DVM
       policy: pull
+    - *coverage_cache
 
 .defaults_DVM_checkin: &defaults_DVM_checkin
   <<: *defaults_DVM
@@ -362,6 +394,7 @@ stages:
         - build_poisson_petsc_debug_RK3
         - build_poisson_petsc_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
   <<: *defaults_poisson_petsc
@@ -391,6 +424,7 @@ stages:
       paths:
         - build_petsc_lib
       policy: pull
+    - *coverage_cache
   rules:
     - if: '$DO_WEEKLY'
 
@@ -414,6 +448,7 @@ stages:
         - build_DSMC_N1
         - build_radiation
       policy: pull
+    - *coverage_cache
 
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
   <<: *defaults_DSMC
@@ -432,6 +467,21 @@ stages:
     - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".pre": always executed at the start of each pipeline
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+cleanup:
+  tags: [withmodules-concurrent]
+  stage: .pre
+  script:
+    - if [ -d "Coverage" ]; then
+      rm -rf Coverage;
+      echo "Old coverage files deleted";
+      fi
+  rules:
+    - if: '$DO_CODE_COVERAGE'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -443,9 +493,10 @@ reggie_download:
   artifacts:
     paths: [reggie]
   cache:
-    key: "reggie"
-    paths: [reggie]
-    policy: push
+    - key: "reggie"
+      paths: [reggie]
+      policy: push
+    - *coverage_cache
   stage: build
   script:
     # Check if the "reggie" directory contains a ".git" directory
@@ -613,12 +664,12 @@ build_DSMC:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
         cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
@@ -1461,6 +1512,64 @@ WEK_DVM:
   stage: reggie_weekly
   script:
     - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".post": Collect coverage data
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+code_coverage:
+  extends: .defaults
+  stage: .post
+  needs: [cleanup]
+  script:
+    - echo "Generating combined coverage report..."
+    # old coverage .json files are removed in the .pre stage (cleanup job), since it should only be done once
+    # (otherwise the new reports will be deleted in each job) and in the beginning
+    - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
+    # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
+    - if [ -d "Coverage/html" ]; then
+        rm -f Coverage/html/*.html || true ;
+        rm -f Coverage/html/*.css || true ;
+      else
+        mkdir Coverage/html ;
+      fi
+    # combine coverage reports of all builds and runs in xml file for displaying coverage in mr diff view
+    - FIND=$(cd Coverage; ls *.json)
+    - echo -e "Using files:\n$FIND\nfor gcovr execution"
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
+    # also in html format to check whole codebase by hand (easier to read compared to xml)
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
+  # regex expression the retrieve coverage percentage
+  coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
+  artifacts:
+    paths:
+      # html for visual output
+      - Coverage/html
+      # json files to check if all builds are read in for combined coverage report
+      - Coverage/*.json
+    expire_in: 1 month
+    when: on_success
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: Coverage/cobertura/*.xml
+  rules:
+    - if: '$DO_CODE_COVERAGE'
+
+reggie_coverage:
+  extends: .defaults
+  stage: .post
+  needs: [cleanup]
+  script:
+    - echo "Generating coverage report for reggie..."
+    - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
+  artifacts:
+    paths:
+      # reggie coverage files
+      - Coverage/reggie
+    expire_in: 1 week
+    when: on_success
+  rules:
+    - if: '$DO_REGGIE_COVERAGE'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
