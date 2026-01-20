@@ -101,6 +101,7 @@ CALL prms%CreateIntOption(      'IniRefState-FV',  'Refstate required for initia
 CALL prms%CreateRealArrayOption('RefState-FV',     'State(s) in primitive variables (density, velo, temp, press, heatflux).',&
                                                  multiple=.TRUE., no=DVMnMacro )
 CALL prms%CreateRealArrayOption('DVM-Accel',    'Acceleration vector for force term', '(/0., 0., 0./)')
+CALL prms%CreateLogicalOption(  'DVM-EquiForce',  'Equilibrium approximation for force term', '.FALSE.')
 CALL prms%CreateLogicalOption(  'DVM-Collisions',  'Activate collision (RHS BGK equation)', '.TRUE.')
 CALL prms%CreateLogicalOption(  'DVM-WriteMacroSurfaceValues',  'Surface output', '.FALSE.')
 CALL prms%CreateRealOption(     'DVM-BCTempGrad',          'BC temperature gradient', '0.')
@@ -307,6 +308,7 @@ IF(nRefState_FV .GT. 0)THEN
 END IF
 
 DVMAccel = GETREALARRAY('DVM-Accel',3)
+DVMEquiForce = GETLOGICAL('DVM-EquiForce')
 BCTempGrad = GETREAL('DVM-BCTempGrad')
 
 ALLOCATE(DVMMomentSave(17,DVMnSpecTot,nElems))

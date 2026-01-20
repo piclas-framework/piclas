@@ -47,6 +47,7 @@ INTEGER              :: DVMBGKModel
 INTEGER              :: DVMMethod
 INTEGER              :: DVMDim
 REAL                 :: DVMAccel(3)
+LOGICAL              :: DVMEquiForce
 INTEGER,ALLOCATABLE  :: DVMVeloDisc(:)
 REAL,ALLOCATABLE     :: DVMGHTemp(:,:)
 INTEGER,ALLOCATABLE  :: DVMNewtDeg(:,:)

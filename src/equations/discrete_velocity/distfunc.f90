@@ -1148,7 +1148,7 @@ SUBROUTINE ForceStep(tDeriv,ploesma)
 ! Calculates force term (to add in 2 parts (Strang splitting) for 2nd order accuracy)
 !===================================================================================================================================
 ! MODULES
-USE MOD_Equation_Vars_FV,  ONLY: DVMSpecData, DVMnSpecies, DVMDim, DVMAccel!, DVMnMacro, DVMnSpecTot
+USE MOD_Equation_Vars_FV,  ONLY: DVMSpecData, DVMnSpecies, DVMDim, DVMAccel, DVMnMacro, DVMnSpecTot, DVMEquiForce
 USE MOD_Mesh_Vars,      ONLY : nElems
 USE MOD_FV_Vars,        ONLY : U_FV
 #if USE_HDG
@@ -1169,8 +1169,8 @@ LOGICAL, OPTIONAL             :: ploesma
 REAL                            :: forceTerm, forceTerm2, velodiff
 REAL                            :: forceTermRot, forceTermVib
 INTEGER                         :: iElem,iVel,jVel,kVel,upos,iSpec,vFirstID ,upos1,upos2,iDim,idxVel,uposDiff
-! REAL                            :: MacroVal(DVMnMacro,DVMnSpecTot), cVel(3), gamma, tau
-! REAL, ALLOCATABLE               :: fTarget(:)
+REAL                            :: MacroVal(DVMnMacro,DVMnSpecTot), cVel(3), gamma, tau
+REAL, ALLOCATABLE               :: fTarget(:)
 #if USE_HDG
 INTEGER                         :: i,j,k,Nloc
 #endif
@@ -1189,89 +1189,83 @@ DO iElem =1, nElems
     END DO; END DO; END DO
   END IF
 #endif
-  ! CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),tDeriv,tau,1)
-  ! SELECT CASE (DVMBGKModel)
-  !   CASE(1)
-  !     CALL MaxwellDistribution(MacroVal,fTarget)
-  !   CASE(2)
-  !     CALL ShakhovDistribution(MacroVal,fTarget)
-  !   CASE DEFAULT
-  !     CALL abort(__STAMP__,'DVM BGK Model not implemented.')
-  !   END SELECT
-  ! gamma = tau*(1.-EXP(-tDeriv/tau))/tDeriv
+  IF (DVMEquiForce) CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),tDeriv,tau,1)
   vFirstID = 0
   DO iSpec=1,DVMnSpecies
     ASSOCIATE(Sp => DVMSpecData(iSpec))
     IF (PRESENT(ploesma)) TotalAccel = DVMAccel + (Sp%Charge/Sp%Mass)*Eloc
-    ! ALLOCATE(fTarget(Sp%nVar))
-    ! CALL MaxwellDistribution(MacroVal(1:DVMnMacro,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
+
+    IF (DVMEquiForce) THEN
+      ALLOCATE(fTarget(Sp%nVar))
+      CALL MaxwellDistribution(MacroVal(1:DVMnMacro,iSpec),fTarget,iSpec) !species-specific equilibrium approximation (bad idea?)
+    END IF
 
     DO kVel=1, Sp%nVelos(3);   DO jVel=1, Sp%nVelos(2);   DO iVel=1, Sp%nVelos(1)
-      upos= iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
-      !equilibrium approximation
-      ! cVel(1) = Sp%Velos(iVel,1) - MacroVal(2,iSpec)
-      ! cVel(2) = Sp%Velos(jVel,2) - MacroVal(3,iSpec)
-      ! cVel(3) = Sp%Velos(kVel,3) - MacroVal(4,iSpec)
-      ! IF (PRESENT(ploesma)) THEN
-      !   forceTerm = (Sp%Charge/Sp%Mass) &
-      !             * DOT_PRODUCT(Eloc,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
-      ! ELSE
-      !   forceTerm = DOT_PRODUCT(DVMAccel,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
-      ! END IF
-      ! non equilibrium version
-      forceTerm = 0.
-      forceTerm2 = 0.
-      DO iDim = 1,DVMDim
-        IF (iDim.EQ.1) THEN
-          idxVel = iVel
-          uposDiff = 1
-        ELSE IF (iDim.EQ.2) THEN
-          idxVel = jVel
-          uposDiff = Sp%nVelos(1)
-        ELSE
-          idxVel = kVel
-          uposDiff = Sp%nVelos(1)*Sp%nVelos(2)
-        END IF
-        IF (idxVel.EQ.1) THEN
-          upos1 = upos
-          upos2 = upos + uposDiff
-          velodiff=Sp%Velos(idxVel+1,iDim)-Sp%Velos(idxVel,iDim)
-        ELSE IF (idxVel.EQ.Sp%nVelos(iDim)) THEN
-          upos1 = upos - uposDiff
-          upos2 = upos
-          velodiff=Sp%Velos(idxVel,iDim)-Sp%Velos(idxVel-1,iDim)
-        ELSE
-          upos1 = upos - uposDiff
-          upos2 = upos + uposDiff
-          velodiff=Sp%Velos(idxVel+1,iDim)-Sp%Velos(idxVel-1,iDim)
-        END IF
-        forceTerm = forceTerm - TotalAccel(iDim)*(U_FV(upos2+vFirstID,iElem)-U_FV(upos1+vFirstID,iElem))/velodiff
-        IF (DVMDim.LT.3) forceTerm2 = forceTerm2 &
-        - TotalAccel(iDim)*(U_FV(Sp%nVarReduced+upos2+vFirstID,iElem)-U_FV(Sp%nVarReduced+upos1+vFirstID,iElem))/velodiff
-        IF (Sp%Xi_Rot.GT.0) forceTermRot = forceTermRot &
-        - TotalAccel(iDim)*(U_FV(Sp%nVarErotStart+upos2+vFirstID,iElem)-U_FV(Sp%nVarErotStart+upos1+vFirstID,iElem))/velodiff
-        IF (Sp%T_Vib.GT.0) forceTermVib = forceTermVib &
-        - TotalAccel(iDim)*(U_FV(Sp%nVarEvibStart+upos2+vFirstID,iElem)-U_FV(Sp%nVarEvibStart+upos1+vFirstID,iElem))/velodiff
-      END DO
-      ! forceTerm = - DVMAccel(1)*(gamma*(U(upos2,iElem)-U(upos1,iElem)) &
-      !                        +(1-gamma)*(fTarget(upos2)-fTarget(upos1)))/velodiff
-      U_FV(upos+vFirstID,iElem) = U_FV(upos+vFirstID,iElem) + forceTerm*tDeriv/2. !t/2 for strang splitting
-      IF (U_FV(upos+vFirstID,iElem).LT.0.) U_FV(upos+vFirstID,iElem) = 0.
+      upos= vFirstID + iVel+(jVel-1)*Sp%nVelos(1)+(kVel-1)*Sp%nVelos(1)*Sp%nVelos(2)
+      IF (DVMEquiForce) THEN
+        !equilibrium approximation
+        cVel(1) = Sp%Velos(iVel,1) - MacroVal(2,iSpec)
+        cVel(2) = Sp%Velos(jVel,2) - MacroVal(3,iSpec)
+        cVel(3) = Sp%Velos(kVel,3) - MacroVal(4,iSpec)
+        forceTerm = DOT_PRODUCT(TotalAccel,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(upos)
+        IF (DVMDim.LT.3) forceTerm2 = DOT_PRODUCT(TotalAccel,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(Sp%nVarReduced+upos)
+        IF (Sp%Xi_Rot.GT.0) forceTermRot = DOT_PRODUCT(TotalAccel,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(Sp%nVarErotStart+upos)
+        IF (Sp%T_Vib.GT.0) forceTermVib = DOT_PRODUCT(TotalAccel,cVel)/(Sp%R_S*MacroVal(5,iSpec)) * fTarget(Sp%nVarEvibStart+upos)
+      ELSE
+        ! non equilibrium version
+        forceTerm = 0.
+        forceTerm2 = 0.
+        DO iDim = 1,DVMDim
+          IF (iDim.EQ.1) THEN
+            idxVel = iVel
+            uposDiff = 1
+          ELSE IF (iDim.EQ.2) THEN
+            idxVel = jVel
+            uposDiff = Sp%nVelos(1)
+          ELSE
+            idxVel = kVel
+            uposDiff = Sp%nVelos(1)*Sp%nVelos(2)
+          END IF
+          IF (idxVel.EQ.1) THEN
+            upos1 = upos
+            upos2 = upos + uposDiff
+            velodiff=Sp%Velos(idxVel+1,iDim)-Sp%Velos(idxVel,iDim)
+          ELSE IF (idxVel.EQ.Sp%nVelos(iDim)) THEN
+            upos1 = upos - uposDiff
+            upos2 = upos
+            velodiff=Sp%Velos(idxVel,iDim)-Sp%Velos(idxVel-1,iDim)
+          ELSE
+            upos1 = upos - uposDiff
+            upos2 = upos + uposDiff
+            velodiff=Sp%Velos(idxVel+1,iDim)-Sp%Velos(idxVel-1,iDim)
+          END IF
+          forceTerm = forceTerm - TotalAccel(iDim)*(U_FV(upos2,iElem)-U_FV(upos1,iElem))/velodiff
+          IF (DVMDim.LT.3) forceTerm2 = forceTerm2 &
+          - TotalAccel(iDim)*(U_FV(Sp%nVarReduced+upos2,iElem)-U_FV(Sp%nVarReduced+upos1,iElem))/velodiff
+          IF (Sp%Xi_Rot.GT.0) forceTermRot = forceTermRot &
+          - TotalAccel(iDim)*(U_FV(Sp%nVarErotStart+upos2,iElem)-U_FV(Sp%nVarErotStart+upos1,iElem))/velodiff
+          IF (Sp%T_Vib.GT.0) forceTermVib = forceTermVib &
+          - TotalAccel(iDim)*(U_FV(Sp%nVarEvibStart+upos2,iElem)-U_FV(Sp%nVarEvibStart+upos1,iElem))/velodiff
+        END DO
+      END IF
+
+      U_FV(upos,iElem) = U_FV(upos,iElem) + forceTerm*tDeriv/2. !t/2 for strang splitting
+      IF (U_FV(upos,iElem).LT.0.) U_FV(upos,iElem) = 0.
       IF (DVMDim.LT.3) THEN
-        U_FV(Sp%nVarReduced+upos+vFirstID,iElem) = U_FV(Sp%nVarReduced+upos+vFirstID,iElem) + forceTerm2*tDeriv/2.
-        IF (U_FV(Sp%nVarReduced+upos+vFirstID,iElem).LT.0.) U_FV(Sp%nVarReduced+upos+vFirstID,iElem) = 0.
+        U_FV(Sp%nVarReduced+upos,iElem) = U_FV(Sp%nVarReduced+upos,iElem) + forceTerm2*tDeriv/2.
+        IF (U_FV(Sp%nVarReduced+upos,iElem).LT.0.) U_FV(Sp%nVarReduced+upos,iElem) = 0.
       END IF
       IF (Sp%Xi_Rot.GT.0) THEN
-        U_FV(Sp%nVarErotStart+upos+vFirstID,iElem) = U_FV(Sp%nVarErotStart+upos+vFirstID,iElem) + forceTermRot*tDeriv/2.
-        IF (U_FV(Sp%nVarErotStart+upos+vFirstID,iElem).LT.0.) U_FV(Sp%nVarErotStart+upos+vFirstID,iElem) = 0.
+        U_FV(Sp%nVarErotStart+upos,iElem) = U_FV(Sp%nVarErotStart+upos,iElem) + forceTermRot*tDeriv/2.
+        IF (U_FV(Sp%nVarErotStart+upos,iElem).LT.0.) U_FV(Sp%nVarErotStart+upos,iElem) = 0.
       END IF
       IF (Sp%T_Vib.GT.0) THEN
-        U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem) = U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem) + forceTermVib*tDeriv/2.
-        IF (U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem).LT.0.) U_FV(Sp%nVarEvibStart+upos+vFirstID,iElem) = 0.
+        U_FV(Sp%nVarEvibStart+upos,iElem) = U_FV(Sp%nVarEvibStart+upos,iElem) + forceTermVib*tDeriv/2.
+        IF (U_FV(Sp%nVarEvibStart+upos,iElem).LT.0.) U_FV(Sp%nVarEvibStart+upos,iElem) = 0.
       END IF
     END DO; END DO; END DO
     vFirstID = vFirstID + Sp%nVar
-    ! DEALLOCATE(fTarget)
+    IF (DVMEquiForce) DEALLOCATE(fTarget)
     END ASSOCIATE
   END DO
 END DO
