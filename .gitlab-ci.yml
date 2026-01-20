@@ -357,6 +357,7 @@ stages:
       paths:
         - build_DVM_plasma
       policy: pull
+    - *coverage_cache
 
 .defaults_DVM_plasma_checkin: &defaults_DVM_plasma_checkin
   <<: *defaults_DVM_plasma
