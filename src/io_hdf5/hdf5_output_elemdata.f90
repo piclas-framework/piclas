@@ -56,9 +56,9 @@ USE MOD_PreProc
 USE MOD_Globals
 USE MOD_Mesh_Vars        ,ONLY: offsetElem,nGlobalElems,nElems
 USE MOD_LoadBalance_Vars ,ONLY: ElemTime,NullifyElemTime
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 USE MOD_DG_Vars          ,ONLY: N_DG_Mapping,N_DG
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -77,12 +77,12 @@ TYPE(tElementOut),POINTER      :: e
 
 IF(.NOT. ASSOCIATED(ElemList)) RETURN
 
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 ! Update Nloc container before output
 DO iElem = 1, nElems
   N_DG(iElem) = N_DG_Mapping(2,iElem+offSetElem)
 END DO ! iElem = 1, nElems
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 
 ! Count the additional variables
 nVar = 0

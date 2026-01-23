@@ -53,14 +53,12 @@ USE MOD_Equation                   ,ONLY: DefineParametersEquation
 #if USE_FV
 USE MOD_Equation_FV                ,ONLY: DefineParametersEquation_FV
 #endif
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
-#if !(PP_TimeDiscMethod==700)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
 USE MOD_Dielectric                 ,ONLY: DefineParametersDielectric
-#endif /*!(PP_TimeDiscMethod==700)*/
 #if !(USE_HDG) && !(USE_FV)
 USE MOD_PML                        ,ONLY: DefineParametersPML
 #endif /*!(USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 #if USE_HDG
 USE MOD_HDG                        ,ONLY: DefineParametersHDG
 #endif /*USE_HDG*/

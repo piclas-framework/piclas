@@ -12,44 +12,61 @@
 !==================================================================================================================================
 #include "piclas.h"
 
-MODULE MOD_CalcTimeStep
+
+#if (PP_TimeDiscMethod==702)
+MODULE MOD_TimeStep
 !===================================================================================================================================
-! Low-Storage Runge-Kutta integration of degree 3 for one step.
+! Module for the Temporal discretization
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
-INTERFACE CALCTIMESTEP
-  MODULE PROCEDURE CALCTIMESTEP
-END INTERFACE
-
-
-PUBLIC :: CALCTIMESTEP
+PUBLIC :: TimeStep_ploesma
 !===================================================================================================================================
 
 CONTAINS
 
-FUNCTION CALCTIMESTEP()
+
+SUBROUTINE TimeStep_ploesma()
 !===================================================================================================================================
-! Calculate the time step for the current update of U for the drift-diffusion equation
+! Plasma DVM timestep with finite volumes and HDG
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals
-USE MOD_PreProc
+USE MOD_FV_Vars               ,ONLY: U_FV,Ut_FV
+USE MOD_TimeDisc_Vars         ,ONLY: dt,time,iter
+USE MOD_FV                    ,ONLY: FV_main
+USE MOD_DistFunc              ,ONLY: RescaleU, RescaleInit, ForceStep
+USE MOD_Equation_Vars_FV      ,ONLY: DVMColl, DVMMethod!, IniExactFunc_FV
+USE MOD_HDG                   ,ONLY: HDG
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL                         :: CalcTimeStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-CALL abort(__STAMP__,'Use ManualTimeStep!')
+! initial rescaling if initialized with non-equilibrium flow
+! IF (DVMColl.AND.DVMMethod.GT.0.AND.(IniExactFunc_FV.EQ.4.OR.IniExactFunc_FV.EQ.6).AND.iter.EQ.0) CALL RescaleInit(dt)
 
-END FUNCTION CALCTIMESTEP
+IF (iter.EQ.0) THEN
+  CALL HDG(time,iter)
+  CALL ForceStep(dt,ploesma=.TRUE.)
+END IF
 
-END MODULE MOD_CalcTimeStep
+IF (DVMColl) CALL RescaleU(1,dt)  ! ftilde -> fchapeau2
+CALL FV_main(time,time,doSource=.FALSE.)  ! fchapeau2 -> ftilde2 -> Ut = flux of f
+IF (DVMColl.AND.DVMMethod.GT.0) CALL RescaleU(2,dt/2.)  ! fchapeau2 -> fchapeau
+U_FV = U_FV + Ut_FV*dt        ! fchapeau -> ftilde
+
+CALL HDG(time,iter)
+CALL ForceStep(2.*dt,ploesma=.TRUE.)
+
+END SUBROUTINE TimeStep_ploesma
+
+
+END MODULE MOD_TimeStep
+#endif /*PP_TimeDiscMethod==702*/

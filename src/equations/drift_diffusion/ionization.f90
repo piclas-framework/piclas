@@ -77,7 +77,7 @@ END DO
 DO ElemID=1,PP_nElems
   IF (PRESENT(init)) THEN
     !initial insertion according to electron density
-    CALL ExactFunc_FV(init,0.,Elem_xGP_FV(1:3,0,0,0,ElemID),resu)
+    CALL ExactFunc_FV(init,0.,Elem_xGP_FV(1:3,ElemID),resu)
     DeltaPartDens = resu(1)
   ELSE
     Nloc = N_DG_Mapping(2,ElemID+offSetElem)
@@ -89,7 +89,7 @@ DO ElemID=1,PP_nElems
 
     CALL CalcDriftDiffusionCoeff(VECNORM3D(E_avg),BGGas%NumberDensity(iSpecBG),mu,D,ionRate)
 
-    DeltaPartDens = ionRate*mu*VECNORM3D(E_avg)*U_FV(1,0,0,0,ElemID)*dt
+    DeltaPartDens = ionRate*mu*VECNORM3D(E_avg)*U_FV(1,ElemID)*dt
   END IF
 
   GlobalElemID = ElemID+offsetElem

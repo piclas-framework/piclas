@@ -41,9 +41,9 @@ PUBLIC::GetDerivativeMatrix
 PUBLIC::GetVandermonde
 PUBLIC::InitInterpolationBasis
 PUBLIC::DefineParametersInterpolation
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 PUBLIC::ApplyJacobian
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 
 !===================================================================================================================================
 
@@ -435,7 +435,7 @@ CALL PolynomialDerivativeMatrix(N_in,xIP,D)
 END SUBROUTINE GetDerivativeMatrix
 
 
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 SUBROUTINE ApplyJacobian(toPhysical,toSwap)
 !===================================================================================================================================
 ! Convert solution between physical <-> reference space
@@ -488,7 +488,7 @@ ELSE
   END IF
 END IF
 END SUBROUTINE ApplyJacobian
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 
 
 SUBROUTINE InitAnalyzeBasis(Nanalyze_in)

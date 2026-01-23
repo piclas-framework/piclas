@@ -57,6 +57,8 @@ USE MOD_ReadInTools           ,ONLY: GETINT, GETREAL, GETREALARRAY
 USE MOD_Mesh_Vars             ,ONLY: nElems, nSides
 USE MOD_Gradient_Metrics      ,ONLY: InitGradMetrics, BuildGradSideMatrix
 USE MOD_Gradient_Vars
+USE MOD_FV_Vars               ,ONLY: doFVReconstruct
+USE MOD_FillMortar_FV         ,ONLY: Dx_BigToSmall_Mortar, Dx_SmallToBig_Mortar
 #if USE_MPI
 USE MOD_Mesh_Vars_FV          ,ONLY: Face_xGP_FV
 USE MOD_MPI_Vars
@@ -78,25 +80,16 @@ INTEGER, INTENT(IN)    :: ini_dim
 !===================================================================================================================================
 LBWRITE(UNIT_StdOut,'(132("-"))')
 LBWRITE(UNIT_stdOut,'(A)') ' INIT GRADIENTS...'
-ALLOCATE(Grad_dx_slave(1:3,1:nSides))
-ALLOCATE(Grad_dx_master(1:3,1:nSides))
-ALLOCATE(Grad_SysSol_slave(1:3,1:nSides))
-ALLOCATE(Grad_SysSol_master(1:3,1:nSides))
-ALLOCATE(Grad_SysSol_BC(1:3,1:nSides))
-Grad_dx_slave = 0.; Grad_dx_master = 0.; Grad_SysSol_slave = 0.; Grad_SysSol_master = 0.; Grad_SysSol_BC = 0.
-
-Grad_DIM = ini_dim
-ALLOCATE(Var_slave(Grad_DIM,nSides))
-ALLOCATE(Var_master(Grad_DIM,nSides))
-ALLOCATE(Diff_side(Grad_DIM,nSides))
-ALLOCATE(Gradient_elem(3,Grad_DIM,nElems))
-Var_slave = 0.; Var_master = 0.; Diff_side = 0.; Gradient_elem = 0.
 
 GradLimiterType=GETINT('Grad-LimiterType')
 GradLimVktK=GETREAL('Grad-VktK')
 SELECT CASE(GradLimiterType)
 CASE(0)
   LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+  LBWRITE(UNIT_stdOut,'(A)')' NO GRADIENTS NEEDED!'
+  LBWRITE(UNIT_StdOut,'(132("-"))')
+  doFVReconstruct=.FALSE.
+  RETURN
 CASE(1) !minmax
   LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
 CASE(4) !venkatakrishnan
@@ -107,26 +100,43 @@ CASE DEFAULT
   CALL abort(__STAMP__,'Limiter type not implemented.')
 END SELECT
 
+ALLOCATE(Grad_dx_slave(1:3,1:nSides))
+ALLOCATE(Grad_dx_master(1:3,1:nSides))
+ALLOCATE(Grad_SysSol_slave(1:3,1:nSides))
+ALLOCATE(Grad_SysSol_master(1:3,1:nSides))
+Grad_dx_slave = 0.; Grad_dx_master = 0.; Grad_SysSol_slave = 0.; Grad_SysSol_master = 0.
+#ifdef discrete_velocity
+ALLOCATE(Grad_SysSol_BC(1:3,1:nSides))
+Grad_SysSol_BC = 0.
+#endif /*discrete_velocity*/
+
+Grad_DIM = ini_dim
+ALLOCATE(Var_slave(Grad_DIM,nSides))
+ALLOCATE(Var_master(Grad_DIM,nSides))
+ALLOCATE(Diff_side(Grad_DIM,nSides))
+ALLOCATE(Gradient_elem(3,Grad_DIM,nElems))
+Var_slave = 0.; Var_master = 0.; Diff_side = 0.; Gradient_elem = 0.
+
 !calculate face to center distances for reconstruction
 #if USE_MPI
 !send face coordinates because MPI slave sides don't have them
-CALL StartReceiveMPIDataFV(3,Face_xGP_FV(:,0,0,:),1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
-CALL StartSendMPIDataFV(3,Face_xGP_FV(:,0,0,:),1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
+CALL StartReceiveMPIDataFV(3,Face_xGP_FV(:,:),1,nSides,RecRequest_Geo,SendID=1) ! Receive YOUR
+CALL StartSendMPIDataFV(3,Face_xGP_FV(:,:),1,nSides,SendRequest_Geo,SendID=1) ! Send MINE
 CALL FinishExchangeMPIData(SendRequest_Geo,RecRequest_Geo,SendID=1)
 
 ! distances for MPI sides - send direction
 CALL StartReceiveMPIDataFV(3,Grad_dx_slave,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 CALL StartReceiveMPIDataFV(3,Grad_dx_master,1,nSides,RecRequest_U2,SendID=1)! Receive YOUR
 CALL InitGradMetrics(doMPISides=.TRUE.)
-! CALL Dx_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
-! CALL Dx_Mortar2(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
+CALL Dx_BigToSmall_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
+CALL Dx_SmallToBig_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.TRUE.)
 CALL StartSendMPIDataFV(3,Grad_dx_slave,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 CALL StartSendMPIDataFV(3,Grad_dx_master,1,nSides,SendRequest_U2,SendID=1) ! Send MINE
 #endif /*USE_MPI*/
 ! distances for BCSides, InnerSides and MPI sides - receive direction
 CALL InitGradMetrics(doMPISides=.FALSE.)
-! CALL Dx_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
-! CALL Dx_Mortar2(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
+CALL Dx_BigToSmall_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
+CALL Dx_SmallToBig_Mortar(Grad_dx_master,Grad_dx_slave,doMPISides=.FALSE.)
 #if USE_MPI
 CALL FinishExchangeMPIData(SendRequest_U,RecRequest_U,SendID=2)
 CALL FinishExchangeMPIData(SendRequest_U2,RecRequest_U2,SendID=1)
@@ -144,8 +154,9 @@ SUBROUTINE GetGradients(VarForGradients,output)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_Gradient_Vars
+USE MOD_Gradient_Vars       ,ONLY: Grad_DIM, Var_slave, Var_master, Diff_side, Gradient_elem,Grad_SysSol_slave, Grad_SysSol_master
 USE MOD_Prolong_FV          ,ONLY: ProlongToFace_ElemCopy
+USE MOD_FillMortar_FV       ,ONLY: U_Mortar_FV, CalcDiff_Mortar
 USE MOD_Mesh_Vars           ,ONLY: nElems,ElemToSide
 #if USE_MPI
 USE MOD_Mesh_Vars           ,ONLY: nSides
@@ -158,6 +169,7 @@ USE MOD_LoadBalance_Timers  ,ONLY: LBStartTime,LBSplitTime
 #endif /*MPI*/
 #ifdef drift_diffusion
 USE MOD_Equation_Vars_FV    ,ONLY: EFluid_GradSide
+USE MOD_Gradient_Vars       ,ONLY: Grad_dx_master, Grad_dx_slave
 #endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -170,7 +182,7 @@ LOGICAL,INTENT(IN)      :: output ! true if routine called during output
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                 :: ElemID, SideID, locSideID, flip
-REAL                    :: gradWeight, maxDiff(Grad_DIM), minDiff(Grad_DIM)
+REAL                    :: maxDiff(Grad_DIM), minDiff(Grad_DIM)
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -187,7 +199,7 @@ CALL StartReceiveMPIDataFV(Grad_DIM,Var_slave,1,nSides,RecRequest_U,SendID=2) ! 
 CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.TRUE.)
-! CALL U_Mortar(Var_master,Var_slave,doMPISides=.TRUE.)
+CALL U_Mortar_FV(Var_master,Var_slave,doReco=.FALSE.,doMPISides=.TRUE.) ! mortar copies
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -199,7 +211,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace_ElemCopy(Grad_DIM,VarForGradients,Var_master,Var_slave,doMPISides=.FALSE.)
-! CALL U_Mortar(U_master,U_slave,doMPISides=.FALSE.)
+CALL U_Mortar_FV(Var_master,Var_slave,doReco=.FALSE.,doMPISides=.FALSE.) ! mortar copies
 
 #if USE_MPI
 #if USE_LOADBALANCE
@@ -214,6 +226,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! fill the global neighbour difference list
 CALL CalcDiff(output,doMPISides=.TRUE.)
+CALL CalcDiff_Mortar(doMPISides=.TRUE.)
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -228,6 +241,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! fill all the neighbour differences on this proc
 CALL CalcDiff(output,doMPISides=.FALSE.)
+CALL CalcDiff_Mortar(doMPISides=.FALSE.)
 
 #ifdef drift_diffusion
 EFluid_GradSide(:)=Diff_side(1,:)/(SQRT((Grad_dx_master(1,:)-Grad_dx_slave(1,:))**2 &
@@ -247,28 +261,27 @@ DO ElemID = 1, nElems
 #endif
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,ElemID)
     flip=ElemToSide(E2S_FLIP,locSideID,ElemID)
-    gradWeight = 1/VECNORM3D(Grad_dx_master(:,SideID)-Grad_dx_slave(:,SideID))**2
     IF (flip.EQ.0) THEN !master
       maxDiff = MAX(maxDiff,-Diff_side(:,SideID))
       minDiff = MIN(minDiff,-Diff_side(:,SideID))
       Gradient_elem(1,:,ElemID) = Gradient_elem(1,:,ElemID) &
-                                          - gradWeight*Grad_SysSol_master(1,SideID)*Diff_side(:,SideID)
+                                          - Grad_SysSol_master(1,SideID)*Diff_side(:,SideID)
       Gradient_elem(2,:,ElemID) = Gradient_elem(2,:,ElemID) &
-                                          - gradWeight*Grad_SysSol_master(2,SideID)*Diff_side(:,SideID)
+                                          - Grad_SysSol_master(2,SideID)*Diff_side(:,SideID)
 #if PP_dim == 3
       Gradient_elem(3,:,ElemID) = Gradient_elem(3,:,ElemID) &
-                                          - gradWeight*Grad_SysSol_master(3,SideID)*Diff_side(:,SideID)
+                                          - Grad_SysSol_master(3,SideID)*Diff_side(:,SideID)
 #endif
     ELSE !slave
       maxDiff = MAX(maxDiff,Diff_side(:,SideID))
       minDiff = MIN(minDiff,Diff_side(:,SideID))
       Gradient_elem(1,:,ElemID) = Gradient_elem(1,:,ElemID) &
-                                          + gradWeight*Grad_SysSol_slave(1,SideID)*Diff_side(:,SideID)
+                                          + Grad_SysSol_slave(1,SideID)*Diff_side(:,SideID)
       Gradient_elem(2,:,ElemID) = Gradient_elem(2,:,ElemID) &
-                                          + gradWeight*Grad_SysSol_slave(2,SideID)*Diff_side(:,SideID)
+                                          + Grad_SysSol_slave(2,SideID)*Diff_side(:,SideID)
 #if PP_dim == 3
       Gradient_elem(3,:,ElemID) = Gradient_elem(3,:,ElemID) &
-                                          + gradWeight*Grad_SysSol_slave(3,SideID)*Diff_side(:,SideID)
+                                          + Grad_SysSol_slave(3,SideID)*Diff_side(:,SideID)
 #endif
     END IF
   END DO
@@ -291,7 +304,7 @@ SUBROUTINE CalcDiff(output,doMPISides)
 USE MOD_Globals
 USE MOD_Gradient_Vars            ,ONLY: Var_slave, Var_master, Diff_side
 #ifdef discrete_velocity
-USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_dx_slave, Grad_SysSol_BC, Grad_DIM
+USE MOD_Gradient_Vars            ,ONLY: Grad_dx_master, Grad_SysSol_BC, Grad_DIM
 #endif
 USE MOD_GetBoundaryGrad          ,ONLY: GetBoundaryGrad
 USE MOD_Mesh_Vars_FV             ,ONLY: NormVec_FV,Face_xGP_FV
@@ -311,7 +324,7 @@ LOGICAL,INTENT(IN)      :: output,doMPISides
 ! LOCAL VARIABLES
 INTEGER                         :: SideID, lastSideID, firstSideID_wo_BC
 #ifdef discrete_velocity
-REAL                            :: diffUinside(Grad_DIM), gradWeight
+REAL                            :: diffUinside(Grad_DIM)
 INTEGER                         :: ElemID, locSideID, locSideID2, SideID2
 #endif
 !===================================================================================================================================
@@ -341,20 +354,19 @@ IF (.NOT.doMPISides) THEN
     DO locSideID2=1,6
       SideID2=ElemToSide(E2S_SIDE_ID,locSideID2,ElemID)
       IF (SideID2.LE.lastBCSide) CYCLE
-      gradWeight = 1/VECNORM3D(Grad_dx_master(:,SideID2)-Grad_dx_slave(:,SideID2))**2
-      diffUinside(:) = diffUinside(:) - Grad_dx_master(1,SideID)*gradWeight*Grad_SysSol_BC(1,SideID2)*Diff_side(:,SideID2) &
-                                      - Grad_dx_master(2,SideID)*gradWeight*Grad_SysSol_BC(2,SideID2)*Diff_side(:,SideID2) &
-                                      - Grad_dx_master(3,SideID)*gradWeight*Grad_SysSol_BC(3,SideID2)*Diff_side(:,SideID2)
+      diffUinside(:) = diffUinside(:) - Grad_dx_master(1,SideID)*Grad_SysSol_BC(1,SideID2)*Diff_side(:,SideID2) &
+                                      - Grad_dx_master(2,SideID)*Grad_SysSol_BC(2,SideID2)*Diff_side(:,SideID2) &
+                                      - Grad_dx_master(3,SideID)*Grad_SysSol_BC(3,SideID2)*Diff_side(:,SideID2)
     END DO
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),diffUinside,&
                           Var_master(:,SideID),&
-                          NormVec_FV(:,0,0,SideID),&
-                          Face_xGP_FV(:,0,0,SideID),output)
+                          NormVec_FV(:,SideID),&
+                          Face_xGP_FV(:,SideID),output)
 #else
     CALL GetBoundaryGrad(SideID,Diff_side(:,SideID),&
                           Var_master(:,SideID),&
-                          NormVec_FV(:,0,0,SideID),&
-                          Face_xGP_FV(:,0,0,SideID))
+                          NormVec_FV(:,SideID),&
+                          Face_xGP_FV(:,SideID))
 #endif
   END DO
 END IF
@@ -471,11 +483,13 @@ SDEALLOCATE(Grad_dx_slave)
 SDEALLOCATE(Grad_dx_master)
 SDEALLOCATE(Grad_SysSol_slave)
 SDEALLOCATE(Grad_SysSol_master)
-SDEALLOCATE(Grad_SysSol_BC)
 SDEALLOCATE(Var_slave)
 SDEALLOCATE(Var_master)
 SDEALLOCATE(Diff_side)
 SDEALLOCATE(Gradient_elem)
+#ifdef discrete_velocity
+SDEALLOCATE(Grad_SysSol_BC)
+#endif /*discrete_velocity*/
 
 END SUBROUTINE FinalizeGradients
 

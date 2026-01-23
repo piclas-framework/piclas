@@ -879,7 +879,7 @@ END SELECT ! ExactFunction
 END SUBROUTINE ExactFunc
 
 
-#if defined(CODE_ANALYZE)
+#if defined(CODE_ANALYZE) || defined(discrete_velocity)
       SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
 #else
 PPURE SUBROUTINE CalcSourceHDG(i,j,k,iElem,resu, Phi, warning_linear, warning_linear_phi)
@@ -915,6 +915,12 @@ USE MOD_Equation_Vars      ,ONLY: IniCenter,IniHalfwidth,IniAmplitude
 USE MOD_FV_Vars            ,ONLY: U_FV
 USE MOD_Globals_Vars       ,ONLY: eps0, ElementaryCharge
 #endif
+#ifdef discrete_velocity
+USE MOD_FV_Vars            ,ONLY: U_FV
+USE MOD_Globals_Vars       ,ONLY: eps0
+USE MOD_DistFunc           ,ONLY: MacroValuesFromDistribution
+USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecTot, DVMnMacro
+#endif
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -941,6 +947,9 @@ REAL                            :: ElemCharLengthX,dx
 #else
 REAL :: dummy_real
 #endif /*PARTICLES*/
+#ifdef discrete_velocity
+REAL                            :: DVMtotalCharge, tau, MacroVal(DVMnMacro,DVMnSpecTot)
+#endif
 !===================================================================================================================================
 ASSOCIATE( &
       x  => N_VolMesh(iElem)%Elem_xGP(1,i,j,k), &
@@ -1038,8 +1047,13 @@ END ASSOCIATE
 
 #ifdef drift_diffusion
 ! Add the electron density from the FV solver to the particle source
-resu(1) = - ((PS_N(iElem)%PartSource(4,i,j,k) - U_FV(1,0,0,0,iElem)*ElementaryCharge))/eps0
+resu(1) = - ((PS_N(iElem)%PartSource(4,i,j,k) - U_FV(1,iElem)*ElementaryCharge))/eps0
 !resu(1) = 0.!- ((1e20 - U_FV(1,0,0,0,iElem)) * ElementaryCharge)/eps0
+#endif
+
+#ifdef discrete_velocity
+CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),0.,tau,1,Charge=DVMtotalCharge)
+resu(1) = - DVMtotalCharge/eps0
 #endif
 
 #if !defined(PARTICLES)

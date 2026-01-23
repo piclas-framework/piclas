@@ -53,6 +53,7 @@ USE MOD_Analyze_Vars       ,ONLY: OutputErrorNormsToH5
 #ifdef discrete_velocity
 USE MOD_TimeDisc_Vars      ,ONLY: dt
 USE MOD_DistFunc,           ONLY: MacroValuesFromDistribution
+USE MOD_Equation_Vars_FV   ,ONLY: DVMnSpecTot, DVMnMacro
 #endif /*discrete_velocity*/
 #ifdef PARTICLES
 USE MOD_Mesh_Vars          ,ONLY: offsetElem
@@ -66,8 +67,8 @@ REAL,INTENT(IN)               :: time
 !----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 #ifdef discrete_velocity
-REAL,INTENT(OUT)              :: L_2_Error(14)   !< L2 error of the solution
-REAL,INTENT(OUT)              :: L_Inf_Error(14) !< LInf error of the solution
+REAL,INTENT(OUT)              :: L_2_Error(DVMnMacro)   !< L2 error of the solution
+REAL,INTENT(OUT)              :: L_Inf_Error(DVMnMacro) !< LInf error of the solution
 #else
 REAL,INTENT(OUT)              :: L_2_Error(PP_nVar_FV)   !< L2 error of the solution
 REAL,INTENT(OUT)              :: L_Inf_Error(PP_nVar_FV) !< LInf error of the solution
@@ -78,7 +79,7 @@ INTEGER                       :: iElem
 REAL                          :: U_exact(1:PP_nVar_FV)
 INTEGER                       :: offsetElemCNProc,CNElemID
 #ifdef discrete_velocity
-REAL                          :: MacroVal(14), MacroVal_exact(14), tau, real_dt
+REAL                          :: MacroVal(DVMnMacro,DVMnSpecTot), MacroVal_exact(DVMnMacro,DVMnSpecTot), tau, real_dt, rho, rho_exact
 #endif /*discrete_velocity*/
 !===================================================================================================================================
 IF (OutputErrorNormsToH5) CALL abort(__STAMP__,'OutputErrorNormsToH5 not implemented for FV')
@@ -101,30 +102,32 @@ DO iElem=1,PP_nElems
   offsetElemCNProc = 0
 #endif  /*USE_MPI && defined(PARTICLES)*/
   CNElemID=iElem+offsetElemCNProc
-  CALL ExactFunc_FV(IniExactFunc_FV,time,Elem_xGP_FV(1:3,0,0,0,iElem),U_exact(1:PP_nVar_FV))
+  CALL ExactFunc_FV(IniExactFunc_FV,time,Elem_xGP_FV(1:3,iElem),U_exact(1:PP_nVar_FV))
 #ifdef discrete_velocity
   ! DVM: calculate errors for the macroscopic values
-  CALL MacroValuesFromDistribution(MacroVal,U_FV(:,0,0,0,iElem),real_dt,tau,1)
-  CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:),real_dt,tau,1)
-  L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:14) - MacroVal_exact(1:14)))
+  CALL MacroValuesFromDistribution(MacroVal,U_FV(:,iElem),real_dt,tau,1,MassDensity=rho)
+  CALL MacroValuesFromDistribution(MacroVal_exact,U_exact(:),real_dt,tau,1,MassDensity=rho_exact)
+  MacroVal(1,DVMnSpecTot) = rho
+  MacroVal_exact(1,DVMnSpecTot) = rho_exact
+  L_Inf_Error = MAX(L_Inf_Error,abs(MacroVal(1:DVMnMacro,DVMnSpecTot) - MacroVal_exact(1:DVMnMacro,DVMnSpecTot)))
   ! To sum over the elements, We compute here the square of the L_2 error
-  L_2_Error = L_2_Error+(MacroVal(1:14) - MacroVal_exact(1:14))*&
-                        (MacroVal(1:14) - MacroVal_exact(1:14))*ElemVolume_Shared(CNElemID)
+  L_2_Error = L_2_Error+(MacroVal(1:DVMnMacro,DVMnSpecTot) - MacroVal_exact(1:DVMnMacro,DVMnSpecTot))*&
+                        (MacroVal(1:DVMnMacro,DVMnSpecTot) - MacroVal_exact(1:DVMnMacro,DVMnSpecTot))*ElemVolume_Shared(CNElemID)
 #else
-  L_Inf_Error = MAX(L_Inf_Error,abs(U_FV(:,0,0,0,iElem) - U_exact(1:PP_nVar_FV)))
+  L_Inf_Error = MAX(L_Inf_Error,abs(U_FV(:,iElem) - U_exact(1:PP_nVar_FV)))
   ! To sum over the elements, We compute here the square of the L_2 error
-  L_2_Error = L_2_Error+(U_FV(:,0,0,0,iElem) - U_exact(1:PP_nVar_FV))*&
-                        (U_FV(:,0,0,0,iElem) - U_exact(1:PP_nVar_FV))*ElemVolume_Shared(CNElemID)
+  L_2_Error = L_2_Error+(U_FV(:,iElem) - U_exact(1:PP_nVar_FV))*&
+                        (U_FV(:,iElem) - U_exact(1:PP_nVar_FV))*ElemVolume_Shared(CNElemID)
 #endif /*discrete_velocity*/
 END DO ! iElem=1,PP_nElems
 #if USE_MPI
 #ifdef discrete_velocity
   IF(MPIroot)THEN
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , 14 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
-    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , 14 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_2_Error   , DVMnMacro , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(MPI_IN_PLACE , L_Inf_Error , DVMnMacro , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
   ELSE
-    CALL MPI_REDUCE(L_2_Error   , 0            , 14 , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
-    CALL MPI_REDUCE(L_Inf_Error , 0            , 14 , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_2_Error   , 0            , DVMnMacro , MPI_DOUBLE_PRECISION , MPI_SUM , 0 , MPI_COMM_PICLAS , iError)
+    CALL MPI_REDUCE(L_Inf_Error , 0            , DVMnMacro , MPI_DOUBLE_PRECISION , MPI_MAX , 0 , MPI_COMM_PICLAS , iError)
     ! in this case the receive value is not relevant.
   END IF
 #else

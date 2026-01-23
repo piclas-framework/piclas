@@ -165,9 +165,11 @@ dt=HUGE(1.)
 #elif (PP_TimeDiscMethod==600)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Radiation'
 #elif (PP_TimeDiscMethod==700)
-  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: ED-DVM or DUGKS'
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Discrete Velocity Method (DVM)'
 #elif (PP_TimeDiscMethod==701)
   SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: Explicit finite volumes'
+#elif (PP_TimeDiscMethod==702)
+  SWRITE(UNIT_stdOut,'(A)') ' Method of time integration: PLOESMA'
 #endif
 
 RKdtFrac      = 1.
@@ -189,7 +191,7 @@ SUBROUTINE InitTimeStep()
 ! MODULES
 USE MOD_Globals
 USE MOD_TimeDisc_Vars         ,ONLY: dt, dt_Min,ManualTimeStep,useManualTimestep,sdtCFLOne
-#if ! (USE_HDG)
+#if ! (USE_HDG) || defined(discrete_velocity)
 USE MOD_CalcTimeStep          ,ONLY: CalcTimeStep
 USE MOD_TimeDisc_Vars         ,ONLY: CFLtoOne
 #endif
@@ -217,7 +219,7 @@ IF(useManualTimeStep)THEN
 ELSE ! .NO. ManualTimeStep
   ! time step is calculated by the solver
   ! first Maxwell time step for explicit LSRK
-#if !(USE_HDG)
+#if !(USE_HDG) || defined(discrete_velocity)
   dt_Min(DT_MIN) = CalcTimeStep()
   sdtCFLOne      = 1.0/(dt_Min(DT_MIN)*CFLtoOne)
 #else
@@ -372,7 +374,9 @@ IF(PP_N.GT.15) CALL abort(__STAMP__,'Polynomial degree is to high!',PP_N,999.)
 CFLScale=CFLScale*CFLScaleAlpha(PP_N)
 #endif
 !scale with 2N+1
+#if !(USE_FV)
 CFLScale = CFLScale/(2.*PP_N+1.)
+#endif /*!(USE_FV)*/
 SWRITE(UNIT_stdOut,'(A,ES16.7)') '   CFL:',CFLScale
 END SUBROUTINE FillCFL_DFL
 

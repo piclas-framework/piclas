@@ -25,7 +25,7 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700)) && !(USE_HDG)
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity)) && !(USE_HDG)
 INTERFACE FillFlux
   MODULE PROCEDURE FillFlux
 END INTERFACE
@@ -291,6 +291,6 @@ SDEALLOCATE(Fluxdie)
 
 END SUBROUTINE GetSurfaceFlux
 
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700)) && !(USE_HDG)*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity)) && !(USE_HDG)*/
 
 END MODULE MOD_FillFlux

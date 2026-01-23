@@ -46,10 +46,6 @@ SUBROUTINE EvalFlux3D(iElem,f,g,h)
 ! MODULES
 USE MOD_PreProc
 USE MOD_Globals      ,ONLY: Abort
-USE MOD_TimeDisc_Vars,ONLY : dt
-USE MOD_FV_Vars      ,ONLY: U
-USE MOD_Equation_Vars,ONLY: DVMnVelos, DVMVelos, DVMMethod, DVMDim
-USE MOD_DistFunc     ,ONLY: MacroValuesFromDistribution, TargetDistribution
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -59,41 +55,8 @@ INTEGER,INTENT(IN)                                 :: iElem
 REAL,DIMENSION(PP_nVar,0:PP_N,0:PP_N,0:PP_N),INTENT(OUT) :: f,g,h    ! Cartesian fluxes (iVar,i,j,k)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                :: MacroVal(14), tau, fTarget(PP_nVar), UTemp(PP_nVar), gamma
-INTEGER             :: i,j,k, kVel, jVel, iVel, upos
 !==================================================================================================================================
-DO k=0,PP_N
-  DO j=0,PP_N
-    DO i=0,PP_N
-      UTemp=U(:,i,j,k,iElem)
-      CALL MacroValuesFromDistribution(MacroVal,UTemp,dt/2.,tau,1)
-      ! wrong because no reconstruction/relaxation was done before ---> DVM only works with FV
-      CALL TargetDistribution(MacroVal, fTarget)
-      IF (dt.GT.0.) THEN
-        SELECT CASE (DVMMethod)
-        CASE(1)
-          gamma = 2.*tau*(1.-EXP(-dt/2./tau))/dt
-        CASE(2)
-          gamma = 2.*tau/(2.*tau+dt)
-        END SELECT
-        UTemp = gamma*UTemp + (1.-gamma)*fTarget
-      ELSE
-        UTemp = 0.
-      END IF
-      DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-        upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-        f(upos,i,j,k) = DVMVelos(iVel,1) * UTemp(upos)
-        g(upos,i,j,k) = DVMVelos(jVel,2) * UTemp(upos)
-        h(upos,i,j,k) = DVMVelos(kVel,3) * UTemp(upos)
-        IF (DVMDim.LT.3) THEN
-          f(PP_nVar/2+upos,i,j,k) = DVMVelos(iVel,1) * UTemp(PP_nVar/2+upos)
-          g(PP_nVar/2+upos,i,j,k) = DVMVelos(jVel,2) * UTemp(PP_nVar/2+upos)
-          h(PP_nVar/2+upos,i,j,k) = DVMVelos(kVel,3) * UTemp(PP_nVar/2+upos)
-        END IF
-      END DO; END DO; END DO;
-    END DO ! i
-  END DO ! j
-END DO ! k
+CALL abort(__STAMP__,'DVM only implemented with finite volumes!')
 
 END SUBROUTINE EvalFlux3D
 

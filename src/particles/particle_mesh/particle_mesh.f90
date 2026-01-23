@@ -184,10 +184,10 @@ USE MOD_Particle_BGM           ,ONLY: WriteHaloInfo
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectric,isDielectricElem_Shared,isDielectricElem_Global,isDielectricElem_Shared_Win
 USE MOD_Mesh_Tools             ,ONLY: GetGlobalElemID
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 #endif /* USE_MPI */
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildElementRadiusTria,BuildElemTypeAndBasisTria,BuildEpsOneCell,BuildBCElemDistance
 USE MOD_Particle_Mesh_Build    ,ONLY: BuildNodeNeighbourhood,BuildElementOriginShared,BuildElementBasisAndRadius
@@ -221,9 +221,9 @@ CHARACTER(LEN=2) :: tmpStr
 #endif /*CODE_ANALYZE*/
 CHARACTER(3)      :: hilf
 #if USE_MPI
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 INTEGER           :: iCNElem, iGlobElem
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 #endif /* USE_MPI */
 !===================================================================================================================================
 
@@ -498,7 +498,7 @@ ELSE
 END IF
 
 #if USE_MPI
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 IF(DoDielectric) THEN
   ! Populate the isDielectricElem_Shared array, utilized in the GetBoundaryInteraction to check whether particles have been moved
   ! inside a dielectric element (RotPeriodicBoundary), which requires the information whether the new element is within a dielectric
@@ -516,7 +516,7 @@ IF(DoDielectric) THEN
   ! Deallocate temporary array
   IF (myComputeNodeRank.EQ.0) DEALLOCATE(isDielectricElem_Global)
 END IF
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 #endif /*USE_MPI*/
 
 ParticleMeshInitIsDone=.TRUE.

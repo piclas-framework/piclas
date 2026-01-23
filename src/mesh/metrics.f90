@@ -55,9 +55,9 @@ PUBLIC::BuildElem_xGP
 PUBLIC::CalcMetrics
 PUBLIC::CalcSurfMetrics
 PUBLIC::SurfMetricsFromJa
-#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 PUBLIC::CommSurfMetrics
-#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 !==================================================================================================================================
 
 CONTAINS
@@ -75,9 +75,9 @@ USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmax
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights
 USE MOD_ChangeBasis        ,ONLY: ChangeBasis3D_XYZ, ChangeBasis3D
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 #if USE_FV
 USE MOD_Mesh_Vars_FV,       ONLY: Elem_xGP_PP_1,Elem_xGP_FV
 #else
@@ -98,12 +98,15 @@ TYPE VdmType
 END TYPE VdmType
 
 TYPE(VdmType), DIMENSION(:), ALLOCATABLE :: Vdm
+#if USE_FV
+REAL                          :: Elem_xGP_tmp(3,0:0,0:0,0:0)
+#endif
 !==================================================================================================================================
 
 #if USE_FV
 ! Element centers
 SDEALLOCATE(Elem_xGP_FV)
-ALLOCATE(Elem_xGP_FV   (3,0:0,0:0,0:0,nElems))!
+ALLOCATE(Elem_xGP_FV   (3,nElems))!
 ! Output points
 SDEALLOCATE(Elem_xGP_PP_1)
 ALLOCATE(Elem_xGP_PP_1 (3,0:PP_1,0:PP_1,0:PP_1,nElems))
@@ -129,18 +132,19 @@ END ASSOCIATE
 
 ! Set Elem_xGP for each element
 DO iElem=1,nElems
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
 #else
   Nloc = PP_N
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
   ALLOCATE(N_VolMesh(iElem)%Elem_xGP(3,0:Nloc,0:Nloc,0:Nloc))
   !WRITE (*,*) "NodeCoords(:,:,:,:,iElem) =", NodeCoords(:,:,:,:,iElem)
   CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),N_VolMesh(iElem)%Elem_xGP(:,:,:,:))
 #if USE_FV
   ! Element centers
   Nloc = 0
-  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_FV(:,:,:,:,iElem))
+  CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_tmp(:,:,:,:))
+  Elem_xGP_FV(:,iElem) = Elem_xGP_tmp(:,0,0,0)
   ! Output points
   Nloc = PP_1
   CALL ChangeBasis3D(3,NGeo,Nloc,Vdm(Nloc)%Vdm_EQNGeo_CLNloc,NodeCoords(:,:,:,:,iElem),Elem_xGP_PP_1(:,:,:,:,iElem))
@@ -167,9 +171,9 @@ USE MOD_Mesh_Vars          ,ONLY: nElems,offSetElem
 USE MOD_Interpolation      ,ONLY: GetVandermonde,GetNodesAndWeights,GetDerivativeMatrix
 USE MOD_ChangeBasis        ,ONLY: changeBasis3D,ChangeBasis3D_XYZ
 USE MOD_Basis              ,ONLY: LagrangeInterpolationPolys
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 USE MOD_DG_Vars            ,ONLY: N_DG_Mapping
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 USE MOD_Interpolation_Vars ,ONLY: NodeTypeCL,NodeTypeVISU,NodeType,Nmin,Nmax,NInfo
 USE MOD_ReadInTools        ,ONLY: GETLOGICAL
 USE MOD_Globals_Vars       ,ONLY: PI
@@ -291,11 +295,11 @@ DO iElem=1,nElems
 SmallestscaledJacRef=HUGE(1.)
   N_VolMesh2(iElem)%dXCL_N=0.
   ! Get N
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
 #else
   Nloc = PP_N
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 
   ! Init
   N_VolMesh(iElem)%Metrics_fTilde=0.
@@ -812,7 +816,7 @@ END DO; END DO ! p,q
 END SUBROUTINE SurfMetricsFromJa
 
 
-#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 !==================================================================================================================================
 !> Computes surface normal and tangential vectors and surface area from surface metrics Ja_Face.
 !==================================================================================================================================
@@ -850,6 +854,6 @@ DO iNbProc=1,nNbProcs
   DEALLOCATE(DGExchange(iNbProc)%FaceDataSendSurf)
 END DO !iProc=1,nNBProcs
 END SUBROUTINE CommSurfMetrics
-#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*USE_MPI && !(USE_HDG) && !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 
 END MODULE MOD_Metrics

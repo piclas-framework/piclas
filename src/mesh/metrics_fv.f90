@@ -40,7 +40,7 @@ SUBROUTINE CalcMetrics_PP_1(XCL_NGeo_Out,dXCL_NGeo_out)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_Mesh_Vars          ,ONLY: NGeo,NGeoRef,nGlobalElems,xyzMinMax,GetMeshMinMaxBoundariesIsDone,crossProductMetrics
-USE MOD_Mesh_Vars_FV       ,ONLY: Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV,JaCL_N_PP_1
+USE MOD_Mesh_Vars_FV       ,ONLY: JaCL_N_PP_1
 USE MOD_Mesh_Vars_FV       ,ONLY: dXCL_N_PP_1
 USE MOD_Mesh_Vars          ,ONLY: DetJac_Ref
 USE MOD_Mesh_Vars          ,ONLY: crossProductMetrics
@@ -101,34 +101,9 @@ LOGICAL            :: meshCheckRef
 REAL,ALLOCATABLE   :: scaledJacRef(:,:,:)
 REAL               :: SmallestscaledJacRef
 REAL,PARAMETER     :: scaledJacRefTol=0.01
-
-! REAL :: Face_xGP_PP_1      (3,0:PP_1,0:PP_1,1:nSides)
-! REAL :: NormVec_PP_1       (3,0:PP_1,0:PP_1,1:nSides)
-! REAL :: TangVec1_PP_1      (3,0:PP_1,0:PP_1,1:nSides)
-! REAL :: TangVec2_PP_1      (3,0:PP_1,0:PP_1,1:nSides)
-! REAL :: SurfElem_PP_1      (0:PP_1,0:PP_1,1:nSides)
-! REAL :: Ja_Face_PP_1       (3,3,0:PP_1,0:PP_1,1:nSides)
-! REAL :: dXCL_N_PP_1        (3,3,0:PP_1,0:PP_1,0:PP_1,nElems)
-REAL :: Metrics_fTilde_PP_1(3,0:PP_1,0:PP_1,0:PP_1,nElems)
-REAL :: Metrics_gTilde_PP_1(3,0:PP_1,0:PP_1,0:PP_1,nElems)
-REAL :: Metrics_hTilde_PP_1(3,0:PP_1,0:PP_1,0:PP_1,nElems)
 !===================================================================================================================================
 
 StartT=PICLASTIME()
-
-! Prerequisites
-Metrics_fTilde_FV=0.
-Metrics_gTilde_FV=0.
-Metrics_hTilde_FV=0.
-Metrics_fTilde_PP_1 = 0.
-Metrics_gTilde_PP_1 = 0.
-Metrics_hTilde_PP_1 = 0.
-! Face_xGP_PP_1       = 0.
-! NormVec_PP_1        = 0.
-! TangVec1_PP_1       = 0.
-! TangVec2_PP_1       = 0.
-! SurfElem_PP_1       = 0.
-! Ja_Face_PP_1        = 0.
 
 ! Check Jacobians in Ref already (no good if we only go on because N doesn't catch misbehaving points)
 meshCheckRef=GETLOGICAL('meshCheckRef-FV','.TRUE.')
@@ -169,7 +144,7 @@ CALL GetDerivativeMatrix(PP_1  , NodeTypeCL  , DCL_N)
 CALL GetNodesAndWeights(NGeo   , NodeTypeCL  , XiCL_NGeo  , wIPBary=wBaryCL_NGeo)
 
 CALL GetVandermonde(    PP_1   , NodeTypeCL  , PP_1    , NodeType,   Vdm_CLN_N_PP_1    , modal=.FALSE.)
-Vdm_CLN_N_PP_1(:,:)=0.5
+! Vdm_CLN_N_PP_1(:,:)=0.5
 CALL GetNodesAndWeights(PP_1   , NodeTypeCL  , xiCL_N  , wIPBary=wBaryCL_N)
 
 
@@ -316,28 +291,10 @@ DO iElem=1,nElems
     END DO; END DO; END DO !i,j,k=0,N
   END IF !crossProductMetrics
 
-  ! interpolate Metrics from Cheb-Lobatto N onto GaussPoints N
-  CALL ChangeBasis3D(3,PP_1,PP_1,Vdm_CLN_N_PP_1,JaCL_N_PP_1(1,:,:,:,:,iElem),Metrics_fTilde_PP_1(:,:,:,:,iElem))
-  CALL ChangeBasis3D(3,PP_1,PP_1,Vdm_CLN_N_PP_1,JaCL_N_PP_1(2,:,:,:,:,iElem),Metrics_gTilde_PP_1(:,:,:,:,iElem))
-  CALL ChangeBasis3D(3,PP_1,PP_1,Vdm_CLN_N_PP_1,JaCL_N_PP_1(3,:,:,:,:,iElem),Metrics_hTilde_PP_1(:,:,:,:,iElem))
-  ! CALL CalcSurfMetrics_PP_1(PP_1,JaCL_N_PP_1,XCL_N_PP_1,Vdm_CLN_N_PP_1,iElem,&
-  !                       NormVec_PP_1,TangVec1_PP_1,TangVec2_PP_1,SurfElem_PP_1,Face_xGP_PP_1,Ja_Face_PP_1)
-
   ! particle mapping
   IF(PRESENT(XCL_Ngeo_Out))   XCL_Ngeo_Out(1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)= XCL_Ngeo(1:3,0:Ngeo,0:Ngeo,0:Ngeo)
   IF(PRESENT(dXCL_ngeo_out)) dXCL_Ngeo_Out(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo,iElem)=dXCL_Ngeo(1:3,1:3,0:Ngeo,0:Ngeo,0:Ngeo)
 END DO !iElem=1,nElems
-
-! PP_1 metrics to global ones
-! Face_xGP_FV      (:,0,0,:)   = Face_xGP_PP_1      (:,0,0,:)
-! NormVec_FV       (:,0,0,:)   = NormVec_PP_1       (:,0,0,:)
-! TangVec1_FV      (:,0,0,:)   = TangVec1_PP_1      (:,0,0,:)
-! TangVec2_FV      (:,0,0,:)   = TangVec2_PP_1      (:,0,0,:)
-! SurfElem_FV      (0,0,:)     = SUM(SUM(SurfElem_PP_1(:,:,:),2),1)
-! Ja_Face_FV       (:,:,0,0,:) = SUM(SUM(Ja_Face_PP_1(:,:,:,:,:),4),3)
-Metrics_fTilde_FV(:,0,0,0,:) = SUM(SUM(Metrics_fTilde_PP_1(:,0,:,:,:),3),2)
-Metrics_gTilde_FV(:,0,0,0,:) = SUM(SUM(Metrics_gTilde_PP_1(:,:,0,:,:),3),2)
-Metrics_hTilde_FV(:,0,0,0,:) = SUM(SUM(Metrics_hTilde_PP_1(:,:,:,0,:),3),2)
 
 ! Communicate smallest ref. Jacobian and display
 #if USE_MPI

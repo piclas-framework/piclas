@@ -119,17 +119,17 @@ USE MOD_Equation_FV     ,ONLY: ExactFunc_FV
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 REAL,INTENT(IN)                      :: t       !< current time (provided by time integration scheme)
-REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV+3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN)                      :: NormVec(           3,0:0,0:0,1:nBCSides)
-REAL,INTENT(IN)                      :: Face_xGP(          3,0:0,0:0,1:nBCSides)
+REAL,INTENT(IN)                      :: UPrim_master(     PP_nVar_FV+3,1:nBCSides)
+REAL,INTENT(IN)                      :: NormVec(           3,1:nBCSides)
+REAL,INTENT(IN)                      :: Face_xGP(          3,1:nBCSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,0:0,0:0,1:nBCSides)
+REAL,INTENT(OUT)                     :: Flux( PP_nVar_FV,1:nBCSides)
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                              :: iBC,iSide,SideID
 INTEGER                              :: BCType,BCState,nBCLoc
-REAL                                 :: UPrim_boundary(PP_nVar_FV+3,0:0,0:0), GradSide
+REAL                                 :: UPrim_boundary(PP_nVar_FV+3), GradSide
 !==================================================================================================================================
 DO iBC=1,nBCs
   IF(nBCByType(iBC).LE.0) CYCLE
@@ -144,26 +144,26 @@ DO iBC=1,nBCs
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
       IF(BCState.EQ.0) THEN
-        CALL ExactFunc_FV(IniExactFunc_FV,t,Face_xGP(:,0,0,SideID),UPrim_boundary(1:PP_nVar_FV,0,0))
+        CALL ExactFunc_FV(IniExactFunc_FV,t,Face_xGP(:,SideID),UPrim_boundary(1:PP_nVar_FV))
       ELSE
-        UPrim_boundary(1,0,0)=RefState_FV(1,BCState)
+        UPrim_boundary(1)=RefState_FV(1,BCState)
       END IF
 #ifdef drift_diffusion
-      GradSide=(UPrim_master(1,0,0,SideID)-UPrim_boundary(1,0,0))/(2*SQRT((Grad_dx_master(1,SideID))**2 &
+      GradSide=(UPrim_master(1,SideID)-UPrim_boundary(1))/(2*SQRT((Grad_dx_master(1,SideID))**2 &
                                        +(Grad_dx_master(2,SideID))**2 &
                                        +(Grad_dx_master(3,SideID))**2))
 #endif
 
-      UPrim_boundary(PP_nVar_FV+1:PP_nVar_FV+3,0,0)=UPrim_master(PP_nVar_FV+1:PP_nVar_FV+3,0,0,SideID) ! copy E field
+      UPrim_boundary(PP_nVar_FV+1:PP_nVar_FV+3)=UPrim_master(PP_nVar_FV+1:PP_nVar_FV+3,SideID) ! copy E field
 
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID), GradSide)
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID), GradSide)
     END DO
 
   CASE(3) !von Neumann
     DO iSide=1,nBCLoc
       SideID=BCSideID(iBC,iSide)
-      UPrim_boundary=UPrim_master(:,:,:,SideID)
-      CALL Riemann(Flux(:,:,:,SideID),UPrim_master(:,:,:,SideID),UPrim_boundary,NormVec(:,:,:,SideID), GradSide=0.)
+      UPrim_boundary=UPrim_master(:,SideID)
+      CALL Riemann(Flux(:,SideID),UPrim_master(:,SideID),UPrim_boundary,NormVec(:,SideID), GradSide=0.)
     END DO
 
   CASE DEFAULT ! unknown BCType

@@ -41,7 +41,7 @@ USE MOD_PreProc
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
 USE MOD_Mesh_Vars_FV      ,ONLY: NormVec_FV, SurfElem_FV
 USE MOD_Mesh_Vars         ,ONLY: ElemToSide
-USE MOD_Equation_Vars_FV  ,ONLY: DVMVelos, DVMnVelos
+USE MOD_Equation_Vars_FV  ,ONLY: DVMSpecData, DVMnSpecies
 USE MOD_TimeDisc_Vars     ,ONLY: CFLScale
 #ifdef PARTICLES
 USE MOD_Mesh_Vars         ,ONLY: offsetElem
@@ -57,7 +57,7 @@ REAL                         :: CalcTimeStep
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                      :: iElem,CNELemID,locSideID,SideID,flip
-INTEGER                      :: iVel,jVel,kVel,upos
+INTEGER                      :: iVel,jVel,kVel,upos,iSpec,vFirstID
 REAL                         :: FluxFac(PP_nVar_FV), SideFac
 REAL                         :: TimeStepConv,locTimeStepConv
 REAL                         :: n_loc(3)
@@ -78,17 +78,30 @@ DO iElem=1,PP_nElems
     SideID=ElemToSide(E2S_SIDE_ID,locSideID,iElem)
     flip=ElemToSide(E2S_FLIP,locSideID,iElem)
     IF (flip.EQ.0) THEN !master side, outgoing normal OK
-      n_loc = NormVec_FV(:,0,0,SideID)
+      n_loc = NormVec_FV(:,SideID)
     ELSE !slave side, flip ingoing normal
-      n_loc = -NormVec_FV(:,0,0,SideID)
+      n_loc = -NormVec_FV(:,SideID)
     END IF
-    SideFac = SurfElem_FV(0,0,SideID)/ElemVolume_Shared(CNElemID)
-    DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-      upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-      FluxFac(upos) = FluxFac(upos) + SideFac*MAX(0.,n_loc(1)*DVMVelos(iVel,1)+n_loc(2)*DVMVelos(jVel,2)+n_loc(3)*DVMVelos(kVel,3))
-    END DO; END DO; END DO
+    SideFac = SurfElem_FV(SideID)/ElemVolume_Shared(CNElemID)
+    vFirstID = 0
+    DO iSpec =1,DVMnSpecies
+      DO kVel=1, DVMSpecData(iSpec)%nVelos(3);   DO jVel=1, DVMSpecData(iSpec)%nVelos(2);   DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
+        upos=iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)+vFirstID
+        FluxFac(upos) = FluxFac(upos) + SideFac*MAX(0.,n_loc(1)*DVMSpecData(iSpec)%Velos(iVel,1) &
+                                                      +n_loc(2)*DVMSpecData(iSpec)%Velos(jVel,2) &
+                                                      +n_loc(3)*DVMSpecData(iSpec)%Velos(kVel,3))
+      END DO; END DO; END DO
+      vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+    END DO
   END DO
-  locTimeStepConv = MIN(locTimeStepConv,CFLScale/MAXVAL(FluxFac))
+  IF (MAXVAL(FluxFac).EQ.0.) THEN
+    ! MPI_YOUR sides were not considered because NormVec is not calculated for them
+    ! This leads to FluxFac=0 if a cell has only MPI_YOUR sides in dimensions considered for DVM
+    WRITE(UNIT_stdOut,'(A,I6,A,I6,A)')'DVM timestep warning: Element',iElem,' on proc',myRank, &
+                                          ' is isolated in the MPI decomposition and not considered for CFL calculation.'
+  ELSE
+    locTimeStepConv = MIN(locTimeStepConv,CFLScale/MAXVAL(FluxFac))
+  END IF
 
   IF(locTimeStepConv.NE.locTimeStepConv)THEN
     ERRWRITE(*,'(A,I0,A,I0,A,I0,A,I0)')'Convective timestep NaN on proc ',myRank,' at global position (iElem): ',iElem

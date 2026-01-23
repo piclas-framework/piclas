@@ -18,7 +18,8 @@ Overview of the test cases performed after a commit.
 |    5    |              [CHE_DSMC](#che_dsmc)               |                        DSMC                        |                                                                                                                                                                                                          |                |                  |                                                                                     |
 |    7    |            [CHE_BGK](#che_bgkfpflow)             |                      BGK-Flow                      |                                                                                                                                                                                                          |                |                  |                                                                                     |
 |    8    |           [CHE_FPFlow](#che_bgkfpflow)           |                      FP-Flow                       |                                                                                                                                                                                                          |                |                  |                                                                                     |
-|    9    |               [CHE_DVM](#che_dvm)                |                 discrete_velocity                  |                                                                                                                                                                                                          |                |                  |                                                                                     |
+|    9    |               [CHE_DVM](#che_dvm_plasma)                |                 discrete_velocity                  |                                                                                                                                                                                                          |                |                  |                                                                                     |
+|    10    |               [CHE_DVM_plasma](#che_dvm_plasma)                |                 discrete_velocity, PLOESMA                  |                                                                                                                                                                                                          |                |                  |                                                                                     |
 
 
 #### CHE_PIC_maxwell_RK4
@@ -92,13 +93,15 @@ Both methods share the same regression tests in the different folders, CHE_BGK: 
 |         |         RELAX_CH4         |                  |                               CH4: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_CH4/readme.md)         |
 |         |         RELAX_N2          |                  |                                N2: Relax to thermal equi. continuous/quantized vibration                                |   nProcs=1    |    T_rot,T_vib,T_trans     |         [Link](regressioncheck/CHE_BGK/RELAX_N2/readme.md)          |
 
-#### CHE_DVM
+#### CHE_DVM(_plasma)
 
 | **No.** |     **Case**      | **CMAKE-CONFIG** |                                  **Feature**                                  | **Execution** |    **Comparing**    |                         **Readme**                          |
 | :-----: | :---------------: | :--------------: | :---------------------------------------------------------------------------: | :-----------: | :-----------------: | :---------------------------------------------------------: |
 |    1    |  heatflux_relax   |                  |              nDim=1,2,3, EDDVM/DUGKS, (cons)ESBGK/Shakhov/G13BGK              |   nProcs=1    | final L2 error norm |  [Link](regressioncheck/CHE_DVM/heatflux_relax/readme.md)   |
 |    2    |     Sod_shock     |                  | EDDVM/DUGKS, (cons)ESBGK/Shakhov/SNBGK/G13BGK, minmax/Venkatakrishnan limiter | nProcs=1,2,7  | final L2 error norm |     [Link](regressioncheck/CHE_DVM/Sod_shock/readme.md)     |
 |    3    | Sod_shock_restart |                  |                               DVM macro restart                               |  nProcs=1,3   | final L2 error norm | [Link](regressioncheck/CHE_DVM/Sod_shock_restart/readme.md) |
+|    4    | RELAX_N2 |                  |                               DVM with inner energies                               |  nProcs=1   | final L2 error norm | [Link](regressioncheck/CHE_DVM/RELAX_N2/readme.md) |
+|    5    | landau_damping |                  |                               DVM plasma solver                               |  nProcs=1,2,7   | FieldAnalyze.csv | [Link](regressioncheck/CHE_DVM_plasma/landau_damping/readme.md) |
 
 
 ## Nightly
@@ -123,6 +126,7 @@ Overview of the test cases performed during the nightly regression testing.
 |    -    |         [NIG_Photoionization](#nig_photoionization)          |            Poisson, Code Analyze=ON             |        Photoionization of H2 and secondary electron emission and initial load balance        |                                             |                                |                                                                                                |
 |    -    |                     [NIG_DVM](#nig_dvm)                      |                discrete_velocity                |                                             DVM                                              |                                             |                                |                                                                                                |
 |    -    |            [NIG_convtest_DVM](#nig_convtest_dvm)             |                discrete_velocity                |                         Spatio-temporal order of convergence for DVM                         |                                             |                                |                                                                                                |
+|    -    |                     [NIG_DVM_plasma](#nig_dvm_plasma)                      |                discrete_velocity, poisson             |                                             DVM plasma solver                                             |                                             |                                |                                                                                                |
 |    -    |               [NIG_Radiation](#nig_radiation)                |                    Radiation                    |      Radiation timedisc, cell-local emission and radiative transfer (2D rot sym and 3D)      |                                             |                                |                                                                                                |
 |    1    |                   NIG_PIC_maxwell_bgfield                    |                 maxwell,PIC,RK4                 |                                 External Background-field,h5                                 |                  nProcs=2                   |          DG_Solution           |                                                                                                |
 |    3    |                  feature_emission_gyrotron                   |                   maxwell,RK4                   |                                     Part-Inflow,TimeDep                                      | N=1,3,6,9,10, nProcs=1,2,10,25, gyro-circle |   LineIntegration of nPartIn   |                                                                                                |
@@ -498,6 +502,14 @@ Test discrete velocity method: [Link to build](regressioncheck/NIG_convtest_DVM/
 | **No.** |       **Case**        | **CMAKE-CONFIG** |         **Feature**          | **Execution** |           **Comparing**           |                                **Readme**                                |
 | :-----: | :-------------------: | :--------------: | :--------------------------: | :-----------: | :-------------------------------: | :----------------------------------------------------------------------: |
 |    1    | Poiseuille_flow_force |                  | Force-driven Poiseuille flow |   nProcs=4    | Spatio-temporal convergence order | [Link](regressioncheck/NIG_convtest_DVM/Poiseuille_flow_force/readme.md) |
+
+### NIG_DVM_plasma
+
+Test discrete velocity method: [Link to build](regressioncheck/NIG_DVM_plasma/builds.ini).
+
+| **No.** |       **Case**        | **CMAKE-CONFIG** |         **Feature**          | **Execution** | **Comparing** |                           **Readme**                            |
+| :-----: | :-------------------: | :--------------: | :--------------------------: | :-----------: | :-----------: | :-------------------------------------------------------------: |
+|    1    | Plasma sheath |                  | DVM plasma solver |   nProcs=4   |   DG_State    | [Link](regressioncheck/NIG_DVM_plasma/plasma_sheath/readme.md) |
 
 ## Weekly
 

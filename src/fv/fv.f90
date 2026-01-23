@@ -89,36 +89,36 @@ LBWRITE(UNIT_stdOut,'(A)') ' INIT FV...'
 IF (.NOT.(PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance))) THEN
 #endif /*USE_LOADBALANCE*/
   ! the local FV solution
-  ALLOCATE( U_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
+  ALLOCATE( U_FV(PP_nVar_FV,PP_nElems))
   U_FV=0.
 #if USE_LOADBALANCE
 END IF
 #endif /*USE_LOADBALANCE)*/
 ! the time derivative computed with the FV scheme
-ALLOCATE(Ut_FV(PP_nVar_FV,0:0,0:0,0:0,PP_nElems))
+ALLOCATE(Ut_FV(PP_nVar_FV,PP_nElems))
 Ut_FV=0.
 
 ! U_FV is filled with the ini solution
 IF(.NOT.DoRestart) CALL FillIni()
 
 #ifdef drift_diffusion
-ALLOCATE(U_master_FV(PP_nVar_FV+3,0:0,0:0,1:nSides))
-ALLOCATE(U_slave_FV(PP_nVar_FV+3,0:0,0:0,1:nSides))
+ALLOCATE(U_master_FV(PP_nVar_FV+3,1:nSides))
+ALLOCATE(U_slave_FV(PP_nVar_FV+3,1:nSides))
 #else
-ALLOCATE(U_master_FV(PP_nVar_FV,0:0,0:0,1:nSides))
-ALLOCATE(U_slave_FV(PP_nVar_FV,0:0,0:0,1:nSides))
+ALLOCATE(U_master_FV(PP_nVar_FV,1:nSides))
+ALLOCATE(U_slave_FV(PP_nVar_FV,1:nSides))
 #endif
 
 U_master_FV=0.
 U_slave_FV=0.
 
 ! unique flux per side
-ALLOCATE(Flux_Master_FV(1:PP_nVar_FV,0:0,0:0,1:nSides))
-ALLOCATE(Flux_Slave_FV (1:PP_nVar_FV,0:0,0:0,1:nSides))
+ALLOCATE(Flux_Master_FV(1:PP_nVar_FV,1:nSides))
+ALLOCATE(Flux_Slave_FV (1:PP_nVar_FV,1:nSides))
 Flux_Master_FV=0.
 Flux_Slave_FV=0.
 
-CALL InitGradients(PP_nVar_FV)
+IF (doFVReconstruct) CALL InitGradients(PP_nVar_FV)
 
 FVInitIsDone=.TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT FV DONE!'
@@ -143,16 +143,15 @@ SUBROUTINE FV_main(t,tStage,doSource)
 USE MOD_Globals
 USE MOD_Preproc
 USE MOD_Vector
-USE MOD_FV_Vars           ,ONLY: U_FV,Ut_FV,Flux_Master_FV,Flux_Slave_FV
-USE MOD_FV_Vars           ,ONLY: U_master_FV,U_slave_FV
+USE MOD_FV_Vars
 USE MOD_SurfInt           ,ONLY: SurfInt
 USE MOD_Prolong_FV        ,ONLY: ProlongToFace_FV
 USE MOD_Gradients         ,ONLY: GetGradients
 USE MOD_FillFlux          ,ONLY: FillFlux
 USE MOD_Equation_FV       ,ONLY: CalcSource_FV
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 USE MOD_Interpolation     ,ONLY: ApplyJacobian
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 USE MOD_FillMortar_FV     ,ONLY: U_Mortar_FV,Flux_Mortar_FV
 USE MOD_Particle_Mesh_Vars,ONLY: ElemVolume_Shared
 #if USE_MPI
@@ -191,10 +190,10 @@ LOGICAL,INTENT(IN)              :: doSource
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: CNElemID, iElem, Nloc
+INTEGER                         :: CNElemID, iElem
 #ifdef drift_diffusion
-INTEGER                         :: i,j,k
-REAL                            :: U_DD(1:PP_nVar_FV+3,0:0,0:0,0:0,PP_nElems) ! U_FV(1:PP_nVar_FV) + E(1:3)
+INTEGER                         :: i,j,k,Nloc
+REAL                            :: U_DD(1:PP_nVar_FV+3,PP_nElems) ! U_FV(1:PP_nVar_FV) + E(1:3)
 #endif
 #if USE_LOADBALANCE
 REAL                            :: tLBStart
@@ -202,7 +201,7 @@ REAL                            :: tLBStart
 !===================================================================================================================================
 
 !> 1.) Compute the FV solution gradients (LB times are measured inside GetGradients)
-CALL GetGradients(U_FV(:,0,0,0,:),output=.FALSE.) ! this might trigger a copy of U_FV -> the useless dimensions should be removed someday
+IF (doFVReconstruct) CALL GetGradients(U_FV,output=.FALSE.)
 
 #if USE_LOADBALANCE
 CALL LBStartTime(tLBStart)
@@ -210,15 +209,15 @@ CALL LBStartTime(tLBStart)
 
 #ifdef drift_diffusion
 !> 1.b) Add averaged E field to the solution vector
-U_DD(:,:,:,:,:) = 0.
+U_DD(:,:) = 0.
 DO iElem = 1, PP_nElems
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO k=0,NLoc; DO j=0,NLoc; DO i=0,NLoc
-    U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,iElem) = U_DD(PP_nVar_FV+1:PP_nVar_FV+3,0,0,0,iElem) &
+    U_DD(PP_nVar_FV+1:PP_nVar_FV+3,iElem) = U_DD(PP_nVar_FV+1:PP_nVar_FV+3,iElem) &
                                                  + N_Inter(Nloc)%wGP(i)*N_Inter(Nloc)%wGP(j)*N_Inter(Nloc)%wGP(k)&
                                                  * U_N(iElem)%E(1:3,i,j,k)/((NLoc+1.)**3) !need jacobi here for noncartesian
   END DO; END DO; END DO
-  U_DD(1:PP_nVar_FV,0,0,0,iElem) = U_FV(1:PP_nVar_FV,0,0,0,iElem)
+  U_DD(1:PP_nVar_FV,iElem) = U_FV(1:PP_nVar_FV,iElem)
 END DO
 
 ASSOCIATE(  PP_nVar_tmp => PP_nVar_FV+3 , &
@@ -234,18 +233,18 @@ ASSOCIATE(  PP_nVar_tmp => PP_nVar_FV, &
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartReceiveMPIDataFV(PP_nVar_tmp,U_slave_FV(:,0,0,:),1,nSides,RecRequest_U,SendID=2) ! Receive MINE
+CALL StartReceiveMPIDataFV(PP_nVar_tmp,U_slave_FV,1,nSides,RecRequest_U,SendID=2) ! Receive MINE
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
 
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.TRUE.)
-CALL U_Mortar_FV(U_master_FV,U_slave_FV,doMPISides=.TRUE.) !not working
+CALL U_Mortar_FV(U_master_FV,U_slave_FV,doFVReconstruct,doMPISides=.TRUE.)
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartSendMPIDataFV(PP_nVar_tmp,U_slave_FV(:,0,0,:),1,nSides,SendRequest_U,SendID=2) ! Send YOUR
+CALL StartSendMPIDataFV(PP_nVar_tmp,U_slave_FV,1,nSides,SendRequest_U,SendID=2) ! Send YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -253,7 +252,7 @@ CALL LBSplitTime(LB_FVCOMM,tLBStart)
 
 ! Prolong to face for BCSides, InnerSides and MPI sides - receive direction
 CALL ProlongToFace_FV(U_tmp,U_master_FV,U_slave_FV,doMPISides=.FALSE.)
-CALL U_Mortar_FV(U_master_FV,U_slave_FV,doMPISides=.FALSE.) !not working
+CALL U_Mortar_FV(U_master_FV,U_slave_FV,doFVReconstruct,doMPISides=.FALSE.)
 
 !> A.) Send particles
 #if USE_MPI
@@ -288,7 +287,7 @@ END ASSOCIATE
 
 !> 3.) Compute the fluxes
 !Flux=0. !don't nullify the fluxes if not really needed (very expensive)
-CALL StartReceiveMPIDataFV(PP_nVar_FV,Flux_Slave_FV(:,0,0,:),1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
+CALL StartReceiveMPIDataFV(PP_nVar_FV,Flux_Slave_FV,1,nSides,RecRequest_Flux,SendID=1) ! Receive YOUR
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FVCOMM,tLBStart)
 #endif /*USE_LOADBALANCE*/
@@ -297,7 +296,7 @@ CALL FillFlux(t,Flux_Master_FV,Flux_Slave_FV,U_master_FV,U_slave_FV,doMPISides=.
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FV,tLBStart)
 #endif /*USE_LOADBALANCE*/
-CALL StartSendMPIDataFV(PP_nVar_FV,Flux_Slave_FV(:,0,0,:),1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
+CALL StartSendMPIDataFV(PP_nVar_FV,Flux_Slave_FV,1,nSides,SendRequest_Flux,SendID=1) ! Send MINE
 
 #if USE_LOADBALANCE
 CALL LBSplitTime(LB_FVCOMM,tLBStart)
@@ -337,7 +336,7 @@ DO iElem=1,PP_nElems
 #else
   CNElemID=iElem
 #endif
-  Ut_FV(:,:,:,:,iElem)=-Ut_FV(:,:,:,:,iElem)/ElemVolume_Shared(CNElemID)
+  Ut_FV(:,iElem)=-Ut_FV(:,iElem)/ElemVolume_Shared(CNElemID)
 END DO
 
 !> 6.) Add Source Terms
@@ -385,7 +384,7 @@ INTEGER                         :: iElem
 ! Determine Size of the Loops, i.e. the number of grid cells in the
 ! corresponding directions
 DO iElem=1,PP_nElems
-    CALL ExactFunc_FV(IniExactFunc_FV,0.,Elem_xGP_FV(1:3,0,0,0,iElem),U_FV(1:PP_nVar_FV,0,0,0,iElem))
+    CALL ExactFunc_FV(IniExactFunc_FV,0.,Elem_xGP_FV(1:3,iElem),U_FV(1:PP_nVar_FV,iElem))
 END DO ! iElem=1,PP_nElems
 END SUBROUTINE FillIni
 

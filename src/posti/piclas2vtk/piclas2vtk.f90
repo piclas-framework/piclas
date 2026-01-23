@@ -735,7 +735,7 @@ IF (nElems.NE.nElems_State) CALL abort(__STAMP__,'Number of elements in state fi
 
 IF (nVar.GT.0) THEN
   ALLOCATE(VarNames(1:nVar))
-  CALL ReadAttribute(File_ID,'VarNames',nVar,StrArray=VarNames(1:nVar))
+  CALL ReadAttribute(File_ID,'VarNamesFV',nVar,StrArray=VarNames(1:nVar))
 
   ! Associate construct for integer KIND=8 possibility
   ASSOCIATE (&
@@ -1589,9 +1589,9 @@ USE MOD_ChangeBasis             ,ONLY: ChangeBasis2D
 USE MOD_Interpolation_Vars      ,ONLY: NodeTypeVISU
 USE MOD_Mesh_Vars               ,ONLY: N_SurfMesh
 USE MOD_ReadInTools             ,ONLY: PrintOption
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
 USE MOD_DG_Vars                 ,ONLY: DG_Elems_master,DG_Elems_slave
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1677,11 +1677,11 @@ IF(nSurfSample.GT.1) THEN
   DO iSurfOutputSide = 1, SurfConnect%nSurfaceOutputSides
     ! Mapping from nSurfaceOutputSides to nSides
     SideID = SurfOutputSideToUniqueSide(iSurfOutputSide)
-#if !(PP_TimeDiscMethod==700)
+#if !defined(discrete_velocity)
     Nloc   = MAX(DG_Elems_master(SideID),DG_Elems_slave(SideID))
 #else
     Nloc = PP_N
-#endif /*!(PP_TimeDiscMethod==700)*/
+#endif /*!defined(discrete_velocity)*/
     CALL ChangeBasis2D(3, Nloc, nSurfSample, N_Inter_Visu(Nloc)%Vdm_N_NVisu, &
         N_SurfMesh(SideID)%Face_xGP(1:3 , 0:Nloc        , 0:Nloc)       , &
                     NodeCoords_visu(1:3 , 0:nSurfSample , 0:nSurfSample , 0 , iSurfOutputSide))
