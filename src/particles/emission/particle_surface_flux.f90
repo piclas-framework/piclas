@@ -1413,6 +1413,7 @@ CASE('constant')
   END IF
   iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    iPart = iPart + 1
     PositionNbr = GetNextFreePosition(i)
     ! In case of side-normal velocities: calc n-vector at particle position, xi was saved in PartState(4:5)
     IF (SF%VeloIsNormal .AND. TriaSurfaceFlux) THEN
@@ -1462,7 +1463,9 @@ CASE('maxwell','maxwell_lpn')
     END IF !choose envelope based on flow direction
   END IF !low speed / high speed / rayleigh flow
 
+  iPart = 0
   DO i = NbrOfParticle-PartIns+1,NbrOfParticle
+    iPart = iPart + 1
     PositionNbr = GetNextFreePosition(i)
     !-- 0a.: In case of side-normal velocities: calc n-/t-vectors at particle position, xi was saved in PartState(4:5)
     IF (SF%VeloIsNormal .AND. TriaSurfaceFlux) THEN
