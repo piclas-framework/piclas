@@ -1322,6 +1322,8 @@ END SUBROUTINE InitCalcElectronSEE
 
 !===================================================================================================================================
 !> Allocate the required arrays (mappings and containers) for Surface Group Definition
+!> TODO: Currently, every processor loops over all nComputeNodeSurfTotalSides, work load could be distributed and communicated to
+!>       the node leader for communication to the root.
 !===================================================================================================================================
 SUBROUTINE InitSurfaceGroupOutput()
 ! MODULES
@@ -1436,53 +1438,49 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
         'ERROR in group definition: A surface is defined in more than one group. Overlapping group definitions are not allowed.')
         ! Mapping SurfSideID to GroupID
         SurfaceGroup%SurfSide2GroupID(iSide) = iGroup
-#if USE_MPI
-        IF(iSide.LE.nComputeNodeSurfSides) THEN ! exclude Halo cells in area calculation
-#endif /*USE_MPI*/
-        DO q = 1,nSurfSample
-          DO p = 1,nSurfSample
-            ! Calculating the area per group
-            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
-          END DO ! q=1,nSurfSample
-        END DO ! p=1,nSurfSample
-#if USE_MPI
-        END IF
-#endif /*USE_MPI*/
+        ! Assigning symmetry factor based on rotational periodic BC
         BoundLoop: DO iPartBound = 1, nPartBound
-          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
+          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE BoundLoop
           IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
-            ! Assigning symetry factor based on rotational periodic BC
             SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / ABS(PartBound%RotPeriodicAngle(iPartBound))
           END IF
         END DO BoundLoop
+        ! Calculating the area per group
+        IF(iSide.GT.nComputeNodeSurfSides) CYCLE SideLoop3 ! exclude Halo cells in area calculation
+        DO q = 1,nSurfSample
+          DO p = 1,nSurfSample
+            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
+          END DO ! q=1,nSurfSample
+        END DO ! p=1,nSurfSample
       END IF
     END IF
   END DO SideLoop3 ! iSide = firstSide, lastSide
 END DO GroupLoop
 
 #if USE_MPI
-  ! Area calculation must be completed via comunication between node leader and MPIRoot in case of multi node simulation
-  ! finally MPIRoot need the area information of all groups
-  IF(myComputeNodeRank.EQ.0) THEN
-  ! surf leaders communicate group surface area
-    ALLOCATE(SendBuff(SurfaceGroup%nGroups))
-    SendBuff = 0.0
-    counter = 0
-    DO iGroup = 1, SurfaceGroup%nGroups
-      counter = counter + 1
-      SendBuff(counter) = SurfaceGroup%Area(iGroup)
-    END DO
-    IF(MPIRoot)THEN
-      CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
-    ELSE
-      CALL MPI_REDUCE(SendBuff,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
-    END IF
-    counter = 0
-    DO iGroup = 1, SurfaceGroup%nGroups
-      counter = counter + 1
-      SurfaceGroup%Area(iGroup) = SendBuff(counter)
-    END DO
+! Area calculation must be completed via comunication between node leaders and MPIRoot in case of multi node simulation
+! finally MPIRoot needs the area information of all groups, using node leaders since root might not be included in MPI_COMM_LEADERS_SURF
+IF(myComputeNodeRank.EQ.0) THEN
+  ALLOCATE(SendBuff(SurfaceGroup%nGroups))
+  SendBuff = 0.0
+  counter = 0
+  DO iGroup = 1, SurfaceGroup%nGroups
+    counter = counter + 1
+    SendBuff(counter) = SurfaceGroup%Area(iGroup)
+  END DO
+  ! Node leaders communicate group surface area to the root
+  IF(MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
+  ELSE
+    CALL MPI_REDUCE(SendBuff,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
   END IF
+  counter = 0
+  DO iGroup = 1, SurfaceGroup%nGroups
+    counter = counter + 1
+    SurfaceGroup%Area(iGroup) = SendBuff(counter)
+  END DO
+  DEALLOCATE(SendBuff)
+END IF
 #endif /*USE_MPI*/
 
 DEALLOCATE(MinBound)
@@ -1534,6 +1532,7 @@ IF(CalcCurrentSEE)THEN
   SDEALLOCATE(SEE%BCIDToSEEBCID)
 END IF ! CalcCurrentSEE
 
+! Group-based surface output
 IF(CalcSurfOutputPerGroup) THEN
   SDEALLOCATE(GroupOutput)
   SDEALLOCATE(SurfaceGroup%SymmetryFactor)
