@@ -157,16 +157,13 @@ that either a communicator exists and/or every (other) processor has been set to
 
 ### Available communicators
 
-| Handle                  | Description                                   | Derived from            |
-| ----------------------- | --------------------------------------------- | ----------------------- |
-| MPI_COMM_WORLD          | Default global communicator                   | -                       |
-| MPI_COMM_PICLAS         | Duplicate of MPI_COMM_WORLD                   | MPI_COMM_PICLAS         |
-| MPI_COMM_NODE           | Processors on a node                          | MPI_COMM_PICLAS         |
-| MPI_COMM_LEADERS        | Group of node leaders                         | MPI_COMM_PICLAS         |
-| MPI_COMM_WORKERS        | All remaining processors, who are not leaders | MPI_COMM_PICLAS         |
-| MPI_COMM_SHARED         | Processors on a node                          | MPI_COMM_PICLAS         |
-| MPI_COMM_LEADERS_SHARED | Group of node leaders (myComputeNodeRank = 0) | MPI_COMM_PICLAS         |
-| MPI_COMM_LEADERS_SURF   | Node leaders with surface sides               | MPI_COMM_LEADERS_SHARED |
+| Handle                  | Description                                                                                   | Derived from            |
+| ----------------------- | --------------------------------------------------------------------------------------------- | ----------------------- |
+| MPI_COMM_WORLD          | Default global communicator                                                                   | -                       |
+| MPI_COMM_PICLAS         | Duplicate of MPI_COMM_WORLD                                                                   | MPI_COMM_PICLAS         |
+| MPI_COMM_SHARED         | Processors on a node                                                                          | MPI_COMM_PICLAS         |
+| MPI_COMM_LEADERS_SHARED | Group of node leaders (myComputeNodeRank = 0, and the root is a node leader as well)          | MPI_COMM_PICLAS         |
+| MPI_COMM_LEADERS_SURF   | Node leaders with surface sides (including halo sides) on a node (might not include the root) | MPI_COMM_LEADERS_SHARED |
 
 #### Feature-specific
 
@@ -179,3 +176,13 @@ that either a communicator exists and/or every (other) processor has been set to
 | FPC%COMM(iUniqueFPCBC)%UNICATOR     | Floating potential (per BC)                                            | MPI_COMM_PICLAS |
 | EPC%COMM(iUniqueEPCBC)%UNICATOR     | Electric potential (per BC)                                            | MPI_COMM_PICLAS |
 | BiasVoltage%COMM%UNICATOR           | Bias voltage                                                           | MPI_COMM_PICLAS |
+
+#### Flexi-specific
+
+Following communicators are from flexi and not utilized except in `GatheredWriteArray` (`hdf5_output.f90`):
+
+| Handle           | Description                                                                              | Derived from    |
+| ---------------- | ---------------------------------------------------------------------------------------- | --------------- |
+| MPI_COMM_NODE    | Processors on a node (identical to MPI_COMM_SHARED in PICLas, but not in flexi)          | MPI_COMM_PICLAS |
+| MPI_COMM_LEADERS | Group of node leaders (identical to MPI_COMM_LEADERS_SHARED in PICLas, but not in flexi) | MPI_COMM_PICLAS |
+| MPI_COMM_WORKERS | All remaining processors, who are not leaders                                            | MPI_COMM_PICLAS |

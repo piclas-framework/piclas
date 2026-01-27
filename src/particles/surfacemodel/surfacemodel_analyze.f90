@@ -778,27 +778,28 @@ REAL               :: TimeSample, TimeSampleTemp
 ALLOCATE(SendBuff(6*SurfaceGroup%nGroups))
 SendBuff = 0.0
 counter = 0
+! All: Build up Send buffer with sampled group information
 DO iGroup = 1, SurfaceGroup%nGroups
   counter = counter + 1
-  SendBuff(counter) = SurfaceGroup%SampState(1,iGroup)
+  SendBuff(counter) = SurfaceGroup%SampState(1,iGroup) ! torque M_x
   counter = counter + 1
-  SendBuff(counter) = SurfaceGroup%SampState(2,iGroup)
+  SendBuff(counter) = SurfaceGroup%SampState(2,iGroup) ! torque M_y
   counter = counter + 1
-  SendBuff(counter) = SurfaceGroup%SampState(3,iGroup)
+  SendBuff(counter) = SurfaceGroup%SampState(3,iGroup) ! torque M_z
   counter = counter + 1
-  SendBuff(counter) = SurfaceGroup%SampState(4,iGroup)
+  SendBuff(counter) = SurfaceGroup%SampState(4,iGroup) ! heat flux
   counter = counter + 1
-  SendBuff(counter) = SurfaceGroup%VarTimeStep(iGroup)
+  SendBuff(counter) = SurfaceGroup%VarTimeStep(iGroup) ! needed for UseVarTimeStep or VarTimeStep%UseSpeciesSpecific
   counter = counter + 1
   SendBuff(counter) = REAL(SurfaceGroup%Counter(iGroup))
 END DO
-
+! All: Sum up and send sampled group information to MPIRoot
 IF(MPIRoot)THEN
   CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
 ELSE
   CALL MPI_REDUCE(SendBuff,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
 END IF
-
+! MPIRoot: Save group information
 counter = 0
 DO iGroup = 1, SurfaceGroup%nGroups
   counter = counter + 1
@@ -815,21 +816,25 @@ DO iGroup = 1, SurfaceGroup%nGroups
   SurfaceGroup%Counter(iGroup) = INT(SendBuff(counter))
 END DO
 #endif /*USE_MPI*/
-
-TimeSample = dt * SurfaceAnalyzeStep
-DO iGroup = 1, SurfaceGroup%nGroups
-  IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
-    TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
-  ELSE
-    TimeSampleTemp = TimeSample
-  END IF
-  SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSampleTemp
-  SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSampleTemp
-  SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
-  SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
-END DO
-
 IF(MPIRoot)THEN
+  TimeSample = dt * SurfaceAnalyzeStep
+  DO iGroup = 1, SurfaceGroup%nGroups
+    IF(SurfaceGroup%Counter(iGroup).GT.0) THEN
+      IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
+        TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
+      ELSE
+        TimeSampleTemp = TimeSample
+      END IF
+      ! MPIRoot: Perform the time-averaged calculation of the group information
+      SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSampleTemp
+      SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSampleTemp
+      SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
+      SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
+    ELSE
+      SurfaceGroup%SampState = 0.0
+    END IF
+  END DO
+  ! MPIRoot: Saving the group information to the output array
   DO iGroup = 1, SurfaceGroup%nGroups
     GroupOutput(1,iGroup) = SurfaceGroup%SampState(1,iGroup)
     GroupOutput(2,iGroup) = SurfaceGroup%SampState(2,iGroup)
@@ -837,7 +842,7 @@ IF(MPIRoot)THEN
     GroupOutput(4,iGroup) = SurfaceGroup%SampState(4,iGroup)
   END DO
 END IF
-! reset samp array
+! All: Reset samp array
 SurfaceGroup%SampState = 0.0
 SurfaceGroup%VarTimeStep = 0.0
 SurfaceGroup%Counter = 0
@@ -1317,6 +1322,8 @@ END SUBROUTINE InitCalcElectronSEE
 
 !===================================================================================================================================
 !> Allocate the required arrays (mappings and containers) for Surface Group Definition
+!> TODO: Currently, every processor loops over all nComputeNodeSurfTotalSides, work load could be distributed and communicated to
+!>       the node leader for communication to the root.
 !===================================================================================================================================
 SUBROUTINE InitSurfaceGroupOutput()
 ! MODULES
@@ -1327,7 +1334,7 @@ USE MOD_ReadInTools               ,ONLY: GETINT
 USE MOD_SurfaceModel_Analyze_Vars
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound, nSurfSample, SurfSideArea
 #if USE_MPI
-USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, nComputeNodeSurfSides
 #else
 USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalSurfSides
 #endif /*USE_MPI*/
@@ -1335,6 +1342,10 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars        ,ONLY: ElemSideNodeID_Shared, ElemMidPoint_Shared
+USE MOD_MPI_Shared_Vars           ,ONLY: myComputeNodeRank
+#if USE_MPI
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SHARED
+#endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1347,6 +1358,8 @@ INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
 INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
 INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
 INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
+INTEGER             :: counter
+REAL,ALLOCATABLE    :: SendBuff(:)
 !===================================================================================================================================
 ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
 GroupOutput = 0.0
@@ -1374,7 +1387,7 @@ SurfaceGroup%Area = 0.0
 ALLOCATE(SurfaceGroup%VarTimeStep(SurfaceGroup%nGroups))
 SurfaceGroup%VarTimeStep = 0.0
 ALLOCATE(SurfaceGroup%Counter(SurfaceGroup%nGroups))
-SurfaceGroup%Counter = 0.0
+SurfaceGroup%Counter = 0
 RotAxisDir = PartBound%RotPeriodicAxis
 ! Loop over surface groups and read-in boundary and interplane IDs
 GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
@@ -1386,7 +1399,7 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
   SideLoop1: DO iSide = firstSide, lastSide
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
     MinBoundPos = 0.0
-    IF(MinBound(iGroup).EQ.-1) THEN
+    IF(MinBound(iGroup).EQ.-1) THEN ! User can select -1 as MinInterplaneID to choose the minimum computational area
       MinBoundPos = -HUGE(1.)
       EXIT SideLoop1
     ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MinBound(iGroup)) THEN
@@ -1400,7 +1413,7 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
   SideLoop2: DO iSide = firstSide, lastSide
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
     MaxBoundPos = 0.0
-    IF(MaxBound(iGroup).EQ.-1) THEN
+    IF(MaxBound(iGroup).EQ.-1) THEN ! User can select -1 as MaxInterplaneID to choose the maximum computational area
       MaxBoundPos = HUGE(1.)
       EXIT SideLoop2
     ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MaxBound(iGroup)) THEN
@@ -1411,7 +1424,7 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
       EXIT SideLoop2
     END IF
   END DO SideLoop2
-  ! Calculating the number of sides per group and build up mapping
+  ! Third loop: Calculating the area per group, build up mapping SurfSideID to GroupID and assign symetry factor
   SideLoop3: DO iSide = firstSide, lastSide
     SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
     IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.GroupIDToBCID(iGroup)) THEN
@@ -1423,22 +1436,53 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
       IF((ElemMidPointPos.GT.MinBoundPos).AND.(ElemMidPointPos.LT.MaxBoundPos)) THEN
         IF (SurfaceGroup%SurfSide2GroupID(iSide).NE.0) CALL abort(__STAMP__, &
         'ERROR in group definition: A surface is defined in more than one group. Overlapping group definitions are not allowed.')
+        ! Mapping SurfSideID to GroupID
         SurfaceGroup%SurfSide2GroupID(iSide) = iGroup
+        ! Assigning symmetry factor based on rotational periodic BC
+        BoundLoop: DO iPartBound = 1, nPartBound
+          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE BoundLoop
+          IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
+            SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / ABS(PartBound%RotPeriodicAngle(iPartBound))
+          END IF
+        END DO BoundLoop
+        ! Calculating the area per group
+        IF(iSide.GT.nComputeNodeSurfSides) CYCLE SideLoop3 ! exclude Halo cells in area calculation
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
             SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
           END DO ! q=1,nSurfSample
         END DO ! p=1,nSurfSample
-        BoundLoop: DO iPartBound = 1, nPartBound
-          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE
-          IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
-            SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / ABS(PartBound%RotPeriodicAngle(iPartBound))
-          END IF
-        END DO BoundLoop
       END IF
     END IF
   END DO SideLoop3 ! iSide = firstSide, lastSide
 END DO GroupLoop
+
+#if USE_MPI
+! Area calculation must be completed via comunication between node leaders and MPIRoot in case of multi node simulation
+! finally MPIRoot needs the area information of all groups, using node leaders since root might not be included in MPI_COMM_LEADERS_SURF
+IF(myComputeNodeRank.EQ.0) THEN
+  ALLOCATE(SendBuff(SurfaceGroup%nGroups))
+  SendBuff = 0.0
+  counter = 0
+  DO iGroup = 1, SurfaceGroup%nGroups
+    counter = counter + 1
+    SendBuff(counter) = SurfaceGroup%Area(iGroup)
+  END DO
+  ! Node leaders communicate group surface area to the root
+  IF(MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
+  ELSE
+    CALL MPI_REDUCE(SendBuff,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
+  END IF
+  counter = 0
+  DO iGroup = 1, SurfaceGroup%nGroups
+    counter = counter + 1
+    SurfaceGroup%Area(iGroup) = SendBuff(counter)
+  END DO
+  DEALLOCATE(SendBuff)
+END IF
+#endif /*USE_MPI*/
+
 DEALLOCATE(MinBound)
 DEALLOCATE(MaxBound)
 DEALLOCATE(GroupIDToBCID)
@@ -1488,6 +1532,7 @@ IF(CalcCurrentSEE)THEN
   SDEALLOCATE(SEE%BCIDToSEEBCID)
 END IF ! CalcCurrentSEE
 
+! Group-based surface output
 IF(CalcSurfOutputPerGroup) THEN
   SDEALLOCATE(GroupOutput)
   SDEALLOCATE(SurfaceGroup%SymmetryFactor)
