@@ -1342,8 +1342,8 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
 USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, NodeCoords_Shared
 USE MOD_Particle_Mesh_Vars        ,ONLY: ElemSideNodeID_Shared, ElemMidPoint_Shared
-USE MOD_MPI_Shared_Vars           ,ONLY: myComputeNodeRank
 #if USE_MPI
+USE MOD_MPI_Shared_Vars           ,ONLY: myComputeNodeRank
 USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SHARED
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
@@ -1446,7 +1446,9 @@ GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
           END IF
         END DO BoundLoop
         ! Calculating the area per group
+#if USE_MPI
         IF(iSide.GT.nComputeNodeSurfSides) CYCLE SideLoop3 ! exclude Halo cells in area calculation
+#endif /*USE_MPI*/
         DO q = 1,nSurfSample
           DO p = 1,nSurfSample
             SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
