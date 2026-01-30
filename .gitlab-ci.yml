@@ -190,7 +190,8 @@ stages:
   policy: pull
 
 .coverage_cache: &coverage_cache
-  key: "${CI_COMMIT_REF_SLUG}-coverage"
+  # use CI_PIPELINE_ID to create a separate cache per pipeline to ensure that no old reports are still used
+  key: "${CI_PIPELINE_ID}-coverage"
   paths: [Coverage]
   policy: pull-push
 
