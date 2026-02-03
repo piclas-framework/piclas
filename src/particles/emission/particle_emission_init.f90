@@ -422,12 +422,16 @@ END IF ! nSpecies.GT.0
 IF (useDSMC) THEN
   IF (BGGas%NumberOfSpecies.GT.0) THEN
     CALL BGGas_Initialize()
+  ELSEIF(BGGas%UseDistribution.OR.(BGGas%nRegions.GT.0)) THEN
+    LBWRITE(*,*) '| WARNING: No background species has been defined (e.g. Part-SpeciesX-Init1-SpaceIC = background).'
+    LBWRITE(*,*) '|          Disabling Particles-BGGas-nRegions > 0 or Particles-BGGas-UseDistribution = TRUE.'
+    BGGas%UseDistribution = .FALSE.
+    SDEALLOCATE(BGGas%DistributionSpeciesIndex)
+    BGGas%UseRegions = .FALSE.
+    BGGas%nRegions = 0.
   ELSE
-    IF(BGGas%UseDistribution) THEN
-      DEALLOCATE(BGGas%DistributionSpeciesIndex)
-    ELSE
-      DEALLOCATE(BGGas%NumberDensity)
-    END IF
+    SDEALLOCATE(BGGas%DistributionSpeciesIndex)
+    SDEALLOCATE(BGGas%NumberDensity)
   END IF ! BGGas%NumberOfSpecies.GT.0
 ELSE
   IF((BGGas%NumberOfSpecies.GT.0).OR.BGGas%UseDistribution) CALL CollectiveStop(__STAMP__,'BGG requires UseDSMC=T')
