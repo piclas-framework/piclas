@@ -123,7 +123,7 @@ if [ ! -e "${MODULEFILE}" ]; then
     read -p "[Step 2 of 2: Remove build directory/source files] Are you sure that you want to delete ${BUILDDIR} ?"
     if [ -n ${BUILDDIR} ]; then
       if [ -d ${BUILDDIR} ]; then
-        # Delte the linaro directory
+        # Delete the linaro directory
         rm -r ${BUILDDIR}
 
         # Extract tar.gz file
