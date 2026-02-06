@@ -319,6 +319,7 @@ if [ ! -d "${MODULESHOME}" ]; then
     mkdir -p ${INSTALLDIRMODULESFILES}/paraview
     mkdir -p ${INSTALLDIRMODULESFILES}/MPI
     mkdir -p ${INSTALLDIRMODULESFILES}/libraries
+    mkdir -p ${INSTALLDIRMODULESFILES}/openblas
 
     source /etc/profile
 
@@ -357,6 +358,7 @@ else
     echo "/opt/modules/modulefiles/paraview" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/MPI" >> ${MODULESPATH}
     echo "/opt/modules/modulefiles/libraries" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/openblas" >> ${MODULESPATH}
 
     mkdir -p ${INSTALLDIRMODULESFILES}
     mkdir -p ${INSTALLDIRMODULESFILES}/compilers
@@ -366,6 +368,7 @@ else
     mkdir -p ${INSTALLDIRMODULESFILES}/paraview
     mkdir -p ${INSTALLDIRMODULESFILES}/MPI
     mkdir -p ${INSTALLDIRMODULESFILES}/libraries
+    mkdir -p ${INSTALLDIRMODULESFILES}/openblas
   fi
 fi
 
