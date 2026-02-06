@@ -133,20 +133,9 @@ if [ ! -d "${MODULESHOME}" ]; then
       exit
     fi
 
-#    # Create build directory
-#    if [ ! -d ${BUILDDIR} ]; then
-#      mkdir -p ${BUILDDIR}
-#    fi
-#
-#    # Remove SOURCE cmake-X.Y.Z/build/* directory during re-run
-#    if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-#      #DELETE=$(echo ${BUILDDIR}/*)
-#      #read -p "Delete ${DELETE} ?"
-#      rm -rf ${BUILDDIR}/*
-#    fi
-
     # Change to build directory
-    cd ${BUILDDIR}
+    echo " cd ${BUILDDIR} || exit (exit is in case the cd fails)"
+    cd ${BUILDDIR} || exit
 
     # Configure setup
     #
@@ -188,7 +177,7 @@ if [ ! -d "${MODULESHOME}" ]; then
     #       S.C.: /op/modules/modulefiles
     #
 
-    PATHLIST=/opt/modules/modulefiles/compilers:/opt/modules/modulefiles/petsc:/opt/modules/modulefiles/cmake:/opt/modules/modulefiles/hopr:/opt/modules/modulefiles/paraview:/opt/modules/modulefiles/utilities:/opt/modules/modulefiles/MPI:/opt/modules/modulefiles/libraries
+    PATHLIST=/opt/modules/modulefiles/compilers:/opt/modules/modulefiles/petsc:/opt/modules/modulefiles/cmake:/opt/modules/modulefiles/hopr:/opt/modules/modulefiles/paraview:/opt/modules/modulefiles/utilities:/opt/modules/modulefiles/MPI:/opt/modules/modulefiles/libraries:/opt/modules/modulefiles/openblas
     #PATHLIST=/opt/modules/modulefiles/compilersX
 
     # Check if TCL version is greater/equal 8.5
@@ -203,32 +192,7 @@ if [ ! -d "${MODULESHOME}" ]; then
       export CPPFLAGS="-DUSE_INTERP_ERRORLINE"
     fi
 
-    #./configure --prefix=${INSTALLPREFIX} --modulefilesdir=${INSTALLDIRMODULESFILES} --enable-modulespath
-    #./configure --prefix=${INSTALLPREFIX} --modulefilesdir=${INSTALLDIRMODULESFILES} --with-modulepath=${PATHLIST} --enable-modulespath
-    #./configure --prefix=${INSTALLPREFIX} --modulefilesdir=${INSTALLDIRMODULESFILES} --with-modulepath=${PATHLIST}
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST}
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST} --enable-modulespath
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST} --enable-modulespath --with-initconf-in=initdir
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST} --with-initconf-in=etcdir
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST} --with-initconf-in=initdir --enable-modulespath
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST} --enable-modulespath
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST} --with-initconf-in=initdir --enable-modulespath
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST} --with-initconf-in=initdir
-    #./configure --prefix=${INSTALLPREFIX} --enable-modulespath --with-modulepath=${PATHLIST} --with-initconf-in=initdir
-
-    #./configure --prefix=${INSTALLPREFIX} --with-modulepath=${PATHLIST}
-    # 5.0.0 creates initrc in etc/ without paths
-    # 4.6.1 creates modulerc in init/ with paths
-
-    #./configure --prefix=${INSTALLPREFIX} --enable-modulespath --with-modulepath=${PATHLIST}
-    # 5.0.0 creates modulespath   initrc (paths are in initrc) in etc/
-    # 4.6.1 creates .modulespath   modulerc (paths are in .modulespath and modulerc) in init/
-
     ./configure --prefix=${INSTALLPREFIX} --enable-modulespath --with-modulepath=${PATHLIST} --with-initconf-in=initdir
-    # 5.0.1 creates .modulespath   modulerc (paths are in .modulespath) in init/
-    # 5.0.0 creates .modulespath   modulerc (paths are in .modulespath) in init/
-    # 4.6.1 creates .modulespath   modulerc (paths are in .modulespath) in init/
-
 
     # Check if configuration failed
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
@@ -264,7 +228,6 @@ if [ ! -d "${MODULESHOME}" ]; then
     echo ""
     # -----------------          other shells         -----------------
 
-
     # ----------------- THIS CHANGES /etc/profile -----------------
     # Copy initialization to /etc/profile
     #   /etc/profile: system-wide .profile file for the Bourne shell (sh(1))
@@ -291,26 +254,6 @@ if [ ! -d "${MODULESHOME}" ]; then
     fi
     # ----------------- THIS CHANGES /etc/bash.bashrc -----------------
 
-#    # Remove pre-installed modulefiles directory (also automatically installed stuff)
-#    # if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -d ${INSTALLDIRMODULESFILES} ]]; then
-#    #   rm -rf ${INSTALLDIRMODULESFILES}
-#    #   read -p "Delete ${INSTALLDIRMODULESFILES}?"
-#    # fi
-#    # Change modulefiles path in init -> ${MODULESPATH}
-#    if [ -f ${MODULESPATH} ]; then
-#      # Comment every line in .modulespath
-#      echo "${MODULESPATH} exists. Commenting out all lines in this file."
-#      sed -i 's/^/\# /' ${MODULESPATH}
-#    else
-#      echo "${MODULESPATH} does not exist. Creating empty file for ${MODULESPATH}"
-#      touch ${MODULESPATH}
-#    fi
-#    # add:
-#    echo "/opt/modules/modulefiles/compilers" >> ${MODULESPATH}
-#    echo "/opt/modules/modulefiles/utilities" >> ${MODULESPATH}
-#    echo "/opt/modules/modulefiles/MPI" >> ${MODULESPATH}
-#    echo "/opt/modules/modulefiles/libraries" >> ${MODULESPATH}
-#
     mkdir -p ${INSTALLDIRMODULESFILES}
     mkdir -p ${INSTALLDIRMODULESFILES}/compilers
     mkdir -p ${INSTALLDIRMODULESFILES}/utilities
@@ -349,16 +292,16 @@ else
   # Check if any line contains "/opt/modules/modulefiles/" in ${MODULESPATH}
   if [ ! -z "$(grep "${INSTALLDIR}/modules/modulefiles/" ${MODULESPATH})" ]; then
     # Comment every line in .modulespath
-    sed -i 's/^/\# /' ${MODULESPATH}
+    sed -i 's/^/\# /' "${MODULESPATH}"
     # add:
-    echo "/opt/modules/modulefiles/compilers" >> ${MODULESPATH}
-    echo "/opt/modules/modulefiles/utilities" >> ${MODULESPATH}
-    echo "/opt/modules/modulefiles/petsc" >> ${MODULESPATH}
-    echo "/opt/modules/modulefiles/hopr" >> ${MODULESPATH}
-    echo "/opt/modules/modulefiles/paraview" >> ${MODULESPATH}
-    echo "/opt/modules/modulefiles/MPI" >> ${MODULESPATH}
-    echo "/opt/modules/modulefiles/libraries" >> ${MODULESPATH}
-    echo "/opt/modules/modulefiles/openblas" >> ${MODULESPATH}
+    echo "/opt/modules/modulefiles/compilers" >> "${MODULESPATH}"
+    echo "/opt/modules/modulefiles/utilities" >> "${MODULESPATH}"
+    echo "/opt/modules/modulefiles/petsc" >> "${MODULESPATH}"
+    echo "/opt/modules/modulefiles/hopr" >> "${MODULESPATH}"
+    echo "/opt/modules/modulefiles/paraview" >> "${MODULESPATH}"
+    echo "/opt/modules/modulefiles/MPI" >> "${MODULESPATH}"
+    echo "/opt/modules/modulefiles/libraries" >> "${MODULESPATH}"
+    echo "/opt/modules/modulefiles/openblas" >> "${MODULESPATH}"
 
     mkdir -p ${INSTALLDIRMODULESFILES}
     mkdir -p ${INSTALLDIRMODULESFILES}/compilers
@@ -373,8 +316,8 @@ else
 fi
 
 # Check if MODULESHOME is empty and INSTALLPREFIX is a directory
-echo "MODULESHOME  :"${MODULESHOME}
-echo "INSTALLPREFIX:"${INSTALLPREFIX}
+echo "MODULESHOME  : ${MODULESHOME}"
+echo "INSTALLPREFIX: ${INSTALLPREFIX}"
 if [ -z "${MODULESHOME}" ] && [ -d ${INSTALLPREFIX} ]; then
   echo "${GREEN}Modules installed. System restart might be required.${NC}"
 fi
