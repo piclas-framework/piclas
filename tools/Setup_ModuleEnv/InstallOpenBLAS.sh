@@ -100,7 +100,7 @@ do
     LOADMODULES=0
     # Set desired versions
     GCCVERSION=14.2.0
-    # GCCVERSION=15.2.0
+    GCCVERSION=15.2.0
 
   fi
 
@@ -204,7 +204,7 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
     while true; do
       echo " "
       echo "${YELLOW}${CLONEDIR} already exists.${NC}"
-      echo "${YELLOW}Do you want to continue the installation? Otherwise the directory will be removed and a fresh installation will be performed.${NC}"
+      echo "${YELLOW}Do you want to continue the installation? Otherwise the whole directory [${CLONEDIR}] will be removed and a fresh installation will be performed.${NC}"
       # Inquiry
       if [[ ${RERUNMODE} -eq 0 ]]; then
         read -p "${YELLOW}Continue the installation without removing? [Y/n]${NC}" yn
@@ -237,7 +237,7 @@ if [[ ! -e "${MODULEFILE}" || ${UPDATEMODE} -eq 1 ]]; then
     echo -e "$RED""Failed to download [git clone ${OPENBLASDOWNLOAD}] or update [git checkout ${OPENBLASVERSION}]$NC"
     exit
   else
-    OPENBLASBUILDDIR=${CLONEDIR}/build
+    OPENBLASBUILDDIR=${CLONEDIR}/build-gcc-${GCCVERSION}
     rm -rf ${OPENBLASBUILDDIR}
     mkdir -p ${OPENBLASBUILDDIR}
     cd ${OPENBLASBUILDDIR}
