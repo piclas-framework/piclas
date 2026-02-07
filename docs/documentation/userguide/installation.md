@@ -18,7 +18,7 @@ libraries listed in the table work automatically
 
 | PICLas Version |                              MPI                              | glibc |
 | :------------: | :-----------------------------------------------------------: | :---: |
-| 3.6.0 - 4.0.0  | [openmpi-4.1.6](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
+| 3.6.0 - 4.1.0  | [openmpi-4.1.6](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
 | 3.3.0 - 3.5.0  | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
 |     <3.3.0     | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.17  |
 
@@ -29,7 +29,7 @@ on the system where the AppImage is going to be executed
 
 | PICLas Version |                                 GNU GCC                                  |                                          HDF5                                          |                         PETSc                          |
 | :------------: | :----------------------------------------------------------------------: | :------------------------------------------------------------------------------------: | :----------------------------------------------------: |
-| 3.6.0 - 4.0.0  | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.21.6](https://petsc.org/release/changes/321/) |
+| 3.6.0 - 4.1.0  | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.21.6](https://petsc.org/release/changes/321/) |
 |    <=3.5.0     | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.18.4](https://petsc.org/release/changes/318/) |
 
 Other operating systems, such as Windows or MacOS might be supported in the future.
