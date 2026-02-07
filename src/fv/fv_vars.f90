@@ -23,15 +23,16 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! FV solution
-REAL,ALLOCATABLE,TARGET               :: U_FV(:,:,:,:,:)
+REAL,ALLOCATABLE,TARGET               :: U_FV(:,:)
 ! FV time derivative
-REAL,ALLOCATABLE                      :: Ut_FV(:,:,:,:,:)
+REAL,ALLOCATABLE                      :: Ut_FV(:,:)
 
 ! interior face values for all elements
-REAL,ALLOCATABLE                      :: U_master_FV(:,:,:,:),U_slave_FV(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Master_FV(:,:,:,:)
-REAL,ALLOCATABLE                      :: Flux_Slave_FV(:,:,:,:)
+REAL,ALLOCATABLE                      :: U_master_FV(:,:),U_slave_FV(:,:)
+REAL,ALLOCATABLE                      :: Flux_Master_FV(:,:)
+REAL,ALLOCATABLE                      :: Flux_Slave_FV(:,:)
 
+LOGICAL                               :: doFVReconstruct=.TRUE.
 LOGICAL                               :: FVInitIsDone=.FALSE.
 !===================================================================================================================================
 END MODULE MOD_FV_Vars

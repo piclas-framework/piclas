@@ -1,0 +1,25 @@
+#%Module1.0#####################################################################
+##
+## modules openblas/openblasversion
+##
+## modulefiles/openblas/openblas/openblasversion
+##
+proc ModulesHelp { } {
+        global version modroot
+
+        puts stderr "openblas-openblasversion - sets the Environment for OpenBLAS-openblasversion"
+}
+
+module-whatis   "Sets the environment for using OpenBLAS-openblasversion"
+
+conflict openblas
+
+prereq gcc/GCCVERSIONFLAG
+
+# for Tcl script use only
+set     topdir          OPENBLASTOPDIR
+set     version         openblasversion
+set     sys             linux64
+
+prepend-path    PATH            $topdir/bin
+prepend-path    LD_LIBRARY_PATH $topdir/lib

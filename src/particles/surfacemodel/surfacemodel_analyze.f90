@@ -40,21 +40,27 @@ IMPLICIT NONE
 !==================================================================================================================================
 CALL prms%SetSection("Surface Analyze")
 
-CALL prms%CreateIntOption(      'Surface-AnalyzeStep'   , 'Analyze is performed each Nth time step for surfaces','1')
-CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'  , 'Analyze the number of surface collision and number of '//&
-                                                          'adsorbed/desorbed particles per species','.FALSE.')
-CALL prms%CreateLogicalOption(  'Surf-CalcPorousBCInfo' , 'Calculate output of porous BCs such pumping speed, removal '//&
-                                                          'probability and pressure. Values are averaged over the whole porous BC.'//&
-                                                          'Disabled per default, but automatically enabled if a sensor is detected.')
+CALL prms%CreateIntOption(      'Surface-AnalyzeStep'       , 'Analyze is performed each Nth time step for surfaces','1')
+CALL prms%CreateLogicalOption(  'Surf-CalcCollCounter'      , 'Analyze the number of surface collision and number of '//&
+                                                              'adsorbed/desorbed particles per species','.FALSE.')
+CALL prms%CreateLogicalOption(  'Surf-CalcPorousBCInfo'     , 'Calculate output of porous BCs such pumping speed, removal '//&
+                                                              'probability and pressure. Values are averaged over the whole porous BC.'//&
+                                                              'Disabled per default, but automatically enabled if a sensor is detected.')
 !-- BoundaryParticleOutput
 CALL prms%CreateLogicalOption(  'CalcBoundaryParticleOutput', 'Count number of particles exiting for species X on boundary X' , '.FALSE.')
 CALL prms%CreateIntOption(      'BPO-NPartBoundaries'       , 'Number of boundaries used for CalcBoundaryParticleOutput')
 CALL prms%CreateIntArrayOption( 'BPO-PartBoundaries'        , 'Vector (length BPO-NPartBoundaries) with the numbers of each Part-Boundary', no=0)
 CALL prms%CreateIntOption(      'BPO-NSpecies'              , 'Number of species used for CalcBoundaryParticleOutput')
 CALL prms%CreateIntArrayOption( 'BPO-Species'               , 'Vector (length BPO-NSpecies) with the corresponding Species IDs', no=0)
+!-- SEE analysis
 CALL prms%CreateLogicalOption(  'CalcCurrentSEE'            , 'Count the electron emission from BCs where SEE is active','.FALSE.')
 CALL prms%CreateLogicalOption(  'CalcEnergyViolationSEE'    , 'Count the number and amount of energy conservation violations during SEE '//&
-                                                              ' using the Chung-Everhart distribution for multiple secondaries','.FALSE.')
+                                                              'using the Chung-Everhart distribution for multiple secondaries','.FALSE.')
+!-- Surface groups
+CALL prms%CreateIntOption( 'Surf-nGroups'                   , 'Number of surface groups', '0')
+CALL prms%CreateIntOption( 'Surf-Group[$]-BoundaryID'       , 'Linking Surface group to according boundary.', '0',numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'Surf-Group[$]-MinInterplaneID'  , 'Linking Surface group to according boundary.', '0',numberedmulti=.TRUE.)
+CALL prms%CreateIntOption( 'Surf-Group[$]-MaxInterplaneID'  , 'Linking Surface group to according boundary.', '0',numberedmulti=.TRUE.)
 
 END SUBROUTINE DefineParametersSurfModelAnalyze
 
@@ -65,6 +71,7 @@ END SUBROUTINE DefineParametersSurfModelAnalyze
 SUBROUTINE InitSurfModelAnalyze()
 ! MODULES
 USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: PI
 USE MOD_Preproc
 USE MOD_ReadInTools               ,ONLY: GETLOGICAL,GETINT,GETINTARRAY
 USE MOD_Particle_Vars             ,ONLY: nSpecies
@@ -83,7 +90,7 @@ IMPLICIT NONE
 ! LOCAL VARIABLES
 !===================================================================================================================================
 IF(SurfModelAnalyzeInitIsDone)THEN
-  CALL abort(__STAMP__,'InitParticleAnalyse already called.')
+  CALL abort(__STAMP__,'InitSurfModelAnalyze already called.')
   RETURN
 END IF
 LBWRITE(UNIT_StdOut,'(132("-"))')
@@ -109,7 +116,11 @@ IF(CalcSurfCollCounter)THEN
   ALLOCATE(SurfAnalyzeCount(1:nSpecies),SurfAnalyzeNumOfAds(1:nSpecies),SurfAnalyzeNumOfDes(1:nSpecies))
   SurfAnalyzeCount = 0; SurfAnalyzeNumOfAds = 0;  SurfAnalyzeNumOfDes = 0
 END IF
-
+!-- Surface Group output
+IF(CalcSurfOutputPerGroup) THEN
+  DoSurfModelAnalyze = .TRUE.
+  CALL InitSurfaceGroupOutput()
+END If
 !-- Porous Boundaries
 IF(nPorousBC.GT.0)THEN
   ! Output for porous BC: Pump averaged values
@@ -178,7 +189,7 @@ LOGICAL             :: isOpen
 CHARACTER(LEN=350)  :: outfile
 INTEGER             :: unit_index, OutputCounter
 INTEGER             :: SurfCollNum(nSpecies),AdsorptionNum(nSpecies),DesorptionNum(nSpecies)
-INTEGER             :: iBC,iPartBound,iSEE,iBPO,iSpec
+INTEGER             :: iBC,iPartBound,iSEE,iBPO,iSpec, iGroup
 REAL                :: charge,TotalElectricCharge
 #if USE_HDG
 INTEGER             :: iEDCBC,i,iBoundary,iPartBound2
@@ -224,6 +235,14 @@ IF(MPIRoot)THEN
           ELSE IF(PorousBC(iBC)%Type.EQ.'sensor') THEN
             CALL WriteDataHeaderInfo(unit_index,'Pressure-Sensor',OutputCounter,iLoop_in=iBC)
           END IF
+        END DO
+      END IF
+      IF(CalcSurfOutputPerGroup) THEN
+        DO iGroup = 1, SurfaceGroup%nGroups
+          CALL WriteDataHeaderInfo(unit_index,'Torque-Mx-Group',OutputCounter,iLoop_in=iGroup)
+          CALL WriteDataHeaderInfo(unit_index,'Torque-My-Group',OutputCounter,iLoop_in=iGroup)
+          CALL WriteDataHeaderInfo(unit_index,'Torque-Mz-Group',OutputCounter,iLoop_in=iGroup)
+          CALL WriteDataHeaderInfo(unit_index,'Heatflux-Group',OutputCounter,iLoop_in=iGroup)
         END DO
       END IF
       IF(CalcBoundaryParticleOutput)THEN
@@ -289,6 +308,7 @@ END IF
 !===================================================================================================================================
 IF (CalcSurfCollCounter)        CALL GetCollCounter(SurfCollNum,AdsorptionNum,DesorptionNum)
 IF (CalcPorousBCInfo)           CALL GetPorousBCInfo()
+IF(CalcSurfOutputPerGroup)      CALL GetGroupInfo()
 #if USE_MPI
 IF (CalcBoundaryParticleOutput) CALL SyncBoundaryParticleOutput()
 IF (CalcCurrentSEE)             CALL SyncElectronSEE()
@@ -313,6 +333,14 @@ IF(MPIRoot)THEN
         CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(4,iBC))
       END IF
       CALL WriteDataInfo(unit_index,RealScalar=PorousBCOutput(5,iBC))
+    END DO
+  END IF
+  IF(CalcSurfOutputPerGroup) THEN
+    DO iGroup = 1, SurfaceGroup%nGroups
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(1,iGroup))
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(2,iGroup))
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(3,iGroup))
+      CALL WriteDataInfo(unit_index,RealScalar=GroupOutput(4,iGroup))
     END DO
   END IF
   IF(CalcBoundaryParticleOutput)THEN
@@ -719,6 +747,107 @@ IF(MPIRoot)THEN
 END IF
 
 END SUBROUTINE GetPorousBCInfo
+
+
+!===================================================================================================================================
+!> Communicate group data across all ranks
+!===================================================================================================================================
+SUBROUTINE GetGroupInfo()
+! MODULES
+USE MOD_Globals
+  USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, VarTimeStep
+USE MOD_SurfaceModel_Analyze_Vars ,ONLY: GroupOutput, SurfaceGroup, SurfaceAnalyzeStep
+USE MOD_Timedisc_Vars             ,ONLY: dt
+#if USE_MPI
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfCOMM
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER            :: iGroup, counter
+REAL,ALLOCATABLE   :: SendBuff(:)
+REAL               :: TimeSample, TimeSampleTemp
+!===================================================================================================================================
+
+#if USE_MPI
+ALLOCATE(SendBuff(6*SurfaceGroup%nGroups))
+SendBuff = 0.0
+counter = 0
+! All: Build up Send buffer with sampled group information
+DO iGroup = 1, SurfaceGroup%nGroups
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(1,iGroup) ! torque M_x
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(2,iGroup) ! torque M_y
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(3,iGroup) ! torque M_z
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%SampState(4,iGroup) ! heat flux
+  counter = counter + 1
+  SendBuff(counter) = SurfaceGroup%VarTimeStep(iGroup) ! needed for UseVarTimeStep or VarTimeStep%UseSpeciesSpecific
+  counter = counter + 1
+  SendBuff(counter) = REAL(SurfaceGroup%Counter(iGroup))
+END DO
+! All: Sum up and send sampled group information to MPIRoot
+IF(MPIRoot)THEN
+  CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+ELSE
+  CALL MPI_REDUCE(SendBuff,SendBuff,6*SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,SurfCOMM%UNICATOR,IERROR)
+END IF
+! MPIRoot: Save group information
+counter = 0
+DO iGroup = 1, SurfaceGroup%nGroups
+  counter = counter + 1
+  SurfaceGroup%SampState(1,iGroup) = SendBuff(counter)
+  counter = counter + 1
+  SurfaceGroup%SampState(2,iGroup) = SendBuff(counter)
+  counter = counter + 1
+  SurfaceGroup%SampState(3,iGroup) = SendBuff(counter)
+  counter = counter + 1
+  SurfaceGroup%SampState(4,iGroup) = SendBuff(counter)
+  counter = counter + 1
+  SurfaceGroup%VarTimeStep(iGroup) = SendBuff(counter)
+  counter = counter + 1
+  SurfaceGroup%Counter(iGroup) = INT(SendBuff(counter))
+END DO
+#endif /*USE_MPI*/
+IF(MPIRoot)THEN
+  TimeSample = dt * SurfaceAnalyzeStep
+  DO iGroup = 1, SurfaceGroup%nGroups
+    IF(SurfaceGroup%Counter(iGroup).GT.0) THEN
+      IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
+        TimeSampleTemp = TimeSample * SurfaceGroup%VarTimeStep(iGroup) / REAL(SurfaceGroup%Counter(iGroup))
+      ELSE
+        TimeSampleTemp = TimeSample
+      END IF
+      ! MPIRoot: Perform the time-averaged calculation of the group information
+      SurfaceGroup%SampState(1,iGroup) = SurfaceGroup%SampState(1,iGroup) / TimeSampleTemp
+      SurfaceGroup%SampState(2,iGroup) = SurfaceGroup%SampState(2,iGroup) / TimeSampleTemp
+      SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) / TimeSampleTemp
+      SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) / (TimeSampleTemp * SurfaceGroup%Area(iGroup))
+    ELSE
+      SurfaceGroup%SampState = 0.0
+    END IF
+  END DO
+  ! MPIRoot: Saving the group information to the output array
+  DO iGroup = 1, SurfaceGroup%nGroups
+    GroupOutput(1,iGroup) = SurfaceGroup%SampState(1,iGroup)
+    GroupOutput(2,iGroup) = SurfaceGroup%SampState(2,iGroup)
+    GroupOutput(3,iGroup) = SurfaceGroup%SampState(3,iGroup)
+    GroupOutput(4,iGroup) = SurfaceGroup%SampState(4,iGroup)
+  END DO
+END IF
+! All: Reset samp array
+SurfaceGroup%SampState = 0.0
+SurfaceGroup%VarTimeStep = 0.0
+SurfaceGroup%Counter = 0
+
+END SUBROUTINE GetGroupInfo
 
 
 !===================================================================================================================================
@@ -1191,6 +1320,177 @@ END DO ! iSEE = 1, SEE%NPartBoundaries
 
 END SUBROUTINE InitCalcElectronSEE
 
+!===================================================================================================================================
+!> Allocate the required arrays (mappings and containers) for Surface Group Definition
+!> TODO: Currently, every processor loops over all nComputeNodeSurfTotalSides, work load could be distributed and communicated to
+!>       the node leader for communication to the root.
+!===================================================================================================================================
+SUBROUTINE InitSurfaceGroupOutput()
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars              ,ONLY: PI
+USE MOD_Preproc
+USE MOD_ReadInTools               ,ONLY: GETINT
+USE MOD_SurfaceModel_Analyze_Vars
+USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, nPartBound, nSurfSample, SurfSideArea
+#if USE_MPI
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, nComputeNodeSurfSides
+#else
+USE MOD_Particle_Boundary_Vars    ,ONLY: nGlobalSurfSides
+#endif /*USE_MPI*/
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
+USE MOD_Mesh_Tools                ,ONLY: GetCNElemID
+USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared, NodeCoords_Shared
+USE MOD_Particle_Mesh_Vars        ,ONLY: ElemSideNodeID_Shared, ElemMidPoint_Shared
+#if USE_MPI
+USE MOD_MPI_Shared_Vars           ,ONLY: myComputeNodeRank
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_LEADERS_SHARED
+#endif /*USE_MPI*/
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(32)       :: hilf
+REAL                :: ElemMidPointPos, MinBoundPos, MaxBoundPos
+INTEGER,ALLOCATABLE :: MinBound(:), MaxBound(:)
+INTEGER,ALLOCATABLE :: GroupIDToBCID(:)
+INTEGER             :: firstSide, lastSide, RotAxisDir, ElemID, CNElemID
+INTEGER             :: iSide, LocSideID, iGroup, SideID, iPartBound, q, p
+INTEGER             :: counter
+REAL,ALLOCATABLE    :: SendBuff(:)
+!===================================================================================================================================
+ALLOCATE(GroupOutput(4,SurfaceGroup%nGroups))
+GroupOutput = 0.0
+ALLOCATE(MinBound(SurfaceGroup%nGroups))
+MinBound = 0
+ALLOCATE(MaxBound(SurfaceGroup%nGroups))
+MaxBound = 0
+ALLOCATE(GroupIDToBCID(SurfaceGroup%nGroups))
+GroupIDToBCID = 0
+#if USE_MPI
+  firstSide = 1 ! INT(REAL( myComputeNodeRank   )*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))+1
+  lastSide  = nComputeNodeSurfTotalSides ! INT(REAL((myComputeNodeRank+1))*REAL(nComputeNodeSurfTotalSides)/REAL(nComputeNodeProcessors))
+#else
+  firstSide = 1
+  lastSide  = nGlobalSurfSides
+#endif /*USE_MPI*/
+ALLOCATE(SurfaceGroup%SymmetryFactor(lastSide))
+SurfaceGroup%SymmetryFactor = 0.0
+ALLOCATE(SurfaceGroup%SurfSide2GroupID(lastSide))
+SurfaceGroup%SurfSide2GroupID = 0
+ALLOCATE(SurfaceGroup%SampState(4,SurfaceGroup%nGroups))
+SurfaceGroup%SampState = 0.0
+ALLOCATE(SurfaceGroup%Area(SurfaceGroup%nGroups))
+SurfaceGroup%Area = 0.0
+ALLOCATE(SurfaceGroup%VarTimeStep(SurfaceGroup%nGroups))
+SurfaceGroup%VarTimeStep = 0.0
+ALLOCATE(SurfaceGroup%Counter(SurfaceGroup%nGroups))
+SurfaceGroup%Counter = 0
+RotAxisDir = PartBound%RotPeriodicAxis
+! Loop over surface groups and read-in boundary and interplane IDs
+GroupLoop: DO iGroup=1, SurfaceGroup%nGroups
+  WRITE(UNIT=hilf,FMT='(I0)') iGroup
+  GroupIDToBCID(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-BoundaryID')
+  MinBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MinInterplaneID')
+  MaxBound(iGroup) = GETINT('Surf-Group'//TRIM(hilf)//'-MaxInterplaneID')
+  ! First: 2 loops to define max and min position of the group
+  SideLoop1: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    MinBoundPos = 0.0
+    IF(MinBound(iGroup).EQ.-1) THEN ! User can select -1 as MinInterplaneID to choose the minimum computational area
+      MinBoundPos = -HUGE(1.)
+      EXIT SideLoop1
+    ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MinBound(iGroup)) THEN
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+      MinBoundPos = NodeCoords_Shared(RotAxisDir,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+      EXIT SideLoop1
+    END IF
+  END DO SideLoop1
+  SideLoop2: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    MaxBoundPos = 0.0
+    IF(MaxBound(iGroup).EQ.-1) THEN ! User can select -1 as MaxInterplaneID to choose the maximum computational area
+      MaxBoundPos = HUGE(1.)
+      EXIT SideLoop2
+    ELSE IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.MaxBound(iGroup)) THEN
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+      MaxBoundPos = NodeCoords_Shared(RotAxisDir,ElemSideNodeID_Shared(1,LocSideID,CNElemID)+1)
+      EXIT SideLoop2
+    END IF
+  END DO SideLoop2
+  ! Third loop: Calculating the area per group, build up mapping SurfSideID to GroupID and assign symetry factor
+  SideLoop3: DO iSide = firstSide, lastSide
+    SideID = SurfSide2GlobalSide(SURF_SIDEID,iSide)
+    IF(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID)).EQ.GroupIDToBCID(iGroup)) THEN
+      ! Get atached Elem
+      ElemID    = SideInfo_Shared(SIDE_ELEMID ,SideID)
+      CNElemID  = GetCNElemID(ElemID)
+      ! Get Elem Mid point position in rotaxi direction
+      ElemMidPointPos = ElemMidPoint_Shared(RotAxisDir,CNElemID)
+      IF((ElemMidPointPos.GT.MinBoundPos).AND.(ElemMidPointPos.LT.MaxBoundPos)) THEN
+        IF (SurfaceGroup%SurfSide2GroupID(iSide).NE.0) CALL abort(__STAMP__, &
+        'ERROR in group definition: A surface is defined in more than one group. Overlapping group definitions are not allowed.')
+        ! Mapping SurfSideID to GroupID
+        SurfaceGroup%SurfSide2GroupID(iSide) = iGroup
+        ! Assigning symmetry factor based on rotational periodic BC
+        BoundLoop: DO iPartBound = 1, nPartBound
+          IF(PartBound%TargetBoundCond(iPartBound).NE.PartBound%RotPeriodicBC) CYCLE BoundLoop
+          IF((ElemMidPointPos.GT.PartBound%RotPeriodicMin(iPartBound)).AND.(ElemMidPointPos.LT.PartBound%RotPeriodicMax(iPartBound))) THEN
+            SurfaceGroup%SymmetryFactor(iSide) = 2.0 * PI / ABS(PartBound%RotPeriodicAngle(iPartBound))
+          END IF
+        END DO BoundLoop
+        ! Calculating the area per group
+#if USE_MPI
+        IF(iSide.GT.nComputeNodeSurfSides) CYCLE SideLoop3 ! exclude Halo cells in area calculation
+#endif /*USE_MPI*/
+        DO q = 1,nSurfSample
+          DO p = 1,nSurfSample
+            SurfaceGroup%Area(iGroup) = SurfaceGroup%Area(iGroup) + SurfSideArea(p,q,iSide)
+          END DO ! q=1,nSurfSample
+        END DO ! p=1,nSurfSample
+      END IF
+    END IF
+  END DO SideLoop3 ! iSide = firstSide, lastSide
+END DO GroupLoop
+
+#if USE_MPI
+! Area calculation must be completed via comunication between node leaders and MPIRoot in case of multi node simulation
+! finally MPIRoot needs the area information of all groups, using node leaders since root might not be included in MPI_COMM_LEADERS_SURF
+IF(myComputeNodeRank.EQ.0) THEN
+  ALLOCATE(SendBuff(SurfaceGroup%nGroups))
+  SendBuff = 0.0
+  counter = 0
+  DO iGroup = 1, SurfaceGroup%nGroups
+    counter = counter + 1
+    SendBuff(counter) = SurfaceGroup%Area(iGroup)
+  END DO
+  ! Node leaders communicate group surface area to the root
+  IF(MPIRoot)THEN
+    CALL MPI_REDUCE(MPI_IN_PLACE,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
+  ELSE
+    CALL MPI_REDUCE(SendBuff,SendBuff,SurfaceGroup%nGroups,MPI_DOUBLE_PRECISION,MPI_SUM,0,MPI_COMM_LEADERS_SHARED,IERROR)
+  END IF
+  counter = 0
+  DO iGroup = 1, SurfaceGroup%nGroups
+    counter = counter + 1
+    SurfaceGroup%Area(iGroup) = SendBuff(counter)
+  END DO
+  DEALLOCATE(SendBuff)
+END IF
+#endif /*USE_MPI*/
+
+DEALLOCATE(MinBound)
+DEALLOCATE(MaxBound)
+DEALLOCATE(GroupIDToBCID)
+
+END SUBROUTINE InitSurfaceGroupOutput
+
 
 
 !===================================================================================================================================
@@ -1233,6 +1533,17 @@ IF(CalcCurrentSEE)THEN
   SDEALLOCATE(SEE%PartBoundaries)
   SDEALLOCATE(SEE%BCIDToSEEBCID)
 END IF ! CalcCurrentSEE
+
+! Group-based surface output
+IF(CalcSurfOutputPerGroup) THEN
+  SDEALLOCATE(GroupOutput)
+  SDEALLOCATE(SurfaceGroup%SymmetryFactor)
+  SDEALLOCATE(SurfaceGroup%SurfSide2GroupID)
+  SDEALLOCATE(SurfaceGroup%SampState)
+  SDEALLOCATE(SurfaceGroup%Area)
+  SDEALLOCATE(SurfaceGroup%VarTimeStep)
+  SDEALLOCATE(SurfaceGroup%Counter)
+END IF
 
 END SUBROUTINE FinalizeSurfaceModelAnalyze
 

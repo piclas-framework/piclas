@@ -24,10 +24,6 @@ PRIVATE
 ! required variables
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
-INTERFACE SinglePointToElement
-  MODULE PROCEDURE SinglePointToElement
-END INTERFACE
-
 INTERFACE LocateParticleInElement
   MODULE PROCEDURE LocateParticleInElement
 END INTERFACE
@@ -124,6 +120,10 @@ ASSOCIATE(ElemBaryNGeo => ElemBaryNGeo_Shared)
 
 SinglePointToElement = -1
 
+! Sanity check
+IF(ANY(ABS(GEO%FIBGMdeltas).LE.0.0))&
+  CALL abort(__STAMP__,' Error in SinglePointToElement(): GEO%FIBGMdeltas not set. Set Part-ForceFIBGM=T and contact developers.')
+
 ! --- get background mesh cell of point
 iBGM = CEILING((Pos3D(1)-GEO%xminglob)/GEO%FIBGMdeltas(1))
 iBGM = MAX(MIN(GEO%FIBGMimax,iBGM),GEO%FIBGMimin)
@@ -213,7 +213,7 @@ SUBROUTINE PartInElemCheck(PartPos_In,PartID,ElemID,FoundInElem,IntersectPoint_O
 ! Checks if particle is in Element
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Mesh_Tools             ,ONLY: GetCNElemID,GetCNSideID
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarRectIntersection
 USE MOD_Particle_Intersection  ,ONLY: ComputePlanarCurvedIntersection
@@ -277,7 +277,7 @@ PartPos(1:3)            = PartPos_In(1:3)
 
 ! get trajectory from element barycenter to current position
 PartTrajectory       = PartPos - LastPartPos(1:3,PartID)
-lengthPartTrajectory = VECNORM(PartTrajectory(1:3))
+lengthPartTrajectory = VECNORM3D(PartTrajectory(1:3))
 
 ! output the part trajectory
 #ifdef CODE_ANALYZE

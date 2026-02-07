@@ -212,6 +212,7 @@ USE MOD_Globals
 USE MOD_IO_HDF5
 USE MOD_Globals_Vars           ,ONLY: PI
 USE MOD_ReadInTools
+USE MOD_StringTools            ,ONLY: STRICMP
 USE MOD_Dielectric_Vars        ,ONLY: DoDielectricSurfaceCharge
 USE MOD_DSMC_Vars              ,ONLY: useDSMC, BGGas
 USE MOD_Mesh_Vars              ,ONLY: BoundaryName,BoundaryType, nBCs
@@ -669,7 +670,8 @@ DO iPBC=1,nPartBound
         CALL abort(__STAMP__,' Analyze-BCs cannot be used for internal reflection in general cases! ')
       END IF
     END IF
-    IF (TRIM(BoundaryName(iBC)).EQ.TRIM(PartBound%SourceBoundName(iPBC))) THEN
+    ! Check if names are equal: Use case insensitive string comparison
+    IF (STRICMP(BoundaryName(iBC),PartBound%SourceBoundName(iPBC))) THEN
       PartBound%MapToPartBC(iBC) = iPBC !PartBound%TargetBoundCond(iPBC)
       PartBound%MapToFieldBC(iPBC) = iBC ! part BC to field BC
       LBWRITE(*,*) "| Mapped PartBound",iPBC,"on FieldBound", iBC,", i.e.: ",TRIM(BoundaryName(iBC))
@@ -740,7 +742,6 @@ END SUBROUTINE InitializeVariablesPartBoundary
 SUBROUTINE InitVirtualDielectricLayer()
 ! MODULES
 use mod_globals
-USE MOD_Globals                ,ONLY: VECNORM
 USE MOD_Mesh_Vars              ,ONLY: nElems,SideToElem,nBCSides,Boundarytype,BC
 USE MOD_IO_HDF5                ,ONLY: AddToElemData,ElementOut
 USE MOD_Particle_Boundary_Vars ,ONLY: ElementThicknessVDL,PartBound,N_SurfVDL,StretchingFactorVDL,nVarSurfData

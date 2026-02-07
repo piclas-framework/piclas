@@ -45,7 +45,7 @@ CONTAINS
 !===================================================================================================================================
 SUBROUTINE SurfaceModelling(PartID,SideID,GlobalElemID,n_Loc)
 ! MODULES
-USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,VECNORM
+USE MOD_Globals                   ,ONLY: abort,UNITVECTOR,OrthoNormVec,VECNORM3D
 #if USE_MPI
 USE MOD_Globals                   ,ONLY: myrank
 #endif /*USE_MPI*/
@@ -53,7 +53,7 @@ USE MOD_Globals_Vars              ,ONLY: PI, BoltzmannConst
 USE MOD_Particle_Vars             ,ONLY: PartSpecies,WriteMacroSurfaceValues,Species,usevMPF,PartMPF
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod, TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound, GlobalSide2SurfSide, dXiEQ_SurfSample, nSurfSample
-USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints
+USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideSamplingMidPoints, CalcTorque
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, SurfModEnergyDistribution, ImpactWeight
 USE MOD_Particle_Mesh_Vars        ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars             ,ONLY: PDM, LastPartPos
@@ -142,7 +142,7 @@ IF(DoSample) THEN
       distanceMin = HUGE(1.)
       DO p = 1, nSurfSample
         DO q = 1, nSurfSample
-          distance = VECNORM(PartPosImpact(1:3) - SurfSideSamplingMidPoints(1:3,p,q,SurfSideID))
+          distance = VECNORM3D(PartPosImpact(1:3) - SurfSideSamplingMidPoints(1:3,p,q,SurfSideID))
           IF(distance.LT.distanceMin)THEN
             TrackInfo%p = p
             TrackInfo%q = q
@@ -161,7 +161,13 @@ IF(DoSample) THEN
   END IF
   ! Sample momentum, heatflux and collision counter on surface (Check if particle is still inside is required, since particles can
   ! be removed in the case of UseCircularInflow and nPorousBC. These particles shall not be sampled.)
-  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
+  IF(PDM%ParticleInside(PartID)) THEN
+    IF(CalcTorque) THEN
+      CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc,PartPosImpact_opt=PartPosImpact)
+    ELSE
+      CALL CalcWallSample(PartID,SurfSideID,'old',SurfaceNormal_opt=n_loc)
+    END IF
+  END IF
 END IF
 !===================================================================================================================================
 ! 2.) Species Swap
@@ -359,7 +365,15 @@ END IF
 IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface (only the original impacting particle, not the newly created parts
   ! through SurfaceModelParticleEmission), checking if the particle was deleted/absorbed/adsorbed at the wall
-  IF(PDM%ParticleInside(PartID)) CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+  IF(PDM%ParticleInside(PartID)) THEN
+    IF(CalcTorque) THEN
+      CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc,PartPosImpact_opt=PartPosImpact)
+    ELSE
+      CALL CalcWallSample(PartID,SurfSideID,'new',SurfaceNormal_opt=n_loc)
+    END IF
+  END IF
+
+
 END IF
 
 END SUBROUTINE SurfaceModelling
@@ -370,7 +384,7 @@ SUBROUTINE SpeciesSwap(PartID,SideID,targetSpecies_IN)
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! MODULES                                                                                                                          !
 !----------------------------------------------------------------------------------------------------------------------------------!
-USE MOD_Globals                 ,ONLY: abort,VECNORM
+USE MOD_Globals                 ,ONLY: abort,VECNORM3D
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
 USE MOD_Particle_Vars           ,ONLY: PartSpecies
@@ -470,7 +484,7 @@ END SUBROUTINE SurfaceFluxBasedBoundaryTreatment
 !===================================================================================================================================
 SUBROUTINE VirtualDielectricLayerDisplacement(PartID,SideID,n_Loc)
 ! MODULES
-USE MOD_Globals                ,ONLY: VECNORM
+USE MOD_Globals                ,ONLY: VECNORM3D
 USE MOD_Particle_Vars          ,ONLY: SpeciesOffsetVDL
 USE MOD_Particle_Vars          ,ONLY: LastPartPos, PartSpecies, PartState
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
@@ -496,7 +510,7 @@ PartState(1:3,PartID) = LastPartPos(1:3,PartID) - (PartBound%ThicknessVDL(iPartB
 ! Set tracking variables
 TrackInfo%PartTrajectory=PartState(1:3,PartID) - LastPartPos(1:3,PartID)
 
-TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+TrackInfo%lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE

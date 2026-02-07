@@ -448,7 +448,7 @@ END FUNCTION DiceUnitVector
 !===================================================================================================================================
 FUNCTION VeloFromDistribution(distribution,Tempergy,iNewPart,ProductSpecNbr,iPartBound)
 ! MODULES
-USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM
+USE MOD_Globals           ,ONLY: Abort,UNIT_stdOut,VECNORM3D
 USE MOD_Globals_Vars      ,ONLY: eV2Joule,ElectronMass,c,ElementaryCharge,PI
 USE MOD_SurfaceModel_Vars ,ONLY: BackupVeloABS, SurfModSEEFitCoeff
 USE MOD_Particle_Boundary_Vars    ,ONLY: PartBound
@@ -617,7 +617,7 @@ CASE('cosine')
   ELSE
       TempErgy_temp = Tempergy !Energy in [eV]
   END IF
-  
+
   VeloABS = SQRT(2.0 * TempErgy_temp * ElementaryCharge / ElectronMass)
 
   ! === Velocity vector
@@ -641,7 +641,7 @@ CASE DEFAULT
 END SELECT
 
 ! Sanity check: is the newly created particle faster than c
-IF(VECNORM(VeloFromDistribution).GT.c) CALL abort(__STAMP__,'VeloFromDistribution: Particle is faster than the speed of light: ',&
+IF(VECNORM3D(VeloFromDistribution).GT.c) CALL abort(__STAMP__,'VeloFromDistribution: Particle is faster than the speed of light: ',&
     RealInfoOpt=VeloABS)
 
 END FUNCTION VeloFromDistribution
@@ -790,7 +790,7 @@ IF (DoCellLocalWeighting) THEN
     NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
     NodeIDUni = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
     DO iNode = 1, 8
-      norm = VECNORM(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
+      norm = VECNORM3D(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
       IF(norm.GT.0.)THEN
         PartDistDepo(iNode) = 1./norm
       ELSE

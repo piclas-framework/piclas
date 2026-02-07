@@ -62,16 +62,16 @@ IMPLICIT NONE
 LOGICAL,INTENT(IN) :: doMPISides  != .TRUE. only MINE MPISides are filled, =.FALSE. InnerSides
 REAL,INTENT(IN)    :: t           ! time
 #ifdef drift_diffusion
-REAL,INTENT(IN)    :: U_master(PP_nVar_FV+3,0:0,0:0,1:nSides)
-REAL,INTENT(IN)    :: U_slave (PP_nVar_FV+3,0:0,0:0,1:nSides)
+REAL,INTENT(IN)    :: U_master(PP_nVar_FV+3,1:nSides)
+REAL,INTENT(IN)    :: U_slave (PP_nVar_FV+3,1:nSides)
 #else
-REAL,INTENT(IN)    :: U_master(PP_nVar_FV,0:0,0:0,1:nSides)
-REAL,INTENT(IN)    :: U_slave (PP_nVar_FV,0:0,0:0,1:nSides)
+REAL,INTENT(IN)    :: U_master(PP_nVar_FV,1:nSides)
+REAL,INTENT(IN)    :: U_slave (PP_nVar_FV,1:nSides)
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar_FV,0:0,0:0,nSides)
-REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,0:0,0:0,nSides)
+REAL,INTENT(OUT)   :: Flux_Master(1:PP_nVar_FV,nSides)
+REAL,INTENT(OUT)   :: Flux_Slave(1:PP_nVar_FV,nSides)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER            :: SideID,firstSideID_wo_BC,firstSideID,lastSideID
@@ -106,25 +106,25 @@ END IF
 ! 1. compute flux for non-BC sides: Compute fluxes on 0, no additional interpolation required
 DO SideID=firstSideID_wo_BC,lastSideID
 #ifdef drift_diffusion
-  CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID), &
+  CALL Riemann(Flux_Master(:,SideID),U_Master(:,SideID),U_Slave(:,SideID),NormVec_FV(:,SideID), &
                EFluid_GradSide(SideID))
 #else
-  CALL Riemann(Flux_Master(:,:,:,SideID),U_Master(:,:,:,SideID),U_Slave(:,:,:,SideID),NormVec_FV(:,:,:,SideID))
+  CALL Riemann(Flux_Master(:,SideID),U_Master(:,SideID),U_Slave(:,SideID),NormVec_FV(:,SideID))
 #endif
 END DO ! SideID
 
 ! 2. Compute the fluxes at the boundary conditions: 1..nBCSides
 IF(.NOT.doMPISides)THEN
-  CALL GetBoundaryFlux(t,Flux_Master   (1:PP_nVar_FV,0:0,0:0,1:nBCSides) &
-                               ,U_master          (:,0:0,0:0,1:nBCSides) &
-                               ,NormVec_FV      (1:3,0:0,0:0,1:nBCSides) &
-                               ,Face_XGP_FV     (1:3,0:0,0:0,1:nBCSides) )
+  CALL GetBoundaryFlux(t,Flux_Master   (1:PP_nVar_FV,1:nBCSides) &
+                               ,U_master          (:,1:nBCSides) &
+                               ,NormVec_FV      (1:3,1:nBCSides) &
+                               ,Face_XGP_FV     (1:3,1:nBCSides) )
 #ifdef discrete_velocity
   IF (WriteDVMSurfaceValues) THEN
     IF(ALMOSTEQUAL(dt,dt_Min(DT_ANALYZE)).OR.ALMOSTEQUAL(dt,dt_Min(DT_END))) THEN
       ! ADD moments de fluxmaster(1:nbcsides) TO SURFOUTPUT
       DO SideID=1,nBCSides
-        CALL IntegrateFluxValues(MacroVal,Flux_Master(:,0,0,SideID))
+        CALL IntegrateFluxValues(MacroVal,Flux_Master(:,SideID))
         DVMSurfaceValues(1:4,1,1,SideID) = MacroVal(2:5)
       END DO
     END IF
@@ -134,9 +134,9 @@ END IF
 
 ! 3. multiply by SurfElem: Apply surface element size
 DO SideID=firstSideID,lastSideID
-  Flux_Master(:,0,0,SideID)=Flux_Master(:,0,0,SideID)*SurfElem_FV(0,0,SideID)
+  Flux_Master(:,SideID)=Flux_Master(:,SideID)*SurfElem_FV(SideID)
   ! 4. copy flux from master side to slave side: DO not change sign
-  Flux_slave(:,:,:,SideID) = Flux_master(:,:,:,SideID)
+  Flux_slave(:,SideID) = Flux_master(:,SideID)
 END DO
 
 END SUBROUTINE FillFlux

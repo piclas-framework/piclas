@@ -403,14 +403,14 @@ DO iElem=1,nElems
   ! ElectricFieldMagnitude
   IF(CalcAvg(9))THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      UAvg_N(iElem)%Tmp(iAvg(9),i,j,k)=VECNORM(U_N(iElem)%U(1:3,i,j,k))
+      UAvg_N(iElem)%Tmp(iAvg(9),i,j,k)=VECNORM3D(U_N(iElem)%U(1:3,i,j,k))
     END DO; END DO; END DO
   END IF
 
   ! MagneticFieldMagnitude
   IF(CalcAvg(10))THEN
     DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-      UAvg_N(iElem)%Tmp(iAvg(10),i,j,k)=VECNORM(U_N(iElem)%U(4:6,i,j,k))
+      UAvg_N(iElem)%Tmp(iAvg(10),i,j,k)=VECNORM3D(U_N(iElem)%U(4:6,i,j,k))
     END DO; END DO; END DO
   END IF
 
@@ -421,7 +421,7 @@ DO iElem=1,nElems
       IF(CalcAvg(11)) UAvg_N(iElem)%Tmp(iAvg(11),i,j,k) = tmpPoyntingVector(1)
       IF(CalcAvg(12)) UAvg_N(iElem)%Tmp(iAvg(12),i,j,k) = tmpPoyntingVector(2)
       IF(CalcAvg(13)) UAvg_N(iElem)%Tmp(iAvg(13),i,j,k) = tmpPoyntingVector(3)
-      IF(CalcAvg(14)) UAvg_N(iElem)%Tmp(iAvg(14),i,j,k) = VECNORM(tmpPoyntingVector)
+      IF(CalcAvg(14)) UAvg_N(iElem)%Tmp(iAvg(14),i,j,k) = VECNORM3D(tmpPoyntingVector)
     END DO; END DO; END DO
   END IF
 
@@ -439,7 +439,7 @@ DO iElem=1,nElems
       ! Mag(PowerDensity)
       IF(CalcAvg(iCounter+4))THEN
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-          UAvg_N(iElem)%Tmp(iAvg(iVar+4),i,j,k) = VECNORM(PowerDensity_N(iElem)%U(1:3,i,j,k,iSpec2))
+          UAvg_N(iElem)%Tmp(iAvg(iVar+4),i,j,k) = VECNORM3D(PowerDensity_N(iElem)%U(1:3,i,j,k,iSpec2))
         END DO; END DO; END DO
       END IF
       IF(CalcAvg(iCounter+5)) UAvg_N(iElem)%Tmp(iAvg(iVar+5),:,:,:) = PowerDensity_N(iElem)%U(4,:,:,:,iSpec2)
@@ -450,7 +450,7 @@ DO iElem=1,nElems
       ! Mag(CurrentDensity)
       IF(CalcAvg(iCounter+9))THEN
         DO k=0,Nloc; DO j=0,Nloc; DO i=0,Nloc
-          UAvg_N(iElem)%Tmp(iAvg(iVar+9),i,j,k) = VECNORM(PowerDensity_N(iElem)%U(5:7,i,j,k,iSpec2))
+          UAvg_N(iElem)%Tmp(iAvg(iVar+9),i,j,k) = VECNORM3D(PowerDensity_N(iElem)%U(5:7,i,j,k,iSpec2))
         END DO; END DO; END DO
       END IF
     END IF

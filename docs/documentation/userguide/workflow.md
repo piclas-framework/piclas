@@ -74,10 +74,10 @@ the CMake configuration file for HDF5 (optional, advanced).
 
 Before setting up a simulation, the code must be compiled with the desired parameters. The most important compiler options to be set are:
 
-* ``PICLAS_TIMEDISCMETHOD``: Time integration method
-    * Leapfrog: 2nd order when only electric fields are relevant (Poisson solver)
-    * Boris-Leapfrog: 2nd order for electric and magnetic fields (Poisson solver)
-    * Higuera-Cary: 2nd order for electric and magnetic fields (Poisson solver)
+* ``PICLAS_TIMEDISCMETHOD``: Time integration method, for compatibility with ``PICLAS_EQNSYSNAME``, see {numref}`tab:time-disc-compatibility`
+    * Leapfrog: 2nd order when only electric fields are relevant (Poisson solver only)
+    * Boris-Leapfrog: 2nd order for electric and magnetic fields (Poisson solver only)
+    * Higuera-Cary: 2nd order for electric and magnetic fields (Poisson solver only)
     * RK3: Runge-Kutta 3rd order in time
     * RK4: Runge-Kutta 4th order in time
     * RK14: Low storage Runge-Kutta 4, 14 stages version {cite}`Niegemann2012`
@@ -107,7 +107,27 @@ flags should be configured:
 * ``PICLAS_LOADBALANCE``: Enable timer-based load-balancing by automatic determination of workload weights for each simulation
                           element.
 
-All other options are set in the parameter file.
+All remaining solver options are set in the parameter file, which is read by the piclas executable.
+Additionally, {numref}`tab:time-disc-compatibility` lists the compatibility between the compile flags ``PICLAS_TIMEDISCMETHOD`` and
+``PICLAS_EQNSYSNAME``.
+```{table} PICLAS_TIMEDISCMETHOD compatibility with PICLAS_EQNSYSNAME
+---
+name: tab:time-disc-compatibility
+---
+|                            |  ``maxwell``  |  ``poisson``  |
+| -------------------------- | :-----------: | :-----------: |
+| `Leapfrog`                 |     no        |      yes      |
+| `Boris-Leapfrog`           |     no        |      yes      |
+| `Higuera-Cary`             |     no        |      yes      |
+| `RK3`                      |     yes       |      yes      |
+| `RK4`                      |     yes       |      yes      |
+| `RK14`                     |     yes       |      yes      |
+| `DSMC`                     |     yes*      |      no       |
+| `FP-Flow`                  |     yes*      |      no       |
+| `BGK-Flow`                 |     yes*      |      no       |
+| `Radiation`                |     yes*      |      no       |
+```
+\*``PICLAS_EQNSYSNAME=maxwell`` is required as dummy variable setting, but the Maxwell solver is not actually used
 
 ## Setup of parameter file(s)
 

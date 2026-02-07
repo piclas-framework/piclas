@@ -33,6 +33,7 @@ SET_PROPERTY(CACHE PICLAS_TIMEDISCMETHOD PROPERTY STRINGS Euler-Explicit
                                                           BGK-Flow
                                                           ED-DVM
                                                           Explicit-FV
+                                                          PLOESMA
                                                           Radiation)
 
 # =========================================================================
@@ -143,9 +144,16 @@ ELSEIF(PICLAS_EQNSYSNAME STREQUAL "magnetostatic_poisson")
   SET(PICLAS_FV OFF)
   MESSAGE(SEND_ERROR "Equation system is currently not supported.")
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "discrete_velocity")
-  ADD_DEFINITIONS(-DPP_nVar=0 -Ddiscrete_velocity)
-  SET(PICLAS_HDG OFF)
-  SET(PICLAS_FV ON)
+  IF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
+    ADD_DEFINITIONS(-Ddiscrete_velocity)
+    ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
+    SET(PICLAS_HDG ON)
+    SET(PICLAS_FV ON)
+  ELSE()
+    ADD_DEFINITIONS(-DPP_nVar=0 -Ddiscrete_velocity)
+    SET(PICLAS_HDG OFF)
+    SET(PICLAS_FV ON)
+  ENDIF()
 ELSEIF(PICLAS_EQNSYSNAME STREQUAL "drift_diffusion")
   ADD_DEFINITIONS(-DPP_nVar_FV=1 -Ddrift_diffusion)
   ADD_DEFINITIONS(-DPP_nVar=1 -Dpoisson)
@@ -191,28 +199,28 @@ IF(PICLAS_TIMEDISCMETHOD STREQUAL "Euler-Explicit")
       FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoisson.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=500)
   ELSE()
-      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+      MESSAGE(SEND_ERROR "Time discretization method requires PICLAS_EQNSYSNAME=poisson.")
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Higuera-Cary")
   IF(PICLAS_HDG)
       FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByHigueraCary.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=507)
   ELSE()
-      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+      MESSAGE(SEND_ERROR "Time discretization method requires PICLAS_EQNSYSNAME=poisson.")
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Boris-Leapfrog")
   IF(PICLAS_HDG)
       FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoissonByBorisLeapfrog.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=508)
   ELSE()
-      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+      MESSAGE(SEND_ERROR "Time discretization method requires PICLAS_EQNSYSNAME=poisson.")
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Leapfrog")
   IF(PICLAS_HDG)
       FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStepPoisson.f90)
       ADD_DEFINITIONS(-DPP_TimeDiscMethod=509)
   ELSE()
-      ADD_DEFINITIONS(-DPP_TimeDiscMethod=0)
+      MESSAGE(SEND_ERROR "Time discretization method requires PICLAS_EQNSYSNAME=poisson.")
   ENDIF()
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
   IF(PICLAS_HDG)
@@ -256,6 +264,9 @@ ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "ED-DVM")
 ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
   FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_ExplicitFV.f90)
   ADD_DEFINITIONS(-DPP_TimeDiscMethod=701)
+ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
+  FILE(GLOB timediscF90 ${CMAKE_CURRENT_SOURCE_DIR}/src/timedisc/timedisc_TimeStep_ploesma.f90)
+  ADD_DEFINITIONS(-DPP_TimeDiscMethod=702)
 ELSE()
    MESSAGE(SEND_ERROR "Unknown time discretization method.")
 ENDIF()
@@ -282,6 +293,8 @@ IF(PICLAS_HDG)
       MESSAGE(STATUS "use HDG with RK14")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
      MESSAGE(STATUS "use HDG in parallel to Explicit-FV")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
+     MESSAGE(STATUS "use HDG in parallel to DVM")
   ELSE()
       MESSAGE(SEND_ERROR "Unknown time discretization method for HDG.")
   ENDIF()
@@ -311,6 +324,8 @@ IF(PICLAS_FV)
     MESSAGE(STATUS "use FV with DVM")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "Explicit-FV")
     MESSAGE(STATUS "use Explicit Finite Volumes")
+  ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "PLOESMA")
+    MESSAGE(STATUS "use HDG for fields and FV for DVM")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK3")
     MESSAGE(STATUS "use HDG/FV with RK3")
   ELSEIF(PICLAS_TIMEDISCMETHOD STREQUAL "RK4")
@@ -343,7 +358,7 @@ ENDIF()
 # Coffee Lib
 # =========================================================================
 OPTION(CMAKE_ANS_COFFEE "Enable coffee lib" OFF)
-MARK_AS_ADVANCED(CMAKE_ANS_COFFEE)
+MARK_AS_ADVANCED(FORCE CMAKE_ANS_COFFEE)
 IF(CMAKE_ANS_COFFEE)
   ADD_DEFINITIONS(-DUSE_COFFEE=1)
 ELSE()
@@ -464,19 +479,21 @@ FILE(GLOB_RECURSE hdgfvF90 ./src/hdg/*.f90
                          ./src/fv/*.f90
                         ./src/interpolation/prolongtoface.f90
                         ./src/gradients/*.f90
-                        ./src/equations/drift_diffusion/equation.f90
-                        ./src/equations/drift_diffusion/equation_vars.f90
-                        ./src/equations/drift_diffusion/transport_data.f90
-                        ./src/equations/drift_diffusion/riemann.f90
-                        ./src/equations/drift_diffusion/getboundaryflux.f90
-                        ./src/equations/drift_diffusion/getboundarygrad.f90
-                        ./src/equations/drift_diffusion/ionization.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/equation.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/equation_vars.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/transport_data.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/riemann.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/getboundaryflux.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/getboundarygrad.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/ionization.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/dvm_boundary_analyze.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/distfunc.f90
+                        ./src/equations/${PICLAS_EQNSYSNAME}/calctimestep.f90
                         ./src/equations/poisson/equation.f90
                         ./src/equations/poisson/equation_tools.f90
                         ./src/equations/poisson/equation_vars.f90
                         ./src/equations/poisson/timeavg.f90
-                        ./src/equations/poisson/timeavg_vars.f90
-                        ./src/equations/poisson/calctimestep.f90)
+                        ./src/equations/poisson/timeavg_vars.f90)
 
 #FILE(GLOB mainF90 ./src/piclas.f90
                   #./src/piclaslib.f90)
@@ -512,6 +529,7 @@ IF(PICLAS_HDG)
     LIST(APPEND piclasF90 ${hdgF90})
   ENDIF()
 ELSEIF(PICLAS_FV)
+  LIST(FILTER noparticlesF90 EXCLUDE REGEX ".*superb.f90$")
   LIST(APPEND piclasF90 ${fvF90})
 ELSE()
   LIST(FILTER particlesF90 EXCLUDE REGEX ".*particle_br_electron_fluid.f90$")
@@ -624,3 +642,18 @@ IF(PICLAS_CTAGS)
     ADD_DEPENDENCIES(piclas tags)
   ENDIF(CTAGS_PATH)
 ENDIF(PICLAS_CTAGS)
+
+# =========================================================================
+# Code Coverage
+# =========================================================================
+OPTION(PICLAS_CODE_COVERAGE "Generate additional files for code coverage" OFF)
+MARK_AS_ADVANCED(FORCE PICLAS_CODE_COVERAGE)
+# Get environment variable, only strings so use "ON"
+IF("$ENV{PICLAS_CODE_COVERAGE}" STREQUAL "ON")
+  SET(PICLAS_CODE_COVERAGE "$ENV{PICLAS_CODE_COVERAGE}")
+ENDIF()
+# set coverage flag for compiler
+IF(PICLAS_CODE_COVERAGE)
+  SET (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} --coverage")
+  MESSAGE(STATUS "Compiling for code coverage")
+ENDIF()

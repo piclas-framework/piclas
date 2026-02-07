@@ -350,16 +350,16 @@ DO iSpec=1,nSpecies
 
         ! Use NormalIC if it is non-zero. Else, use the cross-product calculated 3rd vector to span the coordinate space
         ! The first choice results in a non-rectangular 3rd coordinate vector
-        IF(VECNORM(normal).LE.0.)THEN
+        IF(VECNORM3D(normal).LE.0.)THEN
           lineVector(1) = v2(2) * v3(3) - v2(3) * v3(2)
           lineVector(2) = v2(3) * v3(1) - v2(1) * v3(3)
           lineVector(3) = v2(1) * v3(2) - v2(2) * v3(1)
           lineVector = UNITVECTOR(lineVector)
-          IF(VECNORM(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
+          IF(VECNORM3D(lineVector).LE.0.) CALL ABORT(__STAMP__,'BaseVectors are parallel!')
         ELSE
           ! Normalize the vector even though it is probably already normalized for safety reasons
           lineVector = UNITVECTOR(normal)
-        END IF ! VECNORM(lineVector).LE.0.
+        END IF ! VECNORM3D(lineVector).LE.0.
 
         xCoords(1:3,1)=O(1:3)
         xCoords(1:3,2)=O(1:3)+v2(1:3)

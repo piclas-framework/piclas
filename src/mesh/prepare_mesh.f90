@@ -440,6 +440,12 @@ DO iNbProc=1,nNbProcs
             aSide%SideID=(aSide%SideID-nMPISides_YOUR_Proc(iNbProc))+offsetMPISides_MINE(iNbProc-1)
           END IF
         END IF ! myrank<NbProc
+#if USE_FV
+        ! set IsPeriodicSide for MPI periodic sides
+        IF(aSide%BCIndex.GE.1) THEN
+          IF(BoundaryType(aSide%BCIndex,BC_TYPE).EQ.1) IsPeriodicSide(aSide%SideID)=.TRUE.
+        END IF
+#endif
       END DO ! iMortar
     END DO ! iLocSide
   END DO ! iElem

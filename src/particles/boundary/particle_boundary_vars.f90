@@ -55,6 +55,11 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
 INTEGER                                 :: SWIVarTimeStep
 INTEGER                                 :: SWIStickingCoefficient
 
+LOGICAL                                 :: CalcTorque                 !> Calculate torque about x-, y-, z-axis
+INTEGER                                 :: SWITorqueCoefficientX
+INTEGER                                 :: SWITorqueCoefficientY
+INTEGER                                 :: SWITorqueCoefficientZ
+
 ! Output container
 REAL,ALLOCATABLE                  :: MacroSurfaceVal(:,:,:,:)           !> variables,p,q,sides
 REAL,ALLOCATABLE                  :: MacroSurfaceSpecVal(:,:,:,:,:)     !> Macrovalues for Species specific surface output

@@ -24,66 +24,74 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 LOGICAL           :: doCalcSource             !< Swith to calculate a source term or not, automatically set by calcsource itself
 INTEGER           :: IniExactFunc_FV             !< Number of exact function used for initialization
-INTEGER           :: IniRefState              !< RefState for initialization
-INTEGER           :: nRefState                !< number of refstates defined in parameter file
-REAL,ALLOCATABLE  :: RefState(:,:)        !< reference state
+INTEGER           :: IniRefState_FV              !< RefState for initialization
+INTEGER           :: nRefState_FV                !< number of refstates defined in parameter file
+REAL,ALLOCATABLE  :: RefState_FV(:,:,:)        !< reference state
 
 REAL              :: Pi
 
+#if !(USE_HDG)
 ! Boundary condition arrays
-REAL,ALLOCATABLE     :: BCData(:,:,:,:)       !< Buffer array for BC data
 INTEGER,ALLOCATABLE  :: nBCByType(:)          !< Number of sides for each boundary
 INTEGER,ALLOCATABLE  :: BCSideID(:,:)         !< SideIDs for BC types
+#endif
 
-INTEGER              :: DVMnVelos(3)
+REAL                 :: BCTempGrad            !< Gradient of temperature at the boundary (x direction)
+
+LOGICAL              :: DVMColl
+INTEGER              :: DVMnSpecies
+INTEGER              :: DVMnSpecTot
+INTEGER              :: DVMnMacro=14
+INTEGER              :: DVMnInnerE
 INTEGER              :: DVMBGKModel
 INTEGER              :: DVMMethod
-INTEGER              :: DVMVeloDisc
-REAL                 :: DVMGHTemp(3)
-INTEGER              :: DVMNewtDeg(3)
-REAL                 :: DVMVeloMin(3)
-REAL                 :: DVMVeloMax(3)
 INTEGER              :: DVMDim
-REAL, ALLOCATABLE    :: DVMVelos(:,:)
-REAL, ALLOCATABLE    :: DVMWeights(:,:)
-REAL                 :: DVMForce(3)
+REAL                 :: DVMAccel(3)
+LOGICAL              :: DVMEquiForce
+INTEGER,ALLOCATABLE  :: DVMVeloDisc(:)
+REAL,ALLOCATABLE     :: DVMGHTemp(:,:)
+INTEGER,ALLOCATABLE  :: DVMNewtDeg(:,:)
 
-REAL,ALLOCATABLE     :: DVMMomentSave(:,:)
+REAL,ALLOCATABLE     :: DVMMomentSave(:,:,:)
+REAL,ALLOCATABLE     :: DVMInnerESave(:,:,:)
 
 TYPE tSpeciesData
+  CHARACTER(LEN=64):: Name
+  LOGICAL          :: DoOverwriteParameters ! Flag to read in parameters manually
   REAL            :: omegaVHS
   REAL            :: T_Ref
   REAL            :: d_Ref
   REAL            :: mu_Ref
   REAL            :: Mass
+  REAL            :: Charge
   REAL            :: R_S
-  REAL            :: Prandtl
-  INTEGER         :: Internal_DOF
+  INTEGER         :: InterID
+  INTEGER         :: Xi_Rot
+  REAL            :: Z_Rot
+  REAL            :: Z_Vib
+  REAL            :: T_Vib
+  INTEGER         :: nVar
+  INTEGER         :: nVarReduced
+  INTEGER         :: nVarErotStart
+  INTEGER         :: nVarEvibStart
+  INTEGER         :: nVelos(3)
+  REAL            :: VeloMin(3)
+  REAL            :: VeloMax(3)
+  REAL,ALLOCATABLE:: Velos(:,:)
+  REAL,ALLOCATABLE:: Weights(:,:)
+  REAL            :: GHTemp(3)
+  INTEGER         :: NewtDeg(3)
 END TYPE tSpeciesData
 
-TYPE(tSpeciesData) :: DVMSpeciesData
+TYPE(tSpeciesData),ALLOCATABLE :: DVMSpecData(:)
 
-CHARACTER(LEN=255),DIMENSION(15),PARAMETER :: StrVarNames_FV = (/ CHARACTER(LEN=255) :: 'Density', &
-                                                                                    'VelocityX', &
-                                                                                    'VelocityY', &
-                                                                                    'VelocityZ', &
-                                                                                    'Temperature', &
-                                                                                    'PressureXX', &
-                                                                                    'PressureYY', &
-                                                                                    'PressureZZ', &
-                                                                                    'PressureXY', &
-                                                                                    'PressureXZ', &
-                                                                                    'PressureYZ', &
-                                                                                    'HeatfluxX', &
-                                                                                    'HeatfluxY', &
-                                                                                    'HeatfluxZ', &
-                                                                                    'RelaxationFactor'/)
+CHARACTER(LEN=255),ALLOCATABLE :: StrVarNames_FV(:)
 
 LOGICAL              :: WriteDVMSurfaceValues
 REAL,ALLOCATABLE     :: DVMSurfaceValues(:,:,:,:)
 INTEGER              :: nVarDVMSurf=4
 
-LOGICAL              :: EquationInitIsDone=.FALSE.!< Init switch
+LOGICAL              :: EquationInitIsDone_FV=.FALSE.!< Init switch
 LOGICAL              :: DoExactFlux
 LOGICAL,ALLOCATABLE  ::isExactFluxInterFace(:)
 !===================================================================================================================================

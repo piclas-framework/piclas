@@ -394,7 +394,7 @@ DO iElem=1,nElems
   ! ElectricFieldMagnitude
   IF(CalcAvg(5))THEN
     DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-      UAvg_N(iElem)%Tmp(iAvg(5),i,j,k)=VECNORM(U_N(iElem)%E(1:3,i,j,k)) ! SQRT(SUM(U_N(iElem)%E(1:3,i,j,k)**2))
+      UAvg_N(iElem)%Tmp(iAvg(5),i,j,k)=VECNORM3D(U_N(iElem)%E(1:3,i,j,k)) ! SQRT(SUM(U_N(iElem)%E(1:3,i,j,k)**2))
     END DO; END DO; END DO
   END IF
 
@@ -412,7 +412,7 @@ DO iElem=1,nElems
       ! Mag(PowerDensity)
       IF(CalcAvg(iCounter+4))THEN
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          UAvg_N(iElem)%Tmp(iAvg(iVar+4),i,j,k) = VECNORM(PowerDensity_N(iElem)%U(1:3,i,j,k,iSpec2))
+          UAvg_N(iElem)%Tmp(iAvg(iVar+4),i,j,k) = VECNORM3D(PowerDensity_N(iElem)%U(1:3,i,j,k,iSpec2))
         END DO; END DO; END DO
       END IF
       IF(CalcAvg(iCounter+5)) UAvg_N(iElem)%Tmp(iAvg(iVar+5),:,:,:) = PowerDensity_N(iElem)%U(4,:,:,:,iSpec2)
@@ -423,7 +423,7 @@ DO iElem=1,nElems
       ! Mag(CurrentDensity)
       IF(CalcAvg(iCounter+9))THEN
         DO k=0,PP_N; DO j=0,PP_N; DO i=0,PP_N
-          UAvg_N(iElem)%Tmp(iAvg(iVar+9),i,j,k) = VECNORM(PowerDensity_N(iElem)%U(5:7,i,j,k,iSpec2))
+          UAvg_N(iElem)%Tmp(iAvg(iVar+9),i,j,k) = VECNORM3D(PowerDensity_N(iElem)%U(5:7,i,j,k,iSpec2))
         END DO; END DO; END DO
       END IF
     END IF

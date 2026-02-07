@@ -28,75 +28,116 @@ SUBROUTINE Riemann(F,U_L,U_R,nv)
 ! Conservative States are rotated into normal direction in this routine and are NOT backrotatet: don't use it after this routine!!
 !===================================================================================================================================
 ! MODULES
-USE MOD_PreProc ! PP_N
-USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, TargetDistribution
-USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMnVelos, DVMVelos, DVMMethod
+USE MOD_PreProc
+USE MOD_DistFunc,        ONLY: MacroValuesFromDistribution, TargetDistribution, MoleculeRelaxEnergy
+USE MOD_Equation_Vars_FV,ONLY: DVMDim, DVMSpecData, DVMnSpecies, DVMMethod, DVMColl, DVMnMacro, DVMnSpecTot
 USE MOD_TimeDisc_Vars,   ONLY: dt
 USE MOD_Globals,         ONLY: abort
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-REAL,DIMENSION(PP_nVar_FV,0:PP_N,0:PP_N),INTENT(IN) :: U_L,U_R
-REAL,INTENT(IN)                                  :: nv(3,0:PP_N,0:PP_N)
+REAL,DIMENSION(PP_nVar_FV),INTENT(IN)            :: U_L,U_R
+REAL,INTENT(IN)                                  :: nv(3)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-REAL,INTENT(OUT)                                 :: F(PP_nVar_FV,0:PP_N,0:PP_N)
+REAL,INTENT(OUT)                                 :: F(PP_nVar_FV)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT / OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL                                             :: n_loc(3),MacroVal_L(14), MacroVal_R(14), tau_L, tau_R
-REAL                                             :: Velo
-REAL,DIMENSION(PP_nVar_FV)                       :: fTarget_L, fTarget_R, UTemp_L, UTemp_R
+REAL                                             :: MacroVal_L(DVMnMacro,DVMnSpecTot), MacroVal_R(DVMnMacro,DVMnSpecTot)
+REAL                                             :: tau_L, tau_R, Velo, rho_L, rho_R, Pr_L, Pr_R
+REAL,ALLOCATABLE                                 :: fTarget_L(:), fTarget_R(:), UTemp_L(:), UTemp_R(:)
 REAL                                             :: gamma_R, gamma_L, relaxFac
-INTEGER                                          :: Count_1,Count_2, iVel, jVel, kVel, upos
+INTEGER                                          :: iVel, jVel, kVel, upos, iSpec, vFirstID, vLastID
+REAL                                             :: Erot_L(DVMnSpecTot),Erot_R(DVMnSpecTot)
+REAL                                             :: Evib_L(DVMnSpecTot),Evib_R(DVMnSpecTot)
+REAL                                             :: ErelaxTrans_L,ErelaxTrans_R
+REAL                                             :: ErelaxRot_L(DVMnSpecies),ErelaxRot_R(DVMnSpecies)
+REAL                                             :: ErelaxVib_L(DVMnSpecies),ErelaxVib_R(DVMnSpecies)
 !===================================================================================================================================
-! Gauss point i,j
-  DO Count_2=0,PP_N
-    DO Count_1=0,PP_N
-      n_loc(:)=nv(:,Count_1,Count_2)
-      CALL MacroValuesFromDistribution(MacroVal_L,U_L(:,Count_1,Count_2),dt/2.,tau_L,1)
-      CALL MacroValuesFromDistribution(MacroVal_R,U_R(:,Count_1,Count_2),dt/2.,tau_R,1)
-      CALL TargetDistribution(MacroVal_L, fTarget_L)
-      CALL TargetDistribution(MacroVal_R, fTarget_R)
-      IF (dt.EQ.0.) THEN
-        UTemp_L = 0.
-        UTemp_R = 0.
-      ELSE
-        SELECT CASE (DVMMethod)
-        CASE(1)
-          relaxFac = dt/2./tau_L
-          IF(CHECKEXP(relaxFac)) THEN
-            gamma_L = 2.*tau_L*(1.-EXP(-relaxFac))/dt
-          ELSE
-            gamma_L = 0.
-          END IF
-          relaxFac = dt/2./tau_R
-          IF(CHECKEXP(relaxFac)) THEN
-            gamma_R = 2.*tau_R*(1.-EXP(-relaxFac))/dt
-          ELSE
-            gamma_R = 0.
-          END IF
-        CASE(2)
-          gamma_L = 2.*tau_L/(2.*tau_L+dt/2.)
-          gamma_R = 2.*tau_R/(2.*tau_R+dt/2.)
-        END SELECT
-        UTemp_L = gamma_L*U_L(:,Count_1,Count_2) + (1.-gamma_L)*fTarget_L
-        UTemp_R = gamma_R*U_R(:,Count_1,Count_2) + (1.-gamma_R)*fTarget_R
+IF (DVMColl.AND.DVMMethod.GT.0) THEN
+  CALL MacroValuesFromDistribution(MacroVal_L,U_L,dt/2.,tau_L,1,MassDensity=rho_L,PrandtlNumber=Pr_L,Erot=Erot_L,Evib=Evib_L)
+  CALL MacroValuesFromDistribution(MacroVal_R,U_R,dt/2.,tau_R,1,MassDensity=rho_R,PrandtlNumber=Pr_R,Erot=Erot_R,Evib=Evib_R)
+  CALL MoleculeRelaxEnergy(ErelaxTrans_L,ErelaxRot_L,ErelaxVib_L,MacroVal_L(5,DVMnSpecTot),&
+                            ERot_L(1:DVMnSpecies),Evib_L(1:DVMnSpecies),Pr_L)
+  CALL MoleculeRelaxEnergy(ErelaxTrans_R,ErelaxRot_R,ErelaxVib_R,MacroVal_R(5,DVMnSpecTot),&
+                            ERot_R(1:DVMnSpecies),Evib_R(1:DVMnSpecies),Pr_R)
+  SELECT CASE (DVMMethod)
+  CASE(1)
+    gamma_L = 0.
+    IF (tau_L.GT.0.) THEN
+      relaxFac = dt/2./tau_L
+      IF(CHECKEXP(relaxFac)) THEN
+        gamma_L = 2.*tau_L*(1.-EXP(-relaxFac))/dt
       END IF
+    END IF
+    gamma_R = 0.
+    IF (tau_R.GT.0.) THEN
+      relaxFac = dt/2./tau_R
+      IF(CHECKEXP(relaxFac)) THEN
+        gamma_R = 2.*tau_R*(1.-EXP(-relaxFac))/dt
+      END IF
+    END IF
+  CASE(2)
+    gamma_L = 2.*tau_L/(2.*tau_L+dt/2.)
+    gamma_R = 2.*tau_R/(2.*tau_R+dt/2.)
+  END SELECT
+END IF
+vFirstID=1
+vLastID=0
+DO iSpec=1,DVMnSpecies
+  vLastID = vLastID + DVMSpecData(iSpec)%nVar
+  ALLOCATE(fTarget_L(DVMSpecData(iSpec)%nVar))
+  ALLOCATE(fTarget_R(DVMSpecData(iSpec)%nVar))
+  ALLOCATE(UTemp_L(DVMSpecData(iSpec)%nVar))
+  ALLOCATE(UTemp_R(DVMSpecData(iSpec)%nVar))
+  IF (DVMColl.AND.DVMMethod.GT.0) THEN
+    CALL TargetDistribution(MacroVal_L(:,DVMnSpecTot),fTarget_L,iSpec,MacroVal_L(1,iSpec),rho_L,Pr_L,ErelaxTrans_L,ErelaxRot_L(iSpec),ErelaxVib_L(iSpec))
+    CALL TargetDistribution(MacroVal_R(:,DVMnSpecTot),fTarget_R,iSpec,MacroVal_R(1,iSpec),rho_R,Pr_R,ErelaxTrans_R,ErelaxRot_R(iSpec),ErelaxVib_R(iSpec))
+    IF (dt.EQ.0.) THEN
+      UTemp_L = 0.
+      UTemp_R = 0.
+    ELSE
+      UTemp_L = gamma_L*U_L(vFirstID:vLastID) + (1.-gamma_L)*fTarget_L
+      UTemp_R = gamma_R*U_R(vFirstID:vLastID) + (1.-gamma_R)*fTarget_R
+    END IF
+  ELSE ! first order method or no collisions
+    UTemp_L = U_L(vFirstID:vLastID)
+    UTemp_R = U_R(vFirstID:vLastID)
+  END IF
 
-      DO kVel=1, DVMnVelos(3);   DO jVel=1, DVMnVelos(2);   DO iVel=1, DVMnVelos(1)
-        upos= iVel+(jVel-1)*DVMnVelos(1)+(kVel-1)*DVMnVelos(1)*DVMnVelos(2)
-        Velo= n_loc(1)*DVMVelos(iVel,1) + n_loc(2)*DVMVelos(jVel,2) + n_loc(3)*DVMVelos(kVel,3)
-        F(upos,Count_1,Count_2)=0.5*((Velo+abs(Velo))*Utemp_L(upos)+(Velo-abs(Velo))*Utemp_R(upos))
-        IF (DVMDim.LT.3) THEN
-          F(PP_nVar_FV/2+upos,Count_1,Count_2) = &
-            0.5*((Velo+abs(Velo))*Utemp_L(PP_nVar_FV/2+upos)+(Velo-abs(Velo))*Utemp_R(PP_nVar_FV/2+upos))
-        END IF
-      END DO; END DO; END DO;
-    END DO
-  END DO
+  DO kVel=1, DVMSpecData(iSpec)%nVelos(3); DO jVel=1, DVMSpecData(iSpec)%nVelos(2); DO iVel=1, DVMSpecData(iSpec)%nVelos(1)
+    upos= iVel+(jVel-1)*DVMSpecData(iSpec)%nVelos(1)+(kVel-1)*DVMSpecData(iSpec)%nVelos(1)*DVMSpecData(iSpec)%nVelos(2)
+    Velo= nv(1)*DVMSpecData(iSpec)%Velos(iVel,1) &
+        + nv(2)*DVMSpecData(iSpec)%Velos(jVel,2) &
+        + nv(3)*DVMSpecData(iSpec)%Velos(kVel,3)
+    F(vFirstID+upos-1)=0.5*((Velo+abs(Velo))*Utemp_L(upos)+(Velo-abs(Velo))*Utemp_R(upos))
+    IF (DVMDim.LT.3) THEN
+      F(vFirstID+DVMSpecData(iSpec)%nVarReduced+upos-1) = &
+                                              0.5*((Velo+abs(Velo))*Utemp_L(DVMSpecData(iSpec)%nVarReduced+upos) &
+                                                  + (Velo-abs(Velo))*Utemp_R(DVMSpecData(iSpec)%nVarReduced+upos))
+    END IF
+    IF (DVMSpecData(iSpec)%Xi_Rot.GT.0.) THEN
+      ! rotational energy reduced distribution
+      F(vFirstID+DVMSpecData(iSpec)%nVarErotStart+upos-1) = &
+                                              0.5*((Velo+abs(Velo))*Utemp_L(DVMSpecData(iSpec)%nVarErotStart+upos) &
+                                                  + (Velo-abs(Velo))*Utemp_R(DVMSpecData(iSpec)%nVarErotStart+upos))
+    END IF
+    IF (DVMSpecData(iSpec)%T_Vib.GT.0.) THEN
+      ! vibrational energy reduced distribution
+      F(vFirstID+DVMSpecData(iSpec)%nVarEvibStart+upos-1) = &
+                                              0.5*((Velo+abs(Velo))*Utemp_L(DVMSpecData(iSpec)%nVarEvibStart+upos) &
+                                                  + (Velo-abs(Velo))*Utemp_R(DVMSpecData(iSpec)%nVarEvibStart+upos))
+    END IF
+  END DO; END DO; END DO;
+  DEALLOCATE(fTarget_L)
+  DEALLOCATE(fTarget_R)
+  DEALLOCATE(UTemp_L)
+  DEALLOCATE(UTemp_R)
+  vFirstID = vFirstID + DVMSpecData(iSpec)%nVar
+END DO ! iSpec
 END SUBROUTINE Riemann
 
 

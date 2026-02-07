@@ -117,8 +117,8 @@ CASE(1) !1->4
       ind=iNb+2*(jNb-1)
 #if !(PP_TimeDiscMethod==700)
       NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)))
-#else
-      NSideMortar = PP_N
+#else /*FV only*/
+      NSideMortar = PP_1
 #endif /*!(PP_TimeDiscMethod==700)*/
       IF((MortarInfo(E2S_FLIP,ind,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
       nbSideID(ind)=MortarInfo(E2S_SIDE_ID,ind,SideIDMortar)
@@ -138,8 +138,8 @@ CASE(2) !1->2 in eta
   DO jNb=1,2
 #if !(PP_TimeDiscMethod==700)
     NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)))
-#else
-    NSideMortar = PP_N
+#else /*FV only*/
+    NSideMortar = PP_1
 #endif /*!(PP_TimeDiscMethod==700)*/
     IF((MortarInfo(E2S_FLIP,jNb,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(jNb)=MortarInfo(E2S_SIDE_ID,jNb,SideIDMortar)
@@ -158,8 +158,8 @@ CASE(3) !1->2 in xi
   DO iNb=1,2
 #if !(PP_TimeDiscMethod==700)
     NSideMortar = MAX(DG_Elems_slave(MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)),DG_Elems_master(MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)))
-#else
-    NSideMortar = PP_N
+#else /*FV only*/
+    NSideMortar = PP_1
 #endif /*!(PP_TimeDiscMethod==700)*/
     IF((MortarInfo(E2S_FLIP,iNb,SideIDMortar).GT.0).AND.(Nloc.LE.NSideMortar)) CYCLE !no slave sides (MPI)
     nbSideID(iNb)=MortarInfo(E2S_SIDE_ID,iNb,SideIDMortar)

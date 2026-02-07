@@ -1725,7 +1725,7 @@ END SUBROUTINE PhotoIonization_InsertProducts
 !===================================================================================================================================
 PPURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
 ! MODULES
-USE MOD_Globals      ,ONLY: VECNORM
+USE MOD_Globals      ,ONLY: VECNORM3D
 USE MOD_Globals_Vars ,ONLY: PI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1742,7 +1742,7 @@ REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector
 REAL               :: Vabs ! Absolute velocity
 REAL               :: phi ! random angle between 0 and 2*PI
 !===================================================================================================================================
-Vabs = VECNORM(VeloVec)
+Vabs = VECNORM3D(VeloVec)
 phi = RandVal * 2.0 * PI
 GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
 END FUNCTION GetRandomVectorInPlane
@@ -1754,7 +1754,7 @@ END FUNCTION GetRandomVectorInPlane
 !===================================================================================================================================
 FUNCTION GetRotatedVector(VeloVec,NormVec)
 ! MODULES
-USE MOD_Globals      ,ONLY: VECNORM, UNITVECTOR
+USE MOD_Globals      ,ONLY: VECNORM3D, UNITVECTOR
 USE MOD_Globals_Vars ,ONLY: PI
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -1775,7 +1775,7 @@ REAL, PARAMETER    :: PDF_max=4./PI
 LOGICAL            :: ARM_SEE_PDF
 !===================================================================================================================================
 v = UNITVECTOR(VeloVec)
-Vabs = VECNORM(VeloVec)
+Vabs = VECNORM3D(VeloVec)
 
 ! ARM for angular distribution
 ARM_SEE_PDF=.TRUE.

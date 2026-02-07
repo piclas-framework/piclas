@@ -294,7 +294,7 @@ DO iElem=firstElem,lastElem
     ElemBaryNGeo(:,iElem) = xPos/8.
   DO iNode=1,8
     xPos   = NodeCoords_Shared(1:3,ElemInfo_Shared(ELEM_FIRSTNODEIND,ElemID)+iNode) - ElemBaryNGeo(:,iElem)
-    Radius = MAX(Radius,VECNORM(xPos))
+    Radius = MAX(Radius,VECNORM3D(xPos))
   END DO
   ElemRadius2NGeo(iElem) = Radius*Radius
   IF(StringBeginsWith(DepositionType,'shape_function')) ElemRadiusNGeo(iElem) = Radius
@@ -777,7 +777,7 @@ IF (halo_eps.EQ.0) THEN
   vec(1)   = GEO%xmaxglob-GEO%xminglob
   vec(2)   = GEO%ymaxglob-GEO%yminglob
   vec(3)   = GEO%zmaxglob-GEO%zminglob
-  BC_halo_diag = VECNORM(vec)
+  BC_halo_diag = VECNORM3D(vec)
 
   ! compare halo_eps against global diagonal and reduce if necessary
   IF (.NOT.ALMOSTZERO(BC_halo_eps).AND.(BC_halo_diag.GE.BC_halo_eps)) THEN
@@ -796,7 +796,7 @@ ELSE
   vec(1)   = GEO%xmaxglob-GEO%xminglob
   vec(2)   = GEO%ymaxglob-GEO%yminglob
   vec(3)   = GEO%zmaxglob-GEO%zminglob
-  BC_halo_diag = VECNORM(vec)
+  BC_halo_diag = VECNORM3D(vec)
 
   IF (BC_halo_diag.LE.halo_eps) fullMesh = .TRUE.
   BC_halo_eps = halo_eps
@@ -883,11 +883,11 @@ ELSE
       IF (BCElemID.EQ.ElemID) CYCLE
 
       ! Check if barycenter of element is in range
-      IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
+      IF (VECNORM3D(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
       ! loop over all local sides of the element
-      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+      IF (VECNORM3D(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
            nBCSidesElem = nBCSidesElem + 1
            nBCSidesProc = nBCSidesProc + 1
@@ -1008,11 +1008,11 @@ ELSE
       IF (BCElemID.EQ.ElemID) CYCLE
 
       ! Check if barycenter of element is in range
-      IF (VECNORM(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
+      IF (VECNORM3D(ElemBaryNGeo(:,iElem) - ElemBaryNGeo(:,BCCNElemID)) &
         .GT. (BC_halo_eps + ElemRadiusNGeo(iElem) + ElemRadiusNGeo(BCCNElemID))) CYCLE
 
       ! loop over all local sides of the element
-      IF (VECNORM(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
+      IF (VECNORM3D(ElemBaryNGeo(:,iElem) - BCSideMetrics(1:3,iBCSide)) &
         .LE. (BC_halo_eps + ElemRadiusNGeo(iElem) + BCSideMetrics(4,iBCSide))) THEN
           nBCSidesProc = nBCSidesProc + 1
           SideBCMetrics(BCSIDE_SIDEID,nBCSidesProc+offsetBCSidesProc) = REAL(BCSideID)

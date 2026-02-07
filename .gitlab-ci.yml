@@ -43,6 +43,7 @@ workflow:
 # Load modules on new boltzplatz reggie
 before_script:
   - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
+  - export MESHESDIR=True
   - ulimit -s unlimited
   - python3 -V || true
   - python  -V || true
@@ -87,21 +88,23 @@ before_script:
   - if [ "$((10#$day % 2))" == "0" ]; then
       echo "Even day number ($day). Loading OpenMPI";
       module purge || true;
-      module load  cmake/3.31.1  gcc/14.2.0  openmpi/5.0.6/gcc/14.2.0      hdf5/1.14.0/gcc/14.2.0/openmpi/5.0.6      hopr/master/gcc/14.2.0/openmpi/5.0.6/hdf5/1.14.0      petsc/3.21.6/gcc/14.2.0/openmpi/5.0.6 || true;
+      module load  cmake/4.1.2  gcc/14.2.0  openmpi/5.0.8/gcc/14.2.0      hdf5/1.14.6/gcc/14.2.0/openmpi/5.0.8      hopr/master/gcc/14.2.0/openmpi/5.0.8/hdf5/1.14.6      petsc/3.22.5/gcc/14.2.0/openmpi/5.0.8 || true;
     else
       echo "Odd day number ($day). Loading MPICH";
       module purge || true;
-      module load  cmake/3.31.1  gcc/14.2.0  mpich/4.1.2/gcc/14.2.0        hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2        hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.21.6/gcc/14.2.0/mpich/4.1.2 || true;
+      module load  cmake/4.1.2  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
     fi
   - if [ -n "${DO_MPICH}" ]; then
       echo "DO_MPICH activated. Loading MPICH.";
       module purge || true;
-      module load  cmake/3.31.1  gcc/14.2.0  mpich/4.1.2/gcc/14.2.0        hdf5/1.14.0/gcc/14.2.0/mpich/4.1.2        hopr/master/gcc/14.2.0/mpich/4.1.2/hdf5/1.14.0        petsc/3.21.6/gcc/14.2.0/mpich/4.1.2 || true;
+      module load  cmake/4.1.2  gcc/14.2.0  mpich/4.3.1/gcc/14.2.0        hdf5/1.14.6/gcc/14.2.0/mpich/4.3.1        hopr/master/gcc/14.2.0/mpich/4.3.1/hdf5/1.14.6        petsc/3.22.5/gcc/14.2.0/mpich/4.3.1 || true;
     fi
   - if [ -n "${DO_MPICH_DEBUG}" ]; then
       echo "DO_MPICH_DEBUG activated. Loading MPICH with --with-device=ch3:sock which allows over-subscription without performance loss but cannot be used for shared memory arrays safely!";
       module purge || true;
-      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2 || true;
+      module load  cmake/3.26.4  gcc/13.2.0  mpich-debug/4.1.2/gcc/13.2.0  hdf5/1.14.0/gcc/13.2.0/mpich-debug/4.1.2  hopr/master/gcc/13.2.0/mpich-debug/4.1.2/hdf5/1.14.0  petsc/3.21.6/gcc/13.2.0/mpich-debug/4.1.2;
+    else
+      module load openblas/v0.3.31/gcc/14.2.0;
     fi
   - if [ -n "${DO_RUN_LOCAL}" ]; then
       source $(ls /opt/modules/*/init/bash | tail -n1);
@@ -109,6 +112,27 @@ before_script:
       module list;
     else
       module list || true ;
+    fi
+  # GCOVR_ARGS: - use --include-internal-functions to include all functions starting with '__' (basically every function in piclas)
+  #             - --gcov-ignore-parse-errors Skip lines with parse errors in GCOV files instead of exiting with an error
+  #             - --exclude-lines-by-pattern exclude all lines that start with the regex pattern. Called multiple times for no and one or more (^\s+) leading whitespaces since reggie execution expands wildcards
+  - if [ -n "${DO_CODE_COVERAGE}" ]; then
+      export CODE_COVERAGE=True;
+      if [ ! -d "Coverage" ]; then mkdir Coverage ; fi ;
+      export PICLAS_CODE_COVERAGE=ON ;
+      echo "PICLAS_CODE_COVERAGE=ON" ;
+      export GCOVR_ARGS='--include-internal-functions --gcov-ignore-parse-errors all --exclude-lines-by-pattern (?i)^\s+CALL\s+collectivestop --exclude-lines-by-pattern (?i)^CALL\s+collectivestop --exclude-lines-by-pattern (?i)^\s+CALL\s+ABORT --exclude-lines-by-pattern (?i)^CALL\s+ABORT';
+    fi
+  - |
+    if [ -n "${DO_REGGIE_COVERAGE}" ]; then
+      if [ ! -d "Coverage/reggie" ]; then mkdir Coverage/reggie ; fi ;
+      echo "DO_REGGIE_COVERAGE activated. Creating Coverage/reggie to store coverage report.";
+      COVERAGE_REGGIE_DIR="${PWD}/Coverage/reggie" ;
+      reggie() {
+        coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"
+      }
+      echo "Exporting reggie function call to 'coverage run -a --data-file=${COVERAGE_REGGIE_DIR}/.coverage --source=reggie -m reggie.reggie "$@"' to get coverage data."
+      export -f reggie
     fi
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
@@ -150,6 +174,9 @@ stages:
     # If the pipeline is for an appimage build run, the job is not added to the pipeline.
     - if: '$DO_CREATE_APPIMAGE'
       when: never
+    # If the pipeline is for pushing the master branch to GitHub
+    - if: '$DO_DEPLOY'
+      when: never
     # In all other cases, the job is added to the pipeline, with when: on_success
     - when: on_success
 
@@ -164,6 +191,12 @@ stages:
   paths: [reggie]
   policy: pull
 
+.coverage_cache: &coverage_cache
+  # use CI_PIPELINE_ID to create a separate cache per pipeline to ensure that no old reports are still used
+  key: "${CI_PIPELINE_ID}-coverage"
+  paths: [Coverage]
+  policy: pull-push
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Defaults for the standard maxwell tests (utilizing "extends" to merge the other "artifacts" options with the specific path)
 .defaults: &defaults
@@ -176,6 +209,7 @@ stages:
     - key: "${CI_COMMIT_REF_SLUG}"
       paths: [build]
       policy: pull
+    - *coverage_cache
 
 .defaults_checkin: &defaults_checkin
   <<: *defaults
@@ -205,6 +239,7 @@ stages:
     - key: "${CI_COMMIT_REF_SLUG}-MAX"
       paths: [build_maxwell_only]
       policy: pull
+    - *coverage_cache
   rules:
     - if: '$DO_CHECKIN'
     - if: '$CI_PIPELINE_SOURCE == "push"'
@@ -229,6 +264,7 @@ stages:
         - build_poisson_debug_RK3
         - build_poisson_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_checkin: &defaults_poisson_checkin
   <<: *defaults_poisson
@@ -260,6 +296,7 @@ stages:
       paths:
         - build_drift_diffusion
       policy: pull
+    - *coverage_cache
 
 .defaults_drift_diffusion_checkin: &defaults_drift_diffusion_checkin
   <<: *defaults_drift_diffusion
@@ -291,6 +328,7 @@ stages:
       paths:
         - build_DVM
       policy: pull
+    - *coverage_cache
 
 .defaults_DVM_checkin: &defaults_DVM_checkin
   <<: *defaults_DVM
@@ -305,6 +343,38 @@ stages:
 
 .defaults_DVM_weekly: &defaults_DVM_weekly
   <<: *defaults_DVM
+  rules:
+    - if: '$DO_WEEKLY'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Defaults for DVM plasma tests
+.defaults_DVM_plasma: &defaults_DVM_plasma
+  extends: .default_param
+  needs: [build_DVM_plasma]
+  artifacts:
+    paths:
+      - build_DVM_plasma
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
+      paths:
+        - build_DVM_plasma
+      policy: pull
+    - *coverage_cache
+
+.defaults_DVM_plasma_checkin: &defaults_DVM_plasma_checkin
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_CHECKIN'
+    - if: '$CI_PIPELINE_SOURCE == "push"'
+
+.defaults_DVM_plasma_nightly: &defaults_DVM_plasma_nightly
+  <<: *defaults_DVM_plasma
+  rules:
+    - if: '$DO_NIGHTLY'
+
+.defaults_DVM_plasma_weekly: &defaults_DVM_plasma_weekly
+  <<: *defaults_DVM_plasma
   rules:
     - if: '$DO_WEEKLY'
 
@@ -328,6 +398,7 @@ stages:
         - build_poisson_petsc_debug_RK3
         - build_poisson_petsc_debug_Leapfrog
       policy: pull
+    - *coverage_cache
 
 .defaults_poisson_petsc_checkin: &defaults_poisson_petsc_checkin
   <<: *defaults_poisson_petsc
@@ -357,6 +428,7 @@ stages:
       paths:
         - build_petsc_lib
       policy: pull
+    - *coverage_cache
   rules:
     - if: '$DO_WEEKLY'
 
@@ -380,6 +452,7 @@ stages:
         - build_DSMC_N1
         - build_radiation
       policy: pull
+    - *coverage_cache
 
 .defaults_DSMC_checkin: &defaults_DSMC_checkin
   <<: *defaults_DSMC
@@ -398,20 +471,36 @@ stages:
     - if: '$DO_WEEKLY'
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".pre": always executed at the start of each pipeline
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+
+cleanup:
+  tags: [withmodules-concurrent]
+  stage: .pre
+  script:
+    - if [ -d "Coverage" ]; then
+      rm -rf Coverage;
+      echo "Old coverage files deleted";
+      fi
+  rules:
+    - if: '$DO_CODE_COVERAGE'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "build": Build on check-in
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 
 reggie_download:
   extends: .default_build_param
-  rules:
+  # rules:
     # Overwrite the rules from default_build_param to ensure that reggie is available when the appimages are tested
-    - when: on_success
+    # - when: on_success
   artifacts:
     paths: [reggie]
   cache:
-    key: "reggie"
-    paths: [reggie]
-    policy: push
+    - key: "reggie"
+      paths: [reggie]
+      policy: push
+    - *coverage_cache
   stage: build
   script:
     # Check if the "reggie" directory contains a ".git" directory
@@ -430,6 +519,7 @@ reggie_download:
     - reggie --help
     # Output reggie commit hash for checking if the correct reggie version is used
     - if [ -f "reggie/.git/refs/heads/master" ]; then cat reggie/.git/refs/heads/master ; fi
+  timeout: 5 minutes
 
 build:
   extends: .default_build_param
@@ -579,12 +669,12 @@ build_DSMC:
     - if [[ "$NWARN" =~ ^[1-9][0-9]+$ ]]; then
         if [ -n "${CHECK_WARNINGS}" ]; then echo "More than 9 warnings are not allowed. Fix the warnings and re-run the regression test."; exit 1 ; fi ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_DSMC_N1 ; cd build_DSMC_N1 ;
         cmake .. -DCMAKE_BUILD_TYPE=Release -DPICLAS_TIMEDISCMETHOD=DSMC -DLIBS_BUILD_HDF5=OFF -DPICLAS_POLYNOMIAL_DEGREE=1 ; $GENERATOR -j $NCORES all ;
       fi
-    - if [ -n "${DO_WEEKLY}" ]; then
+    - if [ -n "${DO_WEEKLY}" ] ; then
         cd .. ;
         mkdir -p build_radiation ; cd build_radiation ;
         cmake .. -DLIBS_BUILD_HDF5=OFF -DPICLAS_BUILD_POSTI=ON -DPOSTI_BUILD_SUPERB=ON -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_TIMEDISCMETHOD=Radiation -DPICLAS_INTKIND8=ON ; $GENERATOR -j $NCORES all ;
@@ -623,6 +713,21 @@ build_DVM:
   script:
     - mkdir -p build_DVM ; cd build_DVM
     - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=ED-DVM -DPICLAS_PARTICLES=OFF; $GENERATOR -j $NCORES all
+
+build_DVM_plasma:
+  extends: .default_build_param
+  needs: [reggie_download]
+  artifacts:
+    paths: [build_DVM_plasma]
+  cache:
+    - *reggie_cache
+    - key: "${CI_COMMIT_REF_SLUG}-DVM_plasma"
+      paths: [build_DVM_plasma]
+      policy: push
+  stage: build
+  script:
+    - mkdir -p build_DVM_plasma ; cd build_DVM_plasma
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DPICLAS_DEBUG_MEMORY=ON -DLIBS_BUILD_HDF5=OFF -DPICLAS_READIN_CONSTANTS=ON -DPICLAS_EQNSYSNAME=discrete_velocity -DPICLAS_TIMEDISCMETHOD=PLOESMA -DPICLAS_PARTICLES=OFF -DLIBS_USE_PETSC=ON; $GENERATOR -j $NCORES all
 
 build_hopr:
   extends: .default_build_param
@@ -842,6 +947,12 @@ CHE_poisson_periodic:
   stage: reggie_feature_checkin
   script:
     - cd build ; reggie ../regressioncheck/CHE_poisson_periodic
+
+CHE_DVM_plasma:
+  <<: *defaults_DVM_plasma_checkin
+  stage: reggie_feature_checkin
+  script:
+    - cd build_DVM_plasma ; reggie ../regressioncheck/CHE_DVM_plasma -e ./bin/piclas
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_DSMC_nightly": Build and run chemistry examples on nightly (check reaction rates in RESERVOIR simulation)
@@ -1268,6 +1379,12 @@ NIG_convtest_DVM:
   script:
     - cd build_DVM ; reggie ../regressioncheck/NIG_convtest_DVM
 
+NIG_DVM_plasma:
+  <<: *defaults_DVM_plasma_nightly
+  stage: reggie_nightly
+  script:
+    - cd build_DVM_plasma ; reggie ../regressioncheck/NIG_DVM_plasma
+
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_weekly_build_all": Build and run
 #                                    - build all specified compile options in "run_basic" with BUILD_HDF5=ON
@@ -1402,6 +1519,64 @@ WEK_DVM:
     - cd build_DVM ; reggie ../regressioncheck/WEK_DVM
 
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
+# Stage ".post": Collect coverage data
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
+code_coverage:
+  extends: .defaults
+  stage: .post
+  needs: [cleanup]
+  script:
+    - echo "Generating combined coverage report..."
+    # old coverage .json files are removed in the .pre stage (cleanup job), since it should only be done once
+    # (otherwise the new reports will be deleted in each job) and in the beginning
+    - if [ ! -d "Coverage/cobertura" ]; then mkdir Coverage/cobertura ; fi ;
+    # remove old html files, since file names can differ (where for xml format only one file is created and thus will be overwritten)
+    - if [ -d "Coverage/html" ]; then
+        rm -f Coverage/html/*.html || true ;
+        rm -f Coverage/html/*.css || true ;
+      else
+        mkdir Coverage/html ;
+      fi
+    # combine coverage reports of all builds and runs in xml file for displaying coverage in mr diff view
+    - FIND=$(cd Coverage; ls *.json)
+    - echo -e "Using files:\n$FIND\nfor gcovr execution"
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --xml Coverage/cobertura/coverage.xml --print-summary --merge-mode-functions=merge-use-line-min
+    # also in html format to check whole codebase by hand (easier to read compared to xml)
+    - gcovr --root ${PWD}/src --add-tracefile "Coverage/*.json" --html-nested Coverage/html/coverage.html --merge-mode-functions=merge-use-line-min
+  # regex expression the retrieve coverage percentage
+  coverage: '/lines:\s+([0-9]+(?:\.[0-9]+)?)%/'
+  artifacts:
+    paths:
+      # html for visual output
+      - Coverage/html
+      # json files to check if all builds are read in for combined coverage report
+      - Coverage/*.json
+    expire_in: 1 month
+    when: on_success
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: Coverage/cobertura/*.xml
+  rules:
+    - if: '$DO_CODE_COVERAGE'
+
+reggie_coverage:
+  extends: .defaults
+  stage: .post
+  needs: [cleanup]
+  script:
+    - echo "Generating coverage report for reggie..."
+    - coverage html --data-file=${COVERAGE_REGGIE_DIR}/.coverage -d ${COVERAGE_REGGIE_DIR} ;
+  artifacts:
+    paths:
+      # reggie coverage files
+      - Coverage/reggie
+    expire_in: 1 week
+    when: on_success
+  rules:
+    - if: '$DO_REGGIE_COVERAGE'
+
+# ----------------------------------------------------------------------------------------------------------------------------------------------------
 # Stage "reggie_tutorials": Run tutorials via reggie to check their continued functionality
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 WEK_drift_diffusion:
@@ -1436,8 +1611,7 @@ documentation:
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github:
   stage: deploy
-  tags:
-    - withmodules-concurrent
+  tags: [deploy]
   rules:
     - if: '$DO_DEPLOY'
   script:
@@ -1452,7 +1626,7 @@ github:
 # Stage "appimage": Push the CI_COMMIT_REF_NAME branch to github to invoke creating the AppImages
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_create_appimage:
-  tags: [withmodules-concurrent]
+  tags: [appimage]
   stage: appimage
   rules:
     - if: '$DO_CREATE_APPIMAGE'
@@ -1469,23 +1643,27 @@ github_create_appimage:
 # Stage "appimage": Download the AppImages from the piclas-testing repository and test them
 # ----------------------------------------------------------------------------------------------------------------------------------------------------
 github_test_appimage:
-  tags: [withmodules-concurrent]
-  needs: [reggie_download]
+  tags: [appimage]
   stage: appimage
   rules:
     - if: '$DO_TEST_APPIMAGE'
-  cache:
-    - *reggie_cache
   script:
-    - if [ -z "${DO_TEST_APPIMAGE}" ]; then exit; fi
+    - if [ -z "${DO_TEST_APPIMAGE}" ]; then echo "DO_TEST_APPIMAGE is empty but should contain the artifact name"; exit; else echo "Artifact ${DO_TEST_APPIMAGE}"; fi
     - if [ -z "${CI_COMMIT_REF_NAME}" ]; then echo "CI_COMMIT_REF_NAME is empty"; exit; else echo "Cloning ${CI_COMMIT_REF_NAME}"; fi
+    - if [ -d "reggie-appimage" ]; then rm -rf reggie-appimage ; fi ;
+    - git clone git@piclas.boltzplatz.eu:reggie2.0/reggie2.0.git reggie-appimage ;
+    - if [ -d "reggie-appimage" ]; then cd reggie-appimage ; pip install -e . --break-system-packages ; cd .. ; fi ;
     - export PATH="/var/lib/gitlab-runner/.local/bin:$PATH"
     - module pu && module load gcc/14.2.0 openmpi/4.1.6/gcc/14.2.0
     - rm -rf piclas-testing || true ;
     - git clone -b ${CI_COMMIT_REF_NAME} --single-branch git@github.com-reggie2.0:scopplestone/piclas-testing.git piclas-testing
     - cd piclas-testing
     - source /var/lib/gitlab-runner/.bashrc
+    - echo "Downloading '${DO_TEST_APPIMAGE}' artifacts from piclas-testing via 'gh run download -n ${DO_TEST_APPIMAGE}'"
     - gh run download -n ${DO_TEST_APPIMAGE}
     - ls -l
     - module li
+    - echo "Checking ./piclasLeapfrogHDG executable output"
+    - ./piclasLeapfrogHDG --help | head -n 12 || true
+    - echo "Running ./tools/testAppImages.sh . regressioncheck"
     - ./tools/testAppImages.sh . regressioncheck

@@ -93,8 +93,11 @@ if(PKG_CONFIG_FOUND)
 
     set(PETSC_VERSION ${PETSC_VERSION} CACHE STRING "Full version of PETSc")
     set(PETSC_VERSION_MAJOR ${_petsc_version_major} CACHE INTERNAL "Major version of PETSc")
+    ADD_COMPILE_DEFINITIONS(PETSC_VERSION_MAJOR=${PETSC_VERSION_MAJOR})
     set(PETSC_VERSION_MINOR ${_petsc_version_minor} CACHE INTERNAL "Minor version of PETSc")
+    ADD_COMPILE_DEFINITIONS(PETSC_VERSION_MINOR=${PETSC_VERSION_MINOR})
     set(PETSC_VERSION_PATCH ${_petsc_version_patch} CACHE INTERNAL "Patch version of PETSc")
+    ADD_COMPILE_DEFINITIONS(PETSC_VERSION_PATCH=${PETSC_VERSION_PATCH})
 
     unset(_petsc_versions)
     unset(_petsc_version_major)

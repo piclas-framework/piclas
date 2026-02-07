@@ -48,7 +48,7 @@ IMPLICIT NONE
 ! INPUT/OUTPUT VARIABLES
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL,ALLOCATABLE                   :: Elem_xGP_LB(:,:,:,:,:)
+REAL,ALLOCATABLE                   :: Elem_xGP_LB(:,:)
 REAL,ALLOCATABLE                   :: Elem_xGP_PP_1_LB(:,:,:,:,:)
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1)
@@ -62,7 +62,7 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   ! SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO') ' Shift volume coordinates during loadbalance...'
   GETTIME(StartT)
 
-  ALLOCATE(Elem_xGP_LB   (3,0:0,0:0,0:0,nElems))
+  ALLOCATE(Elem_xGP_LB   (3,nElems))
   ASSOCIATE (&
           counts_send  => INT(MPInElemSend     ) ,&
           disp_send    => INT(MPIoffsetElemSend) ,&
@@ -116,7 +116,7 @@ USE MOD_PreProc
 USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 USE MOD_LoadBalance_Vars   ,ONLY: MPInElemSend,MPInElemRecv,MPIoffsetElemSend,MPIoffsetElemRecv
 USE MOD_Mesh_Vars          ,ONLY: nElems
-USE MOD_Mesh_Vars_FV       ,ONLY: JaCL_N_PP_1,Metrics_fTilde_FV,Metrics_gTilde_FV,Metrics_hTilde_FV,XCL_N_PP_1
+USE MOD_Mesh_Vars_FV       ,ONLY: JaCL_N_PP_1,XCL_N_PP_1
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -126,9 +126,6 @@ IMPLICIT NONE
 ! Elements
 REAL,ALLOCATABLE                   :: XCL_N_LB(         :,:,:,:,:)
 REAL,ALLOCATABLE                   :: JaCL_N_LB(      :,:,:,:,:,:)
-REAL,ALLOCATABLE                   :: Metrics_fTilde_LB(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: Metrics_gTilde_LB(:,:,:,:,:)
-REAL,ALLOCATABLE                   :: Metrics_hTilde_LB(:,:,:,:,:)
 ! Custom data type
 INTEGER                            :: MPI_LENGTH(1)
 TYPE(MPI_Datatype)                 :: MPI_TYPE(1),MPI_STRUCT
@@ -178,34 +175,6 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
   END ASSOCIATE
   DEALLOCATE(JaCL_N_PP_1)
   CALL MOVE_ALLOC(JaCL_N_LB,JaCL_N_PP_1)
-
-  ASSOCIATE (&
-          counts_send  => INT(MPInElemSend     ) ,&
-          disp_send    => INT(MPIoffsetElemSend) ,&
-          counts_recv  => INT(MPInElemRecv     ) ,&
-          disp_recv    => INT(MPIoffsetElemRecv))
-    ! Communicate metrics over MPI
-    MPI_LENGTH       = 3
-    MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
-    MPI_TYPE         = MPI_DOUBLE_PRECISION
-    CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)
-    CALL MPI_TYPE_COMMIT(MPI_STRUCT,iError)
-
-    ALLOCATE(Metrics_fTilde_LB(3,0:0   ,0:0   ,0:0   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_fTilde_FV,counts_send,disp_send,MPI_STRUCT,Metrics_fTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-    DEALLOCATE(Metrics_fTilde_FV)
-    CALL MOVE_ALLOC(Metrics_fTilde_LB,Metrics_fTilde_FV)
-
-    ALLOCATE(Metrics_gTilde_LB(3,0:0   ,0:0   ,0:0   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_gTilde_FV,counts_send,disp_send,MPI_STRUCT,Metrics_gTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-    DEALLOCATE(Metrics_gTilde_FV)
-    CALL MOVE_ALLOC(Metrics_gTilde_LB,Metrics_gTilde_FV)
-
-    ALLOCATE(Metrics_hTilde_LB(3,0:0   ,0:0   ,0:0   ,nElems))
-    CALL MPI_ALLTOALLV(Metrics_hTilde_FV,counts_send,disp_send,MPI_STRUCT,Metrics_hTilde_LB,counts_recv,disp_recv,MPI_STRUCT,MPI_COMM_PICLAS,iError)
-    DEALLOCATE(Metrics_hTilde_FV)
-    CALL MOVE_ALLOC(Metrics_hTilde_LB,Metrics_hTilde_FV)
-  END ASSOCIATE
 
   GETTIME(EndT)
   WallTime = EndT-StartT

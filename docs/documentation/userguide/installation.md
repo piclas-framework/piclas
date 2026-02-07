@@ -10,26 +10,26 @@ In that case, you can jump directly to the description of the download and insta
 ## AppImage executable download
 
 PICLas and its tools can be installed on a Linux machine without the need of compiling the source code.
-Currently, PICLas executables are only available as *[AppImage](https://appimage.org/)* for Linux.
-The only requirements are that [GNU C Library (glibc)](https://www.gnu.org/software/libc/) and [OpenMPI](https://www.open-mpi.org/)
+The executables are available as *[AppImage](https://appimage.org/)* for Linux.
+The requirements are that [GNU C Library (glibc)](https://www.gnu.org/software/libc/) and [OpenMPI](https://www.open-mpi.org/)
 are pre-installed on the target system and available when running the AppImage executables.
 The minimum version requirements are listed in the following table and it is not guaranteed that more recent versions of the
 libraries listed in the table work automatically
 
 | PICLas Version |                              MPI                              | glibc |
 | :------------: | :-----------------------------------------------------------: | :---: |
-| 3.6.0 - 4.0.0  | [openmpi-4.1.6](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
+| 3.6.0 - 4.1.0  | [openmpi-4.1.6](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
 | 3.3.0 - 3.5.0  | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
 |     <3.3.0     | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.17  |
 
 Static libraries for [OpenMPI](https://www.open-mpi.org/) are not distributed within the AppImage package because of the system-dependent optimizations
-(e.g. specific InfiniBand settings).
+(for example specific InfiniBand settings).
 Additional external libraries and versions that are used for compiling are the following but do not have to be installed separately
 on the system where the AppImage is going to be executed
 
 | PICLas Version |                                 GNU GCC                                  |                                          HDF5                                          |                         PETSc                          |
 | :------------: | :----------------------------------------------------------------------: | :------------------------------------------------------------------------------------: | :----------------------------------------------------: |
-| 3.6.0 - 4.0.0  | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.21.6](https://petsc.org/release/changes/321/) |
+| 3.6.0 - 4.1.0  | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.21.6](https://petsc.org/release/changes/321/) |
 |    <=3.5.0     | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.18.4](https://petsc.org/release/changes/318/) |
 
 Other operating systems, such as Windows or MacOS might be supported in the future.
@@ -48,7 +48,7 @@ which should produce output looking like
     superB: OK
 
 indicating that everything is fine.
-After downloading the binary files, it has to be checked that all files are executable and if not simply run
+After downloading the binary files, it has to be checked that all files are executable and if not run
 
     chmod +x piclas*
 
@@ -80,7 +80,7 @@ For CentOS, the packages can be installed using the following command
     sudo yum install git cmake cmake3 libtool ncurses-devel lapack-devel openblas-devel devtoolset-9 gcc gcc-c++ zlib1g zlib1g-devel exuberant-ctags numactl-devel rdma-core-devel binutils tar epel-release centos-release-scl
 
 On some systems it may be necessary to increase the size of the stack (part of the memory used to store information about active
-subroutines) in order to execute **PICLas** correctly. This is done using the command
+subroutines) in order to execute **PICLas**. This is done using the command
 
     ulimit -s unlimited
 
@@ -92,6 +92,7 @@ The following list contains the **recommended library combinations** for the Int
 
 | PICLas Version | CMake  | Compiler  |            MPI             |  HDF5  | PETSc  |
 | :------------: | :----: | :-------: | :------------------------: | :----: | :----: |
+|     4.1.0      | 4.2.1  | gcc14.2.0 | openmpi-5.0.8, mpich-4.3.1 | 1.14.6 | 3.22.5 |
 | 3.6.0 - 4.0.0  | 3.31.1 | gcc14.2.0 | openmpi-5.0.6, mpich-4.1.2 | 1.14.0 | 3.21.6 |
 |     3.4.0      | 3.31.1 | gcc13.2.0 | openmpi-4.1.5, mpich-4.1.2 | 1.14.0 | 3.19.3 |
 |     3.3.0      | 3.26.4 | gcc13.2.0 |       openmpi-4.1.5        | 1.14.0 | 3.19.3 |
@@ -107,7 +108,7 @@ and the **minimum requirements**
 | 2.3.0 - 2.8.0  | gnu9.2.0  | 1.10.6 | openmpi-3.1.6 | 3.17  |
 | 2.0.0 - 2.2.2  | intel18.1 |  1.10  |   impi2018    | 3.17  |
 
-A full list of all previously tested combinations is found in Chapter {ref}`userguide/appendix:Appendix`. Alternative combinations might work as well, however, have not been tested.
+A full list of all tested combinations is found in Chapter {ref}`userguide/appendix:Appendix`. Alternative combinations might work as well, however, have not been tested.
 
 If you are setting-up a fresh system for the simulation with PICLas, it is recommended to use a Module environment, which can be set
 up with the provided shell scripts in `piclas/tools/Setup_ModuleEnv`.

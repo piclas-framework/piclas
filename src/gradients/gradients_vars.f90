@@ -36,7 +36,9 @@ REAL,ALLOCATABLE                      :: Grad_dx_slave(:,:)
 REAL,ALLOCATABLE                      :: Grad_dx_master(:,:)
 REAL,ALLOCATABLE                      :: Grad_SysSol_slave(:,:)
 REAL,ALLOCATABLE                      :: Grad_SysSol_master(:,:)
+#ifdef discrete_velocity
 REAL,ALLOCATABLE                      :: Grad_SysSol_BC(:,:)
+#endif
 
 ! Limiter
 INTEGER                               :: GradLimiterType

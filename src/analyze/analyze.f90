@@ -130,8 +130,8 @@ USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone,Uex,NAnalyze
 USE MOD_IO_HDF5               ,ONLY: AddToElemData
 USE MOD_Mesh_Vars             ,ONLY: nElems
 USE MOD_ReadInTools           ,ONLY: GETINT,GETREAL,GETLOGICAL,PrintOption,GETINTARRAY
-USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+USE MOD_TimeAverage_Vars      ,ONLY: doCalcTimeAverage
 USE MOD_TimeAverage           ,ONLY: InitTimeAverage
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 USE MOD_TimeDisc_Vars         ,ONLY: TEnd
@@ -212,8 +212,6 @@ OutputTimeFixed   = GETREAL('OutputTimeFixed')
 ! Time averaged quantises fields (Maxwell/Poisson solver) and deposited particles (PIC)
 #if (PP_TimeDiscMethod==1)||(PP_TimeDiscMethod==2)||(PP_TimeDiscMethod==6)||(PP_TimeDiscMethod>=501 && PP_TimeDiscMethod<=509)
   doCalcTimeAverage = GETLOGICAL('CalcTimeAverage')
-#else
-  doCalcTimeAverage = .FALSE.
 #endif
 
 #if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
@@ -641,7 +639,7 @@ USE MOD_PICDepo_Vars              ,ONLY: DoDeposition, RelaxDeposition
 #endif /*PARTICLES*/
 USE MOD_TimeDisc_Vars             ,ONLY: time
 #ifdef discrete_velocity
-USE MOD_Equation_Vars_FV          ,ONLY: WriteDVMSurfaceValues
+USE MOD_Equation_Vars_FV          ,ONLY: WriteDVMSurfaceValues, DVMnMacro
 USE MOD_DVM_Boundary_Analyze      ,ONLY: WriteDVMSurfToHDF5
 #else
 #if defined(LSERK) || USE_HDG
@@ -685,8 +683,8 @@ REAL                          :: tLBStart ! load balance
 #endif /* LSERK || USE_HDG || defined(discrete_velocity)*/
 #if USE_FV
 #ifdef discrete_velocity
-REAL                          :: L_2_Error_FV(14)
-REAL                          :: L_Inf_Error_FV(14)
+REAL                          :: L_2_Error_FV(DVMnMacro)
+REAL                          :: L_Inf_Error_FV(DVMnMacro)
 #else
 REAL                          :: L_2_Error_FV(PP_nVar_FV)
 REAL                          :: L_Inf_Error_FV(PP_nVar_FV)
@@ -849,7 +847,7 @@ END IF
 !----------------------------------------------------------------------------------------------------------------------------------
 ! Maxwell's equation: Compute Poynting Vector and field energies
 !----------------------------------------------------------------------------------------------------------------------------------
-#ifndef discrete_velocity
+#if !(PP_TimeDiscMethod==700)
 IF (DoFieldAnalyze) THEN
   IF(DoPerformFieldAnalyze) CALL AnalyzeField(OutputTime)
 END IF

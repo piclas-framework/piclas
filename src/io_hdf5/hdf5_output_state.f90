@@ -47,8 +47,6 @@ USE MOD_PreProc
 USE MOD_Globals
 #if USE_FV
 USE MOD_FV_Vars                ,ONLY: U_FV
-USE MOD_Gradients              ,ONLY: GetGradients
-USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
 #endif
 #if !(USE_FV) || (USE_HDG)
@@ -87,8 +85,12 @@ USE MOD_Particle_Vars          ,ONLY: CalcBulkElectronTemp,BulkElectronTemp
 #endif /*PARTICLES*/
 USE MOD_Mesh_Vars              ,ONLY: nElems
 #ifdef discrete_velocity
+USE MOD_FV_Vars                ,ONLY: doFVReconstruct
+USE MOD_Gradients              ,ONLY: GetGradients
+USE MOD_Prolong_FV             ,ONLY: ProlongToOutput
 USE MOD_DistFunc               ,ONLY: MacroValuesFromDistribution
 USE MOD_TimeDisc_Vars          ,ONLY: dt,time,dt_Min
+USE MOD_Equation_Vars_FV       ,ONLY: DVMnSpecies, DVMnMacro, DVMnInnerE, DVMColl, DVMnSpecTot
 #endif
 #if USE_HDG
 USE MOD_HDG_Vars               ,ONLY: UseFPC,FPC,UseEPC,EPC
@@ -164,15 +166,16 @@ CHARACTER(LEN=255),ALLOCATABLE :: LocalStrVarNames(:)
 REAL                           :: NumSpec(nSpecAnalyze),TmpArray(1,1)
 INTEGER(KIND=IK)               :: SimNumSpec(nSpecAnalyze)
 #endif /*PARTICLES*/
-#if USE_FV
 #ifdef discrete_velocity
-REAL,ALLOCATABLE               :: Utemp(:,:,:,:,:)
-#endif /*discrete_velocity*/
-REAL                           :: Ureco(PP_nVar_FV,0:PP_1,0:PP_1,0:PP_1,PP_nElems)
-#endif
-#ifdef discrete_velocity
+INTEGER(KIND=IK)               :: N_FV
+REAL,ALLOCATABLE               :: Ureco(:,:,:,:,:)
+REAL                           :: MacroVal(DVMnMacro,DVMnSpecTot)
+REAL,ALLOCATABLE               :: Udvm(:,:,:,:,:)
 REAL                           :: tau,dtMV
-#endif /*DVM*/
+INTEGER                        :: iSpec
+INTEGER(KIND=IK)               :: nValDVM
+REAL                           :: Trot(DVMnSpecTot),Tvib(DVMnSpecTot)
+#endif /*discrete_velocity*/
 INTEGER                        :: i,j,k
 #if USE_HDG
 REAL,ALLOCATABLE               :: FPCDataHDF5(:,:),EPCDataHDF5(:,:)
@@ -225,9 +228,24 @@ IF(.NOT.DoWriteStateToHDF5) RETURN
 SWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' WRITE STATE TO HDF5 FILE '
 GETTIME(StartT)
 
+#ifdef discrete_velocity
+IF (doFVReconstruct) THEN
+  N_FV = INT(PP_1,IK)
+ELSE
+  N_FV = 0_IK
+ENDIF
+ALLOCATE(Ureco(PP_nVar_FV,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
+#endif /*discrete_velocity*/
+
 ! Generate skeleton for the file with all relevant data on a single proc (MPIRoot)
 #if USE_HDG
-#if PP_nVar==1
+#ifdef discrete_velocity /*DVM+HDG*/
+! poisson + DVM
+nVarOut = 4
+NOut = N_FV
+ASSOCIATE( StrVarNames => [StrVarNames,StrVarNames_FV], &
+           nVarOut     => nVarOut+(DVMnMacro+DVMnInnerE)*DVMnSpecTot+1)
+#elif PP_nVar==1
 ! poisson
 nVarOut = 4
 NOut = NMax
@@ -241,22 +259,15 @@ nVarOut = 7
 NOut = PP_N
 #endif  /*PP_nVar==1*/
 #elif defined(discrete_velocity) /*DVM*/
-  nVarOut = 15
-  NOut = PP_1
-  IF (time.EQ.0.) THEN
-    dtMV = 0.
-  ELSE
-    dtMV = dt
-  ENDIF
+nVarOut = (DVMnMacro+DVMnInnerE)*DVMnSpecTot+1
+NOut = N_FV
+ASSOCIATE( StrVarNames => StrVarNames_FV )
 #else /*not USE_HDG*/
 ! maxwell
 nVarOut = PP_nVar
 NOut = NMax
 #endif /*USE_HDG*/
 
-#if defined(discrete_velocity) /*DVM*/
-ASSOCIATE( StrVarNames => StrVarNames_FV )
-#endif /*DVM*/
 IF(InitialAutoRestart) THEN
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_State',OutputTime_loc))//'_InitialRestart.h5'
   CALL GenerateFileSkeleton('State',nVarOut,StrVarNames,MeshFileName,OutputTime_loc,NIn=NOut,FileNameIn=FileName)
@@ -392,41 +403,62 @@ SDEALLOCATE(U_N_2D_local)
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
 
 #if USE_FV
-  ! reconstruct solution using gradients, as done during simulation
-  CALL GetGradients(U_FV(:,0,0,0,:),output=.TRUE.)
-  CALL ProlongToOutput(U_FV,Ureco)
 ! Associate construct for integer KIND=8 possibility
-ASSOCIATE(N_FV            => INT(PP_1,IK)               ,&
-          nGlobalElems    => INT(nGlobalElems,IK)       ,&
+ASSOCIATE(nGlobalElems    => INT(nGlobalElems,IK)       ,&
           PP_nElems       => INT(PP_nElems,IK)          ,&
           offsetElem      => INT(offsetElem,IK)         ,&
           PP_nVarTmp_FV   => INT(PP_nVar_FV,IK)          )
 #ifdef discrete_velocity
-  ALLOCATE(Utemp(1:15,0:PP_1,0:PP_1,0:PP_1,PP_nElems))
-  DO iElem=1,INT(PP_nElems)
-    DO k=0,PP_1
-      DO j=0,PP_1
-        DO i=0,PP_1
-          CALL MacroValuesFromDistribution(Utemp(1:14,i,j,k,iElem),Ureco(:,i,j,k,iElem),dtMV,tau,1)
-          Utemp(15,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+IF (doFVReconstruct) THEN
+! reconstruct solution using gradients, as done during simulation
+  CALL GetGradients(U_FV(:,:),output=.TRUE.)
+  CALL ProlongToOutput(U_FV,Ureco)
+ELSE
+  ! first order solution
+  Ureco(:,0,0,0,:) = U_FV(:,:)
+END IF
+IF (time.EQ.0.) THEN
+  dtMV = 0.
+ELSE
+  dtMV = dt
+ENDIF
+ALLOCATE(Udvm(1:(DVMnMacro+DVMnInnerE)*DVMnSpecTot+1,0:N_FV,0:N_FV,0:N_FV,PP_nElems))
+DO iElem=1,INT(PP_nElems)
+  DO k=0,N_FV
+    DO j=0,N_FV
+      DO i=0,N_FV
+        CALL MacroValuesFromDistribution(MacroVal,Ureco(:,i,j,k,iElem),dtMV,tau,1,Trot=Trot,Tvib=Tvib)
+        DO iSpec=1,DVMnSpecTot !n species + total values if multi-species
+          Udvm((DVMnMacro+DVMnInnerE)*(iSpec-1)+1:(DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE,i,j,k,iElem) = MacroVal(1:DVMnMacro,iSpec)
+          IF (DVMnInnerE.GT.0) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+1,i,j,k,iElem) = Trot(iSpec)
+          IF (DVMnInnerE.GT.1) Udvm((DVMnMacro+DVMnInnerE)*iSpec-DVMnInnerE+2,i,j,k,iElem) = Tvib(iSpec)
         END DO
+        IF (tau.GT.0.) THEN
+          Udvm((DVMnMacro+DVMnInnerE)*DVMnSpecTot+1,i,j,k,iElem) = dt_Min(DT_MIN)/tau
+        ELSE
+          Udvm((DVMnMacro+DVMnInnerE)*DVMnSpecTot+1,i,j,k,iElem) = 0.
+        END IF
       END DO
     END DO
   END DO
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DVM_Solution', rank=5,&
-      nValGlobal=(/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
-      nVal=      (/15_IK, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK             , 0_IK      , 0_IK      , 0_IK   , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Utemp)
-#endif /*discrete_velocity*/
+END DO
+SDEALLOCATE(Ureco)
+nValDVM = INT((DVMnMacro+DVMnInnerE)*DVMnSpecTot+1,IK)
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    DataSetName='DVM_Solution', rank=5,&
+    nValGlobal=(/nValDVM, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
+    nVal=      (/nValDVM, N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
+    offset=    (/0_IK       , 0_IK   , 0_IK   , 0_IK   , offsetElem/)   , &
+    collective=.TRUE.,RealArray=Udvm)
+SDEALLOCATE(Udvm)
+#endif
 #ifdef drift_diffusion
-  CALL GatheredWriteArray(FileName,create=.FALSE.,&
-      DataSetName='DriftDiffusion_Solution', rank=5,&
-      nValGlobal=(/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , nGlobalElems/) , &
-      nVal=      (/PP_nVarTmp_FV , N_FV+1_IK , N_FV+1_IK , N_FV+1_IK , PP_nElems/)    , &
-      offset=    (/0_IK           , 0_IK     , 0_IK      , 0_IK      , offsetElem/)   , &
-      collective=.TRUE.,RealArray=Ureco)
+CALL GatheredWriteArray(FileName,create=.FALSE.,&
+    DataSetName='DriftDiffusion_Solution', rank=2,&
+    nValGlobal=(/PP_nVarTmp_FV , nGlobalElems/) , &
+    nVal=      (/PP_nVarTmp_FV ,  PP_nElems/)    , &
+    offset=    (/0_IK          , offsetElem/)   , &
+    collective=.TRUE.,RealArray=U_FV)
 #endif
 END ASSOCIATE
 #endif /*USE_FV*/

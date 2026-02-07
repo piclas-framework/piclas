@@ -240,9 +240,9 @@ IF(.NOT.(ALL(FPC%BConProc)))THEN
       iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
                             SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
                             SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
-                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
-                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      iElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                  BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                  BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
       ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
       ! Loop ALL compute-node elements (use global element index)
@@ -268,13 +268,13 @@ IF(.NOT.(ALL(FPC%BConProc)))THEN
               iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
                                         SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
                                         SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
-              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
-                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
-                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+              iGlobElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                              BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                              BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
 
               ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
             ! TODO: what about periodic vectors?
-              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+              IF (VECNORM3D( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
                 BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
                 IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
                 iUniqueFPCBC = FPC%Group(BCState,2)
@@ -284,7 +284,7 @@ IF(.NOT.(ALL(FPC%BConProc)))THEN
               IF(ALL(FPC%BConProc)) EXIT iElemLoop
                 ! Go to next element
                 CYCLE iCNElemLoop
-              END IF ! VECNORM( ...
+              END IF ! VECNORM3D( ...
             END IF ! BCType.EQ.BCTypeFPC
           END IF ! BCIndex.GT.0
         END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
@@ -539,9 +539,9 @@ ELSE
       iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
                             SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
                             SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-      iElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
-                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
-                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+      iElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                  BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                  BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
       ! 3.2) Loop over all compute-node elements (every processor loops over all of these elements)
       ! Loop ALL compute-node elements (use global element index)
@@ -567,12 +567,12 @@ ELSE
               iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
                                         SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
                                         SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
-              iGlobElemRadius = VECNORM ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
-                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
-                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+              iGlobElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                              BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                              BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
 
               ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
-              IF (VECNORM( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+              IF (VECNORM3D( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
                 BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iEPC
                 IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
                 iUniqueEPCBC = EPC%Group(BCState,2)
@@ -582,7 +582,7 @@ ELSE
                 IF(ALL(BConProc)) EXIT iElemLoop
                 ! Go to next element
                 CYCLE iCNElemLoop
-              END IF ! VECNORM( ...
+              END IF ! VECNORM3D( ...
             END IF ! BCType.EQ.BCTypeEPC
           END IF ! BCIndex.GT.0
         END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
@@ -804,4 +804,3 @@ END SUBROUTINE InitBV
 #endif /*USE_HDG*/
 
 END MODULE MOD_HDG_Init
-

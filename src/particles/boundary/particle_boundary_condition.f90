@@ -375,7 +375,7 @@ PartState(1:3,PartID) = PartState_rotated(1:3)
 LastPartPos(1:3,PartID) = LastPartPos_rotated(1:3)
 
 TrackInfo%PartTrajectory(1:3) = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-TrackInfo%lengthPartTrajectory=VECNORM(TrackInfo%PartTrajectory(1:3))
+TrackInfo%lengthPartTrajectory=VECNORM3D(TrackInfo%PartTrajectory(1:3))
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory = TrackInfo%PartTrajectory / TrackInfo%lengthPartTrajectory
 
 RotSideID = SurfSide2RotPeriodicSide(GlobalSide2SurfSide(SURF_SIDEID,SideID))
@@ -433,7 +433,7 @@ DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
 
   ! Sanity check: is the element on the compute node?
   IF (GetCNElemID(ElemID).LT.1) THEN
-    IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,PartID)-LastPartPos(1:3,PartID)): ", VECNORM(PartState(1:3,PartID)-LastPartPos(1:3,PartID))
+    IPWRITE(UNIT_StdOut,*) "VECNORM3D(PartState(1:3,PartID)-LastPartPos(1:3,PartID)): ", VECNORM3D(PartState(1:3,PartID)-LastPartPos(1:3,PartID))
     IPWRITE(UNIT_StdOut,*) " PartState(1:3,PartID)  : ", PartState(1:3,PartID)
     IPWRITE(UNIT_StdOut,*) " LastPartPos(1:3,PartID): ", LastPartPos(1:3,PartID)
     IPWRITE(UNIT_StdOut,*) " PartState(4:6,PartID)  : ", PartState(4:6,PartID)
@@ -744,7 +744,7 @@ PartState(1:3,PartID) = PartState_rotated(1:3)
 LastPartPos(1:3,PartID) = LastPartPos_rotated(1:3)
 ! Compute the new, rotated PartTrajectory
 TrackInfo%PartTrajectory = PartState(1:3,PartID) - LastPartPos(1:3,PartID)
-TrackInfo%lengthPartTrajectory = VECNORM(TrackInfo%PartTrajectory)
+TrackInfo%lengthPartTrajectory = VECNORM3D(TrackInfo%PartTrajectory)
 IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory))THEN
   TrackInfo%lengthPartTrajectory= 0.0
 ELSE
@@ -806,7 +806,7 @@ DO iSide = 1, NumInterPlaneSides
 
   ! Sanity check: is the element on the compute node?
   IF (GetCNElemID(ElemID).LT.1) THEN
-    IPWRITE(UNIT_StdOut,*) "VECNORM(PartState(1:3,PartID)-LastPartPos(1:3,PartID)): ", VECNORM(PartState(1:3,PartID)-LastPartPos(1:3,PartID))
+    IPWRITE(UNIT_StdOut,*) "VECNORM3D(PartState(1:3,PartID)-LastPartPos(1:3,PartID)): ", VECNORM3D(PartState(1:3,PartID)-LastPartPos(1:3,PartID))
     IPWRITE(UNIT_StdOut,*) " PartState(1:3,PartID)  : ", PartState(1:3,PartID)
     IPWRITE(UNIT_StdOut,*) " LastPartPos(1:3,PartID): ", LastPartPos(1:3,PartID)
     IPWRITE(UNIT_StdOut,*) " PartState(4:6,PartID)  : ", PartState(4:6,PartID)

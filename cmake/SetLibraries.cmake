@@ -708,7 +708,7 @@ ENDIF()
 
 IF(LIBS_USE_PETSC)
   IF (LIBS_BUILD_PETSC)
-    SET(LIBS_BUILD_PETSC_VERSION "3.21.6" CACHE STRING "PETSc self-built version tag")
+    SET(LIBS_BUILD_PETSC_VERSION "3.22.5" CACHE STRING "PETSc self-built version tag")
     MARK_AS_ADVANCED(CLEAR LIBS_BUILD_PETSC_VERSION)
   ELSE()
     UNSET(LIBS_BUILD_PETSC_VERSION CACHE)
@@ -733,6 +733,15 @@ IF(LIBS_USE_PETSC)
       MESSAGE (STATUS "Compiling [PETSc] with optimization flags (${PETSC_COMPILER_FLAGS} ${PETSC_OPTIMIZATION})!")
     ENDIF()
 
+    # Cofigure problem for cmake >=4
+    # https://stackoverflow.com/questions/79534856/cannot-build-cmake-project-because-compatibility-with-cmake-3-5-has-been-remo
+    # TODO: Remove this in the future or sight upper boundary if the issue is fixed
+    IF(${CMAKE_VERSION} VERSION_LESS "4.0.0")
+      SET(PETSC_CMAKEPOLICY "")
+    ELSE()
+      SET(PETSC_CMAKEPOLICY "3.5")
+    ENDIF()
+
     # Settings
     # --with-mpi-f90module-visibility=0       "With 0, mpi.mod will not be visible in use code (via petscsys.mod) - so mpi_f08 can now be used" (https://petsc.org/main/changes/315/)
 
@@ -747,6 +756,7 @@ IF(LIBS_USE_PETSC)
         BUILD_IN_SOURCE TRUE
         UPDATE_COMMAND ""
         CONFIGURE_COMMAND
+          CMAKE_POLICY_VERSION_MINIMUM=${PETSC_CMAKEPOLICY}
           PETSC_DIR=${LIBS_PETSC_DIR}/src/PETSc
           ${LIBS_PETSC_DIR}/src/PETSc/configure
           --prefix=${PETSC_BUILD_DIR}

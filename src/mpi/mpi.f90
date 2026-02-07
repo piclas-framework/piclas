@@ -42,12 +42,12 @@ INTERFACE StartSendMPIData
 END INTERFACE
 
 PUBLIC :: InitMPIvars,StartReceiveMPIData,StartSendMPIData,FinishExchangeMPIData,FinalizeMPI
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 PUBLIC :: StartReceiveMPIDataType,StartSendMPIDataType,FinishExchangeMPIDataType
 #if !(USE_HDG)
 PUBLIC :: StartSendMPIDataTypeDielectric,FinishExchangeMPIDataTypeDielectric,StartReceiveMPIDataTypeDielectric
 #endif /*!(USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 PUBLIC :: StartExchange_DG_Elems
 PUBLIC :: StartReceiveMPIDataInt,StartSendMPIDataInt
 #endif /*USE_MPI*/
@@ -336,7 +336,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIData2D
 
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 !===================================================================================================================================
 !> Subroutine does the receive operations for the face data that has to be exchanged between processors (type-based p-adaption).
 !===================================================================================================================================
@@ -345,9 +345,9 @@ SUBROUTINE StartReceiveMPIDataType(MPIRequest, SendID)
 USE MOD_Globals
 USE MOD_PreProc
 USE MOD_MPI_Vars
-#if !(USE_HDG) && !(PP_TimeDiscMethod==700)
+#if !(USE_HDG) && !defined(discrete_velocity)
 USE MOD_PML_Vars ,ONLY: PMLnVar,DoPML
-#endif /*!(USE_HDG) && !(PP_TimeDiscMethod==700)*/
+#endif /*!(USE_HDG) && !defined(discrete_velocity)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -437,7 +437,7 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartReceiveMPIDataTypeDielectric
 #endif /*!(USE_HDG)*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 
 
 !===================================================================================================================================
@@ -512,7 +512,7 @@ END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIData2D
 
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 !===================================================================================================================================
 !> See above, but for for send direction (type-based p-adaption).
 !===================================================================================================================================
@@ -741,7 +741,7 @@ DO iNbProc=1,nNbProcs
 END DO !iProc=1,nNBProcs
 END SUBROUTINE StartSendMPIDataTypeDielectric
 #endif /*not USE_HDG*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 
 
 !==================================================================================================================================
@@ -937,7 +937,7 @@ END SUBROUTINE StartSendMPIDataInt
 #endif /*USE_HDG*/
 
 
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))
 !===================================================================================================================================
 !> We have to complete our non-blocking communication operations before we can (re)use the send / receive buffers
 !> SendRequest, RecRequest: communication handles
@@ -1207,7 +1207,7 @@ END DO !iProc=1,nNBProcs
 
 END SUBROUTINE FinishExchangeMPIDataTypeDielectric
 #endif /*not USE_HDG*/
-#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || (PP_TimeDiscMethod==700))*/
+#endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity))*/
 
 
 !----------------------------------------------------------------------------------------------------------------------------------!
