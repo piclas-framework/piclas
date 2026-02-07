@@ -38,14 +38,12 @@ Update the library versions and push the most recent version of the `master.dev`
 
 ## 4. Draft GitHub Release Notes
 Draft the GitHub Release notes for creating the official release
-* [ ] Press the button **Draft a new Release** under [Releases](https://github.com/piclas-framework/piclas/releases) and leave the *Select tag* empty as the repository is pushed
+* [ ] Press the button **Draft a new Release** (make sure to be logged into GitHub and that the required permissions for the user have been granted) under [Releases](https://github.com/piclas-framework/piclas/releases) and leave the *Select tag* empty as the repository is pushed
       to GitHub in the following. Copy the release notes from below. Do not publish the release yet, instead, press the *Save draft* button to store the draft.
 
 ## 5. Regression Testing
-
-* [ ] Check-in
-* [ ] Nightly
-* [ ] Weekly
+* [ ] Make sure that all [master.dev pipelines](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines?page=1&scope=all&ref=master.dev) have passed without any errors. Note that MPICH and OpenMPI are alternated every day.
+* [ ] Check that all [scheduled pipelines Check-in, Nightly, Weekly](https://piclas.boltzplatz.eu/piclas/piclas/-/pipeline_schedules) have passed without any errors
 
 ## 6. Complete MR and create Gitlab Release
  - [ ] Merge this MR by pushing the `Merge` button
