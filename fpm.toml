@@ -91,13 +91,8 @@ ignore            = [
   "C082",    # WIP (   11 errors) pointer-initialisation-in-declaration
   "MOD041",  # WIP (   10 errors) out-of-line-attribute
   "S261",    # WIP (    9 errors) inconsistent-array-declaration
-  "C182",    # WIP (    7 errors) multiple-allocations-with-stat
-  "C141",    # WIP (    2 errors) missing-exit-or-cycle-label
-  "C151",    # WIP (    2 errors) misleading-inline-if-semicolon
-  "S255",    # WIP (    2 errors) superfluous-else-stop
-  "C001",    # WIP (    1 errors) implicit-typing
-  "S071",    # WIP (    1 errors) missing-double-colon
-  "S242",    # WIP (    1 errors) avoidable-escaped-quote
+  # TODO: Check if the following false positives have been fixed in Fortitude by now
+  "C001",    # WIP implicit-typing. Potential false positives
 ]
 # Footnotes:
 # [1] Deactivate due to false positives in fortitude version 0.8.0 because of pre-processor macros, e.g.,

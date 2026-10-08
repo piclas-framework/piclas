@@ -621,7 +621,8 @@ DO iElem=1,nElems
   END DO
 END DO ! iElem
 #if USE_MPI && USE_DEBUG
-IF(myrank.eq.0.AND.checkRank.GT.-1) read*; CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
+IF(myrank.eq.0.AND.checkRank.GT.-1) read*
+CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 #endif /*USE_MPI && USE_DEBUG*/
 END SUBROUTINE BuildSideToNonUniqueGlobalSide
 #endif /*USE_HDG*/

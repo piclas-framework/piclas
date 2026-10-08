@@ -13,13 +13,13 @@
 #include "piclas.h"
 
 MODULE MOD_Part_BR_Elecron_Fluid
-#if defined(PARTICLES) && USE_HDG
 !===================================================================================================================================
 !> Module for particle insertion via electron density conversion from fluid model to kinetic particles
 !===================================================================================================================================
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+#if defined(PARTICLES) && USE_HDG
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -877,6 +877,7 @@ END FUNCTION GreaterEqualWithTolerance
 !> Example: a = 5.4999999999999995E-006
 !>          b = 5.4999999999999996E-006
 !===================================================================================================================================
+! allow(S071) Ignore false positive (preprocessor macro that expands to PURE or nothing)
 PPURE LOGICAL FUNCTION LesserThanWithTolerance(a,b,c)
 ! MODULES
 IMPLICIT NONE

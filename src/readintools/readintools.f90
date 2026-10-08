@@ -928,16 +928,15 @@ DO WHILE (associated(current))
         IF (.NOT.(current%opt%multiple)) THEN
           ! option already set, but is not a multiple option
           SWRITE(UNIT_StdOut,*) 'Option "', TRIM(name), '" is already set, but is not a multiple option!'
-          STOP
-        ELSE
-          ! create new instance of multiple option
-          ALLOCATE(newopt, source=current%opt)
-          CALL newopt%parse(rest)
-          newopt%isSet = .TRUE.
-          ! insert option
-          CALL insertOption(current, newopt)
-          RETURN
+          STOP 1
         END IF
+        ! create new instance of multiple option
+        ALLOCATE(newopt, source=current%opt)
+        CALL newopt%parse(rest)
+        newopt%isSet = .TRUE.
+        ! insert option
+        CALL insertOption(current, newopt)
+        RETURN
       END IF
       ! parse option
       IF(LEN_TRIM(rest).NE.0)THEN

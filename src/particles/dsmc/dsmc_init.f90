@@ -282,7 +282,7 @@ CALL prms%CreateRealOption(     'Part-Species[$]-CharaTempRot[$]'  &
                                             'input, while non-linear molecules require three.', '0.', numberedmulti=.TRUE.)
 CALL prms%CreateRealOption(     'Part-Species[$]-MomentOfInertia[$]'  &
                                             ,'MomentOfInertia [kg*m^2], linear molecules require only a single input'//&
-                                            'while non-linear molecules require three''0.', numberedmulti=.TRUE.)
+                                            'while non-linear molecules require three','0.', numberedmulti=.TRUE.)
 ! Granular species
 CALL prms%CreateRealOption(     'Part-Species[$]-GranularPartCsp' &
                                             ,'Solid particle specific heat [J/(kg*K)].'&

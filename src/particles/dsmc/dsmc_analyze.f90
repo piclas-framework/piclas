@@ -272,7 +272,10 @@ SumSpecPartNum = 0.
 ! Setting temperature to zero
 DSMC%InstantTransTemp = 0.
 totalweight2 = 0.; totalweight = 0.
-IF (PRESENT(vBulk)) vBulk(1:3) = 0.; TotalMass =0.0
+IF (PRESENT(vBulk)) THEN
+  vBulk(1:3) = 0.0
+  TotalMass  = 0.0
+END IF ! PRESENT(vBulk)
 DO iPart=1,PartNum
   PartID = iPartIndx(iPart)
   SpecID = PartSpecies(PartID)

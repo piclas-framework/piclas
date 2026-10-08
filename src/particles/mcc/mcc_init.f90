@@ -838,9 +838,8 @@ END SUBROUTINE InitPhotoionizationXSec
 !> 3. Determine the lost energy (wavelengths outside of the range of the cross-section data)
 !===================================================================================================================================
 SUBROUTINE CheckPhotoionizationXSec()
-! MODULES
-USE MOD_Globals
 USE MOD_Globals_Vars  ,ONLY: eV2Joule
+USE MOD_Globals
 USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,NbrOfPhotonXsecLines,SpecPhotonXSecInterpolated,PhotoIonFirstLine,PhotoIonLastLine
 USE MOD_MCC_Vars      ,ONLY: ReacToPhotoReac
 USE MOD_DSMC_Vars     ,ONLY: ChemReac

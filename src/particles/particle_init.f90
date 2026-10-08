@@ -635,7 +635,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_DSMC_Vars               ,ONLY: useDSMC
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -646,9 +646,7 @@ INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 IF(TrackingMethod.EQ.REFMAPPING)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-  __STAMP__&
-  ,' Cannot allocate partposref!')
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate partposref!')
   PartPosRef=-888.
 END IF
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -662,27 +660,27 @@ END IF
 #endif
 #if defined(LSERK)
 ALLOCATE(Pt_temp(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-END IF
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 Pt_temp=0.
 #endif
 
-ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
-         LastPartPos(1:3,1:PDM%maxParticleNumber)     , &
-         Pt(1:3,1:PDM%maxParticleNumber)              , &
-         PartSpecies(1:PDM%maxParticleNumber)         , &
-         PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
-         PDM%nextFreePosition(1:PDM%maxParticleNumber), &
-         PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
-         PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-END IF
+ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PartState')
+ALLOCATE(LastPartPos(1:3,1:PDM%maxParticleNumber)     , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, LastPartPos')
+ALLOCATE(Pt(1:3,1:PDM%maxParticleNumber)              , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, Pt')
+ALLOCATE(PartSpecies(1:PDM%maxParticleNumber)         , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PartSpecies')
+ALLOCATE(PDM%ParticleInside(1:PDM%maxParticleNumber)  , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%ParticleInside')
+ALLOCATE(PDM%nextFreePosition(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%nextFreePosition')
+ALLOCATE(PDM%dtFracPush(1:PDM%maxParticleNumber)      , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%dtFracPush')
+ALLOCATE(PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%IsNewPart')
+
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
 PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
@@ -699,14 +697,18 @@ ALLOCATE(PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
 
 IF (useDSMC.OR.usevMPF) THEN
-  ALLOCATE(PEM%pStart(1:nElems)                         , &
-           PEM%pNumber(1:nElems)                        , &
-           PEM%pEnd(1:nElems)                           , &
-           PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays!')
+  ALLOCATE(PEM%pStart(1:nElems)               , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pStart')
+  ALLOCATE(PEM%pNumber(1:nElems)              , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pNumber')
+  ALLOCATE(PEM%pEnd(1:nElems)                 , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pEnd')
+  ALLOCATE(PEM%pNext(1:PDM%maxParticleNumber) , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pNext')
 END IF
 
 END SUBROUTINE AllocateParticleArrays
+
 
 SUBROUTINE InitializeVariablesIonization()
 !===================================================================================================================================
@@ -1176,7 +1178,7 @@ DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
 
     ! Set the next free position in the particle vector list
-    ParticleIndexNbr            = GetNextFreePosition()
+    ParticleIndexNbr = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
@@ -1196,8 +1198,7 @@ DO iElem=1,PP_nElems
     PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
-                                  Temperature=CellElectronTemperature)
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),Temperature=CellElectronTemperature)
   END DO
 END DO
 

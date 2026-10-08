@@ -376,7 +376,7 @@ END SUBROUTINE ParticleThroughSideCheck2D
 !>     degenerate near-radial geometry (case 3), and select the correct root via the entering/exiting bookkeeping
 !>     (LastIntersectCount) in SelectIntersection2DRotSym.
 !>  4. Accept the candidate if it lies within the side (0<=l<=1), in front of the particle and within the remaining trajectory
-!>     length. 
+!>     length.
 !===================================================================================================================================
 SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element, SideID,ThroughSide, Distance,LastInterCount)
 ! MODULES
@@ -400,7 +400,7 @@ REAL                             :: y_pos_start,x_pos_start,z_pos_start,yNode1,x
 REAL                             :: l1,S1,l2,S2,l,S
 REAL                             :: beta, alpha,deltay, a, b, c, tmpsqrt
 REAL                             :: dx,dy, lenElem2, lenPart2
-REAL                             :: Px, Uc, Vc   
+REAL                             :: Px, Uc, Vc
 REAL, PARAMETER                  :: eps = 1E-12
 !===================================================================================================================================
 CNElemID = GetCNElemID(Element)
@@ -3569,13 +3569,8 @@ MBar2=(BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,NGeo,   0))
 
 ! 2) normalization
 Length=SQRT(DOT_PRODUCT(LXi,LXi))
-IF(Length.EQ.0.)THEN
-  print*,'AAARG'
-  STOP
-  LXi=(/0.,1./)
-ELSE
-  LXi=LXi/Length
-END IF
+IF(Length.EQ.0.) CALL Abort(__STAMP__,"calcLineNormVec3: SQRT(DOT_PRODUCT(LXi,LXi)) = 0")
+LXi=LXi/Length
 
 !print*,'Lxi',Lxi
 
@@ -3592,13 +3587,8 @@ MBar2=(BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,   0,NGeo))
 
 ! 2) normalization
 Length=SQRT(DOT_PRODUCT(Leta,Leta))
-IF(Length.EQ.0)THEN
-  LXi=(/1.,0./)
-  print*,'BBBBRG'
-  STOP
-ELSE
-  Leta=Leta/Length
-END IF
+IF(Length.EQ.0.) CALL Abort(__STAMP__,"calcLineNormVec3: SQRT(DOT_PRODUCT(Leta,Leta)) = 0")
+Leta=Leta/Length
 
 doPro=DOT_PRODUCT(Lxi,Leta)
 
