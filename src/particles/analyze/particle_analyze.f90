@@ -395,12 +395,12 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ! CharLength is only build for local DG elements. Therefore, array is only filled for elements on the same compute node
   offsetElemCNProc = offsetElem - offsetComputeNodeElem
 #else
-  ALLOCATE(ElemCharLengthX_Shared(nElems), &
-           ElemCharLengthY_Shared(nElems), &
-           ElemCharLengthZ_Shared(nElems), &
-           STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) &
-    CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in X, Y or Z!')
+  ALLOCATE(ElemCharLengthX_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in X')
+  ALLOCATE(ElemCharLengthY_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in Y')
+  ALLOCATE(ElemCharLengthZ_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in Z')
   offsetElemCNProc = 0
 #endif  /*USE_MPI*/
   DO iElem = 1, nElems

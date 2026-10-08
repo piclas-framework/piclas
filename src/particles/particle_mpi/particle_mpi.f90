@@ -168,16 +168,20 @@ PartCommSize   = PartCommSize + 6
 PartCommSize   = PartCommSize + 1
 #endif
 
-ALLOCATE( PartMPIExchange%nPartsSend(nPartMPIData,0:nExchangeProcessors-1)  &
-        , PartMPIExchange%nPartsRecv(nPartMPIData,0:nExchangeProcessors-1)  &
-        , PartRecvBuf(0:nExchangeProcessors-1)                   &
-        , PartSendBuf(0:nExchangeProcessors-1)                   &
-        , PartMPIExchange%SendRequest(2,0:nExchangeProcessors-1) &
-        , PartMPIExchange%RecvRequest(2,0:nExchangeProcessors-1) &
-        , PartTargetProc(1:PDM%MaxParticleNumber)                &
-        , STAT=ALLOCSTAT                                         )
-
-IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables! ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIExchange%nPartsSend(nPartMPIData,0:nExchangeProcessors-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables, PartMPIExchange%nPartsSend. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIExchange%nPartsRecv(nPartMPIData,0:nExchangeProcessors-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables, PartMPIExchange%nPartsRecv. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartRecvBuf(0:nExchangeProcessors-1)                  , STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables, PartRecvBuf. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartSendBuf(0:nExchangeProcessors-1)                  , STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables, PartSendBuf. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIExchange%SendRequest(2,0:nExchangeProcessors-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables, PartMPIExchange%SendRequest. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIExchange%RecvRequest(2,0:nExchangeProcessors-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables, PartMPIExchange%RecvRequest. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartTargetProc(1:PDM%MaxParticleNumber)               , STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate Particle-MPI-Variables, PartTargetProc. ALLOCSTAT',ALLOCSTAT)
 
 PartMPIExchange%nPartsSend=0
 PartMPIExchange%nPartsRecv=0

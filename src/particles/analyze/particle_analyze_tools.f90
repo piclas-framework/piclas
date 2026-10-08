@@ -15,8 +15,8 @@
 MODULE MOD_Particle_Analyze_Tools
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-#ifdef PARTICLES
 PRIVATE
+#if defined(PARTICLES)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -3159,7 +3159,7 @@ ASSOCIATE( e   => ElementaryCharge,&
 END ASSOCIATE
 
 END SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell
-#endif
+#endif /*!(USE_FV) || (USE_HDG)*/
 
 SUBROUTINE CalculatePICTimeStepCyclotron()
 !===================================================================================================================================
@@ -3181,7 +3181,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 
 ! nullify
@@ -3196,12 +3196,11 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE CalculatePICTimeStepCyclotron
 
 
+!===================================================================================================================================
+!> use the plasma frequency per cell to estimate the pic time step
+!===================================================================================================================================
 SUBROUTINE CalculatePICTimeStepCell()
-!===================================================================================================================================
-! use the plasma frequency per cell to estimate the pic time step
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: PlasmaFrequencyCell,PICTimeStepCell,PICValidPlasmaCell,PICTimeCellResolved
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -3213,30 +3212,28 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
-
 ! nullify
 PICTimeStepCell=0.
 PICTimeCellResolved=0
 
 ! loop over all elements and compute the PIC-timestep with the plasma frequency
 DO iElem=1,PP_nElems
-  IF(PlasmaFrequencyCell(iElem).LE.0.) CYCLE
+  ! allow(C141) False positive
+  IF(PlasmaFrequencyCell(iElem).LE.0.0) CYCLE
   PICTimeStepCell(iElem) = 0.2 / PlasmaFrequencyCell(iElem)
   IF((PICValidPlasmaCell(iElem).EQ.1).AND.(PICTimeStepCell(iElem).GE.dt)) PICTimeCellResolved = PICTimeCellResolved + 1
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePICTimeStepCell
 
-
+!===================================================================================================================================
+!> use the number of electron density and electron temperature to compute the cold Debye-length per cell
+!> CAUTION: use SI-units
+!===================================================================================================================================
 SUBROUTINE CalculateDebyeLengthCell()
-!===================================================================================================================================
-! use the number of electron density and electron temperature to compute the cold Debye-length per cell
-! CAUTION: use SI-units
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell,QuasiNeutralityCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge, BoltzmannConst
@@ -3249,7 +3246,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 
 ! nullify
@@ -3288,7 +3285,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 ! Initialize number of elements with PPD>=1
 PPDCellResolved = 0
@@ -3337,7 +3334,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 ! loop over all elements
 DO iElem=1,PP_nElems
@@ -3381,9 +3378,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,iPart
-REAL                 :: MaxVelo(1:nElems,1:3)    ! each component
-REAL                 :: MaxVeloAbs(1:nElems,1:3) ! fastest particle in 3D
+INTEGER :: iElem,iPart
+REAL    :: MaxVelo(1:nElems,1:3)    ! each component
+REAL    :: MaxVeloAbs(1:nElems,1:3) ! fastest particle in 3D
 !===================================================================================================================================
 MaxVelo(1:nElems,1:3) = 0.0
 MaxVeloAbs(1:nElems,1:3) = 0.0
@@ -3451,7 +3448,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,CNElemID
+INTEGER :: iElem,CNElemID
 !===================================================================================================================================
 ! Nullify
 IonizationCell        = 0.
