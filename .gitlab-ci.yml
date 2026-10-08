@@ -1377,7 +1377,7 @@ update_release_notes:
       # Find the merge request belonging to the current commit sha (assuming the default message "See merge request" has not been adapted)
       echo "--- Resolving merge request from commit message ---"
       COMMIT_MSG="$CI_COMMIT_MESSAGE"
-      MR_IID=$(echo "$COMMIT_MSG" | grep -oP 'See merge request.*!\K[0-9]+' || true)
+      MR_IID=$(printf '%s\n' "$COMMIT_MSG" | grep -oE '![0-9]+' | head -n1 | tr -d '!')
 
       if [ -z "$MR_IID" ]; then
         echo "No merge request reference found in commit message, skipping"
@@ -1386,6 +1386,9 @@ update_release_notes:
       fi
 
       echo "Found MR !${MR_IID}"
+
+      # Safety check
+      [[ "$MR_IID" =~ ^[0-9]+$ ]] || { echo "Could not determine MR IID: '$MR_IID'"; exit 1; }
 
       # Fetch MR details
       echo ""
