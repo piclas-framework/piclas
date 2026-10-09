@@ -510,6 +510,9 @@ USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound
 #if USE_HDG
 USE MOD_HDG_Vars                ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars               ,ONLY: BoundaryType
+#if USE_PETSC
+USE MOD_HDG_Vars                ,ONLY: UseCircuitModel
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
@@ -658,7 +661,7 @@ CASE('photon_SEE_energy')
             END IF ! BCType.EQ.20
           END IF ! UseFPC
 
-          ! 2. Check if electric potential condition (EPC) are used and consider electron holes
+          ! 3. Check if electric potential condition (EPC) are used and consider electron holes
           IF(UseEPC)THEN
             iBC = PartBound%MapToFieldBC(PartBCIndex)
             IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(PartBCIndex) must be >0',IntInfoOpt=iBC)
@@ -673,6 +676,13 @@ CASE('photon_SEE_energy')
               EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) - Species(FractNbr)%ChargeIC * MPF ! Use negative charge!
             END IF ! BCType.EQ.8
           END IF ! UseEPC
+
+#if USE_PETSC
+          ! 4. Check if circuit model boundary condition (CMBC) are used and consider electron holes
+          IF (UseCircuitModel) THEN
+            CALL abort(__STAMP__,'Circuit model (CMBC) not implemented for electron holes due to photon emission')
+          END IF ! UseCircuitModel
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 
         END ASSOCIATE

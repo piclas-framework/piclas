@@ -13,14 +13,14 @@
 #include "piclas.h"
 
 MODULE MOD_SuperB_PermMag
-#if USE_SUPER_B
-  !===================================================================================================================================
+!===================================================================================================================================
 !> Contains the calculation of the magnetic field of different types of permanent magnets
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+#if USE_SUPER_B
 !-----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: CalculateCuboidMagneticPotential, CalculateSphericMagneticPotential, CalculateCylindricMagneticPotential, &
           CalculateConicMagneticPotential, CalculateGradient

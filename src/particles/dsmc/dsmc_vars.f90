@@ -28,18 +28,6 @@ SAVE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
-TYPE tTLU_Data
-  DOUBLE PRECISION                        :: Emin
-  DOUBLE PRECISION                        :: Emax
-  DOUBLE PRECISION                        :: deltaE
-  DOUBLE PRECISION , ALLOCATABLE          :: deltabj(:)
-  DOUBLE PRECISION , ALLOCATABLE          :: ChiTable(:,:)
-END TYPE
-
-TYPE(tTLU_Data)                           :: TLU_Data
-
-INTEGER                       :: DSMCSumOfFormedParticles   !number of formed particles per iteration in chemical reactions
-                                                            ! for counting the nextfreeparticleposition
 INTEGER                       :: CollisMode                 ! Mode of Collision:, ini_1
                                                             !    0: No Collisions (=free molecular flow with DSMC-Sampling-Routines)
                                                             !    1: Elastic Collision
@@ -78,7 +66,7 @@ TYPE tVarVibRelaxProb
   REAL                        :: alpha                      ! Relaxation factor of ProbVib, VibRelaxProb = 2
 END TYPE tVarVibRelaxProb
 
-TYPE(tVarVibRelaxProb) VarVibRelaxProb
+TYPE(tVarVibRelaxProb) :: VarVibRelaxProb
 
 LOGICAL                       :: DoRadialWeighting          ! Enables radial weighting in DSMC
 LOGICAL                       :: DoLinearWeighting          ! Enables linear weighting in DSMC

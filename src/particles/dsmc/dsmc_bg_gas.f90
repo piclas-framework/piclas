@@ -357,14 +357,10 @@ END FUNCTION BGGas_GetSpecies
 SUBROUTINE BGGas_InsertParticles()
 !===================================================================================================================================
 !> Creating particles of the background species for each actual simulation particle
-!> 1. Initialize particles (loop over the current ParticleVecLength):
-!>    a) Get the new index from the nextFreePosition array
-!>    b) Same position as the non-BGG particle, set species and initialize the internal energy (if required)
-!>    c) Include BGG-particles in PEM%p-Lists (counting towards the amount of particles per cell stored in PEM%pNumber)
-!>    d) Map BGG-particle to the non-BGG particle for particle pairing
-!> 2. Call SetParticleVelocity: loop over the newly created particles to set the thermal velocity, using nextFreePosition to get
-!>    the same indices, possible since the CurrentNextFreePosition was not updated yet
-!> 3. Adjust ParticleVecLength and currentNextFreePosition
+!>  1) Get the new particle index
+!>  2) Assign particle properties: Same position as the non-BGG particle, set species and initialize the internal energy (if required)
+!>  3) Map BGG-particle to the non-BGG particle for particle pairing
+!>  4) Include BGG-particles in PEM%p-Lists (counting towards the amount of particles per cell stored in PEM%pNumber)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals                ,ONLY: Abort
@@ -382,7 +378,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER           :: iNewPart, iPart, PositionNbr, iSpec, LocalElemID
+INTEGER           :: iPart, PositionNbr, iSpec, LocalElemID
 #if USE_LOADBALANCE
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
@@ -391,7 +387,6 @@ REAL              :: tLBStart
 CALL LBStartTime(tLBStart)
 #endif /*USE_LOADBALANCE*/
 
-iNewPart=0
 PositionNbr = 0
 DO iPart = 1, PDM%ParticleVecLength
   IF (PDM%ParticleInside(iPart)) THEN
@@ -404,7 +399,6 @@ DO iPart = 1, PDM%ParticleVecLength
     ! Skip granular particles
     IF(Species(PartSpecies(iPart))%InterID.EQ.100) CYCLE
     ! Get a free particle index
-    iNewPart = iNewPart + 1
     PositionNbr = GetNextFreePosition()
     ! Get the background gas species
     iSpec = BGGas_GetSpecies(PEM%LocalElemID(iPart))
@@ -666,11 +660,6 @@ IF(DSMC%CalcQualityFactors) THEN
   CNElemID = GetCNElemID(iElem+offSetElem)
   DSMC%MeanFreePath = CalcMeanFreePath(REAL(CollInf%Coll_SpecPartNum),SUM(CollInf%Coll_SpecPartNum), &
                           ElemVolume_Shared(CNElemID), DSMC%InstantTransTemp(nSpecies+1))
-  ! Determination of the MCS/MFP for the case without octree
-  IF((DSMC%CollSepCount.GT.0.0).AND.(DSMC%MeanFreePath.GT.0.0)) DSMC%MCSoverMFP = (DSMC%CollSepDist/DSMC%CollSepCount) &
-                                                                                    / DSMC%MeanFreePath
-  ! Calculation of the maximum MCS/MFP of all cells for this processor and number of resolved Cells for this processor
-  IF(DSMC%MCSoverMFP .GE. DSMC%MaxMCSoverMFP) DSMC%MaxMCSoverMFP = DSMC%MCSoverMFP
   ! Calculate number of resolved Cells for this processor
   DSMC%ParticleCalcCollCounter = DSMC%ParticleCalcCollCounter + 1 ! Counts Particle Collision Calculation
   IF( (DSMC%MCSoverMFP .LE. 1) .AND. (DSMC%CollProbMax .LE. 1) .AND. (DSMC%CollProbMean .LE. 1)) DSMC%ResolvedCellCounter = &
@@ -747,22 +736,20 @@ SUBROUTINE BGGas_PhotoIonization(iSpec,iInit,TotalNbrOfReactions)
 !===================================================================================================================================
 ! MODULES
 USE MOD_Globals
-USE MOD_DSMC_Analyze           ,ONLY: CalcGammaVib,CalcMeanFreePath
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, CollisMode, ChemReac, DSMC
-USE MOD_DSMC_Vars              ,ONLY: DSMCSumOfFormedParticles
-USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
-USE MOD_Particle_Vars          ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr
-USE MOD_part_pos_and_velo      ,ONLY: SetParticleVelocity
-USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_part_emission_tools    ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_DSMC_ChemReact         ,ONLY: PhotoIonization_InsertProducts
-USE MOD_DSMC_AmbipolarDiffusion,ONLY: AD_DeleteParticles
-USE MOD_part_tools             ,ONLY: CalcVelocity_maxwell_particle
-USE MOD_MCC_Vars               ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
-USE MOD_MCC_Vars               ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
-USE MOD_Part_Tools             ,ONLY: GetNextFreePosition, IncreaseMaxParticleNumber
-USE MOD_part_operations        ,ONLY: RemoveParticle
+USE MOD_DSMC_Analyze              ,ONLY: CalcGammaVib,CalcMeanFreePath
+USE MOD_DSMC_Vars                 ,ONLY: Coll_pData, CollisMode, ChemReac, DSMC
+USE MOD_DSMC_Vars                 ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, BGGas
+USE MOD_Particle_Vars             ,ONLY: PEM, PDM, PartSpecies, PartState, Species, usevMPF, PartMPF, Species, PartPosRef
+USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr
+USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
+USE MOD_part_emission_tools       ,ONLY: CalcVelocity_maxwell_lpn
+USE MOD_Particle_Photoionization  ,ONLY: PhotoIonization_InsertProducts
+USE MOD_DSMC_AmbipolarDiffusion   ,ONLY: AD_DeleteParticles
+USE MOD_part_tools                ,ONLY: CalcVelocity_maxwell_particle
+USE MOD_MCC_Vars                  ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotoReacToReac,PhotonEnergies
+USE MOD_MCC_Vars                  ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated,MaxPhotonXSec
+USE MOD_Part_Tools                ,ONLY: GetNextFreePosition, IncreaseMaxParticleNumber
+USE MOD_part_operations           ,ONLY: RemoveParticle
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -890,7 +877,6 @@ IF(NbrOfParticle.EQ.0) RETURN
 
 ALLOCATE(Coll_pData(NbrOfParticle))
 Coll_pData%Ec=0.
-DSMCSumOfFormedParticles = 0
 
 iNewPart = 0; iPair = 0
 
@@ -1008,8 +994,6 @@ ELSE
   END DO
 END IF ! NbrOfPhotonXsecReactions.GT.0
 END ASSOCIATE
-
-DSMCSumOfFormedParticles = 0
 
 DEALLOCATE(Coll_pData)
 

@@ -8,22 +8,21 @@ NumberOfInputs = 1
 OutputDataType = 'vtkImageData'
 ExtraXml = ''
 
-Properties = dict(
-  NumberOfVeloBins  = 250,
-  NumberOfSpaceBins = 250,
-  iDirect           = 0,
-  xMin              = 0.,
-  xMax              = 150.,
-  iVelocity         = 0,
-  minVelo           = -3E8,
-  maxVelo           = 3E8
-  )
+Properties = {
+  'NumberOfVeloBins': 250,
+  'NumberOfSpaceBins': 250,
+  'iDirect': 0,
+  'xMin': 0.,
+  'xMax': 150.,
+  'iVelocity': 0,
+  'minVelo': -3E8,
+  'maxVelo': 3E8
+  }
 
 def RequestData():
   import math
+
   import numpy
-  import paraview
-  import vtk.numpy_interface.dataset_adapter
   import vtk.numpy_interface.algorithms
   # -- this will import vtkMultiProcessController and vtkMPI4PyCommunicator
 
@@ -56,7 +55,7 @@ def RequestData():
   nPartsIn=0
   nXmin=0
   nXmax=0
-  for i in range(0, nParts):
+  for i in range(nParts):
     coord = pdi.GetPoint(i)
     pos   = coord[iDirect]
     # use iVelocity=3 for the magnitude of the velocity vector
@@ -72,7 +71,7 @@ def RequestData():
     if(xMin>pos):
       nXmin=nXmin+1
     elif(xMax<pos):
-      nMax=nXmax+1
+      nXmax+1
     else:
       # particle in x-range
       if(minVelo>velo):
@@ -109,13 +108,13 @@ def RequestData():
   array.SetNumberOfTuples(ncells)
   pdo.GetCellData().AddArray(array)
   ipos=0
-  for j in range(0,NumberOfVeloBins):
-     for i in range(0,NumberOfSpaceBins):
+  for j in range(NumberOfVeloBins):
+     for i in range(NumberOfSpaceBins):
       # caution: transpoesed index because of storage
       array.SetValue(ipos,PDF[i,j]/float(nPartsIn))
       ipos=ipos+1
 
 def RequestInformation():
   from paraview import util
-  pdi = self.GetInput()
+  self.GetInput()
   util.SetOutputWholeExtent(self, [0,NumberOfSpaceBins,0,NumberOfVeloBins,0,0])

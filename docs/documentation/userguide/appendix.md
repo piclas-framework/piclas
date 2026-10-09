@@ -6,8 +6,13 @@ The following list summarizes all **tested combinations** of the required librar
 
 | Dev |  PICLas Version  |    System   |   CMake  |  Compiler |            MPI             |  HDF5  |  PETSc |
 | --- |  :------------:  | :---------: | :------: |  :------: | :------------------------: | :----: | :----: |
+|  SC | 4.3.0 (Aug 2026) | boltzreggie |  4.3.3   | gcc16.1.0 | openmpi-5.0.9, mpich-5.0.1 | 2.2.0 | 3.25.1 |
+|  PN | 4.2.0 (Jul 2026) | JSC Jureca  |  3.29.3  | gcc13.3.0 | openmpi-5.0.5              | 1.14.5 | 3.21.6* |
+|  PN | 4.2.0 (Jul 2026) | HLRS Hunter |  3.26.5  | gcc13.3.1 | cray-mpich/8.1.33          | cray-hdf5-parallel/1.14.3.7 | 3.21.6* |
+|  SC | 4.2.0 (Jul 2026) | HLRS Hunter |  3.26.5  | gcc13.3.1 | cray-mpich/8.1.32          | 1.14.5* | 3.21.6* |
+|  PN | 4.2.0 (Jul 2026) | HLRS Vulcan |  3.22.3  | gcc14.3.0 | openmpi-5.0.7              | 1.14.5* | 3.21.6* |
 |  SC | 4.0.0 (Oct 2025) | boltzreggie |  4.0.4   | gcc14.2.0 | openmpi-5.0.8, mpich-4.3.1 | 1.14.6 | 3.23.6 |
-|  PN | 4.0.0 (Jul 2025) |    Vulcan   |  3.22.3  | gcc14.3.0 | openmpi-5.0.7              | 1.12.1 | 3.21.6 |
+|  PN | 4.0.0 (Jul 2025) | HLRS Vulcan |  3.22.3  | gcc14.3.0 | openmpi-5.0.7              | 1.12.1 | 3.21.6 |
 |  SC | 3.6.0 (Jun 2025) |      PC     |  3.30.0  | gcc14.2.0 | mpich-4.3.1                | 1.14.5 | 3.21.6 |
 |  SC | 2.3.0 (Nov 2021) |      PC     |  3.21.3  | gcc11.2.0 | openmpi-4.1.1              | 1.12.1 |   -    |
 |  SC | 2.2.0 (Nov 2021) |      PC     |  3.17.0  | gcc10.1.0 | openmpi-4.0.2              | 1.10.5 |   -    |
@@ -20,6 +25,8 @@ The following list summarizes all **tested combinations** of the required librar
 |  SC | 2.0.0 (Nov 2021) |     fh2     |   3.17   | intel19.1 |    impi2019                |  1.10  |   -    |
 |  PN |  1.4.0 (Nov 19)  |  boltzplatz | 3.15.3-d |  gcc7.4.0 | openmpi-3.1.3              | 1.10.5 |   -    |
 |  SC |  1.4.0 (Nov 19)  | boltzreggie | 3.15.3-d |  gcc9.2.0 | openmpi-4.0.2              | 1.10.5 |   -    |
+
+*: self-built either within piclas or in a separate directory (either way not pre-compiled as module environment)
 
 Combinations that can cause problems are listed in the following table
 

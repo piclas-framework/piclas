@@ -16,6 +16,21 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
+# Pre-requisites
+# 1.) Look for the tclConfig.sh script file
+echo "Looking for OpenSSL development header files"
+TCLCONFIGPATH=$(find / -name "opensslv.h" 2>/dev/null)
+if [[ -z ${TCLCONFIGPATH} ]]; then
+  echo -e "Could not find 'opensslv.h', which is required for running this script. Maybe install via \n\n    sudo apt install libssl-dev\n"
+  exit
+fi
+
+# 2.) libncurses-dev
+if [ -z "$(dpkg -l | grep libncurses-dev)" ]; then
+  echo -e "Could not find 'libncurses-dev' in dpkg, which is required for running this script. Maybe install via \n\n    sudo apt install libncurses-dev\n"
+  exit
+fi
+
 # --------------------------------------------------------------------------------------------------
 # Colors
 # --------------------------------------------------------------------------------------------------
@@ -66,7 +81,8 @@ fi
 # CMAKEVERSION='3.31.1'
 # CMAKEVERSION='4.0.4'
 # CMAKEVERSION='4.1.2'
-CMAKEVERSION='4.2.0'
+# CMAKEVERSION='4.2.0'
+CMAKEVERSION='4.3.3'
 
 CMAKEDIR=${INSTALLDIR}/cmake/${CMAKEVERSION}/standard
 MODULEFILE=${INSTALLDIR}/modules/modulefiles/cmake/cmake/${CMAKEVERSION}

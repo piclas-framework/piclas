@@ -11,17 +11,19 @@
 # You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
 #==================================================================================================================================
 
-import numpy as np
-import h5py
-import glob
 import argparse
-import random
+import glob
+import math
 import os
+import random
 import re
-import subprocess as sp
 import shutil
+import subprocess as sp
 import sys
 import textwrap
+
+import h5py
+import numpy as np
 import scipy.optimize
 
 # Constants
@@ -129,12 +131,12 @@ class CReadinValues:
   def SetValues(self):
     global ShockSimulationParameter
     for Entry in self.l:
-      if Entry.name.lower() in ShockSimulationParameter.keys():
+      if Entry.name.lower() in ShockSimulationParameter:
         Entry.value = convert(ShockSimulationParameter[Entry.name],Entry.datatype)
         Entry.isdefault = False
       else:
         if Entry.default == None:
-          raise Exception('%s has to be set' % Entry.name)
+          raise Exception(f'{Entry.name} has to be set')
         else:
           Entry.value = convert(Entry.default,Entry.datatype)
           Entry.isdefault = True
@@ -151,7 +153,7 @@ class CReadinValues:
         output = Entry.value
         self.l.remove(Entry)
         return output
-    raise Exception('parameter %s is not in ReadinValues list' % name)
+    raise Exception(f'parameter {name} is not in ReadinValues list')
   def ListUnusedValues(self):
     if len(self.l) == 0:
       return
@@ -172,7 +174,7 @@ class CReadinValues:
       helpentry = Entry.help.split('\n')
       for i in range(len(helpentry)):
         if i==0:
-          helpstr += '%s = %s '%(Entry.name,str(Entry.default))+' '*(50-len(Entry.name) - 4 - len(str(Entry.default))) + helpentry[0] + '\n'
+          helpstr += f'{Entry.name} = {Entry.default!s} '+' '*(50-len(Entry.name) - 4 - len(str(Entry.default))) + helpentry[0] + '\n'
         else:
           helpstr += ' '*50 + helpentry[i] + '\n'
     return helpstr
@@ -200,24 +202,24 @@ def CreateTitle():
 
 
   print('=' * TitleLength)
-  print('')
+  print()
   print(' '*int((TitleLength-117)/2) + ' _______           _______  _______  _        _______  ______   _______ _________ _______  _        _______  _______ ')
-  print(' '*int((TitleLength-117)/2) + '(  ____ \|\     /|(  ___  )(  ____ \| \    /\(  ____ \(  __  \ (  ____ )\__   __/(  ____ \( \      (  ___  )(  ____ \\')
-  print(' '*int((TitleLength-117)/2) + '| (    \/| )   ( || (   ) || (    \/|  \  / /| (    \/| (  \  )| (    )|   ) (   | (    \/| (      | (   ) || (    \/')
+  print(' '*int((TitleLength-117)/2) + '(  ____ \\|\\     /|(  ___  )(  ____ \\| \\    /\\(  ____ \\(  __  \\ (  ____ )\\__   __/(  ____ \\( \\      (  ___  )(  ____ \\')
+  print(' '*int((TitleLength-117)/2) + r'| (    \/| )   ( || (   ) || (    \/|  \  / /| (    \/| (  \  )| (    )|   ) (   | (    \/| (      | (   ) || (    \/')
   print(' '*int((TitleLength-117)/2) + '| (_____ | (___) || |   | || |      |  (_/ / | (__    | |   ) || (____)|   | |   | |      | |      | (___) || (_____ ')
   print(' '*int((TitleLength-117)/2) + '(_____  )|  ___  || |   | || |      |   _ (  |  __)   | |   | ||  _____)   | |   | |      | |      |  ___  |(_____  )')
-  print(' '*int((TitleLength-117)/2) + '      ) || (   ) || |   | || |      |  ( \ \ | (      | |   ) || (         | |   | |      | |      | (   ) |      ) |')
-  print(' '*int((TitleLength-117)/2) + '/\____) || )   ( || (___) || (____/\|  /  \ \| (____/\| (__/  )| )      ___) (___| (____/\| (____/\| )   ( |/\____) |')
-  print(' '*int((TitleLength-117)/2) + '\_______)|/     \|(_______)(_______/|_/    \/(_______/(______/ |/       \_______/(_______/(_______/|/     \|\_______)')
+  print(' '*int((TitleLength-117)/2) + r'      ) || (   ) || |   | || |      |  ( \ \ | (      | |   ) || (         | |   | |      | |      | (   ) |      ) |')
+  print(' '*int((TitleLength-117)/2) + r'/\____) || )   ( || (___) || (____/\|  /  \ \| (____/\| (__/  )| )      ___) (___| (____/\| (____/\| )   ( |/\____) |')
+  print(' '*int((TitleLength-117)/2) + r'\_______)|/     \|(_______)(_______/|_/    \/(_______/(______/ |/       \_______/(_______/(_______/|/     \|\_______)')
 
 
-  print('')
-  print('')
+  print()
+  print()
   print('=' * TitleLength)
   for i in range(TitleHeight):
     print(Title[i])
   print('=' * TitleLength)
-  print('')
+  print()
 
 def TitleCharsShocked(i):
   switcher={
@@ -255,18 +257,17 @@ def ArgumentsParser():
   parser.add_argument('InputFile', help='File containing input parameters')
   parser.add_argument('--Equicon',action='store_true', help='Calculate only equilibrium condition')
   parser.add_argument('--restart','-r',action='store', help='Restart from the given simulation (directory)')
-  args = parser.parse_args()
-  return args
+  return parser.parse_args()
 
 def ReadShocktubeIni(InputFile):
 
   global SimulationParameter, ShockSimulationParameter, ReadinValues
   if not os.path.exists(InputFile) :
-    raise Exception("input file '%s' not found." % InputFile)
+    raise Exception(f"input file '{InputFile}' not found.")
   SimulationParameter={}
   ShockSimulationParameter={}
   with open(InputFile) as f :
-    for line in f.readlines() :   # iterate over all lines of the file
+    for line in f :   # iterate over all lines of the file
         line = re.sub(r"\s+", "", line)        # remove all whitespaces ("\s" is the whitespac symbol)
         line = re.sub(r"\\s", " ", line)       # add new whitespaces for all occurrances of "\s" in the string ("\s" is NOT the whitespace symbol here)
         if line.startswith('!') : continue     # skip lines starting with a comment
@@ -280,7 +281,7 @@ def ReadShocktubeIni(InputFile):
 
           # if line.lower().startswith('Particles') :
           if line.lower().startswith('particles-symmetry-order') :
-            print('WARNING: Particles-Symmetry-Order will be set as 1 and is looped in the input file %s' % InputFile)
+            print(f'WARNING: Particles-Symmetry-Order will be set as 1 and is looped in the input file {InputFile}')
             continue
           (key,value) = line.split('=',1)          # split line at '='
           SimulationParameter[key.lower()]=value
@@ -297,10 +298,7 @@ def convert(Value,datatype):
   elif datatype == float:
     return float(Value)
   elif datatype == bool:
-    if Value.lower() in ['true','t','1']:
-      return True
-    else:
-      return False
+    return Value.lower() in ['true', 't', '1']
 
 def GenerateReadinValues():
 
@@ -369,7 +367,7 @@ def Init(KeepOldData,RestartFolder):
   Simulation.ElectronSpecies = ReadinValues.GetValue("Shock-Simulation-ElectronSpecies")
   if ((not Simulation.ElectronSpecies==-1) and (Simulation.ElectronSpecies<1 or Simulation.ElectronSpecies>Simulation.nSpecies)):
     raise Exception("'Shock-Simulation-ElectronSpecies' has to be -1 for no electron species or species ID of the electrons")
-  if not "ProjectName".lower() in SimulationParameter.keys():
+  if not "ProjectName".lower() in SimulationParameter:
     SimulationParameter["ProjectName".lower()] = "Shocktube"
   Simulation.ProjectName = SimulationParameter["ProjectName".lower()]
   Simulation.SpeciesMass = np.zeros(Simulation.nSpecies+1)
@@ -393,7 +391,7 @@ def Init(KeepOldData,RestartFolder):
   Iteration.TargetVelo = ReadinValues.GetValue("Shock-Target-Velo")
   Iteration.TargetDev = ReadinValues.GetValue("Shock-Target-dev")
   Iteration.CurrentVelo = ReadinValues.GetValue("Shock-Start-Velo")
-  if Iteration.CurrentVelo == 0.0:
+  if Iteration.CurrentVelo == 0.0:  # noqa: RUF069
     print("use 'Shock-Target-Velo' as 'Shock-Start-Velo'")
     Iteration.CurrentVelo = Iteration.TargetVelo
   Iteration.ResponseRatio = ReadinValues.GetValue("Shock-ResponseRatio")
@@ -420,10 +418,10 @@ def Init(KeepOldData,RestartFolder):
         os.remove(File)
       Directories = glob.glob("iter_[0-9]*")
       for Directory in Directories:
-        shutil.rmtree('%s/%s'%(Path.MasterDir,Directory))
+        shutil.rmtree(f'{Path.MasterDir}/{Directory}')
       Directories = glob.glob("standing_iter_[0-9]*")
       for Directory in Directories:
-        shutil.rmtree('%s/%s'%(Path.MasterDir,Directory))
+        shutil.rmtree(f'{Path.MasterDir}/{Directory}')
     else:
       tmp = RestartFolder.split("_")[-1]
       if(tmp[-1]=='/'):
@@ -434,16 +432,16 @@ def Init(KeepOldData,RestartFolder):
         for Directory in Directories:
           tmp = Directory.split("_")[-1]
           if(int(tmp)>lastIteration):
-            shutil.rmtree('%s/%s'%(Path.MasterDir,Directory))
+            shutil.rmtree(f'{Path.MasterDir}/{Directory}')
       else:
         Directories = glob.glob("standing_iter_[0-9]*")
         for Directory in Directories:
-          shutil.rmtree('%s/%s'%(Path.MasterDir,Directory))
+          shutil.rmtree(f'{Path.MasterDir}/{Directory}')
         Directories = glob.glob("iter_[0-9]*")
         for Directory in Directories:
           tmp = Directory.split("_")[-1]
           if(int(tmp)>lastIteration):
-            shutil.rmtree('%s/%s'%(Path.MasterDir,Directory))
+            shutil.rmtree(f'{Path.MasterDir}/{Directory}')
 
 
   # Set boundarys & mesh
@@ -479,9 +477,9 @@ def Init(KeepOldData,RestartFolder):
   # Set constant particle properties
   Simulation.InflowSpecies = []
   for iSpec in range(1,Simulation.nSpecies+1):
-    if ('Part-Species'+str(iSpec)+'-nInits').lower() in SimulationParameter.keys():
+    if ('Part-Species'+str(iSpec)+'-nInits').lower() in SimulationParameter:
       if int(SimulationParameter[('Part-Species'+str(iSpec)+'-nInits').lower()])>=2:
-        raise Exception("Part-Species%s-nInits has to be 1 or 0, if its present in freestream or not" % iSpec)
+        raise Exception(f"Part-Species{iSpec}-nInits has to be 1 or 0, if its present in freestream or not")
       if int(SimulationParameter[('Part-Species'+str(iSpec)+'-nInits').lower()])==1:
         Simulation.InflowSpecies.append(iSpec)
         print("InflowSpecies %i added" % iSpec)
@@ -493,28 +491,28 @@ def Init(KeepOldData,RestartFolder):
         SimulationParameter[('Part-Species'+str(iSpec)+'-nSurfaceFluxBCs').lower()] = '1'
         SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-BC').lower()] = '2'
         SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-velocityDistribution').lower()] = 'maxwell_lpn'
-        if ('Part-Species'+str(iSpec)+'-Init1-VeloVecIC').lower() in SimulationParameter.keys():
+        if ('Part-Species'+str(iSpec)+'-Init1-VeloVecIC').lower() in SimulationParameter:
           SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-VeloVecIC').lower()] = \
             SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-VeloVecIC').lower()]
         else:
-          raise Exception('Part-Species%s-Init1-VeloVecIC has to be set' % iSpec)
-        if ('Part-Species'+str(iSpec)+'-Init1-MWTemperatureIC').lower() in SimulationParameter.keys():
+          raise Exception(f'Part-Species{iSpec}-Init1-VeloVecIC has to be set')
+        if ('Part-Species'+str(iSpec)+'-Init1-MWTemperatureIC').lower() in SimulationParameter:
           SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-MWTemperatureIC').lower()] = \
             SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-MWTemperatureIC').lower()]
         else:
-          raise Exception('Part-Species%s-Init1-MWTemperatureIC has to be set' % iSpec)
-        if ('Part-Species'+str(iSpec)+'-Init1-PartDensity').lower() in SimulationParameter.keys():
+          raise Exception(f'Part-Species{iSpec}-Init1-MWTemperatureIC has to be set')
+        if ('Part-Species'+str(iSpec)+'-Init1-PartDensity').lower() in SimulationParameter:
           SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-PartDensity').lower()] = \
             SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-PartDensity').lower()]
         else:
-          raise Exception('Part-Species%s-Init1-PartDensity has to be set' % iSpec)
-        if ('Part-Species'+str(iSpec)+'-Init1-TempRot').lower() in SimulationParameter.keys():
+          raise Exception(f'Part-Species{iSpec}-Init1-PartDensity has to be set')
+        if ('Part-Species'+str(iSpec)+'-Init1-TempRot').lower() in SimulationParameter:
           SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-TempRot').lower()] = \
             SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-TempRot').lower()]
-        if ('Part-Species'+str(iSpec)+'-Init1-TempVib').lower() in SimulationParameter.keys():
+        if ('Part-Species'+str(iSpec)+'-Init1-TempVib').lower() in SimulationParameter:
           SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-TempVib').lower()] = \
             SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-TempVib').lower()]
-        if ('Part-Species'+str(iSpec)+'-Init1-TempElec').lower() in SimulationParameter.keys():
+        if ('Part-Species'+str(iSpec)+'-Init1-TempElec').lower() in SimulationParameter:
           SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-TempElec').lower()] = \
             SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-TempElec').lower()]
 
@@ -541,11 +539,11 @@ def InitRestart(RestartFolder):
   global RestartStanding, DoRestart, Iteration, Mesh
 
   DoRestart = True
-  print("")
-  print("Read specified iteration %s for restart" % RestartFolder)
+  print()
+  print(f"Read specified iteration {RestartFolder} for restart")
 
   if not os.path.exists(RestartFolder) :
-    raise Exception("Restart directory '%s' not found." % RestartFolder)
+    raise Exception(f"Restart directory '{RestartFolder}' not found.")
 
   if("standing" in RestartFolder):
     RestartStanding=True
@@ -554,7 +552,7 @@ def InitRestart(RestartFolder):
   else:
     RestartStanding=False
 
-  Path.CurrentSimDir = '%s/%s' % (Path.MasterDir,RestartFolder)
+  Path.CurrentSimDir = f'{Path.MasterDir}/{RestartFolder}'
   # os.chdir(Path.CurrentSimDir)
 
   tmp = RestartFolder.split("_")[-1]
@@ -564,8 +562,8 @@ def InitRestart(RestartFolder):
 
 
   RestartParameter={}
-  with open("%s/parameter.ini" % Path.CurrentSimDir) as f :
-    for line in f.readlines() :   # iterate over all lines of the file
+  with open(f"{Path.CurrentSimDir}/parameter.ini") as f :
+    for line in f :   # iterate over all lines of the file
         line = re.sub(r"\s+", "", line)        # remove all whitespaces ("\s" is the whitespac symbol)
         line = re.sub(r"\\s", " ", line)       # add new whitespaces for all occurrances of "\s" in the string ("\s" is NOT the whitespace symbol here)
         if line.startswith('!') : continue     # skip lines starting with a comment
@@ -578,14 +576,14 @@ def InitRestart(RestartFolder):
 
   if(Autoadjust.tend):
     Simulation.tend = float(RestartParameter['TEnd'.lower()])
-    print("updated tend to %e" % Simulation.tend)
+    print(f"updated tend to {Simulation.tend:e}")
   else:
-    print("No autoadjust for tend defined, use it from Shocktube.ini: %e" % Simulation.tend)
+    print(f"No autoadjust for tend defined, use it from Shocktube.ini: {Simulation.tend:e}")
   if(Autoadjust.dt):
     Simulation.dt = float(RestartParameter['Particles-ManualTimeStep'.lower()])
-    print("updated dt to %e" % Simulation.dt)
+    print(f"updated dt to {Simulation.dt:e}")
   else:
-    print("No autoadjust for dt defined, use it from Shocktube.ini: %e" % Simulation.dt)
+    print(f"No autoadjust for dt defined, use it from Shocktube.ini: {Simulation.dt:e}")
   if(Autoadjust.Mesh):
     if(Iteration.StandingShock):
       # SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-CuboidHeightIC').lower()] = '%f' % (Mesh.Length*1./2.)
@@ -593,14 +591,14 @@ def InitRestart(RestartFolder):
     else:
       # SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-CuboidHeightIC').lower()] = '%f' % (Mesh.Length)
       Mesh.Length = float(RestartParameter[('Part-Species'+str(Simulation.InflowSpecies[0])+'-Init1-CuboidHeightIC').lower()])
-    print("updated Mesh-Length to %e" % Mesh.Length)
+    print(f"updated Mesh-Length to {Mesh.Length:e}")
   else:
-    print("No autoadjust for Mesh-Length defined, use it from Shocktube.ini: %e" % Mesh.Length)
+    print(f"No autoadjust for Mesh-Length defined, use it from Shocktube.ini: {Mesh.Length:e}")
   if(Autoadjust.MPF):
     Simulation.MPF = float(RestartParameter['Part-Species1-MacroParticleFactor'.lower()])
-    print("updated MPF to %e" % Simulation.MPF)
+    print(f"updated MPF to {Simulation.MPF:e}")
   else:
-    print("No autoadjust for MPF defined, use it from Shocktube.ini: %e" % Simulation.MPF)
+    print(f"No autoadjust for MPF defined, use it from Shocktube.ini: {Simulation.MPF:e}")
   if(Autoadjust.maxPartNum):
     Simulation.MaxPartNum = int(RestartParameter['Part-MaxParticleNumber'.lower()])
     print("updated MaxPartNum to %i" % Simulation.MaxPartNum)
@@ -608,12 +606,12 @@ def InitRestart(RestartFolder):
     print("No autoadjust for MaxPartNum defined, use it from Shocktube.ini: %i" % Simulation.MaxPartNum)
   if(not RestartStanding):
     Iteration.CurrentVelo = float(RestartParameter[('Part-Species'+str(Simulation.InflowSpecies[0])+'-Init1-VeloIC').lower()])
-    print("set Iteration.CurrentVelo to %f" % Iteration.CurrentVelo)
+    print(f"set Iteration.CurrentVelo to {Iteration.CurrentVelo:f}")
   else:
     Iteration.VIn=float(RestartParameter[('Part-Species'+str(Simulation.InflowSpecies[0])+'-Init1-VeloIC').lower()])
-    print("set Iteration.VIn to %f" % Iteration.VIn)
+    print(f"set Iteration.VIn to {Iteration.VIn:f}")
     Iteration.VOut=float(RestartParameter[('Part-Species'+str(Simulation.InflowSpecies[0])+'-Init2-VeloIC').lower()])
-    print("set Iteration.VOut to %f" % Iteration.VOut)
+    print(f"set Iteration.VOut to {Iteration.VOut:f}")
 
 
   if(Iteration.StandingShock):
@@ -667,7 +665,7 @@ def InitRestart(RestartFolder):
         SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-TempElec').lower()] = RestartParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-TempElec').lower()]
 
 
-    print("")
+    print()
 
 def InitPiclasParameters():
   """
@@ -678,56 +676,56 @@ def InitPiclasParameters():
   # Calculate Init area
   if not Iteration.StandingShock:
 
-    SimulationParameter['TEnd'.lower()] = '%e' % Simulation.tend
+    SimulationParameter['TEnd'.lower()] = f'{Simulation.tend:e}'
 
-    SimulationParameter['Part-FIBGMdeltas'.lower()] = '(/%e,1,1/)' % Mesh.dxElem
+    SimulationParameter['Part-FIBGMdeltas'.lower()] = f'(/{Mesh.dxElem:e},1,1/)'
     if Simulation.MaxPartNum > 0:
       SimulationParameter['Part-MaxParticleNumber'.lower()] = '%i' % Simulation.MaxPartNum
 
 
     if Iteration.StandingShock==False:
       SimulationParameter['Part-IterationForMacroVal'.lower()] = '%i' % max(int(Simulation.tend/Simulation.dt/Mesh.nElems()*Simulation.ElemsPerWrite),1)
-    SimulationParameter['Particles-ManualTimeStep'.lower()] = '%e' % Simulation.dt
+    SimulationParameter['Particles-ManualTimeStep'.lower()] = f'{Simulation.dt:e}'
     for iSpec in range(1,Simulation.nSpecies+1):
-      SimulationParameter[('Part-Species'+str(iSpec)+'-MacroParticleFactor').lower()] = '%e' % (Simulation.MPF)
+      SimulationParameter[('Part-Species'+str(iSpec)+'-MacroParticleFactor').lower()] = f'{Simulation.MPF:e}'
       if iSpec in Simulation.InflowSpecies:
         # Set Init
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-BasePointIC').lower()] = '(/-%f,-0.5,-0.5/)' % (Mesh.Length)
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-CuboidHeightIC').lower()] = '%f' % (Mesh.Length)
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-VeloIC').lower()] = '%f' % Iteration.CurrentVelo
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-BasePointIC').lower()] = f'(/-{Mesh.Length:f},-0.5,-0.5/)'
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-CuboidHeightIC').lower()] = f'{Mesh.Length:f}'
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-VeloIC').lower()] = f'{Iteration.CurrentVelo:f}'
         # Set Surfaceflux
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-VeloIC').lower()] = '%f' % Iteration.CurrentVelo
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-VeloIC').lower()] = f'{Iteration.CurrentVelo:f}'
 
 
   else:
-    SimulationParameter['TEnd'.lower()] = '%e' % Simulation.tend
+    SimulationParameter['TEnd'.lower()] = f'{Simulation.tend:e}'
 
-    SimulationParameter['Part-FIBGMdeltas'.lower()] = '(/%e,1,1/)' % Mesh.dxElem
+    SimulationParameter['Part-FIBGMdeltas'.lower()] = f'(/{Mesh.dxElem:e},1,1/)'
     if Simulation.MaxPartNum > 0:
       SimulationParameter['Part-MaxParticleNumber'.lower()] = '%i' % Simulation.MaxPartNum
 
     SimulationParameter['Part-IterationForMacroVal'.lower()] = '%i' % max(int(Simulation.tend/Simulation.dt/Mesh.nElems()*Simulation.ElemsPerWrite),1)
-    SimulationParameter['Particles-ManualTimeStep'.lower()] = '%e' % Simulation.dt
+    SimulationParameter['Particles-ManualTimeStep'.lower()] = f'{Simulation.dt:e}'
     for iSpec in range(1,Simulation.nSpecies+1):
-      SimulationParameter[('Part-Species'+str(iSpec)+'-MacroParticleFactor').lower()] = '%e' % (Simulation.MPF)
+      SimulationParameter[('Part-Species'+str(iSpec)+'-MacroParticleFactor').lower()] = f'{Simulation.MPF:e}'
       if iSpec in Simulation.InflowSpecies:
         # Set Init
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-BasePointIC').lower()] = '(/-%f,-0.5,-0.5/)' % Mesh.Length
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-BasePointIC').lower()] = f'(/-{Mesh.Length:f},-0.5,-0.5/)'
         SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-CuboidHeightIC').lower()] = '%f' % (Mesh.Length*1./2.)
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-VeloIC').lower()] = '%f' % Iteration.VIn
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-VeloIC').lower()] = f'{Iteration.VIn:f}'
         SimulationParameter[('Part-Species'+str(iSpec)+'-Init2-BasePointIC').lower()] = '(/-%f,-0.5,-0.5/)' % (Mesh.Length*1./2.)
         SimulationParameter[('Part-Species'+str(iSpec)+'-Init2-CuboidHeightIC').lower()] = '%f' % (Mesh.Length*1./2.)
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Init2-VeloIC').lower()] = '%f' % Iteration.VOut
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Init2-VeloIC').lower()] = f'{Iteration.VOut:f}'
         # Set Surfaceflux
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-VeloIC').lower()] = '%f' % Iteration.VIn
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux2-VeloIC').lower()] = '%f' % Iteration.VOut
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-VeloIC').lower()] = f'{Iteration.VIn:f}'
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux2-VeloIC').lower()] = f'{Iteration.VOut:f}'
       else:
         # Set Init
         SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-BasePointIC').lower()] = '(/-%f,-0.5,-0.5/)' % (Mesh.Length*1./2.)
         SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-CuboidHeightIC').lower()] = '%f' % (Mesh.Length*1./2.)
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-VeloIC').lower()] = '%f' % Iteration.VOut
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Init1-VeloIC').lower()] = f'{Iteration.VOut:f}'
         # Set Surfaceflux
-        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-VeloIC').lower()] = '%f' % Iteration.VOut
+        SimulationParameter[('Part-Species'+str(iSpec)+'-Surfaceflux1-VeloIC').lower()] = f'{Iteration.VOut:f}'
 
 def WriteParameterIni():
   """
@@ -744,8 +742,7 @@ def WriteParameterIni():
   output=[]
   # Read stdout of "piclas --help"
   for line in p.stdout:
-    if sys.version_info[0] == 3:
-      line = line.decode()
+    line = line.decode()
     i+=1
     if i<22:
       # Remove header
@@ -764,8 +761,7 @@ def WriteParameterIni():
         output.append(line)
       else:
         # Last section with parameter --> write section to file
-        for ii in range(len(output)):
-          f.write(output[ii])
+        f.writelines(output[ii] for ii in range(len(output)))
         output=[]
         output.append(line)
 
@@ -773,27 +769,26 @@ def WriteParameterIni():
     else:
       # Line with parameter
       line = re.sub(r"\s+", "", line)
-      (line,dumb)=line.split('=',1)
+      (line,_dumb)=line.split('=',1)
       if line.count('$') == 0:
         # No mutiple parameter
-        if line.lower() in SimulationParameter.keys():
+        if line.lower() in SimulationParameter:
           # If in SimulationParameter dictionary add to output
           output.append(line + '=' + SimulationParameter[line.lower()] + '\n')
       else:
         # Multiple parameter (with [$])
           indexes=np.ones(line.count('$'),dtype=int)
           maxindex = max(Simulation.nSpecies,3)
-          lastchange=0
           while indexes[0]<=maxindex:
             lineSpec=line
             for ii in range(len(indexes)):
               lineSpec = lineSpec[0:lineSpec.find('$')-1] + str(indexes[ii]) + lineSpec[lineSpec.find('$')+2:]
             # print(lineSpec)
-            if lineSpec.lower() in SimulationParameter.keys():
+            if lineSpec.lower() in SimulationParameter:
               # f.write(lineSpec + '=' + SimulationParameter[lineSpec.lower()] + '\n')
               output.append(lineSpec + '=' + SimulationParameter[lineSpec.lower()] + '\n')
             indexes[-1]+=1
-            lastchange=len(indexes)-1
+            len(indexes)-1
             if indexes[-1]>maxindex:
               ii=1
               while indexes[-ii]>maxindex:
@@ -842,13 +837,12 @@ def RunPiclas():
   RunString = ''
   for cmd in RunCmd:
     RunString += ' ' + cmd
-  print('Run piclas with:%s' % RunString)
+  print(f'Run piclas with:{RunString}')
   p=sp.Popen(RunCmd,stdout=sp.PIPE)
   output=[]
   with open('piclas.out','w') as f:
     for line in p.stdout:
-      if sys.version_info[0] == 3:
-        line = line.decode()
+      line = line.decode()
       line = line[:-1]
       output.append(line)
       f.write(line+'\n')
@@ -879,7 +873,7 @@ def GenerateMeshFile():
   f.write("! " + "="* 127 + " !\n")
   f.write("! OUTPUT\n")
   f.write("! " + "="* 127 + " !\n")
-  f.write("  ProjectName  = %s\n" % SimulationParameter["ProjectName".lower()])
+  f.write("  ProjectName  = {}\n".format(SimulationParameter["ProjectName".lower()]))
   f.write("  Debugvisu    = F\n")
 
   f.write("! " + "="* 127 + " !\n")
@@ -889,14 +883,14 @@ def GenerateMeshFile():
   f.write("  nZones       =1\n")
   f.write("  jacobianTolerance=1e-30\n")
   f.write("  Corner=(/")
-  f.write("-%f,-%f,-%f,,"   % (Mesh.Length,Mesh.HalfWidth,Mesh.HalfWidth))
-  f.write(" %f,-%f,-%f,,"   % (0,Mesh.HalfWidth,Mesh.HalfWidth))
-  f.write(" %f, %f,-%f,,"   % (0,Mesh.HalfWidth,Mesh.HalfWidth))
-  f.write("-%f, %f,-%f,,"   % (Mesh.Length,Mesh.HalfWidth,Mesh.HalfWidth))
-  f.write("-%f,-%f, %f,,"   % (Mesh.Length,Mesh.HalfWidth,Mesh.HalfWidth))
-  f.write(" %f,-%f, %f,,"   % (0,Mesh.HalfWidth,Mesh.HalfWidth))
-  f.write(" %f, %f, %f,,"   % (0,Mesh.HalfWidth,Mesh.HalfWidth))
-  f.write("-%f, %f, %f/)\n" % (Mesh.Length,Mesh.HalfWidth,Mesh.HalfWidth))
+  f.write(f"-{Mesh.Length:f},-{Mesh.HalfWidth:f},-{Mesh.HalfWidth:f},,")
+  f.write(f" {0:f},-{Mesh.HalfWidth:f},-{Mesh.HalfWidth:f},,")
+  f.write(f" {0:f}, {Mesh.HalfWidth:f},-{Mesh.HalfWidth:f},,")
+  f.write(f"-{Mesh.Length:f}, {Mesh.HalfWidth:f},-{Mesh.HalfWidth:f},,")
+  f.write(f"-{Mesh.Length:f},-{Mesh.HalfWidth:f}, {Mesh.HalfWidth:f},,")
+  f.write(f" {0:f},-{Mesh.HalfWidth:f}, {Mesh.HalfWidth:f},,")
+  f.write(f" {0:f}, {Mesh.HalfWidth:f}, {Mesh.HalfWidth:f},,")
+  f.write(f"-{Mesh.Length:f}, {Mesh.HalfWidth:f}, {Mesh.HalfWidth:f}/)\n")
   f.write("  nElems       =(/%i,1,1/)\n" % Mesh.nElems())
   f.write("  BCIndex      =(/1,1,3,1,2,1/)\n")
   f.write("  elemtype     =108\n")
@@ -914,7 +908,7 @@ def GenerateMeshFile():
   f.close()
 
   DEVNULL = open(os.devnull, 'w')
-  print('Run hopr with: %s hopr.ini' % Path.hopr)
+  print(f'Run hopr with: {Path.hopr} hopr.ini')
   sp.call([Path.hopr,"hopr.ini"],stdout=DEVNULL)
 
 def ReadMeshFile(MeshfileName):
@@ -926,7 +920,7 @@ def ReadMeshFile(MeshfileName):
   try:
     MeshFile = h5py.File(MeshfileName, 'r')
   except:
-    raise Exception("generated mesh file '%s' not found." % MeshfileName)
+    raise Exception(f"generated mesh file '{MeshfileName}' not found.")
   Barycenters=MeshFile['ElemBarycenters'][:,0].copy()
   ElemIDsorted=np.arange(Mesh.nElems())
 
@@ -972,7 +966,7 @@ def DetermineShockSpeed():
   with open('rawdata.dat','w') as f:
     f.write('time[s]\txShock[m]\tValid\n')
     for i in range(len(Solution.times)):
-      f.write('%e\t%e\t%r\n' % (Solution.times[i],Solution.xShock[i],Solution.xShockValid[i]))
+      f.write(f'{Solution.times[i]:e}\t{Solution.xShock[i]:e}\t{Solution.xShockValid[i]!r}\n')
       if Solution.xShockValid[i]:
         time[ii]=Solution.times[i]
         xShock[ii]=Solution.xShock[i]
@@ -1040,9 +1034,9 @@ def DetermineShockSpeed():
     f.write('t,xShock,Used,t,x,tx,t^2,t^3,t^4,xt^2,a_t,a_x,a_tx,a_t^2,a_t^3,a_t^4,a_xt^2,Curvature\n')
     for i in range(nValues):
       if nValues-Simulation.UsedValues>=i:
-        f.write('%e,%e,%r,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e\n' % (time[i],xShock[i],False,RegressionCoeff[0,i],RegressionCoeff[1,i],RegressionCoeff[2,i],RegressionCoeff[3,i],RegressionCoeff[4,i],RegressionCoeff[5,i],RegressionCoeff[6,i],AveragesList[0,i],AveragesList[1,i],AveragesList[2,i],AveragesList[3,i],AveragesList[4,i],AveragesList[5,i],AveragesList[6,i],Curvatures[i]))
+        f.write(f'{time[i]:e},{xShock[i]:e},{False!r},{RegressionCoeff[0,i]:e},{RegressionCoeff[1,i]:e},{RegressionCoeff[2,i]:e},{RegressionCoeff[3,i]:e},{RegressionCoeff[4,i]:e},{RegressionCoeff[5,i]:e},{RegressionCoeff[6,i]:e},{AveragesList[0,i]:e},{AveragesList[1,i]:e},{AveragesList[2,i]:e},{AveragesList[3,i]:e},{AveragesList[4,i]:e},{AveragesList[5,i]:e},{AveragesList[6,i]:e},{Curvatures[i]:e}\n')
       else:
-        f.write('%e,%e,%r,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e,%e\n' % (time[i],xShock[i],True,RegressionCoeff[0,i],RegressionCoeff[1,i],RegressionCoeff[2,i],RegressionCoeff[3,i],RegressionCoeff[4,i],RegressionCoeff[5,i],RegressionCoeff[6,i],AveragesList[0,i],AveragesList[1,i],AveragesList[2,i],AveragesList[3,i],AveragesList[4,i],AveragesList[5,i],AveragesList[6,i],Curvatures[i]))
+        f.write(f'{time[i]:e},{xShock[i]:e},{True!r},{RegressionCoeff[0,i]:e},{RegressionCoeff[1,i]:e},{RegressionCoeff[2,i]:e},{RegressionCoeff[3,i]:e},{RegressionCoeff[4,i]:e},{RegressionCoeff[5,i]:e},{RegressionCoeff[6,i]:e},{AveragesList[0,i]:e},{AveragesList[1,i]:e},{AveragesList[2,i]:e},{AveragesList[3,i]:e},{AveragesList[4,i]:e},{AveragesList[5,i]:e},{AveragesList[6,i]:e},{Curvatures[i]:e}\n')
 
   Solution.Shockspeed = (Averages[2]-Averages[0]*Averages[1])/(Averages[3]-Averages[0]**2)
   # if Solution.Shockspeed<0.0:
@@ -1072,12 +1066,11 @@ def ReadDSMCHOData():
       continue
     # Read NumDens and Temperature Data and sort them by position
     DSMCHOFile = h5py.File(DSMCHOFiles[iFile], 'r')
-    times[iFile] = DSMCHOFile.attrs['Time']
+    times[iFile] = np.squeeze(DSMCHOFile.attrs['Time'])
     if iFile==int(nFiles/2):
       for iName in range(len(DSMCHOFile.attrs['VarNamesAdd'])):
         VarName = DSMCHOFile.attrs['VarNamesAdd'][iName]
-        if sys.version_info[0] == 3:
-          VarName = VarName.decode()
+        VarName = VarName.decode()
         # print(iName,VarName)
         if VarName=='Total_NumberDensity':
           iTotalNumDens=iName
@@ -1109,9 +1102,8 @@ def ReadDSMCHOData():
         sys.exit("Position of Total_NumberDensity in DSMCState-File cannot be determined")
       if iTotalTemp==-1:
         sys.exit("Position of Total_TempTransMean in DSMCState-File cannot be determined")
-      if Autoadjust.MPF:
-        if iTotalSimPartNum==-1 or iMCSoverMFP==-1:
-          sys.exit("Position of 'Total_SimPartNum' or 'DSMC_MCS_over_MFP' in DSMCState-File cannot be determined")
+      if Autoadjust.MPF and (iTotalSimPartNum==-1 or iMCSoverMFP==-1):
+        sys.exit("Position of 'Total_SimPartNum' or 'DSMC_MCS_over_MFP' in DSMCState-File cannot be determined")
 
 
     TotalTemp=SortArrayToPosition(DSMCHOFile['ElemData'][:,iTotalTemp].copy())
@@ -1165,7 +1157,7 @@ def ReadDSMCHOData():
         # print(max(np.sqrt(2*kb*DSMCHOFile['ElemData'][:,iSpecTemp[iSpec]].copy()/(pi*Simulation.SpeciesMass[iSpec]))))
         # print(Solution.MaxVelo)
         # print("")
-        if not iSpec == Simulation.ElectronSpecies:
+        if iSpec != Simulation.ElectronSpecies:
           # Negelecting Electrons
           Solution.MaxVelo=max(max(DSMCHOFile['ElemData'][:,iSpecVelo[iSpec]].copy()+Simulation.VeloTempEps*np.sqrt(2*kb*DSMCHOFile['ElemData'][:,iSpecTemp[iSpec]].copy()/(pi*Simulation.SpeciesMass[iSpec]))),Solution.MaxVelo)
 
@@ -1180,7 +1172,7 @@ def UpdateVariables():
     Simulation.Redosimulation = True
     if Autoadjust.tend:
       Simulation.tend *=2
-      print('No Shock can be determined. Extend tend to %e.' % Simulation.tend)
+      print(f'No Shock can be determined. Extend tend to {Simulation.tend:e}.')
       return False
     else:
       raise Exception("Shockspeed cannot be determined")
@@ -1193,12 +1185,12 @@ def UpdateVariables():
         Simulation.Redosimulation = True
         if Autoadjust.tend:
           Simulation.tend *=2
-          print('No Shock can be determined. Extend tend to %e.' % Simulation.tend)
+          print(f'No Shock can be determined. Extend tend to {Simulation.tend:e}.')
           return False
         else:
           raise Exception("Shockspeed cannot be determined")
 
-      print('Shockspeed: %f'%Iteration.CurrentLagShockSpeed)
+      print(f'Shockspeed: {Iteration.CurrentLagShockSpeed:f}')
 
       if abs(Iteration.CurrentLagShockSpeed-Iteration.TargetVelo)<= Iteration.TargetDev:
         # End of iteration reached
@@ -1207,20 +1199,20 @@ def UpdateVariables():
         # Update ResponseRatio
         Iteration.ResponseRatio = (Iteration.CurrentVelo-Iteration.LastVelo)/(Iteration.CurrentLagShockSpeed-Iteration.LastLagShockSpeed)
         # Iteration.ResponseRatio = Iteration.CurrentVelo * Iteration.LastLagShockSpeed / (Iteration.LastVelo * Iteration.CurrentLagShockSpeed)
-        print('New ResponseRatio: %e' % Iteration.ResponseRatio)
+        print(f'New ResponseRatio: {Iteration.ResponseRatio:e}')
 
       # Adjust CurrentVelo
       Iteration.LastVelo = Iteration.CurrentVelo
       Iteration.CurrentVelo = Iteration.ResponseRatio*(Iteration.TargetVelo-Iteration.CurrentLagShockSpeed)+Iteration.CurrentVelo
       # Iteration.CurrentVelo = Iteration.LastVelo * Iteration.ResponseRatio * Iteration.TargetVelo / Iteration.CurrentLagShockSpeed
-      print('New Velocity: %f' % Iteration.CurrentVelo)
+      print(f'New Velocity: {Iteration.CurrentVelo:f}')
 
       # Adjust tend
       if Autoadjust.tend:
         xend = Barycenters[int(0.25*Mesh.nElems())]
         Simulation.tend = (xend-Solution.xShock[-1]+Solution.times[-1]*Solution.Shockspeed)/Solution.Shockspeed
         Simulation.tend *= Iteration.CurrentVelo/Iteration.LastVelo
-        print('Adjust tend to %e' % Simulation.tend)
+        print(f'Adjust tend to {Simulation.tend:e}')
       if Autoadjust.MPF:
         if(('Particles-DSMC-UseNearestNeighbour'.lower()) in SimulationParameter):
           if(SimulationParameter[('Particles-DSMC-UseNearestNeighbour').lower()] in ['true', 't','1']):
@@ -1229,19 +1221,18 @@ def UpdateVariables():
             Simulation.MPF = Simulation.MPF * Solution.TotalSimPartNummin/Simulation.PartperElemmin
         else:
           Simulation.MPF = Simulation.MPF * Solution.TotalSimPartNummin/Simulation.PartperElemmin
-        print('Adjust MPF to %e' % Simulation.MPF)
+        print(f'Adjust MPF to {Simulation.MPF:e}')
       if Autoadjust.dt:
         dt1=Simulation.tend/Mesh.nElems()
         dt2=Mesh.dxElem/Solution.MaxVelo*Iteration.CurrentVelo/Iteration.LastVelo
         dt3=Simulation.dt*Simulation.MaxCollProbMax/Solution.MaxCollProb
         Simulation.dt=min(dt1,dt2,dt3)
         # Simulation.dt = min(Simulation.tend/Mesh.nElems(),Mesh.dxElem/Solution.MaxVelo*Iteration.CurrentVelo/Iteration.LastVelo,Simulation.dt*Simulation.MaxCollProbMax/Solution.MaxCollProb)
-        print('Adjust dt to %e' % Simulation.dt)
-      if Autoadjust.Mesh:
-        if Simulation.UsedValues<=0.25*Mesh.nElems():
-          Mesh.Length*=2
-          Simulation.tend*=2
-          print('Adjust Length to %f and therfore doubled tend to %e' % (Mesh.Length,Simulation.tend))
+        print(f'Adjust dt to {Simulation.dt:e}')
+      if Autoadjust.Mesh and Simulation.UsedValues<=0.25*Mesh.nElems():
+        Mesh.Length*=2
+        Simulation.tend*=2
+        print(f'Adjust Length to {Mesh.Length:f} and therfore doubled tend to {Simulation.tend:e}')
     else:
       IntegrateSolution2()
       Finished = True
@@ -1249,9 +1240,9 @@ def UpdateVariables():
       Iteration.VOut = Iteration.VOut - Solution.Shockspeed
       Iteration.LastVelo = Iteration.CurrentVelo
       Iteration.CurrentVelo=Iteration.VIn
-      print("Shockspeed loc: %f" % (Solution.Shockspeed))
+      print(f"Shockspeed loc: {Solution.Shockspeed:f}")
       print("Shockspeed: %f" % (Iteration.VIn - Solution.Shockspeed))
-      print("Mesh.dxElem: %f" % Mesh.dxElem)
+      print(f"Mesh.dxElem: {Mesh.dxElem:f}")
       print("Solution.Shockspeed*Simulation.tend: %f" % (Solution.Shockspeed*Simulation.tend))
       if abs(Solution.Shockspeed*Simulation.tend) >= Mesh.dxElem:
         Finished = False
@@ -1269,7 +1260,7 @@ def UpdateVariables():
         else:
           MPFratio = min((Mesh.dxElem/(2*std))**2*Simulation.MPF,Simulation.MPF * Solution.TotalSimPartNummin/Simulation.PartperElemmin)/(Simulation.MPF*2)
         Simulation.MPF *= MPFratio
-        print('Adjust MPF to %e' % Simulation.MPF)
+        print(f'Adjust MPF to {Simulation.MPF:e}')
         if Autoadjust.tend:
           tend1 = Solution.times[0] + (Simulation.tend-Solution.times[0])*MPFratio
           tend2 = 5./4.* Mesh.Length/(Iteration.VOut)
@@ -1288,34 +1279,26 @@ def UpdateVariables():
           Finished= False
         if Autoadjust.tend:
           Simulation.tend = Solution.times[0] + (Simulation.tend-Solution.times[0])*dtratio
-        print('Adjust dt to %e' % Simulation.dt)
+        print(f'Adjust dt to {Simulation.dt:e}')
       if Autoadjust.tend:
         Medians=[]
         with h5py.File("Integrated.h5", 'r') as IntegratedFile:
           ElemData = IntegratedFile['ElemData']
           for i in range(np.shape(ElemData)[1]):
-            if sys.version_info[0] == 2:
-              if(("VeloY" in IntegratedFile.attrs["VarNamesAdd"][i]) or ("VeloZ" in IntegratedFile.attrs["VarNamesAdd"][i]) or\
-                ("TempTransY" in IntegratedFile.attrs["VarNamesAdd"][i]) or ("TempTransZ" in IntegratedFile.attrs["VarNamesAdd"][i]) or\
-                ("DSMC" in IntegratedFile.attrs["VarNamesAdd"][i]) or ("SimPartNum" in IntegratedFile.attrs["VarNamesAdd"][i])):
-                continue
-            elif sys.version_info[0] == 3:
-              if(("VeloY" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or ("VeloZ" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or\
-                ("TempTransY" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or ("TempTransZ" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or\
-                ("DSMC" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or ("SimPartNum" in IntegratedFile.attrs["VarNamesAdd"][i].decode())):
-                continue
-            Diff = []
+            if(("VeloY" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or ("VeloZ" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or\
+              ("TempTransY" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or ("TempTransZ" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or\
+              ("DSMC" in IntegratedFile.attrs["VarNamesAdd"][i].decode()) or ("SimPartNum" in IntegratedFile.attrs["VarNamesAdd"][i].decode())):
+              continue
             Data = SortArrayToPosition(ElemData[:,i].copy())
             Data = abs(Data)
             if max(Data) == 0:
               continue
             Data /= max(Data)
-            for ii in range(len(Data)-1):
-              Diff.append(abs(Data[ii]-Data[ii+1]))
+            Diff = [abs(Data[ii]-Data[ii+1]) for ii in range(len(Data)-1)]
             Medians.append(np.median(Diff))
         print(Medians)
         Median = np.average(Medians)
-        print('Median: %f' %Median)
+        print(f'Median: {Median:f}')
         if Median>Simulation.Median:
           Finished = False
         Tend1 = Solution.times[0] + (Simulation.tend-Solution.times[0]) * (Median*2/(Simulation.Median))**2
@@ -1326,7 +1309,7 @@ def UpdateVariables():
         else:
           Tend3 = 0
         Simulation.tend = max(Tend1,Tend2,Tend3)
-        print('Adjust tend to %e' % Simulation.tend)
+        print(f'Adjust tend to {Simulation.tend:e}')
       if Finished:
         # End of iteration reached
         return True
@@ -1369,17 +1352,17 @@ def PrepareSimulation():
       Path.CurrentSimDir = '%s/standing_iter_%02i' % (Path.MasterDir,Iteration.iter)
     if Iteration.iter == 0:
       Path.LastSimDir = Path.MasterDir
-    shutil.copyfile('%s/%s' % (Path.MasterDir,Path.DSMCSpecies),'%s/%s' % (Path.CurrentSimDir,Path.DSMCSpecies))
+    shutil.copyfile(f'{Path.MasterDir}/{Path.DSMCSpecies}',f'{Path.CurrentSimDir}/{Path.DSMCSpecies}')
     if Simulation.Redosimulation:
       StateFiles = sorted(glob.glob("*_State_*"))
       StateFile = StateFiles[-1]
-      shutil.copyfile('%s/%s' % (Path.LastSimDir,StateFile),'%s/%s' % (Path.CurrentSimDir,StateFile))
+      shutil.copyfile(f'{Path.LastSimDir}/{StateFile}',f'{Path.CurrentSimDir}/{StateFile}')
     if not Autoadjust.Mesh:
       MeshFile=SimulationParameter["ProjectName".lower()] + '_mesh.h5'
-      shutil.copyfile('%s/%s' % (Path.MasterDir,MeshFile),'%s/%s' % (Path.CurrentSimDir,MeshFile))
+      shutil.copyfile(f'{Path.MasterDir}/{MeshFile}',f'{Path.CurrentSimDir}/{MeshFile}')
     if len(Path.AdditionalCopyFiles)>0:
       for File in Path.AdditionalCopyFiles:
-        shutil.copyfile('%s/%s' % (Path.MasterDir,File),'%s/%s' % (Path.CurrentSimDir,File))
+        shutil.copyfile(f'{Path.MasterDir}/{File}',f'{Path.CurrentSimDir}/{File}')
     os.chdir(Path.CurrentSimDir)
 
   Solution.MaxCollProb=0
@@ -1390,14 +1373,17 @@ def PrepareSimulation():
   Solution.TooFewValues=False
 
   # Output Simparameter:
+  for name, val in [('tend', Simulation.tend), ('dt', Simulation.dt), ('CurrentVelo', Iteration.CurrentVelo)]:
+    if math.isnan(val):
+        raise ValueError(f'{name} is NaN — cannot prepare simulation')
 
-  print('tend:                     %e' % Simulation.tend)
-  print('dt:                       %e' % Simulation.dt)
-  print('Velocity:                 %f' % Iteration.CurrentVelo)
+  print(f'tend:                     {Simulation.tend:e}')
+  print(f'dt:                       {Simulation.dt:e}')
+  print(f'Velocity:                 {Iteration.CurrentVelo:f}')
   print('iterations per DSMCState: %i' % max(int(Simulation.tend/Simulation.dt/Mesh.nElems()*Simulation.ElemsPerWrite),1))
   print('total iterations:         %i' % (Simulation.tend/Simulation.dt))
-  print('length of domain:         %e' % Mesh.Length)
-  print('MPF:                      %e' % Simulation.MPF)
+  print(f'length of domain:         {Mesh.Length:e}')
+  print(f'MPF:                      {Simulation.MPF:e}')
   if(Simulation.MaxPartNum>0):
     print('MaxPartNum:               %i' % Simulation.MaxPartNum)
 
@@ -1423,22 +1409,17 @@ def GetEquilibriumCondition2():
   VarNames.append('Total_VeloX')
   VarNames.append('Total_TempTransMean')
   if(Simulation.nSpecies!=1):
-    for iSpec in range(1,Simulation.nSpecies+1):
-      VarNames.append('Spec%03i_NumberDensity'%iSpec)
+    VarNames.extend('Spec%03i_NumberDensity'%iSpec for iSpec in range(1,Simulation.nSpecies+1))
   # Find Shock Elem
   Data = []
   DSMCHOFile = h5py.File(DSMCHOFiles[iFile], 'r')
   for VarName in VarNames:
     iData=-1
     for iName in range(len(DSMCHOFile.attrs['VarNamesAdd'])):
-      if sys.version_info[0] == 2:
-        if DSMCHOFile.attrs['VarNamesAdd'][iName]==VarName:
-          iData = iName
-      elif sys.version_info[0] == 3:
-        if DSMCHOFile.attrs['VarNamesAdd'][iName].decode()==VarName:
-          iData = iName
+      if DSMCHOFile.attrs['VarNamesAdd'][iName].decode()==VarName:
+        iData = iName
     if(iData==-1):
-      raise Exception('Data of "%s" cannot be found in file %s'%(VarName,DSMCHOFiles[iFile]))
+      raise Exception(f'Data of "{VarName}" cannot be found in file {DSMCHOFiles[iFile]}')
     Data.append(SortArrayToPosition(DSMCHOFile['ElemData'][:,iData].copy()))
 
   # Determine iElemShock by max Transtemp
@@ -1471,7 +1452,6 @@ def GetEquilibriumCondition2():
   print('iElemShock: %i =MAX(%i,%i)' % (iElemShock,iElemTransTemp,iElemNumDens))
 
 
-  Values = []
 
   # DetermineVanderMondeMatrix
   PolynomOrder = 4
@@ -1486,8 +1466,7 @@ def GetEquilibriumCondition2():
 
   Output = []
   Output.append('x,iElem,')
-  for iElem in range(0,Mesh.nElems()):
-    Output.append('%f,%i,'%(Barycenters[iElem],iElem))
+  Output.extend('%f,%i,'%(Barycenters[iElem],iElem) for iElem in range(Mesh.nElems()))
 
   listcoeffs=[]
   listregtype=[]
@@ -1501,7 +1480,7 @@ def GetEquilibriumCondition2():
     VarName = VarNames[iData]
     DataVar = Data[iData]
 
-    print('Calculating post-shock condition of %s' % VarName)
+    print(f'Calculating post-shock condition of {VarName}')
     # Determine regression function type
     if(np.max(DataVar) == np.min(DataVar)):
       listregtype.append('const')
@@ -1533,7 +1512,7 @@ def GetEquilibriumCondition2():
       relafac = max(DataVar[iElemShock:])
       # print('relafac: %f' % relafac)
       # print(DataVar[iElemShock:])
-      a,pcov = scipy.optimize.curve_fit(exp_reg_func,Barycenters[iElemShock:],DataVar[iElemShock:]/relafac,method='trf',max_nfev=1E15,bounds=(0, np.inf))
+      a,_pcov = scipy.optimize.curve_fit(exp_reg_func,Barycenters[iElemShock:],DataVar[iElemShock:]/relafac,method='trf',max_nfev=1E15,bounds=(0, np.inf))
       a[0]*=relafac;a[2]*=relafac;a[4]*=relafac
       listcoeffs.append(a)
 
@@ -1555,24 +1534,24 @@ def GetEquilibriumCondition2():
       for n in range(PolynomOrder+1):
         yEqui+=a[n]*x0**n
       # print("yEqui",yEqui)
-      Output[0]+=',%s,%s_interpol,Equi'%(VarName,VarName)
+      Output[0]+=f',{VarName},{VarName}_interpol,Equi'
       for iElem in range(Mesh.nElems()):
         if(iElem>=iElemShock):
           y=0
           for n in range(PolynomOrder+1):
             y+=a[n]*Barycenters[iElem]**n
-          Output[iElem+1]+=',%f,%f,%f'%(DataVar[iElem],y,yEqui)
+          Output[iElem+1]+=f',{DataVar[iElem]:f},{y:f},{yEqui:f}'
         else:
-          Output[iElem+1]+=',%f,,%f'%(DataVar[iElem],yEqui)
+          Output[iElem+1]+=f',{DataVar[iElem]:f},,{yEqui:f}'
     elif (listregtype[iData]=='exp'):
       yEqui = a[4]
-      Output[0]+=',%s,%s_interpol,Equi'%(VarName,VarName)
+      Output[0]+=f',{VarName},{VarName}_interpol,Equi'
       for iElem in range(Mesh.nElems()):
         if(iElem>=iElemShock):
           y=exp_reg_func(Barycenters[iElem],*a)
-          Output[iElem+1]+=',%f,%f,%f'%(DataVar[iElem],y,yEqui)
+          Output[iElem+1]+=f',{DataVar[iElem]:f},{y:f},{yEqui:f}'
         else:
-          Output[iElem+1]+=',%f,,%f'%(DataVar[iElem],yEqui)
+          Output[iElem+1]+=f',{DataVar[iElem]:f},,{yEqui:f}'
     EquiCon[iData] = yEqui
 
   if(not Chem):
@@ -1593,13 +1572,12 @@ def GetEquilibriumCondition2():
           EquiCon[Simulation.ElectronSpecies+2] = EquiCon[Simulation.ElectronSpecies+2] + EquiCon[iSpec+2]
 
   with open('EquiOutputVandermonde.txt','w') as f:
-    for line in Output:
-      f.write(line+'\n')
+    f.writelines(line+'\n' for line in Output)
 
   print('Equilibrium Condition:')
   for i in range(len(VarNames)):
     # print('%s: %e',%(VarNames[i],EquiCon[i]))
-    print(VarNames[i]+':'+' '*(len(VarNames[i])-50)+'%e'%EquiCon[i])
+    print(VarNames[i]+':'+' '*(len(VarNames[i])-50)+f'{EquiCon[i]:e}')
 
   return EquiCon
 
@@ -1704,7 +1682,7 @@ def IntegrateSolution():
     DSMCHOFile.close()
   ElemData /= len(DSMCHOFiles)
   with h5py.File("Integrated.h5", 'w', libver=('earliest', 'v110')) as IntegratedFile:
-    dset = IntegratedFile.create_dataset("ElemData", np.shape(ElemData), dtype='f8', data=ElemData)
+    IntegratedFile.create_dataset("ElemData", np.shape(ElemData), dtype='f8', data=ElemData)
     # dset = ElemData
     with h5py.File(DSMCHOFiles[-1], 'r') as DSMCHOFile:
       for attribute in list(DSMCHOFile.attrs):
@@ -1827,7 +1805,7 @@ if(args.Equicon):
   DetermineShockSpeed()
 
   EquiCon = GetEquilibriumCondition2()
-  exit()
+  sys.exit()
 
 if not Autoadjust.Mesh:
   GenerateMeshFile()

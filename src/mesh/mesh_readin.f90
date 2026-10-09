@@ -432,15 +432,15 @@ IF(VarTimeStep%UseDistribution) THEN
     VarTimeStep%ElemFac(1:nElems) = GlobVarTimeStep(offsetElem+1:offsetElem+nElems)
     ! Global distribution is not required anymore
     DEALLOCATE(GlobVarTimeStep)
+#if USE_MPI
+    ! The global weighting factor has been utilized during the load distribution (which is performed by the MPIRoot in
+    ! DomainDecomposition above) and is not required anymore
+    SDEALLOCATE(VarTimeStep%ElemWeight)
+#endif
   ELSE
     ! Allocate the array for the element-wise time step factor
     ALLOCATE(VarTimeStep%ElemFac(nElems))
     VarTimeStep%ElemFac = 1.0
-#if USE_MPI
-    ! Allocate the array for the element-wise weighting factor
-    ALLOCATE(VarTimeStep%ElemWeight(nElems))
-    VarTimeStep%ElemWeight = 1.0
-#endif
   END IF
 END IF
 #endif

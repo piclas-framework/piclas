@@ -1154,6 +1154,18 @@ REAL, ALLOCATABLE              :: ElecDistriData(:,:), AD_Data(:,:)
 INTEGER                        :: PartDataSizeLoc       !number of entries in each line of PartData
 INTEGER                        :: MaxQuantNum, iPolyatMole, iSpec, tempDelay, MaxElecQuant
 !-----------------------------------------------------------------------------------------------------------------------------------
+
+SELECT CASE(ParticleWeighting%CloneMode)
+CASE(0)
+  RETURN
+CASE(1)
+  tempDelay = ParticleWeighting%CloneInputDelay - 1
+CASE(2)
+  tempDelay = ParticleWeighting%CloneInputDelay
+CASE DEFAULT
+  CALL abort(__STAMP__, 'ParticleWeighting: CloneMode is not supported!')
+END SELECT
+
 ! Additional output of clone delay and global element ID
 PartDataSizeLoc = PartDataSize + 2
 
@@ -1177,15 +1189,6 @@ IF (useDSMC.AND.(DSMC%ElectronicModel.EQ.2)) THEN
 END IF
 
 locnPart =   0
-
-SELECT CASE(ParticleWeighting%CloneMode)
-CASE(1)
-  tempDelay = ParticleWeighting%CloneInputDelay - 1
-CASE(2)
-  tempDelay = ParticleWeighting%CloneInputDelay
-CASE DEFAULT
-  CALL abort(__STAMP__, 'ParticleWeighting: CloneMode is not supported!')
-END SELECT
 
 DO pcount = 0,tempDelay
   locnPart = locnPart + ParticleWeighting%ClonePartNum(pcount)

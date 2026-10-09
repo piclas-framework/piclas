@@ -26,8 +26,9 @@ SAVE
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 INTERFACE InsertionSort
-  MODULE PROCEDURE InsertionSort
-END INTERFACE
+  MODULE PROCEDURE InsertionSortInt
+  MODULE PROCEDURE InsertionSortReal
+END INTERFACE InsertionSort
 
 INTERFACE QSort1Doubleint1Pint
   MODULE PROCEDURE QSort1DoubleInt1Pint
@@ -50,7 +51,59 @@ PUBLIC:: SortArray,QuickSortTwoArrays
 
 CONTAINS
 
-PPURE SUBROUTINE InsertionSort(a,id,len)
+PPURE SUBROUTINE InsertionSortInt(a,id,len)
+!===================================================================================================================================
+! Insertion sort
+!===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN)                :: len
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+INTEGER,INTENT(INOUT)             :: a(1:len)
+INTEGER,INTENT(INOUT),OPTIONAL    :: id(1:len)
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                           :: tmpR
+INTEGER                           :: i, j, tmpI
+!===================================================================================================================================
+
+IF(PRESENT(ID))THEN
+  DO i=2,len
+    j=i-1
+    tmpR=a(i)
+    tmpI=ID(i)
+    DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
+      IF (a(j).LE.tmpR) EXIT
+      a (j+1) = a(j)
+      ID(j+1) = ID(j)
+      j=j-1
+    END DO
+    a (j+1) =tmpR
+    ID(j+1) =tmpI
+  END DO ! i
+ELSE
+  DO i=2,len
+    j=i-1
+    tmpR=a(i)
+    DO WHILE (j.GE.1) !(j.GE.1 .AND. a(j).GT.tmpR)
+      IF (a(j).LE.tmpR) EXIT
+      a (j+1) = a(j)
+      j=j-1
+    END DO
+    a (j+1) =tmpR
+  END DO ! i
+END IF
+
+END SUBROUTINE InsertionSortInt
+
+
+PPURE SUBROUTINE InsertionSortReal(a,id,len)
 !===================================================================================================================================
 ! Insertion sort
 !===================================================================================================================================
@@ -99,7 +152,7 @@ ELSE
   END DO ! i
 END IF
 
-END SUBROUTINE InsertionSort
+END SUBROUTINE InsertionSortReal
 
 
 RECURSIVE SUBROUTINE Qsort1DoubleInt1PInt(A,P)
@@ -564,9 +617,9 @@ PPURE RECURSIVE SUBROUTINE QuickSortTwoArrays(StartID,EndID,ArrayA,ArrayB)
 !----------------------------------------------------------------------------------------------------------------------------------!
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-INTEGER,INTENT(IN)    :: StartID,EndID
-INTEGER,INTENT(INOUT) :: ArrayA(*)
-INTEGER,INTENT(INOUT) :: ArrayB(*)
+INTEGER,INTENT(IN)                 :: StartID,EndID
+INTEGER,DIMENSION(:),INTENT(INOUT) :: ArrayA
+INTEGER,DIMENSION(:),INTENT(INOUT) :: ArrayB
 ! insert IO variables here
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES

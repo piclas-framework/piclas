@@ -20,7 +20,6 @@ MODULE MOD_Photon_Tracking
 USE MOD_Globals_Vars, ONLY: i8
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-PUBLIC
 
 INTERFACE PhotonTriaTracking
   MODULE PROCEDURE PhotonTriaTracking
@@ -364,7 +363,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
     TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
     localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
     ! Side is not one of the 6 local sides
-    IF (localSideID.LE.0) CYCLE
+    IF (localSideID.LE.0) CYCLE LocSideLoop
     NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
     IF (NbElemID.LT.0) THEN ! Mortar side
       nMortarElems = MERGE(4,2,SideInfo_Shared(SIDE_NBELEMID,TempSideID).EQ.-1)
@@ -450,7 +449,7 @@ THEWHILELOOP: DO WHILE (.NOT.Done)
       TempSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,ElemID) + iLocSide
       localSideID = SideInfo_Shared(SIDE_LOCALID,TempSideID)
       ! Side is not one of the 6 local sides
-      IF (localSideID.LE.0) CYCLE
+      IF (localSideID.LE.0) CYCLE LocSideLoop2
       NbElemID = SideInfo_Shared(SIDE_NBELEMID,TempSideID)
       IF (NbElemID.LT.0) THEN ! Mortar side
         CALL ABORT(__STAMP__,'Mortars not allowed for photon tracing!')

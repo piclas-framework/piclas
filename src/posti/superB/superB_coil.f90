@@ -13,7 +13,6 @@
 #include "piclas.h"
 
 MODULE MOD_SuperB_Coil
-#if USE_SUPER_B
 !===================================================================================================================================
 !> Contains the calculation of the magnetic field of coils
 !===================================================================================================================================
@@ -21,6 +20,7 @@ MODULE MOD_SuperB_Coil
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+#if USE_SUPER_B
 !-----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: SetUpCoils, SetUpCoil, SetUpCircleCoil, SetUpRectangleCoil, SetUpLinearConductor, BiotSavart, Jefimenko, WriteCoilVTK
 PUBLIC :: WriteLinearConductorVTK

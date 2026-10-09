@@ -1,6 +1,5 @@
-import os
-import sys
 import inspect
+import sys
 import textwrap
 
 
@@ -17,8 +16,7 @@ def escapeForXmlAttribute(s):
     s = s.replace('"', '&quot;')
     s = s.replace('\r', '&#xD;')
     s = s.replace('\n', '&#xA;')
-    s = s.replace('\t', '&#x9;')
-    return s
+    return s.replace('\t', '&#x9;')
 
 
 
@@ -31,28 +29,28 @@ def getScriptPropertiesXml(info):
     requestUpdateExtent = e(info['RequestUpdateExtent'])
 
     if requestData:
-        requestData = '''
+        requestData = f'''
       <StringVectorProperty
         name="Script"
         command="SetScript"
         number_of_elements="1"
-        default_values="%s"
+        default_values="{requestData}"
         panel_visibility="advanced">
         <Hints>
          <Widget type="multi_line"/>
        </Hints>
       <Documentation>This property contains the text of a python program that
       the programmable source runs.</Documentation>
-      </StringVectorProperty>''' % requestData
+      </StringVectorProperty>'''
 
     if requestInformation:
-        requestInformation = '''
+        requestInformation = f'''
       <StringVectorProperty
         name="InformationScript"
         label="RequestInformation Script"
         command="SetInformationScript"
         number_of_elements="1"
-        default_values="%s"
+        default_values="{requestInformation}"
         panel_visibility="advanced">
         <Hints>
           <Widget type="multi_line" />
@@ -60,16 +58,16 @@ def getScriptPropertiesXml(info):
         <Documentation>This property is a python script that is executed during
         the RequestInformation pipeline pass. Use this to provide information
         such as WHOLE_EXTENT to the pipeline downstream.</Documentation>
-      </StringVectorProperty>''' % requestInformation
+      </StringVectorProperty>'''
 
     if requestUpdateExtent:
-        requestUpdateExtent = '''
+        requestUpdateExtent = f'''
       <StringVectorProperty
         name="UpdateExtentScript"
         label="RequestUpdateExtent Script"
         command="SetUpdateExtentScript"
         number_of_elements="1"
-        default_values="%s"
+        default_values="{requestUpdateExtent}"
         panel_visibility="advanced">
         <Hints>
           <Widget type="multi_line" />
@@ -77,9 +75,9 @@ def getScriptPropertiesXml(info):
         <Documentation>This property is a python script that is executed during
         the RequestUpdateExtent pipeline pass. Use this to modify the update
         extent that your filter ask up stream for.</Documentation>
-      </StringVectorProperty>''' % requestUpdateExtent
+      </StringVectorProperty>'''
 
-    return '\n'.join([requestData, requestInformation, requestUpdateExtent])
+    return f'{requestData}\n{requestInformation}\n{requestUpdateExtent}'
 
 
 
@@ -97,7 +95,6 @@ def getPythonPathProperty():
 
 def getFilterPropertyXml(propertyInfo, propertyName):
 
-    e = escapeForXmlAttribute
 
     propertyValue = propertyInfo[propertyName]
     propertyLabel = propertyName.replace('_', ' ')
@@ -116,60 +113,60 @@ def getFilterPropertyXml(propertyInfo, propertyName):
 
         defaultValues = defaultValues.replace('True', '1').replace('False', '0')
 
-        return '''
+        return f'''
       <IntVectorProperty
-        name="%s"
-        label="%s"
-        initial_string="%s"
+        name="{propertyName}"
+        label="{propertyLabel}"
+        initial_string="{propertyName}"
         command="SetParameter"
         animateable="1"
-        default_values="%s"
-        number_of_elements="%s">
+        default_values="{defaultValues}"
+        number_of_elements="{numberOfElements}">
         <BooleanDomain name="bool" />
         <Documentation></Documentation>
-      </IntVectorProperty>''' % (propertyName, propertyLabel, propertyName, defaultValues, numberOfElements)
+      </IntVectorProperty>'''
 
 
     if propertyType is int:
-        return '''
+        return f'''
       <IntVectorProperty
-        name="%s"
-        label="%s"
-        initial_string="%s"
+        name="{propertyName}"
+        label="{propertyLabel}"
+        initial_string="{propertyName}"
         command="SetParameter"
         animateable="1"
-        default_values="%s"
-        number_of_elements="%s">
+        default_values="{defaultValues}"
+        number_of_elements="{numberOfElements}">
         <Documentation></Documentation>
-      </IntVectorProperty>''' % (propertyName, propertyLabel, propertyName, defaultValues, numberOfElements)
+      </IntVectorProperty>'''
 
     if propertyType is float:
-        return '''
+        return f'''
       <DoubleVectorProperty
-        name="%s"
-        label="%s"
-        initial_string="%s"
+        name="{propertyName}"
+        label="{propertyLabel}"
+        initial_string="{propertyName}"
         command="SetParameter"
         animateable="1"
-        default_values="%s"
-        number_of_elements="%s">
+        default_values="{defaultValues}"
+        number_of_elements="{numberOfElements}">
         <Documentation></Documentation>
-      </DoubleVectorProperty>''' % (propertyName, propertyLabel, propertyName, defaultValues, numberOfElements)
+      </DoubleVectorProperty>'''
 
     if propertyType is str:
-        return '''
+        return f'''
       <StringVectorProperty
-        name="%s"
-        label="%s"
-        initial_string="%s"
+        name="{propertyName}"
+        label="{propertyLabel}"
+        initial_string="{propertyName}"
         command="SetParameter"
         animateable="1"
-        default_values="%s"
-        number_of_elements="%s">
+        default_values="{defaultValues}"
+        number_of_elements="{numberOfElements}">
         <Documentation></Documentation>
-      </StringVectorProperty>''' % (propertyName, propertyLabel, propertyName, defaultValues, numberOfElements)
+      </StringVectorProperty>'''
 
-    raise Exception('Unknown property type: %r' % propertyType)
+    raise Exception(f'Unknown property type: {propertyType!r}')
 
 
 def getFilterPropertiesXml(info):
@@ -194,10 +191,10 @@ def getInputPropertyXml(info):
 
     inputDataTypeDomain = ''
     if inputDataType:
-        inputDataTypeDomain = '''
+        inputDataTypeDomain = f'''
           <DataTypeDomain name="input_type">
-            <DataType value="%s"/>
-          </DataTypeDomain>''' % inputDataType
+            <DataType value="{inputDataType}"/>
+          </DataTypeDomain>'''
 
     inputPropertyAttributes = 'command="SetInputConnection"'
     if numberOfInputs > 1:
@@ -206,18 +203,17 @@ def getInputPropertyXml(info):
             command="AddInputConnection"
             multiple_input="1"'''
 
-    inputPropertyXml = '''
+    return f'''
       <InputProperty
         name="Input"
-        %s>
+        {inputPropertyAttributes}>
           <ProxyGroupDomain name="groups">
             <Group name="sources"/>
             <Group name="filters"/>
           </ProxyGroupDomain>
-          %s
-      </InputProperty>''' % (inputPropertyAttributes, inputDataTypeDomain)
+          {inputDataTypeDomain}
+      </InputProperty>'''
 
-    return inputPropertyXml
 
 
 def getOutputDataSetTypeXml(info):
@@ -242,15 +238,15 @@ def getOutputDataSetTypeXml(info):
     typeValue = typeMap[outputDataType]
 
     return '''
-      <!-- Output data type: "%s" -->
+      <!-- Output data type: "{}" -->
       <IntVectorProperty command="SetOutputDataSetType"
-                         default_values="%s"
+                         default_values="{}"
                          name="OutputDataSetType"
                          number_of_elements="1"
                          panel_visibility="never">
         <Documentation>The value of this property determines the dataset type
         for the output of the programmable filter.</Documentation>
-      </IntVectorProperty>''' % (outputDataType or 'Same as input', typeValue)
+      </IntVectorProperty>'''.format(outputDataType or 'Same as input', typeValue)
 
 
 def getProxyGroup(info):
@@ -275,31 +271,30 @@ def generatePythonFilter(info):
     filterProperties = getFilterPropertiesXml(info)
 
 
-    outputXml = '''\
+    outputXml = f'''\
 <ServerManagerConfiguration>
-  <ProxyGroup name="%s">
-    <SourceProxy name="%s" class="vtkPythonProgrammableFilter" label="%s">
+  <ProxyGroup name="{proxyGroup}">
+    <SourceProxy name="{proxyName}" class="vtkPythonProgrammableFilter" label="{proxyLabel}">
 
       <Documentation
-        long_help="%s"
-        short_help="%s">
+        long_help="{longHelp}"
+        short_help="{shortHelp}">
       </Documentation>
 
-%s
+{inputPropertyXml}
 
-%s
+{filterProperties}
 
-%s
+{extraXml}
 
-%s
+{outputDataSetType}
 
-%s
+{scriptProperties}
 
     </SourceProxy>
  </ProxyGroup>
 </ServerManagerConfiguration>
-      ''' % (proxyGroup, proxyName, proxyLabel, longHelp, shortHelp, inputPropertyXml,
-             filterProperties, extraXml, outputDataSetType, scriptProperties)
+      '''
 
     return textwrap.dedent(outputXml)
 
@@ -314,15 +309,15 @@ def replaceFunctionWithSourceString(namespace, functionName, allowEmpty=False):
             namespace[functionName] = ''
             return
         else:
-            raise Exception('Function [%s] not found in input source code.' % functionName)
+            raise Exception(f'Function [{functionName}] not found in input source code.')
 
     if not inspect.isfunction(func):
-        raise Exception('Object %s is not a function object.' % functionName)
+        raise Exception(f'Object {functionName} is not a function object.')
 
     lines = inspect.getsourcelines(func)[0]
 
     if len(lines) <= 1:
-        raise Exception('Function %s must not be a single line of code.' % functionName)
+        raise Exception(f'Function {functionName} must not be a single line of code.')
 
     # skip first line (the declaration) and then dedent the source code
     sourceCode = textwrap.dedent(''.join(lines[1:]))
@@ -350,7 +345,7 @@ def generatePythonFilterFromFiles(scriptFile, outputFile):
 def main():
 
     if len(sys.argv) != 3:
-        print('Usage: %s <python input filename> <xml output filename>' % sys.argv[0])
+        print(f'Usage: {sys.argv[0]} <python input filename> <xml output filename>')
         sys.exit(1)
 
     inputScript = sys.argv[1]

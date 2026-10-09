@@ -26,7 +26,6 @@ PRIVATE
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DSMC_Chemistry, CalcReactionProb, CalcBackwardRate
-PUBLIC :: CalcPhotoIonizationNumber, PhotoIonization_InsertProducts
 !===================================================================================================================================
 
 CONTAINS
@@ -283,7 +282,7 @@ END IF
 ! ReactionProb should not be gt 1 to avoid meaningless high weighting of a single reaction
 IF (ReactionProb.GT.1) ReactionProb = 1.0
 IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
-  ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb
+  ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + ReactionProb * SumWeightEduct / NumWeightEduct
   ChemReac%ReacCount(iReac) = ChemReac%ReacCount(iReac) + 1
 END IF
 
@@ -335,7 +334,7 @@ SUBROUTINE DSMC_Chemistry(iPair, iReac)
 ! MODULES
 USE MOD_Globals                ,ONLY: abort,DOTPRODUCT,StringBeginsWith,UNIT_StdOut
 USE MOD_Globals_Vars
-USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC, DSMCSumOfFormedParticles
+USE MOD_DSMC_Vars              ,ONLY: Coll_pData, DSMC, CollInf, SpecDSMC
 USE MOD_DSMC_Vars              ,ONLY: ChemReac, PartIntEn, PolyatomMolDSMC, BGGas, ElecRelaxPart
 USE MOD_DSMC_Vars              ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi, newElecRelaxParts, iPartIndx_NodeNewElecRelax
 USE MOD_DSMC_Vars              ,ONLY: iPartIndx_NodeElecRelaxChem, nElecRelaxChemParts
@@ -346,7 +345,6 @@ USE MOD_DSMC_PolyAtomicModel   ,ONLY: RotRelaxPolyRoutineFuncPTR, DSMC_RelaxVibP
 USE MOD_DSMC_Relaxation        ,ONLY: DSMC_VibRelaxDiatomic, RotRelaxDiaRoutineFuncPTR
 USE MOD_DSMC_CollisVec         ,ONLY: PostCollVec
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod
-USE MOD_Particle_Analyze_Vars  ,ONLY: ChemEnergySum
 USE MOD_Particle_Analyze_Tools ,ONLY: CalcXiTotalEqui
 USE MOD_part_tools             ,ONLY: GetParticleWeight, GetNextFreePosition
 USE MOD_part_operations        ,ONLY: RemoveParticle
@@ -413,16 +411,6 @@ IF(EductReac(3).NE.0) THEN
   END IF
 END IF
 
-! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
-  ! Count the number of reactions to determine the actual reaction rate
-  IF (DSMC%ReservoirRateStatistic) THEN
-    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
-  END IF
-  ! Leave the routine again
-  RETURN
-END IF
-
 Xi_elec = 0.
 EZeroTempToExec = 0.
 
@@ -472,6 +460,14 @@ DO iPart = 1, NumEduct
   Weight(iPart) = GetParticleWeight(ReactInx(iPart))
 END DO
 
+! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
+IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
+  ! Count the number of reactions to determine the actual reaction rate
+  IF (DSMC%ReservoirRateStatistic) ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + SUM(Weight(:)) / NumEduct
+  ! Leave the routine again
+  RETURN
+END IF
+
 ! Set the particle weights of the products (they are equal to the weights of the reactants except in the case of a recombination)
 IF ((usevMPF).AND.(TRIM(ChemReac%ReactType(iReac)).EQ.'R')) THEN
   ! Set the weight of the non-reacting collision partner
@@ -514,7 +510,6 @@ SumWeightProd = WeightProd(1) + WeightProd(2)
 IF(EductReac(3).EQ.0) THEN
   IF(ProductReac(3).NE.0) THEN
     ! === Get free particle index for the 3rd product
-    DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
     ReactInx(3) = GetNextFreePosition()
     PDM%ParticleInside(ReactInx(3)) = .true.
     PDM%IsNewPart(ReactInx(3)) = .true.
@@ -561,7 +556,6 @@ END IF
 
 IF(ProductReac(4).NE.0) THEN
   ! === Get free particle index for the 4th product
-  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   ReactInx(4) = GetNextFreePosition()
   PDM%ParticleInside(ReactInx(4)) = .true.
   PDM%IsNewPart(ReactInx(4)) = .true.
@@ -638,14 +632,6 @@ IF (EductReac(3).NE.0) Momentum_old(1:3) = Momentum_old(1:3) + Species(PartSpeci
 
 ! This might fall below zero
 Coll_pData(iPair)%Ec = 0.5 * MassRed * Coll_pData(iPair)%CRela2 + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
-
-IF(usevMPF) THEN
-  ! Weighting factor already included in the weights
-  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*SumWeightProd/REAL(NumProd)
-ELSE
-  ChemEnergySum = ChemEnergySum + ChemReac%EForm(iReac)*Species(EductReac(1))%MacroParticleFactor &
-                                  *SumWeightProd/REAL(NumProd)
-END IF
 
 !-------------------------------------------------------------------------------------------------------------------------------
 ! Relative translational degrees of freedom
@@ -1165,9 +1151,6 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
       IF(ProductReac(iProd).EQ.SpecToDelete) THEN
         ! Remove the respective particle
         CALL RemoveParticle(ReactInx(iProd))
-        ! Remove the newly created particles from chemistry counter
-        IF((iProd.EQ.3).AND.(EductReac(3).EQ.0)) DSMCSumOfFormedParticles = DSMCSumOfFormedParticles - 1
-        IF(iProd.EQ.4) DSMCSumOfFormedParticles = DSMCSumOfFormedParticles - 1
       END IF
     END DO
   END DO
@@ -1398,6 +1381,7 @@ MassRed = (Mass*Species(ScatterSpec3)%MassIC*Weight(3)) &
                         / (Mass+Species(ScatterSpec3)%MassIC*Weight(3))
 END SUBROUTINE CalcPseudoScatterVars
 
+
 !===================================================================================================================================
 !> Routine determines the reduced mass and the mass fraction between a pseudo-molecule and third species
 !===================================================================================================================================
@@ -1424,467 +1408,5 @@ FracMassCent1 = MassPseu1 / (MassPseu1 + MassPseu2)
 FracMassCent2 = MassPseu2 / (MassPseu1 + MassPseu2)
 MassRed = (MassPseu1*MassPseu2) / (MassPseu1+MassPseu2)
 END SUBROUTINE CalcPseudoScatterVars_4Prod
-
-
-!===================================================================================================================================
-!> Calculate the number of photo-ionization reactions to perform based on a given number of photons and cross-section
-!===================================================================================================================================
-SUBROUTINE CalcPhotoIonizationNumber(iSpec,NbrOfPhotons,NbrOfReactions)
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars  ,ONLY: c
-USE MOD_Particle_Vars ,ONLY: Species
-USE MOD_DSMC_Vars     ,ONLY: BGGas,ChemReac
-USE MOD_MCC_Vars      ,ONLY: NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_MCC_Vars      ,ONLY: PhotoIonFirstLine,PhotoIonLastLine,PhotonDistribution,PhotoReacToReac
-USE MOD_TimeDisc_Vars ,ONLY: dt
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iSpec              !< Species index
-REAL, INTENT(IN)              :: NbrOfPhotons       !< Simulated number of photons
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-REAL, INTENT(OUT)             :: NbrOfReactions     !< Number of reactions to be performed
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iReac,iPhotoReac,iLine
-REAL                          :: density
-!===================================================================================================================================
-
-NbrOfReactions = 0.
-
-IF(NbrOfPhotonXsecReactions.GT.0)THEN
-  ! Distribute the photons according to the distribution function
-  PhotonDistribution = SpecPhotonXSecInterpolated(:,2) * NbrOfPhotons
-
-  DO iPhotoReac = 1, NbrOfPhotonXsecReactions
-    iReac          = PhotoReacToReac(iPhotoReac)
-    density        = BGGas%NumberDensity(BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1)))
-    ! Only consider lines with cross-section larger than zero
-    DO iLine = PhotoIonFirstLine, PhotoIonLastLine
-      ASSOCIATE( CrossSection => SpecPhotonXSecInterpolated(iLine,2+iPhotoReac) )
-        ! Consider the ratio of the cross-section to the sum of al cross-sections
-        NbrOfReactions = NbrOfReactions + PhotonDistribution(iLine) * CrossSection
-      END ASSOCIATE
-    END DO ! PhotoIonFirstLine, PhotoIonLastLine
-  END DO ! iPhotoReac = 1, NbrOfPhotonXsecReactions
-  NbrOfReactions = NbrOfReactions * density * c * dt / Species(iSpec)%MacroParticleFactor
-END IF ! NbrOfPhotonXsecReactions.GT.0
-
-! Photoionization reactions with constant cross sections
-DO iReac = 1, ChemReac%NumOfReact
-  ! Only treat photoionization reactions
-  IF(TRIM(ChemReac%ReactModel(iReac)).NE.'phIon') CYCLE
-  ! First reactant of the reaction is the actual heavy particle species
-  ASSOCIATE( density      => BGGas%NumberDensity(BGGas%MapSpecToBGSpec(ChemReac%Reactants(iReac,1))) ,&
-             CrossSection => ChemReac%CrossSection(iReac))
-    ! Collision number: Z = n_gas * n_ph * sigma_reac * v (in the case of photons its speed of light)
-    ! Number of reactions: N = Z * dt * V (number of photons cancels out the volume)
-    NbrOfReactions = NbrOfReactions + density * NbrOfPhotons * CrossSection * c * dt / Species(iSpec)%MacroParticleFactor
-  END ASSOCIATE
-END DO
-
-END SUBROUTINE CalcPhotoIonizationNumber
-
-
-!===================================================================================================================================
-!> Routine performing the photo-ionization reaction: initializing the heavy species at the background gas temperature (first
-!> reactant) and distributing the remaining collision energy onto the electrons
-!===================================================================================================================================
-SUBROUTINE PhotoIonization_InsertProducts(iPair, iReac, b1, b2, normal, iLineOpt, PartBCIndex)
-! MODULES
-USE MOD_Globals
-USE MOD_Globals_Vars            ,ONLY: eV2Joule
-USE MOD_DSMC_Vars               ,ONLY: Coll_pData, DSMC, SpecDSMC, DSMCSumOfFormedParticles, CollInf
-USE MOD_DSMC_Vars               ,ONLY: ChemReac,PartIntEn
-USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
-USE MOD_MCC_Vars                ,ONLY: ReacToPhotoReac,NbrOfPhotonXsecReactions,SpecPhotonXSecInterpolated
-USE MOD_Particle_Vars           ,ONLY: PartSpecies, PartState, PDM, PEM, PartPosRef, Species, PartMPF, usevMPF
-USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
-USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
-USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
-USE MOD_part_tools              ,ONLY: GetParticleWeight, DiceUnitVector,CalcEVib_particle, RotInitPolyRoutineFuncPTR
-USE MOD_Part_Tools              ,ONLY: GetNextFreePosition, CalcEElec_particle
-USE MOD_part_emission_tools     ,ONLY: CalcVelocity_maxwell_lpn
-USE MOD_Particle_Analyze_Vars   ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-USE MOD_Particle_Analyze_Pure   ,ONLY: CalcEkinPart
-USE MOD_Particle_Boundary_Vars  ,ONLY: DoBoundaryParticleOutputHDF5
-USE MOD_Particle_Boundary_Tools ,ONLY: StoreBoundaryParticleProperties
-USE MOD_DSMC_CollisVec          ,ONLY: PostCollVec
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER, INTENT(IN)           :: iPair, iReac
-REAL, INTENT(IN), OPTIONAL    :: b1(3),b2(3),normal(3)
-INTEGER, INTENT(IN), OPTIONAL :: iLineOpt
-INTEGER, INTENT(IN), OPTIONAL :: PartBCIndex
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                       :: iPart, iSpec, iProd, NumProd
-INTEGER                       :: ReactInx(1:4), EductReac(1:3), ProductReac(1:4)
-REAL                          :: Weight(1:4), SumWeightProd, Mass_Electron, CRela2_Electron, RandVal, NumElec
-REAL                          :: VeloCOM(1:3), Temp_Trans, Temp_Rot, Temp_Vib, Temp_Elec,EForm
-REAL                          :: FracMassCent1, FracMassCent2, MassRed, cRelaNew(1:3),MPF
-LOGICAL                       :: IonizationReaction
-!===================================================================================================================================
-
-EductReac(1:3) = ChemReac%Reactants(iReac,1:3)
-ProductReac(1:4) = ChemReac%Products(iReac,1:4)
-
-! Do not perform the reaction in case the reaction is to be calculated at a constant gas composition (DSMC%ReservoirSimuRate = T)
-IF (DSMC%ReservoirSimu.AND.DSMC%ReservoirSimuRate) THEN
-  ! Count the number of reactions to determine the actual reaction rate
-  IF (DSMC%ReservoirRateStatistic) THEN
-    ChemReac%NumReac(iReac) = ChemReac%NumReac(iReac) + 1
-  END IF
-  ! Leave the routine again
-  RETURN
-END IF
-
-Weight = 0.
-NumProd = 2; SumWeightProd = 0.
-
-! Reaction is only defined with a single reactant (that of the background gas species)
-IF (PartSpecies(Coll_pData(iPair)%iPart_p1).EQ.ChemReac%Reactants(iReac,1)) THEN
-  ReactInx(1) = Coll_pData(iPair)%iPart_p1
-  ReactInx(2) = Coll_pData(iPair)%iPart_p2
-ELSE IF (PartSpecies(Coll_pData(iPair)%iPart_p2).EQ.ChemReac%Reactants(iReac,1)) THEN
-  ReactInx(2) = Coll_pData(iPair)%iPart_p1
-  ReactInx(1) = Coll_pData(iPair)%iPart_p2
-ELSE
-  CALL abort(__STAMP__,'ERROR in PhotoIonization_InsertProducts: Pair does not correspond to the reactants!')
-END IF
-
-! Set the particle weights to the same as the background species
-Weight(1:2) = GetParticleWeight(ReactInx(1))
-! Set the particle species for the first two products (the other products require an index first)
-DO iProd = 1, NumProd
-  PartSpecies(ReactInx(iProd)) = ProductReac(iProd)
-END DO
-
-! Calculate the sum of the weights of the products
-SumWeightProd = Weight(1) + Weight(2)
-
-IF(EductReac(3).EQ.0) THEN
-  IF(ProductReac(3).NE.0) THEN
-    ! === Get free particle index for the 3rd product
-    DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-    ReactInx(3) = GetNextFreePosition()
-    PDM%ParticleInside(ReactInx(3)) = .true.
-    PDM%IsNewPart(ReactInx(3)) = .true.
-    PDM%dtFracPush(ReactInx(3)) = .FALSE.
-    ! Set species index of new particle
-    PartSpecies(ReactInx(3)) = ProductReac(3)
-    PartState(1:3,ReactInx(3)) = PartState(1:3,ReactInx(1))
-    IF(TrackingMethod.EQ.REFMAPPING) THEN
-      PartPosRef(1:3,ReactInx(3))=PartPosRef(1:3,ReactInx(1))
-    END IF
-    IF((Species(ProductReac(3))%InterID.EQ.2).OR.(Species(ProductReac(3))%InterID.EQ.20)) THEN
-      ALLOCATE(PartIntEn(ReactInx(3))%ERot(1), PartIntEn(ReactInx(3))%EVib(1))
-      PartIntEn(ReactInx(3))%EVib(1)= 0.
-      PartIntEn(ReactInx(3))%ERot(1) = 0.
-    END IF
-    IF(DSMC%ElectronicModel.GT.0) THEN
-      IF((Species(ProductReac(3))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(3))%FullyIonized)) THEN
-        ALLOCATE(PartIntEn(ReactInx(3))%EElec(1))
-        PartIntEn(ReactInx(3))%EElec(1) = 0.
-      END IF
-    END IF
-    PEM%GlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(1))
-    PEM%LastGlobalElemID(ReactInx(3)) = PEM%GlobalElemID(ReactInx(3))
-    IF(usevMPF) PartMPF(ReactInx(3)) = PartMPF(ReactInx(1))
-    IF(UseVarTimeStep) PartTimeStep(ReactInx(3)) = PartTimeStep(ReactInx(1))
-    Weight(3) = Weight(1)
-    NumProd = 3
-    SumWeightProd = SumWeightProd + Weight(3)
-    IF (DSMC%DoAmbipolarDiff) THEN
-      newAmbiParts = newAmbiParts + 1
-      iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(3)
-    END IF
-  END IF
-END IF
-
-IF(ProductReac(4).NE.0) THEN
-  ! === Get free particle index for the 4th product
-  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
-  ReactInx(4) = GetNextFreePosition()
-  PDM%ParticleInside(ReactInx(4)) = .true.
-  PDM%IsNewPart(ReactInx(4)) = .true.
-  PDM%dtFracPush(ReactInx(4)) = .FALSE.
-  ! Set species index of new particle
-  PartSpecies(ReactInx(4)) = ProductReac(4)
-  PartState(1:3,ReactInx(4)) = PartState(1:3,ReactInx(1))
-  IF(TrackingMethod.EQ.REFMAPPING) THEN ! here Nearst-GP is missing
-    PartPosRef(1:3,ReactInx(4))=PartPosRef(1:3,ReactInx(1))
-  END IF
-  IF((Species(ProductReac(4))%InterID.EQ.2).OR.(Species(ProductReac(4))%InterID.EQ.20)) THEN
-    ALLOCATE(PartIntEn(ReactInx(4))%ERot(1), PartIntEn(ReactInx(4))%EVib(1))
-    PartIntEn(ReactInx(4))%EVib(1)= 0.
-    PartIntEn(ReactInx(4))%ERot(1) = 0.
-  END IF
-  IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((Species(ProductReac(4))%InterID.NE.4).AND.(.NOT.SpecDSMC(ProductReac(4))%FullyIonized)) THEN
-      ALLOCATE(PartIntEn(ReactInx(4))%EElec(1))
-      PartIntEn(ReactInx(4))%EElec(1) = 0.
-    END IF
-  END IF
-  PEM%GlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(1))
-  PEM%LastGlobalElemID(ReactInx(4)) = PEM%GlobalElemID(ReactInx(4))
-  IF(usevMPF) PartMPF(ReactInx(4)) = PartMPF(ReactInx(1))
-  IF(UseVarTimeStep) PartTimeStep(ReactInx(4)) = PartTimeStep(ReactInx(1))
-  Weight(4) = Weight(1)
-  NumProd = 4
-  SumWeightProd = SumWeightProd + Weight(4)
-  IF (DSMC%DoAmbipolarDiff) THEN
-    newAmbiParts = newAmbiParts + 1
-    iPartIndx_NodeNewAmbi(newAmbiParts) = ReactInx(4)
-  END IF
-END IF
-
-! Set the formation energy
-IF(NbrOfPhotonXsecReactions.GT.0)THEN
-  IF(SpecPhotonXSecInterpolated(iLineOpt,2+ReacToPhotoReac(iReac)).LE.0)THEN
-    IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') " (sigma=0) iLine =",iLineOpt," iPhotoReac =",ReacToPhotoReac(iReac)," iReac =",iReac
-    CALL abort(__STAMP__,'Cross-section for this reaction is zero')
-  END IF
-  ! Add photon energy to the formation energy of the reaction
-  EForm = ChemReac%EForm(iReac) + SpecPhotonXSecInterpolated(iLineOpt,1)*eV2Joule
-  IF(EForm.LE.0)THEN
-    IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') " (EForm=0) iLine =",iLineOpt," iPhotoReac =",ReacToPhotoReac(iReac)," iReac =",iReac
-    IPWRITE(UNIT_StdOut,*) "Photon energy [J] =", SpecPhotonXSecInterpolated(iLineOpt,1)*eV2Joule ,&
-        "and in [eV]",SpecPhotonXSecInterpolated(iLineOpt,1)
-    CALL abort(__STAMP__,'Energy of formation for photoionization is zero or negative: ',RealInfoOpt=EForm)
-  END IF
-ELSE
-  EForm = ChemReac%EForm(iReac)
-END IF ! NbrOfPhotonXsecReactions.GT.0
-
-! Consider the energy of the background gas particle and the remaining energy from the photo-reaction
-Coll_pData(iPair)%Ec = 0.5 * Species(PartSpecies(ReactInx(1)))%MassIC * DOTPRODUCT(PartState(4:6,ReactInx(1))) * Weight(1) &
-                      + EForm*SumWeightProd/NumProd
-! Adding the vibrational and rotational energy to the collision energy
-IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)) &
-  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartIntEn(ReactInx(1))%EVib(1) + PartIntEn(ReactInx(1))%ERot(1))*Weight(1)
-! Addition of the electronic energy to the collision energy
-IF (DSMC%ElectronicModel.GT.0) THEN
-  IF((Species(EductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(1))%FullyIonized)) &
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartIntEn(ReactInx(1))%EElec(1)*Weight(1)
-END IF
-
-IF(usevMPF) THEN
-  ! Weighting factor already included in the weights
-  ChemEnergySum = ChemEnergySum + EForm*SumWeightProd/NumProd
-ELSE
-  ChemEnergySum = ChemEnergySum + EForm*Species(EductReac(1))%MacroParticleFactor*SumWeightProd/NumProd
-END IF
-
-! Saving the velocity of the background particle as the centre of mass velocity
-VeloCOM(1:3) = PartState(4:6,ReactInx(1))
-! Get the properties of the background species used for the photo-ionization reaction
-Temp_Trans = Species(EductReac(1))%Init(1)%MWTemperatureIC
-IF((Species(EductReac(1))%InterID.EQ.2).OR.(Species(EductReac(1))%InterID.EQ.20)) THEN
-  Temp_Vib   = SpecDSMC(EductReac(1))%Init(1)%TVib
-  Temp_Rot   = SpecDSMC(EductReac(1))%Init(1)%TRot
-ELSE
-  Temp_Vib   = Temp_Trans
-  Temp_Rot   = Temp_Trans
-END IF
-IF(DSMC%ElectronicModel.GT.0) Temp_Elec = SpecDSMC(EductReac(1))%Init(1)%TElec
-!-------------------------------------------------------------------------------------------------------------------------------
-! Insert the heavy species at the properties of the background gas
-!-------------------------------------------------------------------------------------------------------------------------------
-NumElec = 0.
-IonizationReaction = .FALSE.
-DO iProd = 1, NumProd
-  iPart = ReactInx(iProd)
-  iSpec = ProductReac(iProd)
-  IF(Species(iSpec)%InterID.EQ.4) THEN
-    NumElec = NumElec + Weight(iProd)
-    Mass_Electron = Species(iSpec)%MassIC
-    IonizationReaction = .TRUE.
-    CYCLE
-  END IF
-  ! Set the internal energies
-  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) THEN
-    IF (.NOT.ALLOCATED(PartIntEn(iPart)%EVib)) ALLOCATE(PartIntEn(iPart)%EVib(1))
-    IF (.NOT.ALLOCATED(PartIntEn(iPart)%ERot)) ALLOCATE(PartIntEn(iPart)%ERot(1))
-    PartIntEn(iPart)%EVib = CalcEVib_particle(iSpec,Temp_Vib,iPart)
-    PartIntEn(iPart)%ERot = RotInitPolyRoutineFuncPTR(iSpec,Temp_Rot,iPart)
-  ELSE
-    SDEALLOCATE(PartIntEn(iPart)%EVib)
-    SDEALLOCATE(PartIntEn(iPart)%ERot)
-  END IF
-  IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) THEN
-      IF (.NOT.ALLOCATED(PartIntEn(iPart)%EElec)) ALLOCATE(PartIntEn(iPart)%EElec(1))
-      PartIntEn(iPart)%EElec = CalcEElec_particle(iSpec,Temp_Elec,iPart)
-    ELSE
-      SDEALLOCATE(PartIntEn(iPart)%EElec)
-    END IF
-  END IF
-  ! Determine the particle velocity (is going to be added to the PartState)
-  CALL CalcVelocity_maxwell_lpn(FractNbr=iSpec, Vec3D=PartState(4:6,iPart), Temperature=Temp_Trans)
-  ! Remove the distributed energy from the available collision energy
-  Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - 0.5 * Species(iSpec)%MassIC * DOTPRODUCT(PartState(4:6,iPart)) * Weight(iProd)
-  IF((Species(iSpec)%InterID.EQ.2).OR.(Species(iSpec)%InterID.EQ.20)) &
-    Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - (PartIntEn(iPart)%EVib(1) + PartIntEn(iPart)%ERot(1)) * Weight(iProd)
-  IF(DSMC%ElectronicModel.GT.0) THEN
-    IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized)) &
-      Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec - PartIntEn(iPart)%EElec(1) * Weight(iProd)
-  END IF
-  IF(Coll_pData(iPair)%Ec.LE.0)THEN
-    IF(NbrOfPhotonXsecReactions.GT.0)THEN
-      IPWRITE(UNIT_StdOut,'(I6,3(A,I3))') " (%Ec=0)   iLine =",iLineOpt," iPhotoReac =",ReacToPhotoReac(iReac)," iReac =",iReac
-      IPWRITE(UNIT_StdOut,'(I6,A,E24.12,A,E15.2)') " Photon energy [J] =", SpecPhotonXSecInterpolated(iLineOpt,1)*eV2Joule ,&
-          "and in [eV]",SpecPhotonXSecInterpolated(iLineOpt,1)
-    ELSE
-      IPWRITE(UNIT_StdOut,*) "iReac =", iReac
-    END IF ! NbrOfPhotonXsecReactions.GT.0
-    CALL abort(__STAMP__,'Coll_pData(iPair)%Ec is zero or negative: ',RealInfoOpt=Coll_pData(iPair)%Ec)
-  END IF
-END DO
-!--------------------------------------------------------------------------------------------------!
-! Calculation of new electron velocities OR distribute remaining energy onto the heavy species (currently only for 2 products)
-!--------------------------------------------------------------------------------------------------!
-IF(IonizationReaction) THEN
-  CRela2_Electron = NumElec * Mass_Electron
-  CRela2_Electron = 2. * Coll_pData(iPair)%Ec / CRela2_Electron
-  DO iProd = 1, NumProd
-    iPart = ReactInx(iProd)
-    iSpec = ProductReac(iProd)
-    ! Check if particle is an electron
-    IF(Species(iSpec)%InterID.EQ.4) THEN
-      PartState(4:6,iPart) = VeloCOM(1:3) + SQRT(CRela2_Electron) * DiceUnitVector()
-      ! Change the direction of its velocity vector (randomly) to be perpendicular to the photon's path
-      ! Get random vector b3 in b1-b2-plane
-      CALL RANDOM_NUMBER(RandVal)
-      PartState(4:6,iPart) = GetRandomVectorInPlane(b1,b2,PartState(4:6,iPart),RandVal)
-      ! Rotate the resulting vector in the b3-NormalIC-plane
-      PartState(4:6,iPart) = GetRotatedVector(PartState(4:6,iPart),normal)
-      ! Store the particle information in PartStateBoundary.h5
-      IF(DoBoundaryParticleOutputHDF5) THEN
-        IF(usevMPF)THEN
-          MPF = PartMPF(iPart) ! Use emission-specific MPF
-        ELSE
-          MPF = Species(iSpec)%MacroParticleFactor ! Use species MPF
-        END IF ! usevMPF
-        ! Only store volume-emitted particle data in PartStateBoundary.h5 if the PartBCIndex is greater/equal zero
-        IF(PartBCIndex.GE.0) CALL StoreBoundaryParticleProperties(iPart,iSpec,PartState(1:3,iPart),&
-                                    UNITVECTOR(PartState(4:6,iPart)),normal,iPartBound=PartBCIndex,mode=2,MPF_optIN=MPF)
-      END IF ! DoBoundaryParticleOutputHDF5
-    END IF
-  END DO
-ELSE
-  IF (usevMPF) THEN
-    FracMassCent1 = Species(ProductReac(1))%MassIC *Weight(1) &
-        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
-    FracMassCent2 = Species(ProductReac(2))%MassIC *Weight(2) &
-        /(Species(ProductReac(1))%MassIC* Weight(1) + Species(ProductReac(2))%MassIC * Weight(2))
-    MassRed = Species(ProductReac(1))%MassIC *Weight(1)* Species(ProductReac(2))%MassIC *Weight(2) &
-        / (Species(ProductReac(1))%MassIC*Weight(1) + Species(ProductReac(2))%MassIC *Weight(2))
-  ELSE
-    ! Scattering of (AB)
-    FracMassCent1 = CollInf%FracMassCent(ProductReac(1),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-    FracMassCent2 = CollInf%FracMassCent(ProductReac(2),CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-    MassRed = CollInf%MassRed(CollInf%Coll_Case(ProductReac(1),ProductReac(2)))
-  END IF
-
-  Coll_pData(iPair)%cRela2 = 2 * Coll_pData(iPair)%Ec / MassRed
-  cRelaNew(1:3) = PostCollVec(iPair)
-
-  !deltaV particle 1
-  PartState(4:6,ReactInx(1)) = VeloCOM(1:3) + FracMassCent2*cRelaNew(1:3)
-  !deltaV particle 2
-  PartState(4:6,ReactInx(2)) = VeloCOM(1:3) - FracMassCent1*cRelaNew(1:3)
-END IF
-
-IF(CalcPartBalance) THEN
-  DO iProd = 1, NumProd
-    iSpec = ProductReac(iProd)
-    nPartIn(iSpec) = nPartIn(iSpec) + 1
-    PartEkinIn(iSpec) = PartEkinIn(iSpec) + CalcEkinPart(ReactInx(iProd))
-  END DO
-END IF
-
-END SUBROUTINE PhotoIonization_InsertProducts
-
-
-!===================================================================================================================================
-!> Pick random vector in a plane set up by the basis vectors b1 and b2
-!===================================================================================================================================
-PPURE FUNCTION GetRandomVectorInPlane(b1,b2,VeloVec,RandVal)
-! MODULES
-USE MOD_Globals      ,ONLY: VECNORM3D
-USE MOD_Globals_Vars ,ONLY: PI
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)    :: b1(1:3),b2(1:3) !< Basis vectors (normalized)
-REAL,INTENT(IN)    :: VeloVec(1:3)    !< Velocity vector before the random direction selection within the plane defined by b1 and b2
-REAL,INTENT(IN)    :: RandVal         !< Random number (given from outside to render this function PPURE)
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLE
-REAL               :: GetRandomVectorInPlane(1:3) ! Output velocity vector
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: Vabs ! Absolute velocity
-REAL               :: phi ! random angle between 0 and 2*PI
-!===================================================================================================================================
-Vabs = VECNORM3D(VeloVec)
-phi = RandVal * 2.0 * PI
-GetRandomVectorInPlane = Vabs*(b1*COS(phi) + b2*SIN(phi))
-END FUNCTION GetRandomVectorInPlane
-
-
-!===================================================================================================================================
-!> Rotate the vector in the plane set up by VeloVec and NormVec by choosing an angle from a 4.0 / PI * COS(Theta)**2
-!> distribution via the ARM
-!===================================================================================================================================
-FUNCTION GetRotatedVector(VeloVec,NormVec)
-! MODULES
-USE MOD_Globals      ,ONLY: VECNORM3D, UNITVECTOR
-USE MOD_Globals_Vars ,ONLY: PI
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-REAL,INTENT(IN)    :: NormVec(1:3) !< Basis vector (normalized)
-REAL,INTENT(IN)    :: VeloVec(1:3) !< Velocity vector before the random direction selection within the plane defined by b1 and b2
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLE
-REAL               :: GetRotatedVector(1:3) !< Output velocity vector
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-REAL               :: Vabs ! Absolute velocity
-REAL               :: RandVal, v(1:3)
-REAL               :: Theta, Theta_temp
-REAL               :: PDF_temp
-REAL, PARAMETER    :: PDF_max=4./PI
-LOGICAL            :: ARM_SEE_PDF
-!===================================================================================================================================
-v = UNITVECTOR(VeloVec)
-Vabs = VECNORM3D(VeloVec)
-
-! ARM for angular distribution
-ARM_SEE_PDF=.TRUE.
-DO WHILE(ARM_SEE_PDF)
-  CALL RANDOM_NUMBER(RandVal)
-  Theta_temp = PI*(RandVal-0.5)
-  PDF_temp = 4.0 / PI * COS(Theta_temp)**2
-  CALL RANDOM_NUMBER(RandVal)
-  IF ((PDF_temp/PDF_max).GT.RandVal) ARM_SEE_PDF = .FALSE.
-END DO
-Theta = Theta_temp
-
-! Rotate original vector Vabs*v
-GetRotatedVector = Vabs*(v*COS(Theta) + NormVec*SIN(Theta))
-END FUNCTION GetRotatedVector
-
 
 END MODULE MOD_DSMC_ChemReact

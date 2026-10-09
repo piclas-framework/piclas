@@ -371,7 +371,6 @@ SUBROUTINE PETScFillSystemMatrix()
 ! Use Smat to fill the PETSc System matrix
 !===================================================================================================================================
 ! MODULES
-! USE MOD_Globals
 USE MOD_PreProc
 USE MOD_HDG_Vars
 USE MOD_HDG_Vars_PETSc
@@ -386,6 +385,8 @@ USE MOD_Interpolation_Vars ,ONLY: N_Inter
 USE MOD_Mesh_Vars          ,ONLY: offSetElem
 USE MOD_Mesh_Vars          ,ONLY: N_SurfMesh
 USE MOD_Mesh_Vars          ,ONLY: nGlobalMortarSides
+USE MOD_Globals_Vars       ,ONLY: eps0
+USE MOD_Globals            ,ONLY: MPIRoot
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -519,6 +520,55 @@ DO BCsideID=1,nConductorBCsides
     END IF
   END DO
 END DO
+
+#if defined(PARTICLES)
+! Set circuit model matrix
+! The CMBC is at the end, so we need to fill the last columns of the global matrix.
+DO BCsideID=1,nCircuitModelBCsides
+  jSideID=CircuitModelBC(BCsideID)
+  jLocSide=SideToElem(S2E_LOC_SIDE_ID,jSideID)
+  jNloc=N_SurfMesh(jSideID)%NSide
+
+  iElem=SideToElem(S2E_ELEM_ID,jSideID)
+  NElem=N_DG_Mapping(2,iElem+offsetElem)
+
+  jIndices(1:1) = nGlobalPETScDOFs-1
+
+  DO iLocSide=1,6
+    iSideID=ElemToSide(E2S_SIDE_ID,iLocSide,iElem)
+
+    ! Summing up columns since all DOFs are one circuit model DOF
+    DO i=1,nGP_face(NElem)
+      Smatloc(i,1) = SUM(HDG_Vol_N(iElem)%Smat(i,:,iLocSide,jLocSide))
+    END DO
+
+    IF(MaskedSide(iSideID).EQ.2) THEN
+      ! From CMBC to CMBC: 1x1 matrix
+      Smatloc(1,1) = SUM(Smatloc(:,1))
+
+      iIndices(1:1) = nGlobalPETScDOFs-1
+      ! Fortran API: non-array values, v, passed to PETSc routines expecting arrays must be cast with [v] in the calling sequence
+      PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[jIndices(1:1)],[Smatloc(1,1)],ADD_VALUES,ierr))
+    ELSEIF(MaskedSide(iSideID).GT.0) THEN
+      CYCLE
+    ELSE
+      ! From CMBC to normal side: iNdof x 1 matrix
+      iNloc=N_SurfMesh(iSideID)%NSide
+      iNdof=nGP_face(iNloc)
+      CALL ChangeBasis2D(1, NElem, iNloc, TRANSPOSE(PREF_VDM(iNloc,NElem)%Vdm), Smatloc(1:nGP_face(NElem),1), Smatloc(1:iNdof,1))
+
+      iIndices(1:iNdof) = (/ (OffsetGlobalPETScDOF(iSideID) + i - 1, i=1,iNdof) /)
+      PetscCallA(MatSetValues(PETScSystemMatrix,iNdof,iIndices(1:iNdof),1,jIndices(1:1),Smatloc(1:iNdof,1),ADD_VALUES,ierr))
+    END IF
+  END DO
+END DO
+
+! Add diagonal contribution of C/eps0
+IF(MPIRoot.AND.UseCircuitModel)THEN
+  iIndices(1) = nGlobalPETScDOFs - 1
+  PetscCallA(MatSetValues(PETScSystemMatrix,1,[iIndices(1:1)],1,[iIndices(1:1)],[CMBC%Capacitance/eps0],ADD_VALUES,ierr))
+END IF
+#endif /*defined(PARTICLES)*/
 
 PetscCallA(MatAssemblyBegin(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))
 PetscCallA(MatAssemblyEnd(PETScSystemMatrix,MAT_FINAL_ASSEMBLY,ierr))

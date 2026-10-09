@@ -42,6 +42,7 @@ IMPLICIT NONE
 CALL prms%SetSection("Particle Symmetry")
 CALL prms%CreateIntOption(    'Particles-Symmetry-Order'        , 'Order of the Simulation 1, 2 or 3 D', '3')
 CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetric', 'Activating an axisymmetric simulation with the same mesh requirements as for the 2D case (y is then the radial direction)', '.FALSE.')
+CALL prms%CreateLogicalOption('Particles-Symmetry2DAxisymmetricExact', 'Activating an exact rotated particle tracking for axisymmetric simulations', '.TRUE.')
 
 END SUBROUTINE DefineParametersSymmetry
 
@@ -83,6 +84,11 @@ IF(Symmetry%Order.LE.2) CALL InitParticleThroughSideCheck1D2D()
 #endif /*defined(PARTICLES)*/
 
 Symmetry%Axisymmetric = GETLOGICAL('Particles-Symmetry2DAxisymmetric')
+IF (Symmetry%Axisymmetric) THEN
+  Symmetry%AxisymmetricExact = GETLOGICAL('Particles-Symmetry2DAxisymmetricExact')
+ELSE
+  Symmetry%AxisymmetricExact = .FALSE.
+END IF
 #if defined(PARTICLES)
 ! Only abort when particles are active
 IF(Symmetry%Axisymmetric.AND.(Symmetry%Order.NE.2)) CALL ABORT(__STAMP__&

@@ -51,6 +51,7 @@ USE MOD_DSMC_Vars              ,ONLY: useDSMC
 USE MOD_PICModels              ,ONLY: FieldIonization
 USE MOD_part_RHS               ,ONLY: CalcPartRHS
 USE MOD_Ionization             ,ONLY: InsertNewIons
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 #endif
@@ -155,7 +156,7 @@ IF (time.GE.DelayTime) THEN
           PDM%dtFracPush(iPart) = .FALSE.
         END IF
       END IF
-      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+      IF (.NOT.Symmetry%AxisymmetricExact) CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
       ! If coupled power output is active and particle carries charge, calculate energy difference and add to output variable
       IF (CalcCoupledPower) CALL CalcCoupledPowerPart(iPart,'after')
     END IF

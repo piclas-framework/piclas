@@ -20,7 +20,7 @@ This is a (possibly incomplete) list of the people who contributed to PICLas.
 * Florian Hindenlang
 * Andrea Hinkel
 * Konstantin Hinsberger
-* Franziska Hild
+* Franziska Tuttas formerly Franziska Hild
 * Timon Hitz
 * Malte Hoffmann
 * Serena Keller
@@ -50,3 +50,8 @@ This is a (possibly incomplete) list of the people who contributed to PICLas.
 * Torsten Stindl
 * Andreas Stock
 * Raphael Tietz
+
+# List of Institutions
+- Institute of Space Systems, University of Stuttgart
+- Institute of Aerodynamic and Gas Dynamics, University of Stuttgart
+- boltzplatz - numerical plasma dynamics GmbH

@@ -757,13 +757,14 @@ REAL                 :: PosIn, RelPos, TempPartPos(3)
 REAL                 :: PartDistDepo(8), DistSum, norm, MPFSum
 LOGICAL              :: SucRefPos
 REAL                 :: alpha1, alpha2, alpha3
-INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale, NodeIDUni(1:8)
+INTEGER              :: GlobalElemID, NodeID(1:8), iNode, iScale, NodeIDUni(1:8), CNElemID
 REAL                 :: PosMax, PosMin, MaxWeight, MinWeight
 !===================================================================================================================================
 
 CalcVarWeightMPF = 1.
 
 IF(PRESENT(iElem)) THEN
+  ! Get global element index from local element index and offset
   GlobalElemID = iElem+offSetElem
 ELSEIF(.NOT.DoLinearWeighting) THEN
   CALL abort(__STAMP__,'ERROR in CalcVarWeightMPF: Cell-local weighting requires an element ID')
@@ -773,12 +774,14 @@ IF (DoCellLocalWeighting) THEN
   ! Determine the adaptive MPF based on the interpolation of the MPF at the node coordinates onto the particle position
   CALL GetPositionInRefElem(Pos(1:3),TempPartPos(1:3),GlobalElemID,ForceMode=.TRUE., isSuccessful = SucRefPos)
 
+  ! Get compute-node element index from global element index
+  CNElemID = GetCNElemID(GlobalElemID)
   IF (SucRefPos) THEN
     alpha1=0.5*(TempPartPos(1)+1.0)
     alpha2=0.5*(TempPartPos(2)+1.0)
     alpha3=0.5*(TempPartPos(3)+1.0)
 
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
     CalcVarWeightMPF = &
     PartWeightAtNode(1,NodeID(1)) * (1-alpha1) * (1-alpha2) * (1-alpha3) + PartWeightAtNode(1,NodeID(2)) * (alpha1)   * (1-alpha2) * (1-alpha3) + &
     PartWeightAtNode(1,NodeID(3)) * (alpha1)   * (alpha2)   * (1-alpha3) + PartWeightAtNode(1,NodeID(4)) * (1-alpha1) * (alpha2)   * (1-alpha3) + &
@@ -787,8 +790,8 @@ IF (DoCellLocalWeighting) THEN
 
   ELSE
     MPFSum = 0.
-    NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
-    NodeIDUni = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    NodeID = ElemNodeID_Shared(:,CNElemID)
+    NodeIDUni = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
     DO iNode = 1, 8
       norm = VECNORM3D(NodeCoords_Shared(1:3, NodeID(iNode)) - Pos(1:3))
       IF(norm.GT.0.)THEN
@@ -1840,7 +1843,7 @@ END DO
 
 !Loop over all cells and neighbouring cells to merge them
 ElemLoop: DO iElem = 1, nElems
-  IF(VirtMergedCells(iElem)%isMerged) CYCLE
+  IF(VirtMergedCells(iElem)%isMerged) CYCLE ElemLoop
   nPart = PEM%pNumber(iElem)
   IF (nPart.LE.MinPartNumCellMerge) THEN
     GlobalElemID = iElem + offSetElem
@@ -1851,7 +1854,7 @@ ElemLoop: DO iElem = 1, nElems
       GlobNbElem = GetGlobalElemID(ElemToElemInfo(ElemToElemMapping(1,CNElemID)+iNbElem))
       LocNBElem = GlobNbElem-offSetElem
       CNNbElem = GetCNElemID(GlobNbElem)
-      IF ((LocNBElem.LT.1).OR.(LocNBElem.GT.nElems)) CYCLE
+      IF ((LocNBElem.LT.1).OR.(LocNBElem.GT.nElems)) CYCLE NBElemLoop
       IF(VirtMergedCells(LocNBElem)%isMerged.AND.AllowBackMerge) THEN
         IF(VirtualCellMergeSpread.GT.1) THEN
           IF (VirtMergedCells(iElem)%NumOfMergedCells.GT.0) THEN
@@ -2232,11 +2235,7 @@ REAL               :: NewYPart, NewYVelo!, NewXVelo, NewZVelo, n_rot(3), cosa, s
 ! Axisymmetric treatment of particles: rotation of the position and velocity vector
 IF(Symmetry%Axisymmetric) THEN
   IF(Symmetry%Order.EQ.2) THEN
-    IF (Pos(2).LT.0.0) THEN
-      NewYPart = -SQRT(Pos(2)**2 + (Pos(3))**2)
-    ELSE
-      NewYPart = SQRT(Pos(2)**2 + (Pos(3))**2)
-    END IF
+    NewYPart = SQRT(Pos(2)**2 + (Pos(3))**2)
     ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
     !           Vz' = - Vy * sin(alpha) + Vz * cos(alpha) = - Vy * z/y' + Vz * y/y'
     ! Right-hand system, using new y and z positions after tracking, position vector and velocity vector DO NOT have to

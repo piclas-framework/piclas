@@ -646,7 +646,7 @@ ElemLoop: DO iElem = curiElem,nGlobalElems-nProcs+iProc+1
                 LoadDiff(iProc)   = diffLower
                 curiElem          = iElem
                 LoadDistri(iProc) = CurWeight-ElemGlobalTime(iElem)
-                EXIT
+                EXIT ElemLoop
               ELSE
                 LoadDiff(iProc)   = diffUpper
                 curiElem          = iElem+1

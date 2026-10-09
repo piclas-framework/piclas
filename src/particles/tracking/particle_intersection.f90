@@ -42,7 +42,7 @@ PUBLIC :: ComputeBilinearIntersection
 PUBLIC :: ComputeCurvedIntersection
 PUBLIC :: InitParticleThroughSideCheck1D2D
 PUBLIC :: ParticleThroughSideCheck3DFast, ParticleThroughSideCheck1D2D
-PUBLIC :: ParticleThroughSideLastPosCheck
+PUBLIC :: ParticleThroughSideLastPosCheck, ParticleThroughSideCheck2DRotSym
 #ifdef CODE_ANALYZE
 PUBLIC :: OutputTrajectory
 #endif /*CODE_ANALYZE*/
@@ -359,6 +359,277 @@ IF (t(1) >= 0.0 .AND. t(1) <= 1.0 .AND. t(2) >= 0.0 .AND. t(2) <= 1.0) THEN
 END IF
 
 END SUBROUTINE ParticleThroughSideCheck2D
+
+!===================================================================================================================================
+!> Checks whether a particle crosses a given side in the exact 2D rotationally-symmetric (axisymmetric) tracking. The 2D side
+!> (Node1->Node2 in the x-y plane, x = symmetry axis, y = radius) defines a surface of revolution about the x-axis that the full
+!> 3D trajectory (radius r=sqrt(y^2+z^2)) may intersect. A straight trajectory meets such a surface in up to two points, so the
+!> entry side of an element must be re-checked for a possible exit through the same surface.
+!> Workflow:
+!>  1. Get the side node coordinates, particle start position (LastPartPos) and the trajectory direction.
+!>  2. If this is the re-check of the entry side (LastIntersectCount==1), one root is already known exactly: the entry point at
+!>     S = TrackInfo%alpha. Build the division-free quadratic A*S^2+B*S+C=0 (coefficients never divide by dx/dy) and remove that
+!>     known root via Vieta (S_exit = -B/A - alpha). This yields the complementary root directly and avoids disambiguating two
+!>     nearly-equal roots by a fragile S>alpha comparison (which fails at ULP level and sends the particle back into the old cell).
+!>  3. Otherwise (first visit, or boundary re-check with LastIntersectCount==2) pick the best-conditioned parametrization
+!>     (interseccase) from the relative x-extent of side vs. trajectory, solve the resulting quadratic (cases 1/2) or the
+!>     degenerate near-radial geometry (case 3), and select the correct root via the entering/exiting bookkeeping
+!>     (LastIntersectCount) in SelectIntersection2DRotSym.
+!>  4. Accept the candidate if it lies within the side (0<=l<=1), in front of the particle and within the remaining trajectory
+!>     length.
+!===================================================================================================================================
+SUBROUTINE ParticleThroughSideCheck2DRotSym(PartID, iLocSide,Element, SideID,ThroughSide, Distance,LastInterCount)
+! MODULES
+USE MOD_Globals             ,ONLY: abort
+USE MOD_Particle_Mesh_Vars  ,ONLY: ElemSideNodeID2D_Shared, NodeCoords_Shared, SideInfo_Shared
+USE MOD_Particle_Vars       ,ONLY: LastPartPos
+USE MOD_Mesh_Tools          ,ONLY: GetCNElemID
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT/OUTPUT VARIABLES
+LOGICAL,INTENT(OUT)              :: ThroughSide
+INTEGER,INTENT(IN)               :: iLocSide, Element, SideID
+INTEGER,INTENT(IN)               :: PartID
+REAL, INTENT(OUT)                :: Distance
+INTEGER, INTENT(OUT)             :: LastInterCount
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+INTEGER                          :: CNElemID, IntersectCase
+REAL                             :: y_pos_start,x_pos_start,z_pos_start,yNode1,xNode1,yNode2,xNode2,sy,sz,sx
+REAL                             :: l1,S1,l2,S2,l,S
+REAL                             :: beta, alpha,deltay, a, b, c, tmpsqrt
+REAL                             :: dx,dy, lenElem2, lenPart2
+REAL                             :: Px, Uc, Vc
+REAL, PARAMETER                  :: eps = 1E-12
+!===================================================================================================================================
+CNElemID = GetCNElemID(Element)
+Distance = 0.
+IF(CNElemID.LE.0) CALL abort(__STAMP__,'ParticleThroughSideCheck2DRotSym() found CNElemID<=0')
+
+ThroughSide = .FALSE.
+
+xNode1 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+yNode1 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(1,iLocSide, CNElemID))
+xNode2 = NodeCoords_Shared(1,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+yNode2 = NodeCoords_Shared(2,ElemSideNodeID2D_Shared(2,iLocSide, CNElemID))
+
+x_pos_start = LastPartPos(1,PartID)
+y_pos_start = LastPartPos(2,PartID)
+z_pos_start = LastPartPos(3,PartID)
+
+sx = TrackInfo%PartTrajectory(1)
+sy = TrackInfo%PartTrajectory(2)
+sz = TrackInfo%PartTrajectory(3)
+dx = xNode2 - xNode1
+dy = yNode2 - yNode1
+lenElem2 = dx*dx+dy*dy
+lenPart2 = sx*sx+sy*sy+sz*sz
+
+! Degenerate side (zero length) or stationary particle -> no crossing possible
+IF ((lenElem2.LE.0.0).OR.(lenPart2.LE.0.0)) THEN
+  LastInterCount = 0
+  RETURN
+END IF
+
+IF (TrackInfo%LastIntersectCount.EQ.1) THEN
+  ! =============================================================================
+  ! Re-check of the entry side. One intersection with this surface of revolution
+  ! is already known exactly: the point the particle entered through, at
+  ! S = TrackInfo%alpha (a global trajectory parameter, valid across elements).
+  ! Build the division-free line/surface-of-revolution quadratic
+  !     A*S^2 + B*S + C = 0,  with   dx^2*r(S)^2 = (dx*yNode1 + dy*(x(S)-xNode1))^2
+  ! (coefficients never divide by dx or dy) and remove the known root via
+  ! Vieta (S1+S2 = -B/A). The complementary root is the exit through the same
+  ! surface, if any. This avoids re-solving and disambiguating two nearly-equal
+  ! roots by a fragile S>alpha comparison.
+  Px = x_pos_start - xNode1
+  Uc = dx*yNode1 + dy*Px
+  Vc = dy*sx
+  a  = dx*dx*(sy*sy+sz*sz) - Vc*Vc
+  b  = 2.0*dx*dx*(y_pos_start*sy + z_pos_start*sz) - 2.0*Uc*Vc
+  ! Trajectory (near-)tangent/parallel to the cone -> no isolated second intersection
+  IF (ABS(a).LE.eps*lenElem2*lenPart2) THEN
+    LastInterCount = 0
+    RETURN
+  END IF
+  S = -b/a - TrackInfo%alpha
+  ! Recover the side coordinate from whichever side extent is better conditioned
+  IF (ABS(dx).GE.ABS(dy)) THEN
+    l = (Px + sx*S)/dx
+  ELSE
+    tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (z_pos_start + sz*S)**2)
+    l  = ( tmpsqrt - yNode1)/dy
+    l2 = (-tmpsqrt - yNode1)/dy
+    IF ((l2.GE.0.0).AND.(l2.LE.1.0).AND.((l.LT.0.0).OR.(l.GT.1.0))) l = l2
+  END IF
+  LastInterCount = 0
+ELSE
+  ! =============================================================================
+  ! First visit (or boundary re-check, LastIntersectCount==2): unchanged path.
+  IF((dx*dx/lenElem2).GT.(sx*sx/lenPart2)) THEN
+    IF ((dx*dx).GT.eps*lenElem2) THEN
+      IntersectCase = 1
+    ELSE
+      IntersectCase = 3
+    END IF
+  ELSE
+    IF ((sx*sx).GT.eps*lenPart2) THEN
+      IntersectCase = 2
+    ELSE
+      IntersectCase = 3
+    END IF
+  END IF
+
+  SELECT CASE (IntersectCase)
+  CASE(1)
+    alpha = dy / dx
+    beta = yNode1 + alpha * (x_pos_start - xNode1)
+    a = sy*sy + sz*sz - (alpha*sx)*(alpha*sx)
+    b = 2.0*y_pos_start*sy + 2.0*z_pos_start*sz - 2.0*beta*alpha*sx
+    c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - beta*beta
+    IF (ABS(a).LE.eps*MAX(ABS(b),ABS(c))) THEN
+      LastInterCount = 0
+      RETURN
+    END IF
+    tmpsqrt = b*b - 4.0*a*c
+    IF (tmpsqrt.LE.0.0) THEN
+      LastInterCount = 0
+      RETURN
+    END IF
+    S1 = (-b + SQRT(tmpsqrt)) / (2.*a)
+    S2 = (-b - SQRT(tmpsqrt)) / (2.*a)
+    l1 = (x_pos_start + sx*S1 - xNode1) / dx
+    l2 = (x_pos_start + sx*S2 - xNode1) / dx
+    CALL SelectIntersection2DRotSym(l1,S1,l2,S2,TrackInfo%lengthPartTrajectory,TrackInfo%LastIntersectCount,l,S,LastInterCount)
+  CASE(2)
+    alpha = (xNode1 - x_pos_start) / sx
+    beta = (xNode2 - xNode1) / sx
+    deltay = (yNode2 - yNode1)
+    a = beta*beta*sy*sy - deltay*deltay + beta*beta*sz*sz
+    b = 2.*beta*sy*y_pos_start + 2.*beta*sz*z_pos_start + 2.*alpha*beta*sy*sy - 2.*deltay*yNode1 + 2.*alpha*beta*sz*sz
+    c = y_pos_start*y_pos_start + z_pos_start*z_pos_start - yNode1*yNode1 + 2.*alpha*sy*y_pos_start + 2.*alpha*sz*z_pos_start &
+        + alpha*alpha*sy*sy + sz*sz*alpha*alpha
+    IF (ABS(a).LE.eps*MAX(ABS(b),ABS(c))) THEN
+      LastInterCount = 0
+      RETURN
+    END IF
+    tmpsqrt = b*b - 4.*a*c
+    IF (tmpsqrt.LE.0.0) THEN
+      LastInterCount = 0
+      RETURN
+    END IF
+    l1 = (-b + SQRT(tmpsqrt))/(2.*a)
+    S1 = (xNode1-x_pos_start+(xNode2-xNode1)*l1)/sx
+    l2 = (-b - SQRT(tmpsqrt))/(2.*a)
+    S2 = (xNode1-x_pos_start+(xNode2-xNode1)*l2)/sx
+    CALL SelectIntersection2DRotSym(l1,S1,l2,S2,TrackInfo%lengthPartTrajectory,TrackInfo%LastIntersectCount,l,S,LastInterCount)
+  CASE(3)
+    IF (ABS(sx).LE.eps*SQRT(lenPart2)) THEN
+      LastInterCount = 0
+      RETURN
+    END IF
+    S = (xNode1 - x_pos_start) / sx
+    tmpsqrt = SQRT((y_pos_start + sy*S)**2 + (z_pos_start + sz*S)**2)
+    l = ( tmpsqrt - yNode1)/dy
+    l2 = (-tmpsqrt - yNode1) / dy
+    IF ((l2.GE.0.0).AND.(l2.LE.1.0).AND.((l.LT.0.0).OR.(l.GT.1.0))) THEN
+      l = l2
+    END IF
+    LastInterCount = 0
+  END SELECT
+END IF
+
+! Accept the intersection only if it lies in front of the particle, within the remaining trajectory length, on the side
+! (0<=l<=1) and beyond the last accepted intersection (S>alpha). For a boundary side flag a pending second intersection.
+IF((S .GT. 0.0).AND.(S.LT.TrackInfo%lengthPartTrajectory) .AND. (0.0 .LE. l) .AND. (l .LE. 1.0).AND.(S.GT.TrackInfo%alpha)) THEN
+  ThroughSide = .TRUE.
+  Distance = S
+  IF (SideInfo_Shared(SIDE_BCID,SideID).GT.0) LastInterCount = 2
+ELSE
+  LastInterCount=0
+END IF
+
+END SUBROUTINE ParticleThroughSideCheck2DRotSym
+
+
+!===================================================================================================================================
+!> Selects the relevant intersection from the two candidate roots (l1,S1) and (l2,S2) of the axisymmetric intersection quadratic
+!> (see ParticleThroughSideCheck2DRotSym). Since a surface of revolution can be crossed twice, the choice depends on the
+!> entering/exiting state carried over from the previously checked side (LastIntersectCountIn):
+!>   = 0: no pending pair -> pick the nearer valid root and flag a pending second intersection (LastInterCount = 1)
+!>   = 1: second intersection of a pair pending -> pick the farther root and clear the flag
+!>   = 2: previous hit was a boundary side -> pick the root with the larger |S|
+!> If no consistent pair exists, the single valid/forward root is returned. Outputs the chosen (l,S) and the new LastInterCount.
+!===================================================================================================================================
+PURE SUBROUTINE SelectIntersection2DRotSym(l1,S1,l2,S2,lengthPartTrajectory,LastIntersectCountIn,l,S,LastInterCount)
+! MODULES
+USE MOD_Particle_Tracking_Vars ,ONLY: TrackInfo
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL,INTENT(IN)                  :: l1,S1,l2,S2          ! Side coordinate and trajectory parameter of the two candidate roots
+REAL,INTENT(IN)                  :: lengthPartTrajectory ! Remaining trajectory length
+INTEGER,INTENT(IN)               :: LastIntersectCountIn ! Entering/exiting state from the previously checked side
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+REAL,INTENT(OUT)                 :: l,S                  ! Selected side coordinate and trajectory parameter
+INTEGER,INTENT(OUT)              :: LastInterCount       ! Updated entering/exiting state passed back to the caller
+!===================================================================================================================================
+IF (((l1.GT.0.0).AND.(l1.LT.1.0).AND.(S1.GT.0.0).AND.(S1.LT.lengthPartTrajectory).AND. &
+  (l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0).AND.(S2.LT.lengthPartTrajectory)).OR.(LastIntersectCountIn.EQ.1)) THEN
+  IF (LastIntersectCountIn.EQ.0) THEN
+    IF ((S1.GT.TrackInfo%alpha).AND.((S1.LE.S2).OR.(S2.LE.TrackInfo%alpha)))THEN
+      l=l1; S=S1
+    ELSE
+      l=l2; S=S2
+    END IF
+    LastInterCount=1
+  ELSE IF (LastIntersectCountIn.EQ.2) THEN
+    IF (ABS(S2).GT.ABS(S1)) THEN
+      l=l2; S=S2
+    ELSE
+      l=l1; S=S1
+    END IF
+    LastInterCount=0
+  ELSE
+    IF (S2.GT.S1) THEN
+      l=l2; S=S2
+    ELSE
+      l=l1; S=S1
+    END IF
+    LastInterCount=0
+  END IF
+ELSE
+  IF (LastIntersectCountIn.EQ.2) THEN
+    IF (ABS(S2).GT.ABS(S1)) THEN
+      l=l2; S=S2
+    ELSE
+      l=l1; S=S1
+    END IF
+  ELSE IF ((l1.LE.0.0).OR.(l1.GE.1.0)) THEN !if 1 is not a valid intersection -> 2
+    l = l2; S = S2
+  ELSE                                      !1 is valid intersection
+    IF ((S1.LE.0.0)) THEN                   !1 would be moving backwards -> 2
+      l = l2; S = S2
+    ELSE
+      IF ((l2.GT.0.0).AND.(l2.LT.1.0).AND.(S2.GT.0.0)) THEN !1 and 2 valid -> chose shorter one
+        IF ((S1.GT.TrackInfo%alpha).AND.((S1.LE.S2).OR.(S2.LE.TrackInfo%alpha))) THEN
+          l=l1; S=S1
+        ELSE
+          l=l2; S=S2
+        END IF
+      ELSE                                  !1 is only valid intersection -> 1
+        l=l1; S=S1
+      END IF
+    END IF
+  END IF
+  LastInterCount = 0
+END IF
+
+END SUBROUTINE SelectIntersection2DRotSym
+
 
 SUBROUTINE ParticleThroughSideCheck1D(PartID,iLocSide,Element,ThroughSide)
 !===================================================================================================================================
@@ -3298,13 +3569,8 @@ MBar2=(BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,NGeo,   0))
 
 ! 2) normalization
 Length=SQRT(DOT_PRODUCT(LXi,LXi))
-IF(Length.EQ.0.)THEN
-  print*,'AAARG'
-  STOP
-  LXi=(/0.,1./)
-ELSE
-  LXi=LXi/Length
-END IF
+IF(Length.EQ.0.) CALL Abort(__STAMP__,"calcLineNormVec3: SQRT(DOT_PRODUCT(LXi,LXi)) = 0")
+LXi=LXi/Length
 
 !print*,'Lxi',Lxi
 
@@ -3321,13 +3587,8 @@ MBar2=(BezierControlPoints2D(:,NGeo,NGeo)-BezierControlPoints2D(:,   0,NGeo))
 
 ! 2) normalization
 Length=SQRT(DOT_PRODUCT(Leta,Leta))
-IF(Length.EQ.0)THEN
-  LXi=(/1.,0./)
-  print*,'BBBBRG'
-  STOP
-ELSE
-  Leta=Leta/Length
-END IF
+IF(Length.EQ.0.) CALL Abort(__STAMP__,"calcLineNormVec3: SQRT(DOT_PRODUCT(Leta,Leta)) = 0")
+Leta=Leta/Length
 
 doPro=DOT_PRODUCT(Lxi,Leta)
 

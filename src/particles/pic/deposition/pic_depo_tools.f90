@@ -359,7 +359,7 @@ REAL                             :: alpha1, alpha2, alpha3, TempPartPos(1:3)
 #if USE_LOADBALANCE
 REAL                             :: tLBStart
 #endif /*USE_LOADBALANCE*/
-INTEGER                          :: NodeID(1:8),iNode,jNode,jGlobNode
+INTEGER                          :: NodeID(1:8),iNode,jNode,jGlobNode,CNElemID
 LOGICAL                          :: SucRefPos
 REAL                             :: norm,PartDistDepo(8),DistSum
 !===================================================================================================================================
@@ -381,6 +381,8 @@ CALL GetPositionInRefElem(PartPos, TempPartPos(1:3), GlobalElemID, ForceMode = .
 ! between the adjacent processes and then added to NodeSourceExt
 ASSOCIATE( NodeSourceExt => NodeSourceExtMPI )
 #endif
+  ! Get compute-node element index from global element index
+  CNElemID = GetCNElemID(GlobalElemID)
   ! Check if GetPositionInRefElem was able to find the reference position (via ref. mapping), else use distance-based deposition
   IF(SucRefPos)THEN
     alpha1=0.5*(TempPartPos(1)+1.0)
@@ -397,7 +399,7 @@ ASSOCIATE( NodeSourceExt => NodeSourceExtMPI )
     PartDistDepo(8) = (1-alpha1)*  (alpha2)*  (alpha3)
 
     ! Apply charge to nodes (note that the volumes are not accounted for yet here!)
-    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(GlobalElemID)))
+    NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
     DO iNode=1, 8
       NodeSourceExt(NodeID(iNode)) = NodeSourceExt(NodeID(iNode)) + Charge*PartDistDepo(iNode)
     END DO ! iNode=1, 8
@@ -414,7 +416,7 @@ ASSOCIATE( NodeSourceExt => NodeSourceExtMPI )
       END DO ! iNode=1, 8
     END IF
   ELSE
-    NodeID = ElemNodeID_Shared(:,GetCNElemID(GlobalElemID))
+    NodeID = ElemNodeID_Shared(:,CNElemID)
     DO iNode = 1, 8
       norm = VECNORM3D(NodeCoords_Shared(1:3, NodeID(iNode)) - PartPos(1:3))
       IF(norm.GT.0.)THEN

@@ -61,6 +61,14 @@ CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-EmissionCurrent'
 CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-Massflow', &
                                 'Mass flow over surface flux surface (as an alternative to PartDensity e.g. for outgassing. ' //&
                                 'Velocity magnitude can be zero or above.', '0.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-CosineExponent', &
+                                '(First) Cosine exponent n for respective cosine/cosine_double distribution', '1.', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-CosineA'         , &
+                                'Prefactor A in f(theta)=A*cos^n(theta) - B*cos^m(theta).' , '1.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-CosineB'         , &
+                                'Prefactor B in f(theta)=A*cos^n(theta) - B*cos^m(theta).' , '0.0', numberedmulti=.TRUE.)
+CALL prms%CreateRealOption(     'Part-Species[$]-Surfaceflux[$]-CosineExponent2' , &
+                                'Second exponent m for cosine_double distribution (must satisfy m>n).', numberedmulti=.TRUE.)
 ! === Unclear/Deprecated
 CALL prms%CreateLogicalOption(  'Part-Species[$]-Surfaceflux[$]-ReduceNoise' &
                                 , 'TODO-DEFINE-PARAMETER\n'//&
@@ -431,6 +439,7 @@ INTEGER, INTENT(INOUT) :: MaxSurfacefluxBCs, nDataBC
 ! LOCAL VARIABLES
 CHARACTER(42)         :: hilf, hilf2, hilf3
 INTEGER               :: iSpec, iSF
+REAL                  :: eta_est
 !===================================================================================================================================
 DO iSpec=1,nSpecies
   WRITE(UNIT=hilf,FMT='(I0)') iSpec
@@ -479,7 +488,31 @@ DO iSpec=1,nSpecies
       CALL PrintOption('Velocity distribution for granular species set to constant.','INFO',StrOpt=TRIM(SF%velocityDistribution))
     END IF
     SELECT CASE(TRIM(SF%velocityDistribution))
-    CASE('constant','maxwell','maxwell_lpn','cosine','cosine2')
+    CASE('constant','maxwell','maxwell_lpn')
+    CASE('cosine')
+      SF%CosineExponent       = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineExponent')
+    CASE('cosine_double')
+      SF%CosineExponent       = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineExponent')
+      SF%CosineExponent2      = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineExponent2')
+      SF%CosineA              = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineA')
+      SF%CosineB              = GETREAL('Part-Species'//TRIM(hilf2)//'-CosineB')
+      ! Sanity checks
+      IF (SF%CosineA .LE. 0.0)          CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineA > 0')
+      IF (SF%CosineB .LT.  0.0)         CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineB >= 0')
+      IF (SF%CosineExponent .LT. 0.0)   CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineExponent >= 0')
+      IF (SF%CosineExponent2 .LT. 0.0)  CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires CosineExponent2 >= 0')
+      IF (SF%CosineB .GT. SF%CosineA)   CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires A >= B (non-negativity at theta=0)')
+      IF (SF%CosineB .GT. 0.0 .AND. SF%CosineExponent2 .LE. SF%CosineExponent) CALL CollectiveStop(__STAMP__,'ERROR ReadInAndPrepareSurfaceFlux: Velocity distribution cosine_double requires m > n')
+      ! Precompute maximum of distribution function
+      CALL FindCosineDoubleMax(SF%CosineA, SF%CosineB, SF%CosineExponent, SF%CosineExponent2, SF%CosineDoubleMax)
+      ! Report expected acceptance rate
+      ! eta = mean(g) / gMax, with mean(g) = (2/PI)*[A/(n+1) - B/(m+1)]
+      eta_est = (2.0/PI) * (SF%CosineA/(SF%CosineExponent+1.0) - SF%CosineB/(SF%CosineExponent2+1.0)) / SF%CosineDoubleMax
+      LBWRITE(UNIT_StdOut,'(A,F6.3)') '| Velocity distribution cosine_double: expected acceptance rate = ', eta_est
+      IF(eta_est.LT.0.1) THEN
+        LBWRITE(UNIT_StdOut,'(A)') '| WARNING Velocity distribution cosine_double has an acceptance rate below 10%. Check parameters!'
+      END IF
+
     CASE DEFAULT
       CALL CollectiveStop(__STAMP__,'Selected velocity distribution not implemented for surface flux!')
     END SELECT
@@ -628,7 +661,7 @@ DO iSpec=1,nSpecies
         IF(.NOT.SF%CircularInflow.AND.(SF%AdaptiveType.NE.4)) CALL CollectiveStop(__STAMP__,'ERROR in adaptive surface flux: using a reflective BC without circularInflow is only allowed for Type 4!')
       END IF
       ! Cosine distribution not tested with adaptive
-      IF(TRIM(SF%velocityDistribution).EQ.'cosine'.OR.TRIM(SF%velocityDistribution).EQ.'cosine2') CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
+      IF(StringBeginsWith(SF%velocityDistribution,'cosine')) CALL CollectiveStop(__STAMP__,'ERROR in Surface Flux: Cosine velocity distribution is not tested with adaptive surface flux!')
     END IF
     ! === THERMIONIC EMISSION ======================================================================================================
     SF%ThermionicEmission = GETLOGICAL('Part-Species'//TRIM(hilf2)//'-ThermionicEmission')
@@ -639,6 +672,56 @@ DO iSpec=1,nSpecies
 END DO ! iSpec
 
 END SUBROUTINE ReadInAndPrepareSurfaceFlux
+
+
+!===================================================================================================================================
+!> Initialization routine for cosine_double distribution function: Determine the maximum value of distribution function using
+!> golden-section search
+!===================================================================================================================================
+SUBROUTINE FindCosineDoubleMax(A,B,n,m,gMax)
+! MODULES
+USE MOD_Globals_Vars ,ONLY: PI
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+REAL, INTENT(IN)  :: A,B,n,m
+! OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+REAL, INTENT(OUT) :: gMax
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+REAL, PARAMETER   :: invphi  = 0.6180339887498949  ! 1/phi
+REAL, PARAMETER   :: tol     = 1.0E-8
+REAL              :: a_lo, b_hi, c_p, d_p, fc, fd
+!===================================================================================================================================
+! g(theta) is zero at both endpoints and (under A>=B, m>n) unimodal on (0,PI/2)
+a_lo = 0.0
+b_hi = 0.5*PI
+c_p  = b_hi - invphi*(b_hi - a_lo)
+d_p  = a_lo + invphi*(b_hi - a_lo)
+fc   = SIN(c_p)*(A*COS(c_p)**n - B*COS(c_p)**m)
+fd   = SIN(d_p)*(A*COS(d_p)**n - B*COS(d_p)**m)
+
+DO WHILE ((b_hi - a_lo) .GT. tol)
+  IF (fc .GT. fd) THEN
+    b_hi = d_p
+    d_p  = c_p
+    fd   = fc
+    c_p  = b_hi - invphi*(b_hi - a_lo)
+    fc   = SIN(c_p)*(A*COS(c_p)**n - B*COS(c_p)**m)
+  ELSE
+    a_lo = c_p
+    c_p  = d_p
+    fc   = fd
+    d_p  = a_lo + invphi*(b_hi - a_lo)
+    fd   = SIN(d_p)*(A*COS(d_p)**n - B*COS(d_p)**m)
+  END IF
+END DO
+
+gMax = MAX(fc,fd)
+
+END SUBROUTINE FindCosineDoubleMax
 
 
 SUBROUTINE BCSurfMeshSideAreasandNormals()
@@ -656,7 +739,7 @@ USE MOD_SurfaceModel_Vars
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance
 #endif /*CODE_ANALYZE && USE_LOADBALANCE*/
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1102,7 +1185,7 @@ DO jSample=1,SurfFluxSideSize(2); DO iSample=1,SurfFluxSideSize(1)
     ELSE
       vSF = v_thermal / (2.0*SQRT(PI))  ! mean flux velocity through normal sub-face
     END IF
-  CASE('cosine','cosine2')
+  CASE('cosine','cosine_double')
     vSF = Species(iSpec)%Surfaceflux(iSF)%VeloIC
   CASE DEFAULT
     CALL abort(__STAMP__, 'ERROR in SurfaceFlux: Wrong velocity distribution!')

@@ -34,29 +34,29 @@ SUBROUTINE ParticleInserting()
 !===================================================================================================================================
 ! Modules
 #if USE_MPI
-USE MOD_Particle_MPI_Vars      ,ONLY: PartMPIInitGroup
+USE MOD_Particle_MPI_Vars         ,ONLY: PartMPIInitGroup
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Globals_Vars           ,ONLY: c,PI
-USE MOD_Timedisc_Vars          ,ONLY: dt,time
-USE MOD_Timedisc_Vars          ,ONLY: RKdtFrac,RKdtFracTotal
+USE MOD_Globals_Vars              ,ONLY: c,PI
+USE MOD_Timedisc_Vars             ,ONLY: dt,time
+USE MOD_Timedisc_Vars             ,ONLY: RKdtFrac,RKdtFracTotal
 USE MOD_Particle_Vars
 USE MOD_PIC_Vars
-USE MOD_part_tools             ,ONLY: UpdateNextFreePosition, GetNextFreePosition, IncreaseMaxParticleNumber
-USE MOD_DSMC_Vars              ,ONLY: useDSMC, CollisMode
-USE MOD_DSMC_PolyAtomicModel   ,ONLY: DSMC_SetInternalEnr
-USE MOD_Particle_Analyze_Vars  ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
-USE MOD_Particle_Analyze_Pure  ,ONLY: CalcEkinPart
-USE MOD_part_emission_tools    ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
-USE MOD_part_emission_tools    ,ONLY: CountNeutralizationParticles
-USE MOD_PICDepo_Tools          ,ONLY: DepositPhotonSEEHoles
-USE MOD_part_pos_and_velo      ,ONLY: SetParticlePosition,SetParticleVelocity
-USE MOD_DSMC_BGGas             ,ONLY: BGGas_PhotoIonization
-USE MOD_DSMC_ChemReact         ,ONLY: CalcPhotoIonizationNumber
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
-USE MOD_ReadInTools            ,ONLY: PrintOption
+USE MOD_part_tools                ,ONLY: UpdateNextFreePosition, GetNextFreePosition, IncreaseMaxParticleNumber
+USE MOD_DSMC_Vars                 ,ONLY: useDSMC, CollisMode
+USE MOD_DSMC_PolyAtomicModel      ,ONLY: DSMC_SetInternalEnr
+USE MOD_Particle_Analyze_Vars     ,ONLY: CalcPartBalance,nPartIn,PartEkinIn
+USE MOD_Particle_Analyze_Pure     ,ONLY: CalcEkinPart
+USE MOD_part_emission_tools       ,ONLY: SetParticleChargeAndMass,SetParticleMPF,SamplePoissonDistri,SetParticleTimeStep,CalcNbrOfPhotons
+USE MOD_part_emission_tools       ,ONLY: CountNeutralizationParticles
+USE MOD_PICDepo_Tools             ,ONLY: DepositPhotonSEEHoles
+USE MOD_part_pos_and_velo         ,ONLY: SetParticlePosition,SetParticleVelocity
+USE MOD_DSMC_BGGas                ,ONLY: BGGas_PhotoIonization
+USE MOD_Particle_Photoionization  ,ONLY: CalcPhotoIonizationNumber
+USE MOD_Particle_Mesh_Vars        ,ONLY: GEO
+USE MOD_ReadInTools               ,ONLY: PrintOption
 #if defined(MEASURE_MPI_WAIT)
-USE MOD_Particle_MPI_Vars      ,ONLY: MPIW8TimePart,MPIW8CountPart
+USE MOD_Particle_MPI_Vars         ,ONLY: MPIW8TimePart,MPIW8CountPart
 #endif /*defined(MEASURE_MPI_WAIT)*/
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: SEE,CalcPhotonSEE
 USE MOD_Particle_Photoionization  ,ONLY: PhotoIonization_RayTracing_Volume, PhotoIonization_RayTracing_SEE

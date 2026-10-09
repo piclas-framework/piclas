@@ -1,8 +1,10 @@
-from general_functions import *
-from datetime import date
 import re
+from datetime import date
+
 import numpy as np
 from config import *
+from general_functions import *
+
 
 def remove_from_list(List, *args_to_remove):
     NewList = []
@@ -21,7 +23,7 @@ def display_reaction(CURRENT_REACTION):
                 print('\nChemistry Model %s: '%(i+1), AttrValue[i,0].decode('utf-8'))
                 if AttrValue.shape[1] != 1:
                     print('Non-Reactive species: ', AttrValue[i,1].decode('utf-8'))
-            print('')
+            print()
 
         elif AttrName in ['Products','Reactants','ReactionModel']:
             if len(AttrValue) == 1:
@@ -43,7 +45,7 @@ def display_reaction(CURRENT_REACTION):
 def check_reaction(CURRENT_REACTION):
     existing_reaction_list = list(hdf_unified_data["Reactions"].keys())
     unique_reaction_list = []
-    for item in hdf_unified_data["Reactions"].keys():
+    for item in hdf_unified_data["Reactions"]:
         if re.sub(r'#\d+','',item) not in unique_reaction_list:
             unique_reaction_list.append(re.sub(r'#\d+','',item))
 
@@ -59,11 +61,10 @@ def check_reaction(CURRENT_REACTION):
         user_input = get_valid_input(create_prompt('add a new reaction with different attributes',
                                                    'add a new chemistry model to existing reaction',
                                                    'to skip this reaction'),
-                                                   lambda x: x == '1' or x == '2' or x == '3' or x == '4')
+                                                   lambda x: x in {'1', '2', '3', '4'})
 
         if user_input == '1':
-            New_Reaction_Name = CURRENT_REACTION + "#" + str(count+1)
-            return New_Reaction_Name
+            return CURRENT_REACTION + "#" + str(count+1)
         elif user_input == '2':
             # new chem model to existing reaction
             if count != 1:
@@ -77,8 +78,7 @@ def check_reaction(CURRENT_REACTION):
         elif user_input == '4':
             own_exit()
     else:
-        New_Reaction_Name = CURRENT_REACTION + "#1"
-        return New_Reaction_Name
+        return CURRENT_REACTION + "#1"
 
 # create new chemistry model in the reaction attribute 'AvailableChemistryModels,Reference'
 def create_new_ref_attribute(reaction_name, CHEM_MODEL):
@@ -106,7 +106,7 @@ def create_reaction(CURRENT_REACTION):
         try:
             Reactants, Products = CURRENT_REACTION.split('_')
         except Exception as e:
-            print("Read in of products and reactants from reaction name has failed with error %s. Please ensure reaction has correct format: C2+M_C+M+C (products and reactants separated by underscore). %s will be skipped"%(e,reaction_name))
+            print(f"Read in of products and reactants from reaction name has failed with error {e}. Please ensure reaction has correct format: C2+M_C+M+C (products and reactants separated by underscore). {reaction_name} will be skipped")
             return
         Products = Products.split('+')
         prodList = remove_from_list(Products, 'M', '+', 'A')
@@ -117,7 +117,7 @@ def create_reaction(CURRENT_REACTION):
 
         # create reaction
         dataset = hdf_unified_data["Reactions"].create_dataset(reaction_name, data=0)
-        ReactionModel = get_valid_input(bold('\nPlease enter the reaction model of current reaction %s (Options: "QK" or "TCE")\n-->') % reaction_name, lambda x: x == 'QK' or x == 'TCE')
+        ReactionModel = get_valid_input(bold('\nPlease enter the reaction model of current reaction %s (Options: "QK" or "TCE")\n-->') % reaction_name, lambda x: x in {'QK', 'TCE'})
         dataset.attrs.create('ReactionModel', [ReactionModel], dtype=datatype_h5)
         if ReactionModel == 'TCE':          # get other parameter
             for ArrString in ["Arrhenius-Powerfactor", "Arrhenius-Prefactor" , "Activation-Energy_K"]:
@@ -129,21 +129,21 @@ def create_reaction(CURRENT_REACTION):
                 for spec in reacList:
                     if spec != 'el':  # check all reactants except electrons
                         if hdf_unified_data['Species'][spec][:][-1,0] != 1:
-                            print("Error: Degeneracy of last electronic level of species %s not equal to 1! Reaction will be skipped" % spec)
+                            print(f"Error: Degeneracy of last electronic level of species {spec} not equal to 1! Reaction will be skipped")
                             del hdf_unified_data["Reactions"][reaction_name]
                             return
                         else:
-                            print("Please double check the ionization energy of species %s: %s" % (spec,hdf_unified_data['Species'][spec][:][-1,1]))
+                            print("Please double check the ionization energy of species {}: {}".format(spec,hdf_unified_data['Species'][spec][:][-1,1]))
             else:       # dissociation reaction
                 # sanity check of reactants: EdissEV in species set
                 for spec in reacList:
                     if spec != 'el':  # check all reactants except electrons
                         if hdf_unified_data['Species'][spec].attrs['Ediss_eV'] == None:
-                            print(red("Error:")+" Ediss_eV of species %s not found in database! Reaction will be skipped" % spec)
+                            print(red("Error:")+f" Ediss_eV of species {spec} not found in database! Reaction will be skipped")
                             del hdf_unified_data["Reactions"][reaction_name]
                             return
                         else:
-                            print("Please double check the dissociation energy of species %s: %s" % (spec,hdf_unified_data['Species'][spec].attrs['Ediss_eV']))
+                            print("Please double check the dissociation energy of species {}: {}".format(spec,hdf_unified_data['Species'][spec].attrs['Ediss_eV']))
 
         ##### TODO: show available chem models and be able to select one
         ChemModel = input(bold('\nPlease enter the chemistry model to which the currenet reaction %s belongs\n-->') % reaction_name)
@@ -164,7 +164,7 @@ def create_reaction(CURRENT_REACTION):
 def delete_reaction(CURRENT_REACTION):
     existing_reaction_list = list(hdf_unified_data["Reactions"].keys())
     unique_reaction_list = []
-    for item in hdf_unified_data["Reactions"].keys():
+    for item in hdf_unified_data["Reactions"]:
         if re.sub(r'#\d+','',item) not in unique_reaction_list:
             unique_reaction_list.append(re.sub(r'#\d+','',item))
 
@@ -183,7 +183,7 @@ def delete_reaction(CURRENT_REACTION):
             display_reaction(delete_reaction_name)
             user_input = get_valid_input(create_prompt('to delete this reaction',
                                                        'to skip this reaction'),
-                                                       lambda x: x == '1' or x == '2' or x == '3')
+                                                       lambda x: x in {'1', '2', '3'})
             if user_input == '1':
                 try:        # catch reaction falsly without chem model to still delete
                     chemModelCheck.append(hdf_unified_data["Reactions"][delete_reaction_name].attrs['ChemistryModel'][:,0])

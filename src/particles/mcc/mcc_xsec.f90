@@ -378,7 +378,7 @@ IF(.NOT.GroupFound) THEN
   END IF
   CALL H5LEXISTS_F(file_id_dsmc, TRIM(spec_pair), GroupFound, err)
   IF(.NOT.GroupFound) THEN
-    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found.'
     RETURN
   END IF
 END IF
@@ -387,7 +387,7 @@ END IF
 groupname = TRIM(spec_pair)//'/ELECTRONIC/'
 CALL H5LEXISTS_F(file_id_dsmc, TRIM(groupname), GroupFound, err)
 IF(.NOT.GroupFound) THEN
-  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found.'
   RETURN
 END IF
 
@@ -396,14 +396,14 @@ IF(GroupFound) THEN
   call H5Gget_info_f(group_id, storage, nElec,max_corder, err)
   ! If cross-section data is found, set the corresponding flag
   IF(nElec.GT.0) THEN
-    LBWRITE(UNIT_StdOut,'(A,I3,A)') TRIM(spec_pair)//': Found ', nElec,' electronic excitation cross section(s).'
+    LBWRITE(UNIT_StdOut,'(A,I3,A)') ' | '//TRIM(spec_pair)//': Found ', nElec,' electronic excitation cross section(s).'
     SpecXSec(iCase)%UseElecXSec = .TRUE.
     SpecXSec(iCase)%NumElecLevel = nElec
   ELSE
-    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+    LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found.'
   END IF
 ELSE
-  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found, using constant read-in values.'
+  LBWRITE(UNIT_StdOut,'(A)') ' | '//TRIM(spec_pair)//': No electronic excitation cross sections found.'
 END IF
 
 IF(SpecXSec(iCase)%UseElecXSec) THEN
@@ -1365,9 +1365,9 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     IF((Species(EductReac(2))%InterID.EQ.2).OR.(Species(EductReac(2))%InterID.EQ.20)) &
       Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + (PartIntEn(ReactInx(2))%EVib(1) + PartIntEn(ReactInx(2))%ERot(1)) * Weight(2)
     IF (DSMC%ElectronicModel.GT.0) THEN
-      IF((Species(EductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(1))%FullyIonized)) & 
-        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartIntEn(ReactInx(1))%EElec(1)*Weight(1) 
-      IF((Species(EductReac(2))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(2))%FullyIonized)) & 
+      IF((Species(EductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(1))%FullyIonized)) &
+        Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartIntEn(ReactInx(1))%EElec(1)*Weight(1)
+      IF((Species(EductReac(2))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(2))%FullyIonized)) &
         Coll_pData(iPair)%Ec = Coll_pData(iPair)%Ec + PartIntEn(ReactInx(2))%EElec(1)*Weight(2)
     END IF
     ! Check first if sufficient energy is available for the products after the reaction
@@ -1392,9 +1392,9 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
           IF((Species(EductReac(2))%InterID.EQ.2).OR.(Species(EductReac(2))%InterID.EQ.20)) &
             EcRelativistic = EcRelativistic + (PartIntEn(ReactInx(2))%EVib(1) + PartIntEn(ReactInx(2))%ERot(1)) * Weight(2)
           IF (DSMC%ElectronicModel.GT.0) THEN
-            IF((Species(EductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(1))%FullyIonized)) & 
-              EcRelativistic = EcRelativistic + PartIntEn(ReactInx(1))%EElec(1)*Weight(1) 
-            IF((Species(EductReac(2))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(2))%FullyIonized)) & 
+            IF((Species(EductReac(1))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(1))%FullyIonized)) &
+              EcRelativistic = EcRelativistic + PartIntEn(ReactInx(1))%EElec(1)*Weight(1)
+            IF((Species(EductReac(2))%InterID.NE.4).AND.(.NOT.SpecDSMC(EductReac(2))%FullyIonized)) &
               EcRelativistic = EcRelativistic + PartIntEn(ReactInx(2))%EElec(1)*Weight(2)
           END IF
 
@@ -1434,7 +1434,7 @@ DO iPath = 1, ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths
     END ASSOCIATE
     ! Calculation of reaction rate coefficient
     IF (DSMC%ReservoirSimu.AND..NOT.DSMC%ReservoirRateStatistic) THEN
-      ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath)
+      ChemReac%NumReac(ReacTest) = ChemReac%NumReac(ReacTest) + ChemReac%CollCaseInfo(iCase)%ReactionProb(iPath) * SUM(Weight(:)) / NumWeightProd
       ChemReac%ReacCount(ReacTest) = ChemReac%ReacCount(ReacTest) + 1
     END IF
   END IF

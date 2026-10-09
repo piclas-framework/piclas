@@ -2015,24 +2015,24 @@ DO iGlobalElem = firstElem,lastElem
   ! Every periodic vector already found
   IF (ALL(PeriodicFound(:))) EXIT
 
-SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElem)
+  SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobalElem)
     ! Get BC
     iBC = SideInfo_Shared(SIDE_BCID,SideID)
-    IF(iBC.EQ.0) CYCLE
+    IF(iBC.EQ.0) CYCLE SideLoop
 
     ! Get particle BC
     iPartBC = PartBound%MapToPartBC(iBC)
-    IF (iPartBC.EQ.0) CYCLE
+    IF (iPartBC.EQ.0) CYCLE SideLoop
 
     ! Boundary is a periodic boundary
-    IF (PartBound%TargetBoundCond(iPartBC).NE.3) CYCLE
+    IF (PartBound%TargetBoundCond(iPartBC).NE.3) CYCLE SideLoop
 
     ! Check if side is master side
     BCALPHA = BoundaryType(iBC,BC_ALPHA)
 
     IF (BCALPHA.GT.0) THEN
       ! Periodic vector already found
-      IF (PeriodicFound(BCALPHA)) CYCLE
+      IF (PeriodicFound(BCALPHA)) CYCLE SideLoop
 
       ! Periodic slave side has same ID, but negative sign
       flip          = MERGE(0,MOD(SideInfo_Shared(SIDE_FLIP,SideID),10),SideInfo_Shared(SIDE_ID,SideID).GT.0)
@@ -2048,7 +2048,7 @@ SideLoop: DO SideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobalElem)+1,ElemInfo_
       Vec           = SlaveCoords-MasterCoords
 
       ! Might consider aborting here, malformed periodic sides
-      IF (VECNORM3D(Vec).EQ.0) CYCLE
+      IF (VECNORM3D(Vec).EQ.0) CYCLE SideLoop
 
       ! Check if the periodic vector is ALMOST aligned with a Cartesian direction
       DO iVec = 1,3
@@ -2124,6 +2124,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared, SideIsSymSide
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 USE MOD_Particle_Surfaces       ,ONLY: CalcNormAndTangTriangle
+USE MOD_ReadInTools             ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_MPI_Shared
@@ -2274,7 +2275,11 @@ CALL MPI_BCAST(MeshVolume,1, MPI_DOUBLE_PRECISION,0,MPI_COMM_SHARED,iERROR)
 #else
 MeshVolume = LocalVolume
 #endif /*USE_MPI*/
-
+IF(Symmetry%Axisymmetric) THEN
+  CALL PrintOption('Total 2D axisymmetric mesh volume','CALCUL.',RealOpt=MeshVolume)
+ELSE
+  CALL PrintOption('Total 2D mesh volume','CALCUL.',RealOpt=MeshVolume)
+END IF
 END SUBROUTINE InitVolumes_2D
 
 
@@ -2292,6 +2297,7 @@ USE MOD_Particle_Mesh_Vars      ,ONLY: GEO,LocalVolume,MeshVolume, SideIsSymSide
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Particle_Mesh_Vars      ,ONLY: NodeCoords_Shared,ElemSideNodeID_Shared, SideInfo_Shared
 USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
+USE MOD_ReadInTools             ,ONLY: PrintOption
 #if USE_MPI
 USE MOD_Mesh_Vars               ,ONLY: ELEM_HALOFLAG
 USE MOD_MPI_Shared
@@ -2450,6 +2456,8 @@ END DO
 #if USE_MPI
 CALL BARRIER_AND_SYNC(SideIsSymSide_Shared_Win ,MPI_COMM_SHARED)
 #endif
+
+CALL PrintOption('Total 1D mesh volume','CALCUL.',RealOpt=MeshVolume)
 
 END SUBROUTINE InitVolumes_1D
 

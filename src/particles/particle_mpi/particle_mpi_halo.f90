@@ -695,7 +695,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
     END IF ! HaloProc.EQ.myRank
   ELSE
     ! Skip own myrank
-    IF (HaloProc.EQ.myRank) CYCLE
+    IF (HaloProc.EQ.myRank) CYCLE ElemLoop
   END IF ! DoParticleLatencyHiding
 
   ! Skip if the proc is already flagged, only if the exact elements are not required (.NOT.shape_function)
@@ -810,7 +810,7 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
             GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 1
             GlobalProcToExchangeProc(EXCHANGE_PROC_RANK,HaloProc) = nExchangeProcessors
             nExchangeProcessors = nExchangeProcessors + 1
-            CYCLE
+            CYCLE ElemLoop
           ELSE
             ! Process possible in range
             GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = 0
@@ -818,13 +818,13 @@ ElemLoop:  DO iElem = 1,nComputeNodeTotalElems
         ELSE ! .NOT.ProcInRange
           ! Proc definitely not in range
           GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc) = -2
-          CYCLE
+          CYCLE ElemLoop
         END IF ! ProcInRange
 
       CASE(-2,1,2) ! Proc definitely not in range or already flagged
-        CYCLE
-    END SELECT
-  END IF
+        CYCLE ElemLoop
+    END SELECT ! GlobalProcToExchangeProc(EXCHANGE_PROC_TYPE,HaloProc)
+  END IF ! .NOT.StringBeginsWith(DepositionType,'shape_function').AND.(TRIM(DepositionType).NE.'cell_volweight_mean')
 
   DO iSide = 1, nExchangeSides
 
@@ -1070,9 +1070,9 @@ DO iProc = 0,nProcessors_Global-1
 
   ProcHasExchangeElem = .FALSE.
   ! Use a named loop so the entire element can be cycled
-ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
+  ExchangeLoop: DO iElem = offsetElemMPI(iProc)+1,offsetElemMPI(iProc+1)
     ! Ignore elements outside nComputeNodeTotalElems
-    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.0) CYCLE
+    IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.0) CYCLE ExchangeLoop
 
     DO iLocSide = 1,6
       SideID   = GetGlobalNonUniqueSideID(iElem,iLocSide)

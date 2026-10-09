@@ -1,4 +1,4 @@
-#%Module1.0#####################################################################                                                                                                                             
+#%Module1.0#####################################################################
 ##
 ## modules compilers/intel/versionflag
 ##
@@ -29,4 +29,3 @@ prepend-path    PATH            $topdir/compiler/include/intel64
 prepend-path    PATH            $topdir/bin/intel64
 prepend-path    MANPATH         $topdir/man
 prepend-path    LD_LIBRARY_PATH $topdir/compiler/lib/intel64
-

@@ -13,13 +13,13 @@
 #include "piclas.h"
 
 MODULE MOD_PICDepo_Method
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! Module containing the different deposition methods (NGP, linear (inter-cell) weighting, shape function
 !===================================================================================================================================
 IMPLICIT NONE
 PRIVATE
 
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !----------------------------------------------------------------------------------------------------------------------------------
 PUBLIC :: DepositionMethod
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -421,7 +421,7 @@ INTEGER,INTENT(IN),OPTIONAL :: stage_opt
 ! LOCAL VARIABLES
 REAL               :: Charge, TSource(1:4), PartDistDepo(8), DistSum
 REAL               :: alpha1, alpha2, alpha3, TempPartPos(1:3)
-INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc, ElemID
+INTEGER            :: kk, ll, mm, iPart, iElem, jNode, jGlobNode, Nloc, ElemID, CNElemID
 INTEGER            :: NodeID(1:8), iNode, globalNode
 LOGICAL            :: SucRefPos
 #if !((USE_HDG) && (PP_nVar==1))
@@ -486,6 +486,8 @@ DO iPart=1,PDM%ParticleVecLength
     END IF
     TSource(4) = Charge
 
+    ! Get compute-node element index from particle info
+    CNElemID = PEM%CNElemID(iPart)
     IF (SucRefPos) THEN
       alpha1=0.5*(TempPartPos(1)+1.0)
       alpha2=0.5*(TempPartPos(2)+1.0)
@@ -499,7 +501,7 @@ DO iPart=1,PDM%ParticleVecLength
       PartDistDepo(7) = (alpha1)*  (alpha2)*  (alpha3)
       PartDistDepo(8) = (1-alpha1)*  (alpha2)*  (alpha3)
 
-      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,PEM%CNElemID(iPart)))
+      NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
       DO iNode=1, 8
         NodeSource(SourceDim:4,NodeID(iNode)) = NodeSource(SourceDim:4,NodeID(iNode)) + (TSource(SourceDim:4)*PartDistDepo(iNode))
         IF (GEO%nPeriodicVectors.GT.0) THEN
@@ -513,7 +515,7 @@ DO iPart=1,PDM%ParticleVecLength
       END DO
 
     ELSE ! not SucRefPos
-      NodeID = ElemNodeID_Shared(:,PEM%CNElemID(iPart))
+      NodeID = ElemNodeID_Shared(:,CNElemID)
       DO iNode = 1, 8
         norm = VECNORM3D(NodeCoords_Shared(1:3, NodeID(iNode)) -PartState(1:3,iPart))
         IF(norm.GT.0.)THEN
@@ -604,7 +606,8 @@ CALL LBStartTime(tLBStart) ! Start time measurement
 DO iElem = 1, nElems
   ! Get UniqueNodeID from NonUniqueNodeID = ElemNodeID_Shared(:,GetCNElemID(iElem))
   ElemID = iElem+offsetElem
-  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,GetCNElemID(ElemID)))
+  CNElemID = GetCNElemID(ElemID)
+  NodeID = NodeInfo_Shared(ElemNodeID_Shared(:,CNElemID))
   Nloc = N_DG_Mapping(2,iElem+offSetElem)
   DO kk = 0, Nloc
     DO ll = 0, Nloc

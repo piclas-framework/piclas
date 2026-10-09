@@ -20,19 +20,6 @@ MODULE MOD_DSMC_ElectronicModel
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
-
-INTERFACE ElectronicEnergyExchange
-  MODULE PROCEDURE ElectronicEnergyExchange
-END INTERFACE
-
-INTERFACE InitElectronShell
-  MODULE PROCEDURE InitElectronShell
-END INTERFACE
-
-INTERFACE ReadSpeciesLevel
-  MODULE PROCEDURE ReadSpeciesLevel
-END INTERFACE
-
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------

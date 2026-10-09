@@ -8,16 +8,14 @@ NumberOfInputs = 1
 #OutputDataType = 'vtkPointsData'
 ExtraXml = ''
 
-Properties = dict(
-  WhichField=0,
-  Trafo=0
-  )
+Properties = {
+  'WhichField': 0,
+  'Trafo': 0
+  }
 
 def RequestData():
   import math
-  import numpy
-  import paraview
-  import vtk.numpy_interface.dataset_adapter
+
   import vtk.numpy_interface.algorithms
   # -- this will import vtkMultiProcessController and vtkMPI4PyCommunicator
   input=self.GetInputDataObject(0,0)
@@ -51,13 +49,13 @@ def RequestData():
   newField.SetNumberOfComponents(3)
   if Trafo == 0:
       # cylindrical coord
-      VarNameOut=''.join([VarName,'_CC'])
+      VarNameOut=f'{VarName}_CC'
       newField.SetComponentName(0,'r')
       newField.SetComponentName(1,'theta')
       newField.SetComponentName(2,'z')
   else:
       # spherical coord
-      VarNameOut=''.join([VarName,'_SC'])
+      VarNameOut=f'{VarName}_SC'
       newField.SetComponentName(0,'r')
       newField.SetComponentName(1,'theta')
       newField.SetComponentName(2,'phi')
@@ -65,7 +63,7 @@ def RequestData():
   newField.SetNumberOfTuples(numPoints)
   if Trafo == 0:
       # computes trafo in cylindrical coordinates
-      for i in range(0, numPoints):
+      for i in range(numPoints):
           coord = pdi.GetPoint(i)
           x, y, z  = coord[:3]
           FieldX = pdi.GetPointData().GetArray(VarName).GetValue(3*i  )
@@ -80,7 +78,7 @@ def RequestData():
           newField.SetValue(3*i+2,FieldZ)
   else:
       # spherical coord 
-      for i in range(0, numPoints):
+      for i in range(numPoints):
           coord = pdi.GetPoint(i)
           x, y, z  = coord[:3]
           FieldX = pdi.GetPointData().GetArray(VarName).GetValue(3*i  )
@@ -99,5 +97,4 @@ def RequestData():
   pdo.GetPointData().AddArray(newField)
 
 def RequestInformation():
-  from paraview import util
-  pdi = self.GetInput()
+  self.GetInput()

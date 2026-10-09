@@ -108,7 +108,7 @@ IMPLICIT NONE
 INTEGER                          :: iFile,iVar,offset,nDim,i,j,nDims,OffsetCounter,nDOF_State,l,iElem
 REAL,ALLOCATABLE                 :: Utmp(:,:,:,:,:)
 REAL                             :: time
-DOUBLE PRECISION,ALLOCATABLE     :: Ktmp(:)
+REAL,ALLOCATABLE     :: Ktmp(:)
 CHARACTER(LEN=255)               :: FileType
 INTEGER,ALLOCATABLE              :: VarSortTimeAvg(:)
 INTEGER,PARAMETER :: TimeStampLength=21
@@ -396,12 +396,12 @@ EXTERNAL         ZGESV
 ! LOCAL VARIABLES
 INTEGER                          :: i,M,N,LDA,LDU,LDVT,LWMAX,INFO,LWORK,nFilter
 INTEGER,ALLOCATABLE              :: IWORK(:),IPIV(:),filter(:)
-DOUBLE PRECISION,ALLOCATABLE     :: WORK(:)
-DOUBLE PRECISION,ALLOCATABLE     :: SigmaInv(:,:),SigmaMat(:,:),USVD(:,:),WSVD(:,:),SigmaSVD(:)
-DOUBLE PRECISION,ALLOCATABLE     :: USVDTmp(:,:),WSVDTmp(:,:),SigmaSVDTmp(:)
+REAL,ALLOCATABLE     :: WORK(:)
+REAL,ALLOCATABLE     :: SigmaInv(:,:),SigmaMat(:,:),USVD(:,:),WSVD(:,:),SigmaSVD(:)
+REAL,ALLOCATABLE     :: USVDTmp(:,:),WSVDTmp(:,:),SigmaSVDTmp(:)
 COMPLEX,ALLOCATABLE              :: WORKC(:)
 REAL,ALLOCATABLE                 :: RWORK(:),SortVar(:,:)
-DOUBLE PRECISION,ALLOCATABLE     :: KTmp(:,:),RGlobMat(:,:),Rglob,Rsnap1,Rsnap2
+REAL,ALLOCATABLE     :: KTmp(:,:),RGlobMat(:,:),Rglob,Rsnap1,Rsnap2
 COMPLEX,ALLOCATABLE              :: STilde(:,:),STildeWork(:,:),eigSTilde(:),VL(:,:),VR(:,:)
 COMPLEX,ALLOCATABLE              :: Vand(:,:),qTmp(:,:)
 COMPLEX,ALLOCATABLE              :: P(:,:),PhiTmp(:,:),alphaTmp(:)

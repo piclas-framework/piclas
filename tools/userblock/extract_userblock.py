@@ -13,6 +13,8 @@
 
 import argparse
 import subprocess
+import sys
+
 
 # extract userblock from HDF5 state file
 def get_userblock(filename,userblock) :
@@ -28,7 +30,7 @@ def get_userblock(filename,userblock) :
 
       if linesread == 1 and not line.startswith(b'{[(') :
         print(f'Error: HDF5 state file {filename} contains no userblock.')
-        exit(1)
+        sys.exit(1)
 
       if line.startswith(b'{[( END USERBLOCK )]}') :
         break
@@ -37,8 +39,7 @@ def get_userblock(filename,userblock) :
       for i in range(len(line)) :
           c = line[i]
           if c == 0 : continue
-          if c == 137 : 
-              if line[i+1:i+4] == b'HDF' : HDFfound = True
+          if c == 137 and line[i+1:i+4] == b'HDF' : HDFfound = True
       if HDFfound :
         break
 
@@ -56,7 +57,7 @@ def get_userblock(filename,userblock) :
         fc.write(userblock_compressed)
         fc.close()
         try:
-          p = subprocess.call("tar -xJf " + filenametar,shell=True)
+          subprocess.call("tar -xJf " + filenametar,shell=True)
         except:
           print('Error while extracting userblock data.')
           raise
@@ -79,21 +80,21 @@ def print_all_parts(userblock) :
         # try if line contains a part identifier: {[( IDENTIFIER )]}
         try :
             if not line.startswith("{[(") : continue
-            identifier = line.split("{[(")[1].split(")]}")[0] 
+            identifier = line.split("{[(")[1].split(")]}")[0]
             if "END USERBLOCK" in identifier : break
             # print identifier
             print(identifier)
-        except :
+        except :  # noqa: S112
             continue
 
 def get_part(userblock,part) :
-    ret = "" 
+    ret = ""
     output = False
     for line in userblock.split('\n') :
         # try if line contains a part identifier: {[( IDENTIFIER )]}
         try :
             if line.startswith("{[(") :
-                identifier = line.split("{[(")[1].split(")]}")[0] 
+                identifier = line.split("{[(")[1].split(")]}")[0]
                 # if identifier is found -> start output
                 if part in identifier :
                     output = True
@@ -102,7 +103,7 @@ def get_part(userblock,part) :
                     # we found another identifier -> stop output
                     if output : break
                 if "END USERBLOCK" in identifier : break
-        except :
+        except :  # noqa: S112
             continue
         if output : ret = ret + line + "\n"
     return ret
@@ -129,7 +130,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    userblock = get_userblock(args.filename,'') 
+    userblock = get_userblock(args.filename,'')
     if args.show :
         print_all_parts(userblock)
     if args.part :

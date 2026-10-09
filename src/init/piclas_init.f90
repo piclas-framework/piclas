@@ -16,17 +16,14 @@ MODULE MOD_Piclas_Init
 !===================================================================================================================================
 ! contains global init and finalize
 !===================================================================================================================================
+! MODULES
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+PRIVATE
 
-INTERFACE InitPiclas
-  MODULE PROCEDURE InitPiclas
-END INTERFACE
-
-INTERFACE FinalizePiclas
-   MODULE PROCEDURE FinalizePiclas
-END INTERFACE
-
-PUBLIC:: FinalizePiclas
-PUBLIC:: InitPiclas
+PUBLIC :: FinalizePiclas
+PUBLIC :: InitPiclas
+PUBLIC :: DefineParametersPiclas
 !===================================================================================================================================
 
 CONTAINS

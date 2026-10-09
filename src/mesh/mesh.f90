@@ -985,7 +985,7 @@ CALL MPI_ALLREDUCE(LocalVolume,MeshVolume,1,MPI_DOUBLE_PRECISION,MPI_SUM,MPI_COM
 MeshVolume = LocalVolume
 #endif /*USE_MPI*/
 
-LBWRITE(UNIT_StdOut,'(A,E18.8)') ' |              Total MESH Volume |                ', MeshVolume
+CALL PrintOption('Total mesh volume (without symmetries)','CALCUL.',RealOpt=MeshVolume)
 LBWRITE(UNIT_stdOut,'(A)')' INIT ELEMENT GEOMETRY INFORMATION DONE!'
 LBWRITE(UNIT_StdOut,'(132("-"))')
 END SUBROUTINE InitElemVolumes

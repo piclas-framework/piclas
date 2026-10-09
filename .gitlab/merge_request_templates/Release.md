@@ -8,6 +8,7 @@
   in the top level directory. Adjust the version number argument to the current. Check if the following two files have been correctly changed/updated:
   * [ ] Check that `./src/globals/globals_vars.f90` (`MajorVersion`, `MinorVersion` and `PatchVersion`) is updated.
   * [ ] Check that `.github/workflows/cmake-ninja.yml` (`piclas-binaries-vX.X.X`) is updated.
+  * [ ] Check that `fpm.toml` (`version = "X.X.X"`) is updated.
 
 ## 2. Prerequisites
 * [ ] Update the prerequisite table for compiling piclas under [Required Libraries](https://piclas.readthedocs.io/en/latest/userguide/installation.html#required-libraries) (`docs/documentation/userguide/installation.md`) by checking the versions that are currently used by the reggie server (see gitlab CI/CD) for mpich and OpenMPI.
@@ -18,9 +19,8 @@ For example, see Release 3.3.0 pipelines for [openmpi](https://piclas.boltzplatz
 ## 3. AppImage
 Update the library versions and push the most recent version of the `master.dev` repository to the testing GitHub repository and make sure that the AppImage compilation process succeeds before doing the real GitHub release.
   * [ ] Update the GCC/MPI/HDF5/PETSc library versions used in the GitHub workflow by adjusting the versions in [cmake-ninja.yml](https://piclas.boltzplatz.eu/piclas/piclas/-/blob/master.dev/.github/workflows/cmake-ninja.yml) (`.github/workflows/cmake-ninja.yml`) with which the AppImage is built.
-  * [ ] Update the information in the user guide regarding the versions of the glibc (currently the OS version is used) and OpenMPI dependencies in the [AppImage dependeny table](https://piclas.readthedocs.io/en/latest/userguide/installation.html#appimage-executable-download) (`docs/documentation/userguide/installation.md`) that are required for the AppImage. Check the following examples and linked commits on how this is done:
-    *  Release 1.0.0 - 3.3.0: glibc 2.17 + OpenMPI X.X.X
-    *  Release 3.3.0 - X.X.X: glibc 2.18 [9b09c795](https://piclas.boltzplatz.eu/piclas/piclas/-/commit/9b09c7957800915cbdf5ecc4a0d8ba43993060da) + OpenMPI X.X.X
+  * [ ] Update the information in the user guide regarding the versions of the glibc (currently the OS version is used) and OpenMPI dependencies in the [AppImage dependeny table](https://piclas.readthedocs.io/en/latest/userguide/installation.html#appimage-executable-download) (`docs/documentation/userguide/installation.md`) that are required for the AppImage. Run the following tool after downloading the AppImage
+    *  `./tools/test_GLIBC_requirement.sh`
   * [ ] Push the feature branch `feature.branch.name`, which is usually the `master.dev` branch, with the changed `cmake-ninja.yml` file that features an updated version of the MPI/HDF5/PETSc libraries for building the AppImage to the testing repository via gitlab Pipelines. Select [New Pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) and set "Run for branch name or tag" to the required `feature.branch.name` and set `DO_CREATE_APPIMAGE` to `true`.
     ```
     DO_CREATE_APPIMAGE = true

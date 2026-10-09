@@ -28,9 +28,11 @@ PRIVATE
 
 INTERFACE
   SUBROUTINE copy_userblock(outfilename,infilename) BIND(C)
-      USE ISO_C_BINDING, ONLY: C_CHAR
-      CHARACTER(KIND=C_CHAR) :: outfilename(*)
-      CHARACTER(KIND=C_CHAR) :: infilename(*)
+     USE ISO_C_BINDING, ONLY: C_CHAR
+     ! allow(C071)
+     CHARACTER(KIND=C_CHAR),INTENT(IN) :: outfilename(*)
+     ! allow(C071)
+     CHARACTER(KIND=C_CHAR),INTENT(IN) :: infilename(*)
   END SUBROUTINE copy_userblock
 END INTERFACE
 
@@ -72,12 +74,12 @@ CHARACTER(LEN=*),INTENT(IN)          :: TypeString
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: FileNameIn
 INTEGER,INTENT(IN)                   :: nVar
 INTEGER,INTENT(IN),OPTIONAL          :: NIn
-CHARACTER(LEN=255)                   :: StrVarNames(nVar)
+CHARACTER(LEN=255),INTENT(IN)        :: StrVarNames(nVar)
 CHARACTER(LEN=*),INTENT(IN)          :: MeshFileName
 REAL,INTENT(IN)                      :: OutputTime
 LOGICAL,INTENT(IN),OPTIONAL          :: WriteUserblockIn
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: NodeType_in        !< Type of 1D points
-CHARACTER(LEN=*),INTENT(OUT),OPTIONAL:: FileNameOut
+CHARACTER(LEN=255),INTENT(OUT),OPTIONAL :: FileNameOut
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -99,7 +101,7 @@ ELSE
   FileName=TRIM(TIMESTAMP(TRIM(ProjectName)//'_'//TRIM(TypeString),OutputTime))//'.h5'
 END IF ! PRESENT(FileNameIn)
 IF(.NOT.MPIRoot) THEN
-  IF(PRESENT(FileNameOut)) FileNameOut = FileName
+  IF(PRESENT(FileNameOut)) FileNameOut = TRIM(FileName)
   RETURN
 END IF
 
@@ -548,14 +550,14 @@ dummy_log = collective
 END SUBROUTINE WriteArrayToHDF5
 
 
-SUBROUTINE WriteAttributeToHDF5(Loc_ID_in,AttribName,nVal,DataSetname,&
-                                RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
-                                RealArray,IntegerArray,StrArray, &
-                                Overwrite)
 !===================================================================================================================================
 ! Subroutine to write Attributes to HDF5 format of a given Loc_ID, which can be the File_ID,datasetID,groupID. This must be opened
 ! outside of the routine. If you directly want to write an attribute to a dataset, just provide the name of the dataset
 !===================================================================================================================================
+SUBROUTINE WriteAttributeToHDF5(Loc_ID_in,AttribName,nVal,DataSetname,&
+                                RealScalar,IntegerScalar,StrScalar,LogicalScalar, &
+                                RealArray,IntegerArray,StrArray, &
+                                Overwrite)
 ! MODULES
 USE MOD_Globals
 USE,INTRINSIC :: ISO_C_BINDING
@@ -592,15 +594,17 @@ TYPE(C_PTR)                    :: buf
 LOGICAL                        :: AttribExists,Overwrite_loc
 !===================================================================================================================================
 LOGWRITE(*,*)' WRITE ATTRIBUTE "',TRIM(AttribName),'" TO HDF5 FILE...'
+Loc_ID=Loc_ID_in
 IF(PRESENT(DataSetName))THEN
-  ! Open dataset
-  IF(TRIM(DataSetName).NE.'') CALL H5DOPEN_F(File_ID, TRIM(DatasetName),Loc_ID, iError)
-ELSE
-  Loc_ID=Loc_ID_in
+  ! Open dataset in given Loc_ID_in (currently always File_ID) and set Loc_ID to the dataset identifier
+  IF(TRIM(DataSetName).NE.'')THEN
+    CALL H5DOPEN_F(Loc_ID_in, TRIM(DatasetName),Loc_ID, iError)
+    IF(iError.NE.0) CALL abort(__STAMP__,'ERROR in WriteAttributeToHDF5: Dataset '//TRIM(DatasetName)//' could not be opened.')
+  END IF
 END IF
 ! Create scalar data space for the attribute.
 Rank=1
-Dimsf(:)=0 !???
+Dimsf(:)=0
 Dimsf(1)=nVal
 CALL H5SCREATE_SIMPLE_F(Rank, Dimsf, DataSpace, iError)
 ! Create the attribute for group Loc_ID.
@@ -625,7 +629,7 @@ IF(PRESENT(StrScalar).OR.PRESENT(StrArray))THEN
 ENDIF
 
 ! Check if attribute already exists
-CALL DatasetExists(File_ID,TRIM(AttribName),AttribExists,attrib=.TRUE.)
+CALL DatasetExists(Loc_ID,TRIM(AttribName),AttribExists,attrib=.TRUE.)
 IF(AttribExists)THEN
   IF(PRESENT(Overwrite))THEN
     Overwrite_loc = Overwrite
@@ -657,7 +661,7 @@ CALL H5SCLOSE_F(DataSpace, iError)
 ! Close the attribute.
 CALL H5ACLOSE_F(Attr_ID, iError)
 IF(Loc_ID.NE.Loc_ID_in)THEN
-  ! Close the dataset and property list.
+  ! Close the dataset (only if DataSetName has been given)
   CALL H5DCLOSE_F(Loc_ID, iError)
 END IF
 LOGWRITE(*,*)'...DONE!'

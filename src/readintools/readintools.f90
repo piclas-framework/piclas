@@ -199,7 +199,7 @@ CLASS(link), POINTER         :: current
 
 ! iterate over all options and compare names
 SWRITE(UNIT_stdOut,'(132("="))')
-SWRITE(UNIT_stdOut,'(A,I0,A)') ' Following ',this%count_unread(),' Parameters are defined in INI but not called!'
+SWRITE(UNIT_stdOut,"(A,I0,A)") ' Following ',this%count_unread(),' Parameters are defined in INI but not called!'
 current => this%firstLink
 DO WHILE (associated(current))
   ! compare name
@@ -928,16 +928,15 @@ DO WHILE (associated(current))
         IF (.NOT.(current%opt%multiple)) THEN
           ! option already set, but is not a multiple option
           SWRITE(UNIT_StdOut,*) 'Option "', TRIM(name), '" is already set, but is not a multiple option!'
-          STOP
-        ELSE
-          ! create new instance of multiple option
-          ALLOCATE(newopt, source=current%opt)
-          CALL newopt%parse(rest)
-          newopt%isSet = .TRUE.
-          ! insert option
-          CALL insertOption(current, newopt)
-          RETURN
+          STOP 1
         END IF
+        ! create new instance of multiple option
+        ALLOCATE(newopt, source=current%opt)
+        CALL newopt%parse(rest)
+        newopt%isSet = .TRUE.
+        ! insert option
+        CALL insertOption(current, newopt)
+        RETURN
       END IF
       ! parse option
       IF(LEN_TRIM(rest).NE.0)THEN
@@ -1025,8 +1024,8 @@ USE MOD_StringTools ,ONLY: STRICMP
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-LOGICAL,INTENT(IN)   :: markdown  !< marker whether markdown format is used for output
-CHARACTER(LEN=255)   :: name      !< for this parameter help is printed. If empty print all.
+LOGICAL,INTENT(IN)              :: markdown  !< marker whether markdown format is used for output
+CHARACTER(LEN=255),INTENT(IN)   :: name      !< for this parameter help is printed. If empty print all.
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link), POINTER   :: current
@@ -1209,7 +1208,7 @@ USE MOD_Options
 ! INPUT / OUTPUT VARIABLES
 CHARACTER(LEN=*),INTENT(IN)          :: name     !< parameter name
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal !< reference value
-CLASS(*)                             :: value    !< parameter value
+CLASS(*),INTENT(INOUT)               :: value    !< parameter value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER          :: current
@@ -1655,7 +1654,7 @@ USE MOD_Options
 CHARACTER(LEN=*),INTENT(IN)          :: name      !< parameter name
 INTEGER,INTENT(IN)                   :: no        !< size of array
 CHARACTER(LEN=*),INTENT(IN),OPTIONAL :: proposal  !< reference value
-CLASS(*)                             :: value(no) !< parameter value
+CLASS(*),INTENT(INOUT)               :: value(no) !< parameter value
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 CLASS(link),POINTER          :: current

@@ -58,9 +58,9 @@ adaptation step.
 
 The `MaxFactor` and `MinFactor` allow to limit the adapted time step within a range of $f_{\mathrm{min}} \Delta t$ and
 $f_{\mathrm{max}} \Delta t$. The time step adaptation can be used to increase the number of particles by defining a minimum
-particle number (e.g `MinPartNum` = 10, optional). For DSMC, the parameters `TargetMCSoverMFP` (ratio of the mean collision
+particle number (e.g. `MinPartNum` = 10, optional). For DSMC, the parameters `TargetMCSoverMFP` (ratio of the mean collision
 separation distance over mean free path) and `TargetMaxCollProb` (maximum collision probability) allow to modify the target values
-for the adaptation. For the BGK and FP methods, the time step can be adapted according to a target maximal relaxation frequency.
+for the adaptation. For the BGK and FP methods, the time step can be adapted according to a target maximal relaxation factor.
 
 The last two flags enable to initialize the particles distribution from the given DSMC state file, using the macroscopic properties
 such as flow velocity, number density and temperature (see Section {ref}`sec:macroscopic-restart`). Strictly speaking, the VTS procedure
@@ -69,7 +69,7 @@ restart to initialize the correct particle number per cells. Otherwise, cells wi
 some time until the additional particles have reached/left the cell.
 
 The time step adaptation can also be utilized in coupled BGK-DSMC simulations, where the time step will be adapted in both regions
-according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be payed in
+according to the respective criteria as the BGK factors are zero in the DSMC region and vice versa. Attention should be paid in
 the transitional region between BGK and DSMC, where the factors are potentially calculated for both methods. Here, the time step
 required to fulfil the maximal collision probability criteria will be utilized as it is the more stringent one.
 
@@ -92,7 +92,7 @@ are discussed in Section {ref}`sec:2D-axisymmetric`.
 
 ### Species-specific time step
 
-This option is decoupled from the other two time step options as the time step is not applied on a per-particle basis but for each species. Currently, its main application is for PIC-MCC simulations (only Poisson field solver with Euler, Leapfrog and Boris-Leapfrog time discretization methods), where there are large differences in the time scales (e.g. electron movement requires a time step of several orders of magnitude smaller than the ions). The species-specific time step is actvitated per species by setting a factor
+This option is decoupled from the other two time step options as the time step is not applied on a per-particle basis but for each species. Currently, its main application is for PIC-MCC simulations (only Poisson field solver with Euler, Leapfrog and Boris-Leapfrog time discretization methods), where there are large differences in the time scales (e.g. electron movement requires a time step of several orders of magnitude smaller than the ions). The species-specific time step is activated per species by setting a factor
 
     Part-Species1-TimeStepFactor = 0.01
 
@@ -161,6 +161,10 @@ To enable axisymmetric simulations, the following flag is required
 
     Particles-Symmetry2DAxisymmetric=T
 
+Note that currently two tracking approaches are implemented. The current default utilizes an exact axisymmetric tracking (`Particles-Symmetry2DAxisymmetricExact = T`), where the
+curvature of the rotated geometry is considered. While marginally more computationally expensive, it provides improved accuracy for interior
+flows and avoids numerical artifacts as demonstrated in the following regression test: `regressioncheck/NIG_tracking_DSMC/axisymmetric_exact_tracking`.
+
 To fully exploit rotational symmetry, a radial weighting can be enabled, which will linearly increase the weighting factor $w$
 towards $y_{\mathrm{max}}$ (i.e. the domain border in $y$-direction), depending on the current $y$-position of the particle.
 
@@ -178,13 +182,12 @@ For the deletion process, a deletion probability is calculated, if the new weigh
 
 $$ P_{\mathrm{delete}} = 1 - P_{\mathrm{clone}}\qquad \text{for}\quad w_{\mathrm{old}}<w_{\mathrm{new}}.$$
 
-If the ratio between the old and the new weighting factor is $w_{\mathrm{old}}/w_{\mathrm{new}}> 2$, the time step or the radial
+For the cloning procedure, three methods are implemented, where the clones are inserted immediately (`CloneMode=0`) or the information of the particles to be cloned are stored for a
+given number of iterations and inserted at the old position. The former method is suitable for background gas simulations and simulations without the nearest neighbour scheme.
+The delayed methods have the following limitation: If the ratio between the old and the new weighting factor is $w_{\mathrm{old}}/w_{\mathrm{new}}> 2$, the time step or the radial
 weighting factor should be reduced as the creation of more than one clone per particle per time step is not allowed. The same
-applies if the deletion probability is above $0.5$.
-
-For the cloning procedure, two methods are implemented, where the information of the particles to be cloned are stored for a
-given number of iterations (`CloneDelay=10`) and inserted at the old position. The difference is whether the list is inserted
-chronologically (`CloneMode=1`) or randomly (`CloneMode=2`) after the first number of delay iterations.
+applies if the deletion probability is above $0.5$. For the delayed clone modes, two options are available, where the list is inserted chronologically
+(`CloneMode=1`) or randomly (`CloneMode=2`) after a user-defined number of iterations (`CloneDelay=10`).
 
     Part-Weight-CloneMode=2
     Part-Weight-CloneDelay=10
@@ -196,7 +199,7 @@ ever-increasing number of identical particles travelling on the same path. An in
 encountered per time step during collisions is given as an output (`2D_IdenticalParticles`, to enable the output see Section
 {ref}`sec:DSMC-quality`). Additionally, it should be noted that a large delay of the clone insertion might be problematic for
 time-accurate simulations. However, for the most cases, values for the clone delay between 2 and 10 should be sufficient to
-avoid the avalance phenomenon.
+avoid the avalanche phenomenon.
 
 Another issue is the particle emission on large sides in $y$-dimension close to the rotational axis. As particles are inserted
 linearly along the $y$-direction of the side, a higher number density is inserted closer to the axis. This effect is directly
@@ -244,7 +247,7 @@ The available options are described in the table below.
 | Type       | Description                                                                                                                             |
 | ---------- | :-------------------------------------------------------------------------------------------------------------------------------------- |
 | constant   | Default case, constant weighting as set by `Part-Species$-MacroParticleFactor`                                                          |
-| radial     | Radial weighting in y-direcition for the axisymmetric simulation based on the particle position, see Section {ref}`sec:2D-axisymmetric` |
+| radial     | Radial weighting in y-direction for the axisymmetric simulation based on the particle position, see Section {ref}`sec:2D-axisymmetric` |
 | linear     | Linear weighting along an axis or user-defined vector, see Section {ref}`sec:linear-particle-weighting`                                 |
 | cell_local | Cell-local weighting distribution, based on previous simulation results, see Section {ref}`sec:celllocal-particle-weighting`            |
 
@@ -357,7 +360,7 @@ In order to manipulate the number of particles per species per cell, merge and s
 
     Part-Species2-vMPFMergeThreshold    = 100
 
-The merge routine randomly deletes particles until the desired number of particles is reached and the weighting factor is adopted accordingly. Afterwards, the particle velocities $v_i$ are scaled in order to ensure momentum and energy conservation with
+The merge routine randomly deletes particles until the desired number of particles is reached and the weighting factor is adapted accordingly. Afterwards, the particle velocities $v_i$ are scaled in order to ensure momentum and energy conservation with
 
 $$ \alpha = \frac{E^{\mathrm{old}}_{\mathrm{trans}}}{E^{\mathrm{new}}_{\mathrm{trans}}},$$
 $$ v^{\mathrm{new}}_{i} = v_{\mathrm{bulk}} + \alpha (v_{i} - v^{\mathrm{new}}_{\mathrm{bulk}}).$$

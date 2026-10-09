@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-# -*- coding: utf8 -*-
 
 #=================================================================================================================================
 # Copyright (c) 2016  Prof. Claus-Dieter Munz
@@ -15,12 +14,10 @@
 # You should have received a copy of the GNU General Public License along with FLEXI. If not, see <http://www.gnu.org/licenses/>.
 #=================================================================================================================================
 
-import os,sys
 import argparse
-import glob
-import numpy                as np
-import matplotlib.pyplot    as plt
-import matplotlib.animation as animation
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 # matplotlib.interactive(True)
 parser = argparse.ArgumentParser(description='Plot DMD data 1.Eigenvalues, 2.Ritzspectrum')
@@ -32,9 +29,7 @@ args   = parser.parse_args()
 # -------------------------------------------------------------------------------------
 dmdFile = open(args.dmdFile, "r")
 dmdData = dmdFile.readlines()
-values  = []
-for line in dmdData[12:]:
-    values.append(line.split())
+values = [line.split() for line in dmdData[12:]]
 
 
 alphaDMD  = [[float(i[0]) for i in values],[float(i[1]) for i in values]]
@@ -56,8 +51,8 @@ plt.subplot(211)
 circle1=plt.Circle((0, 0), 1., color='k',fill=False)
 plt.scatter(sigmaDMD[0],sigmaDMD[1], s=[40.*(i+.4) for i in amplog] , c=[40.*(i+.4) for i in amplog], marker='o')
 
-plt.xlabel('$\sigma_r$',fontsize=18)
-plt.ylabel('$\sigma_i$',fontsize=18)
+plt.xlabel(r'$\sigma_r$',fontsize=18)
+plt.ylabel(r'$\sigma_i$',fontsize=18)
 plt.axis('equal')
 plt.axis([-1.4, 1.4, -1.4, 1.4])
 plt.gcf().gca().add_artist(circle1)
@@ -89,12 +84,12 @@ for label, x, y in zip(labels, [i/(2*np.pi) for i in lambdaDMDimag], lambdaDMDre
         label,
         xy=(x, y), xytext=(0, -20),
         textcoords='offset points', ha='center', va='top',
-        bbox      =dict(boxstyle  ='round,pad=0.5', fc='yellow', alpha=0.1),
-        arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'),
+        bbox      ={'boxstyle': 'round,pad=0.5', 'fc': 'yellow', 'alpha': 0.1},
+        arrowprops={'arrowstyle': '->', 'connectionstyle': 'arc3,rad=0'},
         fontsize=6)
 
-plt.xlabel('$\omega_i/2\pi$',fontsize=18)
-plt.ylabel('$\omega_r$',fontsize=18)
+plt.xlabel(r'$\omega_i/2\pi$',fontsize=18)
+plt.ylabel(r'$\omega_r$',fontsize=18)
 # plt.xlim(0,6000)
 # plt.ylim(-600,100)
 plt.grid()
@@ -108,9 +103,8 @@ def computeNRoomFreqs(n,c,geo):
                 freqtmp=c/2.*np.sqrt((i/geo.x)**2.+((j+1)/(2*geo.y))**2.+(k/geo.z)**2.)
                 freq.append([freqtmp,i,j+1,k])
 
-    freq=sorted(freq, key=lambda x : x[0])
+    return sorted(freq, key=lambda x : x[0])
 
-    return freq
 
 # # def computeNRossiterModes(n,c,geo):
     # # return freq
@@ -118,7 +112,7 @@ def computeNRoomFreqs(n,c,geo):
 # # def computeHelmholtzFreq(c,geo,neck):
     # # return freq
 
-class room(object):
+class room:
     def __init__(self,x,y,z):
         self.x = x
         self.y = y

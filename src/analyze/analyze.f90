@@ -127,6 +127,12 @@ USE MOD_Analyze_Vars          ,ONLY: AnalyzeCount,AnalyzeTime,DoMeasureAnalyzeTi
 USE MOD_Analyze_Vars          ,ONLY: doFieldAnalyze,CalcEpot
 USE MOD_Analyze_Vars          ,ONLY: CalcBoundaryFieldOutput,BFO
 USE MOD_Analyze_Vars          ,ONLY: nSkipAnalyze,SkipAnalyzeWindow,SkipAnalyzeSwitchTime,nSkipAnalyzeSwitch
+#if defined(PARTICLES) && USE_LOADBALANCE
+USE MOD_LoadBalance_Vars      ,ONLY: DoLoadBalance,UseH5IOLoadBalance
+USE MOD_Restart_Vars          ,ONLY: DoInitialAutoRestart
+USE MOD_SurfaceModel_Vars     ,ONLY: DoChemSurface
+USE MOD_Particle_Boundary_Vars,ONLY: PartBound
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 USE MOD_Interpolation_Vars    ,ONLY: InterpolationInitIsDone,Uex,NAnalyze
 USE MOD_IO_HDF5               ,ONLY: AddToElemData
 USE MOD_Mesh_Vars             ,ONLY: nElems
@@ -291,6 +297,27 @@ DoMeasureAnalyzeTime = GETLOGICAL('DoMeasureAnalyzeTime')
 ! Initialize time and counter for analyze measurement
 AnalyzeCount = 0
 AnalyzeTime  = 0.0
+
+#if defined(PARTICLES) && USE_LOADBALANCE
+! The surface coverage (ChemWallProp) and the adapted wall temperature (BoundaryWallTemp) are restored from the last state file
+! during a load balance step. With UseH5IOLoadBalance = F no state file is written for the load balance itself, so both are only
+! up to date if the regular analyze output coincides with every load balance step, which requires nSkipAnalyze = 1. Otherwise the
+! surface state is silently reset to the last written output. The same applies to the initial load balance, which never writes.
+IF (DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
+  IF (DoChemSurface.OR.ANY(PartBound%UseAdaptedWallTemp)) THEN
+    IF (MAX(nSkipAnalyze,nSkipAnalyzeSwitch).GT.1) THEN
+      CALL CollectiveStop(__STAMP__,'Surface chemistry and the adaptive wall temperature require nSkipAnalyze = 1 (and '//&
+                           'nSkipAnalyzeSwitch = 1) for DoLoadBalance = T with UseH5IOLoadBalance = F, otherwise the surface '//&
+                           'state is reset to the last state file during a load balance step. Set UseH5IOLoadBalance = T instead.')
+    END IF
+    IF (DoInitialAutoRestart) THEN
+      CALL CollectiveStop(__STAMP__,'Surface chemistry and the adaptive wall temperature do not support DoInitialAutoRestart = T '//&
+                           'with UseH5IOLoadBalance = F, because no state file is written for the initial load balance and '//&
+                           'the surface state is reset to the last state file. Set UseH5IOLoadBalance = T instead.')
+    END IF
+  END IF
+END IF
+#endif /*defined(PARTICLES) && USE_LOADBALANCE*/
 
 AnalyzeInitIsDone = .TRUE.
 LBWRITE(UNIT_stdOut,'(A)')' INIT ANALYZE DONE!'
@@ -621,7 +648,7 @@ USE MOD_Mesh_Vars                 ,ONLY: MeshFile
 #ifdef PARTICLES
 USE MOD_Analyze_Vars              ,ONLY: OutputErrorNormsPart
 USE MOD_Particle_Vars             ,ONLY: WriteMacroVolumeValues,WriteMacroSurfaceValues,MacroValSamplIterNum,ExcitationSampleData
-USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux
+USE MOD_Particle_Vars             ,ONLY: SampleElecExcitation,SamplePressTensHeatflux, nSpecies
 USE MOD_Particle_Analyze          ,ONLY: AnalyzeParticles
 USE MOD_Particle_Analyze_Tools    ,ONLY: CalculatePartElemData
 USE MOD_Particle_Analyze_Output   ,ONLY: WriteParticleTrackingData
@@ -634,8 +661,8 @@ USE MOD_Particle_Tracking_vars    ,ONLY: ntracks,tTracking,tLocalization,Measure
 USE MOD_BGK_Vars                  ,ONLY: BGKInitDone, BGK_QualityFacSamp
 USE MOD_FPFlow_Vars               ,ONLY: FPInitDone, FP_QualityFacSamp
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC
-USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC
-USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact
+USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, DoChemSurface, ChemWallProp
+USE MOD_Particle_Boundary_Vars    ,ONLY: nComputeNodeSurfTotalSides, CalcSurfaceImpact, SurfTotalSideOnNode
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,SampWallImpactEnergy,SampWallImpactVector
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity,SampWallImpactAngle,SampWallImpactNumber
 USE MOD_DSMC_Analyze              ,ONLY: DSMC_data_sampling, WriteDSMCToHDF5
@@ -648,6 +675,11 @@ USE MOD_Particle_Analyze_Code     ,ONLY: AnalyticParticleMovement
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
 USE MOD_PICInterpolation_Vars     ,ONLY: DoInterpolationAnalytic
 #endif /*CODE_ANALYZE*/
+#if USE_MPI
+USE MOD_SurfaceModel_Vars         ,ONLY: ChemWallProp_Shared_Win
+USE MOD_MPI_Shared_Vars           ,ONLY: MPI_COMM_SHARED,myComputeNodeRank
+USE MOD_MPI_Shared                ,ONLY: BARRIER_AND_SYNC
+#endif
 #endif /*PARTICLES*/
 #if (PP_nVar>=6)
 USE MOD_AnalyzeField_Poynting     ,ONLY: CalcPoyntingIntegral
@@ -674,6 +706,10 @@ USE MOD_Analyze_Vars              ,ONLY: DoFieldAnalyze
 #if (USE_FV)
 USE MOD_Analyze_FV                ,ONLY: CalcError_FV
 #endif /*FV*/
+#if USE_HDG && USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)
+USE MOD_HDG_Vars                  ,ONLY: UseCircuitModel
+USE MOD_HDG_Readin                ,ONLY: BroadcastChargeOnCMBC
+#endif /*USE_HDG && USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
@@ -840,6 +876,9 @@ IF(DoCalcErrorNorms) THEN
   IF(DoPerformErrorCalc)THEN
     OutputErrorNorms=.TRUE.
 #if USE_HDG
+#if USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)
+    IF(UseCircuitModel) CALL BroadcastChargeOnCMBC
+#endif /*USE_MPI && USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)*/
     CALL CalcError(L_2_Error,L_Inf_Error)
 #elif !(USE_FV)
     CALL CalcError(OutputTime,L_2_Error,L_Inf_Error)
@@ -967,6 +1006,18 @@ IF ((WriteMacroSurfaceValues).AND.(.NOT.OutputHDF5))THEN
         SampWallImpactNumber(:,:,:,  iSide)=0.
       END IF ! CalcSurfaceImpact
     END DO
+    ! ChemWallProp(nSpecies+1,...) accumulates the catalytic energy in [J] and is normalised by the sampling
+    ! duration in CalcSurfaceValues, so it has to be reset together with SampWallState.
+    ! Only index nSpecies+1 - the coverage in 1:nSpecies is a surface state and must persist.
+    ! SurfTotalSideOnNode: nodes without surf sides never allocated ChemWallProp (and the shared window)
+    IF (DoChemSurface.AND.SurfTotalSideOnNode) THEN
+#if USE_MPI
+      IF (myComputeNodeRank.EQ.0) ChemWallProp(nSpecies+1,:,:,:) = 0.
+      CALL BARRIER_AND_SYNC(ChemWallProp_Shared_Win,MPI_COMM_SHARED)
+#else
+      ChemWallProp(nSpecies+1,:,:,:) = 0.
+#endif
+    END IF
     iter_macsurfvalout = 0
   END IF
 END IF

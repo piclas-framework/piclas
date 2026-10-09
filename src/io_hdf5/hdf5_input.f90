@@ -188,7 +188,7 @@ SUBROUTINE GetDataSize(Loc_ID,DSetName,nDims,IntSize,attrib)
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*)                     :: DSetName   !< name if dataset to be checked
+CHARACTER(LEN=*),INTENT(IN)          :: DSetName   !< name if dataset to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID     !< ID of datase
 LOGICAL,INTENT(IN),OPTIONAL          :: attrib     !< logical wether atrtibute or dataset
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -243,7 +243,7 @@ SUBROUTINE GetAttributeSize(Loc_ID,AttribName,nDims,Size)
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*)                     :: AttribName !< name if attribute to be checked
+CHARACTER(LEN=*),INTENT(IN)          :: AttribName !< name if attribute to be checked
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID   !< ID of dataset
 INTEGER,INTENT(OUT)                  :: nDims    !< found data size dimensions
 INTEGER(HSIZE_T),POINTER,INTENT(OUT) :: Size(:)  !< found data size
@@ -280,7 +280,7 @@ IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 INTEGER(HID_T),INTENT(IN)            :: Loc_ID_in       !< ID of file
-CHARACTER(LEN=*)                     :: DSetName        !< name of dataset/attribute to be checked
+CHARACTER(LEN=*),INTENT(IN)          :: DSetName        !< name of dataset/attribute to be checked
 LOGICAL,INTENT(IN),OPTIONAL          :: attrib          !< check dataset or attribute
 ! OUTPUT VARIABLES
 LOGICAL,INTENT(OUT)                  :: Exists          !< result: dataset exists
@@ -477,10 +477,10 @@ USE,INTRINSIC :: ISO_C_BINDING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-INTEGER                                                   :: Rank         !< number of dimensions of the array
-INTEGER(KIND=IK)                                          :: offset_in    !< offset =0, start at beginning of the array
-INTEGER                                                   :: offset_dim   !< which dimension is the offset (only one dim. possible)
-INTEGER(KIND=IK)                                          :: nVal(Rank)   !< size of complete (local) array to write
+INTEGER,INTENT(IN)                                        :: Rank         !< number of dimensions of the array
+INTEGER(KIND=IK),INTENT(IN)                               :: offset_in    !< offset =0, start at beginning of the array
+INTEGER,INTENT(IN)                                        :: offset_dim   !< which dimension is the offset (only one dim. possible)
+INTEGER(KIND=IK),INTENT(IN)                               :: nVal(Rank)   !< size of complete (local) array to write
 CHARACTER(LEN=*),INTENT(IN)                               :: ArrayName    !< name of array to be read
 REAL,&
     DIMENSION(PRODUCT(nVal)),OPTIONAL,INTENT(OUT),TARGET  :: RealArray    !< only if real array shall be read

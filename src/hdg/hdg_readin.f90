@@ -33,6 +33,13 @@ PUBLIC :: SynchronizeBV
 #endif /*USE_MPI */
 #if defined(PARTICLES)
 PUBLIC :: ReadBVDataFromH5
+#if USE_PETSC
+PUBLIC :: ReadCMBCDataFromH5
+PUBLIC :: UpdateChargeOnCMBC
+#if USE_MPI && defined(CODE_ANALYZE)
+PUBLIC :: BroadcastChargeOnCMBC
+#endif /*USE_MPI && defined(CODE_ANALYZE)*/
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -85,7 +92,7 @@ IF(MPIRoot)THEN
   IF(BVExists)THEN
     CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(BVDataLength,IK)/) , 0_IK , 1 , RealArray=BVDataHDF5)
     WRITE(UNIT_stdOut,'(3(A,ES10.2E3))') " Read bias voltage from restart file ["//TRIM(RestartFile)//&
-        "] Bias voltage[V]: ",BVDataHDF5(1),", Ion excess[C]: ",BVDataHDF5(2),", next adjustment time[s]: ",BVDataHDF5(3)
+        "] Bias voltage [V]: ",BVDataHDF5(1),", Ion excess [C]: ",BVDataHDF5(2),", next adjustment time [s]: ",BVDataHDF5(3)
     BiasVoltage%BVData = BVDataHDF5
   END IF ! BVExists
   CALL CloseDataFile()
@@ -95,7 +102,6 @@ END IF ! MPIRoot
 ! 2. The MPI root process distributes the information among the sub-communicator processes for each EPC
 CALL SynchronizeBV()
 #endif /*USE_MPI*/
-
 END SUBROUTINE ReadBVDataFromH5
 
 
@@ -121,6 +127,129 @@ IF(BiasVoltage%COMM%UNICATOR.NE.MPI_COMM_NULL)THEN
 END IF
 END SUBROUTINE SynchronizeBV
 #endif /*USE_MPI*/
+
+
+#if USE_PETSC
+!===================================================================================================================================
+!> Read the Circuit Model BC (CMBC) data from a .h5 state file.
+!> 1. The MPI root process reads the info and checks data consistency
+!> 2. The MPI root process distributes the information among the sub-communicator processes connected to the CM boundary.
+!===================================================================================================================================
+SUBROUTINE ReadCMBCDataFromH5()
+! MODULES
+USE MOD_io_hdf5
+USE MOD_Globals          ,ONLY: UNIT_stdOut,MPIRoot,IK,abort
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
+#endif /*USE_LOADBALANCE*/
+USE MOD_IO_HDF5          ,ONLY: OpenDataFile,CloseDataFile,File_ID
+USE MOD_Restart_Vars     ,ONLY: DoRestart,RestartFile
+USE MOD_HDF5_Input       ,ONLY: DatasetExists,ReadArray,GetDataSize
+USE MOD_HDG_Vars         ,ONLY: CMBC,CMBCDataLength
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+CHARACTER(255) :: ContainerName
+LOGICAL        :: CMBCExists
+REAL           :: CMBCDataHDF5(1:CMBCDataLength)
+!===================================================================================================================================
+! Only required during restart
+IF(.NOT.DoRestart) RETURN
+
+#if USE_LOADBALANCE
+! Do not try to read the data from .h5 if load balance is performed without creating a .h5 restart file
+IF(PerformLoadBalance.AND..NOT.(UseH5IOLoadBalance)) RETURN
+#endif /*USE_LOADBALANCE*/
+
+! 1. The MPI root process reads the info and checks data consistency
+! Only root reads the values and distributes them via MPI Broadcast
+IF(MPIRoot)THEN
+  CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
+  ! Check old parameter name
+  ContainerName='CMBC'
+  CALL DatasetExists(File_ID,TRIM(ContainerName),CMBCExists)
+  ! Check for new parameter name
+  IF(CMBCExists)THEN
+    CALL ReadArray(TRIM(ContainerName) , 2 , (/1_IK , INT(CMBCDataLength,IK)/) , 0_IK , 1 , RealArray=CMBCDataHDF5)
+    WRITE(UNIT_stdOut,'(2(A,ES10.2E3))') " Read circuit model anode voltage and charge from restart file ["//TRIM(RestartFile)//&
+        "] Anode voltage [V]: ",CMBCDataHDF5(1),", Anode charge [C]: ",CMBCDataHDF5(2)
+    CMBC%Voltage = CMBCDataHDF5(1)
+    CMBC%Charge  = CMBCDataHDF5(2)
+  END IF ! CMBCExists
+  CALL CloseDataFile()
+END IF ! MPIRoot
+
+END SUBROUTINE ReadCMBCDataFromH5
+
+
+!===================================================================================================================================
+!> Communicate the Circuit Model accumulated charge values to MPIRoot: Updates CMBC%Charge and nullifies CMBC%ChargeProc
+!===================================================================================================================================
+SUBROUTINE UpdateChargeOnCMBC()
+! MODULES
+#if USE_MPI
+USE mpi_f08
+USE MOD_Globals  ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPIRoot
+#endif /*USE_MPI*/
+USE MOD_HDG_Vars ,ONLY: CMBC,CMBCDataLength
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+#if USE_MPI
+! Communicate the accumulated charged on each BC to MPIRoot
+ASSOCIATE( COMM => CMBC%COMM%UNICATOR)
+  IF(COMM.NE.MPI_COMM_NULL)THEN
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(MPI_IN_PLACE, CMBC%ChargeProc, 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+      ! Update CMBC%Charge on MPIRoot
+      CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
+    ELSE
+      CALL MPI_REDUCE(CMBC%ChargeProc, 0           , 1, MPI_DOUBLE_PRECISION, MPI_SUM, 0, COMM, IERROR)
+      CMBC%Charge = 0. ! Non-Root processes always have zero
+    END IF ! MPIRoot
+  END IF ! COMM.NE.MPI_COMM_NULL
+END ASSOCIATE
+#else
+! Update CMBC%Charge on MPIRoot
+CMBC%Charge = CMBC%Charge + CMBC%ChargeProc
+#endif /*USE_MPI*/
+! Reset the coutner
+CMBC%ChargeProc = 0.
+END SUBROUTINE UpdateChargeOnCMBC
+
+
+#if USE_MPI && defined(CODE_ANALYZE)
+!===================================================================================================================================
+!> Communicate the Circuit Model accumulated charge values from MPIRoot to ALL the other processes for analytical potential
+!> calculation. This is only required for a subsequent L2 error calculation.
+!===================================================================================================================================
+SUBROUTINE BroadcastChargeOnCMBC()
+! MODULES
+USE mpi_f08
+USE MOD_Globals       ,ONLY: IERROR,MPI_COMM_PICLAS,MPI_DOUBLE_PRECISION
+USE MOD_HDG_Vars      ,ONLY: CMBC
+USE MOD_Equation_Vars ,ONLY: IniExactFunc
+! insert modules here
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+IF(IniExactFunc.NE.10001) RETURN
+! Communicate the accumulated charged on each BC to MPIRoot
+CALL MPI_BCAST(CMBC%Charge,1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
+! Communicate the RF voltage
+CALL MPI_BCAST(CMBC%VoltageRF(1),1,MPI_DOUBLE_PRECISION,0,MPI_COMM_PICLAS,iError)
+END SUBROUTINE BroadcastChargeOnCMBC
+#endif /*USE_MPI && defined(CODE_ANALYZE)*/
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 
 

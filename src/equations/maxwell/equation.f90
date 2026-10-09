@@ -1244,29 +1244,30 @@ FUNCTION shapefunc(r)
 ! Implementation of (possibly several different) shapefunctions
 !===================================================================================================================================
 ! MODULES
-  USE MOD_Equation_Vars, ONLY : shapeFuncPrefix, alpha_shape, rCutoff
+USE MOD_Equation_Vars, ONLY : shapeFuncPrefix, alpha_shape, rCutoff
 ! IMPLICIT VARIABLE HANDLING
-    IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-    REAL                 :: r         ! radius / distance to center
+REAL,INTENT(IN)      :: r         ! radius / distance to center
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-    REAL                 :: shapefunc ! sort of a weight for the source
+REAL                 :: shapefunc ! sort of a weight for the source
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 !===================================================================================================================================
-   IF (r.GE.rCutoff) THEN
-     shapefunc = 0.0
-   ELSE
-     shapefunc = ShapeFuncPrefix *(1-(r/rCutoff)**2)**alpha_shape
-   END IF
+IF (r.GE.rCutoff) THEN
+  shapefunc = 0.0
+ELSE
+  shapefunc = ShapeFuncPrefix *(1-(r/rCutoff)**2)**alpha_shape
+END IF
 END FUNCTION shapefunc
 
 FUNCTION beta(z,w)
-   IMPLICIT NONE
-   REAL beta, w, z
-   beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
+IMPLICIT NONE
+REAL,INTENT(IN) :: w, z
+REAL :: beta
+beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
 END FUNCTION beta
 
 

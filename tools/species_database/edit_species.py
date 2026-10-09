@@ -1,16 +1,18 @@
-import requests
-import pandas as pd
 import io
-import re
-import numpy as np
 import os
-from tabulate import tabulate
-from datetime import date
-from requests_html import HTMLSession
-from bs4 import BeautifulSoup
-from general_functions import *
+import re
+import sys
 from collections import defaultdict
+from datetime import date
+
+import numpy as np
+import pandas as pd
+import requests
+from bs4 import BeautifulSoup
 from config import *
+from general_functions import *
+from requests_html import HTMLSession
+from tabulate import tabulate
 
 # General workflow:
 # Different species are handled by different classes - Atom, DiatomicMolecule, PolyatomicMolecule
@@ -72,7 +74,7 @@ class Atom:
             ion_level = int(re.sub('.*?([0-9]*)$',r'\1',self.name) or 0) + 1
 
             # get data from Nist database
-            elec_levels_nist, current_species_NIST = get_data_from_NIST(self.name, ion_level)
+            elec_levels_nist, _current_species_NIST = get_data_from_NIST(self.name, ion_level)
             if type(elec_levels_nist) == int:
                 return
 
@@ -117,7 +119,7 @@ class Atom:
             # Prompt user to choose which dataset to keep
             user_input = get_valid_input(create_prompt('to keep data from '+yellow('unified species database'),
                                                        'to save only electronic level data from '+blue(URL_base)),
-                                                       lambda x: x == '1' or x == '2' or x == '3')
+                                                       lambda x: x in {'1', '2', '3'})
             if user_input == '1':
                 print("Keeping electronic level dataset and attributes for species ",green(self.name), "\n")
                 return
@@ -126,7 +128,7 @@ class Atom:
                 print("Saving electronic level dataset from " + blue(data_origin) + " for species ",green(self.name), " but keeping attributes\n")
             elif user_input == '3':
                 print(bold(red("Exiting program")))
-                exit(1)
+                sys.exit(1)
 
     def __str__(self):
         return f"Atom(name={self.name}, attributes={self.attributes})"
@@ -146,10 +148,10 @@ class MoleculeHelper:
         """
         if not create_new:
             if level_type.lower() == 'rotational':
-                level_type == 'Rotational'
+                level_type = 'Rotational'
                 levels_database = instance.RotationalLevels
             elif level_type.lower() == 'vibrational':
-                level_type == 'Vibrational'
+                level_type = 'Vibrational'
                 levels_database = instance.VibrationalLevels
             else:
                 level_type = 'Electronic'
@@ -215,7 +217,7 @@ class MoleculeHelper:
             # Prompt user to choose which dataset to keep
             user_input = get_valid_input(create_prompt('to keep data from '+yellow('unified species database'),
                                                        f'to save only {level_type} level data from '+blue(f'custom_{level_type}_levels_{instance.name}.csv')),
-                                                       lambda x: x == '1' or x == '2' or x == '3')
+                                                       lambda x: x in {'1', '2', '3'})
             if user_input == '1':
                 print(f"Keeping {level_type} level dataset and attributes for species ",green(instance.name), "\n")
                 return
@@ -229,7 +231,7 @@ class MoleculeHelper:
                 print(f"Saving {level_type} level dataset from " + blue(f'custom_{level_type}_levels_{instance.name}.csv') + " for species ",green(instance.name), "\n")
             elif user_input == '3':
                 print(bold(red("Exiting program")))
-                exit(1)
+                sys.exit(1)
 
     def get_num_of_atoms(species):
         """Returns number of atoms in a polyatomic molecule"""
@@ -248,8 +250,7 @@ class MoleculeHelper:
             element_counts[element] += count
 
         # Sum the counts to get the total number of atoms
-        total_atoms = sum(element_counts.values())
-        return total_atoms
+        return sum(element_counts.values())
 
 class DiatomicMolecule:
     def __init__(self, species, read_species=True, ChargeIC=0.0, InteractionID=2.0):
@@ -365,13 +366,13 @@ class PolyatomicMolecule:
 ######################################################################################################################################################################################################
 
 def get_interaction_id(species_name):
-    if sum((1 for c in species_name.replace('Ion', '') if c.isupper())) == 1 and (not bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name)))):
+    if sum(1 for c in species_name.replace('Ion', '') if c.isupper()) == 1 and (not bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name)))):
         if not bool(re.search('[A-Za-z]*\\d', re.sub('Ion\\d+', '', species_name))):
             if 'Ion' in species_name:
                 interactionID = 10
             elif 'Ion' not in species_name:
                 interactionID = 1
-    elif bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name))) or sum((1 for c in species_name.replace('Ion', '') if c.isupper())) != 1:
+    elif bool(re.search('\\d+', re.sub('Ion\\d+', '', species_name))) or sum(1 for c in species_name.replace('Ion', '') if c.isupper()) != 1:
         if 'Ion' in species_name:
             interactionID = 20
         elif 'Ion' not in species_name:
@@ -387,9 +388,9 @@ def create_empty_instance(species):
     The class will have the right attributes corresponding to the interaction ID of the species.
     """
     interaction_id = get_interaction_id(species)
-    if interaction_id == 1 or interaction_id == 10:
+    if interaction_id in {1, 10}:
         cls = Atom
-    elif interaction_id == 2 or interaction_id == 20:
+    elif interaction_id in {2, 20}:
         # get number of atoms in the molecule
         num_of_atoms = MoleculeHelper.get_num_of_atoms(species)
         if num_of_atoms == 2:
@@ -423,8 +424,7 @@ def create_instance_from_data(species):
         raise ValueError("Unknown class type for the given data.")
 
     # Create an instance of the determined class
-    instance = cls(species)
-    return instance
+    return cls(species)
 
 def read_datasets_from_existing_species(instance):
     """Read inner energy data from the existing species database and store it in the class variables"""
@@ -443,7 +443,7 @@ def read_datasets_from_existing_species(instance):
             print(red('Error'), f"reading {level_type} data from the database for ", green(instance.name), ":", e)
             user_input = get_valid_input(create_prompt('to add new data from csv file',
                                                        'to skip data for this species'),
-                                                       lambda x: x == '1' or x == '2' or x == '3')
+                                                       lambda x: x in {'1', '2', '3'})
             if user_input == '1':
                 MoleculeHelper.add_or_update_dataset(instance, level_type, create_new=True)
             elif user_input == '2':
@@ -472,7 +472,7 @@ def check_attributes_from_actc(instance, atct_dict):
     for attr_name, attr_value in atct_dict.items():
         try:
             # heat of formation is not set for ions in the database, use ions as sanity check together with electronic data
-            if attr_name == 'HeatOfFormation_K' and 'HeatOfFormation_K' not in instance.attributes.keys():
+            if attr_name == 'HeatOfFormation_K' and 'HeatOfFormation_K' not in instance.attributes:
                 Ion_Number =  int(re.search(r'\d+$', instance.name).group())
                 ground_state = re.sub(r'Ion\d+','',instance.name)
                 HeatOfFormation_Sum = hdf_unified_data['Species'][ground_state].attrs['HeatOfFormation_K']+hdf_unified_data['Species'][ground_state]['ElectronicLevel'][:][-1,1]
@@ -484,15 +484,15 @@ def check_attributes_from_actc(instance, atct_dict):
                     print(yellow("Calculated HeatOfFormation: ")+str(HeatOfFormation_Sum)+"\n"+blue("HeatOfFormation form ATcT: ")+str(atct_dict['HeatOfFormation_K']))
             else:   # compare the attributes specified by the directory
                 if np.isclose(instance.attributes[attr_name], attr_value, rtol=1e-03, atol=1e-08):
-                    print('%s for ' % (attr_name) +green(instance.name)+' is equal so will be kept')
+                    print(f'{attr_name} for ' +green(instance.name)+' is equal so will be kept')
                 else:
                     print(underlinE(attr_name)+' of species '+green(instance.name)+'\n'+yellow('unified species database')+f': {instance.attributes[attr_name]}'+"\n"+blue(ATcT_URL) +f': {attr_value}\n')
                     diffs_list.append(attr_name)
         except KeyError:
             if attr_name in ['HeatOfFormation_K','MassIC']:
-                print("It seems like %s is not set for %s so it will be set as %s with data from "% (attr_name,instance.name,attr_value)+blue(ATcT_URL))
+                print(f"It seems like {attr_name} is not set for {instance.name} so it will be set as {attr_value} with data from "+blue(ATcT_URL))
             elif attr_name in ['ChargeIC','InteractionID']:
-                print("It seems like %s is not set for %s so it will be set as %s"% (attr_name,instance.name,attr_value))
+                print(f"It seems like {attr_name} is not set for {instance.name} so it will be set as {attr_value}")
 
     if diffs_list == []:    # all attributes are equal
         pass
@@ -500,7 +500,7 @@ def check_attributes_from_actc(instance, atct_dict):
         user_input = get_valid_input(create_prompt('to keep attributes from '+yellow('unified species database'),
                                                    'to save attributes from '+blue(ATcT_URL),
                                                    'to exit program here'),
-                                                   lambda x: x == '1' or x == '2' or x == '3')
+                                                   lambda x: x in {'1', '2', '3'})
         if user_input == '1':
             print("Keeping attributes for species ",green(instance.name), "\n")
         elif user_input == '2':
@@ -544,7 +544,7 @@ def edit_attributes(instance):
             print("\n\nThe attribute " + attr_name + " already exists. Do you want to overwrite the value?")
             user_input = get_valid_input(create_prompt('yes',
                                                        'no'),
-                                                       lambda x: x == '1' or x == '2' or x =='3')
+                                                       lambda x: x in {'1', '2', '3'})
             if user_input == "1":
                 new_data = input(bold('\nPlease enter ' + attr_name + ' of current species (arrays can be entered as comma separated strings, e.g. 1.2,3.4,5.9) %s\n-->') % instance.name)
                 if ',' in new_data:
@@ -558,7 +558,7 @@ def edit_attributes(instance):
             elif user_input == "3":
                 own_exit()
         else:
-            if attr_name in attribute_types.keys():
+            if attr_name in attribute_types:
                 new_data = input(bold('\nPlease enter ' + attr_name + ' of current species (arrays can be entered as comma separated strings, e.g. 1.2,3.4,5.9) %s\n-->') % instance.name)
                 if ',' in new_data:
                     new_data = [np.float64(val) for val in new_data.split(',')]
@@ -590,7 +590,7 @@ def edit_attributes(instance):
                 if instance.attributes['InteractionID'] == 1 or instance.attributes['InteractionID'] == 10:
                     line_catch = 'atom_attributes = {'
                 elif instance.attributes['InteractionID'] == 2 or instance.attributes['InteractionID'] == 20:
-                    if 'PolyatomicMol' in instance.attributes.keys():
+                    if 'PolyatomicMol' in instance.attributes:
                         line_catch = 'polyatomic_attributes = {'
                     else:
                         line_catch = 'diatomic_attributes = {'
@@ -607,8 +607,8 @@ def edit_attributes(instance):
                     config_file.truncate()
 
             # sanity check in both cases for characteristic temperatures
-            if 'LinearMolec' in instance.attributes.keys():
-                if attr_name == 'CharaTempRot' or attr_name == 'MomentOfInertia':
+            if 'LinearMolec' in instance.attributes:
+                if attr_name in {'CharaTempRot', 'MomentOfInertia'}:
                     print(f'Current species {instance.name} is a linear molecule, so only one characteristic temperature/moment of inertia is needed!')
                     own_exit()
                 if attr_name == 'CharaTempVib':
@@ -616,7 +616,7 @@ def edit_attributes(instance):
                         print(red('Error')+f': New array for characteristic vibrational temperatures does not fit expected value for a linear molecule with {instance.attributes["NumOfAtoms"]} atoms!')
                         own_exit()
             else:
-                if attr_name == 'CharaTempRot' or attr_name == 'MomentOfInertia':
+                if attr_name in {'CharaTempRot', 'MomentOfInertia'}:
                     if len(new_data) != 3:
                         print(red('Error')+': New array for characteristic rotational temperatures/moment of inertia does not fit expected value for a non-linear molecule!')
                         own_exit()
@@ -642,11 +642,10 @@ def write_instance_to_database(instance):
             if not isinstance(instance, Atom):
                 temp_rot = np.array(hdf_unified_data["Species"][instance.name]['RotationalLevel'])
                 temp_vib = np.array(hdf_unified_data["Species"][instance.name]['VibrationalLevel'])
-        except Exception as e:
+        except Exception:
             # catch for missing datasets
             temp_rot = None
             temp_vib = None
-            pass
         temp_elec = np.array(hdf_unified_data["Species"][instance.name]['ElectronicLevel'])
         # delete species from database
         del hdf_unified_data["Species"][instance.name]
@@ -660,7 +659,7 @@ def write_instance_to_database(instance):
             print(f"Attribute {attr_name} is not set for species {instance.name}!")
             user_input = get_valid_input(create_prompt('to set attribute',
                                                        'to skip attribute'),
-                                                       lambda x: x == '1' or x == '2' or x == '3')
+                                                       lambda x: x in {'1', '2', '3'})
             if user_input == '1':
                 instance.attributes[attr_name] = attribute_types[attr_name](input(bold('\nPlease enter ' + attr_name + ' of current species %s\n-->') % instance.name))
             elif user_input == '2':
@@ -766,20 +765,20 @@ def get_data_from_NIST(CURRENT_SPECIES, ION_LEVEL):
     except Exception as e:
         # check if species is not found because it is fully ionized in database
         if "FullyIonized" in hdf_unified_data["Species"][CURRENT_SPECIES].attrs:
-            return int(-1), current_species_NIST
+            return (-1), current_species_NIST
         # Print an error message if there's an exception
         print(red('Error'), "converting data from \n", blue(URL_request), " for ", green(CURRENT_SPECIES), "might not be available on requested URL. Tried to access data with ", green(current_species_NIST), "Please check this combination on the URL. \nError:", e ,"\n")
         # get user input to determine which dataset should be saved
         user_input_create = get_valid_input(create_prompt('to create '+green(CURRENT_SPECIES)+' without the electronic level',
                                                        'to exit program here'),
-                                                       lambda x: x == '1' or x == '2')
+                                                       lambda x: x in {'1', '2'})
         if user_input_create == '1':
             column_names = ['J', 'Levelcm-1', 'Term']
             data = pd.DataFrame(columns=column_names)
             first_row_data = {'J': '0', 'Levelcm-1': '0', 'Term': 'Limit'}
             data = data.append(first_row_data, ignore_index=True)
         elif user_input_create == '2':
-            return int(-1), current_species_NIST
+            return (-1), current_species_NIST
 
 # converting electronic data in useful format
 def convert_electronic_data(DATA):
@@ -796,7 +795,7 @@ def convert_electronic_data(DATA):
     # dropping term column for nan filtering
     DATA = DATA.drop(columns=['Term'])
     # find rows containing nan
-    rows_with_nan = [index for index, row in DATA.iterrows() if row.isnull().any()]
+    rows_with_nan = [index for index, row in DATA.iterrows() if row.isnull().any()]  # noqa: PD003
     # remove rows with nan
     if len(rows_with_nan) == 1:
         max_level = rows_with_nan[0]
@@ -807,7 +806,7 @@ def convert_electronic_data(DATA):
             pass
         else:
             print("ERROR: drop_to_end must be negative!")
-            exit(1)
+            sys.exit(1)
     else:
         for val in rows_with_nan:
             DATA = DATA.drop(val)
@@ -851,8 +850,8 @@ def convert_electronic_data(DATA):
     for i in range(len(DATA['Levelcm-1'])):
             x = DATA.iloc[i,Level]
             if x < x_old:
-                print('Error in level %s: the energy is not increasing with the levels E2=%s < E1=%s' % (i,x,x_old))
-                exit(1)
+                print(f'Error in level {i}: the energy is not increasing with the levels E2={x} < E1={x_old}')
+                sys.exit(1)
             else:
                 x_old = x
     # Write to hdf: If DATA set already exists, delete the old set first
@@ -861,7 +860,7 @@ def convert_electronic_data(DATA):
 
 # function to print differences in datasets
 def print_diffs(new_data, ref_data, level_type='Electronic'):
-    '''Print the differneces in the two data sets onto terminal\n Inputs: new data array from url/custom data and data array from species database'''
+    r'''Print the differneces in the two data sets onto terminal\n Inputs: new data array from url/custom data and data array from species database'''
     try:
         diff_indices_degeneracy = np.where(~np.isclose(new_data[:,0], ref_data[:,0], rtol=1e-05, atol=0))
         diff_indices_levels = np.where(~np.isclose(new_data[:,1], ref_data[:,1], rtol=1e-05, atol=0))
@@ -892,11 +891,10 @@ def print_diffs(new_data, ref_data, level_type='Electronic'):
     except Exception as e:
         if 'operands could not be broadcast together' in str(e):
             # print Error message with colors if expected errors occurs
-            print(bold('\033[91mError:\033[0m'),"operands could not be broadcast together with shapes \033[33m%s\033[0m and \033[34m%s\033[0m!" % (ref_data.shape,new_data.shape)+"\n")
+            print(bold('\033[91mError:\033[0m'),f"operands could not be broadcast together with shapes \033[33m{ref_data.shape}\033[0m and \033[34m{new_data.shape}\033[0m!"+"\n")
         else:
             # print error message if not expected error occurs
             print(e)
-    return
 
 ######################################################################################################################################################################################################
 #   functions for getting data from the ATcT

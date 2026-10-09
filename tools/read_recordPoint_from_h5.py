@@ -1,10 +1,12 @@
-import time
-import os
 import datetime
-import numpy as np
-import matplotlib.pyplot as plt
-from matplotlib.pyplot import plot, draw, show
 import math
+import os
+import sys
+import time
+
+import matplotlib.pyplot as plt
+from matplotlib.pyplot import draw, show
+
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -43,7 +45,7 @@ try :
     h5py_module_loaded = True
 except ImportError :
     print(red('Could not import h5py module. This is required for reading .h5 files. Exit.'))
-    exit(0)
+    sys.exit(0)
 
 
 def NxM(num):
@@ -53,7 +55,7 @@ def NxM(num):
     :returns: TODO
 
     """
-    base = int(round(math.sqrt(num)))
+    base = round(math.sqrt(num))
     remainder = int(num-float(base*base))
 
     col = base
@@ -83,7 +85,7 @@ def createPlot(title,NbrOfAttributes,VarNames,NbrOfRP,t,data):
     # Get the number of figures
     numbers = plt.get_fignums()
     # Add title to the figure
-    fig.suptitle('%s' % title, fontsize=16)
+    fig.suptitle(f'{title}', fontsize=16)
     # Initialise number of variables
     iVar=0
     # Loop over rows
@@ -99,10 +101,10 @@ def createPlot(title,NbrOfAttributes,VarNames,NbrOfRP,t,data):
                 break
             # Loop over the RPs
             for iRP in range(NbrOfRP):
-                colplt, = col.plot(t, data[:,iRP,iVar], linestyle=ls, label='RP$_{%s}$ (%s)' % (iRP, s) )
+                colplt, = col.plot(t, data[:,iRP,iVar], linestyle=ls, label=f'RP$_{{{iRP}}}$ ({s})' )
                 legend.append(colplt)
             # Display title
-            col.set_title(f'%s' % VarNames[iVar-1])
+            col.set_title(f'{VarNames[iVar-1]}')
             # Display legend
             col.legend(handles=legend)
 
@@ -137,11 +139,11 @@ def ReadFileAndCreatePlot(statefile):
     file_stats = os.stat(statefile)
     if file_stats.st_size > 1024 * 1024:
         if file_stats.st_size > 1024 * 1024 * 1024:
-            filesize = '%.2f GB' % round(file_stats.st_size / (1024 * 1024 * 1024), 2)
+            filesize = f'{round(file_stats.st_size / (1024 * 1024 * 1024), 2):.2f} GB'
         else:
-            filesize = '%.2f MB' % round(file_stats.st_size / (1024 * 1024), 2)
+            filesize = f'{round(file_stats.st_size / (1024 * 1024), 2):.2f} MB'
     else:
-        filesize = '%.2f kB' % round(file_stats.st_size / (1024), 2)
+        filesize = f'{round(file_stats.st_size / (1024), 2):.2f} kB'
 
     # Usage:
     # -------------------
@@ -156,10 +158,10 @@ def ReadFileAndCreatePlot(statefile):
     try :
         data = f1[dataset][:]
     except :
-        print('Dataset %s does not exist' % dataset)
-        exit(0)
+        print(f'Dataset {dataset} does not exist')
+        sys.exit(0)
 
-    dataType = f1[dataset].dtype
+    f1[dataset].dtype
 
     t = data[:,0,0]
 
@@ -168,11 +170,11 @@ def ReadFileAndCreatePlot(statefile):
     if debug:
         print()
         attributes = ', '.join(x for x in f1.attrs)
-        print(yellow("Attributes: %s" % attributes))
+        print(yellow(f"Attributes: {attributes}"))
         VarNames = f1.attrs.get('VarNames', default="")
-        print(yellow("    VarNames: %s" % VarNames))
+        print(yellow(f"    VarNames: {VarNames}"))
         print()
-        print(yellow("Keys: %s" % f1.keys()))
+        print(yellow(f"Keys: {f1.keys()}"))
         print(yellow("    size :         "+ str(f1[dataset].size)))
         print(yellow("    shape :        "+ str(f1[dataset].shape)))
         print(yellow("    dtype :        "+ str(f1[dataset].dtype)))
@@ -185,9 +187,9 @@ def ReadFileAndCreatePlot(statefile):
     NbrOfRP         = f1[dataset].shape[1]
     NbrOfAttributes = f1[dataset].shape[2]
     if debug:
-        print("NbrOfPoints     = %s" % (NbrOfPoints))
-        print("NbrOfRP         = %s" % (NbrOfRP))
-        print("NbrOfAttributes = %s (including time)" % (NbrOfAttributes))
+        print(f"NbrOfPoints     = {NbrOfPoints}")
+        print(f"NbrOfRP         = {NbrOfRP}")
+        print(f"NbrOfAttributes = {NbrOfAttributes} (including time)")
 
     fig, ax = createPlot(statefile, NbrOfAttributes, [bytesqequence.decode('ascii') for bytesqequence in VarNames], NbrOfRP, t, data)
 
@@ -195,8 +197,8 @@ def ReadFileAndCreatePlot(statefile):
 
     end = time.time()
     elapsed = end-start
-    rounded = "{:.2f}".format(round(elapsed, 2))
-    s = "----- Required time for %s: %s sec [%s] for %s" % (statefile,rounded,str(datetime.timedelta(seconds=int(elapsed))),filesize)
+    rounded = f"{round(elapsed, 2):.2f}"
+    s = f"----- Required time for {statefile}: {rounded} sec [{datetime.timedelta(seconds=int(elapsed))!s}] for {filesize}"
     print(s)
 
 

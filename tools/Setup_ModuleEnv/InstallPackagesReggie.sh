@@ -3,7 +3,7 @@
 #==============================================================================
 # title       : InstallPackagesReggie.sh
 # description : This script installs the software packages required for the
-#               regression check tool "reggie2.0"
+#               regression check tool "reggie"
 # date        : Nov 27, 2019
 # version     : 1.0
 # usage       : bash InstallPackagesReggie.sh

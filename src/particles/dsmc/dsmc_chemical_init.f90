@@ -140,7 +140,6 @@ USE MOD_ReadInTools
 USE MOD_Globals_Vars            ,ONLY: BoltzmannConst, Pi
 USE MOD_DSMC_Vars               ,ONLY: ChemReac, DSMC, SpecDSMC, BGGas, CollInf
 USE MOD_PARTICLE_Vars           ,ONLY: nSpecies, Species, SpeciesDatabase
-USE MOD_Particle_Analyze_Vars   ,ONLY: ChemEnergySum
 USE MOD_DSMC_QK_Chemistry       ,ONLY: QK_Init
 USE MOD_Particle_Analyze_Tools  ,ONLY: CalcXiVib
 USE MOD_MCC_Vars                ,ONLY: NbrOfPhotonXsecReactions
@@ -196,15 +195,15 @@ ELSE
   CALL GetNumReacFromDatabase(ReadInNumOfReact)
   CustomNumReact = GETINT('DSMC-NumOfReactions','0')
   IF(CustomNumReact.GT.0) THEN
-    CALL Abort(__STAMP__,' Custom reactions in addition to a chemistry model are not supported yet!')
+    CALL CollectiveStop(__STAMP__,' Custom reactions in addition to a chemistry model are not supported yet!')
   END IF
   IF(ChemReac%NumOfReact.LE.0) THEN
-    CALL Abort(__STAMP__,' No reactions found for the selected chemistry model: '//TRIM(ChemReac%ChemistryModel))
+    CALL CollectiveStop(__STAMP__,' No reactions found for the selected chemistry model: '//TRIM(ChemReac%ChemistryModel))
   END IF
 END IF
 
 IF(ChemReac%NumOfReact.LE.0) THEN
-  CALL Abort(__STAMP__,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
+  CALL CollectiveStop(__STAMP__,' CollisMode = 3 requires a chemical reaction database. DSMC-NumOfReactions cannot be zero!')
 END IF
 
 ! Set counter for filling-up the reaction array with the non-reactives at the end of the read-in reaction list.
@@ -242,7 +241,6 @@ IF(ChemReac%NumDeleteProducts.GT.0) THEN
   ChemReac%DeleteProductsList = GETINTARRAY('Particles-Chemistry-DeleteProductsList', ChemReac%NumDeleteProducts)
 END IF
 
-ChemEnergySum = 0.
 CALL PrintOption('Number of considered reaction paths (including dissociation and recombination)','INFO',IntOpt=ChemReac%NumOfReact)
 !----------------------------------------------------------------------------------------------------------------------------------
 ALLOCATE(ChemReac%NumReac(ChemReac%NumOfReact))
@@ -300,8 +298,8 @@ IF((BGGas%NumberOfSpecies.GT.0).AND.(.NOT.BGGas%UseDistribution)) THEN
           IF(DSMC%VibAHO) THEN ! AHO
             CALL CalcXiVib(SpecDSMC(iSpec)%Init(1)%TVib, iSpec, XiVibTotal=ChemReac%MeanXiVib_PerIter(iSpec))
           ELSE ! SHO
-            IF(ABS(SpecDSMC(iSpec)%Init(1)%TVib).LE.0.0) CALL ABORT(__STAMP__,'Error: Initial vibrational temperature of species '//TRIM(Species(iSpec)%Name)//' is zero!')
-            IF(ABS(SpecDSMC(iSpec)%CharaTVib).LE.0.0) CALL ABORT(__STAMP__,'Error: CharaTVib of species '//TRIM(Species(iSpec)%Name)//' is zero!')
+            IF(ABS(SpecDSMC(iSpec)%Init(1)%TVib).LE.0.0) CALL CollectiveStop(__STAMP__,'Error: Initial vibrational temperature of species '//TRIM(Species(iSpec)%Name)//' is zero!')
+            IF(ABS(SpecDSMC(iSpec)%CharaTVib).LE.0.0) CALL CollectiveStop(__STAMP__,'Error: CharaTVib of species '//TRIM(Species(iSpec)%Name)//' is zero!')
             BGGasEVib = DSMC%GammaQuant * BoltzmannConst * SpecDSMC(iSpec)%CharaTVib &
               + BoltzmannConst * SpecDSMC(iSpec)%CharaTVib / (EXP(SpecDSMC(iSpec)%CharaTVib / SpecDSMC(iSpec)%Init(1)%TVib) - 1)
             BGGasEVib = BGGasEVib/(BoltzmannConst*SpecDSMC(iSpec)%CharaTVib) - DSMC%GammaQuant
@@ -360,7 +358,7 @@ IF(SpeciesDatabase.EQ.'none') THEN
         NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
         ChemReac%AnyPhIonReaction = .TRUE.
       CASE DEFAULT
-        CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
+        CALL CollectiveStop(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfo=iReac)
     END SELECT
   END DO
 ELSE
@@ -371,7 +369,7 @@ END IF
 DO iReac = 1, ReadInNumOfReact
   IF((ChemReac%Reactants(iReac,2).EQ.0).AND.(ChemReac%Products(iReac,2).EQ.0)) THEN
     IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.EQ.0) THEN
-      CALL abort(__STAMP__,'Error in Definition: Non-reacting partner(s) has to be defined!',IntInfoOpt=iReac)
+      CALL CollectiveStop(__STAMP__,'Error in Definition: Non-reacting partner(s) has to be defined!',IntInfo=iReac)
     END IF
     DO iReac2 = 1, ChemReac%ArbDiss(iReac)%NumOfNonReactives
       IF(iReac2.EQ.1) THEN
@@ -393,7 +391,7 @@ DO iReac = 1, ReadInNumOfReact
     END DO
     iReacDiss = iReacDiss + ChemReac%ArbDiss(iReac)%NumOfNonReactives - 1
   ELSE IF(ChemReac%ArbDiss(iReac)%NumOfNonReactives.NE.0) THEN
-    CALL abort(__STAMP__,'Dissociation/Ionization - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
+    CALL CollectiveStop(__STAMP__,'Dissociation/Ionization - Error in Definition: Non-reacting partner(s) has to be zero!',iReac)
   END IF
 END DO
 
@@ -418,7 +416,7 @@ DO iReac = 1, ChemReac%NumOfReact
   END IF
 END DO
 
-IF (DoScat) CALL abort(__STAMP__,'Deactivated Init_TLU_Data() routine')
+IF (DoScat) CALL CollectiveStop(__STAMP__,'Deactivated Init_TLU_Data() routine')
 !IF (DoScat) CALL Init_TLU_Data()
 
 ! Calculation of stoichiometric coefficients and calculation of the heat of formation
@@ -447,8 +445,7 @@ DO iReac = 1, ChemReac%NumOfReact
     ! For the impact-ionization, the heat of reaction is equal to the ionization energy
     IF(TRIM(ChemReac%ReactType(iReac)).EQ.'I') THEN
       IF((.NOT.ALLOCATED(SpecDSMC(ChemReac%Reactants(iReac,1))%ElectronicState)).AND. &
-         (.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'XSec'))) CALL abort(&
-        __STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
+         (.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'XSec'))) CALL CollectiveStop(__STAMP__,'ERROR: Ionization reactions require the definition of at least the ionization energy as electronic level!',iReac)
     END IF
 
   END DO ! iSpec=1, nSpecies
@@ -473,45 +470,41 @@ DO iReac = 1, ChemReac%NumOfReact
   ! Proof of recombination definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)*ChemReac%Reactants(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
+      CALL CollectiveStop(__STAMP__,'Recombination - Error in Definition: Not all reactant species are defined! ReacNbr: ',iReac)
     END IF
     IF (ChemReac%Reactants(iReac,3).NE.ChemReac%Products(iReac,2)) THEN
-      CALL abort(__STAMP__,&
-      'Recombination - Error in Definition: Third-collision partner does not correspond to the second product! ReacNbr: ',iReac)
+      CALL CollectiveStop(__STAMP__,'Recombination - Error in Definition: Third-collision partner does not correspond to the second product! ReacNbr: ',iReac)
     END IF
   ELSE IF (.NOT.StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) THEN
     IF ((ChemReac%Reactants(iReac,1)*ChemReac%Reactants(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
+      CALL CollectiveStop(__STAMP__,'Chemistry - Error in Definition: Reactant species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Proof of dissociation definition
   IF (TRIM(ChemReac%ReactType(iReac)).EQ.'D') THEN
     ! Three product species are given
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)*ChemReac%Products(iReac,3)).EQ.0) THEN
-      CALL abort(__STAMP__,'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
+      CALL CollectiveStop(__STAMP__,'Dissociation - Error in Definition: Not all product species are defined!  ReacNbr: ',iReac)
     END IF
     IF(TRIM(ChemReac%ReactModel(iReac)).NE.'XSec') THEN
       ! Cross-section based chemistry does not require this definition as no backward reaction rates are implemented
       IF(ChemReac%Reactants(iReac,2).NE.ChemReac%Products(iReac,2)) THEN
-        CALL abort(__STAMP__,&
-        'Dissociation - Error in Definition: Non-reacting partner has to remain second product (/1,2,3/)  ReacNbr: ',iReac)
+        CALL CollectiveStop(__STAMP__,'Dissociation - Error in Definition: Non-reacting partner has to remain second product (/1,2,3/)  ReacNbr: ',iReac)
       END IF
     END IF
     ! At least a molecule is given as a reactant
     IF((Species(ChemReac%Reactants(iReac,1))%InterID.NE.2).AND.(Species(ChemReac%Reactants(iReac,1))%InterID.NE.20) &
       .AND.(Species(ChemReac%Reactants(iReac,2))%InterID.NE.2).AND.(Species(ChemReac%Reactants(iReac,2))%InterID.NE.20)) THEN
-      CALL abort(__STAMP__,&
-        'Dissociation - Error in Definition: None of the reactants is a molecule, check species indices and charge definition. ReacNbr: ',iReac)
+      CALL CollectiveStop(__STAMP__,'Dissociation - Error in Definition: None of the reactants is a molecule, check species indices and charge definition. ReacNbr: ',iReac)
     END IF
   ELSE
     IF ((ChemReac%Products(iReac,1)*ChemReac%Products(iReac,2)).EQ.0) THEN
-      CALL abort(__STAMP__,'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
+      CALL CollectiveStop(__STAMP__,'Chemistry - Error in Definition: Product species not properly defined. ReacNbr:',iReac)
     END IF
   END IF
   ! Check if the maximum species index is not greater than the number of species
   MaxSpecies = MAXVAL(ChemReac%Reactants(iReac,1:3))
-  IF(MaxSpecies.GT.nSpecies) CALL abort(__STAMP__,&
-      'Chemistry - Error in Definition: Defined species does not exist, check number of species. ReacNbr:',iReac)
+  IF(MaxSpecies.GT.nSpecies) CALL CollectiveStop(__STAMP__,'Chemistry - Error in Definition: Defined species does not exist, check number of species. ReacNbr:',iReac)
 END DO
 
 ! Initialize analytic QK reaction rate (required for calculation of backward rate with QK and if multiple QK reactions can occur
@@ -607,16 +600,13 @@ DO iCase = 1, CollInf%NumCase
     END IF
 #endif /*USE_HDG*/
     ! Skip the special case of photo ionization
-    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE REACLOOP
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     IF(iCase.EQ.iCase2) THEN
       ! Only add recombination reactions once
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-        IF(RecombAdded) THEN
-          CYCLE
-        ELSE
-          RecombAdded = .TRUE.
-        END IF
+        IF(RecombAdded) CYCLE REACLOOP
+        RecombAdded = .TRUE.
       END IF
       ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths = ChemReac%CollCaseInfo(iCase)%NumOfReactionPaths + 1
     END IF
@@ -644,7 +634,7 @@ DO iCase = 1, CollInf%NumCase
     END IF
 #endif /*USE_HDG*/
     ! Skip the special case of photo ionization
-    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE
+    IF(StringBeginsWith(ChemReac%ReactModel(iReac),'phIon')) CYCLE REACLOOP2
     iCase2 = CollInf%Coll_Case(ChemReac%Reactants(iReac,1),ChemReac%Reactants(iReac,2))
     ! Save the reaction index for the specific collision case
     IF(iCase.EQ.iCase2) THEN
@@ -653,19 +643,15 @@ DO iCase = 1, CollInf%NumCase
       ! But only add one recombination reaction to the number of reaction paths (the index of the others is stored in ReactNumRecomb
       ! and is chosen based on the third collision partner selected during the simulation)
       IF(TRIM(ChemReac%ReactType(iReac)).EQ.'R') THEN
-        IF(RecombAdded) THEN
-          CYCLE
-        ELSE
-          RecombAdded = .TRUE.
-        END IF
+        IF(RecombAdded) CYCLE REACLOOP2
+        RecombAdded = .TRUE.
       END IF
       ReacIndexCounter = ReacIndexCounter + 1
       ChemReac%CollCaseInfo(iCase)%ReactionIndex(ReacIndexCounter) = iReac
       IF(TRIM(ChemReac%ReactModel(iReac)).EQ.'XSec')  THEN
         ChemReac%CollCaseInfo(iCase)%HasXSecReaction = .TRUE.
         IF(ChemReac%Reactants(iReac,3).NE.0) THEN
-          CALL abort(__STAMP__,&
-            'Chemistry - Error: Cross-section based chemistry for reactions with three reactants is not supported yet!')
+          CALL CollectiveStop(__STAMP__,'Chemistry - Error: Cross-section based chemistry for reactions with three reactants is not supported yet!')
         END IF
       END IF
     END IF
@@ -702,8 +688,7 @@ CHARACTER(LEN=64)     :: dsetname
 INTEGER(HID_T)        :: file_id_specdb                       ! File identifier
 !===================================================================================================================================
 
-IF(ChemReac%AnyXSecReaction) CALL abort(__STAMP__,&
-  'Automatic calculation of backward reaction rates in combination with cross-section based reactions is NOT supported!')
+IF(ChemReac%AnyXSecReaction) CALL CollectiveStop(__STAMP__,'Automatic calculation of backward reaction rates in combination with cross-section based reactions is NOT supported!')
 
 ! 1.) Read-in of species parameters for the partition function calculation
 DO iSpec = 1, nSpecies
@@ -731,23 +716,23 @@ DO iSpec = 1, nSpecies
       iPolyatMole = SpecDSMC(iSpec)%SpecToPolyArray
       IF(PolyatomMolDSMC(iPolyatMole)%LinearMolec) THEN
         IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-          CALL abort(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+          CALL CollectiveStop(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
         END IF
       ELSE
         IF(PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(1)*PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(2)  &
             * PolyatomMolDSMC(iPolyatMole)%CharaTRotDOF(3)*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-          CALL abort(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+          CALL CollectiveStop(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
         END IF
       END IF
     ELSE
       IF(SpecDSMC(iSpec)%CharaTRot*SpecDSMC(iSpec)%SymmetryFactor.EQ.0) THEN
-        CALL abort(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
+        CALL CollectiveStop(__STAMP__,'ERROR: Char. rotational temperature or symmetry factor not defined properly for backward rate!', iSpec)
       END IF
     END IF
   END IF
   IF((Species(iSpec)%InterID.NE.4).AND.(.NOT.SpecDSMC(iSpec)%FullyIonized).AND.(Species(iSpec)%InterID.NE.100)) THEN
     IF(.NOT.ALLOCATED(SpecDSMC(iSpec)%ElectronicState)) THEN
-      CALL abort(__STAMP__,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
+      CALL CollectiveStop(__STAMP__,'ERROR: Electronic energy levels required for the calculation of backward reaction rate!',iSpec)
     END IF
   END IF
 END DO
@@ -757,7 +742,7 @@ END DO
 IF(MOD(DSMC%PartitionMaxTemp,DSMC%PartitionInterval).EQ.0.0) THEN
   PartitionArraySize = NINT(DSMC%PartitionMaxTemp / DSMC%PartitionInterval)
 ELSE
-  CALL abort(__STAMP__,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
+  CALL CollectiveStop(__STAMP__,'ERROR in Chemistry Init: Partition temperature limit must be multiple of partition interval!')
 END IF
 DO iSpec = 1, nSpecies
   ALLOCATE(SpecDSMC(iSpec)%PartitionFunction(1:PartitionArraySize))
@@ -789,8 +774,7 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
       ChemReac%EForm(iReac)            = -ChemReac%EForm(iReacForward)
       ChemReac%EActiv(iReac) = 0.0
     ELSE
-      CALL abort(__STAMP__,&
-      'Other reaction types than I and D are not implemented with the automatic backward rate determination, Reaction:', iReac)
+      CALL CollectiveStop(__STAMP__,'Other reaction types than I and D are not implemented with the automatic backward rate determination, Reaction:', iReac)
     END IF
   ELSE
     IF((TRIM(ChemReac%ReactType(iReacForward)).EQ.'I').OR.&
@@ -815,7 +799,7 @@ DO iReacForward = 1, ChemReac%NumOfReactWOBackward
         ChemReac%EActiv(iReac) = 0.0
       END IF
     ELSE
-      CALL abort(__STAMP__,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
+      CALL CollectiveStop(__STAMP__,'Automatic calculation of backward reaction rate not supported with the chosen react type:',iReac)
     END IF
     ChemReac%Arrhenius_Prefactor(iReac)     = ChemReac%Arrhenius_Prefactor(iReacForward)
     ChemReac%Arrhenius_Powerfactor(iReac)   = ChemReac%Arrhenius_Powerfactor(iReacForward)
@@ -864,12 +848,12 @@ CALL H5FOPEN_F(TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
 ! Check if the REACTIONS group exists
 groupname = 'Reactions'
 CALL H5LEXISTS_F(file_id_specdb, TRIM(groupname), GroupFound, err)
-! Abort if the group does not exist
-IF(.NOT.GroupFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: No reactions group found!')
+! Terminate if the group does not exist
+IF(.NOT.GroupFound) CALL CollectiveStop(__STAMP__,'ERROR in SpeciesDatabase: No reactions group found!')
 ! Open the group and get number of available reactions in the database
 CALL H5GOPEN_F(file_id_specdb,TRIM(groupname), group_id, err)
 CALL H5Gget_info_f(group_id, storage, totalNumReac, max_corder, err)
-IF(totalNumReac.EQ.0) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: No reactions found!')
+IF(totalNumReac.EQ.0) CALL CollectiveStop(__STAMP__,'ERROR in SpeciesDatabase: No reactions found!')
 
 ! Loop over all the reactions and filter out the selected chemistry model
 numReac = 0
@@ -972,7 +956,7 @@ DO iReac = 1, numReac
           EXIT
         END IF
       END DO
-      IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
+      IF(.NOT.SpeciesFound) CALL CollectiveStop(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
     END DO
     DEALLOCATE(NonReactiveSpeciesNames)
     DEALLOCATE(ModelNames)
@@ -1001,7 +985,7 @@ DO iReac = 1, numReac
               EXIT
             END IF
           END DO
-          IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
+          IF(.NOT.SpeciesFound) CALL CollectiveStop(__STAMP__,'ERROR in SpeciesDatabase: Species defined as non-reactive has not beend found!')
         END DO
         DEALLOCATE(NonReactiveSpeciesNames)
         ! First reaction is saved within the dummy input reaction, thus "- 1"
@@ -1070,7 +1054,7 @@ CALL H5FOPEN_F (TRIM(SpeciesDatabase), H5F_ACC_RDONLY_F, file_id_specdb, err)
 ! Check if the REACTIONS group exists
 groupname = 'Reactions'
 CALL H5LEXISTS_F(file_id_specdb, TRIM(groupname), GroupFound, err)
-IF(.NOT.GroupFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: No reactions group found!')
+IF(.NOT.GroupFound) CALL CollectiveStop(__STAMP__,'ERROR in SpeciesDatabase: No reactions group found!')
 ! Open the group and get number of available reactions in the database
 CALL H5GOPEN_F(file_id_specdb,TRIM(groupname), group_id, err)
 
@@ -1085,7 +1069,7 @@ IF(ChemReac%ChemistryModel.EQ.'none') THEN
     IF(ChemReac%Reactants(iReac,1).NE.0) THEN
       reacNameReactants = TRIM(Species(ChemReac%Reactants(iReac,1))%Name)
     ELSE
-      CALL abort(__STAMP__,'ERROR in parameter.ini: First reactant cannot be zero!')
+      CALL CollectiveStop(__STAMP__,'ERROR in parameter.ini: First reactant cannot be zero!')
     END IF
     ! Add additional reactants to the string
     DO iVar = 2, 3
@@ -1098,7 +1082,7 @@ IF(ChemReac%ChemistryModel.EQ.'none') THEN
         ELSE IF (ABS(ChemReac%Reactants(iReac,iVar)).EQ.1) THEN
           reacNameReactants = TRIM(reacNameReactants)//'+A'
         ELSE
-          CALL abort(__STAMP__,'ERROR in parameter.ini: Only -1 (=A) and -2 (=M) is supported as generic non-reactive species!')
+          CALL CollectiveStop(__STAMP__,'ERROR in parameter.ini: Only -1 (=A) and -2 (=M) is supported as generic non-reactive species!')
         END IF
       END IF
     END DO
@@ -1106,7 +1090,7 @@ IF(ChemReac%ChemistryModel.EQ.'none') THEN
     IF(ChemReac%Products(iReac,1).NE.0) THEN
       reacNameProducts = TRIM(Species(ChemReac%Products(iReac,1))%Name)
     ELSE
-      CALL abort(__STAMP__,'ERROR in parameter.ini: First product cannot be zero!')
+      CALL CollectiveStop(__STAMP__,'ERROR in parameter.ini: First product cannot be zero!')
     END IF
     ! Add additional products to the string
     DO iVar = 2, 4
@@ -1119,7 +1103,7 @@ IF(ChemReac%ChemistryModel.EQ.'none') THEN
         ELSE IF (ABS(ChemReac%Products(iReac,iVar)).EQ.1) THEN
           reacNameProducts = TRIM(reacNameProducts)//'+A'
         ELSE
-          CALL abort(__STAMP__,'ERROR in parameter.ini: Only -1 (=A) and -2 (=M) is supported as generic non-reactive species!')
+          CALL CollectiveStop(__STAMP__,'ERROR in parameter.ini: Only -1 (=A) and -2 (=M) is supported as generic non-reactive species!')
         END IF
       END IF
     END DO
@@ -1147,7 +1131,7 @@ IF(ChemReac%ChemistryModel.EQ.'none') THEN
         NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
         ChemReac%AnyPhIonReaction = .TRUE.
       CASE DEFAULT
-        CALL abort(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfoOpt=iReac)
+        CALL CollectiveStop(__STAMP__,'Selected reaction model is not supported in reaction number: ', IntInfo=iReac)
     END SELECT
   END DO
 ELSE
@@ -1185,10 +1169,10 @@ ELSE
             SpeciesFound = .TRUE.
           END IF
         END DO
-        IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined in the reaction has not been found!')
+        IF(.NOT.SpeciesFound) CALL CollectiveStop(__STAMP__,'ERROR in SpeciesDatabase: Species defined in the reaction has not been found!')
       END DO
     ELSE
-      CALL abort(__STAMP__,'ERROR in reaction definition: No reactants found in the selected reaction in the database')
+      CALL CollectiveStop(__STAMP__,'ERROR in reaction definition: No reactants found in the selected reaction in the database')
     END IF
     ! Read-in of products
     CALL AttributeExists(file_id_specdb,'Products',TRIM(dsetname2), AttrExists=AttrExists)
@@ -1209,10 +1193,10 @@ ELSE
             SpeciesFound = .TRUE.
           END IF
         END DO
-        IF(.NOT.SpeciesFound) CALL abort(__STAMP__,'ERROR in SpeciesDatabase: Species defined in the reaction has not been found!')
+        IF(.NOT.SpeciesFound) CALL CollectiveStop(__STAMP__,'ERROR in SpeciesDatabase: Species defined in the reaction has not been found!')
       END DO
     ELSE
-      CALL abort(__STAMP__,'ERROR in reaction definition: No products found in the selected reaction in the database')
+      CALL CollectiveStop(__STAMP__,'ERROR in reaction definition: No products found in the selected reaction in the database')
     END IF
     ! Get mass of products and reactants
     SumProdMass = 0
@@ -1226,7 +1210,7 @@ ELSE
     ! Sanity mass check for reactions of selected chemistry model, real compare with RelMassTol
     IF(.NOT.ALMOSTEQUALRELATIVE(SumProdMass,SumReactMass,RelMassTol)) THEN
       CALL PrintOption('DSMC_Chemistry might not be mass conserving for chemical reaction:','WARNING',StrOpt=TRIM(ChemReac%ReactionName(iReac)))
-      CALL abort(__STAMP__,'DSMC_Chemistry might not be mass conserving for current chemical reaction!')
+      CALL CollectiveStop(__STAMP__,'DSMC_Chemistry might not be mass conserving for current chemical reaction!')
     END IF
       ! Read-in of the reaction parameters, depending on the model
     SELECT CASE (TRIM(ChemReac%ReactModel(iReac)))
@@ -1250,7 +1234,7 @@ ELSE
         NbrOfPhotonXsecReactions = NbrOfPhotonXsecReactions + 1
         ChemReac%AnyPhIonReaction = .TRUE.
       CASE DEFAULT
-        CALL abort(__STAMP__,'Selected reaction model as part of a chemistry model is not supported in reaction number: ', IntInfoOpt=iReac)
+        CALL CollectiveStop(__STAMP__,'Selected reaction model as part of a chemistry model is not supported in reaction number: ', IntInfo=iReac)
     END SELECT
   END DO
 END IF
@@ -1290,7 +1274,7 @@ LOGICAL                           :: ReactionFound
 !===================================================================================================================================
 
 CALL DatasetExists(file_id_specdb,TRIM(dsetname2),ReactionFound)
-IF(.NOT.ReactionFound) CALL abort(__STAMP__,'ERROR in parameter.ini: Defined reaction has not been found in the database!')
+IF(.NOT.ReactionFound) CALL CollectiveStop(__STAMP__,'ERROR in parameter.ini: Defined reaction has not been found in the database!')
 
 CALL ReadAttribute(file_id_specdb,'Arrhenius-Prefactor',1,DatasetName = dsetname2,RealScalar=ChemReac%Arrhenius_Prefactor(iReac))
 CALL PrintOption('Arrhenius-Prefactor','DB',RealOpt=ChemReac%Arrhenius_Prefactor(iReac))
@@ -1309,7 +1293,7 @@ END SUBROUTINE ReadArrheniusFromDatabase
 !===================================================================================================================================
 SUBROUTINE InitPhotonReactions()
 ! MODULES
-USE MOD_Globals             ,ONLY: abort
+USE MOD_Globals             ,ONLY: CollectiveStop
 USE MOD_DSMC_Vars           ,ONLY: ChemReac,CollisMode,UseDSMC
 USE MOD_part_emission_tools ,ONLY: CalcPhotonEnergy
 USE MOD_PARTICLE_Vars       ,ONLY: nSpecies
@@ -1350,11 +1334,10 @@ DO iReac = 1, ChemReac%NumOfReact
 
     ChemReac%EForm(iReac) = ChemReac%EForm(iReac) + PhotonEnergy
     IF(ChemReac%EForm(iReac).LE.0.0) THEN
-      CALL abort(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
+      CALL CollectiveStop(__STAMP__,'ERROR: Photon energy is not sufficient for the given ionization reaction: ',iReac)
     END IF
-    ! Abort if photon-ionization reactions using cross-sections have been defined
-    IF(NbrOfPhotonXsecReactions.GT.0) CALL abort(__STAMP__,&
-      'Photoionization reactions with constant cross-sections cannot be combined with XSec data cross-sections for photoionization')
+    ! Terminate if photon-ionization reactions using cross-sections have been defined
+    IF(NbrOfPhotonXsecReactions.GT.0) CALL CollectiveStop(__STAMP__,'Photoionization reactions with constant cross-sections cannot be combined with XSec data cross-sections for photoionization')
   END IF ! TRIM(ChemReac%ReactModel(iReac)).EQ.'phIon'
 END DO ! iReac = 1, ChemReac%NumOfReact
 

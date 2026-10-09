@@ -69,14 +69,15 @@ INTEGER,INTENT(OUT)             :: ExternalFieldN(1:3)   !< Number of points in 
 ! LOCAL VARIABLES
 CHARACTER(LEN=64)               :: dsetname,AttributeName
 INTEGER                         :: err
-INTEGER                         :: NbrOfRows,NbrOfColumns,iDir,j
+INTEGER                         :: NbrOfColumns,NbrOfRows,iDir,iRow
 INTEGER(HSIZE_T), DIMENSION(2)  :: dims,sizeMax
-INTEGER(HID_T)                  :: file_id_loc                       ! File identifier
-INTEGER(HID_T)                  :: dset_id_loc                       ! Dataset identifier
-INTEGER(HID_T)                  :: filespace                         ! filespace identifier
+INTEGER(HID_T)                  :: file_id_loc                       !< File identifier
+INTEGER(HID_T)                  :: dset_id_loc                       !< Dataset identifier
+INTEGER(HID_T)                  :: filespace                         !< filespace identifier
 LOGICAL                         :: DatasetFound,AttributeFound,NaNDetected
 REAL                            :: delta,deltaOld,epsComp
-INTEGER                         :: iDirMax, index
+INTEGER                         :: iDirMax,index
+INTEGER                         :: i !< Count total number of checked data points (note that the last line is always skipped)
 !===================================================================================================================================
 ! Defaults
 ExternalFieldDim     = 1 ! default is 1D
@@ -99,14 +100,17 @@ IF(DatasetFound) THEN
   CALL H5DGET_SPACE_F(dset_id_loc, FileSpace, err)
   ! get size
   CALL H5SGET_SIMPLE_EXTENT_DIMS_F(FileSpace, dims, SizeMax, err)
-  ! Flip columns and rows between .h5 data and Fortran data
-  NbrOfColumns = INT(dims(2)) ! this is the total number of points
-  NbrOfRows    = INT(dims(1)) ! this is the number of properties x,y,z,Bx,By,Bz
+  ! ATTENTION: Flip columns and rows between .h5 data and Fortran data. Row and Column below correspond to the .h5 dataset, e.g.,
+  ! when opening the data with hdfview
+  ! Also note that 2D (e.g. r-z-coordinates) and 3D data is differently sorted in the h5 dataset, where the first or second column
+  ! is major or minor
+  NbrOfRows    = INT(dims(2)) ! this is the total number of points
+  NbrOfColumns = INT(dims(1)) ! this is the number of properties x,y,z,Bx,By,Bz
   ! Read-in the data
-  ALLOCATE(ExternalField(1:NbrOfRows,1:NbrOfColumns))
+  ALLOCATE(ExternalField(1:NbrOfColumns,1:NbrOfRows))
   ExternalField=0.
   ! read data
-  CALL H5DREAD_F(dset_id_loc, H5T_NATIVE_DOUBLE, ExternalField(1:NbrOfRows,1:NbrOfColumns), dims, err)
+  CALL H5DREAD_F(dset_id_loc, H5T_NATIVE_DOUBLE, ExternalField(1:NbrOfColumns,1:NbrOfRows), dims, err)
 ELSE
   CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: Dataset "'//TRIM(dsetname)//'" not found in '//TRIM(FileNameExternalField))
 END IF
@@ -162,27 +166,43 @@ END IF ! ExternalFieldDim.EQ.2
 
 ! Loop x, y and z-coordinate and check deltas between points
 NaNDetected=.FALSE.
+i=0
 DO iDir = 1, iDirMax
   ! Check for NaNs and nullify all properties except the coordinates of a data point
-  DO j = 1, NbrOfColumns
-    IF(ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfRows,j))))THEN
+  DO iRow = 1, NbrOfRows
+    IF(ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfColumns,iRow))))THEN
       NaNDetected=.TRUE.
-      ExternalField(ExternalFieldDim+1:NbrOfRows,j) = 0.
-    END IF ! ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfRows,j)))
+      ExternalField(ExternalFieldDim+1:NbrOfColumns,iRow) = 0.
+    END IF ! ANY(ISNAN(ExternalField(ExternalFieldDim+1:NbrOfRows,iRow)))
   END DO
 
   ! Get global min/max
   ExternalFieldMin(iDir) = MINVAL(ExternalField(iDir,:))
   ExternalFieldMax(iDir) = MAXVAL(ExternalField(iDir,:))
   deltaOld = -1.0
-  DO j = 1, NbrOfColumns-1
-    delta = ExternalField(iDir,j+1)-ExternalField(iDir,j)
-    epsComp = ExternalField(iDir,j+1) * epsMach
-    !write(*,*) delta
+  DO iRow = 1, NbrOfRows-1  ! Loop only until NbrOfColumns-1 for comparison between Ext...(iDir,iRow+1) nad Ext...(iDir,iRow)
+    i = i+1
+    ! Do not use ABS() for delta as the value is checked for positive or negative values below (negative means that the coordinate
+    ! jumps from the largest value to the smallest value in the list)
+    delta = ExternalField(iDir,iRow+1)-ExternalField(iDir,iRow)
+
+    ! Use ABS() for epsComp as this is used for comparing with positive values of delta and deltaOld(to check if they are non-zero)
+    epsComp = ABS(ExternalField(iDir,iRow+1) * epsMach)
+
+    ! Make sure that the provided input data is equisitant in the direction of its coordinates
+    ! Check if the previous Δx (deltaOld) is greater than the next coordinate value multiplied with the machine precision (epsComp)
+    !   AND if the current Δx (delta) is greater than the next coordinate value multiplied with the machine precision (epsComp)
+    ! Then check if these values are almost euqal relative to 1e-5 (arbitary tolerance)
     IF((deltaOld.GT.epsComp).AND.(delta.GT.epsComp))THEN
       IF(.NOT.ALMOSTEQUALRELATIVE(delta,deltaOld,1e-5)) THEN
-        SWRITE (*,*) "ExternalField(iDir,j+1),ExternalField(iDir,j)", ExternalField(iDir,j+1),ExternalField(iDir,j)
-        SWRITE (*,*) "iDir,j,delta,deltaOld =", iDir,j,delta,deltaOld
+        SWRITE (*,*) i, "ExternalField(iDir,iRow-1) = ", ExternalField(iDir,iRow-1)
+        SWRITE (*,*) i, "ExternalField(iDir,iRow  ) = ", ExternalField(iDir,iRow)
+        SWRITE (*,*) i, "ExternalField(iDir,iRow+1) = ", ExternalField(iDir,iRow+1)
+        SWRITE (*,*) i, "NbrOfRows,NbrOfColumns,iDir,iRow =", NbrOfColumns,NbrOfRows,iDir,iRow
+        SWRITE (*,*) i, "delta,deltaOld,epsComp        =", delta,deltaOld,epsComp
+        SWRITE (*,*) i, 'deltaOld.GT.epsComp:', deltaOld.GT.epsComp
+        SWRITE (*,*) i, '   delta.GT.epsComp:', delta.GT.epsComp
+        SWRITE (*,*) i, "iRow = ",iRow," runs from 1 to NbrOfColumns-1 =", NbrOfRows-1
         CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: provided input is not equidistant.')
       END IF
     END IF ! deltaOld.GT.0.
@@ -194,22 +214,22 @@ DO iDir = 1, iDirMax
       IF(ExternalFieldDim.EQ.2)THEN
         IF(ExternalFieldN(1).LT.0)THEN
           ! z-dir
-          ExternalFieldN(1) = j
+          ExternalFieldN(1) = iRow
           ! r-dir
-          ExternalFieldN(2) = NbrOfColumns/ExternalFieldN(1)
+          ExternalFieldN(2) = NbrOfRows/ExternalFieldN(1)
         END IF
       ELSE
         IF(ExternalFieldN(iDir).LT.0)THEN
           IF(iDir.EQ.1)THEN
-            ExternalFieldN(iDir) = j
+            ExternalFieldN(iDir) = iRow
           ELSE
-            ExternalFieldN(2) = j / ExternalFieldN(1)
-            ExternalFieldN(3) = NbrOfColumns/(ExternalFieldN(1)*ExternalFieldN(2))
+            ExternalFieldN(2) = iRow / ExternalFieldN(1)
+            ExternalFieldN(3) = NbrOfRows/(ExternalFieldN(1)*ExternalFieldN(2))
           END IF
         END IF ! ExternalFieldN(iDir).LT.0
       END IF ! ExternalFieldDim.EQ.2
     END IF
-  END DO ! j = 1, NbrOfColumns
+  END DO ! iRow = 1, NbrOfColumns
 END DO ! iDir = 1, iDirMax
 
 IF(NaNDetected) THEN
@@ -223,11 +243,11 @@ ASSOCIATE( x => ExternalFieldN(1:3) )
     ! z-dir: x(1)
     ! r-dir: x(2)
     LBWRITE (UNIT_stdOut,'(A,2(I0,A))') " | Read external field with ",x(1)," x ",x(2)," data points"
-    IF(NbrOfColumns.NE.x(1)*x(2)) CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: Wrong number of points in 2D')
+    IF(NbrOfRows.NE.x(1)*x(2)) CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: Wrong number of points in 2D')
   ELSE
     LBWRITE (UNIT_stdOut,'(A,3(I0,A))') " | Read external field with ",x(1)," x ",x(2)," x ",x(3)," data points"
     IF(MINVAL(DeltaExternalField).LT.0.) CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: Failed to calculate the deltas for external field.')
-    IF(NbrOfColumns.NE.x(1)*x(2)*x(3)) CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: Wrong number of points in 3D')
+    IF(NbrOfRows.NE.x(1)*x(2)*x(3)) CALL abort(__STAMP__,'ERROR in ReadExternalFieldFromHDF5: Wrong number of points in 3D')
   END IF ! ExternalFieldDim.EQ.2
 END ASSOCIATE
 

@@ -125,4 +125,27 @@ After loading the required modules, the installation of PICLas can proceed as us
 
 More information on using the queue system can be found in the [HLRS wiki](https://kb.hlrs.de/platforms/index.php/Platforms).
 
+### Lustre striping
+Always use user-defined striping in the simulation case folders that are on the work spaces as the default stiping setting (dynamic
+striping) has caused massive problems in the past. Add the following code to your submit script
+
+    # Set fixed striping to avoid problems with the progressive Lustre file layout
+    # - Region 1 [0, 1GiB): Stripe-Size=1 MiB, Stripe-Count=1
+    #lfs setstripe -c 1 -S 1M $PBS_O_WORKDIR
+    # - Region 2 [1GiB, 4GiB): Stripe-Size=1 MiB, Stripe-Count=4
+    #lfs setstripe -c 4 -S 1M $PBS_O_WORKDIR
+    # - Region 3 [4 GiB, EOF): Stripe-Size=4 MiB, Stripe-Count=8
+    lfs setstripe -c 8 -S 4M $PBS_O_WORKDIR
+
+Note that the correct line should be commented in and the other lines should be commented out, all depending on the size of your
+output files.
+Also consider the stripe settings for large mesh files just to be sure.
+
+### Species-zero bug
+It has repeatedly occurred that particles with species index zero have been produced on hawk.
+This might be due to the output to .h5, which could reflect the previous section regarding the striping settings, but could also lie
+deeper the Lustre file system itself.
+If this problem occurs, the corrupted particles must be removed from the .h5 file by hand if a restart from such a corrupted file is
+performed in order to prevent piclas from crashing.
+
 Section last updated: 16.06.2025

@@ -1,12 +1,10 @@
-import numpy as np
-import math
-from timeit import default_timer as timer
 import argparse
-import re
-import shutil
 import os.path
-import configparser
+import sys
 import types
+from timeit import default_timer as timer
+
+import numpy as np
 
 # Bind raw_input to input in Python 2
 try:
@@ -14,7 +12,6 @@ try:
     import ConfigParser as ConfPars
 except NameError:
     import configparser as ConfPars
-    pass
 
 def CreateConfig(parameterFile):
     if os.path.exists(parameterFile):
@@ -36,18 +33,18 @@ def CreateConfig(parameterFile):
                     # check if the same parameter name (e.g. 'BoundaryName') occurs more than once in the list and
                     # move multiple occurances to a separate key/value where the value is a list of all occurances
                     # this must be done, because dicts cannot have the same key name more than once (it is a dictionary)
-                    found, number = isKeyOf(config,key)
+                    found, _number = isKeyOf(config,key)
                     if found :
                         if type(config[key]) == tuple:
-                            config[key] = config[key] + tuple([val])
+                            config[key] = config[key] + (val,)
                         else:
-                            config[key] = tuple([config[key]]) + tuple([val])
+                            config[key] = (config[key],) + (val,)
                     else :
                         config[key] = val
 
         with open(parameterFile+".new", "w") as output_new: 
             output_new.write("[Section1]\n")
-            for x in config.keys():
+            for x in config:
                 if type(config[x]) == tuple:
                     #print(x.ljust(40) +" = " + ", ".join(str(y) for y in config[x]))
                     output_new.write(x.ljust(40) +" = " + ", ".join(str(y) for y in config[x])+"\n")
@@ -64,7 +61,7 @@ def isKeyOf(a,key_IN) :
     """Check if the dictionary 'a' contains a key 'key_IN'"""
     found = False
     number = 0
-    for key in a.keys() :
+    for key in a :
         if key == key_IN :
             number += 1
             found = True
@@ -119,14 +116,14 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
     try :
         b1 = f1[data_set][:]
     except :
-        print('Dataset %s does not exist' % data_set)
+        print(f'Dataset {data_set} does not exist')
         return
 
-    dataType = f1[data_set].dtype
+    f1[data_set].dtype
 
     if args.debug:
         print( )
-        print(yellow("Keys: %s" % f1.keys()))
+        print(yellow(f"Keys: {f1.keys()}"))
         print(yellow("    size :         "+ str(f1[data_set].size)))
         print(yellow("    shape :        "+ str(f1[data_set].shape)))
         print(yellow("    dtype :        "+ str(f1[data_set].dtype)))
@@ -145,19 +142,14 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
         InitialDataRead = False
 
         # Attributes
-        Attributes=[]
-        for x in f1.attrs :
-            Attributes.append("%s" % x)
+        [f"{x}" for x in f1.attrs]
 
 
         # VarNamesParticles
         f1VarNamesParticles = f1.attrs.get('VarNamesParticles', default=-1.)
-        s = ' '.join('%s' % x for x in f1VarNamesParticles)
-        l = s.split("'")[1::2];
-
-        VarNamesParticles = []
-        for x in l :
-            VarNamesParticles.append("%s" % x)
+        s = ' '.join(f'{x}' for x in f1VarNamesParticles)
+        l = s.split("'")[1::2]
+        VarNamesParticles = [f"{x}" for x in l]
         SpeciesIndex = VarNamesParticles.index('Species')
         MPFIndex = VarNamesParticles.index('MacroParticleFactor')
 
@@ -176,9 +168,9 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
 
             Charge={}
             for iSpec in Species :
-                txt = input(yellow("    Enter the charge for species %s in multiples of the elementary charge e=1.602176634e-19 : " % iSpec))
+                txt = input(yellow(f"    Enter the charge for species {iSpec} in multiples of the elementary charge e=1.602176634e-19 : "))
                 Charge[iSpec] = float(txt)*1.602176634e-19
-            print(yellow("    The charges of the species are: %s" % Charge))
+            print(yellow(f"    The charges of the species are: {Charge}"))
 
         # Create empy data array
         #data = np.empty([NbrOfFiles, 2], dtype=float)
@@ -200,29 +192,27 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
                 if b1[i][CutOff.Coord] > CutOff.Val:
                     #print(b1[i][0],b1[i][1],b1[i][2]) 
                     continue
-            elif CutOff.Type == 'lesser':
-                if b1[i][CutOff.Coord] < CutOff.Val:
-                    #print(b1[i][0],b1[i][1],b1[i][2]) 
-                    continue
+            elif CutOff.Type == 'lesser' and b1[i][CutOff.Coord] < CutOff.Val:
+                #print(b1[i][0],b1[i][1],b1[i][2]) 
+                continue
             # Skip radius
             if CutOff.Rad is not None:
                 if CutOff.Type == 'greater':
                     if np.linalg.norm(b1[i][0:1]) > CutOff.Rad:
                         continue
-                elif CutOff.Type == 'lesser':
-                    if np.linalg.norm(b1[i][0:1]) < CutOff.Rad:
-                        continue
+                elif CutOff.Type == 'lesser' and np.linalg.norm(b1[i][0:1]) < CutOff.Rad:
+                    continue
 
         if SpecID not in Charge :
-            txt = input(yellow("    Enter the charge for species %s in multiples of the elementary charge e=1.602176634e-19 : " % SpecID))
+            txt = input(yellow(f"    Enter the charge for species {SpecID} in multiples of the elementary charge e=1.602176634e-19 : "))
             Charge[SpecID] = float(txt)*1.602176634e-19
-            print(yellow("    The charges of the species are: %s" % Charge))
+            print(yellow(f"    The charges of the species are: {Charge}"))
             # Add another column to the data array for the new species
             AddData = np.zeros([NbrOfFiles, 1], dtype=float)
             data = np.concatenate((data,AddData),axis=1)
             #print(data)
             # Add another entry for the sum of charge
-            AddSumCharge = np.zeros([1], dtype=float)
+            np.zeros([1], dtype=float)
             #print("AddSumCharge = %s" % (AddSumCharge))
             SumCharge = np.append(SumCharge,[0.])
             #print("SumCharge = %s" % (SumCharge))
@@ -240,7 +230,7 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
     PreviousTime      = Time
     data[FileCount,0] = Time
     data[FileCount,1] = Current
-    for SpecID, v in Charge.items():
+    for SpecID in Charge:
         myindex = list(Charge.keys()).index(SpecID)
         Current = SumCharge[myindex] / dt
         data[FileCount,myindex+2] = Current
@@ -252,7 +242,7 @@ def GetInfoFromDataset(statefile,data_set,NbrOfFiles,species_info_read,CutOff) :
     # 3   Close .h5 data file
     f1.close()
 
-    print("%s  t=%.2E  dt=%.2E  charge=%.2E  current=%.2E"% (statefile, Time, dt, TotalCharge, Current))
+    print(f"{statefile}  t={Time:.2E}  dt={dt:.2E}  charge={TotalCharge:.2E}  current={Current:.2E}")
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -291,7 +281,7 @@ try :
     h5py_module_loaded = True
 except ImportError :
     print(red('Could not import h5py module. This is required for reading .h5 files. Exit.'))
-    exit(0)
+    sys.exit(0)
 
 # Start the timer
 start = timer()
@@ -327,17 +317,17 @@ if args.cutoff:
     CutOff.Type  = args.type
     if not CutOff.Coord in [0,1,2]:
         print(red("Cut-Off: Coordinate [-o] must either be 0, 1 or 2."))
-        exit(0)
+        sys.exit(0)
     if not CutOff.Type in ['greater','lesser']:
         print(red('Cut-Off: Type [-t] must either be "greater" or "lesser".'))
-        exit(0)
+        sys.exit(0)
     if CutOff.Val is None and CutOff.Val is None:
         print(red('Cut-Off: Value [-v] and/or Radius [-r] must be chosen.'))
-        exit(0)
+        sys.exit(0)
     mystr='xyz'
-    print(red("WARNING: Coordinate cut-off is activated. Removing particles with %s-coordinate %s than %s" % (mystr[CutOff.Coord], CutOff.Type, CutOff.Val)))
+    print(red(f"WARNING: Coordinate cut-off is activated. Removing particles with {mystr[CutOff.Coord]}-coordinate {CutOff.Type} than {CutOff.Val}"))
     if CutOff.Rad is not None:
-        print(red("WARNING: Radius cut-off is activated. Removing particles with radius %s than %s" % (CutOff.Type, CutOff.Rad)))
+        print(red(f"WARNING: Radius cut-off is activated. Removing particles with radius {CutOff.Type} than {CutOff.Rad}"))
 
 # Get maximum number of characters in h5 file names
 max_length=0
@@ -360,13 +350,13 @@ if config :
     Charge={}
     for iSpec in Species :
         Charge[iSpec] = float(config.get("Section1","Part-Species%d-ChargeIC" % iSpec))
-    print(yellow("    Automatically fetched species ID's and charges from %s" % args.parameter))
-    print(yellow("    The charges of the species are: %s" % Charge))
+    print(yellow(f"    Automatically fetched species ID's and charges from {args.parameter}"))
+    print(yellow(f"    The charges of the species are: {Charge}"))
 else:
     species_info_read=False
 
 if not species_info_read:
-    print(yellow("Parameter file [%s] not found. Please enter the required species information by hand or create a symbolic link to the parameter.ini file which was used to create the data" % args.parameter))
+    print(yellow(f"Parameter file [{args.parameter}] not found. Please enter the required species information by hand or create a symbolic link to the parameter.ini file which was used to create the data"))
 
 InitialDataRead = True
 NbrOfFiles = len(args.files)
@@ -374,13 +364,13 @@ for statefile in args.files :
     if statefile.endswith('.h5') and not statefile.endswith('_merged.h5'):
         # check if file exists
         if not os.path.exists(statefile):
-            print(red('File does not exist: [%s]' % statefile))
-            exit(0)
+            print(red(f'File does not exist: [{statefile}]'))
+            sys.exit(0)
     else:
         NbrOfFiles -= 1
 
 
-print("Reading %s files" % NbrOfFiles)
+print(f"Reading {NbrOfFiles} files")
 for statefile in args.files :
     if statefile.endswith('.h5') and not statefile.endswith('_merged.h5'):
 
@@ -396,15 +386,15 @@ for statefile in args.files :
 #print("x = %s" % (x))
 
 myheader = '"time","Current [A]"'
-for k, v in Charge.items():
+for k in Charge:
     #print(k,v)
     #print(list(Charge.keys()).index(k))
 
     #print( )
-    myheader = myheader+str(',"Spec-(%s)"' % k)
+    myheader = myheader+str(f',"Spec-({k})"')
 
 print( )
-print("myheader = %s" % (myheader))
+print(f"myheader = {myheader}")
 print(132*"-")
 #print(data)
 if 'data' in locals():

@@ -18,6 +18,7 @@ libraries listed in the table work automatically
 
 | PICLas Version |                              MPI                              | glibc |
 | :------------: | :-----------------------------------------------------------: | :---: |
+| 4.3.0  | [openmpi-4.1.6](https://www.open-mpi.org/software/ompi/v4.1/) | 2.27  |
 | 3.6.0 - 4.2.0  | [openmpi-4.1.6](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
 | 3.3.0 - 3.5.0  | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.18  |
 |     <3.3.0     | [openmpi-4.1.0](https://www.open-mpi.org/software/ompi/v4.1/) | 2.17  |
@@ -29,6 +30,7 @@ on the system where the AppImage is going to be executed
 
 | PICLas Version |                                 GNU GCC                                  |                                          HDF5                                          |                         PETSc                          |
 | :------------: | :----------------------------------------------------------------------: | :------------------------------------------------------------------------------------: | :----------------------------------------------------: |
+| 4.3.0  | [gcc (GCC) 12 (Rocky Linux 8)](https://gcc.gnu.org/gcc-12/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.21.6](https://petsc.org/release/changes/321/) |
 | 3.6.0 - 4.2.0  | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.21.6](https://petsc.org/release/changes/321/) |
 |    <=3.5.0     | [gcc (GCC) 8.3.1 20190311 (Red Hat 8.3.1-3)](https://gcc.gnu.org/gcc-8/) | [HDF5 1.12.2](https://www.hdfgroup.org/2022/04/release-of-hdf5-1-12-2-newsletter-183/) | [PETSc 3.18.4](https://petsc.org/release/changes/318/) |
 
@@ -90,17 +92,18 @@ from the command line. For convenience, you can add this line to your `.bashrc`.
 ## Required Libraries
 The following list contains the **recommended library combinations** for the Intel and GNU compiler in combination with HDF5, OpenMPI, CMake etc.
 
-| PICLas Version | CMake  | Compiler  |            MPI             |  HDF5  | PETSc  |
-| :------------: | :----: | :-------: | :------------------------: | :----: | :----: |
-|     4.2.0      | 4.2.1  | gcc14.2.0 | openmpi-5.0.9, mpich-4.3.1 | 1.14.6 | 3.22.5 |
-|     4.1.0      | 4.2.1  | gcc14.2.0 | openmpi-5.0.8, mpich-4.3.1 | 1.14.6 | 3.22.5 |
-| 3.6.0 - 4.0.0  | 3.31.1 | gcc14.2.0 | openmpi-5.0.6, mpich-4.1.2 | 1.14.0 | 3.21.6 |
-|     3.4.0      | 3.31.1 | gcc13.2.0 | openmpi-4.1.5, mpich-4.1.2 | 1.14.0 | 3.19.3 |
-|     3.3.0      | 3.26.4 | gcc13.2.0 |       openmpi-4.1.5        | 1.14.0 | 3.19.3 |
-|     2.8.0      | 3.24.2 | gcc12.2.0 |       openmpi-4.1.4        | 1.12.2 |   -    |
-| 2.3.0 - 2.7.0  | 3.21.3 | gcc11.2.0 |       openmpi-4.1.1        | 1.12.1 |   -    |
-|     2.0.0      |  3.17  | intel19.1 |          impi2019          |  1.10  |   -    |
-| 2.0.0 - 2.2.2  |  3.17  | intel19.1 |          impi2019          |  1.10  |   -    |
+| PICLas Version | CMake  | Compiler  |            MPI              |  HDF5  | PETSc  |
+| :------------: | :----: | :-------: | :-------------------------: | :----: | :----: |
+|     4.3.0      | 4.3.3  | gcc16.1.0 | openmpi-5.0.9¹, mpich-5.0.1 | 2.2.0 | 3.25.1 |
+|     4.2.0      | 4.2.1  | gcc14.2.0 | openmpi-5.0.9, mpich-4.3.1  | 1.14.6 | 3.22.5 |
+|     4.1.0      | 4.2.1  | gcc14.2.0 | openmpi-5.0.8, mpich-4.3.1  | 1.14.6 | 3.22.5 |
+| 3.6.0 - 4.0.0  | 3.31.1 | gcc14.2.0 | openmpi-5.0.6, mpich-4.1.2  | 1.14.0 | 3.21.6 |
+|     3.4.0      | 3.31.1 | gcc13.2.0 | openmpi-4.1.5, mpich-4.1.2  | 1.14.0 | 3.19.3 |
+|     3.3.0      | 3.26.4 | gcc13.2.0 |       openmpi-4.1.5         | 1.14.0 | 3.19.3 |
+|     2.8.0      | 3.24.2 | gcc12.2.0 |       openmpi-4.1.4         | 1.12.2 |   -    |
+| 2.3.0 - 2.7.0  | 3.21.3 | gcc11.2.0 |       openmpi-4.1.1         | 1.12.1 |   -    |
+|     2.0.0      |  3.17  | intel19.1 |          impi2019           |  1.10  |   -    |
+| 2.0.0 - 2.2.2  |  3.17  | intel19.1 |          impi2019           |  1.10  |   -    |
 
 and the **minimum requirements**
 
@@ -115,6 +118,8 @@ If you are setting-up a fresh system for the simulation with PICLas, it is recom
 up with the provided shell scripts in `piclas/tools/Setup_ModuleEnv`.
 A description is available here: `piclas/tools/Setup_ModuleEnv/README.md`.
 This allows installing and switching between different compiler, MPI, HDF5 and PETSc versions.
+
+[1] Patches are required to build OpenMPI 5.0.9 with GCC 16.1.0. These can be found under `./tools/Setup_ModuleEnv/patches`
 
 ### Installing GCC
 
@@ -230,6 +235,7 @@ The following list contains the **recommended/working library versions** for PET
 
 | PICLas Version | PETSc Version |
 | :------------: | :-----------: |
+|     4.3.0      |    3.25.1     |
 |     3.6.0      |    3.21.6     |
 |     3.3.0      |    3.19.3     |
 |     3.0.0      |  3.17, 3.18   |

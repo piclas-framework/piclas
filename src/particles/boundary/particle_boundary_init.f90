@@ -475,9 +475,10 @@ DO iPartBound=1,nPartBound
     ! Adaptive wall temperature model
     PartBound%UseAdaptedWallTemp(iPartBound) = GETLOGICAL('Part-Boundary'//TRIM(hilf)//'-UseAdaptedWallTemp')
     ! Activate wall temperature output in the DSMCSurfState, required for the initialization of the array as well
-    IF(PartBound%UseAdaptedWallTemp(iPartBound)) PartBound%OutputWallTemp = .TRUE.
-    PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
-
+    IF(PartBound%UseAdaptedWallTemp(iPartBound)) THEN
+      PartBound%OutputWallTemp = .TRUE.
+      PartBound%RadiativeEmissivity(iPartBound) = GETREAL('Part-Boundary'//TRIM(hilf)//'-RadiativeEmissivity')
+    END IF
     ! Wall temperature gradient model
     PartBound%WallTemp2(iPartBound)         = GETREAL('Part-Boundary'//TRIM(hilf)//'-WallTemp2')
     IF(PartBound%WallTemp2(iPartBound).GT.0.) THEN
@@ -2379,7 +2380,7 @@ iBCLoop3: DO iPartBound=1,nPartBound
       BCID = SideInfo_Shared(SIDE_BCID,RotSideID)
       IF(BCID.EQ.0) CYCLE LocSideLoop
       ! Skip non-rotPeriodic BCs
-      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BCID)).NE.PartBound%RotPeriodicBC) CYCLE
+      IF(PartBound%TargetBoundCond(PartBound%MapToPartBC(BCID)).NE.PartBound%RotPeriodicBC) CYCLE LocSideLoop
       PartBound%RotPeriodicAngle(iPartBound) = PartBound%RotPeriodicAngle(PartBound%MapToPartBC(BCID))
       HasInterPlaneOnProc(iPartBound) = .TRUE.
       ! Loop over the local side nodes of InterSideID

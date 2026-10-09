@@ -347,7 +347,7 @@ END FUNCTION shapefunc
 
 FUNCTION beta(z,w)
    IMPLICIT NONE
-   REAL beta, w, z
+   REAL :: beta, w, z
    beta = GAMMA(z)*GAMMA(w)/GAMMA(z+w)
 END FUNCTION beta
 

@@ -37,8 +37,7 @@ SUBROUTINE InitializeVariablesAmbipolarDiff()
 ! MODULES
 USE MOD_Globals
 USE MOD_ReadInTools
-USE MOD_Globals_Vars        ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars       ,ONLY: nSpecies,Species
+USE MOD_Particle_Vars       ,ONLY: nSpecies
 USE MOD_DSMC_Vars           ,ONLY: useDSMC, DSMC
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -55,8 +54,7 @@ IF(useDSMC) THEN
   IF (DSMC%DoAmbipolarDiff) THEN
     DSMC%AmbiDiffElecSpec = 0
     DO iSpec = 1, nSpecies
-      IF (Species(iSpec)%ChargeIC.GT.0.0) CYCLE
-      IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1) DSMC%AmbiDiffElecSpec=iSpec
+      IF(SPECIESISELECTRON(iSpec)) DSMC%AmbiDiffElecSpec=iSpec
     END DO
     IF(DSMC%AmbiDiffElecSpec.EQ.0) THEN
       CALL abort(__STAMP__,'ERROR: No electron species found for ambipolar diffusion: ',IntInfoOpt=DSMC%AmbiDiffElecSpec)
@@ -149,7 +147,7 @@ SUBROUTINE AD_InsertParticles(iPartIndx_Node, nPart, iPartIndx_NodeTotalAmbi, To
 ! MODULES
 USE MOD_Globals
 USE MOD_DSMC_Vars               ,ONLY: BGGas, DSMC, PartIntEn
-USE MOD_DSMC_Vars               ,ONLY: DSMCSumOfFormedParticles, newAmbiParts, iPartIndx_NodeNewAmbi
+USE MOD_DSMC_Vars               ,ONLY: newAmbiParts, iPartIndx_NodeNewAmbi
 USE MOD_PARTICLE_Vars           ,ONLY: PDM, PartSpecies, PartState, PEM, Species, PartMPF, usevMPF
 USE MOD_PARTICLE_Vars           ,ONLY: UseVarTimeStep, PartTimeStep
 USE MOD_Particle_Tracking       ,ONLY: ParticleInsideCheck
@@ -195,7 +193,6 @@ iPartIndx_NodeTotalAmbi(1:nPart) = iPartIndx_Node(1:nPart)
 TotalPartNum = nPart
 
 DO iLoop = 1, nNewElectrons
-  DSMCSumOfFormedParticles = DSMCSumOfFormedParticles + 1
   PositionNbr = GetNextFreePosition()
   InsideFlag=.FALSE.
   iElem = PEM%GlobalElemID(iPartIndx_Node(1))

@@ -1,11 +1,13 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
-import re
-import os
 import grp
+import os
 import pwd
+import re
 import subprocess
+import sys
+from timeit import default_timer as timer
+
+import numpy as np
 
 # Bind raw_input to input in Python 2
 try:
@@ -62,7 +64,7 @@ def get_owner_and_group(stdfile):
 
         user = pwd.getpwuid(uid)[0]
         group = grp.getgrgid(gid)[0]
-    except Exception as e:
+    except Exception:
         return None, None
 
     return user, uid, group, gid
@@ -71,7 +73,7 @@ def get_owner_and_group(stdfile):
 def RenameFiles(differences, stdfile, stdfile_backup, stdfile_new, args):
 
     # Check user/group name vs. original file
-    userOrig, uidOrig, groupOrig, gidOrig = get_owner_and_group(stdfile)
+    _userOrig, uidOrig, groupOrig, gidOrig = get_owner_and_group(stdfile)
 
     # Check if differences exist (nLostParts or changedLines)
     if differences > 0:
@@ -82,7 +84,7 @@ def RenameFiles(differences, stdfile, stdfile_backup, stdfile_new, args):
         os.rename(stdfile_new, stdfile)        # replace original file with cleaned file
 
         # Check group name vs. original file
-        user, uid, group, gid = get_owner_and_group(stdfile)
+        _user, _uid, group, gid = get_owner_and_group(stdfile)
         if groupOrig is not None and group is not None:
             if groupOrig == group:
                 pass
@@ -253,11 +255,8 @@ def CleanDoPrintStatusLine(stdfile, args):
     # 1. Search for carriage-return characters
 
     changedLines=0
-    with open(stdfile, "r") as input:
-        with open(stdfile_new, "w") as output_new:
-            for line in input:
-                # Remove carriage-return
-                output_new.write(line.rstrip()+"\n")
+    with open(stdfile, "r") as input, open(stdfile_new, "w") as output_new:
+        output_new.writelines(line.rstrip()+"\n" for line in input)
 
     with open(stdfile_new) as output_new:
         lines = output_new.readlines()
@@ -269,10 +268,7 @@ def CleanDoPrintStatusLine(stdfile, args):
     with open(stdfile_new, "w") as output_new:
         for line in lines:
             n+=1
-            if all(c in line.strip("\n") for c in arr):
-                # Ignore this line and increase the counter by 1
-                changedLines+=1
-            elif all(c in line.strip("\n") for c in arr_ray):
+            if all(c in line.strip("\n") for c in arr) or all(c in line.strip("\n") for c in arr_ray):
                 # Ignore this line and increase the counter by 1
                 changedLines+=1
             else:
@@ -288,8 +284,8 @@ def CleanDoPrintStatusLine(stdfile, args):
 def CleanLostParticles(stdfile, args):
 
     if not os.path.exists(stdfile):
-        print("Error: the file does not exist : %s" % stdfile)
-        exit(1)
+        print(f"Error: the file does not exist : {stdfile}")
+        sys.exit(1)
 
     stdfile_lost   = stdfile+".lost"
     stdfile_new    = stdfile+".new"
@@ -302,36 +298,34 @@ def CleanLostParticles(stdfile, args):
     n=0
     nLostParts=0
     meshFound=False
-    with open(stdfile, "r") as input:
-        with open(stdfile_lost, "w") as output_lost:
-            with open(stdfile_new, "w") as output_new:
-                for line in input:
-                    n+=1
-                    first = getFirst(line)
+    with open(stdfile, "r") as input, open(stdfile_lost, "w") as output_lost, open(stdfile_new, "w") as output_new:
+        for line in input:
+            n+=1
+            first = getFirst(line)
 
-                    if 'Error in Particle TriaTracking! Particle Number' in line.strip("\n"):
-                        nLostParts+=1
-                        if first in killList:
-                            print("Error: the rank is already in the list. The lines might overlap. Resolve this in \nLine : %s" % n)
-                            exit(1)
-                        killList.update( {first : 1} )
-                        output_lost.write(line)
-                    elif first in killList:
-                        output_lost.write(line)
-                        killList[first] += 1
-                        if killList[first] == 5:
-                            del killList[first]
-                    else:
-                        output_new.write(line)
-                        if not meshFound:
-                            # Check for MeshFile, as it is required for the .h5 file that is written when lost particles are found
-                            if 'MeshFile' in line.strip("\n"):
-                                meshFound=True
-                                myline=line.replace(" ", "")
-                                tmp=myline.split('|')
-                                for x in tmp:
-                                    if x.endswith('.h5'):
-                                        MeshFile=x
+            if 'Error in Particle TriaTracking! Particle Number' in line.strip("\n"):
+                nLostParts+=1
+                if first in killList:
+                    print(f"Error: the rank is already in the list. The lines might overlap. Resolve this in \nLine : {n}")
+                    sys.exit(1)
+                killList.update( {first : 1} )
+                output_lost.write(line)
+            elif first in killList:
+                output_lost.write(line)
+                killList[first] += 1
+                if killList[first] == 5:
+                    del killList[first]
+            else:
+                output_new.write(line)
+                if not meshFound:
+                    # Check for MeshFile, as it is required for the .h5 file that is written when lost particles are found
+                    if 'MeshFile' in line.strip("\n"):
+                        meshFound=True
+                        myline=line.replace(" ", "")
+                        tmp=myline.split('|')
+                        for x in tmp:
+                            if x.endswith('.h5'):
+                                MeshFile=x
 
                 # print(red("Lost %s particles" % nLostParts))
 
@@ -357,8 +351,8 @@ def CleanLostParticles(stdfile, args):
 
             if 'Error in Particle TriaTracking! Particle Number' in line.strip("\n"):
                 if first in killList:
-                    print("Error: the rank is already in the list. The lines might overlap. Resolve this in \nLine : %s" % n)
-                    exit(1)
+                    print(f"Error: the rank is already in the list. The lines might overlap. Resolve this in \nLine : {n}")
+                    sys.exit(1)
 
                 killList.update( {first : 1} )
                 PartID, Element, SpecID = getPartInfo(line)
@@ -404,17 +398,17 @@ def CleanLostParticles(stdfile, args):
             elif 'Warning: Particle located inside of face and moves parallel to side. Undefined position.' in line.strip("\n"):
                 print('Warning: Particle located inside of face and moves parallel to side. Undefined position.')
                 print('Found lost particle within tracing method. This has not yet been implemented. Please contact the developer!.')
-                exit(1)
+                sys.exit(1)
 
             elif 'Tolerance issue during tracing! Unable to locate particle inside computational domain' in line.strip("\n"):
                 print('Tolerance issue during tracing! Unable to locate particle inside computational domain')
                 print('Found lost particle within tracing method. This has not yet been implemented. Please contact the developer!.')
-                exit(1)
+                sys.exit(1)
 
 
         # 2.4. Write dummy DG_Solution container
         data1 = np.zeros(( 0, 0))
-        dset1 = f1.create_dataset('DG_Solution', shape=data1.shape, dtype=np.float64)
+        f1.create_dataset('DG_Solution', shape=data1.shape, dtype=np.float64)
 
         # 2.5. Create new dataset 'dset'
         dset = f1.create_dataset('PartData', shape=data.shape, dtype=np.float64)
@@ -422,8 +416,7 @@ def CleanLostParticles(stdfile, args):
 
         # 2.6. Write as C-continuous array via np.ascontiguousarray()
         if not data.any() :
-            print(" %s has dimension %s. Skipping" % (data_set, data.shape))
-            pass
+            print(f" {data_set} has dimension {data.shape}. Skipping")
         else :
             dset.write_direct(np.ascontiguousarray(data))
 
@@ -549,16 +542,16 @@ def filter_invalid_utf8(SourceFilePath):
     try:
         return_code = subprocess.call(cmd, shell=True)
         if return_code != 0:
-            print("%s " % cmd + red(": Error, command failed with return code %s" % return_code))
-            exit(1)
+            print(f"{cmd} " + red(f": Error, command failed with return code {return_code}"))
+            sys.exit(1)
     except Exception as e:
-        print("subprocess.call(%s, shell=True) " % cmd + red("Error %s" % e))
+        print(f"subprocess.call({cmd}, shell=True) " + red(f"Error {e}"))
         raise Exception(e)
 
     # Check if file exists
     if not os.path.exists(CleanFilePath):
-        print("%s " % CleanFilePath + red(": Error, file not found"))
-        exit(1)
+        print(f"{CleanFilePath} " + red(": Error, file not found"))
+        sys.exit(1)
 
     # Read the file in utf-8 mode
     with open(CleanFilePath, 'r', encoding='utf-8', errors='ignore') as file:
@@ -576,7 +569,7 @@ try :
     h5py_module_loaded = True
 except ImportError :
     print(red('Could not import h5py module. This is required for handling .h5 files.'))
-    exit(0)
+    sys.exit(0)
 
 # Start the timer
 start = timer()
@@ -609,7 +602,7 @@ for stdfile in args.files :
 InitialDataRead = True
 NbrOfFiles = len(args.files)
 
-print(f'     Lines  Size [MB]   Path')
+print('     Lines  Size [MB]   Path')
 for stdfile in args.files :
     with open(stdfile, "rb") as f:
         num_lines = sum(1 for _ in f)
@@ -632,12 +625,12 @@ print('Processing ...')
 for stdfile in args.files :
     # Check if file exists
     if not os.path.exists(stdfile):
-        print("%s " % stdfile + yellow("(skipping, because it does not exist)"))
+        print(f"{stdfile} " + yellow("(skipping, because it does not exist)"))
         continue
 
     # Check if file can be skipped, see variable "ext" with all file extensions that are to be ignored
     if stdfile.endswith(tuple(ext)):
-        print("%s " % stdfile + yellow("(skipping, because it ends with %s)" % ext))
+        print(f"{stdfile} " + yellow(f"(skipping, because it ends with {ext})"))
         continue
 
     # Remove non-UTF8 characters
@@ -649,13 +642,13 @@ for stdfile in args.files :
     # Display results
     if nLostParts > 0:
         if changedLines > 0:
-            print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile + red(" and removed %s lines" % changedLines))
+            print(f"{stdfile} " + red(f"Lost {nLostParts} particles") + f" Written particles to {stdfile}-lost-particles.h5" + red(f" and removed {changedLines} lines"))
         else:
-            print("%s " % stdfile + red("Lost %s particles" % nLostParts) + " Written particles to %s-lost-particles.h5" % stdfile)
+            print(f"{stdfile} " + red(f"Lost {nLostParts} particles") + f" Written particles to {stdfile}-lost-particles.h5")
     else:
         if changedLines > 0:
-            print("%s " % stdfile + red("Removed %s lines" % changedLines) )
+            print(f"{stdfile} " + red(f"Removed {changedLines} lines") )
         else:
-            print("%s" % stdfile)
+            print(f"{stdfile}")
 
 print(132*"-")

@@ -18,6 +18,31 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 
+# check programs
+# 1.) make
+if ! [ -x "$(command -v make)" ]; then
+  echo -e "Could not find 'make', which is required for running this script. Maybe install via \n\n    sudo apt install make\n"
+  exit
+fi
+
+# 2.) wget
+if ! [ -x "$(command -v wget)" ]; then
+  echo -e "Could not find 'wget', which is required for running this script. Maybe install via \n\n    sudo apt install wget\n"
+  exit
+fi
+
+# 3.) awk
+if ! [ -x "$(command -v awk)" ]; then
+  echo -e "Could not find 'awk', which is required for running this script. Maybe install via \n\n    sudo apt install awk\n"
+  exit
+fi
+
+# 4.) tar
+if ! [ -x "$(command -v tar)" ]; then
+  echo -e "Could not find 'tar', which is required for running this script. Maybe install via \n\n    sudo apt install tar\n"
+  exit
+fi
+
 # --------------------------------------------------------------------------------------------------
 # Colors
 # --------------------------------------------------------------------------------------------------
@@ -53,7 +78,8 @@ calcTrue() { awk 'BEGIN{printf "%d\n" , ('"$*"'?1:0)}';}
 #MODULEVERSION='5.0.0'
 #MODULEVERSION='5.0.1'
 #MODULEVERSION='5.3.1'
-MODULEVERSION='5.6.1'
+# MODULEVERSION='5.6.1'
+MODULEVERSION='5.6.2'
 
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
 INSTALLDIR=/opt
@@ -181,6 +207,13 @@ if [ ! -d "${MODULESHOME}" ]; then
     #PATHLIST=/opt/modules/modulefiles/compilersX
 
     # Check if TCL version is greater/equal 8.5
+    # look for the tclConfig.sh script file
+    echo "Looking for tclConfig.sh script file"
+    TCLCONFIGPATH=$(find / -name "tclConfig.sh" 2>/dev/null)
+    if [[ -z ${TCLCONFIGPATH} ]]; then
+      echo -e "Could not find 'tclConfig.sh', which is required for running this script. Maybe install via \n\n    sudo apt install tcl-dev tk-dev\n"
+      exit
+    fi
     TCLVERSION=$(echo 'puts $tcl_version;exit 0' | tclsh)
     RESULT=$(echo `calcTrue "$(echo 'puts $tcl_version;exit 0' | tclsh) < 8.5"`)
     if [[ -z ${RESULT} ]]; then

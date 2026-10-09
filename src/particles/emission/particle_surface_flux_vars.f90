@@ -54,6 +54,11 @@ TYPE tSurfaceFlux
   REAL                                   :: PartDensity                      ! PartDensity (real particles per m^3)
   REAL                                   :: EmissionCurrent                  ! Current [A] (if defined replaces PartDensity)
   REAL                                   :: Massflow                         ! Mass flow [kg/s] (if defined replaces PartDensity)
+  REAL                                   :: CosineExponent                   ! (First) Cosine exponent for cosine/cosine_double velocity distribution
+  REAL                                   :: CosineExponent2                  ! Second cosine exponent for cosine_double velocity distribution
+  REAL                                   :: CosineA                          ! First cosine prefactor for cosine_double velocity distribution
+  REAL                                   :: CosineB                          ! Second cosine prefactor for cosine_double velocity distribution
+  REAL                                   :: CosineDoubleMax                  ! Maximum of cosine_double velocity distribution function
   LOGICAL                                :: UseEmissionCurrent               ! Flag whether the emission current is used
   LOGICAL                                :: UseMassflow                      ! Flag whether the mass flow definition is used
   LOGICAL                                :: VeloIsNormal                     ! VeloIC is in Surf-Normal instead of VeloVecIC

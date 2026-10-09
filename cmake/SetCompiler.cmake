@@ -75,7 +75,7 @@ ELSE()
   ENDIF()
 ENDIF()
 
-MESSAGE(STATUS "Compiling Nitro/Release/Profile with [${CMAKE_Fortran_COMPILER_ID}] (${BoldBlue}v${CMAKE_Fortran_COMPILER_VERSION}${ColourReset}) fortran compiler using PICLAS_INSTRUCTION [${PICLAS_INSTRUCTION}] instructions.")
+MESSAGE(STATUS "Compiling Nitro/Release/Profile with [${CMAKE_Fortran_COMPILER_ID}] (${BoldBlue}v${CMAKE_Fortran_COMPILER_VERSION}${ColourReset}) fortran compiler using the flags [${PICLAS_INSTRUCTION}].")
 
 # =========================================================================
 # CHECK SUPPORT FOR VARIOUS FORTRAN (2003,2008) FEATURES
@@ -234,9 +234,13 @@ IF (USE_PGO)
   IF (CMAKE_Fortran_COMPILER_ID MATCHES "GNU")
     SET(CMAKE_Fortran_FLAGS_RELEASE "${CMAKE_Fortran_FLAGS_RELEASE} -fprofile-use")
     SET(CMAKE_Fortran_FLAGS_PROFILE "${CMAKE_Fortran_FLAGS_PROFILE} -fprofile-generate")
+    ADD_COMPILE_DEFINITIONS(USE_PGO=1)
+    MESSAGE(STATUS "Compiling with profile-guided optimization (PGO) using the flags [Release: -fprofile-use] for using the profiles or [Profile: -fprofile-generate] for generating the profiles.")
   ELSE()
     MESSAGE(SEND_ERROR "Profile-guided optimization (PGO) currently only supported for GNU compiler. Either set USE_PGO=OFF or use the GNU compiler." )
   ENDIF()
+ELSE()
+  ADD_COMPILE_DEFINITIONS(USE_PGO=0)
 ENDIF()
 
 # =========================================================================

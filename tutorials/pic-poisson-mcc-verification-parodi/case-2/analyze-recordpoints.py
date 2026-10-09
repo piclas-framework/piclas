@@ -46,13 +46,13 @@ def plotExOverTime():
         xF_RP = xF_RP_sorted[:, 0]
 
     filenames = [f for f in os.listdir('.') if os.path.isfile(f)]
-    RPFiles = [kk for kk in filenames if '.h5' in kk and '{}_RP_'.format(ProjectName) in kk]
+    RPFiles = [kk for kk in filenames if '.h5' in kk and f'{ProjectName}_RP_' in kk]
     RPFiles.sort()
 
     print('├'+78*'─'+'\n'+'│ READING RPDATA...')
 
     # Load the data
-    print('│ Loading data from {} files'.format(len(RPFiles)))
+    print(f'│ Loading data from {len(RPFiles)} files')
 
     if os.path.exists('RP_Data.npz'):
         print(colored('├─ Loading numpy data from compressed file "{}"'.format('RP_Data.npz')))
@@ -72,7 +72,7 @@ def plotExOverTime():
             RP_Data_h5 = h5['RP_Data'][:]
         pbar.next()
 
-        for RPnum, RPfile in enumerate(RPFiles):
+        for RPfile in RPFiles:
             with h5py.File(RPfile, 'r', driver='core', backing_store=False) as h5:
                 current_data = h5['RP_Data'][:][1:, :, :]
                 RP_Data_h5 = np.vstack((RP_Data_h5, current_data))
@@ -94,11 +94,11 @@ def plotExOverTime():
         print('│ shape of RP_Data', np.shape(RP_Data_h5))
         for cutoff in [2.25, 5.00]:
             if cutoff < 5:
-                fig, ax = plt.subplots(1, 1, figsize=(4, 5))
+                _fig, _ax = plt.subplots(1, 1, figsize=(4, 5))
                 scale=0.85
-                fig, ax = plt.subplots(1, 1, figsize=(4*scale, 5*scale))
+                _fig, ax = plt.subplots(1, 1, figsize=(4*scale, 5*scale))
             else:
-                fig, ax = plt.subplots(1, 1, figsize=(4, 11))
+                _fig, ax = plt.subplots(1, 1, figsize=(4, 11))
 
             # Apply a fancy colormap to the figure
             cmap = plt.get_cmap('seismic')
@@ -158,7 +158,7 @@ def plotFFT(x, t, Ex):
     vmax  = np.max(np.abs(F_k_omega.T))/scale
 
     # Plot
-    fig, ax = plt.subplots(1, 1, figsize=(5, 4.25))
+    _fig, ax = plt.subplots(1, 1, figsize=(5, 4.25))
     plt.pcolormesh(k, omega, np.abs(F_k_omega.T), vmin=vmin, vmax=vmax, cmap=plt.get_cmap('magma'))
     plt.xlabel(r'$k\lambda_{De}$ [-]')
     plt.ylabel(r'$\omega/\omega_{pe}$ [-]')

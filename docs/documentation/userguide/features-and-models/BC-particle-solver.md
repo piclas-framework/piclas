@@ -480,7 +480,7 @@ For the treatment of multiple reaction paths of the same species, a possible bia
     Surface-Reaction1-ReactHeat      = 17101.4
     Surface-Reaction1-HeatScaling    = 1202.9
 
-Depending on the reaction type, different additional parameters have to be defined. More details on the specific cases are given in the following subsections. An example input file for CO and O2 on a palladium surface can be found in the regression tests `regressioncheck/WEK_DSMC/ChannelFlow_SurfChem_AdsorpDesorp_CO_O2`.
+Depending on the reaction type, different additional parameters have to be defined. More details on the specific cases are given in the following subsections. Example input files for the adsorption and desorption of CO and O2 on a palladium surface can be found in the regression tests `regressioncheck/WEK_DSMC/SurfChem_AdsorpDesorp_CO` and `regressioncheck/WEK_DSMC/SurfChem_AdsorpDesorp_O2`.
 
 ### Adsorption
 
@@ -512,23 +512,302 @@ activation energy [K]. These parameters can be defined in PICLas as follows:
 
 ### Catalytic Reaction
 
-The Eley-Rideal and the Langmuir-Hinshelwood reaction use Arrhenius-type reaction rates along with the coverage of all surface-bound reactants $\theta_{AB}$, to reproduce of the catalytic reaction.
+Catalytic reactions can be modelled in PICLas using a finite-rate reaction model with an implicit treatment of
+the reactive surface. The adsorbate is not represented by particles but by a coverage value per species, which
+is stored for every sub-surface element of a catalytic boundary. Gas phase species are treated as usual, so a
+reaction either consumes an impacting particle, inserts new particles into the gas phase, or both.
 
-$$k(T) = A T^b \theta_{AB} e^{-E_\mathrm{a}/T}$$
+Two mechanisms drive the chemistry:
 
-The Arrhenius prefactor ([m$^3$/s] for the Eley-Rideal reaction and [m$^2$/s]  for the Langmuir-Hinshelwood case) and the activation energy are read in analogously to the desorption case. For the reactions, an energy accommodation coefficient `Surface-ReactionX-EnergyAccommodation` with values between 0 and 1 can be specified, which defines the amount of the reaction energy that is transferred to the surface.
+* **Impact-driven reactions** (`A`, `ER`) are evaluated whenever a particle hits a catalytic boundary. They use
+  the state of the sub-surface element that was hit.
+* **Time-step-driven reactions** (`D`, `LH`, `LHD`) are evaluated once per time step for every sub-surface
+  element of a catalytic boundary, independently of any particle impact.
 
-In the general Langmuir-Hinshelwood case with the reaction type `LH`, the product species stays adsorbed on the surface, until a desorption takes place in a later step. For reactions in combination with very high desorption rates, the reaction type `LHD` is more fitting. The product species are inserted directly into the gas phase without an intermediate desorption step.
+A definition of the boundary temperature is required in all cases, since it enters every reaction rate.
 
-Example inputs for both catalytic reactions can be found in the regression tests: `regressioncheck/NIG_Reservoir/CAT_RATES_ER` and `regressioncheck/NIG_Reservoir/CAT_RATES_LH`.
+#### Surface properties of the boundary
 
-### Diffusion
+The number of active sites per area follows from the lattice constant of the unit cell and the number of
+particles per unit cell:
 
-With `Surface-Diffusion = true` an instantaneous diffusion over all catalytic boundaries is enabled. This is equivalent to an averaging of the coverage values for all surface subsides.
+    Part-Boundary1-LatticeVector    = 0.389E-9
+    Part-Boundary1-NbrOfMol-UnitCell = 1
 
-### Parameter Read-In from the Species Database
+If `LatticeVector` is left at zero, a generic monolayer with $10^{19}$ sites per m$^2$ is assumed instead. Note
+that the number of sites of a sub-surface element is the site density times its area, so a fine surface
+subdivision on a fine mesh can leave only a few sites per sub-element. In that case the coverage becomes
+strongly quantised, because a single adsorbing simulation particle already changes it by
+`MacroParticleFactor` divided by the number of sites. It is worth checking this ratio before interpreting
+coverage results.
 
-All information about a catalytic reaction can be retrieved from the species database. Here the catalytic reaction parameters are stored in containers and accessed via the reaction name, e.g. `Adsorption_CO_Pt`.
+By default the simulation starts with a clean surface. A species-specific initial coverage, the relative number
+of occupied active sites, can be prescribed together with the maximum values:
+
+    Part-Boundary1-Species1-Coverage    = 0.1
+    Part-Boundary1-Species1-MaxCoverage = 0.333
+    Part-Boundary1-MaxTotalCoverage     = 1.0
+
+Multi-layer adsorption is enabled by a maximum total coverage greater than 1. The initial coverage must not
+exceed the species maximum, and the sum of all initial coverages must not exceed the total maximum; both are
+checked during the read-in.
+
+Choosing an initial coverage exactly equal to `MaxCoverage` is a degenerate case: the free-site fraction is then
+zero and the species can never adsorb until another reaction frees sites. This is legal but rarely intended.
+
+#### Definition of a reaction
+
+First the total number of gas-surface reactions is declared:
+
+    Surface-NumOfReactions = 2
+
+A reaction, its type and the boundaries it acts on are then defined by:
+
+    Surface-Reaction1-SurfName        = Adsorption_CO
+    Surface-Reaction1-Type            = A
+    Surface-Reaction1-Reactants       = (/1,0/)
+    Surface-Reaction1-Products        = (/1,0,0/)
+    Surface-Reaction1-NumOfBoundaries = 2
+    Surface-Reaction1-Boundaries      = (/1,3/)
+
+All reactants and products are given by their species index. `Reactants` holds up to two, `Products` up to
+three entries, unused slots are zero. A reaction is only evaluated on the boundaries listed in `Boundaries`.
+
+| Model | Description                                                  |
+| ----: | ------------------------------------------------------------ |
+|     A | Adsorption: Kisliuk or Langmuir model                        |
+|     D | Desorption: Polanyi-Wigner model                             |
+|    ER | Eley-Rideal reaction: Arrhenius based chemistry              |
+|    LH | Langmuir-Hinshelwood reaction: Arrhenius based chemistry     |
+|   LHD | Langmuir-Hinshelwood reaction with instantaneous desorption  |
+
+#### Meaning of reactants and products per type
+
+The species indices are interpreted differently depending on the reaction type. This is the most common source
+of input errors, so it is listed explicitly:
+
+| Type | `Reactants`                                            | `Products`                                                     |
+| ---: | ------------------------------------------------------ | -------------------------------------------------------------- |
+|    A | impacting **gas phase** species                        | slot 1: adsorbate, slot 2: gas phase fragment, slot 3: unused   |
+|    D | **adsorbed** species that desorbs                      | gas phase products                                             |
+|   ER | impacting gas species **and** the consumed adsorbate   | gas phase products                                             |
+|   LH | **adsorbed** species                                   | adsorbed products, they stay on the surface                     |
+|  LHD | **adsorbed** species                                   | gas phase products, inserted directly                           |
+
+For `D`, `LH` and `LHD` the entry in `Reactants` is therefore not a gas phase collision partner but the
+adsorbate whose coverage drives the rate and which is consumed by the reaction. It cannot be derived from the
+products: for an associative desorption $2\,\mathrm{O(ads)} \rightarrow \mathrm{O_2(gas)}$ the product carries
+no information about the consumed adsorbate. The entry is mandatory.
+
+Note that an adsorbate is generally a **separate species index** from its gas phase counterpart, so that it can
+carry its own `MaxCoverage` and its own coverage entry. Sharing one index between the gas species and the
+adsorbate is possible but is a modelling decision, not an assumption of the code.
+
+#### Reaction enthalpy and energy accommodation
+
+All reaction types allow the definition of a reaction enthalpy, which can be linearly scaled with the coverage.
+Both values are given in [K] and converted internally:
+
+    Surface-Reaction1-ReactHeat   = 17101.4
+    Surface-Reaction1-HeatScaling = 1202.9
+
+The released energy follows $E(\theta) = E_\mathrm{React} - \theta\,E_\mathrm{Scaling}$, i.e. a positive scaling
+factor reduces the enthalpy at high coverage. This reproduces the weaker binding of an adsorbate when
+neighbouring sites are already occupied. A scaling factor larger than the enthalpy itself would turn the
+released energy negative above a certain coverage, which is unphysical.
+
+The fraction of that energy which is transferred to the solid is set by
+
+    Surface-Reaction1-EnergyAccommodation = 1.0
+
+with values between 0 and 1, default 1. The remaining fraction stays with the desorbing product. Note that this
+coefficient currently serves a second purpose as the translational accommodation of the product in the
+post-reaction velocity sampling, so the two are not independent.
+
+#### Restricting a reaction to a coverage or temperature window
+
+Both windows are optional and switched on separately. They are checked before the rate is evaluated; a reaction
+outside its window is skipped entirely.
+
+A **coverage window** limits the reaction to a range of the total coverage and, in addition, to a range of every
+individual species coverage:
+
+    Surface-Reaction1-CoverageDependence          = TRUE
+    Surface-Reaction1-MinimumTotalCoverage        = 0.1
+    Surface-Reaction1-MaximumTotalCoverage        = 0.8
+    Surface-Reaction1-Species1-MinimumCoverage    = 0.0
+    Surface-Reaction1-Species1-MaximumCoverage    = 0.5
+    Surface-Reaction1-Species2-MinimumCoverage    = 0.2
+    Surface-Reaction1-Species2-MaximumCoverage    = 1.0
+
+The species-specific bounds are read for **all** species when `CoverageDependence` is enabled, defaulting to
+`0.0` and `1.0`. All of them have to be satisfied simultaneously. Typical uses are a reaction that requires a
+co-adsorbate to be present, or one that is blocked once a poisoning species accumulates.
+
+A **temperature window** restricts the reaction to a range of the wall temperature:
+
+    Surface-Reaction1-TemperatureDependence = TRUE
+    Surface-Reaction1-MinimumTemperature    = 300.
+    Surface-Reaction1-MaximumTemperature    = 1200.
+
+Defaults are `0.` and `10000.`, so an enabled dependence without further input has no effect. This is intended
+for rate expressions that were fitted over a limited temperature range and should not be extrapolated.
+
+#### Adsorption reactions
+
+Two models are available for the adsorption of a gas particle: the Langmuir model with a linear dependence of
+the adsorption probability on the coverage, and the precursor-based Kisliuk model:
+
+$$ S = S_0 \left(1 + K \left(1/\theta_\mathrm{free}^{\alpha} - 1\right)\right)^{-1} $$
+
+Here $S_0$ is the sticking coefficient of the clean surface, $K$ the equilibrium constant between adsorption and
+desorption from the precursor state, and $\alpha$ the number of adjacent free sites required by the process.
+For $K = 1$ the model reduces to the Langmuir case, where $S = S_0\,\theta_\mathrm{free}^{\alpha}$.
+
+$\theta_\mathrm{free}$ is the **available** free-site fraction,
+and is clamped to $[0,1]$, so that $S_0$ retains its meaning as the sticking coefficient of the clean surface.
+The number of required sites enters through the exponent, the availability through the base.
+
+    Surface-Reaction1-StickingCoefficient = 0.2
+    Surface-Reaction1-EqConstant          = 0.6
+    Surface-Reaction1-DissOrder           = 1
+
+Adsorption is additionally suppressed when the resulting total coverage would exceed `MaxTotalCoverage`.
+
+##### Dissociative adsorption
+
+Dissociative adsorption, where one fragment binds to the surface while the other returns to the gas phase, is
+expressed through the product slots. No separate switch is required:
+
+| `Products` | Meaning                                                                    |
+| ---------- | -------------------------------------------------------------------------- |
+| `0,0,0`    | the impacting species itself is adsorbed                                   |
+| `X,0,0`    | `X` is adsorbed                                                            |
+| `X,Y,0`    | `X` is adsorbed, `Y` is released into the gas phase (dissociative)          |
+
+The detection depends only on the number of occupied slots, never on the identity of a species, so an adsorbate
+sharing the index of its gas phase counterpart is handled correctly. A non-zero second slot requires an explicit
+first slot, since the split of the molecule between surface and gas phase would otherwise be undefined. A third
+entry is rejected for adsorption reactions.
+
+`DissOrder` defaults to **2 for dissociative** and **1 for non-dissociative** adsorption, matching the two
+adjacent sites a dissociating molecule needs. An explicit value overrides this.
+
+Dissociative adsorption in which *both* fragments remain on the surface is not covered by this convention.
+
+##### Inhibition and promotion by co-adsorbates
+
+Lateral interactions with other adsorbates modify the free-site fraction. Inhibitors block sites and reduce it,
+promotors enhance the adsorption and increase it:
+
+    Surface-Reaction1-Inhibition = TRUE
+    Surface-Reaction1-Inhibitors = (/3,0,0/)
+    Surface-Reaction1-Promotion  = TRUE
+    Surface-Reaction1-Promotors  = (/4,5,0/)
+
+Up to three species can be given for each. Every contribution enters normalised by the maximum coverage of that
+species. Since the free-site fraction is clamped to $[0,1]$, a strong promotion cannot push the sticking
+coefficient above $S_0$.
+
+#### Desorption reactions
+
+Desorption into the gas phase is modelled by the Polanyi-Wigner equation:
+
+$$ k(T) = \nu\,\left(\theta_A N_\mathrm{s}\right)^{\alpha}\,e^{-E_\mathrm{a}/T} $$
+
+with the prefactor $\nu$, the site density $N_\mathrm{s}$, the desorption order $\alpha$ and the activation
+energy $E_\mathrm{a}$ in [K]:
+
+    Surface-Reaction3-Prefactor = 1E13
+    Surface-Reaction3-Energy    = 17688.8
+    Surface-Reaction3-DissOrder = 1
+
+`DissOrder` is the desorption order, and only the values 1 and 2 are supported. A value of 2 denotes associative
+desorption, $2\,A_\mathrm{(ads)} \rightarrow A_2$, in which case two adsorbates are consumed per event and a
+separate prefactor conversion is applied. The default is 1.
+
+The activation energy can depend linearly on the coverage through the lateral interaction parameter,
+$E_\mathrm{a} = E_0 + \theta\,W$, which lowers the barrier at high coverage for a negative $W$:
+
+    Surface-Reaction3-LateralInteraction = -18410.8
+
+If `Prefactor` is left at zero, the prefactor is instead computed from a coverage-dependent correlation,
+$\nu = 10^{(C_a + C_b \theta)}$:
+
+    Surface-Reaction3-Ca = 16
+    Surface-Reaction3-Cb = -15
+
+The number of desorption events of a time step follows from the rate, the time step, the area of the
+sub-surface element and an exponentially distributed random variate, limited by the available adsorbate.
+Fractional events are accumulated across time steps and released once they add up to a full simulation
+particle, so the desorption rate is reproduced correctly even when much less than one particle per time step
+desorbs.
+
+#### Catalytic reactions
+
+The Eley-Rideal and the Langmuir-Hinshelwood reactions use Arrhenius-type rates together with the coverage of
+all surface-bound reactants. The activation energy and the prefactor are read as for the desorption:
+
+    Surface-Reaction2-Prefactor = 1E-16
+    Surface-Reaction2-Energy    = 7246.38
+
+The prefactor is a bimolecular rate coefficient in [m$^3$/s] for the Eley-Rideal reaction and in [m$^2$/s] for
+the Langmuir-Hinshelwood case. For a Langmuir-Hinshelwood reaction with two adsorbed reactants the coverage of
+each of them enters the rate, so the units of the prefactor depend on the number of reactants.
+
+##### Eley-Rideal
+
+An Eley-Rideal `ER` reaction is a reaction which an incoming gas phase particle reacts directly with an already
+adsorbed species upon impact, forming a product that is released into the gas phase. Since the reaction happens
+in a single collision without the impacting particle first equilibrating with the surface, the activation barrier
+is overcome by the translational energy the particle brings along rather than by the thermal energy of the wall.
+
+##### Langmuir-Hinshelwood
+
+For the type `LH` the product species stays adsorbed on the surface until a separate desorption reaction takes
+place. The product coverage is limited by its `MaxCoverage`. For reactions combined with very high desorption
+rates the type `LHD` is more appropriate: the products are inserted directly into the gas phase without an
+intermediate desorption step.
+
+
+#### Diffusion
+
+Two variants of an instantaneous diffusion are available, both equivalent to an averaging of the coverage:
+
+    Surface-Diffusion      = TRUE
+    Surface-TotalDiffusion = TRUE
+
+`Surface-Diffusion` averages the coverage over the sub-surface elements of each catalytic boundary separately,
+`Surface-TotalDiffusion` over all catalytic boundaries together. The averaging is global, i.e. independent of
+the number of processes and of the domain decomposition.
+
+#### Surface sampling and output
+
+With `Particles-DSMC-CalcSurfaceVal = TRUE` the surface output contains the coverage of every species,
+`SpecXXX_Coverage`, as an instantaneous value per sub-surface element, and the catalytic heat flux,
+`Catalytic_HeatFlux`, in W/m$^2$. The latter is a sampling quantity: the released and consumed energies are
+accumulated only while the sampling is active and are normalised by the sampled area and the sampling duration,
+exactly like the remaining wall quantities. The catalytic contribution is also included in `Total_HeatFlux`.
+
+A positive catalytic heat flux denotes energy transferred into the wall. Adsorption and exothermic reactions
+contribute positively, desorption negatively, so the sign of the net value indicates which process dominates.
+
+#### Parameter read-in from the species database
+
+All rate parameters of a catalytic reaction can be retrieved from the species database instead of the parameter
+file. The reaction is looked up by the name given in `SurfName`, e.g. `Adsorption_CO_Pt`:
+
+    Surface-Reaction1-SurfName = Adsorption_CO_Pt
+    OverwriteCatParameters     = FALSE
+
+Only setup-independent numbers are taken from the database: reaction enthalpy, scaling factor, accommodation
+coefficient, prefactors, activation energies, the coverage and temperature windows and the desorption order.
+Reactants, products, reaction type, boundaries and the reaction name always come from the parameter file, since
+species indices are specific to a setup and a database is meant to be shared between them.
+
+If the dataset of a reaction is not found in the database, that reaction falls back to the parameter file while
+the others keep their database values. Setting `OverwriteCatParameters = TRUE` forces the parameter file for all
+reactions.
 
 ## Deposition of Charges on resolved Dielectric Surfaces
 This deposition of charges is designed for thick layers of dielectric materials, which are resolved by mesh

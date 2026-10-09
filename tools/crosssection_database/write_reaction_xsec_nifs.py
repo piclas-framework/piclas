@@ -1,5 +1,5 @@
-import numpy as np
 import h5py
+import numpy as np
 
 ### User-input
 # Output database
@@ -26,7 +26,7 @@ for iReac, current_reaction in enumerate(reaction_list):
 
   # Check if the collision pair (=folder) already exists, if not create it
   hdf_pair = pair_list[iReac]
-  if hdf_pair in hdf.keys():
+  if hdf_pair in hdf:
     print('Collision pair already exists.')
     hdf_pair = hdf[pair_list[iReac]]
   else:
@@ -35,7 +35,7 @@ for iReac, current_reaction in enumerate(reaction_list):
 
   # Check if a REACTION group (=folder) already exists, if not create it
   hdf_reaction = 'REACTION'
-  if hdf_reaction in hdf_pair.keys():
+  if hdf_reaction in hdf_pair:
     print('Group REACTION already exists.')
     hdf_reaction = hdf_pair['REACTION']
   else:
@@ -43,7 +43,7 @@ for iReac, current_reaction in enumerate(reaction_list):
     hdf_reaction = hdf_pair.create_group('REACTION')
 
   # If reaction data set already exists, delete the old set
-  if current_reaction in hdf_reaction.keys():
+  if current_reaction in hdf_reaction:
     del hdf_reaction[current_reaction]
     print('Old dataset replaced.')
   hdf_reaction.create_dataset(current_reaction, data=data_input)

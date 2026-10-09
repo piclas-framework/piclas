@@ -1,6 +1,7 @@
+import re
+
 import h5py
 import lxcat_data_parser as ldp
-import re
 
 # Input database
 database_input = "Example.txt"
@@ -30,25 +31,14 @@ for current_species in species_list:
     for cross_section in data_spec.cross_sections:
         if cross_section.type == ldp.CrossSectionTypes.EXCITATION: #and cross_section.type != ldp.CrossSectionTypes.IONIZATION:
             # Electronic levels: Look for a star in the process description or scan the info for electronic
-            if cross_section.info.get('PROCESS').find('*') != -1:
-                result_elec += 1
-            # use regex pattern to also find electronic excitation which gives out specific states, e.g -> E + Ar(1S5) or E + Ar(HIGH)
-            elif re.search(r'[A-Za-z]+\(([0-9]+[SPDF][0-9]*!*|HIGH)\)', cross_section.info.get('PROCESS')) !=1:
-                result_elec += 1
-            elif str(cross_section.info).casefold().find('electronic') != -1:
+            if cross_section.info.get('PROCESS').find('*') != -1 or re.search(r'[A-Za-z]+\(([0-9]+[SPDF][0-9]*!*|HIGH)\)', cross_section.info.get('PROCESS')) !=1 or str(cross_section.info).casefold().find('electronic') != -1:
                 result_elec += 1
             # Rotational excitation: Look for a j or rot in the process description or scan the info for rotation
-            if cross_section.info.get('PROCESS').casefold().find('j') != -1:
-                result_rot += 1
-            elif cross_section.info.get('PROCESS').casefold().find('rot') != -1:
-                result_rot += 1
-            elif str(cross_section.info).casefold().find('rotation') != -1:
+            if cross_section.info.get('PROCESS').casefold().find('j') != -1 or cross_section.info.get('PROCESS').casefold().find('rot') != -1 or str(cross_section.info).casefold().find('rotation') != -1:
                 result_rot += 1
             # Vibrational excitation: Look for v (but check that its not the v from eV) or scan the info for vibration
             if cross_section.info.get('PROCESS').casefold().find('v') != -1:
-                if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev'):
-                    result_vib += 1
-                elif str(cross_section.info).casefold().find('vibration') != -1:
+                if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev') or str(cross_section.info).casefold().find('vibration') != -1:
                     result_vib += 1
             elif str(cross_section.info).casefold().find('vibration') != -1:
                 result_vib += 1
@@ -103,32 +93,16 @@ for current_species in species_list:
         ## Write cross-section dataset of the current species in the HDF5 database
         test = 0
         # Electronic levels: Look for a star in the process description or scan the info for electronic
-        if cross_section.info.get('PROCESS').find('*') != -1:
-            dataset = grp_elec.create_dataset(str(cross_section.threshold), data=cross_section.data)
-            test += 1
-        # use regex pattern to also find electronic excitation which gives out specific states, e.g -> E + Ar(1S5) or E + Ar(HIGH)
-        elif re.search(r'[A-Za-z]+\(([0-9]+[SPDF][0-9]*!*|HIGH)\)', cross_section.info.get('PROCESS')) !=1:
-            dataset = grp_elec.create_dataset(str(cross_section.threshold), data=cross_section.data)
-            test += 1
-        elif str(cross_section.info).casefold().find('electronic') != -1:
+        if cross_section.info.get('PROCESS').find('*') != -1 or re.search(r'[A-Za-z]+\(([0-9]+[SPDF][0-9]*!*|HIGH)\)', cross_section.info.get('PROCESS')) !=1 or str(cross_section.info).casefold().find('electronic') != -1:
             dataset = grp_elec.create_dataset(str(cross_section.threshold), data=cross_section.data)
             test += 1
         # Rotational excitation: Look for a j or rot in the process description or scan the info for rotation
-        if cross_section.info.get('PROCESS').casefold().find('j') != -1:
-            dataset = grp_rot.create_dataset(str(cross_section.threshold), data=cross_section.data)
-            test += 1
-        elif cross_section.info.get('PROCESS').casefold().find('rot') != -1:
-            dataset = grp_rot.create_dataset(str(cross_section.threshold), data=cross_section.data)
-            test += 1
-        elif str(cross_section.info).casefold().find('rotation') != -1:
+        if cross_section.info.get('PROCESS').casefold().find('j') != -1 or cross_section.info.get('PROCESS').casefold().find('rot') != -1 or str(cross_section.info).casefold().find('rotation') != -1:
             dataset = grp_rot.create_dataset(str(cross_section.threshold), data=cross_section.data)
             test += 1
         # Vibrational excitation: Look for v (but check that its not the v from eV) or scan the info for vibration
         if cross_section.info.get('PROCESS').casefold().find('v') != -1:
-            if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev'):
-                dataset = grp_vib.create_dataset(str(cross_section.threshold), data=cross_section.data)
-                test += 1
-            elif str(cross_section.info).casefold().find('vibration') != -1:
+            if cross_section.info.get('PROCESS').casefold().find('v')-1 != cross_section.info.get('PROCESS').casefold().find('ev') or str(cross_section.info).casefold().find('vibration') != -1:
                 dataset = grp_vib.create_dataset(str(cross_section.threshold), data=cross_section.data)
                 test += 1
         elif str(cross_section.info).casefold().find('vibration') != -1:

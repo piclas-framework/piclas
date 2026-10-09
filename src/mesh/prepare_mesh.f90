@@ -1049,6 +1049,8 @@ IF(meshMode.GT.1)THEN
             HDGSides = HDGSides + 1
           CASE(30) ! DC
             HDGSides = HDGSides + 1
+          CASE(40) ! CMBC
+            HDGSides = HDGSides + 1
           CASE DEFAULT ! unknown BCType
             WRITE(UNIT=hilf,FMT='(I0)') BCType
             CALL abort(__STAMP__,'Unknown BCType='//TRIM(hilf)//' for '//TRIM(BoundaryName(BC(SideID)))//' (HDG Load Balancing)')

@@ -20,25 +20,6 @@ Each of these models, some of which can be combined, offer distinctive features 
 * High order low-storage explicit Runge-Kutta time integration {cite}`Carpenter1994`
 * I/O using the [HDF5](https://www.hdfgroup.org/solutions/hdf5/) library optimized for massively parallel jobs
 
-
-```{toctree}
----
-maxdepth: 1
-caption: Table of Contents
-numbered:
----
-installation.md
-meshing.md
-workflow.md
-features-and-models/index.md
-visu_output.md
-tools.md
-tutorials/index.md
-cluster_guide.md
-appendix.md
-```
-
-
 This user guide is organized to both guide the first steps as well as provide a complete overview of
 the simulation code's features from a user and a developer point of view.
 

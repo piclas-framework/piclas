@@ -30,7 +30,7 @@ INTEGER(KIND=i8)              :: SurfaceAnalyzeStep       ! Analyze of surface i
 LOGICAL                       :: CalcSurfCollCounter      ! Calculate the number of surface collision and number of
                                                           ! adsorbed particles per species
 LOGICAL                       :: CalcPorousBCInfo         ! Calculate output for porous BCs (averaged over whole BC)
-LOGICAL                       :: CalcSurfOutputPerGroup   ! Calculate torque and heatflux per defiened group of surfaces
+LOGICAL                       :: CalcSurfOutputPerGroup   ! Calculate torque and heatflux per defined group of surfaces
 
 ! Output variables
 INTEGER,ALLOCATABLE           :: SurfAnalyzeCount(:)      ! Counter of surface collisions
@@ -69,15 +69,15 @@ END TYPE tBoundaryParticleOutput
 TYPE(tBoundaryParticleOutput)   :: BPO
 
 TYPE tSurfaceGroup
-  INTEGER                       :: nGroups                    !< Total number of groups defiened by user
+  INTEGER                       :: nGroups                    !< Total number of groups defined by user
   REAL,ALLOCATABLE              :: SampState(:,:)             ! Sampling array for Group (1:4, 1:nGroups)
                                                               ! 1-3: torque (M_x, M_y, M_z)
                                                               ! 4  : heat flux
   INTEGER,ALLOCATABLE           :: SurfSide2GroupID(:)        ! Mapping from SurfSideID to GroupID
   REAL,ALLOCATABLE              :: SymmetryFactor(:)
   REAL,ALLOCATABLE              :: Area(:)
-  REAL,ALLOCATABLE              :: VarTimeStep(:)             ! Sum timestep weigthing factor for variable time step
-  INTEGER,ALLOCATABLE           :: Counter(:)                 ! Total number of wall interactions per group
+  INTEGER,ALLOCATABLE           :: Counter(:)                 ! Number of wall interactions per group (to detect groups
+                                                              ! without any impact during the sampling interval)
 END TYPE tSurfaceGroup
 
 TYPE(tSurfaceGroup)   :: SurfaceGroup

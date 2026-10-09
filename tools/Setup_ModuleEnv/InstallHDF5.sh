@@ -43,6 +43,32 @@ if test -t 1; then # if terminal
 fi
 
 # --------------------------------------------------------------------------------------------------
+# Functions
+# --------------------------------------------------------------------------------------------------
+read_char () {
+if [ -n "$ZSH_VERSION" ]; then
+  read -r -q "answer?"
+else
+  read -r -n 1 answer
+fi
+echo "$answer"
+}
+
+user_inquiry () { #echo "inquiry: [Y/n]"
+printf "$*: [y/n]"
+answer=$(read_char)
+printf "\n"
+
+if [[ ${answer} == 'y' ]]; then
+  return 0
+elif [[ ${answer} == 'n' ]]; then
+  return 1
+else
+  return 1
+fi
+}
+
+# --------------------------------------------------------------------------------------------------
 # Check command line arguments
 # --------------------------------------------------------------------------------------------------
 LOADMODULES=1
@@ -63,24 +89,28 @@ do
   then
     LOADMODULES=0
     # Set desired versions
+    CMAKEVERSION=4.3.3
+    if [[ -n ${CMAKEVERSION} ]]; then  CMAKEVERSION="cmake/${CMAKEVERSION}"; else CMAKEVERSION='cmake'; fi;
 
     # GCC
-    #USECOMPILERVERSION=13.1.0
-    #USECOMPILERVERSION=13.2.0
-    USECOMPILERVERSION=14.2.0
+    # USECOMPILERVERSION=13.1.0
+    # USECOMPILERVERSION=13.2.0
+    # USECOMPILERVERSION=14.2.0
     # USECOMPILERVERSION=15.2.0
+    USECOMPILERVERSION=16.1.0
 
     # OpenMPI
-    #OPENMPIVERSION=4.1.5
-    #OPENMPIVERSION=4.1.6
-    #OPENMPIVERSION=5.0.6
-    OPENMPIVERSION=5.0.8
+    # OPENMPIVERSION=4.1.5
+    # OPENMPIVERSION=4.1.6
+    # OPENMPIVERSION=5.0.6
+    # OPENMPIVERSION=5.0.8
     OPENMPIVERSION=5.0.9
 
     # MPICH
     # MPICHVERSION=4.1.2
     # MPICHVERSION=4.2.1
-    MPICHVERSION=4.3.1
+    # MPICHVERSION=4.3.1
+    # MPICHVERSION=5.0.1
 
     # MPICH "debug", which uses MPICH installation with --with-device=ch3:sock.
     # This will use the older ch3:sock channel that does not busy poll.
@@ -107,8 +137,10 @@ do
     fi
 
     # Force --rerun via 'set'
-    echo ""
+    # echo ""
     echo "Running '-m' with GCC $USECOMPILERVERSION and $MPINAMES $USEMPIVERSION"
+    # [set -- -rerun] sets the positional parameters ($1, $2, etc.) to the given arguments, replacing whatever was there before.
+    # -rerun -> removes previous build and module files
     set -- -rerun
     break
   fi
@@ -140,17 +172,23 @@ fi
 #HDF5VERSION=1.12.2
 #HDF5VERSION=1.14.0
 #HDF5VERSION=1.14.3 # Error during mesh read-in in piclas/src/io_hdf5/hdf5_input.f90
-# old download link
-DOWNLOADPATH="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
-CONFIGFLAGS="--with-pic --enable-fortran --enable-fortran2003 --disable-shared"
+# old download link: https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-2.1/hdf5-2.1.1/src/hdf5-2.1.1.tar.gz
+# DOWNLOADPATH="https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+# CONFIGFLAGS="--with-pic --enable-fortran --enable-fortran2003 --disable-shared"
 
 # HDF5VERSION=1.14.5 # Old download link dows not work anymore
-HDF5VERSION=1.14.6 # Old download link dows not work anymore
-# new download link: https://support.hdfgroup.org/releases/hdf5/v1_14/v1_14_5/downloads/hdf5-1.14.5.tar.gz
-HDF5VERSIONSHORT=${HDF5VERSION%.*}
-DOWNLOADPATH="https://support.hdfgroup.org/releases/hdf5/v${HDF5VERSIONSHORT//./_}/v${HDF5VERSION//./_}/downloads/hdf5-${HDF5VERSION}.tar.gz"
-CONFIGFLAGS="--with-pic --enable-fortran --enable-fortran2003 --disable-shared F9X=${LIBS_HDF5FC} --enable-hl --enable-unsupported"
+# HDF5VERSION=1.14.6 # Old download link dows not work anymore
+# # new download link: https://support.hdfgroup.org/releases/hdf5/v1_14/v1_14_5/downloads/hdf5-1.14.5.tar.gz
+# HDF5VERSIONSHORT=${HDF5VERSION%.*}
+# DOWNLOADPATH="https://support.hdfgroup.org/releases/hdf5/v${HDF5VERSIONSHORT//./_}/v${HDF5VERSION//./_}/downloads/hdf5-${HDF5VERSION}.tar.gz"
+# CONFIGFLAGS="--with-pic --enable-fortran --enable-fortran2003 --disable-shared F9X=${LIBS_HDF5FC} --enable-hl --enable-unsupported"
 
+# Download link: https://support.hdfgroup.org/releases/hdf5/2.1.1/downloads/hdf5-2.1.1.tar.gz
+HDF5VERSION=2.2.0
+DOWNLOADPATH="https://support.hdfgroup.org/releases/hdf5/${HDF5VERSION}/downloads/hdf5-${HDF5VERSION}.tar.gz"
+CMAKEFLAGS="-DCMAKE_BUILD_TYPE=None -DHDF5_INSTALL_CMAKE_DIR=lib/cmake/hdf5 -DCMAKE_POLICY_DEFAULT_CMP0175=OLD -DBUILD_STATIC_LIBS=ON -DBUILD_SHARED_LIBS=OFF -DHDF5_BUILD_FORTRAN=ON -DHDF5_ENABLE_ZLIB_SUPPORT=ON -DHDF5_ENABLE_SZIP_SUPPORT=OFF"
+# installation directory: -DCMAKE_INSTALL_PREFIX=${LIBS_HDF5_DIR}
+#            MPI support: -DHDF5_ENABLE_PARALLEL=${LIBS_USE_MPI}
 
 COMPILERPREFIX=compilers/ # required for modules 5.0.0
 MPIPREFIX=MPI/ # required for modules 5.0.0
@@ -163,14 +201,17 @@ TARFILE=${SOURCESDIR}/hdf5-${HDF5VERSION}.tar.gz
 # Change to sources directors
 cd ${SOURCESDIR}
 
-echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC} from ${DOWNLOADPATH}"
-read -p "Press [Enter] to continue or [Crtl+c] to abort!"
-
 # Download tar.gz file
-if [ ! -f ${TARFILE} ]; then
-  #wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
-  echo "Downloading from ... ${DOWNLOADPATH}"
-  wget ${DOWNLOADPATH}
+if [ -f ${TARFILE} ]; then
+  echo "found ${TARFILE}"
+else
+  echo -e "Download HF5 version ${GREEN}${HDF5VERSION}${NC} from ${DOWNLOADPATH}"
+  user_inquiry "Press [yY] to continue or [nN] to skip the download"
+  if [[ $? -eq 0 ]]; then
+    #wget "https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSION%.*}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz"
+    echo "Downloading from ... ${DOWNLOADPATH}"
+    wget ${DOWNLOADPATH}
+  fi
 fi
 
 # Check if tar.gz file was correctly downloaded
@@ -220,14 +261,18 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
     fi
 
     # ============================================================================================================================================================================
-    #--- build hdf5 in single
+    # --- build hdf5 in single
     # ============================================================================================================================================================================
     MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/single
-    echo "${GREEN}      Installing under: ${MODULEFILE}${NC}"
+    echo "${GREEN}      Installing module file under: ${MODULEFILE}${NC}"
     if [[ -n ${1} ]]; then
       # Remove INSTALL module directory during re-run
       if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
-        rm ${MODULEFILE}
+        user_inquiry "[--rerun/-r] is active. Remove the module file ${MODULEFILE}?"
+        if [[ $? -eq 0 ]]; then
+          echo "${RED}Removing ${MODULEFILE}${NC}"
+          rm ${MODULEFILE}
+        fi
       fi
     fi
     if [ ! -e "${MODULEFILE}" ]; then
@@ -235,6 +280,8 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
 
       # Unload all possibly loaded modules and load specific modules for compilation of HDF5
       module purge
+      module load ${CMAKEVERSION}
+      module list
       if [[ -n $(module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
         echo "${RED}      module ${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
         break
@@ -246,56 +293,54 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
       echo ""
       echo -e "Compiling HDF5 SINGLE mode.\nHave the correct modules been loaded?"
       echo -e "This will install HF5 version ${GREEN}${HDF5VERSION}${NC}.\nCompilation in parallel will be executed with ${GREEN}${NBROFCORES} threads${NC}."
-      read -p "Press [Enter] to continue or [Crtl+c] to abort!"
+      user_inquiry "Press [yY] to continue or [nN] to skip this build"
 
-      if [ ! -d "${BUILDDIR}/single" ]; then
-        mkdir -p ${BUILDDIR}/single
-      fi
+      if [[ $? -eq 0 ]]; then
+        if [ ! -d "${BUILDDIR}/single" ]; then
+          mkdir -p ${BUILDDIR}/single
+        fi
 
-      # Remove SOURCE ${BUILDDIR}/single/* directory during re-run
-      if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-        #DELETE=$(echo ${BUILDDIR}/single/*)
-        #read -p "Delete ${DELETE} ?"
-        rm -rf ${BUILDDIR}/single/*
-      fi
+        # Remove SOURCE ${BUILDDIR}/single/* directory during re-run
+        if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+          #DELETE=$(echo ${BUILDDIR}/single/*)
+          #read -p "Delete ${DELETE} ?"
+          echo "${RED}Removing ${BUILDDIR}/single${NC}"
+          rm -rf ${BUILDDIR}/single/*
+        fi
 
-      # Change to build directory
-      cd ${BUILDDIR}/single/
+        # Change to build directory
+        cd ${BUILDDIR}/single/
+        echo `pwd`
 
-      # Configure setup
-      if [ "${WHICHCOMPILER}" == "gcc" ]; then
-        ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single CC=$(which gcc) CXX=$(which g++) FC=$(which gfortran) ${CONFIGFLAGS}
-      elif [ "${WHICHCOMPILER}" == "intel" ]; then
-        ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single CC=$(which icc) CXX=$(which icpc) FC=$(which ifort) ${CONFIGFLAGS}
-      fi
+        # cmake setup
+        echo "${GREEN} Running [cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single -DHDF5_ENABLE_PARALLEL=OFF ${SOURCESDIR}/hdf5-${HDF5VERSION}]${NC}"
+        cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/single -DHDF5_ENABLE_PARALLEL=OFF ${SOURCESDIR}/hdf5-${HDF5VERSION}
 
-      # Compile source files with NBROFCORES threads
-      make -j${NBROFCORES} 2>&1 | tee make.out
+        # Compile source files with NBROFCORES threads
+        make -j${NBROFCORES} 2>&1 | tee make.out
 
-      # Check if compilation failed
-      if [ ${PIPESTATUS[0]} -ne 0 ]; then
-        echo " "
-        echo "${RED} Failed: [make -j 2>&1 | tee make.out]${NC}"
-        exit
+        # Check if compilation failed
+        if [ ${PIPESTATUS[0]} -ne 0 ]; then
+          echo " "
+          echo "${RED} Failed: [make -j 2>&1 | tee make.out]${NC}"
+          exit
+        else
+          make install 2>&1 | tee install.out
+        fi
+
+        # Create modulefile if installation seems successful
+        cp ${TEMPLATEPATH}/single_template ${MODULEFILE}
+        sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
+        sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
+        sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
       else
-        make install 2>&1 | tee install.out
+        echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists). Run with -r to remove and re-install.${NC}"
       fi
-
-      # Create modulefile if installation seems successful
-      cp ${TEMPLATEPATH}/single_template ${MODULEFILE}
-      sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
-      sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
-      sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
-    else
-      echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} already created (module file exists). Run with -r to remove and re-install.${NC}"
     fi
-    # ============================================================================================================================================================================
-    #--- build hdf5 in single
-    # ============================================================================================================================================================================
 
 
     # ============================================================================================================================================================================
-    #--- build hdf5 with mpi
+    # --- build hdf5 with mpi
     # ============================================================================================================================================================================
     for WHICHMPI in ${MPINAMES}; do
       echo "${GREEN}    $WHICHMPI ------------------------------------------------------------------------------${NC}"
@@ -316,18 +361,24 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
         fi
         echo "${GREEN}    $MPIVERSION ------------------------------------------------------------------------------${NC}"
         MODULEFILE=${INSTALLDIR}/modules/modulefiles/libraries/hdf5/${HDF5VERSION}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION}
-        echo "${GREEN}      Installing under: ${MODULEFILE}${NC}"
+        echo "${GREEN}      Installing module file under: ${MODULEFILE}${NC}"
 
         if [[ -n ${1} ]]; then
           # Remove INSTALL module directory during re-run
           if [[ ${1} =~ ^-r(erun)?$ ]] && [[ -f ${MODULEFILE} ]]; then
-            rm ${MODULEFILE}
+            user_inquiry "[--rerun/-r] is active. Remove the module file ${MODULEFILE}?"
+            if [[ $? -eq 0 ]]; then
+              echo "${RED}Removing ${MODULEFILE}${NC}"
+              rm ${MODULEFILE}
+            fi
           fi
         fi
         if [ ! -e "${MODULEFILE}" ]; then
 
           # Unload all possibly loaded modules and load specific modules for compilation of HDF5
           module purge
+          module load ${CMAKEVERSION}
+          module list
           if [[ -n $(module load ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} 2>&1) ]]; then
             echo "${RED}      module ${COMPILERPREFIX}${WHICHCOMPILER}/${COMPILERVERSION} not found ${NC}"
             break
@@ -343,57 +394,54 @@ for WHICHCOMPILER in ${COMPILERNAMES}; do
           module list
           echo ""
           echo -e "Compiling HDF5 with MPI.\nHave the correct modules been loaded?"
-          read -p "If yes, press [Enter] to continue or [Crtl+c] to abort!"
+          user_inquiry "Press [yY] to continue or [nN] to skip this build"
 
-          if [ ! -d "${BUILDDIR}/${WHICHMPI}/${MPIVERSION}" ]; then
-            mkdir -p ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
-          fi
+          if [[ $? -eq 0 ]]; then
 
-          # Remove SOURCE ${BUILDDIR}//${WHICHMPI}/${MPIVERSION}/* directory during re-run
-          if [[ ${1} =~ ^-r(erun)?$ ]] ; then
-            #DELETE=$(echo ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}/*)
-            #read -p "Delete ${DELETE} ?"
-            rm ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}/*
-          fi
+            if [ ! -d "${BUILDDIR}/${WHICHMPI}/${MPIVERSION}" ]; then
+              mkdir -p ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
+            fi
 
-          # Change to build directory
-          cd ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
+            # Remove SOURCE ${BUILDDIR}//${WHICHMPI}/${MPIVERSION}/* directory during re-run
+            if [[ ${1} =~ ^-r(erun)?$ ]] ; then
+              #DELETE=$(echo ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}/*)
+              #read -p "Delete ${DELETE} ?"
+              echo "${RED}Removing ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}${NC}"
+              rm -rf ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}/*
+            fi
 
-          # Configure setup
-          ${SOURCESDIR}/hdf5-${HDF5VERSION}/configure --prefix=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort) ${CONFIGFLAGS}
+            # Change to build directory
+            cd ${BUILDDIR}/${WHICHMPI}/${MPIVERSION}
 
-          # Compile source files with NBROFCORES threads
-          make -j 2>&1 | tee make.out
-          if [ ${PIPESTATUS[0]} -ne 0 ]; then
-            echo " "
-            echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
-            exit
-          else
-            make install 2>&1 | tee install.out
-          fi
+            # cmake setup
+            echo "${GREEN} Running [cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} -DHDF5_ENABLE_PARALLEL=ON ${SOURCESDIR}/hdf5-${HDF5VERSION}]${NC}"
+            cmake ${CMAKEFLAGS} -DCMAKE_INSTALL_PREFIX=${HDF5DIR}/${WHICHCOMPILER}/${COMPILERVERSION}/${WHICHMPI}/${MPIVERSION} -DHDF5_ENABLE_PARALLEL=ON ${SOURCESDIR}/hdf5-${HDF5VERSION}
 
-          # Create modulefile if installation seems successful
-          cp ${TEMPLATEPATH}/mpi_template ${MODULEFILE}
-          sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
-          sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
-          sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
-          sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MODULEFILE}
-          sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MODULEFILE}
+            # Compile source files with NBROFCORES threads
+            make -j 2>&1 | tee make.out
+            if [ ${PIPESTATUS[0]} -ne 0 ]; then
+              echo " "
+              echo "${RED}Failed: [make -j 2>&1 | tee make.out]${NC}"
+              exit
+            else
+              make install 2>&1 | tee install.out
+            fi
+
+            # Create modulefile if installation seems successful
+            cp ${TEMPLATEPATH}/mpi_template ${MODULEFILE}
+            sed -i 's/whichcompiler/'${WHICHCOMPILER}'/gI' ${MODULEFILE}
+            sed -i 's/compilerversion/'${COMPILERVERSION}'/gI' ${MODULEFILE}
+            sed -i 's/hdf5version/'${HDF5VERSION}'/gI' ${MODULEFILE}
+            sed -i 's/whichmpi/'${WHICHMPI}'/gI' ${MODULEFILE}
+            sed -i 's/mpiversion/'${MPIVERSION}'/gI' ${MODULEFILE}
+          fi  # [[ $? -eq 0 ]]
         else
           echo "${YELLOW}      HDF5-${HDF5VERSION} for ${WHICHCOMPILER}-${COMPILERVERSION} and ${WHICHMPI}-${MPIVERSION} already created (module file exists). Run with -r to remove and re-install.${NC}"
           continue
         fi
       done # j in $(seq 1 ${NMPI}); do
     done # WHICHMPI in ${MPINAMES}; do
-    # ============================================================================================================================================================================
-    #--- build hdf5 with mpi
-    # ============================================================================================================================================================================
 
 
   done # i in $(seq 1 ${NCOMPILERS}); do
 done # WHICHCOMPILER in ${COMPILERNAMES}; do
-
-# Remove SOURCE tar.gz file after successful installation
-if [[ -f ${TARFILE} ]]; then
-  rm ${TARFILE}
-fi

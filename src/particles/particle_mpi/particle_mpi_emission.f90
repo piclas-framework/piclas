@@ -633,28 +633,33 @@ REAL(KIND=dp)                 :: Rate
 InitGroup = Species(FractNbr)%Init(iInit)%InitCOMM
 
 ! Arrays for communication of particles not located in final element
-ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%nPartsRecv  (1,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%SendRequest (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%RecvRequest (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , PartMPIInsert%send_message(  0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) &
-  CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIInsert%nPartsSend  (2,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI array, PartMPIInsert%nPartsSend. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIInsert%nPartsRecv  (1,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI array, PartMPIInsert%nPartsRecv. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIInsert%SendRequest (2,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI array, PartMPIInsert%SendRequest. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIInsert%RecvRequest (2,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI array, PartMPIInsert%RecvRequest. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPIInsert%send_message(  0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI array, PartMPIInsert%send_message. ALLOCSTAT',ALLOCSTAT)
 
 PartMPIInsert%nPartsSend=0
 PartMPIInsert%nPartsRecv=0
 
 ! Inter-CN communication
-ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , PartMPILocate%nPartsRecv (1,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , PartMPILocate%SendRequest(2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , PartMPILocate%RecvRequest(2,0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , EmissionRecvBuf          (  0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , EmissionSendBuf          (  0:PartMPIInitGroup(InitGroup)%nProcs-1) &
-        , STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) &
-  CALL ABORT(__STAMP__,' Cannot allocate particle emission MPI arrays! ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPILocate%nPartsSend (2,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI arrays, PartMPILocate%nPartsSend. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPILocate%nPartsRecv (1,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI arrays, PartMPILocate%nPartsRecv. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPILocate%SendRequest(2,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI arrays, PartMPILocate%SendRequest. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( PartMPILocate%RecvRequest(2,0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI arrays, PartMPILocate%RecvRequest. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( EmissionRecvBuf          (  0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI arrays, EmissionRecvBuf. ALLOCSTAT',ALLOCSTAT)
+ALLOCATE( EmissionSendBuf          (  0:PartMPIInitGroup(InitGroup)%nProcs-1), STAT=ALLOCSTAT )
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,' Cannot allocate part emission MPI arrays, EmissionSendBuf. ALLOCSTAT',ALLOCSTAT)
 
 PartMPILocate%nPartsSend=0
 PartMPILocate%nPartsRecv=0

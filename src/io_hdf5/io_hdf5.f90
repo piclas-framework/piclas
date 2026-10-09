@@ -89,17 +89,13 @@ INTERFACE FinalizeElemData
   MODULE PROCEDURE FinalizeElemData
 END INTERFACE
 
-INTERFACE GetDatasetNamesInGroup
-  MODULE PROCEDURE GetDatasetNamesInGroup
-END INTERFACE
-
-PUBLIC::DefineParametersIO
-PUBLIC::InitIOHDF5
-PUBLIC::InitMPIInfo
-PUBLIC::OpenDataFile
-PUBLIC::CloseDataFile
-PUBLIC::AddToElemData
-PUBLIC::GetDatasetNamesInGroup
+PUBLIC :: DefineParametersIO
+PUBLIC :: InitIOHDF5
+PUBLIC :: InitMPIInfo
+PUBLIC :: OpenDataFile
+PUBLIC :: CloseDataFile
+PUBLIC :: AddToElemData
+PUBLIC :: GetDatasetNamesInGroup
 
 !===================================================================================================================================
 
@@ -265,8 +261,7 @@ IF(create)THEN
   END IF
   CALL H5FCREATE_F(TRIM(FileString), H5F_ACC_TRUNC_F, File_ID, iError, creation_prp = Plist_File_ID)
 ELSE !read-only ! and write (added later)
-  IF(.NOT.FILEEXISTS(FileString)) CALL abort(__STAMP__,&
-    'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
+  IF(.NOT.FILEEXISTS(FileString)) CALL abort(__STAMP__,'ERROR: Specified file '//TRIM(FileString)//' does not exist.')
   IF (readOnly) THEN
     CALL H5FOPEN_F(  TRIM(FileString), H5F_ACC_RDONLY_F,  File_ID, iError, access_prp = Plist_File_ID)
   ELSE
@@ -431,8 +426,8 @@ END SUBROUTINE FinalizeElemData
 SUBROUTINE GetDatasetNamesInGroup(group,names)
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-CHARACTER(LEN=*)               :: group    !< name of group
-CHARACTER(LEN=255),ALLOCATABLE :: names(:) !< names of datasets
+CHARACTER(LEN=*),INTENT(IN)                :: group    !< name of group
+CHARACTER(LEN=255),INTENT(OUT),ALLOCATABLE :: names(:) !< names of datasets
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                        :: nMembers,i,type

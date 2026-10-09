@@ -120,7 +120,7 @@ IniExactFunc = GETINT('IniExactFunc')
 SELECT CASE (IniExactFunc)
 CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
 #if ! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)
-  CALL abort(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, LIBS_USE_PETSC=ON and PICLAS_PARTICLES=ON')
+  CALL CollectiveStop(__STAMP__,'IniExactFunc=800,801,900,901,1000,1100 requires PICLAS_CODE_ANALYZE=ON, LIBS_USE_PETSC=ON and PICLAS_PARTICLES=ON')
 #endif /*! (defined(CODE_ANALYZE) && USE_PETSC && PARTICLES)*/
 END SELECT
 
@@ -186,7 +186,7 @@ DO i=1,nBCs
     SWRITE(*,'(A,I0)') "State: ",BCState
     SWRITE(*,'(A)')    " Name: "//TRIM(BCName)
     WRITE(UNIT=hilf,FMT='(I0)') BCType
-    CALL abort(__STAMP__,'BCState is <= 0 for BCType='//TRIM(hilf)//' is not allowed! Set a positive integer for the n-th RefState')
+    CALL CollectiveStop(__STAMP__,'BCState is <= 0 for BCType='//TRIM(hilf)//' is not allowed! Set a positive integer for the n-th RefState')
   ELSEIF(ANY(BCType.EQ.BCTypeRefstate).AND.BCState.GT.0)THEN
     nRefStateMax = MAX(nRefStateMax,BCState)
   ELSEIF(BCType.EQ.7.AND.BCState.GT.0)THEN
@@ -204,8 +204,7 @@ nLinState = CountOption('LinPhi')
 IF(nLinStateMax.GT.nLinState)THEN
   SWRITE(*,'(A,I0)') "nLinStateMax: ",nLinStateMax
   SWRITE(*,'(A,I0,A)') "   nLinState: ",nLinState," (number of times LinPhi = X occurrences in the parameter file)"
-  CALL abort(__STAMP__&
-      ,'nLinStateMax > nLinState: The given LinState number for boundary type 7 is larger than the supplied LinPhi values. '//&
+  CALL CollectiveStop(__STAMP__,'nLinStateMax > nLinState: The given LinState number for boundary type 7 is larger than the supplied LinPhi values. '//&
        'Define the correct number of LinPhi via, e.g., \n\n  LinPhi = 120.0 ! LinPhi Nbr 1: Voltage\n  LinPhi = 500.0 '//&
        '! LinPhi Nbr 2: Voltage\n and the corresponding LinPhiBasePoint, LinPhiNormal and LinPhiHeight parameters')
 END IF ! nLinStateMax.GT.nLinState
@@ -229,8 +228,7 @@ nRefState=CountOption('RefState')
 IF(nRefStateMax.GT.nRefState)THEN
   SWRITE(*,'(A,I0)') "nRefStateMax: ",nRefStateMax
   SWRITE(*,'(A,I0,A)') "   nRefState: ",nRefState," (number of times RefState = (/x,x,x/) occurrences in the parameter file)"
-  CALL abort(__STAMP__&
-      ,'nRefStateMax > nRefState: The given RefState number for boundary type 5 is larger than the supplied RefStates. '//&
+  CALL CollectiveStop(__STAMP__,'nRefStateMax > nRefState: The given RefState number for boundary type 5 is larger than the supplied RefStates. '//&
        'Define the correct number of RefStates via, e.g., \n\n  RefState = (/100.0 , 13.56E6 , -1.57079632679/) '//&
        '! RefState Nbr 1: Voltage, Frequency and Phase shift\n  RefState = (/ 50.0 , 13.56E6 ,  1.57079632679/) '//&
        '! RefState Nbr 2: Voltage, Frequency and Phase shift\n')
@@ -335,7 +333,7 @@ DO iBC=1,nBCs
   BCState = BoundaryType(iBC,BC_STATE) ! BCState of the corresponding BCType
   IF((BCType.EQ.2).AND.(BCState.NE.2)) CYCLE ! BCType=2 must be combined with BCState=2
   CPPBoundaries=CPPBoundaries+1
-  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for FPC must be >0! BCState=',IntInfo=BCState)
+  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for coupled power potential must be >0! BCState=',IntInfo=BCState)
 END DO
 
 IF(CPPBoundaries.EQ.0) RETURN ! Already determined in HDG initialization
@@ -427,7 +425,7 @@ END SUBROUTINE InitCoupledPowerPotential
 SUBROUTINE ReadCPPDataFromH5()
 ! MODULES
 USE MOD_io_hdf5
-USE MOD_Globals          ,ONLY: UNIT_stdOut,MPIRoot,IK,abort
+USE MOD_Globals          ,ONLY: UNIT_stdOut,MPIRoot,IK
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -490,7 +488,7 @@ SUBROUTINE ExactFunc(ExactFunction,x,resu,t,ElemID,iRefState,iLinState,BCState)
 ! Specifies all the initial conditions. The state in conservative variables is returned.
 !===================================================================================================================================
 ! MODULES
-USE MOD_Globals         ,ONLY: Abort
+USE MOD_Globals         ,ONLY: Abort,CollectiveStop
 USE MOD_Globals_Vars    ,ONLY: PI,ElementaryCharge,eps0
 USE MOD_Equation_Vars   ,ONLY: IniCenter,IniHalfwidth,IniAmplitude,RefState,LinPhi,LinPhiHeight,LinPhiNormal,LinPhiBasePoint
 #if defined(PARTICLES)
@@ -526,6 +524,9 @@ INTEGER                         :: i!,iPart
 #endif /*defined(PARTICLES)*/
 !===================================================================================================================================
 SELECT CASE (ExactFunction)
+CASE(-53) ! Fixed bias voltage + sine function, RefState(1): amplitude, RefState(2,iRefState): frequency, RefState(3,iRefState): bias voltage
+  Omega   = 2.*PI*RefState(2,iRefState)
+  Resu(:) = RefState(1,iRefState)*SIN(Omega*t) + RefState(3,iRefState)
 #if defined(PARTICLES)
 CASE(-5) ! Bias voltage DC boundary
   Resu(:) = BiasVoltage%BVData(1)
@@ -607,7 +608,7 @@ CASE(200) ! Dielectric Sphere of Radius R in constant electric field E_0 from bo
   ! eps_inner : dielectric constant of sphere
   ! DielectricRatio = eps_inner / eps_outer (set in dielectric init)
 #if !defined(PARTICLES)
-  CALL abort(__STAMP__,'This function requires ElemBaryNGeo() which is only built when PICLAS_PARTICLES=ON')
+  CALL CollectiveStop(__STAMP__,'This function requires ElemBaryNGeo() which is only built when PICLAS_PARTICLES=ON')
 #endif /*!defined(PARTICLES)*/
 
   ! set radius and angle for DOF position x(1:3)
@@ -810,7 +811,7 @@ CASE(500) ! Coaxial capacitor with Floating Boundary Condition (FPC) with from
     END ASSOCIATE
   END ASSOCIATE
 #if !(USE_PETSC)
-  CALL abort(__STAMP__,'ExactFunc=500 requires LIBS_USE_PETSC=ON')
+  CALL CollectiveStop(__STAMP__,'ExactFunc=500 requires LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 CASE(600) ! 2 cubes with two different charges
   IF(ALLOCATED(FPC%Charge))THEN
@@ -819,7 +820,7 @@ CASE(600) ! 2 cubes with two different charges
   END IF ! ALLOCATED(FPC%Charge)
   resu = 0.
 #if !(USE_PETSC)
-  CALL abort(__STAMP__,'ExactFunc=600 requires LIBS_USE_PETSC=ON')
+  CALL CollectiveStop(__STAMP__,'ExactFunc=600 requires LIBS_USE_PETSC=ON')
 #endif /*!(USE_PETSC)*/
 CASE(700) ! Analytical solution of a charged particle moving in cylindrical coordinates between two grounded walls
 #if defined(PARTICLES)
@@ -849,7 +850,7 @@ CASE(700) ! Analytical solution of a charged particle moving in cylindrical coor
     resu = eps1 * resu
   !END DO ! iPart = 1, PDM%ParticleVecLength
 #else
-  CALL abort(__STAMP__,'ExactFunc=700 requires PARTICLES=ON')
+  CALL CollectiveStop(__STAMP__,'ExactFunc=700 requires PARTICLES=ON')
 #endif /*defined(PARTICLES)*/
 CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasma between slab and other electrode opposite
   resu = 0.
@@ -872,8 +873,16 @@ CASE(800,801,900,901,1000,1100) ! Dielectric slab on electrode (left) with plasm
       END ASSOCIATE
     END ASSOCIATE
   END ASSOCIATE
+CASE(9000)
+  resu = 0.
+CASE(10001)
+#if !(USE_PETSC) || !defined(PARTICLES) || !defined(CODE_ANALYZE)
+  CALL CollectiveStop(__STAMP__,'ExactFunc=10001 requires LIBS_USE_PETSC=ON and PARTICLES=ON and PICLAS_CODE_ANALYZE=ON')
+#else
+  CALL EvaluateCMBC1D(x(1),resu(1))
+#endif /*!(USE_PETSC) || !defined(PARTICLES) || !defined(CODE_ANALYZE)*/
 CASE DEFAULT
-  CALL abort(__STAMP__,'Exactfunction not specified!', IntInfoOpt=ExactFunction)
+  CALL CollectiveStop(__STAMP__,'Exactfunction not specified!', IntInfo=ExactFunction)
 END SELECT ! ExactFunction
 
 END SUBROUTINE ExactFunc
@@ -1016,6 +1025,8 @@ CASE(801,901) ! plasma between electrodes + particles: Linear source
   IF((x.GT.0.0).AND.(x.LT.dx))THEN
     PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) - 1e-4*(1.0 - N_VolMesh(iElem)%Elem_xGP(2,i,j,k)/1e-3)
   END IF ! x.GT.0.0
+CASE(9000) ! Uniform ion background source
+  PS_N(iElem)%PartSource(4,i,j,k) = PS_N(iElem)%PartSource(4,i,j,k) + 1.
 END SELECT
 #endif /*defined(CODE_ANALYZE)*/
 
@@ -1106,6 +1117,30 @@ END DO ! iLocSide = 1, 6
 END FUNCTION ElemHasDirichletBC
 #endif /*defined(PARTICLES) && defined(CODE_ANALYZE)*/
 #endif /* donotcompilethis */
+
+#if USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)
+!===================================================================================================================================
+!> Calculate the analytical solution for a 1D problem for the circuit model BC (CMBC)
+!===================================================================================================================================
+SUBROUTINE EvaluateCMBC1D(x,phi)
+! MODULES
+USE MOD_Globals
+USE MOD_Globals_Vars ,ONLY: eps0
+USE MOD_HDG_Vars     ,ONLY: CMBC
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+REAL,INTENT(IN)  :: x   ! x-coordinate (x,y,z)
+REAL,INTENT(OUT) :: phi ! electric potential
+!-----------------------------------------------------------------------------------------------------------------------------------
+! LOCAL VARIABLES
+!===================================================================================================================================
+ASSOCIATE(L => 1.0, A => 1.0)
+  phi = (x/L)*((CMBC%Capacitance*CMBC%VoltageRF(1)+CMBC%Charge)/(CMBC%Capacitance+eps0*A/L))
+END ASSOCIATE
+END SUBROUTINE EvaluateCMBC1D
+#endif /*USE_PETSC && defined(PARTICLES) && defined(CODE_ANALYZE)*/
 
 
 FUNCTION shapefunc(r)

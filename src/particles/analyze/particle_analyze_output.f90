@@ -172,10 +172,10 @@ END IF
 END SUBROUTINE WriteParticleTrackingData
 
 
-SUBROUTINE DisplayCoupledPowerPart()
 !===================================================================================================================================
 !> Print accumulated power transferred to particles to std out (power for each species and total power over all particles)
 !===================================================================================================================================
+SUBROUTINE DisplayCoupledPowerPart()
 ! MODULES
 USE MOD_TimeDisc_Vars         ,ONLY: Time
 USE MOD_Restart_Vars          ,ONLY: RestartTime

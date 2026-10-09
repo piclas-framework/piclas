@@ -8,16 +8,14 @@ NumberOfInputs = 2
 OutputDataType = 'vtkUnstructuredGrid'
 ExtraXml = ''
 
-Properties = dict()
+Properties = {}
 
 def RequestData():
-  import paraview
 
-  for key in inputs[0].PointData.keys() :
+  for key in inputs[0].PointData :
      in1 = inputs[0].PointData[key]
      in2 = inputs[1].PointData[key]
-     output.PointData.append(in1 - in2, "diff(%s)" % key)
+     output.PointData.append(in1 - in2, f"diff({key})")
 
 def RequestInformation():
-  from paraview import util
-  pdi = self.GetInput()
+  self.GetInput()

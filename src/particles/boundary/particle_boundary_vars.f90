@@ -24,7 +24,7 @@ IMPLICIT NONE
 PUBLIC
 SAVE
 
-LOGICAL                                 :: SurfTotalSideOnNode
+LOGICAL                                 :: SurfTotalSideOnNode = .FALSE.
 INTEGER                                 :: SurfSampSize                  !> Energy + Force + nSpecies
 INTEGER                                 :: SurfOutputSize                !> Energy + Force + nSpecies
 INTEGER                                 :: SurfSpecOutputSize            !> Energy + Force + nSpecies
@@ -52,7 +52,6 @@ REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactAngle
 REAL,ALLOCATABLE,DIMENSION(:,:,:,:)     :: SampWallImpactNumber
 
 ! SampWallState indices for optional variables (defined in InitParticleBoundarySampling)
-INTEGER                                 :: SWIVarTimeStep
 INTEGER                                 :: SWIStickingCoefficient
 
 LOGICAL                                 :: CalcTorque                 !> Calculate torque about x-, y-, z-axis

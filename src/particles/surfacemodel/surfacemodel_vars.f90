@@ -67,7 +67,7 @@ TYPE, EXTENDS(tCollCaseInfo) :: tEventProbInfo
   REAL, ALLOCATABLE                      :: ProdTransACC(:)        ! Reaction-specific thermal accommodation
 END TYPE
 
-LOGICAL                                  :: DoChemSurface          ! Call the surface catalysis routines
+LOGICAL                                  :: DoChemSurface = .FALSE.! Call the surface catalysis routines
 
 TYPE tSurfChemistry ! General surface chemistry parameter
   INTEGER                                :: NumOfReact             ! Number of catalytic reactions
@@ -96,8 +96,10 @@ TYPE tSurfReactions
                                                                    !    ER (Eley-Rideal)
   INTEGER                                :: Reactants(2)           ! Reactants: indices of the species starting the reaction [NumOfReact,2]
   INTEGER                                :: Products(3)            ! Products: indices of the species resulting from the reaction [NumOfReact,3]
-  INTEGER                                :: Inhibition             ! Reaction number of inhibiting reactions
-  INTEGER                                :: Promotion              ! Reaction number of promoting reactions
+  LOGICAL                                :: Inhibition             ! Coadsorption: inhibition
+  INTEGER                                :: Inhibitors(3)          ! Species number of inhibiting cadsorption
+  LOGICAL                                :: Promotion
+  INTEGER                                :: Promotors(3)           ! Species number of promoting coadsorption
   INTEGER                                :: NumOfBounds            ! Number of catalytic boundaries
   INTEGER, ALLOCATABLE                   :: Boundaries(:)          ! Map of the reactions to the boundaries
   ! Surface energy accommodation
@@ -106,10 +108,8 @@ TYPE tSurfReactions
   REAL                                   :: HeatAccommodation      ! Beta coefficient for the energy accommodation
   ! Parameters for the adsorption
   REAL                                   :: S_initial              ! Initial sticking coefficient at zero coverage
-  REAL                                   :: MaxCoverage            ! Maximal surface coverage
   REAL                                   :: DissOrder              ! Molecular (1) or dissociative (2) adsorption
   REAL                                   :: EqConstant             ! Equilibrium constant for adsorption/desorption
-  REAL                                   :: StickCoeff             ! Sticking coefficient
   ! Parameter for the dissociative-adsorption
   LOGICAL                                :: DissociativeAds        ! Dissociative adsorption where the other molecule half is desorbed
   INTEGER                                :: AdsorbedProduct        ! Species ID of the particle that stays adsorbed on the surface
@@ -120,10 +120,17 @@ TYPE tSurfReactions
   REAL                                   :: C_a                    ! Pre-exponential factor
   REAL                                   :: C_b                    ! Pre-exponential factor
   ! General Parameters
-  REAL                                   :: Rate                   ! Catalytic reaction rate [Cov/s*m^2]
   REAL                                   :: Prob                   ! Catalytic reaction probability
   REAL                                   :: Prefactor              ! Pre-exponential factor [1/s]
   REAL                                   :: ArrheniusEnergy        ! Catalytic reaction energy [K]
+  REAL                                   :: MinCovTotal            ! Minimum coverage above which the reaction takes place
+  REAL                                   :: MaxCovTotal            ! Maximum coverage below which the reaction takes place
+  REAL, ALLOCATABLE                      :: MinCov(:)              ! Species-wise minimum coverage
+  REAL, ALLOCATABLE                      :: MaxCov(:)              ! Species-wise maximum coverage
+  LOGICAL                                :: TempDep                ! Temperature dependence of the catalytic process
+  LOGICAL                                :: CovDep                 ! Coverage dependence of the catalytic process
+  REAL                                   :: MinTemp                ! Minimum temperature above which the reaction takes place
+  REAL                                   :: MaxTemp                ! Maximum temperature below which the reaction takes place
 END TYPE
 TYPE(tSurfReactions), ALLOCATABLE        :: SurfChemReac(:)
 

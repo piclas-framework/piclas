@@ -608,7 +608,7 @@ USE MOD_ISO_VARYING_STRING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CLASS(OPTION)               :: this     !< CLASS(OPTION)
+CLASS(OPTION),INTENT(INOUT) :: this     !< CLASS(OPTION)
 CHARACTER(LEN=*),INTENT(IN) :: rest_in  !< string to parse
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -771,7 +771,7 @@ SUBROUTINE parseReal(this,string_in, value, digits)
 USE MOD_Globals, ONLY:abort
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-CLASS(OPTION)                 :: this      !< CLASS(OPTION)
+CLASS(OPTION),INTENT(IN)      :: this      !< CLASS(OPTION)
 CHARACTER(LEN=255),INTENT(IN) :: string_in !< (IN) string containing a real number
 REAL,INTENT(OUT)              :: value     !< (OUT) the converted real
 INTEGER,INTENT(OUT)           :: digits    !< (OUT) the number of digits if floating representation, or -1 if scientific
@@ -816,8 +816,7 @@ ELSE
 END IF
 READ(string, *,IOSTAT=stat) value
 IF(stat.GT.0)THEN
-  CALL Abort(__STAMP__,&
-    "Failed to parse: "//TRIM(this%name))
+  CALL Abort(__STAMP__,"Failed to parse: "//TRIM(this%name))
 END IF
 
 END SUBROUTINE parseReal

@@ -1,0 +1,61 @@
+cff-version: "1.2.0"
+message: >
+  If you use this software, please cite the repository and the given paper under "references".
+  This project has been developed with the help of many contributors.
+  A list of contributors can be found in "CONTRIBUTORS.md".
+  If you use specific methods implemented in this repository, please also cite
+  the corresponding method papers listed in the "Citing PICLas" section of the README.md file.
+
+title: "PICLas: A 3D particle-based kinetic simulation framework combining PIC, DSMC, BGK, and Fokker-Planck methods for plasma dynamics and rarefied gas flows"
+version: "4.3.0"
+url: "https://github.com/piclas-framework/piclas"
+doi: "10.5281/zenodo.23215100"
+license: "GPL-3.0"
+authors:
+  - name: "PICLas Developers"
+
+preferred-citation:
+  type: software
+  title: "PICLas: A 3D particle-based kinetic simulation framework combining PIC, DSMC, BGK, and Fokker-Planck methods for plasma dynamics and rarefied gas flows"
+  authors:
+    - family-names: "PICLas Developers"
+  doi: "10.5281/zenodo.23215100"
+  url: "https://github.com/piclas-framework/piclas"
+  version: "4.3.0"
+
+references:
+  - title: "Combining particle-in-cell and direct simulation Monte Carlo for the simulation of reactive plasma flows"
+    type: article
+    authors:
+      - family-names: "Fasoulas"
+        given-names: "Stefanos"
+        orcid: "https://orcid.org/0000-0002-4168-2410"
+      - family-names: "Munz"
+        given-names: "Claus-Dieter"
+        orcid: "https://orcid.org/0000-0003-3634-7447"
+      - family-names: "Pfeiffer"
+        given-names: "Marcel"
+        orcid: "https://orcid.org/0000-0002-4087-1789"
+      - family-names: "Beyer"
+        given-names: "Julian"
+      - family-names: "Binder"
+        given-names: "Tilman"
+      - family-names: "Copplestone"
+        given-names: "Stephen"
+        orcid: "https://orcid.org/0000-0001-5557-1044"
+      - family-names: "Mirza"
+        given-names: "Asim"
+      - family-names: "Nizenkov"
+        given-names: "Paul"
+        orcid: "https://orcid.org/0000-0003-0240-0350"
+      - family-names: "Ortwein"
+        given-names: "Philip"
+      - family-names: "Reschke"
+        given-names: "Wladimir"
+        orcid: "https://orcid.org/0000-0003-4182-3575"
+    journal: "Physics of Fluids"
+    volume : 31
+    number: 7
+    month: 7
+    year: 2019
+    doi: 10.1063/1.5097638

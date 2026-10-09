@@ -7,3 +7,4 @@ sphinx_rtd_size==0.2.0
 myst_parser==5.0.0
 sphinxcontrib.bibtex==2.6.5
 sphinx-copybutton==0.5.2
+sphinx-design==0.7.0

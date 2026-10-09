@@ -21,13 +21,12 @@ Properties = dict(
 
 def RequestData():
   import math
+
   import numpy
-  import paraview
-  import vtk.numpy_interface.dataset_adapter
   import vtk.numpy_interface.algorithms
   # -- this will import vtkMultiProcessController and vtkMPI4PyCommunicator
 
-  # This script computes the particle distribution function. Missing: Selection of 
+  # This script computes the particle distribution function. Missing: Selection of
   # spacial coordinate and velocity
   deltaX=float(xMax-xMin)/float(NumberOfSpaceBins)
   deltaV=float(maxVelo-minVelo)/float(NumberOfVeloBins)
@@ -50,13 +49,13 @@ def RequestData():
   pdo.SetExtent(0,NumberOfSpaceBins,0,NumberOfVeloBins,0,1)
   PDF = numpy.zeros((NumberOfSpaceBins, NumberOfVeloBins), dtype='float')
   # generate array
-  # loop over all particles 
+  # loop over all particles
   nPartsMin=0
   nPartsMax=0
   nPartsIn=0
   nXmin=0
   nXmax=0
-  for i in range(0, nParts):
+  for i in range(nParts):
     coord = pdi.GetPoint(i)
     pos   = coord[iDirect]
     if (iVelocity!=3):
@@ -86,29 +85,29 @@ def RequestData():
   array=vtk.vtkFloatArray()
   nPartsOut=nParts-nPartsIn
   if(nXmin>0) or (nXmax>0):
-    print " Particles out of coordinate range."
-    print " nMinOut: ", nXmin
-    print " nMaxOut: ", nXmax
-    print " Percent coord out: ", float(nXmin+nXmax)/float(nParts)*100.0
+    print(" Particles out of coordinate range.")
+    print(" nMinOut: ", nXmin)
+    print(" nMaxOut: ", nXmax)
+    print(" Percent coord out: ", float(nXmin+nXmax)/float(nParts)*100.0)
   if(nPartsMin>0) or (nPartsMax>0):
-    print " Particles out of velocity range. Velocity truncated!!!"
-    print " nPartsMin: ", nPartsMin
-    print " nPartsMax: ", nPartsMax
-    print " Percent velo out of nPartsIn:     ", float(nPartsMin+nPartsMax)/float(nPartsIn)*100.0
-    print " Percent velo out of nTotalParts: ", float(nPartsMin+nPartsMax)/float(nParts)*100.0
+    print(" Particles out of velocity range. Velocity truncated!!!")
+    print(" nPartsMin: ", nPartsMin)
+    print(" nPartsMax: ", nPartsMax)
+    print(" Percent velo out of nPartsIn:     ", float(nPartsMin+nPartsMax)/float(nPartsIn)*100.0)
+    print(" Percent velo out of nTotalParts: ", float(nPartsMin+nPartsMax)/float(nParts)*100.0)
   if(nPartsOut>0):
-    print " nPartsIn: ", nPartsIn
-    print " total out: ", nPartsOut
-    print " Percent nPartIn:  ", float(nPartsIn)/float(nParts)*100.0
-    print " Percent nPartOut: ", float(nPartsOut)/float(nParts)*100.0
+    print(" nPartsIn: ", nPartsIn)
+    print(" total out: ", nPartsOut)
+    print(" Percent nPartIn:  ", float(nPartsIn)/float(nParts)*100.0)
+    print(" Percent nPartOut: ", float(nPartsOut)/float(nParts)*100.0)
   array.SetName("PDF")
   array.SetNumberOfComponents(1)
   ncells  = NumberOfSpaceBins*NumberOfVeloBins
   array.SetNumberOfTuples(ncells)
   pdo.GetCellData().AddArray(array)
   ipos=0
-  for j in range(0,NumberOfVeloBins):
-     for i in range(0,NumberOfSpaceBins):
+  for j in range(NumberOfVeloBins):
+     for i in range(NumberOfSpaceBins):
       # caution: transpoesed index because of storage
       array.SetValue(ipos,PDF[i,j]/float(nPartsIn))
       ipos=ipos+1

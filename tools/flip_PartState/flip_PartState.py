@@ -1,8 +1,9 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
-import re
-import shutil
+import sys
+from timeit import default_timer as timer
+
+import numpy as np
+
 
 def ChangeFileVersion(statefile) :
     # Open h5 file and read container info
@@ -30,7 +31,7 @@ def ChangeFileVersion(statefile) :
             file_version_new=1.4
         f1.attrs.modify('File_Version',file_version_new)
         print( )
-        print("Changed file version from %s to %s" % (file_version,file_version_new))
+        print(f"Changed file version from {file_version} to {file_version_new}")
 
     # 4. Close .h5 data file
     f1.close()
@@ -83,7 +84,7 @@ def FlipDataset(statefile,data_set) :
     # 1. Swtich dimension of PartData
     b1 = np.swapaxes(b1,0,1)
     new_shape=b1.shape
-    print("".ljust(max_length-len(statefile)),statefile," | %s%s => %s%s" % (data_set, str(old_shape), data_set, str(new_shape)))
+    print("".ljust(max_length-len(statefile)),statefile,f" | {data_set}{old_shape!s} => {data_set}{new_shape!s}")
 
     # 2. Create new dataset 'dset'
     #dset = f1.create_dataset(data_set, shape=b1.shape, dtype=np.float64)
@@ -91,8 +92,7 @@ def FlipDataset(statefile,data_set) :
 
     # 3. Write as C-continuous array via np.ascontiguousarray()
     if not b1.any() :
-        print(" %s has dimension %s. Skipping" % (data_set,b1.shape))
-        pass
+        print(f" {data_set} has dimension {b1.shape}. Skipping")
     else :
         dset.write_direct(np.ascontiguousarray(b1))
 
@@ -136,7 +136,7 @@ try :
     h5py_module_loaded = True
 except ImportError :
     print(red('Could not import h5py module. This is required for analyse functions.'))
-    exit(0)
+    sys.exit(0)
 
 # Start the timer
 start = timer()

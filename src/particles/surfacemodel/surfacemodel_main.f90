@@ -133,17 +133,18 @@ IF(nPorousBC.GT.0) CALL PorousBoundaryTreatment(PartID,SideID,SpecularReflection
 !===================================================================================================================================
 ! Counter for surface analyze (includes impacts due to porous BC and circular inflow)
 IF(CalcSurfCollCounter) SurfAnalyzeCount(PartSpecImpact) = SurfAnalyzeCount(PartSpecImpact) + 1
-! Sampling
+! Determine the sub-surface (p,q). This index is not only used for the sampling but also by the
+! surface models themselves (surface coverage in SurfaceModelChemistry, adaptive wall temperature in GetWallTemperature)
+SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
 DoSample = (DSMC%CalcSurfaceVal.AND.SamplingActive).OR.(DSMC%CalcSurfaceVal.AND.WriteMacroSurfaceValues)
-IF(DoSample) THEN
-  SurfSideID = GlobalSide2SurfSide(SURF_SIDEID,SideID)
+IF (DoSample.OR.ANY(PartBound%Reactive).OR.ANY(PartBound%UseAdaptedWallTemp)) THEN
   IF (TrackingMethod.EQ.TRIATRACKING) THEN
-    IF(nSurfSample.GT.1)THEN
+    IF(nSurfSample.GT.1) THEN
       distanceMin = HUGE(1.)
       DO p = 1, nSurfSample
         DO q = 1, nSurfSample
           distance = VECNORM3D(PartPosImpact(1:3) - SurfSideSamplingMidPoints(1:3,p,q,SurfSideID))
-          IF(distance.LT.distanceMin)THEN
+          IF(distance.LT.distanceMin) THEN
             TrackInfo%p = p
             TrackInfo%q = q
             distanceMin = distance
@@ -159,6 +160,9 @@ IF(DoSample) THEN
     TrackInfo%p = INT((Xitild +1.0)/dXiEQ_SurfSample)+1
     TrackInfo%q = INT((Etatild+1.0)/dXiEQ_SurfSample)+1
   END IF
+END IF
+! Sampling
+IF(DoSample) THEN
   ! Sample momentum, heatflux and collision counter on surface (Check if particle is still inside is required, since particles can
   ! be removed in the case of UseCircularInflow and nPorousBC. These particles shall not be sampled.)
   IF(PDM%ParticleInside(PartID)) THEN

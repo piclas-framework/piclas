@@ -288,7 +288,6 @@ END SUBROUTINE InitRPBasis
 !> Evaluate solution at current time t at recordpoint positions and fill output buffer
 !==================================================================================================================================
 SUBROUTINE RecordPoints(t,forceSampling)
-!SUBROUTINE RecordPoints(nVar,StrVarNames,iter,t)
 ! MODULES
 USE MOD_Globals
 USE MOD_Preproc

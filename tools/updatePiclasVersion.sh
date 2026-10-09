@@ -1,9 +1,12 @@
 #!/bin/bash
 
-# Script for updating the piclas version number in ./src/globals/globals_vars.f90 and .github/workflows/cmake-ninja.yml
+# Script for updating the piclas version number in ./src/globals/globals_vars.f90, .github/workflows/cmake-ninja.yml,
+# CMakeLists.txt, fpm.toml and CITATION.cff
 GLOBALS='./src/globals/globals_vars.f90'
 WORKFLOW='.github/workflows/cmake-ninja.yml'
 CMAKELISTS='CMakeLists.txt'
+FPMTOML='fpm.toml'
+CITATIONCFF='CITATION.cff'
 
 if test -t 1; then # if terminal
   NbrOfColors=$(which tput > /dev/null && tput colors) # supports color
@@ -45,6 +48,16 @@ fi
 
 if [[ ! -f ${CMAKELISTS} ]]; then
   echo "${RED}Could not find ${CMAKELISTS}${NC}"
+  exit 1
+fi
+
+if [[ ! -f ${FPMTOML} ]]; then
+  echo "${RED}Could not find ${FPMTOML}${NC}"
+  exit 1
+fi
+
+if [[ ! -f ${CITATIONCFF} ]]; then
+  echo "${RED}Could not find ${CITATIONCFF}${NC}"
   exit 1
 fi
 
@@ -95,3 +108,33 @@ if [[ -z ${CHECKCMAKELISTS} ]]; then
 else
   sed -i "s/.*SET(PROJECT_VER.*/SET(PROJECT_VER  \"${1}\")/" ${CMAKELISTS}
 fi
+
+# Update version in fpm.toml
+CHECKCMAKELISTS=$(grep -in "version" ${FPMTOML} | grep "=")
+if [[ -z ${CHECKCMAKELISTS} ]]; then
+  echo "${RED}Could not find 'version...=' in ${FPMTOML} using grep${NC}"
+  exit 1
+else
+  sed -i "s/.*version.*=.*\".*\"/version     = \"${1}\"/" ${FPMTOML}
+fi
+
+# Update version in CITATION.cff (top-level and preferred-citation block)
+
+# Top-level "version:"
+CHECKCFFVERSION=$(grep -in "^version:" ${CITATIONCFF})
+if [[ -z ${CHECKCFFVERSION} ]]; then
+  echo "${RED}Could not find top-level 'version:' in ${CITATIONCFF} using grep${NC}"
+  exit 1
+else
+  sed -i "s/^version:.*/version: \"${1}\"/" ${CITATIONCFF}
+fi
+
+# Indented "version:" under preferred-citation (two spaces)
+CHECKCFFPREFVERSION=$(grep -in "^  version:" ${CITATIONCFF})
+if [[ -z ${CHECKCFFPREFVERSION} ]]; then
+  echo "${RED}Could not find indented 'version:' under preferred-citation in ${CITATIONCFF} using grep${NC}"
+  exit 1
+else
+  sed -i "s/^  version:.*/  version: \"${1}\"/" ${CITATIONCFF}
+fi
+

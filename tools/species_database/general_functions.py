@@ -1,4 +1,5 @@
-import re
+import sys
+
 
 class myColors:
     """ Add different colors and styles (ANSI code) to strings """
@@ -53,9 +54,8 @@ def create_prompt(*args):
     prompt_for_user = bold('\nPlease enter') + '\n '
     for (i, arg) in enumerate(args):
         prompt_for_user = prompt_for_user + purple(str(i + 1)) + ' ' + arg + ' ' + ' or \n '
-    prompt_for_user = prompt_for_user + purple(str(i + 2)) + ' to exit program\n-->'
-    return prompt_for_user
+    return prompt_for_user + purple(str(i + 2)) + ' to exit program\n-->'
 
 def own_exit():
     print(bold(red('Exiting')))
-    exit(1)
+    sys.exit(1)

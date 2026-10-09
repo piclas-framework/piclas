@@ -791,15 +791,15 @@ IF(.NOT.DoMacroscopicRestart) THEN
 
           ! Store the particle info
           IF(CountNbrOfLostParts)THEN
+            ! Increase the array size by 1 if needed for dummy index of virtual particle
+            IF(PDM%ParticleVecLength+1.GT.PDM%maxParticleNumber) CALL IncreaseMaxParticleNumber(1)
             CurrentPartNum = PDM%ParticleVecLength+1
-
             ! Set properties of the "virtual" particle (only for using the routine StoreLostParticleProperties to store this info
             ! in the .h5 container)
             PartState(1:6,CurrentPartNum)        = RecBuff(1:6,iPart)
             PartSpecies(CurrentPartNum)          = INT(RecBuff(7,iPart))
             PEM%LastGlobalElemID(CurrentPartNum) = 0 ! Initialize with invalid value
             IF(usevMPF) PartMPF(CurrentPartNum)  = RecBuff(8,iPart) ! only required when using vMPF
-
             CALL StoreLostParticleProperties(CurrentPartNum, PEM%GlobalElemID(CurrentPartNum), &
                                              UsePartState_opt=.TRUE., PartMissingType_opt=CompleteIndexOfFoundParticles(iPart))
             CALL RemoveParticle(CurrentPartNum)
@@ -981,6 +981,7 @@ USE MOD_Particle_Vars           ,ONLY: nSpecies
 USE MOD_MPI_Shared
 USE MOD_MPI_Shared_Vars         ,ONLY: MPI_COMM_LEADERS_SURF, MPI_COMM_SHARED
 USE MOD_SurfaceModel_Vars       ,ONLY: ChemWallProp_Shared_Win
+USE MOD_Particle_Boundary_Vars  ,ONLY: SurfTotalSideOnNode
 #endif /*USE_MPI*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -997,7 +998,10 @@ LOGICAL                         :: CatDataExists
 !===================================================================================================================================
 ! Leave routine if no surface sides have been defined in the domain
 IF (nGlobalSurfSides.EQ.0) RETURN
-
+#if USE_MPI
+! Nodes w/o Surf-Sides did not have ChemWallProp-window (SurfTotalSideOnNode=.FALSE.)
+IF (.NOT.SurfTotalSideOnNode) RETURN
+#endif
 nVarSurf = nSpecies+1
 
 #if USE_MPI
@@ -1015,37 +1019,34 @@ CALL OpenDataFile(RestartFile,create=.FALSE.,single=.TRUE.,readOnly=.TRUE.)
 IF (MPI_COMM_LEADERS_SURF.NE.MPI_COMM_NULL) THEN
 #endif
   CALL DatasetExists(File_ID,'CatalyticData',CatDataExists)
-  IF (.NOT.CatDataExists) THEN
-    SWRITE(*,*) 'No catalytic data found. The coverage and heat flux values will be reset.'
-    RETURN
-  END IF
+  IF (CatDataExists) THEN !Else branch necessary for following BARRIER_AND_SYNC
+    ! The index array is only required if the catalytic data itself is present
+    CALL DatasetExists(File_ID,'BoundaryGlobalSideIndx',CatDataExists)
+    IF (.NOT.CatDataExists) CALL Abort(__STAMP__,'ERROR during Restart: CatalyticData found in restart file but not GlobalSideIndx array!')
 
-  CALL DatasetExists(File_ID,'BoundaryGlobalSideIndx',CatDataExists)
-  IF (.NOT.CatDataExists) THEN
-    CALL Abort(__STAMP__,&
-      'ERROR during Restart: CatalyticData was found in the restart file but not the GlobalSideIndx array!')
-  END IF
+    ALLOCATE(tmpGlobalSideInx(nGlobalSurfSides),tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,nGlobalSurfSides))
 
-  ALLOCATE(tmpGlobalSideInx(nGlobalSurfSides),tempSurfData(1:nVarSurf,nSurfSample,nSurfSample,nGlobalSurfSides))
-
-  ASSOCIATE (nVarSurf             => INT(nVarSurf,IK), &
-             nSurfSample          => INT(nSurfSample,IK), &
-             nGlobalSides         => INT(nGlobalSurfSides,IK))
-    CALL ReadArray('BoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
-    CALL ReadArray('CatalyticData',4,(/nVarSurf, nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tempSurfData)
-  END ASSOCIATE
-  ! Mapping of the data on the global side to the node-local surf side
-  DO iSide = 1, nGlobalSurfSides
-    tmpSide = tmpGlobalSideInx(iSide)
-    IF (GlobalSide2SurfSide(SURF_SIDEID,tmpSide).EQ.-1) CYCLE
-    iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,tmpSide)
-    DO iSpec = 1, nSpecies
-    ! Initial surface coverage
-      ChemWallProp(iSpec,:,:,iSurfSide) = tempSurfData(iSpec,:,:,iSide)
+    ASSOCIATE (nVarSurf             => INT(nVarSurf,IK), &
+               nSurfSample          => INT(nSurfSample,IK), &
+               nGlobalSides         => INT(nGlobalSurfSides,IK))
+      CALL ReadArray('BoundaryGlobalSideIndx',1,(/nGlobalSides/),0_IK,1,IntegerArray_i4=tmpGlobalSideInx)
+      CALL ReadArray('CatalyticData',4,(/nVarSurf, nSurfSample, nSurfSample, nGlobalSides/),0_IK,1,RealArray=tempSurfData)
+    END ASSOCIATE
+    ! Mapping of the data on the global side to the node-local surf side
+    DO iSide = 1, nGlobalSurfSides
+      tmpSide = tmpGlobalSideInx(iSide)
+      IF (GlobalSide2SurfSide(SURF_SIDEID,tmpSide).EQ.-1) CYCLE
+      iSurfSide = GlobalSide2SurfSide(SURF_SIDEID,tmpSide)
+      DO iSpec = 1, nSpecies
+      ! Initial surface coverage
+        ChemWallProp(iSpec,:,:,iSurfSide) = tempSurfData(iSpec,:,:,iSide)
+      END DO
+      ! Heat flux on the surface element (not re-used only for output, since sampling is not continued after a restart)
+      ChemWallProp(nSpecies+1,:,:,iSurfSide) = 0.
     END DO
-    ! Heat flux on the surface element
-    ChemWallProp(nSpecies+1,:,:,iSurfSide) = tempSurfData(nSpecies+1,:,:,iSide)
-  END DO
+  ELSE
+    SWRITE(*,*) 'No catalytic data found. The coverage and heat flux values will be reset.'
+  END IF
 #if USE_MPI
 END IF
 ! Distribute the coverage and heat flux data onto the shared array

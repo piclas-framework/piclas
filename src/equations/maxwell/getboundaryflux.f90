@@ -13,7 +13,6 @@
 #include "piclas.h"
 
 MODULE MOD_GetBoundaryFlux
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity)) && !(USE_HDG)
 !===================================================================================================================================
 ! Contains FillBoundary (which depends on the considered equation)
 !===================================================================================================================================
@@ -21,6 +20,7 @@ MODULE MOD_GetBoundaryFlux
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 PRIVATE
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity)) && !(USE_HDG)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -379,7 +379,7 @@ SDEALLOCATE(BCData)
 SDEALLOCATE(nBCByType)
 SDEALLOCATE(BCSideID)
 END SUBROUTINE FinalizeBC
-
-
 #endif /*!((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400) || defined(discrete_velocity)) && !(USE_HDG)*/
+
+
 END MODULE MOD_GetBoundaryFlux

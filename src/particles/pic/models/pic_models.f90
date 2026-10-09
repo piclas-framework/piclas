@@ -25,22 +25,20 @@ PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! Private Part ---------------------------------------------------------------------------------------------------------------------
 ! Public Part ----------------------------------------------------------------------------------------------------------------------
-INTERFACE FieldIonization
-  MODULE PROCEDURE FieldIonization
-END INTERFACE
-PUBLIC::FieldIonization
+PUBLIC :: FieldIonization
 !===================================================================================================================================
 
 CONTAINS
 
 
+!===================================================================================================================================
+!> Field Ionization:
+!> * Ammosov-Delone-Krainov (ADK) model (only tunnel ionization no BSI)
+!===================================================================================================================================
 SUBROUTINE FieldIonization()
-!===================================================================================================================================
-! Field Ionization:
-! * Ammosov-Delone-Krainov (ADK) model (only tunnel ionization no BSI)
-!===================================================================================================================================
 ! MODULES
-USE MOD_Particle_Vars,ONLY:FieldIonizationModel
+USE MOD_Globals       ,ONLY: CollectiveStop
+USE MOD_Particle_Vars ,ONLY: FieldIonizationModel
 ! IMPLICIT VARIABLE HANDLING
  IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -53,16 +51,18 @@ CASE(1)
   CALL ADK_Bruhwiler2003() ! Bruhwiler 2003: requires E<E_crit (without BSI)
 CASE(2)
   CALL ADK_Yu2018() ! Yu 2018: used for tunneling/BSI regardless of E_crit
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,' Unknown FieldIonizationModel')
 END SELECT
 END SUBROUTINE FieldIonization
 
 
+!===================================================================================================================================
+!> Field Ionization:
+!> * Ammosov-Delone-Krainov (ADK) model (only tunnel ionization no BSI)
+!> * from Bruhwiler, Particle-in-cell simulations of tunneling ionization effects in plasma-based accelerators, 2003
+!===================================================================================================================================
 SUBROUTINE ADK_Bruhwiler2003()
-!===================================================================================================================================
-! Field Ionization:
-! * Ammosov-Delone-Krainov (ADK) model (only tunnel ionization no BSI)
-! * from Bruhwiler, Particle-in-cell simulations of tunneling ionization effects in plasma-based accelerators, 2003
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, ElementaryCharge
@@ -118,9 +118,7 @@ DO iPart = 1, PDM%ParticleVecLength
 #ifdef CODE_ANALYZE
               WRITE(UNIT_stdOut,'(A)') "ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!"
 #else
-              CALL abort(&
-                  __STAMP__&
-                  ,'ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!', oldSpec)
+              CALL abort(__STAMP__,'ERROR FieldIonization: ADK model is not applicable for electric fields > critical value!', oldSpec)
 #endif /* CODE_ANALYZE */
             END IF
             ! Z (ChargedNum): Charge number of the atom/ion AFTER the ionization (thus + 1)
@@ -161,13 +159,13 @@ END DO
 END SUBROUTINE ADK_Bruhwiler2003
 
 
+!===================================================================================================================================
+!> Field Ionization:
+!> * Ammosov-Delone-Krainov (ADK) model
+!> * from Yu, Shaping of ion energy spectrum due to ionization in ion acceleration driven by an ultra-short pulse laser, 2018
+!>   (which is originally from Penetrante, Residual energy in plasmas produced by intense subpicosecond lasers, 1991)
+!===================================================================================================================================
 SUBROUTINE ADK_Yu2018()
-!===================================================================================================================================
-! Field Ionization:
-! * Ammosov-Delone-Krainov (ADK) model
-! * from Yu, Shaping of ion energy spectrum due to ionization in ion acceleration driven by an ultra-short pulse laser, 2018
-!   (which is originally from Penetrante, Residual energy in plasmas produced by intense subpicosecond lasers, 1991)
-!===================================================================================================================================
 ! MODULES
 USE MOD_Globals
 USE MOD_Globals_Vars          ,ONLY: BoltzmannConst, ElementaryCharge
@@ -201,6 +199,7 @@ DO iPart = 1, PDM%ParticleVecLength
   IF(PDM%ParticleInside(iPart)) THEN
     ASSOCIATE ( oldSpec => PartSpecies(iPart) ,&
           newSpec => SpecDSMC(PartSpecies(iPart))%NextIonizationSpecies )
+      ! allow(C141) because of false-positive Fortitude check
       IF(newSpec.EQ.0) CYCLE
       ASSOCIATE (&
             E_au     => 5.1e11 ,& ! [V/m] atomic unit field strength
@@ -235,8 +234,7 @@ DO iPart = 1, PDM%ParticleVecLength
         !.... Get free particle index for the 3rd particle produced
         ElectronIndex = GetNextFreePosition()
         IF (ElectronIndex.EQ.0) THEN
-          CALL abort(__STAMP__,&
-              'New Particle Number greater max Part Num in Field Ionization.')
+          CALL abort(__STAMP__,'New Particle Number greater max Part Num in Field Ionization.')
         END IF
         !Set new Species of new particle
         PDM%ParticleInside(ElectronIndex) = .TRUE.

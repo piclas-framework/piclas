@@ -1,10 +1,12 @@
 #---------------------------------------------------------------------------------------
 # import modules
-import csv, math, sys
-import numpy as np
-import matplotlib.pyplot as plt
-import os
+import csv
+import sys
+
 import h5py
+import matplotlib.pyplot as plt
+import numpy as np
+
 sys.path.append('./')
 #from format_settings import *
 #---------------------------------------------------------------------------------------
@@ -38,17 +40,17 @@ PartsInElem=np.zeros(nElems)
 PartsInElem = PartInt[1,:] - PartInt[0,:]
 print(' ElemWeight ....')
 node = 'ElemWeight'
-if node in file.keys():
+if node in file:
     print(' Reading ElemWeight...')
     ElemWeight = file['ElemWeight']
 else:
     print(' Build ElemWeight out of PartInt...')
-    for iElem in range(0,nElems):
+    for iElem in range(nElems):
         ElemWeight[iElem]=1.0+float(PartInt[1,iElem]-PartInt[0,iElem])*PartMPIWeight
 print(' ...DONE')
 
 ElemID=np.zeros(nElems)
-for row in range(0,nElems):
+for row in range(nElems):
     ElemID[row]=row+1
 #----------------------------------------------------------------------------------------------------------------------
 # output of data
@@ -57,9 +59,9 @@ if(outputtocsv==1):
     print (' Writing ElemWeight to csv ....')
     csv_file = open(outputfile,'w')
     csv_writer= csv.writer(csv_file, delimiter=',')
-    csv_writer.writerow([str('Element,ElementLoad,PartsInElem')])
+    csv_writer.writerow(['Element,ElementLoad,PartsInElem'])
     
-    for row in range(0,nElems):
+    for row in range(nElems):
         csv_writer.writerow([row+1,ElemWeight[row],PartsInElem])
     csv_file.close()
     print (' Done.')
@@ -89,7 +91,7 @@ if(doloaddistri==1):
         LoadDistri=np.zeros(nProcs)
         LoadDiff=np.zeros(nProcs)
         oldCurWeight=0.
-        for iProc in range(0,nProcs):
+        for iProc in range(nProcs):
             offSetElem[iProc] = curiElem-1
             if(iProc>0 and offSetElem[iProc]==offSetElem[iProc-1]):
                 print('blubb')
@@ -131,7 +133,7 @@ if(doloaddistri==1):
         
         ElemDistri=np.zeros(nProcs)
         offSetElem[nProcs]=nElems
-        for iProc in range(0,nProcs):
+        for iProc in range(nProcs):
             ElemDistri[iProc]=offSetElem[iProc+1]-offSetElem[iProc]
         ElemDistri[nProcs-1]=nElems-offSetElem[nProcs-1]
         LoadDistri[nProcs-1]=np.sum(ElemWeight[int(offSetElem[nProcs-1]):nElems])
@@ -164,7 +166,7 @@ if(doloaddistri==1):
     # create plot
     #-----------------
     RMS=0
-    for iProc in range(0,nProcs):
+    for iProc in range(nProcs):
         RMS=RMS+(LoadDistri[iProc]-targetWeight)**2
     RMS = RMS/float(nProcs-1)
     Mean=np.sum(LoadDistri)/float(nProcs)
@@ -172,7 +174,7 @@ if(doloaddistri==1):
     print( ' sigma  : ', RMS)
         
     ProcID=np.zeros(nProcs)
-    for row in range(0,nProcs):
+    for row in range(nProcs):
         ProcID[row]=row
     fig, ax1= plt.subplots()
     #x1.set_xlim(1, nProcs)
@@ -181,8 +183,7 @@ if(doloaddistri==1):
     maxDiff=np.max(np.abs(LoadDiff))
     iDiff=int(maxDiff/RMS)+1
     #iDiff=int(maxDiff/Mean)+1
-    if iDiff<5:
-        iDiff=5
+    iDiff = max(iDiff, 5)
     ax2.set_ylim(-iDiff, iDiff)
     ax2.set_xlim(1, nProcs)
     #p1  = ax1.plot(ProcID,LoadDistri/Mean ,linestyle='none', marker='o', color='g', label = 'distribution')
@@ -195,7 +196,7 @@ if(doloaddistri==1):
     ax1.legend(ptot, legs, loc=0)
     ax1.set_xlabel('$n_{Processor}$ / -')
     ax1.set_ylabel('load/load$_{mean}$')
-    ax2.set_ylabel('load diff / $\sigma$ / -')
+    ax2.set_ylabel(r'load diff / $\sigma$ / -')
     #ax2.set_ylabel('load diff / load$_{mean}$ / -')
         
 

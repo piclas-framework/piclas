@@ -49,6 +49,7 @@ core
 
 # hopr debug files
 sfc.dat
+*.xdmf
 
 # visualization files
 *.vtu
@@ -71,6 +72,7 @@ ctags.txt
 CMakeFiles/
 tags
 .tags
+.cache/
 
 # comma separated files
 *.csv
@@ -90,3 +92,9 @@ reggie/
 
 # gmsh mesh files
 *.msh
+
+# tools testing directory and everything in it
+tools-testing/*
+
+# ignore nested worktrees
+.worktrees

@@ -21,28 +21,6 @@ MODULE MOD_Particle_BGM
 IMPLICIT NONE
 PRIVATE
 
-INTERFACE DefineParametersParticleBGM
-    MODULE PROCEDURE DefineParametersParticleBGM
-END INTERFACE
-
-INTERFACE BuildBGMAndIdentifyHaloRegion
-    MODULE PROCEDURE BuildBGMAndIdentifyHaloRegion
-END INTERFACE
-
-INTERFACE FinalizeBGM
-    MODULE PROCEDURE FinalizeBGM
-END INTERFACE
-
-#if USE_MPI
-INTERFACE WriteHaloInfo
-  MODULE PROCEDURE WriteHaloInfo
-END INTERFACE
-
-INTERFACE FinalizeHaloInfo
-  MODULE PROCEDURE FinalizeHaloInfo
-END INTERFACE
-#endif /*USE_MPI*/
-
 PUBLIC::DefineParametersParticleBGM
 PUBLIC::BuildBGMAndIdentifyHaloRegion
 PUBLIC::FinalizeBGM
@@ -91,53 +69,53 @@ USE MOD_TimeDisc_Vars          ,ONLY: iStage,nRKStages,RK_c
 #endif
 #endif /*USE_MPI*/
 USE MOD_Globals
-USE MOD_Preproc
 USE MOD_Mesh_Vars              ,ONLY: nElems,offsetElem
+USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_PICDepo_Vars           ,ONLY: DepositionType
 USE MOD_Particle_Mesh_Tools    ,ONLY: GetGlobalNonUniqueSideID
+USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
+USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared
 USE MOD_Particle_Periodic_BC   ,ONLY: InitPeriodicBC
 USE MOD_Particle_Surfaces_Vars ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars ,ONLY: TrackingMethod,Distance,ListDistance
-USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption, GETLOGICAL
-USE MOD_Particle_Mesh_Vars     ,ONLY: NodeCoords_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,FIBGM_nElems,ElemToBGM_Shared,FIBGM_offsetElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: BoundsOfElem_Shared,GEO,FIBGM_Element
-USE MOD_Symmetry_Vars          ,ONLY: Symmetry
-USE MOD_Restart_Vars           ,ONLY: DoRestart
 USE MOD_Particle_Vars          ,ONLY: Species,nSpecies
-USE MOD_PICDepo_Vars           ,ONLY: DepositionType
-USE MOD_Mesh_Vars              ,ONLY: nGlobalElems
+USE MOD_Preproc
+USE MOD_ReadInTools            ,ONLY: GETREAL,GetRealArray,PrintOption, GETLOGICAL
+USE MOD_Restart_Vars           ,ONLY: DoRestart
+USE MOD_Symmetry_Vars          ,ONLY: Symmetry
+USE MOD_Utils                  ,ONLY: InsertionSort
 #if ! (USE_HDG)
 USE MOD_CalcTimeStep           ,ONLY: CalcTimeStep
 #endif /*USE_HDG*/
 #if USE_MPI
 USE MOD_Globals_Vars           ,ONLY: c
-USE MOD_MPI_Shared_Vars
 USE MOD_MPI_Shared
-USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2, halo_eps_woshape
-USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
+USE MOD_MPI_Shared_Vars
 USE MOD_PICDepo_Vars           ,ONLY: SFAdaptiveSmoothing,dim_sf,dimFactorSF,r_sf,dim_sf_dir
+USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_MPI_Vars      ,ONLY: SafetyFactor,halo_eps_velo,halo_eps,halo_eps2, halo_eps_woshape
+USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem
+USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem_Shared,CNTotalElem2GlobalElem_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
+USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide_Shared,CNTotalSide2GlobalSide_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared_Win,FIBGM_nElems_Shared_Win,FIBGMToProcFlag_Shared_Win,FIBGMProcs_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
-USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProcExtent,FIBGMToProcExtent_Shared,FIBGMToProcExtent_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProc_Shared,FIBGMToProcFlag_Shared,nComputeNodeElems,FIBGMProcs_Shared
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nElems_Shared,FIBGM_Element_Shared,FIBGMProcs
-USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc
-USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem,nComputeNodeSides,FIBGMToProcFlag
-USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems,FIBGM_nTotalElems_Shared
-USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGMToProcExtent,FIBGMToProcExtent_Shared,FIBGMToProcExtent_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide_Shared,GlobalSide2CNTotalSide_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide_Shared,CNTotalSide2GlobalSide_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem_Shared,CNTotalElem2GlobalElem_Shared_Win
-USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic
-USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
-USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalSide2GlobalSide
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_nTotalElems_Shared_Win,BoundsOfElem_Shared_Win,ElemToBGM_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared,FIBGMToProc
+USE MOD_Particle_Mesh_Vars     ,ONLY: FIBGM_offsetElem_Shared_Win,FIBGMToProc_Shared_Win,FIBGM_Element_Shared_Win
 USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem
-USE MOD_Particle_Mesh_Vars     ,ONLY: CNTotalElem2GlobalElem
-USE MOD_Particle_Boundary_Vars ,ONLY: PartBound
+USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalElem2CNTotalElem_Shared,GlobalElem2CNTotalElem_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide
+USE MOD_Particle_Mesh_Vars     ,ONLY: GlobalSide2CNTotalSide_Shared,GlobalSide2CNTotalSide_Shared_Win
+USE MOD_Particle_Mesh_Vars     ,ONLY: MeshHasPeriodic
+USE MOD_Particle_Mesh_Vars     ,ONLY: SideInfo_Shared,nNonUniqueGlobalSides,nNonUniqueGlobalNodes
+USE MOD_Particle_Mesh_Vars     ,ONLY: offsetComputeNodeElem,nComputeNodeSides,FIBGMToProcFlag
 USE MOD_RayTracing_Vars        ,ONLY: PerformRayTracing
+USE MOD_TimeDisc_Vars          ,ONLY: ManualTimeStep
 #endif /*USE_MPI*/
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars       ,ONLY: PerformLoadBalance,UseH5IOLoadBalance
@@ -177,10 +155,6 @@ LOGICAL                        :: ElemInsideHalo
 INTEGER                        :: firstHaloElem,lastHaloElem
 ! Halo calculation
 LOGICAL,ALLOCATABLE            :: MPISideElem(:)
-LOGICAL                        :: MPIProcHalo(1:nProcessors)
-LOGICAL                        :: ProcHasExchangeElem
-INTEGER                        :: nProcHalo,nMPIProcHalo,firstProcHalo,lastProcHalo
-INTEGER                        :: GlobalElemRank
 INTEGER                        :: nBorderElems,offsetBorderElems,nComputeNodeBorderElems
 INTEGER                        :: sendint,recvint
 ! FIBGMToProc
@@ -190,6 +164,7 @@ INTEGER                        :: iProc,ProcRank,nFIBGMToProc,nFIBGM,MessageSize
 INTEGER                        :: BGMiDelta,BGMjDelta,BGMkDelta
 INTEGER                        :: BGMiglobDelta,BGMjglobDelta,BGMkglobDelta
 INTEGER,ALLOCATABLE            :: FIBGM_LocalProcs(:,:,:,:)
+INTEGER,ALLOCATABLE            :: FIBGM_Sort(:)
 ! Periodic FIBGM
 LOGICAL                        :: PeriodicComponent(1:3)
 INTEGER                        :: iPeriodicVector,iPeriodicComponent
@@ -930,8 +905,6 @@ ELSE
   ! do refined check: (refined halo region reduction)
   ! check the bounding box of each element in compute-nodes' halo domain
   ! against the bounding boxes of the elements of the MPI-surface (inter compute-node MPI sides)
-  MPIProcHalo = .FALSE.
-
   DO iHaloElem = firstHaloElem, lastHaloElem
     ElemID = offsetCNHalo2GlobalElem(iHaloElem)
     ElemInsideHalo = .FALSE.
@@ -984,18 +957,9 @@ ELSE
       EXIT
     END DO ! iElem = 1, ComputeNodeBorderElems
 
-    IF (.NOT.ElemInsideHalo) THEN
-      ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
-    ELSE
-      ! Flag the proc as halo proc
-      GlobalElemRank = ElemInfo_Shared(ELEM_RANK,ElemID)
-      MPIProcHalo(GlobalElemRank+1) = .TRUE.
-
-      ! Only add element to BGM if inside halo region on node.
-      ! THIS IS WRONG. WE ARE WORKING ON THE CN HALO REGION. IF WE OMIT THE
-      ! ELEMENT HERE, WE LOOSE IT. IF WE KEEP IT, WE BREAK AT 589. YOUR CALL.
-      IF(GEO%InitFIBGM) CALL AddElementToFIBGM(ElemID)
-    END IF
+    ! The element is added to the BGM only after ALL halo flag modifications are complete, see the counting loops
+    ! before the local element counting further down
+    IF (.NOT.ElemInsideHalo) ElemInfo_Shared(ELEM_HALOFLAG,ElemID) = 0
   END DO ! iHaloElem = firstHaloElem, lastHaloElem
 
   ! De-allocate FLAG array
@@ -1008,81 +972,16 @@ ELSE
   CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 
   IF (MeshHasPeriodic) THEN
-    CALL CheckPeriodicSides(EnlargeBGM)
+    CALL CheckPeriodicSides()
     CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
   END IF
   IF (PartBound%UseRotPeriodicBC) THEN
-    CALL CheckRotPeriodicSides(EnlargeBGM)
+    CALL CheckRotPeriodicSides()
     CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
   END IF
   IF (PartBound%UseInterPlaneBC) THEN
-    CALL CheckInterPlaneSides(EnlargeBGM)
+    CALL CheckInterPlaneSides()
     CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
-  END IF
-  ! Remove elements if the halo proc contains only internal elements, i.e. we cannot possibly reach the halo element
-  !
-  !   CN1     CN2    > If a compute-node contains large changes in element size, internal elements might intersect with
-  !  _ _ _    _ _ _  > the MPI sides. Since a processor checks all potential halo elements against only its own exchange
-  ! |_|_|_|  |_|_|_| > sides, the large elements will only take effect for the proc not containing it. However, if the
-  ! |_|_|_|  |_| | | > proc flags only large internal elements without flagging a single exchange element, there is no
-  ! |_|_|_|  |_|_|_| > way for a particle to actually reach.
-  ! |_|_|_|  |_| | |
-  ! |_|_|_|  |_|_|_| > This routine therefore checks for the presence of exchange sides on the procs and unflags the
-  !                  > proc if none is found.
-  !
-  CALL MPI_ALLREDUCE(MPI_IN_PLACE,MPIProcHalo,nProcessors,MPI_LOGICAL,MPI_LOR,MPI_COMM_SHARED,iError)
-
-  ! Distribute nProcHalo evenly on compute-node procs
-  nMPIProcHalo = COUNT(MPIProcHalo)
-
-  IF (nMPIProcHalo.GT.nComputeNodeProcessors) THEN
-    firstProcHalo = INT(REAL( myComputeNodeRank   )*REAL(nMPIProcHalo)/REAL(nComputeNodeProcessors))+1
-    lastProcHalo  = INT(REAL((myComputeNodeRank+1))*REAL(nMPIProcHalo)/REAL(nComputeNodeProcessors))
-  ELSE
-    firstProcHalo = myComputeNodeRank + 1
-    IF (myComputeNodeRank.LT.nMPIProcHalo) THEN
-      lastProcHalo = myComputeNodeRank + 1
-    ELSE
-      lastProcHalo = 0
-    END IF
-  END IF
-
-  nProcHalo = 0
-
-  ! Check if the processor should check at least one halo processor
-  IF (lastProcHalo.GT.0) THEN
-    DO iProc = 1,nProcessors
-      ! Ignore my own elements
-      IF(iProc-1.EQ.myRank) CYCLE
-
-      ! Ignore compute-nodes with no halo elements
-      IF (.NOT.MPIProcHalo(iProc)) CYCLE
-
-      nProcHalo           = nProcHalo + 1
-      ProcHasExchangeElem = .FALSE.
-
-      ! Ignore processors before firstProcHalo, exit after lastProcHalo
-      IF (nProcHalo.LT.firstProcHalo) CYCLE
-      IF (nProcHalo.GT.lastProcHalo)  EXIT
-
-      ! Use a named loop so the entire element can be cycled
-ElemLoop: DO iElem = offsetElemMPI(iProc-1)+1,offsetElemMPI(iProc)
-        ! Ignore elements other than halo elements
-        IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).LT.2) CYCLE
-
-        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iElem)
-          IF (SideIsExchangeSide(iSide)) THEN
-            ProcHasExchangeElem = .TRUE.
-            EXIT ElemLoop
-          END IF
-        END DO
-      END DO ElemLoop ! iElem = offsetElemMPI((iCN-1)*nComputeNodeProcessors + 1),offsetElemMPI(iCN*nComputeNodeProcessors)
-
-      ! Processor has halo elements but no MPI sides, remove the halo elements
-      IF (.NOT.ProcHasExchangeElem) THEN
-        ElemInfo_Shared(ELEM_HALOFLAG,offsetElemMPI(iProc-1)+1:offsetElemMPI(iProc)) = 0
-      END IF
-    END DO ! iProc = 1,nProcessors
   END IF
 
   IF(readFEMconnectivity)THEN
@@ -1128,6 +1027,25 @@ CALL BARRIER_AND_SYNC(ElemInfo_Shared_Win,MPI_COMM_SHARED)
 !ElemInfo_Shared(ELEM_HALOFLAG,:) = 1
 #endif /*USE_MPI*/
 IF(GEO%InitFIBGM) THEN
+#if USE_MPI
+  ! Add the halo elements to the BGM only now, after ALL halo flag modifications are complete
+  IF (nComputeNodeProcessors.NE.nProcessors_Global) THEN
+    ! Non-periodic halo elements
+    DO iHaloElem = firstHaloElem, lastHaloElem
+      ElemID = offsetCNHalo2GlobalElem(iHaloElem)
+      IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.2) CALL AddElementToFIBGM(ElemID)
+    END DO ! iHaloElem = firstHaloElem, lastHaloElem
+
+    ! Periodic (and rotational periodic/intermediate plane) halo elements, only when the BGM was enlarged
+    IF (EnlargeBGM) THEN
+      firstElem = INT(REAL( myComputeNodeRank   )*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))+1
+      lastElem  = INT(REAL((myComputeNodeRank+1))*REAL(nGlobalElems)/REAL(nComputeNodeProcessors))
+      DO ElemID = firstElem, lastElem
+        IF (ElemInfo_Shared(ELEM_HALOFLAG,ElemID).EQ.3) CALL AddElementToFIBGM(ElemID)
+      END DO ! ElemID = firstElem, lastElem
+    END IF
+  END IF
+#endif /*USE_MPI*/
   !--- compute number of elements in each background cell
   DO iElem = offsetElem+1, offsetElem+nElems
     BGMCellXmin = ElemToBGM_Shared(1,iElem)
@@ -1346,8 +1264,34 @@ IF(GEO%InitFIBGM) THEN
 
   ! Abort if FIBGM_Element still contains unfilled entries
   IF (ANY(FIBGM_Element.EQ.-1)) CALL ABORT(__STAMP__,'Error while filling FIBGM element array: ANY(FIBGM_Element.EQ.-1)')
-#endif  /*USE_MPI*/
-END IF
+
+  ! Sort each element in an BGM cell with ascending index
+  IF (myComputeNodeRank.EQ.0) THEN
+    ! Temporary array
+    ALLOCATE(FIBGM_Sort(MAXVAL(FIBGM_nElems)))
+
+    DO kBGM = BGMkmin,BGMkmax
+      DO jBGM = BGMjmin,BGMjmax
+        DO iBGM = BGMimin,BGMimax
+          IF(FIBGM_nElems(iBGM,jBGM,kBGM).GT.1) THEN
+            ASSOCIATE(FIBGM_ElemLoc => FIBGM_Element(FIBGM_offsetElem(iBGM,jBGM,kBGM)+1:&
+                                                     FIBGM_offsetElem(iBGM,jBGM,kBGM)+  &
+                                                     FIBGM_nElems(    iBGM,jBGM,kBGM)))
+
+            FIBGM_Sort(1:FIBGM_nElems(iBGM,jBGM,kBGM)) = FIBGM_ElemLoc
+            CALL InsertionSort(FIBGM_Sort,len=FIBGM_nElems(iBGM,jBGM,kBGM))
+            FIBGM_ElemLoc                              = FIBGM_Sort(1:FIBGM_nElems(iBGM,jBGM,kBGM))
+
+            END ASSOCIATE
+          END IF
+        END DO ! kBGM
+      END DO ! jBGM
+    END DO ! iBGM
+  END IF
+
+  CALL BARRIER_AND_SYNC(FIBGM_Element_Shared_Win,MPI_COMM_SHARED)
+#endif /*USE_MPI*/
+END IF ! GEO%InitFIBGM
 
 #if USE_MPI
 ! Locally sum up Number of all elements on current compute-node (including halo region)
@@ -2093,7 +2037,7 @@ END SUBROUTINE FinalizeHaloInfo
 
 
 #if USE_MPI
-SUBROUTINE CheckPeriodicSides(EnlargeBGM)
+SUBROUTINE CheckPeriodicSides()
 !===================================================================================================================================
 !> checks the elements against periodic distance
 !===================================================================================================================================
@@ -2111,7 +2055,6 @@ USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2143,7 +2086,7 @@ DO iElem = firstElem,lastElem
                                       BoundsOfElem_Shared(2  ,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
 ! Use a named loop so the entire element can be cycled
-ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
+  ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
     ! element might be already added back
     IF (ElemInfo_Shared(ELEM_HALOFLAG,iElem).GT.0) EXIT ElemLoop
 
@@ -2165,7 +2108,6 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
           ! add element back to halo region
           ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-          IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
           EXIT ElemLoop
         END DO
 
@@ -2184,7 +2126,6 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
             ! add element back to halo region
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-            IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
             EXIT ElemLoop
           END DO ! iDir = -1, 1, 2
         END DO ! iPeriodicVector = 1,2
@@ -2204,7 +2145,6 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
                 ! add element back to halo region
                 ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-                IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
                 EXIT ElemLoop
               END DO ! jDir = -1, 1, 2
             END DO ! iDir = -1, 1, 2
@@ -2228,7 +2168,6 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
             ! add element back to halo region
             ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-            IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
             EXIT ElemLoop
           END DO ! iDir = -1, 1, 2
 
@@ -2246,7 +2185,6 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
                 ! add element back to halo region
                 ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-                IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
                 EXIT ElemLoop
               END DO ! jDir = -1, 1, 2
             END DO ! iDir = -1, 1, 2
@@ -2267,7 +2205,6 @@ ElemLoop: DO iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(Comp
 
               ! add element back to halo region
               ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-              IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
               EXIT ElemLoop
             END DO ! kDir = -1, 1, 2
           END DO ! jDir = -1, 1, 2
@@ -2280,7 +2217,7 @@ END DO
 END SUBROUTINE CheckPeriodicSides
 
 
-SUBROUTINE CheckRotPeriodicSides(EnlargeBGM)
+SUBROUTINE CheckRotPeriodicSides()
 !===================================================================================================================================
 !> checks the elements against periodic rotation
 !> In addition to halo flat elements (normal halo region), find rotationally periodic elements (halo flag 3), which can be reached
@@ -2302,12 +2239,10 @@ USE MOD_Particle_MPI_Vars       ,ONLY: halo_eps
 USE MOD_MPI_Vars                ,ONLY: offsetElemMPI
 USE MOD_Particle_Boundary_Vars  ,ONLY: PartBound,nPartBound
 USE MOD_part_tools              ,ONLY: RotateVectorAroundAxis
-USE MOD_Particle_Mesh_Vars      ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2384,7 +2319,6 @@ DO iElem = firstElem ,lastElem
               .LE. halo_eps+BoundsOfElemCenter(4)+LocalBoundsOfElemCenter(4))THEN
         ! add element back to halo region
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-        IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
       END IF ! VECNORM3D( ...
     END DO ! nPartBound
   END DO ! iLocElem = offsetElemMPI(ComputeNodeRootRank)+1, offsetElemMPI(ComputeNodeRootRank)+nComputeNodeElems
@@ -2393,7 +2327,7 @@ END DO ! firstElem,lastElem
 END SUBROUTINE CheckRotPeriodicSides
 
 
-SUBROUTINE CheckInterPlaneSides(EnlargeBGM)
+SUBROUTINE CheckInterPlaneSides()
 !===================================================================================================================================
 !> checks the elements against inter plane
 !> In addition to halo flat elements (normal halo region), find all elements on both side of a intermediate plane that
@@ -2412,12 +2346,10 @@ USE MOD_Particle_Mesh_Vars     ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,nCompu
 USE MOD_Particle_MPI_Vars      ,ONLY: halo_eps
 USE MOD_MPI_Vars               ,ONLY: offsetElemMPI
 USE MOD_Particle_Boundary_Vars ,ONLY: PartBound,nPartBound
-USE MOD_Particle_Mesh_Vars     ,ONLY: GEO
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! INPUT VARIABLES
-LOGICAL,INTENT(IN)             :: EnlargeBGM ! Flag used for enlarging the BGM if RefMapping and/or shape function is used
 !----------------------------------------------------------------------------------------------------------------------------------!
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2469,7 +2401,6 @@ DO iPartBound = 1,nPartBound
       IF(InterPlaneDistance.LE.halo_eps+BoundsOfElemCenter(4)) THEN
         ! add element back to halo region
         ElemInfo_Shared(ELEM_HALOFLAG,iElem) = 3
-        IF (EnlargeBGM .AND. GEO%InitFIBGM) CALL AddElementToFIBGM(iElem)
       END IF
     END DO
   END IF
@@ -2541,6 +2472,8 @@ INTEGER                        :: NbSideID
 INTEGER                        :: iMortar
 !===================================================================================================================================
 
+SideIsExchangeSide = .FALSE.
+
 IF ((SideInfo_Shared(SIDE_NBELEMTYPE,SideID).EQ.2).OR.&
    ! BC side + element on local proc (do not count multiple times) + skip inner BCs (they would otherwise be counted twice)
    ((SideInfo_Shared(SIDE_BCID,SideID).GT.0).AND.(ElementOnProc(SideInfo_Shared(SIDE_ELEMID,SideID)).AND.(SideInfo_Shared(SIDE_NBELEMID,SideID).EQ.0)))) THEN
@@ -2573,42 +2506,6 @@ IF (NbElemID.LT.0) THEN ! Mortar side (from particle_tracing.f90)
 END IF ! NbElemID.LT.0
 
 END FUNCTION SideIsExchangeSide
-
-
-#if GCC_VERSION < 90000
-PPURE FUNCTION FINDLOC(Array,Value,Dim)
-!===================================================================================================================================
-!> Implements a subset of the intrinsic FINDLOC function for Fortran < 2008
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!----------------------------------------------------------------------------------------------------------------------------------!
-! INPUT VARIABLES
-INTEGER,INTENT(IN)             :: Array(:)
-INTEGER,INTENT(IN)             :: Value
-INTEGER,INTENT(IN)             :: Dim
-!----------------------------------------------------------------------------------------------------------------------------------!
-! OUTPUT VARIABLES
-INTEGER                        :: FINDLOC
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER                        :: iVar
-!===================================================================================================================================
-DO iVar = 1,SIZE(ARRAY,1)
-  IF (Array(iVar).EQ.Value) THEN
-    FINDLOC = iVar
-    RETURN
-  END IF
-END DO
-
-! Return error code -1 if the value was not found
-FINDLOC = -1
-
-END FUNCTION FINDLOC
-#endif /*GCC_VERSION < 90000*/
 #endif /*USE_MPI*/
-
 
 END MODULE MOD_Particle_BGM

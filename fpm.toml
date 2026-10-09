@@ -1,0 +1,115 @@
+# General information
+name        = "piclas"
+version     = "4.3.0"
+licence     = "GPL-3.0"
+description = "PICLas is a parallel, three-dimensional PIC-DSMC solver"
+homepage    = "https://piclas.readthedocs.io/en/latest/"
+
+# Author and copyright information
+author      = "PICLas Developers"
+maintainer  = "info@boltzplatz.eu"
+copyright   = "2025-20XX PICLas Developers"
+
+# Library configuration
+source-dir  = "src"
+
+# Dependencies
+[dependencies]
+blas        = "*"
+lapack      = "*"
+mpi         = "*"
+
+# External libraries
+[build]
+link        = ["blas", "lapack"]
+
+# Automatic target discovery
+auto-executables  = false
+auto-examples     = false
+auto-tests        = false
+
+# Fortran features
+[fortran]
+implicit-external = false
+implicit-typing   = false
+source-form       = "free"
+
+# Preprocessor configuration
+[preprocess]
+[preprocess.cpp]
+suffixes          = ["f90", "t90"]
+
+# Linting
+[extra.fortitude.check]
+select            = ["C", "E", "MOD", "OB", "PORT", "S"]
+ignore            = [
+  "C003",    # C003: implicit-external-procedures
+  "C021",    # C021: no-real-suffix
+  "C022",    # C022: implicit-real-kind
+  "C121",    # C121: use-all
+  "E001",    # E001: syntax-error   > disabled because of false positives with PreProcessor
+  "S001",    # S001: line-too-long
+  "MOD011",  # MOD011: old-style-array-literal
+  "MOD021",  # MOD021: deprecated-relational-operator
+  "S102",    # S102: incorrect-space-before-comment
+  "S201",    # S201: superfluous-implicit-none
+  "S082",    # S082: multiple statements per line [1]
+  "C061",    # C061: ERROR argument 'X' missing 'intent' attribute [2]
+  "C002",    # WIP ( 22 errors) C002: Checks for procedures declared with just external
+  "C011",    # WIP (249 errors) C011: Checks that select case statements have a case default
+  "C031",    # WIP (170 errors) C031: Checks for use of literals when specifying array sizes
+  "C032",    # WIP (208 errors) C032: Checks for literal integers as units in IO statements
+  "C043",    # WIP ( 42 errors) C043: Checks for missing action specifier when opening files
+  "C081",    # WIP ( 12 errors) C081: Checks for local variables with implicit save
+  "C091",    # WIP (  7 errors) C091: Checks for procedures declared with just external
+  "C092",    # WIP (  5 errors) C092: Checks for missing implicit none in interfaces
+  "C101",    # WIP (  6 errors) C101: Checks for uninitialised pointer variables inside derived types
+  "C131",    # WIP ( 29 errors) C131: Checks for missing private or public accessibility statements in modules
+  "S061",    # WIP ( 74 errors) S061: Checks that end statements include the type of construct they're ending
+  "S081",    # WIP (649 errors) S081: Catches a semicolon at the end of a line of code
+  "S101",    # WIP ( 36 errors) S101: Checks for trailing whitespace
+  "S212",    # WIP (  2 errors) S212: Checks for missing double-colon separator in variable declarations
+  "S241",    # WIP (13520 errors) bad-quote-string
+  "S104",    # WIP ( 3942 errors) incorrect-space-between-brackets
+  "C142",    # WIP (  981 errors) exit-or-cycle-in-unlabelled-loop
+  "S262",    # WIP (  414 errors) mixed-scalar-array-declaration
+  "S103",    # WIP (  328 errors) incorrect-space-around-double-colon
+  "S231",    # WIP (  294 errors) keywords-missing-space
+  "C143",    # WIP (  195 errors) missing-end-label
+  "C152",    # WIP (  144 errors) misleading-inline-if-continuation
+  "S221",    # WIP (  142 errors) function-missing-result
+  "S251",    # WIP (  130 errors) useless-return
+  "S002",    # WIP (  129 errors) missing-newline-at-end-of-file
+  "C183",    # WIP (  126 errors) stat-without-message
+  "S232",    # WIP (   86 errors) keyword-has-whitespace
+  "C181",    # WIP (   50 errors) unchecked-stat
+  "C191",    # WIP (   42 errors) unreachable-statement
+  "S252",    # WIP (   30 errors) superfluous-else-return
+  "S254",    # WIP (   25 errors) superfluous-else-exit
+  "MOD002",  # WIP (   22 errors) double-precision-literal
+  "S253",    # WIP (   15 errors) superfluous-else-cycle
+  "C082",    # WIP (   11 errors) pointer-initialisation-in-declaration
+  "MOD041",  # WIP (   10 errors) out-of-line-attribute
+  "S261",    # WIP (    9 errors) inconsistent-array-declaration
+  # TODO: Check if the following false positives have been fixed in Fortitude by now
+  "C001",    # WIP implicit-typing. Potential false positives
+]
+# Footnotes:
+# [1] Deactivate due to false positives in fortitude version 0.8.0 because of pre-processor macros, e.g.,
+#     SWRITE(UNIT_stdOut,"(A)") TRIM(current%opt%name). The macro call might make it look like two separate
+#     statements. Possible Workaround: SWRITE(UNIT_stdOut,"(A)") '',TRIM(current%opt%name)
+# [2] Deactivate due to false positives in fortitude version 0.8.0, e.g., local REAL or INTEGER variables
+
+[extra.fortitude.check.per-file-ignores]
+"src/**/*_vars.f90"                     = ["C132"]  # Vars files need to be public
+"src/globals/globals.f90"               = ["C132"]  # Globals needs to public
+"src/globals/preprocessing.f90"         = ["C132"]  # PreProc needs to be public
+"src/hdg/hdg_vars_petsc.f90"            = ["C132"]  # PETSc variables need to be public
+"src/mesh/mesh_vars_fv.f90"             = ["C132"]  # PETSc variables need to be public
+"src/io_hdf5/io_hdf5.f90"               = ["C131"]  # HDF5 needs to be public
+"src/io_hdf5/hdf5_output.f90"           = ["T041"]  # Userblock needs assumed size variables
+"src/output/output.f90"                 = ["T041"]  # Userblock needs assumed size variables
+"src/readintools/isovaryingstring.f90"  = ["T042"]  # ISO Varying String needs assumed size variables
+"src/readintools/stringtools.f90"       = ["T042"]  # ISO Varying String needs assumed size variables
+"src/extrae/extrae_module.f90"          = ["C061","C001"]  # external lib: C061: subroutine argument 'num' missing 'intent' attribute
+#                                                                          C001: Checks for missing implicit none

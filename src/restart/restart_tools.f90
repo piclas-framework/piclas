@@ -46,9 +46,6 @@ USE MOD_TimeDisc_Vars      ,ONLY: iter
 #ifdef PARTICLES
 USE MOD_PICDepo            ,ONLY: Deposition
 USE MOD_HDG_Vars           ,ONLY: UseBRElectronFluid,BRElectronsRemoved
-#if USE_MPI
-USE MOD_Particle_MPI       ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
-#endif /*USE_MPI*/
 #endif /*PARTICLES*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE

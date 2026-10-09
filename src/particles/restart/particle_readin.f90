@@ -270,8 +270,8 @@ IF (PerformLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
             disp_send    => INT(MPIoffsetElemSend) ,&
             counts_recv  => INT(MPInElemRecv     ) ,&
             disp_recv    => INT(MPIoffsetElemRecv))
-      ! Communicate PartSource over MPI
-      MPI_LENGTH       = (PP_N+1)**3
+      ! Communicate NodeSourceExtEquiLB over MPI. The array stores the 8 corner nodes (0:1,0:1,0:1) per element
+      MPI_LENGTH       = N_variables*8
       MPI_DISPLACEMENT = 0  ! 0*SIZEOF(MPI_SIZE)
       MPI_TYPE         = MPI_DOUBLE_PRECISION
       CALL MPI_TYPE_CREATE_STRUCT(1,MPI_LENGTH,MPI_DISPLACEMENT,MPI_TYPE,MPI_STRUCT,iError)

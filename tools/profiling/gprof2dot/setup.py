@@ -27,7 +27,7 @@ setup(
     license="LGPL",
 
     py_modules=['gprof2dot'],
-    entry_points=dict(console_scripts=['gprof2dot=gprof2dot:main']),
+    entry_points={'console_scripts': ['gprof2dot=gprof2dot:main']},
 
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[

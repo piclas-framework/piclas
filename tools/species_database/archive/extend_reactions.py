@@ -18,11 +18,12 @@ Rtol = 0.003
 relative_path = '../../SpeciesDatabase.h5'
 ###################################################################################################
 
-import h5py
 import re
-import numpy as np
 
+import h5py
+import numpy as np
 from config import datatype_h5
+
 
 def create_dataset(hdf_unified_data, chem_model_list, non_reac_species_list, reference_list):
     # array_of_strings is used for the single reactions to combine chemisty models and Full_Chem_Model_List is for saving the Models for the attribute of the reactions group
@@ -113,7 +114,7 @@ for i,reaction in enumerate(reactions_list):
             if (not np.isclose(hdf_unified_data["Reactions"][reaction].attrs['Arrhenius-Powerfactor'], Arrhenius_Powerfactor, rtol=Rtol, atol=0.0)) or \
             (not np.isclose(hdf_unified_data["Reactions"][reaction].attrs['Arrhenius-Prefactor'], Arrhenius_Prefactor, rtol=Rtol, atol=0.0)) or \
             (not np.isclose(hdf_unified_data["Reactions"][reaction].attrs['Activation-Energy_K'], Activation_Energy_Kr, rtol=Rtol, atol=0.0)) or \
-            (not (hdf_unified_data["Reactions"][reaction].attrs['ReactionModel'][0] == ReactionModel)):
+            (hdf_unified_data["Reactions"][reaction].attrs['ReactionModel'][0] != ReactionModel):
 
                 # add old chem_models to attribute to create new reaction before resetting lists to store new data
                 create_dataset(hdf_unified_data, chem_model_list, non_reac_species_list, reference_list)
@@ -178,7 +179,7 @@ for i,reaction in enumerate(reactions_list):
     # if current reaction has the same name as the combined reaction and arr are equal since elif was skipped -> add the data to the lists (after 'or' just to insure loop is entered even with new changed name from j counter)
     if re.sub(r'#\d+','',reaction) == combined_reaction_name or re.sub(r'#\d+','',reaction) == re.sub(r'#0\d+','',combined_reaction_name):
         # fix for wrong value in old database
-        if reaction == 'N+electron_NIon1+electron+electron#1' or reaction == 'N+electron_NIon1+electron+electron#2':
+        if reaction in {'N+electron_NIon1+electron+electron#1', 'N+electron_NIon1+electron+electron#2'}:
             del hdf_unified_data["Reactions"][combined_reaction_name].attrs['ReactionModel']
             hdf_unified_data['Reactions'][combined_reaction_name].attrs.create('ReactionModel', ['QK'],dtype=datatype_h5)
         # Store existing attributes
@@ -223,7 +224,7 @@ hdf_unified_data = h5py.File(relative_path, 'a')
 # get list of all reactions )stripped from '#01',etc.
 unique_reaction_list = []
 reaction_list = list(hdf_unified_data["Reactions"].keys())
-for item in hdf_unified_data["Reactions"].keys():
+for item in hdf_unified_data["Reactions"]:
     if re.sub(r'#0\d+','',item) not in unique_reaction_list:
         unique_reaction_list.append(re.sub(r'#0\d+','',item))
 # counter for reactions in full reaction list (with '#01')
@@ -310,14 +311,14 @@ for reaction in delete_list:
 # get list of all reactions )stripped from '#01',etc.
 unique_reaction_list = []
 reaction_list = list(hdf_unified_data["Reactions"].keys())
-for item in hdf_unified_data["Reactions"].keys():
+for item in hdf_unified_data["Reactions"]:
     if re.sub(r'#0\d+','',item) not in unique_reaction_list:
         unique_reaction_list.append(re.sub(r'#0\d+','',item))
 # counter for reactions in full reaction list (with '#01')
 j = 0
 for i,reaction in enumerate(unique_reaction_list):
     k = 1
-    if j != len(unique_reaction_list) or not (re.sub(r'#0\d+','',reaction_list[j]) != re.sub(r'#0\d+','',reaction_list[j+1])):
+    if j != len(unique_reaction_list) or re.sub(r'#0\d+', '', reaction_list[j]) == re.sub(r'#0\d+', '', reaction_list[j + 1]):
         while j < len(reaction_list) and (reaction == re.sub(r'#0\d+','',reaction_list[j]) or reaction == re.sub(r'#\d+','',reaction_list[j])):
             attrs = hdf_unified_data["Reactions"][reaction_list[j]].attrs
             del hdf_unified_data["Reactions"][reaction_list[j]]

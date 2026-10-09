@@ -167,7 +167,6 @@ USE MOD_DSMC_Vars               ,ONLY: tTreeNode, DSMC, ElemNodeVol
 USE MOD_Particle_Vars           ,ONLY: PEM, nSpecies, PartSpecies,PartPosRef,LastPartPos, VirtMergedCells, DoVirtualCellMerge, Species
 USE MOD_Particle_Vars           ,ONLY: UseGranularSpecies
 USE MOD_Particle_Tracking_vars  ,ONLY: TrackingMethod
-USE MOD_Eval_xyz                ,ONLY: GetPositionInRefElem
 USE MOD_part_tools              ,ONLY: GetParticleWeight
 USE MOD_Particle_Mesh_Vars      ,ONLY: ElemVolume_Shared,ElemCharLength_Shared
 USE MOD_Mesh_Vars               ,ONLY: offsetElem
@@ -600,7 +599,7 @@ IF(((CollisMode.GT.1).AND.(SelectionProc.EQ.2)).OR.DSMC%BackwardReacRate.OR.DSMC
   IF (useRelaxProbCorrFactor.AND.(DSMC%ElectronicModel.EQ.1)) THEN
     CALL CalcInstantElecTempXi(iPartIndx_NodeTotal,TotalPartNum)
     CALL CalcProbCorrFactorElec()
-  END IF  
+  END IF
 END IF
 
 IF (CollInf%ProhibitDoubleColl.AND.(nPair.EQ.1)) THEN

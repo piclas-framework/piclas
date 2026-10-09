@@ -50,7 +50,7 @@ USE MOD_Particle_Tracking_Vars   ,ONLY: TrackingMethod, TrackInfo, CountNbrOfLos
 USE MOD_Part_Tools               ,ONLY: StoreLostParticleProperties
 USE MOD_Dielectric_vars          ,ONLY: DoDielectric,isDielectricElem_Shared
 USE MOD_Particle_Mesh_Vars
-USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5,DoVirtualDielectricLayer
+USE MOD_Particle_Boundary_Vars   ,ONLY: PartBound,DoBoundaryParticleOutputHDF5
 USE MOD_Particle_Surfaces_vars   ,ONLY: SideNormVec,SideType
 USE MOD_Particle_Vars            ,ONLY: LastPartPos
 USE MOD_SurfaceModel             ,ONLY: SurfaceModelling
@@ -67,7 +67,9 @@ USE MOD_Particle_Surfaces_Vars   ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Mesh_Vars       ,ONLY: ElemBaryNGeo_Shared
 #endif /* CODE_ANALYZE */
 #if USE_HDG
+USE MOD_Particle_Boundary_Vars   ,ONLY: DoVirtualDielectricLayer
 USE MOD_Particle_Vars            ,ONLY: IsVDLSpecID,SpeciesOffsetVDL
+USE MOD_Particle_Boundary_Vars   ,ONLY: DoVirtualDielectricLayer
 #endif/*USE_HDG*/
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
@@ -269,7 +271,7 @@ LastPartPos(1:3,PartID) = LastPartPos(1:3,PartID) + SIGN( GEO%PeriodicVectors(1:
 ! update particle position after periodic BC
 PartState(1:3,PartID) = LastPartPos(1:3,PartID) + (TrackInfo%lengthPartTrajectory-TrackInfo%alpha)*TrackInfo%PartTrajectory
 TrackInfo%lengthPartTrajectory  = TrackInfo%lengthPartTrajectory - TrackInfo%alpha
-
+TrackInfo%alpha =0.
 #ifdef CODE_ANALYZE
 IF(PARTOUT.GT.0 .AND. MPIRANKOUT.EQ.MyRank)THEN
   IF(PartID.EQ.PARTOUT)THEN
@@ -392,14 +394,14 @@ DO iNeigh=1,NumRotPeriodicNeigh(RotSideID)
   locSideLoop: DO iLocSide = 1,nLocSides
     newSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID) + iLocSide
     ! Cycle over non-BC sides
-    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE
+    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE locSideLoop
     BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,newSideID)))
     ! Cycle over non-rotBC sides
-    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE
+    IF(BCType.NE.PartBound%RotPeriodicBC) CYCLE locSideLoop
 
     locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
     ! Side is not one of the 6 local sides
-    IF (locSideID.LE.0) CYCLE
+    IF (locSideID.LE.0) CYCLE locSideLoop
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords
@@ -772,14 +774,14 @@ DO iSide = 1, NumInterPlaneSides
   locSideLoop: DO iLocSide = 1,nLocSides
     newSideID = ElemInfo_Shared(ELEM_FIRSTSIDEIND,newElemID) + iLocSide
     ! Cycle over non-BC sides
-    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE
+    IF (SideInfo_Shared(SIDE_BCID,newSideID).LE.0) CYCLE locSideLoop
     BCType = PartBound%TargetBoundCond(PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,newSideID)))
     ! Cycle over non-interPlaneBC sides
-    IF(BCType.NE.PartBound%RotPeriodicInterPlaneBC) CYCLE
+    IF(BCType.NE.PartBound%RotPeriodicInterPlaneBC) CYCLE locSideLoop
 
     locSideID = SideInfo_Shared(SIDE_LOCALID,newSideID)
     ! Side is not one of the 6 local sides
-    IF (locSideID.LE.0) CYCLE
+    IF (locSideID.LE.0) CYCLE locSideLoop
     ! Calculate the determinant
     DO NodeNum = 1,4
       !--- A = vector from particle to node coords

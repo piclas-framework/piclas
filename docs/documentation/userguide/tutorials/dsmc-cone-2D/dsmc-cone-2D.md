@@ -80,6 +80,7 @@ row. As the loaded file only consists of a surface, which is meshed with Gmsh an
 
 Physical groups are used to define the boundary conditions at all curves:
 
+    Physical Surface("ROTSYM") = {1};
     Physical Curve("SYMAXIS") = {3};
     Physical Curve("WALL") = {1, 2};
     Physical Curve("IN") = {4};
@@ -122,19 +123,21 @@ The resulting mesh shall consist of quad elements and not triangles. Finally, it
 
 To extrude the 2D quadrangular mesh to a 3D hexahedral mesh with only one element in the third direction, the following commands next to be set in the `hopr_gmsh.ini`:
 
-    MeshDim      = 2
-    zLength      = 1
-    nElemsZ      = 1
-    lowerZ_BC    = (/3,0,0,0/)
-    upperZ_BC    = (/3,0,0,0/)
+    MeshExtrudeLength     = 1
+    MeshExtrudeElems      = 1
+    MeshExtrudeBCIndexBot = 5
+    MeshExtrudeBCIndexTop = 5
+    MeshExtrudeDir        = (/0., 0., -1./)
 
-While `zLength` specifies the length of the mesh in $z$-direction, `nElemsZ` ensures a single cell row. `lowerZ_BC` and `upperZ_BC` are the boundary conditions on the surfaces parallel to the $xy$-plane, that need to be defined as stated.
+While `MeshExtrudeLength` specifies the length of the mesh in $z$-direction, `MeshExtrudeElems` ensures a single cell row.
+`MeshExtrudeBCIndexBot` and `MeshExtrudeBCIndexTop` are the boundary conditions on the surfaces parallel to the $xy$-plane, that need to be defined as stated.
+`MeshExtrudeDir` defines the direction in which the mesh extrusion is performed.
 
 Again, to create the `.h5` mesh file, you would simply run
 
     pyhope hopr_gmsh.ini
 
-This would create the mesh file `70degCone_2D_mesh.h5` in HDF5 format.
+This creates the mesh file `70degCone_2D_mesh.h5` in HDF5 format.
 
 ## Flow simulation with DSMC
 

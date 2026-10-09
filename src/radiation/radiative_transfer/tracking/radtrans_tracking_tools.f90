@@ -19,11 +19,7 @@ MODULE MOD_Photon_TrackingTools
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-PUBLIC
-
-INTERFACE PhotonThroughSideCheck3DFast
-  MODULE PROCEDURE PhotonThroughSideCheck3DFast
-END INTERFACE
+PRIVATE
 
 PUBLIC :: PhotonThroughSideCheck3DFast, PhotonIntersectionWithSide, CalcAbsoprtion, PerfectPhotonReflection, DiffusePhotonReflection
 PUBLIC :: CalcWallAbsoprtion, PointInObsCone, PhotonIntersectSensor, PhotonThroughSideCheck3DDir, PhotonIntersectionWithSide2DDir

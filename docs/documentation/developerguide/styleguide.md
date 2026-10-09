@@ -13,12 +13,31 @@
     * Comments of modules and input-/output variables: Doxygen style
     * Comments of preprocessor directives in C-Style
 
+## File Header
+
+Every new source file must start with the following license header. When editing existing files, feel free to change the copyright statement to the current line using `PICLas Developers, see CONTRIBUTORS.md` and only keeping the first year.
+
+```Fortran
+!==================================================================================================================================
+! Copyright (c) 2010 PICLas Developers, see CONTRIBUTORS.md
+!
+! This file is part of PICLas (piclas.boltzplatz.eu/piclas/piclas). PICLas is free software: you can redistribute it and/or modify
+! it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3
+! of the License, or (at your option) any later version.
+!
+! PICLas is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty
+! of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v3.0 for more details.
+!
+! You should have received a copy of the GNU General Public License along with PICLas. If not, see <http://www.gnu.org/licenses/>.
+!==================================================================================================================================
+```
+
 ## Header of Functions and Subroutines
 
 Function calls must always supply the variable name of optional arguments. Always use `USE` statements with `ONLY`
 
     USE MODULE, ONLY: ...
-    
+
 this accounts for variables and function/subroutines. An exception are the initialization and finalization routines.
 
     !==============================================================
@@ -37,15 +56,15 @@ this accounts for variables and function/subroutines. An exception are the initi
     IMPLICIT NONE
     !--------------------------------------------------------------
     ! INPUT/OUTPUT VARIABLES
-    INTEGER,INTENT(IN)              :: NLoc                                      !< Polynomial degree of solution 
+    INTEGER,INTENT(IN)              :: NLoc                                      !< Polynomial degree of solution
     REAL,INTENT(IN)                 :: xGP(3,    0:NLoc,0:NLoc,0:NLoc,nElems)    !< Coordinates of Gauss-points
     REAL,INTENT(OUT)                :: U(1:PP_nVar,0:NLoc,0:NLoc,0:NLoc,nElems)  !< Solution array
     !--------------------------------------------------------------
     ! LOCAL VARIABLES
     INTEGER                         :: i,j,k,iElem
     !==============================================================
-    
-    ! Evaluate the initial solution at the nodes and fill the solution vector U. 
+
+    ! Evaluate the initial solution at the nodes and fill the solution vector U.
     DO iElem=1,nElems
       DO k=0,NLoc; DO j=0,NLoc; DO i=0,NLoc
         CALL ExactFunc(IniExactFunc,0.,xGP(1:3,i,j,k,iElem),U(:,i,j,k,iElem))
@@ -152,31 +171,31 @@ not allowed to just incorporate the corresponding number of the step within the 
 
     ! (0. Nullify arrays)
     ! NOTE: UT and U are nullified in DGInit, and Ut is set directly
-    
+
     ! 1. Filter the solution vector if applicable, filter_pointer points to cut-off
     IF(FilterType.GT.0) CALL Filter_Pointer(U,FilterMat)
-    
+
     ! 2. Convert Volume solution to primitive
     CALL ConsToPrim(PP_N,UPrim,U)
-    
+
     ! X. Update mortar operators and neighbour connectivity for the sliding mesh
     CALL PrepareSM()
-    
+
     ! 3. Prolong the solution to the face integration points for flux computation
     ! --------------------------------------------------------------
     ! General idea: The slave sends its surface data to the master
     ! where the flux is computed and sent back to the slaves.
     ! Steps:
     ! (these steps are done for all slave MPI sides and then for all remaining sides):
-    ! 3.1)  Prolong solution to faces and store in U_master/slave. 
+    ! 3.1)  Prolong solution to faces and store in U_master/slave.
     !       Use them to build mortar data (split into 2/4 smaller sides).
-    ![3.2)] The information which element is a DG or FV subcells element is stored 
+    ![3.2)] The information which element is a DG or FV subcells element is stored
     !       in FV_Elems per element.
-    ![3.3)] The reconstruction of slopes over element interfaces requires, 
-    !       besides U_slave and FV_Elems_slave, some more information that 
+    ![3.3)] The reconstruction of slopes over element interfaces requires,
+    !       besides U_slave and FV_Elems_slave, some more information that
     !       has to be transmitted from the slave to the master MPI side.
     ! 3.4)  Finish all started MPI communications (after step 2. due to latency hiding)
-    
+
     #if USE_MPI
     ! Step 3 for all slave MPI sides
     ! 3.1) Prolong solution to faces and store in U_master/slave.

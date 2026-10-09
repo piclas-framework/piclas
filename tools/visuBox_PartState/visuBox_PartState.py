@@ -1,8 +1,10 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
 import re
 import shutil
+import sys
+from timeit import default_timer as timer
+
+import numpy as np
 
 # import h5 I/O routines
 try :
@@ -11,7 +13,7 @@ try :
 except ImportError :
     #raise ImportError('Could not import h5py module. This is required for analyse functions.')
     print(tools.red('Could not import h5py module. This is required for analyse functions.'))
-    exit(0)
+    sys.exit(0)
 
 
 start = timer()
@@ -43,9 +45,9 @@ ymax = float(args.ydir[1])
 zmin = float(args.zdir[0])
 zmax = float(args.zdir[1])
 
-print("x-dir: %s, %s" % (xmin,xmax))
-print("y-dir: %s, %s" % (ymin,ymax))
-print("z-dir: %s, %s" % (zmin,zmax))
+print(f"x-dir: {xmin}, {xmax}")
+print(f"y-dir: {ymin}, {ymax}")
+print(f"z-dir: {zmin}, {zmax}")
 
 print(args.statefile)
 pat = r'^.*\_(.*)\..*$'
@@ -56,10 +58,10 @@ try :
     newFile = re.sub(timestr+'.h5', '', args.statefile)+timestr+'_visuBox.h5'
 except :
     print("something wrong with "+args.statefile)
-    exit(0)
+    sys.exit(0)
 
-print("t_max_str : %s" % timestr)
-print("newfile   : %s" % newFile)
+print(f"t_max_str : {timestr}")
+print(f"newfile   : {newFile}")
 # Open h5 file and read container info
 # --------------------------------------------
 #     r       : Readonly, file must exist
@@ -122,7 +124,7 @@ print("New dataset")
 print(b1)
 if not b1.any() : # The truth value of an array with more than one element is ambiguous.
     print("Resulting array is empty!")
-    exit(0)
+    sys.exit(0)
 print(b1.shape)
 print(132*"-")
 # Copy old file and modify PartState in the new file

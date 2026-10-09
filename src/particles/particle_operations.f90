@@ -189,6 +189,9 @@ USE MOD_Mesh_Vars                 ,ONLY: BoundaryName
 USE MOD_Globals                   ,ONLY: abort
 USE MOD_HDG_Vars                  ,ONLY: UseFPC,FPC,UseEPC,EPC
 USE MOD_Mesh_Vars                 ,ONLY: BoundaryType
+#if USE_PETSC
+USE MOD_HDG_Vars                  ,ONLY: UseCircuitModel,CMBC
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 USE MOD_Particle_Vars             ,ONLY: PartState
 USE MOD_StringTools               ,ONLY: STRICMP
@@ -314,6 +317,17 @@ IF(PRESENT(BCID)) THEN
       EPC%ChargeProc(iUniqueEPCBC) = EPC%ChargeProc(iUniqueEPCBC) + Species(iSpec)%ChargeIC * MPF
     END IF ! BCType.EQ.8
   END IF ! UseEPC
+
+#if USE_PETSC
+  ! Check if circuit model boundary condition (CMBC) is used
+  IF(UseCircuitModel)THEN
+    iBC = PartBound%MapToFieldBC(BCID)
+    IF(iBC.LE.0) CALL abort(__STAMP__,'iBC = PartBound%MapToFieldBC(BCID) must be >0',IntInfoOpt=iBC)
+    IF(BoundaryType(iBC,BC_TYPE).EQ.40)THEN ! BCType = BoundaryType(iBC,BC_TYPE)
+      CMBC%ChargeProc = CMBC%ChargeProc + Species(iSpec)%ChargeIC * MPF
+    END IF ! BCType.EQ.8
+  END IF ! UseEPC
+#endif /*USE_PETSC*/
 #endif /*USE_HDG*/
 END IF ! PRESENT(BCID)
 

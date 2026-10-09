@@ -1,8 +1,9 @@
-import h5py
 import re
+import sys
+
+import h5py
 import numpy as np
 
-import sys
 sys.path.append('../')
 from edit_species import *
 from general_functions import *
@@ -22,12 +23,11 @@ def transform_numbered_attrs_to_array(list_of_species_classes,base_name):
     # loop over all classes (equals all species in database)
     for species_class in list_of_species_classes:
         if isinstance(species_class,PolyatomicMolecule):
-            if base_name == 'CharaTempRot' or base_name == 'MomentOfInertia':
-                if species_class.attributes['LinearMolec'] == 1:
-                    continue
+            if base_name in {'CharaTempRot', 'MomentOfInertia'} and species_class.attributes['LinearMolec'] == 1:
+                continue
             # Find all matching attributes
             pattern = f"^{base_name}\\d+$"
-            matching_attrs = [attr for attr in species_class.attributes.keys()
+            matching_attrs = [attr for attr in species_class.attributes
                             if re.match(pattern, attr)]
             if not matching_attrs:
                 print(f"No matching attributes found for {species_class.name} with {base_name}\n")

@@ -48,7 +48,7 @@ USE MOD_DSMC                     ,ONLY: DSMC_main
 USE MOD_part_tools               ,ONLY: UpdateNextFreePosition
 USE MOD_part_emission            ,ONLY: ParticleInserting
 USE MOD_Particle_SurfFlux        ,ONLY: ParticleSurfaceflux
-USE MOD_Particle_SurfChemFlux
+USE MOD_Particle_SurfChemFlux    ,ONLY: PureSurfChemistry, ParticleSurfDiffusion
 USE MOD_Particle_Tracking_vars   ,ONLY: tTracking,MeasureTrackTime
 USE MOD_Particle_Tracking        ,ONLY: PerformTracking
 USE MOD_SurfaceModel_Chemistry   ,ONLY: SurfChemCoverage
@@ -114,7 +114,7 @@ IF (DoChemSurface) THEN
 #endif /*USE_MPI*/
   CALL SurfChemCoverage()
   IF (time.GT.0.0) THEN
-    CALL ParticleSurfChemFlux()
+    CALL PureSurfChemistry()
     CALL ParticleSurfDiffusion()
   END IF
 #if USE_MPI
@@ -154,10 +154,12 @@ DO iPart=1,PDM%ParticleVecLength
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     END IF
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
-      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart),PartIntEn(iPart)%ElecVelo)
-    ELSE
-      CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+    IF (.NOT.Symmetry%AxisymmetricExact) THEN
+      IF(DSMC%DoAmbipolarDiff.AND.(Species(PartSpecies(iPart))%ChargeIC.GT.0.0)) THEN
+        CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart),PartIntEn(iPart)%ElecVelo)
+      ELSE
+        CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+      END IF
     END IF
   END IF
 END DO

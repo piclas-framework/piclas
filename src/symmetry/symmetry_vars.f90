@@ -28,6 +28,7 @@ SAVE
 TYPE tSymmetry
 INTEGER             :: Order                                               ! 1-3 D
 LOGICAL             :: Axisymmetric
+LOGICAL             :: AxisymmetricExact
 END TYPE tSymmetry
 
 TYPE(tSymmetry)       :: Symmetry

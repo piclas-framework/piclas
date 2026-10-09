@@ -1,45 +1,103 @@
 (sec:particle-initialization-and-emission)=
 # Particle Initialization & Emission
 
-The RAM to store the particle information is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting
-
-    Part-MaxParticleNumber=1000000
-
-which results in a program abort, if one of the processes reaches this limit.
-New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
-
-    Part-MaxPartNumIncrease=0.1
-
-A higher value increases the amount of unnecessary RAM allocated to particles, while a lower value increases the number of memory adjustment operations. The optimal trade-off depends on the simulation and the machine, but it only affects the performance of the simulations, not the quality of the results.
-
 The following section gives an overview of the available options regarding the definition of species and particle initialization
 and emission. Simulation particles can be inserted initially within the computational domain and/or emitted at every time step.
 First of all, the number of species is defined by
 
-    Part-nSpecies=1
+    Part-nSpecies = 1
 
 Regardless whether a standalone PIC, DSMC, or a coupled simulation is performed, the atomic mass [kg], the charge [C] and the
 weighting factor $w$ [-], sometimes referred to as macro-particle factor (MPF), are required for each species.
 
-    Part-Species1-MassIC=5.31352E-26
-    Part-Species1-ChargeIC=0.0
-    Part-Species1-MacroParticleFactor=5E2
+    Part-Species1-MassIC                = 5.31352E-26
+    Part-Species1-ChargeIC              = 0.0
+    Part-Species1-MacroParticleFactor   = 5E2
 
 Species that are not part of the initialization or emission but might occur as a result of e.g. chemical reactions should also be
-defined with these parameters.
+defined with these parameters. The RAM to store the particle information is dynamically allocated. However, it is possible to restrict the number of particles per MPI process by setting (optional)
 
-Different velocity distributions are available for the initialization/emission of particles.
+    Part-MaxParticleNumber = 1000000
 
-| Distribution | Description                                                   |
-| ------------ | ------------------------------------------------------------- |
-| constant     | No distribution, constant velocity vector                     |
-| maxwell      | Maxwell-Boltzmann distribution                                |
-| maxwell_lpn  | Maxwell-Boltzmann distribution for low particle numbers       |
-| cosine       | Cosine distribution {cite}`Greenwood2002` (surface flux only) |
-| cosine2      | Squared cosine distribution (surface flux only)               |
+which results in a program abort, if one of the processes reaches this limit.
+New memory is allocated in separate chunks because allocating memory for the particle data and copying it to the new memory area is expensive. The chunksize is relative to the particles used and can be set with
+
+    Part-MaxPartNumIncrease = 0.1
+
+A higher value increases the amount of unnecessary RAM allocated to particles, while a lower value increases the number of memory adjustment operations. The optimal trade-off depends on the simulation and the machine, but it only affects the performance of the simulations, not the quality of the results.
+
+(sec:particle-species-interactionid)=
+## Species Type (InteractionID)
+
+The type of a species is set by its `InteractionID`
+
+    Part-Species1-InteractionID = 1
+
+|   ID | Type                                                   |
+| ---: | ------------------------------------------------------ |
+|    1 | Atom                                                   |
+|    2 | Molecule (diatomic and polyatomic)                     |
+|    4 | Electron                                               |
+|   10 | Atomic Ion                                             |
+|   20 | Molecular Ion                                          |
+|  100 | Solid particle (see Section {ref}`sec:granular-flows`) |
+
+Electrons are identified solely by `InteractionID = 4`, e.g., for the Boltzmann relation electron fluid model, the bulk electron
+temperature, the initial ionization and the ambipolar diffusion. If the `InteractionID` is not set (default: 0) and a species has
+a negative charge and the electron mass, the `InteractionID` is set to 4 automatically. A species with an explicitly set
+`InteractionID` other than 4 will not be treated as an electron. When reading the species parameters from the database (see Section {ref}`sec:unified-species-database`), the `InteractionID` is read from the database.
+
+## Velocity Distribution Functions
+
+Different velocity distributions are available for the initialization/emission of particles, which can be defined for an initialization region by:
+
+    Part-Species1-Init1-velocityDistribution = maxwell_lpn
+
+or for the emission through a surface flux:
+
+    Part-Species1-SurfaceFlux1-velocityDistribution = cosine
+
+| Distribution  | Description                                                                      |
+| ------------- | -------------------------------------------------------------------------------- |
+| constant      | No distribution, constant velocity vector                                        |
+| maxwell       | Maxwell-Boltzmann distribution                                                   |
+| maxwell_lpn   | Maxwell-Boltzmann distribution for low particle numbers                          |
+| cosine        | General cosine distribution of the form $\cos^n$  (surface flux only)            |
+| cosine_double | Double cosine distribution of the form $A \cos^n - B \cos^m$ (surface flux only) |
+
+### Cosine distribution
+
+A general cosine distribution of the form $\cos^n \theta$ is implemented. The polar angle $\theta$ is a function of $g(\theta) = \sin\theta \cos^n\theta $ (adapted for a general exponent from {cite}`Greenwood2002`) and generated by
+
+$$ \theta = \arccos\left(1 - R\right)^{1/(n+1)},$$
+
+where $R = [0,1)$ and the exponent $n$ is provided as user-input (default = 1):
+
+    Part-Species1-Surfaceflux1-CosineExponent = 2.0
+
+Note that an exponent of zero is possible and corresponds to a uniform angle distribution. The azimuthal angle is uniformly distributed in the range of $0\le\phi\lt2\pi$.
+
+### Double cosine distribution
+
+For distributions without a maximum normal to the surface, the double cosine distribution {cite}`martynenko_angular_2012` of the form
+
+$$ g(\theta) = \sin\theta \left[A \cos^n\theta - B \cos^m\theta\right] $$
+
+can be utilized, where the additional parameters $A$, $B$, and $m$ are provided as input:
+
+    Part-Species1-Surfaceflux1-CosineA          = 2.0
+    Part-Species1-Surfaceflux1-CosineExponent2  = 3.
+    Part-Species1-Surfaceflux1-CosineB          = 1.0
+
+While this distribution can be utilized to fit experimental measurements, following rules should be adhered to:
+
+$$A \ge B$$
+$$m \gt n$$
+
+The polar angle is determind through the acceptance-rejection method. The azimuthal angle is uniformly distributed in the range of $0\le\phi\lt2\pi$. Example usage of both the `cosine` and `double_cosine` distribution functions is provided in the regression testing: `piclas/regressioncheck/NIG_DSMC/SurfFlux_Tria_Massflow_Cosine/`.
 
 (sec:particle-insertion)=
-## Initialization
+## Initialization Regions
 
 At the beginning of a simulation, particles can be inserted using different initialization routines. Initialization regions are
 defined per species and can overlap. First, the number of initialization conditions/regions has to be defined
@@ -308,15 +366,15 @@ Different methods found in the literature are implemented to neutralize a charge
 Currently all methods require a specific geometry to function properly.
 For more details, see the regression tests under *regressioncheck/NIG_PIC_poisson_Boris-Leapfrog*. The following table lists the *SpaceIC* emission types
 
-| Distribution                    | Reference | Description                                                                                                                              |
-| ------------------------------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| 2D_landmark_neutralization      | Charoy 2019 {cite}`Charoy2019`| 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative                          |
-| 2D_Liu2010_neutralization       | Liu 2010 {cite}`Liu2010`| 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
-| 2D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`| 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
-| 3D_Liu2010_neutralization       | Liu 2010 {cite}`Liu2010`| 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                      |
-| 3D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`| 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
-| 3D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`| 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive |
-| 2D_Taccogna2022_neutralization | Taccogna 2022 {cite}`Taccogna2022`| 2D PIC benchmark, electrons are injected in the region outside of the ionization channel if a macroscopic ion current is detected at the cathode and if the anode current is negative |
+| Distribution                    | Reference                          | Description                                                                                                                                                                           |
+| ------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2D_landmark_neutralization      | Charoy 2019 {cite}`Charoy2019`     | 2D PIC benchmark, electrons are injected with 10 eV at the cathode if the anode current is negative                                                                                   |
+| 2D_Liu2010_neutralization       | Liu 2010 {cite}`Liu2010`           | 2D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                                                                            |
+| 2D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`           | 2D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive                                                       |
+| 3D_Liu2010_neutralization       | Liu 2010 {cite}`Liu2010`           | 3D PIC benchmark, electrons are injected at the cathode if the cathode current is negative                                                                                            |
+| 3D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`           | 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive                                                       |
+| 3D_Liu2010_neutralization_Szabo | Liu 2010 {cite}`Liu2010`           | 3D PIC benchmark, electrons are injected in the first cell layer at the cathode if the net charge in these elements is positive                                                       |
+| 2D_Taccogna2022_neutralization  | Taccogna 2022 {cite}`Taccogna2022` | 2D PIC benchmark, electrons are injected in the region outside of the ionization channel if a macroscopic ion current is detected at the cathode and if the anode current is negative |
 
 
 #### Landmark 2D (Charoy 2019)
@@ -393,7 +451,7 @@ electrons which are found automatically by comparing the charge of the species (
 For each ion an electron is created to maintain charge neutrality.
 The ionization degree (`InitialIonizationChargeAverage`) should be a number between 0 and 1.
 
-## Surface Flux
+## Emission at Boundaries (Surface Flux)
 
 A surface flux enables the emission of particles at a boundary in order to simulate, e.g. a free-stream. They are defined
 species-specifically and can overlap. First, the number of surface fluxes has to be given

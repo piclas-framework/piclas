@@ -147,3 +147,95 @@ However, the actual additional particle data has be added to the message manuall
 
 Each particle property is treated independently. Existing communication structures
 for `PartIntEn` can be copied and adapted to the new property.
+
+## Useful Functions
+
+The following functions and subroutines are available for re-use.
+
+### General Functions and Subroutines
+
+|   Function   |    Module     |     Input      |  Output   | Description                                                                                                |
+| :----------: | :-----------: | :------------: | :-------: | :--------------------------------------------------------------------------------------------------------- |
+| `UNITVECTOR` | `MOD_Globals` |   3D vector    | 3D vector | Normalizes a given vector by dividing all vectors entries by the vector's magnitude                        |
+| `CROSSNORM`  | `MOD_Globals` | two 3D vectors | 3D vector | Computes the cross product of two 3-dimensional vectors: cross=v1 x v2 and normalizes the resulting vector |
+|   `CROSS`    | `MOD_Globals` | two 3D vectors | 3D vector | Computes the cross product of two 3-dimensional vectors: cross=v1 x v2                                     |
+| `VECNORM3D`  | `MOD_Globals` |   3D vector    |  `REAL`   | Computes the Euclidean norm (length) of a vector                                                           |
+| `DOTPRODUCT` | `MOD_Globals` |   3D vector    |  `REAL`   | Computes the dot product of a vector with itself                                                           |
+
+### Particle Functions and Subroutines
+
+|                Function (Module)                 | Input                                                            |         Output         | Description                                                                                                                               |
+| :----------------------------------------------: | :--------------------------------------------------------------- | :--------------------: | :---------------------------------------------------------------------------------------------------------------------------------------- |
+|      `isChargedParticle` (`MOD_part_tools`)      | particle ID                                                      |       `LOGICAL`        | Check if particle has charge unequal to zero                                                                                              |
+|         `PARTISELECTRON` (`MOD_globals`)         | particle ID                                                      |       `LOGICAL`        | Check if particle is an electron by checking if the charge is equal to 1.602176634e-19 (division and nearest integer)                     |
+|      `isDepositParticle` (`MOD_part_tools`)      | particle ID                                                      |       `LOGICAL`        | Check if particle is to be deposited on the grid                                                                                          |
+|       `isPushParticle` (`MOD_part_tools`)        | particle ID                                                      |       `LOGICAL`        | Check if particle is to be pushed (integrated in time)                                                                                    |
+|    `isInterpolateParticle` (`MOD_part_tools`)    | particle ID                                                      |       `LOGICAL`        | Check if the field at a particle's is to be interpolated (accelerated)                                                                    |
+|    `VeloFromDistribution` (`MOD_part_tools`)     | distribution type, Tempergy                                      |       3D vector        | **WIP**, Calculates a velocity vector from a defined velocity distribution and Tempergy (temperature [K] or energy [J] or velocity [m/s]) |
+|       `DiceUnitVector` (`MOD_part_tools`)        | `None`                                                           |       3D vector        | Calculates a normalized vector in 3D (unit space) in random direction                                                                     |
+| `DiceDeflectedVelocityVector` (`MOD_part_tools`) | cRela2(post-collison), alphaVSS(iSpecA,iSpecB)                   |       3D vector        | Calculates scaled post-collision relative velocity vector in center-of-mass frame                                                         |
+|                                                  | if alphaVSS>1 (VSS) also: , cRelaX,cRelaY,cRelaZ (pre-collision) |                        | VSS case includes coordinate transformation due to anisotropic scattering                                                                 |
+|       `CreateParticle` (`MOD_part_tools`)        | species ID, position, element ID, velocity and internal energies | particle ID (optional) | Creates a new particle at a given position and energetic state and return the new particle ID (optional)                                  |
+|       `RemoveParticle` (`MOD_part_tools`)        | particle ID                                                      |                        | Removes the specified particle by setting all the required flags and deallocating internal data arrays                                    |
+|      `GetParticleWeight` (`MOD_part_tools`)      | particle ID                                                      |         `REAL`         | Determines the weighting factor of a particle                                                                                             |
+
+## CollectiveStop
+When using the `CALL abort(__STAMP__,'ERROR ...')` subroutine, each MPI process that encounters this
+call emits an output to std.out, which can result in a huge amount of output when running on hundreds
+or thousands of processes, especially if an error in the .ini files produces the error in the initialization step.
+To prevent excessive output to std.out, the `CollectiveStop` subroutine has been created.
+```
+!==================================================================================================================================
+!> \brief Safely terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!>
+!> Safely terminate program using a soft MPI_FINALIZE in the MPI case and writes the error message only on the root.
+!> Terminate program using a soft MPI_FINALIZE in the MPI case and write the error message only on the root.
+!> This routine can only be used if ALL processes are guaranteed to generate the same error at the same time!
+!> Prime use is to exit PICLAS without MPI errors and with a single error message if some parameters are not set in the init
+!> routines or a file is not found.
+!>
+!> Criteria where CollectiveStop may be used:
+!> 0. In case of doubt stick with Abort, which is always safe!
+!> 1. A routine is BY DESIGN (!) called by all processes, i.e. does not permit to be called by single processes or subgroups.
+!> 2. The criteria for the CollectiveStop must be identical among all processors.
+!> 3. The routine is only used during the init phase.
+!> 4. The error must not originate from MPI errors (e.g. during MPI init)
+!> 5. The error must not originate from checking roundof errors (e.g. accuracy of interpolation matrices)
+!>
+!==================================================================================================================================
+```
+An example where `CollectiveStop` should be used instead of `abort` is in `gradients.f90`
+
+```
+GradLimiterType=GETINT('Grad-LimiterType')
+GradLimVktK=GETREAL('Grad-VktK')
+SELECT CASE(GradLimiterType)
+CASE(0)
+  LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+CASE(1) !minmax
+  LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
+CASE(4) !venkatakrishnan
+  LBWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
+CASE(9) ! no limiter (central)
+  LBWRITE(UNIT_stdOut,*)'Not using any limiter'
+CASE DEFAULT
+  CALL abort(__STAMP__,'Limiter type not implemented.')
+END SELECT
+```
+which should read
+```
+GradLimiterType=GETINT('Grad-LimiterType')
+GradLimVktK=GETREAL('Grad-VktK')
+SELECT CASE(GradLimiterType)
+CASE(0)
+  LBWRITE(UNIT_stdOut,*)'Limiter = 0 -> first order FV'
+CASE(1) !minmax
+  LBWRITE(UNIT_stdOut,*)'Using Barth-Jespersen Limiter'
+CASE(4) !venkatakrishnan
+  LBWRITE(UNIT_stdOut,*)'Using Venkatakrishnan limiter with K =', GradLimVktK
+CASE(9) ! no limiter (central)
+  LBWRITE(UNIT_stdOut,*)'Not using any limiter'
+CASE DEFAULT
+  CALL CollectiveStop(__STAMP__,'Limiter type not implemented.')
+END SELECT
+```

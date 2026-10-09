@@ -1,4 +1,3 @@
-import sphinx_rtd_theme
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -42,7 +41,8 @@ extensions = [
         'sphinx_rtd_size',
         'myst_parser',
         'sphinx_copybutton',
-        'sphinx_rtd_theme'
+        'sphinx_rtd_theme',
+        'sphinx_design'
         ]
 
 # Set width
@@ -107,4 +107,5 @@ numfig = True
 myst_enable_extensions = [
     "amsmath",
     "dollarmath",
+    "colon_fence",
 ]

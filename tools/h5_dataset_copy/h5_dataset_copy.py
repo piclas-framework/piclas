@@ -1,9 +1,8 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
-import re
-import shutil
 import os
+import sys
+from timeit import default_timer as timer
+
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -42,7 +41,7 @@ try :
     h5py_module_loaded = True
 except ImportError :
     print(red('Could not import h5py module. This is required for handling .h5 files.'))
-    exit(0)
+    sys.exit(0)
 
 # Start the timer
 start = timer()
@@ -87,8 +86,8 @@ try:
     f1 = h5py.File(args.source,'r')
 except Exception as e:
     print(e)
-    print("Could not open the source file [%s]" % (args.source))
-    exit(0)
+    print(f"Could not open the source file [{args.source}]")
+    sys.exit(0)
 
 # Usage:
 # -------------------
@@ -105,12 +104,12 @@ try :
 except :
     print(e)
     print("Could not read dataset [%] from the source file [%s]" % (args.dataset,args.source))
-    exit(0)
+    sys.exit(0)
 
 print('Source file'.ljust(len(args.source))," | dataset(shape) data type")
 print(132*'-')
 #print("".ljust(-len(args.source)),args.source," | %s%s %s" % (args.dataset, str(dset1.shape),dtype1))
-print(args.source.ljust(len(args.source))," | %s%s %s" % (args.dataset, str(dset1.shape),dtype1))
+print(args.source.ljust(len(args.source)),f" | {args.dataset}{dset1.shape!s} {dtype1}")
 
 
 
@@ -120,13 +119,13 @@ try:
     f2 = h5py.File(args.target,'r+')
 except Exception as e:
     print(e)
-    print("Could not open the target file [%s]" % (args.target))
-    exit(0)
+    print(f"Could not open the target file [{args.target}]")
+    sys.exit(0)
 
 # 0. remove dataset container in target file (if it exists)
 try:
     del f2[args.dataset]
-except Exception as e:
+except Exception:
     #print(e)
     #print("Dataset does not exist in target file (%s). Copying." % e)
     pass

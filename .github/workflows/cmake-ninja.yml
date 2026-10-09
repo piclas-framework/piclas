@@ -11,11 +11,11 @@ jobs:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
     # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-26.04
 
     # Use centos8
     container:
-      image: centos:8
+      image: rockylinux:8
       options: --privileged
 
     steps:
@@ -23,10 +23,6 @@ jobs:
     - name: Install GIT
       shell: bash
       run: |
-        cd /etc/yum.repos.d/
-        sed -i 's/mirrorlist/#mirrorlist/g' /etc/yum.repos.d/CentOS-*
-        sed -i 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' /etc/yum.repos.d/CentOS-*
-        yum -y install https://packages.endpointdev.com/rhel/8/main/x86_64/endpoint-repo.noarch.rpm
         yum -y install git
         git --version
 
@@ -40,9 +36,11 @@ jobs:
       run: |
         git config --global --add safe.directory '*'
         git status
-        curl -L -O https://github.com/Kitware/CMake/releases/download/v3.19.7/cmake-3.19.7-Linux-x86_64.sh
-        chmod +x cmake-3.19.7-Linux-x86_64.sh
-        ./cmake-3.19.7-Linux-x86_64.sh --skip-license --prefix=/usr/local
+        CMAKESCRIPTVERSION=v4.3.3
+        CMAKEINSTALLSCRIPT=cmake-${CMAKESCRIPTVERSION#v}-Linux-x86_64.sh
+        curl -L -O https://github.com/Kitware/CMake/releases/download/${CMAKESCRIPTVERSION}/${CMAKEINSTALLSCRIPT}
+        chmod +x ${CMAKEINSTALLSCRIPT}
+        ./${CMAKEINSTALLSCRIPT} --skip-license --prefix=/usr/local
         curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-16.02-31.el8.x86_64.rpm
         curl -L -O https://www.mirrorservice.org/sites/dl.fedoraproject.org/pub/epel/8/Everything/x86_64/Packages/p/p7zip-plugins-16.02-31.el8.x86_64.rpm
         rpm -U --quiet p7zip-16.02-31.el8.x86_64.rpm
@@ -50,7 +48,7 @@ jobs:
         yum install -y epel-release
         yum install -y 'dnf-command(config-manager)'
         yum config-manager --set-enabled powertools
-        yum install -y make libasan gcc-gfortran gcc-c++ unzip openblas-devel lapack-devel zlib-devel tree fuse-sshfs fuse-libs file openmpi-devel wget python3 diffutils
+        yum install -y make libasan gcc-gfortran gcc-c++ unzip openblas-devel lapack-devel zlib-devel tree fuse-sshfs fuse-libs file openmpi-devel wget python3 diffutils findutils which perl bzip2 patch xz
         groupadd fuse
         user="$(whoami)"
         usermod -a -G fuse "$user"
@@ -60,18 +58,11 @@ jobs:
         curl -L -O https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
         chmod +x linuxdeploy-x86_64.AppImage
 
-    - name: Install GNU GCC 8
+    - name: Install GNU GCC 12
       shell: bash
       run: |
-        #yum install -y centos-release-scl
-        #yum install -y devtoolset-8-gcc*
-        #source /opt/rh/devtoolset-8/enable
-        #scl enable devtoolset-8 bash
-        #which gcc
-        #echo 'source /opt/rh/devtoolset-8/enable' >> ~/.bashrc
-        #echo 'scl enable devtoolset-8 bash' >> ~/.bashrc
-        #GCC_DIR='/opt/rh/devtoolset-8/root/usr'
-        GCC_DIR=$(dirname $(dirname $(which gcc)))
+        yum install -y gcc-toolset-12-gcc gcc-toolset-12-gcc-c++ gcc-toolset-12-gcc-gfortran
+        GCC_DIR='/opt/rh/gcc-toolset-12/root/usr'
         echo 'export PATH="'${GCC_DIR}'/bin:$PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib:$LD_LIBRARY_PATH"' >> ~/.bashrc
         echo 'export LD_LIBRARY_PATH="'${GCC_DIR}'/lib64:$LD_LIBRARY_PATH"' >> ~/.bashrc
@@ -88,11 +79,15 @@ jobs:
         echo 'CXXFLAGS="'${CFLAGS}'"' >> ~/.bashrc
         echo "======================================================================="
         gcc --version
+        echo "======================================================================="
+        echo " ~/.bashrc"
+        echo "======================================================================="
         cat ~/.bashrc
         echo "======================================================================="
 
     - name: Install OpenMPI 4.1.6
       run: |
+        set -eo pipefail
         MPIVERSION='4.1.6'
         MPIVERSIONSHORT=${MPIVERSION%.*}
         source ~/.bashrc
@@ -101,8 +96,9 @@ jobs:
         tar -xvf openmpi-${MPIVERSION}.tar.gz
         cd openmpi-${MPIVERSION}
         ./configure --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/${MPIVERSION}
-        #./configure --enable-debug --enable-static --disable-dlopen --enable-mpi1-compatibility --prefix=/opt/openmpi/${MPIVERSION}
-        make -j && make install
+        make -j"$(nproc)" || { make V=1 2>&1 | tail -n 100; exit 1; }
+        make install
+        ls /opt/openmpi/${MPIVERSION}/bin/mpicc
         echo "======================================================================="
         MPI_DIR='/opt/openmpi/'${MPIVERSION}
         echo 'MPI_DIR="'${MPI_DIR}'"' >> $GITHUB_ENV
@@ -119,11 +115,13 @@ jobs:
         HDF5VERSION='1.12.2'
         HDF5VERSIONSHORT=${HDF5VERSION%.*}
         source ~/.bashrc
+        which mpicc; mpicc --showme
+        echo 'int main(){return 0;}' > t.c && mpicc -v t.c -o t && ./t && echo MPICC_OK
         wget https://support.hdfgroup.org/ftp/HDF5/releases/hdf5-${HDF5VERSIONSHORT}/hdf5-${HDF5VERSION}/src/hdf5-${HDF5VERSION}.tar.gz
         tar -xvf hdf5-${HDF5VERSION}.tar.gz
         cd hdf5-${HDF5VERSION}
-        ./configure --prefix=/opt/hdf5/${HDF5VERSION} --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
-        #./configure --enable-build-mode=debug --prefix=/opt/hdf5/${HDF5VERSION} --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort)
+        ./configure --prefix=/opt/hdf5/${HDF5VERSION} --with-pic --enable-fortran --enable-parallel CC=$(which mpicc) CXX=$(which mpicxx) FC=$(which mpifort) \
+        || { grep -n -B2 -A25 "checking whether the C compiler works" config.log; exit 1; }
         make -j && make install
         echo "======================================================================="
         HDF5_DIR='/opt/hdf5/'${HDF5VERSION}
@@ -139,6 +137,8 @@ jobs:
         echo "======================================================================="
 
     - name: Install PETSc 3.21.6
+      env:
+        CMAKE_POLICY_VERSION_MINIMUM: "3.5"
       run: |
         PETSCVERSION='3.21.6'
         source ~/.bashrc
@@ -162,8 +162,11 @@ jobs:
           --download-hypre \
           --download-mumps \
           --download-scalapack \
+          --download-scalapack-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM}" \
           --download-metis \
-          --download-parmetis
+          --download-metis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM}" \
+          --download-parmetis \
+          --download-parmetis-cmake-arguments="-DCMAKE_POLICY_VERSION_MINIMUM=${CMAKE_POLICY_VERSION_MINIMUM}"
         make -j && make install
         echo "======================================================================="
         PETSC_DIR='/opt/petsc/'${PETSCVERSION}
@@ -418,7 +421,7 @@ jobs:
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: piclas-binaries-v4.2.0
+        name: piclas-binaries-v4.3.0
         path: artifacts
 
     - name: Upload release asset

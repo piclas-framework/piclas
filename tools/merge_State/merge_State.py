@@ -1,8 +1,11 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
 import re
 import shutil
+import sys
+from timeit import default_timer as timer
+
+import numpy as np
+
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -54,7 +57,6 @@ def GetDataSets(statefile) :
     # available attributes   : print('\n'.join(x for x in f1.attrs))                        # yields 'File_Type\n File_Version\n MeshFile'
     # get specific attribute : file_version  = f1.attrs.get('File_Version', default=-1.)[0] # yields, e.g., 1.5
     # -------------------
-    data_set = 'SurfaceData2'
 
     datasets = list(f1.keys())
     
@@ -67,7 +69,7 @@ try :
     h5py_module_loaded = True
 except ImportError :
     print(red('Could not import h5py module. This is required for analyse functions.'))
-    exit(0)
+    sys.exit(0)
 
 # Start the timer
 start = timer()
@@ -77,10 +79,10 @@ parser = argparse.ArgumentParser(description='description:\n\
   Tool for merging multiple .h5 PICLas state files (MyProject_State_000.000000*.h5) containing different hdf5 containers into a single file.\n\
   Supply a single state file or a group of state files by using the wildcard "*", e.g. MyProject_000.00* for a list of file names.\n\n\
   Note the different modes that will be selected automatically depending on the name of the h5 container:\n\n\
-    * \'%s\', \'%s\', \'%s\' and \'%s\' are added together\n\
-    * \'%s\' container will be concatenated (not added together). To use this feature, supply [-p], [--particles]\n\
-    * \'%s\' container in *_TimeAvg_*.h5 files will be averaged over the number of supplied files ([-a], [--average] is automatically turned on)\n\n\
-  Note that different types of files, e.g. "_DSMCSurfState_" and "_State_", are not allowed to be mixed. Choose one type!' % (green("SurfaceData"), green("ElemData"), green("DG_Source"), green("DG_Solution"), green("PartData"), green("DG_Solution"))
+    * \'{}\', \'{}\', \'{}\' and \'{}\' are added together\n\
+    * \'{}\' container will be concatenated (not added together). To use this feature, supply [-p], [--particles]\n\
+    * \'{}\' container in *_TimeAvg_*.h5 files will be averaged over the number of supplied files ([-a], [--average] is automatically turned on)\n\n\
+  Note that different types of files, e.g. "_DSMCSurfState_" and "_State_", are not allowed to be mixed. Choose one type!'.format(green("SurfaceData"), green("ElemData"), green("DG_Source"), green("DG_Solution"), green("PartData"), green("DG_Solution"))
 ,formatter_class=argparse.RawTextHelpFormatter)
 
 parser.add_argument('files', type=str, help='files (.h5) that are to be merged together.', nargs='+')
@@ -120,15 +122,15 @@ for statefile in args.files :
         files.append(statefile)
     except :
         print("not considering "+statefile)
-print("t_min     : %s" % mintime)
-print("t_min_str : %s" % mintimestr)
+print(f"t_min     : {mintime}")
+print(f"t_min_str : {mintimestr}")
 
-print("t_max     : %s" % maxtime)
-print("t_max_str : %s" % maxtimestr)
+print(f"t_max     : {maxtime}")
+print(f"t_max_str : {maxtimestr}")
 
 dt = maxtime-mintime
-print("delta t   : %s" % dt)
-print("newfile   : %s" % newFile)
+print(f"delta t   : {dt}")
+print(f"newfile   : {newFile}")
 print()
 
 # Get maximum number of characters in h5 file names
@@ -188,12 +190,12 @@ for statefile in files :
         data_set = 'PartData'
 
         if not data_set in list(f1.keys()) :
-            print(red("ERROR: Dataset ['%s'] not found in file. Stop." % data_set))
-            exit(0)
+            print(red(f"ERROR: Dataset ['{data_set}'] not found in file. Stop."))
+            sys.exit(0)
         
         # 1.1.1   Read the dataset from the hdf5 file
         PartData = f1[data_set][:]
-        print("".ljust(max_length-len(statefile)),statefile," | %s%s" % (data_set, str(PartData.shape)))
+        print("".ljust(max_length-len(statefile)),statefile,f" | {data_set}{PartData.shape!s}")
 
         # Save old file
         if n > 1 :
@@ -201,20 +203,18 @@ for statefile in files :
             if file_version < 1.5 :
                 # Compare shape of the dataset of both files, throw error if they do not coincide
                 if PartData.shape[0] != PartData_old_shape[0] : # e.g.: PartData.shape = (48, 32)
-                    s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!"\
-                            % (statefile,statefile_old,PartData.shape,PartData_old_shape,PartData.shape[0],PartData_old_shape[0])
+                    s=f"\nDatasets are not compatible due to different shapes: Files [{statefile}] and [{statefile_old}] have shapes {PartData.shape} and {PartData_old_shape}\nThe dimensions dim1 = {PartData.shape[0]} and dim2 = {PartData_old_shape[0]} must be equal!\n\nAborted!"
                     print(red(s))
-                    exit(1)
+                    sys.exit(1)
 
                 # Concatenate columns
                 PartData_merged = np.concatenate((PartData_merged, PartData), axis=1)
             else :
                 # Compare shape of the dataset of both files, throw error if they do not coincide
                 if PartData.shape[1] != PartData_old_shape[1] : # e.g.: PartData.shape = (48, 32)
-                    s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\nThe dimensions dim1 = %s and dim2 = %s must be equal!\n\nAborted!"\
-                            % (statefile,statefile_old,PartData.shape,PartData_old_shape,PartData.shape[1],PartData_old_shape[1])
+                    s=f"\nDatasets are not compatible due to different shapes: Files [{statefile}] and [{statefile_old}] have shapes {PartData.shape} and {PartData_old_shape}\nThe dimensions dim1 = {PartData.shape[1]} and dim2 = {PartData_old_shape[1]} must be equal!\n\nAborted!"
                     print(red(s))
-                    exit(1)
+                    sys.exit(1)
                 # Concatenate rows
                 PartData_merged = np.concatenate((PartData_merged, PartData), axis=0)
         else :
@@ -234,16 +234,15 @@ for statefile in files :
         
         # 1.1.1   Read the dataset from the hdf5 file
         DG_Solution = f1[data_set][:]
-        print("".ljust(max_length-len(statefile)),statefile," | %s%s" % (data_set, str(DG_Solution.shape)))
+        print("".ljust(max_length-len(statefile)),statefile,f" | {data_set}{DG_Solution.shape!s}")
 
         # Save old file
         if n > 1 :
             # Compare shape of the dataset of both files, throw error if they do not conincide
             if DG_Solution.shape != DG_Solution_old_shape : # e.g.: DG_Solution.shape = (48, 1, 1, 32)
-                s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\n\nAborted!"\
-                        % (statefile, statefile_old, DG_Solution.shape, DG_Solution_old_shape)
+                s=f"\nDatasets are not compatible due to different shapes: Files [{statefile}] and [{statefile_old}] have shapes {DG_Solution.shape} and {DG_Solution_old_shape}\n\nAborted!"
                 print(red(s))
-                exit(1)
+                sys.exit(1)
         
             # Add ne current array stored in DG_Solution to b
             DG_Solution_merged = DG_Solution_merged + DG_Solution
@@ -264,16 +263,15 @@ for statefile in files :
         
         # 1.1.1   Read the dataset from the hdf5 file
         DG_Source = f1[data_set][:]
-        print("".ljust(max_length-len(statefile)),statefile," | %s%s" % (data_set, str(DG_Source.shape)))
+        print("".ljust(max_length-len(statefile)),statefile,f" | {data_set}{DG_Source.shape!s}")
 
         # Save old file
         if n > 1 :
             # Compare shape of the dataset of both files, throw error if they do not conincide
             if DG_Source.shape != DG_Source_old_shape : # e.g.: DG_Source.shape = (48, 1, 1, 32)
-                s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\n\nAborted!"\
-                        % (statefile, statefile_old, DG_Source.shape, DG_Source_old_shape)
+                s=f"\nDatasets are not compatible due to different shapes: Files [{statefile}] and [{statefile_old}] have shapes {DG_Source.shape} and {DG_Source_old_shape}\n\nAborted!"
                 print(red(s))
-                exit(1)
+                sys.exit(1)
         
             # Add ne current array stored in DG_Source to b
             DG_Source_merged = DG_Source_merged + DG_Source
@@ -294,16 +292,15 @@ for statefile in files :
         
         # 1.1.1   Read the dataset from the hdf5 file
         ElemData = f1[data_set][:]
-        print("".ljust(max_length-len(statefile)),statefile," | %s%s" % (data_set, str(ElemData.shape)))
+        print("".ljust(max_length-len(statefile)),statefile,f" | {data_set}{ElemData.shape!s}")
 
         # Save old file
         if n > 1 :
             # Compare shape of the dataset of both files, throw error if they do not conincide
             if ElemData.shape != ElemData_old_shape : # e.g.: ElemData.shape = (48, 1, 1, 32)
-                s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\n\nAborted!"\
-                        % (statefile, statefile_old, ElemData.shape, ElemData_old_shape)
+                s=f"\nDatasets are not compatible due to different shapes: Files [{statefile}] and [{statefile_old}] have shapes {ElemData.shape} and {ElemData_old_shape}\n\nAborted!"
                 print(red(s))
-                exit(1)
+                sys.exit(1)
         
             # Add ne current array stored in ElemData to b
             ElemData_merged = ElemData_merged + ElemData
@@ -324,16 +321,15 @@ for statefile in files :
         
         # 1.1.1   Read the dataset from the hdf5 file
         SurfaceData = f1[data_set][:]
-        print("".ljust(max_length-len(statefile)),statefile," | %s%s" % (data_set, str(SurfaceData.shape)))
+        print("".ljust(max_length-len(statefile)),statefile,f" | {data_set}{SurfaceData.shape!s}")
 
         # Save old file
         if n > 1 :
             # Compare shape of the dataset of both files, throw error if they do not conincide
             if SurfaceData.shape != SurfaceData_old_shape : # e.g.: SurfaceData.shape = (48, 1, 1, 32)
-                s="\nDatasets are not compatible due to different shapes: Files [%s] and [%s] have shapes %s and %s\n\nAborted!"\
-                        % (statefile, statefile_old, SurfaceData.shape, SurfaceData_old_shape)
+                s=f"\nDatasets are not compatible due to different shapes: Files [{statefile}] and [{statefile_old}] have shapes {SurfaceData.shape} and {SurfaceData_old_shape}\n\nAborted!"
                 print(red(s))
-                exit(1)
+                sys.exit(1)
         
             # Add ne current array stored in SurfaceData to b
             SurfaceData_merged = SurfaceData_merged + SurfaceData
@@ -353,7 +349,7 @@ for statefile in files :
 # Check if anything was merged
 if merged :
     print(132*"-")
-    print("Finished reading data from %s files." % n)
+    print(f"Finished reading data from {n} files.")
     n = float(n)
     
     # Copy old file and modify PartState in the new file
@@ -369,11 +365,11 @@ if merged :
         PartDataSet = f1.create_dataset(data_set, shape=PartData_merged.shape, dtype=np.float64)
         # Check if average is required
         if args.average:
-            print(green("Averaged 'PartData' by dividing by %s" % n))
+            print(green(f"Averaged 'PartData' by dividing by {n}"))
             PartData_merged = PartData_merged / n
         # write as C-continuous array via np.ascontiguousarray()
         PartDataSet.write_direct(np.ascontiguousarray(PartData_merged))
-        print("Files have been merged into %s | %s%s" % (newFile,data_set,PartData_merged.shape))
+        print(f"Files have been merged into {newFile} | {data_set}{PartData_merged.shape}")
     if foundDG_Solution:
         data_set = 'DG_Solution'
         del f1[data_set]
@@ -381,11 +377,11 @@ if merged :
         DG_SolutionSet = f1.create_dataset(data_set, shape=DG_Solution_merged.shape, dtype=np.float64)
         # Check if average is required
         if args.average:
-            print(green("Averaged 'DG_Solution' by dividing by %s" % n))
+            print(green(f"Averaged 'DG_Solution' by dividing by {n}"))
             DG_Solution_merged = DG_Solution_merged / n
         # write as C-continuous array via np.ascontiguousarray()
         DG_SolutionSet.write_direct(np.ascontiguousarray(DG_Solution_merged))
-        print("Files have been merged into %s | %s%s" % (newFile,data_set,DG_Solution_merged.shape))
+        print(f"Files have been merged into {newFile} | {data_set}{DG_Solution_merged.shape}")
     if foundDG_Source:
         data_set = 'DG_Source'
         del f1[data_set]
@@ -393,11 +389,11 @@ if merged :
         DG_SourceSet = f1.create_dataset(data_set, shape=DG_Source_merged.shape, dtype=np.float64)
         # Check if average is required
         if args.average:
-            print(green("Averaged 'DG_Source' by dividing by %s" % n))
+            print(green(f"Averaged 'DG_Source' by dividing by {n}"))
             DG_Source_merged = DG_Source_merged / n
         # write as C-continuous array via np.ascontiguousarray()
         DG_SourceSet.write_direct(np.ascontiguousarray(DG_Source_merged))
-        print("Files have been merged into %s | %s%s" % (newFile,data_set,DG_Source_merged.shape))
+        print(f"Files have been merged into {newFile} | {data_set}{DG_Source_merged.shape}")
     if foundElemData:
         data_set = 'ElemData'
         del f1[data_set]
@@ -405,11 +401,11 @@ if merged :
         ElemDataSet = f1.create_dataset(data_set, shape=ElemData_merged.shape, dtype=np.float64)
         # Check if average is required
         if args.average:
-            print(green("Averaged 'ElemData' by dividing by %s" % n))
+            print(green(f"Averaged 'ElemData' by dividing by {n}"))
             ElemData_merged = ElemData_merged / n
         # write as C-continuous array via np.ascontiguousarray()
         ElemDataSet.write_direct(np.ascontiguousarray(ElemData_merged))
-        print("Files have been merged into %s | %s%s" % (newFile,data_set,ElemData_merged.shape))
+        print(f"Files have been merged into {newFile} | {data_set}{ElemData_merged.shape}")
     if foundSurfaceData:
         data_set = 'SurfaceData'
         del f1[data_set]
@@ -417,11 +413,11 @@ if merged :
         SurfaceDataSet = f1.create_dataset(data_set, shape=SurfaceData_merged.shape, dtype=np.float64)
         # Check if average is required
         if args.average:
-            print(green("Averaged 'SurfaceData' by dividing by %s" % n))
+            print(green(f"Averaged 'SurfaceData' by dividing by {n}"))
             SurfaceData_merged = SurfaceData_merged / n
         # write as C-continuous array via np.ascontiguousarray()
         SurfaceDataSet.write_direct(np.ascontiguousarray(SurfaceData_merged))
-        print("Files have been merged into %s | %s%s" % (newFile,data_set,SurfaceData_merged.shape))
+        print(f"Files have been merged into {newFile} | {data_set}{SurfaceData_merged.shape}")
     
 
     print(132*"-")

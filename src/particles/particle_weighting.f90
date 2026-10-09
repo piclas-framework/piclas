@@ -205,6 +205,7 @@ USE MOD_Globals
 USE MOD_ReadInTools
 USE MOD_Restart_Vars            ,ONLY: DoRestart
 USE MOD_DSMC_Vars               ,ONLY: ParticleWeighting, ClonedParticles
+USE MOD_DSMC_Symmetry           ,ONLY: InitAdjustParticleWeight
 #if USE_LOADBALANCE
 USE MOD_LoadBalance_Vars        ,ONLY: DoLoadBalance, UseH5IOLoadBalance
 #endif /*USE_LOADBALANCE*/
@@ -220,9 +221,7 @@ IMPLICIT NONE
 
 ! Clone read-in during load balance is currently only supported via the HDF5 output
 #if USE_LOADBALANCE
-IF(DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) THEN
-  CALL abort(__STAMP__,'ERROR: Particle weighting only supports a load balance using an HDF5 output (UseH5IOLoadBalance = T)!')
-END IF
+IF(DoLoadBalance.AND.(.NOT.UseH5IOLoadBalance)) CALL CollectiveStop(__STAMP__,'ERROR: Particle weighting only supports a load balance using an HDF5 output (UseH5IOLoadBalance = T)!')
 #endif /*USE_LOADBALANCE*/
 
 ! Cloning parameters
@@ -234,26 +233,27 @@ ParticleWeighting%CloneVecLengthDelta = 100
 ParticleWeighting%CloneVecLength = ParticleWeighting%CloneVecLengthDelta
 
 SELECT CASE(ParticleWeighting%CloneMode)
+  CASE(0)
+    ! Instant cloning right after tracking
   CASE(1)
-    IF(ParticleWeighting%CloneInputDelay.LT.1) THEN
-      CALL Abort(__STAMP__,'ERROR in Particle Weighting: Clone delay should be greater than 0')
-    END IF
+    IF(ParticleWeighting%CloneInputDelay.LT.1) CALL CollectiveStop(__STAMP__,'ERROR in Particle Weighting: Clone delay should be greater than 0')
     ALLOCATE(ParticleWeighting%ClonePartNum(0:(ParticleWeighting%CloneInputDelay-1)))
     ALLOCATE(ClonedParticles(1:ParticleWeighting%CloneVecLength,0:(ParticleWeighting%CloneInputDelay-1)))
     ParticleWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) ParticleWeighting%CloneDelayDiff = 1
   CASE(2)
-    IF(ParticleWeighting%CloneInputDelay.LT.2) THEN
-      CALL Abort(__STAMP__,'ERROR in Particle Weighting: Clone delay should be greater than 1')
-    END IF
+    IF(ParticleWeighting%CloneInputDelay.LT.2) CALL CollectiveStop(__STAMP__,'ERROR in Particle Weighting: Clone delay should be greater than 1')
     ALLOCATE(ParticleWeighting%ClonePartNum(0:ParticleWeighting%CloneInputDelay))
     ALLOCATE(ClonedParticles(1:ParticleWeighting%CloneVecLength,0:ParticleWeighting%CloneInputDelay))
     ParticleWeighting%ClonePartNum = 0
     IF(.NOT.DoRestart) ParticleWeighting%CloneDelayDiff = 0
   CASE DEFAULT
-    CALL Abort(__STAMP__,'ERROR in Particle Weighting: The selected cloning mode is not available! Choose between 1 and 2.'//&
-        ' CloneMode=1: Delayed insertion of clones; CloneMode=2: Delayed randomized insertion of clones')
+    CALL CollectiveStop(__STAMP__,'ERROR in Particle Weighting: The selected cloning mode is not available! Choose between 0, 1 and 2.'//&
+        ' 0: Instant clone creating after tracking, 1: Sequential, delayed insertion, 2: Delayed randomized insertion')
 END SELECT
+
+! Initialize particle weighting and clone routine: delayed or instant
+CALL InitAdjustParticleWeight()
 
 END SUBROUTINE InitParticleCloning
 

@@ -6,10 +6,10 @@
 
 ### Code
 
-* [ ] Make sure the [Style Guide](https://piclas.readthedocs.io/en/latest/developerguide/styleguide.html) is respected and the [Best Practices](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html) guide is followed
+* [ ] Make sure the [Style Guide](https://piclas.readthedocs.io/en/latest/developerguide/styleguide.html) is respected and the [MPI rules](https://piclas.readthedocs.io/en/latest/developerguide/mpi.html#general-rules) are followed
   * [ ] Check if newly introduced `CALL abort(...)` statements can be replaced with `CALL CollectiveStop(...)`, which can mostly be achieved during initialisation.
-    For details on using this function, see the [Developer Guide: CollectiveStop](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html#collectivestop) section.
-  * [ ] Are there new or changed shared memory windows (SHM)? Check if the [rules in the Developer Guide are being followed](https://piclas.readthedocs.io/en/latest/developerguide/bestpractices.html#shared-memory-windows).
+    For details on using this function, see the [Developer Guide: CollectiveStop](https://piclas.readthedocs.io/en/latest/developerguide/code_extension.html#collectivestop) section.
+  * [ ] Are there new or changed shared memory windows (SHM)? Check if the [rules in the Developer Guide are being followed](https://piclas.readthedocs.io/en/latest/developerguide/mpi.html#shared-memory-windows).
 * Maximum number of 10 compiler warnings
   * [ ] Check with specific compiler settings for the feature branch via `./tools/test_max_warnings.sh`. Number of found warnings:
   * [ ] Run [pipeline](https://piclas.boltzplatz.eu/piclas/piclas/-/pipelines/new) for the feature branch and set the inputs `DO_CHECKIN` and `CHECK_WARNINGS` to `true` for automatic compiler warning tests for other compiler flag combinations

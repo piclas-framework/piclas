@@ -1,13 +1,13 @@
+import collections
+import glob
 import json
 import os
-import collections
+import readline
+import select
 import shutil
+import subprocess
 import sys
 from timeit import default_timer as timer
-import subprocess
-import select
-import readline
-import glob
 
 # Bind raw_input to input in Python 2
 try:
@@ -64,7 +64,7 @@ def yellow(text) :
     return myColors.yellow+text+myColors.endc
 
 
-class ExternalCommand() :
+class ExternalCommand :
     def __init__(self) :
         self.stdout = []
         self.stderr = []
@@ -91,7 +91,7 @@ class ExternalCommand() :
         # check that only cmd arguments of type 'list' are supplied to this function
         if type(cmd) != type([]) :
             print(("cmd must be of type 'list'\ncmd=")+str(cmd)+(" and type(cmd)="),type(cmd))
-            exit(1)
+            sys.exit(1)
 
         sys.stdout.flush() # flush output here, because the subprocess will force buffering until it is finished
         #log = logging.getLogger('logger')
@@ -126,7 +126,7 @@ class ExternalCommand() :
                 # Read up to a 1 KB chunk of data
                 out_s = os.read(pipeOut_r, 1024)
                 if not isinstance(out_s, str):
-                    out_s = out_s.decode("utf-8")
+                    out_s = out_s.decode("utf-8", errors="ignore")   # silently drops bad bytes
                 bufOut = bufOut + out_s
                 tmp = bufOut.split('\n')
                 for line in tmp[:-1] :
@@ -178,9 +178,9 @@ class ExternalCommand() :
             # Note that f-strings in print statements, e.g. print(f"...."), only work in python 3
             # print(f"\033[F\033[{ncols}G "+str(self.result)+" [%.2f sec]" % self.walltime)
             ncols = len(string_info)+1
-            print("\033[F\033[%sG " % ncols +str(self.result)+" [%.2f sec]" % self.walltime)
+            print(f"\033[F\033[{ncols}G " +str(self.result)+f" [{self.walltime:.2f} sec]")
         else :
-            print(self.result+" [%.2f sec]" % self.walltime)
+            print(self.result+f" [{self.walltime:.2f} sec]")
 
         return self.return_code
 
@@ -193,7 +193,7 @@ def AddBool(Config, Key, Bool) :
         Config[Key] = False
 
 
-class SetupConfiguration():
+class SetupConfiguration:
     def __init__(self):
         self.config = collections.OrderedDict()
         self.ReadConfig()
@@ -212,7 +212,7 @@ class SetupConfiguration():
         # --- ONLY FOR DEBUGGING ---
         if config_debug_info and self.successful :
             print()
-            print("DEBUG:  Reading form %s" % config_filename,)
+            print(f"DEBUG:  Reading form {config_filename}",)
             for key, value in self.config.items() :
                 print("DEBUG:  "+key+" = "+str(value))
             print()
@@ -240,7 +240,7 @@ class SetupConfiguration():
                 config = json.load(json_data_file)
 
             print()
-            print("DEBUG:  Saving to %s" % config_filename,)
+            print(f"DEBUG:  Saving to {config_filename}",)
             for key, value in config.items() :
                 print("DEBUG:  "+key+" = "+str(value))
             print()
@@ -253,9 +253,8 @@ def convert(mode,x):
         y = float(x)
     if mode == "int":
         y = int(x)
-    if mode == "str":
-        if x != '':
-            y = str(x)
+    if mode == "str" and x != '':
+        y = str(x)
     return y
 
 
@@ -283,7 +282,7 @@ def isOnlyDir(text):
 
 
 
-class tabCompleter(object):
+class tabCompleter:
     """
     A tab completer that can either complete from
     the filesystem or from a list.
@@ -297,7 +296,7 @@ class tabCompleter(object):
         This is the tab completer for systems paths.
         Only tested on *nix systems
         """
-        line = readline.get_line_buffer().split()
+        readline.get_line_buffer().split()
 
         # replace ~ with the user's home dir. See https://docs.python.org/2/library/os.path.html
         if '~' in text:
@@ -306,9 +305,8 @@ class tabCompleter(object):
         # autocomplete directories with having a trailing slash
         # but don't do this in the '/' directory
         # and also skip if there are multiple folders that begin with text
-        if text != '/':
-            if isOnlyDir(text):
-                text += '/'
+        if text != '/' and isOnlyDir(text):
+            text += '/'
 
         return [x for x in glob.glob(text + '*')][state]
 
@@ -379,60 +377,51 @@ def getInput(Configuration,question,variable,error,typeOfInput,sanityCheck=None)
         if Configuration.config.get(variable, None) is None:# or Configuration.config.get(variable, None) == '':
             userInput = input(question)
 
-            if userInput == '' and variable is not "pyhope":
+            if userInput == '' and variable != "pyhope":
                 print(red(error))
                 continue
         else:
-            userInput = input(question+green("Auto-select [%s]: " % str(Configuration.config[variable])))
+            userInput = input(question+green(f"Auto-select [{Configuration.config[variable]!s}]: "))
 
         # Try to convert the new input or changed variable
-        if userInput is not '':
+        if userInput != '':
             try:
                 Configuration.config[variable] = convert(typeOfInput,userInput)
-            except Exception as e:
+            except Exception:
                 print(red(error))
                 continue
 
         # Sanity check
         if sanityCheck is not None:
-            if sanityCheck == 0:
-                if Configuration.config["r1"] <= 0.0:
-                    print(red("r1 cannot be <= 0!"))
-                    continue
-            if sanityCheck == 1:
-                if Configuration.config["r1"] >= Configuration.config["r2"] :
-                    print(red("r1 cannot be larger than r2! r1=%s, r2=%s" % (Configuration.config["r1"],Configuration.config["r2"])))
-                    Configuration.config["r2"] = backup
-                    continue
-            if sanityCheck == 2:
-                if Configuration.config["mode"] not in (1,2,3):
-                    print(red("Error: choose mesh 1, 2 or 3!"))
-                    continue
-            if sanityCheck == 3:
-                if Configuration.config["periodic"] not in (0,1):
-                    print(red("Error: Choose 0 (periodic) or  1 (non-periodic)!"))
-                    continue
-            if sanityCheck == 4:
-                if Configuration.config["z-extent"] not in (0,1):
-                    print(red("Error: Choose 0 (from -lz to +lz) or  1 (from 0 to +lz)!"))
-                    Configuration.config["z-extent"] = None
-                    continue
-            if sanityCheck == 5:
-                if Configuration.config["lz"] <= 0.0:
-                    print(red("The length of the domain in z cannot be <= 0!"))
-                    continue
-            if sanityCheck == 6:
-                if Configuration.config["iz"] <= 0:
-                    print(red("Supply a number > 0!"))
-                    continue
-            if sanityCheck == 7:
-                if Configuration.config["ir"] <= 0:
-                    print(red("Supply a number > 0!"))
-                    continue
-            if sanityCheck == 8:
-                if Configuration.config["ik"] <= 0:
-                    print(red("Supply a number > 0!"))
-                    continue
+            if sanityCheck == 0 and Configuration.config["r1"] <= 0.0:
+                print(red("r1 cannot be <= 0!"))
+                continue
+            if sanityCheck == 1 and Configuration.config["r1"] >= Configuration.config["r2"]:
+                print(red("r1 cannot be larger than r2! r1={}, r2={}".format(Configuration.config["r1"],Configuration.config["r2"])))
+                Configuration.config["r2"] = backup
+                continue
+            if sanityCheck == 2 and Configuration.config["mode"] not in (1,2,3):
+                print(red("Error: choose mesh 1, 2 or 3!"))
+                continue
+            if sanityCheck == 3 and Configuration.config["periodic"] not in (0,1):
+                print(red("Error: Choose 0 (periodic) or  1 (non-periodic)!"))
+                continue
+            if sanityCheck == 4 and Configuration.config["z-extent"] not in (0,1):
+                print(red("Error: Choose 0 (from -lz to +lz) or  1 (from 0 to +lz)!"))
+                Configuration.config["z-extent"] = None
+                continue
+            if sanityCheck == 5 and Configuration.config["lz"] <= 0.0:
+                print(red("The length of the domain in z cannot be <= 0!"))
+                continue
+            if sanityCheck == 6 and Configuration.config["iz"] <= 0:
+                print(red("Supply a number > 0!"))
+                continue
+            if sanityCheck == 7 and Configuration.config["ir"] <= 0:
+                print(red("Supply a number > 0!"))
+                continue
+            if sanityCheck == 8 and Configuration.config["ik"] <= 0:
+                print(red("Supply a number > 0!"))
+                continue
 
         done = True
     return Configuration
@@ -481,8 +470,8 @@ elif Configuration.config["mode"] == 3:
     symmetryBC2 = 0
     mesh="full cylinder (360 degree)"
 else:
-    print(red("\nError: choose mesh 1, 2 or 3! mode=%s" % Configuration.config["mode"]))
-    exit(1)
+    print(red("\nError: choose mesh 1, 2 or 3! mode={}".format(Configuration.config["mode"])))
+    sys.exit(1)
 
 # Save to file
 Configuration.SaveConfig()
@@ -499,15 +488,15 @@ Configuration.SaveConfig()
 # ==================================================================================
 filename = "hopr.ini"
 #print("Creating %s" % filename)
-f = open("%s" % filename, 'w')
+f = open(f"{filename}", 'w')
 
-f.write(r'DEFVAR=(INT):   i01 = %s ! Number of elements in azimuthal direction i.e., the number of elements per 45° of the cylinder.\n                           ! The total number will result in 2*i01 (quarter cylinder), 4*i01 (half cylinder) or 8*i01 (full cylinder) for the total number of elements in azimuthal direction' % Configuration.config["ik"] + '\n')
-f.write(r'DEFVAR=(INT):   ir1 = %s ! Number of elements in radial direction' % Configuration.config["ir"] + '\n')
-f.write(r'DEFVAR=(INT):   iz  = %s ! Number of elements in z-direction' % Configuration.config["iz"] + '\n\n')
+f.write(r'DEFVAR=(INT):   i01 = {} ! Number of elements in azimuthal direction i.e., the number of elements per 45° of the cylinder.\n                           ! The total number will result in 2*i01 (quarter cylinder), 4*i01 (half cylinder) or 8*i01 (full cylinder) for the total number of elements in azimuthal direction'.format(Configuration.config["ik"]) + '\n')
+f.write(r'DEFVAR=(INT):   ir1 = {} ! Number of elements in radial direction'.format(Configuration.config["ir"]) + '\n')
+f.write(r'DEFVAR=(INT):   iz  = {} ! Number of elements in z-direction'.format(Configuration.config["iz"]) + '\n\n')
 
-f.write(r'DEFVAR=(REAL):   r01 = %s ! middle square dim' % r01 + '\n')
-f.write(r'DEFVAR=(REAL):   r02 = %s ! middle square dim' % r02 + '\n')
-f.write(r'DEFVAR=(REAL):   s0  = %s ! middle square dim' % s0 + '\n\n')
+f.write(rf'DEFVAR=(REAL):   r01 = {r01} ! middle square dim' + '\n')
+f.write(rf'DEFVAR=(REAL):   r02 = {r02} ! middle square dim' + '\n')
+f.write(rf'DEFVAR=(REAL):   s0  = {s0} ! middle square dim' + '\n\n')
 
 #         if Configuration.config["z-extent"] == 0:
 #             # +/- lz
@@ -520,8 +509,8 @@ f.write(r'DEFVAR=(REAL):   s0  = %s ! middle square dim' % s0 + '\n\n')
 
 print(Configuration.config["lz"]/2.0)
 
-f.write(r'DEFVAR=(REAL):   lz = %s    ! half length of domain in z' % str(Configuration.config["lz"]/2.0) + '\n')
-f.write(r'DEFVAR=(REAL):   lp = %s    ! full length of domain in z (used for periodic BC)' % str(Configuration.config["lz"]) + '\n')
+f.write(r'DEFVAR=(REAL):   lz = {}    ! half length of domain in z'.format(str(Configuration.config["lz"]/2.0)) + '\n')
+f.write(r'DEFVAR=(REAL):   lp = {}    ! full length of domain in z (used for periodic BC)'.format(str(Configuration.config["lz"])) + '\n')
 
 
 f.write(r"""
@@ -531,7 +520,8 @@ DEFVAR=(REAL):   f1 = 1.0    ! stretching factor in radial direction (a larger v
 ! OUTPUT
 !================================================================================================================================= !
 ProjectName        = Cylinder3_Ngeo3
-Debugvisu          = T                          ! Visualize mesh and boundary conditions (tecplot ascii)
+DebugVisu          = F
+DebugMesh          = T
 checkElemJacobians = T
 
 !================================================================================================================================= !
@@ -539,7 +529,7 @@ checkElemJacobians = T
 !================================================================================================================================= !
 Mode   = 1                           ! Mode for Cartesian boxes
 """)
-f.write(r'nZones = %s                           ! number of boxes' % NbrOfZones + '\n')
+f.write(rf'nZones = {NbrOfZones}                           ! number of boxes' + '\n')
 f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 
 ! ---------------------------------------------------------------
@@ -559,7 +549,7 @@ Corner       =(/-r01 , 0.  ,-lz    ,,   -r02 , 0.  ,-lz   ,,   -r02 , r02 , -lz 
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 2:
-    f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(rf'BCIndex      =(/1  , {symmetryBC}  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' + '\n')
     f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
@@ -569,7 +559,7 @@ Corner       =(/0.  , r01 , -lz,,   -r01 , r01 , -lz   ,,   -r02 , r02 , -lz   ,
 nElems       =(/i01,ir1,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 2:
-    f.write(r'BCIndex      =(/1  , 3  , 0  , 5  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC2 + '\n')
+    f.write(rf'BCIndex      =(/1  , 3  , 0  , 5  , {symmetryBC2}  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' + '\n')
     f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/1.,f1,1./)                     ! stretching
@@ -592,7 +582,7 @@ f.write(r"""
 Corner       =(/r01 , 0.  , -lz   ,,   r02 , 0.  , -lz   ,,   r02 , r02 , -lz   ,,   r01 , r01 , -lz  ,,   r01 , 0.  , lz   ,,   r02 , 0.  , lz   ,,   r02 , r02 , lz   ,,   r01 , r01 , lz /)
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
-f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+f.write(rf'BCIndex      =(/1  , {symmetryBC}  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' + '\n')
 f.write(r"""
 !            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
@@ -602,7 +592,7 @@ factor       =(/f1,1.,1./)                     ! stretching
 Corner       =(/0.  , r01 , -lz   ,,   r01 , r01 , -lz   ,,   r02 , r02 , -lz   ,,   0.  , r02 , -lz   ,,   0.  , r01 , lz   ,,   r01 , r01 , lz   ,,   r02 , r02 , lz   ,,   0.  , r02 , lz /)
 nElems       =(/i01,ir1,iz/)                   ! number of elements in each direction
 """)
-f.write(r'BCIndex      =(/1  , 3  , 0  , 4  , %s  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC2 + '\n')
+f.write(rf'BCIndex      =(/1  , 3  , 0  , 4  , {symmetryBC2}  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' + '\n')
 f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/1.,f1,1./)                     ! stretching
@@ -628,7 +618,7 @@ Corner       =(/-r01 , 0.  , -lz   ,,   -r02 , 0.  , -lz  ,,   -r02 , -r02 , -lz
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 4:
-    f.write(r'BCIndex      =(/1  , %s  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(rf'BCIndex      =(/1  , {symmetryBC}  , 5  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' + '\n')
     f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
@@ -648,7 +638,7 @@ Corner       =(/r01 , 0.  , -lz ,,   r02 , 0.  , -lz   ,,   r02 , -r02 , -lz   ,
 nElems       =(/ir1,i01,iz/)                   ! number of elements in each direction
 """)
 if NbrOfZones > 4:
-    f.write(r'BCIndex      =(/1  , %s  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' % symmetryBC + '\n')
+    f.write(rf'BCIndex      =(/1  , {symmetryBC}  , 4  , 0  , 3  , 2/)   ! Indices of Boundary Conditions for  six Boundary Faces (z- , y- , x+ , y+ , x- , z+)' + '\n')
     f.write(r"""!            =(/z- , y- , x+ , y+ , x- , z+/)  ! Indices of Boundary Conditions
 elemtype     =108                              ! element type (108: Hexahedral)
 factor       =(/f1,1.,1./)                     ! stretching
@@ -766,7 +756,7 @@ f.write(r"""
 !================================================================================================================================= !
 ! MESH POST DEFORM
 !================================================================================================================================= !
-MeshPostDeform=1                            ! deforms [-1,1]^2 to a cylinder with radius Postdeform_R0
+MeshPostDeform=cylinder                            ! deforms [-1,1]^2 to a cylinder with radius Postdeform_R0
 PostDeform_R0=s0                           ! here domain is [-4,4]^2 mapped to a cylinder with radius 0.25*4 = 1
 
 """)
@@ -774,27 +764,29 @@ PostDeform_R0=s0                           ! here domain is [-4,4]^2 mapped to a
 f.close()
 
 print( )
-print("Created the following %s file in this directory:" % filename)
-print("    cylinder radius: %s" % Configuration.config["r1"])
-print("      domain radius: %s" % Configuration.config["r2"])
-print("          mesh type: %s" % mesh)
+print(f"Created the following {filename} file in this directory:")
+print("    cylinder radius: {}".format(Configuration.config["r1"]))
+print("      domain radius: {}".format(Configuration.config["r2"]))
+print(f"          mesh type: {mesh}")
 print( )
 
 
 # Run pyhope
 if Configuration.config.get("pyhope", None) is not None :
-    if os.path.exists(Configuration.config["pyhope"]):
+    if os.path.exists(Configuration.config["pyhope"]) or shutil.which('pyhope'):
         input("Hit [enter] to run pyhope (or [Ctrl+c] to abort): ")
         cmd=[Configuration.config["pyhope"], 'hopr.ini']
         try:
             Executable.execute_cmd(cmd, cwd)
         except Exception as e:
             print()
-            print(red("Failed to run the executable [%s]" % Configuration.config["pyhope"]))
-            print(red("You can try and run the command by hand in this directory via: %s %s" % (Configuration.config["pyhope"], 'hopr.ini')))
+            print(e)
+            print(red("Failed to run the executable [{}]".format(Configuration.config["pyhope"])))
+            print(red("You can try and run the command by hand in this directory via: {} {}".format(Configuration.config["pyhope"], 'hopr.ini')))
+            sys.exit(1)
     else:
-        print(red("Error: pyhope executable not found under [%s]" % Configuration.config["pyhope"]))
-        exit(1)
+        print(red("Error: pyhope executable not found under [{}]".format(Configuration.config["pyhope"])))
+        sys.exit(1)
 else:
     print("Done")
 

@@ -21,10 +21,13 @@ IMPLICIT NONE
 PRIVATE
 !-----------------------------------------------------------------------------------------------------------------------------------
 #if USE_HDG
-PUBLIC :: InitFPC
-PUBLIC :: InitEPC
+PUBLIC :: InitFPC  ! Floating Potential Condition Initialization
+PUBLIC :: InitEPC  ! Electric Potential Condition (simple resistor model) Initialization
 #if defined(PARTICLES)
-PUBLIC :: InitBV
+PUBLIC :: InitBV   ! Bias Voltage Initialization
+#if USE_PETSC
+PUBLIC :: InitCMBC ! Circuit Model (simple capacitor and AC power supply) Initialization
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 !===================================================================================================================================
@@ -66,6 +69,7 @@ USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
 #if USE_MPI
 USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
 #endif /*USE_MPI*/
+USE mpi_f08
 USE MOD_Equation_Vars      ,ONLY: IniExactFunc
 USE MOD_Particle_Mesh_Vars ,ONLY: GEO
 USE MOD_HDG_Readin         ,ONLY: ReadFPCDataFromH5
@@ -232,64 +236,64 @@ IF(.NOT.(ALL(FPC%BConProc)))THEN
   ! Check whether this information has already been created before to skip the costly search below
   !CALL ReadFPCCommunicationFromH5()
 
-    ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
-    ! element that has at least one side, which is an FPC
-    ! 4.1.) Each processor loops over all of his elements
-    iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
+  ! Particles might impact the FPC on another proc/node. Therefore check if a particle can travel from a local element to an
+  ! element that has at least one side, which is an FPC
+  ! 4.1.) Each processor loops over all of his elements
+  iElemLoop: DO iElem = 1+offsetElem, nElems+offsetElem
 
-      iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
-                            SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
-                            SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
-      iElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
-                                  BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
-                                  BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+    iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+    iElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
 
-      ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
-      ! Loop ALL compute-node elements (use global element index)
-      iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
-        iGlobElem = GetGlobalElemID(iCNElem)
+    ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+    ! Loop ALL compute-node elements (use global element index)
+    iCNElemLoop: DO iCNElem = 1,nComputeNodeTotalElems
+      iGlobElem = GetGlobalElemID(iCNElem)
 
-        ! Skip my own elements as they have already been tested when the local sides are checked
-        IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
+      ! Skip my own elements as they have already been tested when the local sides are checked
+      IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoop
 
-        ! Check if one of the six sides of the compute-node element is a FPC
-        ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
-        DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-          ! Get BC index of the global side index
-          BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
-          ! Only check BC sides with BC index > 0
-          IF(BCIndex.GT.0)THEN
-            ! Get boundary type
-            BCType = BoundaryType(BCIndex,BC_TYPE)
-            ! Check if FPC has been found
-            IF(BCType.EQ.BCTypeFPC)THEN
+      ! Check if one of the six sides of the compute-node element is a FPC
+      ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+        ! Get BC index of the global side index
+        BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+        ! Only check BC sides with BC index > 0
+        IF(BCIndex.GT.0)THEN
+          ! Get boundary type
+          BCType = BoundaryType(BCIndex,BC_TYPE)
+          ! Check if FPC has been found
+          IF(BCType.EQ.BCTypeFPC)THEN
 
-              ! Check if the BC can be reached
-              iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
-                                        SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
-                                        SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
-              iGlobElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
-                                              BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
-                                              BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+            ! Check if the BC can be reached
+            iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+            iGlobElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
 
-              ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+            ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
             ! TODO: what about periodic vectors?
-              IF (VECNORM3D( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
-                BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
-                IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
-                iUniqueFPCBC = FPC%Group(BCState,2)
-                ! Flag the i-th FPC
+            IF (VECNORM3D( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+              BCState = BoundaryType(BCIndex,BC_STATE) ! BCState corresponds to iFPC
+              IF(BCState.LT.1) CALL abort(__STAMP__,'BCState cannot be <1',IntInfoOpt=BCState)
+              iUniqueFPCBC = FPC%Group(BCState,2)
+              ! Flag the i-th FPC
               FPC%BConProc(iUniqueFPCBC) = .TRUE.
-                ! Check if all FPCs have been found -> exit complete loop
-              IF(ALL(FPC%BConProc)) EXIT iElemLoop
-                ! Go to next element
-                CYCLE iCNElemLoop
-              END IF ! VECNORM3D( ...
-            END IF ! BCType.EQ.BCTypeFPC
-          END IF ! BCIndex.GT.0
-        END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
-      END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
-    END DO iElemLoop ! iElem = 1, nElems
+              ! Check if all FPCs have been found -> exit complete loop
+            IF(ALL(FPC%BConProc)) EXIT iElemLoop
+              ! Go to next element
+              CYCLE iCNElemLoop
+            END IF ! VECNORM3D( ...
+          END IF ! BCType.EQ.BCTypeFPC
+        END IF ! BCIndex.GT.0
+      END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+    END DO iCNElemLoop ! iCNElem = 1,nComputeNodeTotalElems
+  END DO iElemLoop ! iElem = 1, nElems
 END IF ! .NOT.(ALL(FPC%BConProc))
 #endif /*defined(PARTICLES)*/
 
@@ -677,7 +681,7 @@ USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcBoundaryParticleOutput,BPO
 USE MOD_LoadBalance_Vars          ,ONLY: PerformLoadBalance
 #endif /*USE_LOADBALANCE*/
 #if USE_MPI
-USE MOD_Globals                   ,ONLY: IERROR,MPI_COMM_NULL,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals                   ,ONLY: IERROR,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
 USE MOD_Mesh_Vars                 ,ONLY: nBCSides,BC
 #endif /*USE_MPI*/
 USE MOD_HDG_Readin                ,ONLY: ReadBVDataFromH5
@@ -800,6 +804,250 @@ END IF ! BConProc
 CALL ReadBVDataFromH5()
 
 END SUBROUTINE InitBV
+
+
+#if USE_PETSC
+!===================================================================================================================================
+!> Create containers and communicators for each circuit model boundary condition where impacting charges (current density flux)
+!> and a connected capacitor with AC power supply lead to a surface charge build-up on the electrode (bias voltage).
+!>
+!> 1.) Activate circuit model and check number of boundaries
+!> 2.) Get curcuit model parameters
+!> 3.) Check if actual curcuit model BC is on current process (or MPI root)
+!> 4.) Create MPI sub-communicators
+!===================================================================================================================================
+SUBROUTINE InitCMBC()
+! MODULES
+USE MOD_Globals            ,ONLY: CollectiveStop,UNIT_StdOut,DisplayMessageAndTime
+USE MOD_ReadInTools        ,ONLY: GETLOGICAL,GETREAL,GETINT,GETINTARRAY
+USE MOD_Mesh_Vars          ,ONLY: nBCs,BoundaryType
+USE MOD_HDG_Vars           ,ONLY: UseCircuitModel,CMBC
+USE MOD_Analyze_Vars       ,ONLY: DoFieldAnalyze
+USE MOD_HDG_Readin         ,ONLY: ReadCMBCDataFromH5
+#if USE_LOADBALANCE
+USE MOD_LoadBalance_Vars   ,ONLY: PerformLoadBalance
+#endif /*USE_LOADBALANCE*/
+#if USE_MPI
+USE mpi_f08
+USE MOD_Globals            ,ONLY: MPI_COMM_NULL,MPI_INTEGER,MPI_WTIME,MPI_SUM,abort
+USE MOD_Mesh_Vars          ,ONLY: nBCSides,BC
+USE MOD_Globals            ,ONLY: IERROR,MPI_DOUBLE_PRECISION,MPI_COMM_PICLAS,MPI_INFO_NULL,MPI_UNDEFINED,MPIRoot
+USE MOD_Globals            ,ONLY: VECNORM3D
+USE MOD_Mesh_Vars          ,ONLY: nBCSides
+USE MOD_Mesh_Tools         ,ONLY: GetGlobalElemID
+USE MOD_Globals            ,ONLY: ElementOnProc
+USE MOD_Particle_Mesh_Vars ,ONLY: ElemInfo_Shared,BoundsOfElem_Shared,SideInfo_Shared
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeTotalElems
+USE MOD_Mesh_Vars          ,ONLY: nElems,offsetElem
+USE MOD_Particle_MPI_Vars  ,ONLY: halo_eps
+USE MOD_MPI_Shared_Vars    ,ONLY: nComputeNodeProcessors,nProcessors_Global
+#endif /*USE_MPI*/
+IMPLICIT NONE
+!----------------------------------------------------------------------------------------------------------------------------------!
+! INPUT / OUTPUT VARIABLES
+!----------------------------------------------------------------------------------------------------------------------------------!
+! LOCAL VARIABLES
+INTEGER, PARAMETER :: BCTypeCMBC(1:1) = (/40/) ! BCType which allows bias voltage control
+!                                              ! 40: AC frequency and capacitor with constant capacitance C
+INTEGER            :: BCType,CMBCBoundaries,BCState,iBC
+#if USE_MPI
+INTEGER             :: iElem,iCNElem
+REAL                :: iElemCenter(1:3),iGlobElemCenter(1:3)
+REAL                :: iElemRadius,iGlobElemRadius
+INTEGER             :: iGlobElem,BCIndex,iSide
+INTEGER            :: color,SideID,WithSides,nprocswithsides
+LOGICAL            :: BConProc
+#endif /*USE_MPI*/
+REAL               :: StartT,EndT
+!===================================================================================================================================
+UseCircuitModel = .FALSE. ! Default is always false
+
+! 1.) Get global number of CMBC boundaries in [1:nBCs]
+CMBCBoundaries = 0
+DO iBC=1,nBCs
+  BCType = BoundaryType(iBC,BC_TYPE)
+  IF(.NOT.ANY(BCType.EQ.BCTypeCMBC)) CYCLE ! Skip other boundaries
+  BCState = BoundaryType(iBC,BC_STATE) ! State is RefState for applying the AC frequency and amplitude to the BC
+  IF(BCState.LE.0) CALL CollectiveStop(__STAMP__,' BCState for CMBC must be >0! BCState=',IntInfo=BCState)
+  CMBC%RefState = BCState ! BCState corresponds to RefState
+  CMBCBoundaries = CMBCBoundaries + 1 ! Count the number of boundaries
+END DO
+
+! Return if no CMBC are found
+IF(CMBCBoundaries.EQ.0) RETURN ! Already determined in HDG initialization
+
+! Activate switch
+UseCircuitModel = .TRUE.
+
+! Check the number of boundaries that allow bias voltage: Must be exactly 1
+IF(CMBCBoundaries.NE.1) CALL CollectiveStop(__STAMP__,' Cicuit model requires exactly one boundary with this feature!')
+
+GETTIME(StartT)
+LBWRITE(UNIT_stdOut,'(A)')' | INIT CMBC ...'
+
+! Automatically activate surface model analyze flag
+DoFieldAnalyze = .TRUE.
+
+!> 2.) Get bias voltage parameters
+CMBC%Capacitance = GETREAL('CMBC-Capacitance')
+IF(CMBC%Capacitance.LT.0) CALL CollectiveStop(__STAMP__,'CMBC-Capacitance must be greater than zero.')
+#if USE_LOADBALANCE
+! Do not nullify during load balance in order to keep the old value on the MPIRoot
+IF((.NOT.PerformLoadBalance).OR.(.NOT.MPIRoot))THEN
+#endif /*USE_LOADBALANCE*/
+  ! Initialize the containers
+  CMBC%Voltage = 0.
+  CMBC%Charge = 0.
+#if USE_LOADBALANCE
+END IF
+#endif /*USE_LOADBALANCE*/
+
+#if USE_MPI
+WithSides = 0 ! For checking if the process is directly connected to a BC
+!> 3.) Check if actual bias voltage BC is on current process (or MPI root)
+BConProc = .FALSE.
+! Check if single-node or multi-node run
+IF (nComputeNodeProcessors.EQ.nProcessors_Global) THEN
+  ! For single-node execution, simply add all processes to the communicators and do not bother measuring the distance as the gain
+  ! in performance is negligible here
+  BConProc = .TRUE.
+ELSE
+  ! Check local sides
+  DO SideID=1,nBCSides
+    iBC    = BC(SideID)
+    BCType = BoundaryType(iBC,BC_TYPE)
+    IF(.NOT.ANY(BCType.EQ.BCTypeCMBC)) CYCLE ! Skip other boundaries
+    BConProc = .TRUE.
+    WithSides = 1
+  END DO ! SideID=1,nBCSides
+END IF ! MPIRoot
+
+! 4.) Check if CMBC can be reached with a particle (also check HALO region)
+IF(.NOT.BConProc)THEN
+
+  ! Particles might impact the CMBC on another proc/node. Therefore check if a particle can travel from a local element to an
+  ! element that has at least one side, which is an CMBC
+  ! 4.1.) Each processor loops over all of his elements
+  iElemLoopCMBC: DO iElem = 1+offsetElem, nElems+offsetElem
+
+    iElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,2,iElem)),&
+                          SUM(BoundsOfElem_Shared(1:2,3,iElem)) /) / 2.
+    iElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iElem)-BoundsOfElem_Shared(1,1,iElem),&
+                                BoundsOfElem_Shared(2,2,iElem)-BoundsOfElem_Shared(1,2,iElem),&
+                                BoundsOfElem_Shared(2,3,iElem)-BoundsOfElem_Shared(1,3,iElem) /) / 2.)
+
+    ! 4.2.) Loop over all compute-node elements (every processor loops over all of these elements)
+    ! Loop ALL compute-node elements (use global element index)
+    iCNElemLoopCMBC: DO iCNElem = 1,nComputeNodeTotalElems
+    ! Get glocal element index
+      iGlobElem = GetGlobalElemID(iCNElem)
+
+      ! Skip my own elements as they have already been tested when the local sides are checked
+      IF(ElementOnProc(iGlobElem)) CYCLE iCNElemLoopCMBC
+
+      ! Check if one of the six sides of the compute-node element is a CMBC
+      ! Note that iSide is in the range of 1:nNonUniqueGlobalSides
+      DO iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+        ! Get BC index of the global side index
+        BCIndex = SideInfo_Shared(SIDE_BCID,iSide)
+        ! Only check BC sides with BC index > 0
+        IF(BCIndex.GT.0)THEN
+          ! Get boundary type
+          BCType = BoundaryType(BCIndex,BC_TYPE)
+          ! Check if CMBC has been found
+          IF(ANY(BCType.EQ.BCTypeCMBC))THEN
+
+            ! Check if the BC can be reached
+            iGlobElemCenter(1:3) = (/ SUM(BoundsOfElem_Shared(1:2,1,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,2,iGlobElem)),&
+                                      SUM(BoundsOfElem_Shared(1:2,3,iGlobElem)) /) / 2.
+            iGlobElemRadius = VECNORM3D ((/ BoundsOfElem_Shared(2,1,iGlobElem)-BoundsOfElem_Shared(1,1,iGlobElem),&
+                                            BoundsOfElem_Shared(2,2,iGlobElem)-BoundsOfElem_Shared(1,2,iGlobElem),&
+                                            BoundsOfElem_Shared(2,3,iGlobElem)-BoundsOfElem_Shared(1,3,iGlobElem) /) / 2.)
+
+            ! check if compute-node element "iGlobElem" is within halo_eps of processor-local element "iElem"
+            ! TODO: what about periodic vectors?
+            IF (VECNORM3D( iElemCenter(1:3) - iGlobElemCenter(1:3) ) .LE. ( halo_eps + iElemRadius + iGlobElemRadius ) )THEN
+              ! Activate flag to be part of the communicator
+              BConProc = .TRUE.
+              ! As soon as the first match is found, the loop can be stopped
+              EXIT iElemLoopCMBC
+            END IF ! VECNORM3D( ...
+          END IF ! BCType.EQ.BCTypeCMBC
+        END IF ! BCIndex.GT.0
+      END DO ! iSide = ElemInfo_Shared(ELEM_FIRSTSIDEIND,iGlobElem)+1,ElemInfo_Shared(ELEM_LASTSIDEIND,iGlobElem)
+    END DO iCNElemLoopCMBC ! iCNElem = 1,nComputeNodeTotalElems
+  END DO iElemLoopCMBC ! iElem = 1, nElems
+END IF ! .NOT.BConProc
+
+! Storing the CMBC info requires that the MPIRoot also takes part in the search even though it is not required as the MPIRoot is
+! always part of the communicator anyway as the MPIRoot writes the CMBC charge/potential information to the .csv file.
+! The MPIRoot is part of all communicators
+IF(MPIRoot) BConProc = .TRUE.
+
+! 4.) Create MPI sub-communicators
+! Create new communicator
+color = MERGE(CMBCBoundaries, MPI_UNDEFINED, BConProc)
+
+! Set communicator id
+CMBC%COMM%ID = CMBCBoundaries
+
+! Create new emission communicator for electric potential boundary condition communication. Pass MPI_INFO_NULL as rank to follow the original ordering
+CALL MPI_COMM_SPLIT(MPI_COMM_PICLAS, color, 0, CMBC%COMM%UNICATOR, iError)
+
+! Find my rank on the shared communicator, comm size and process name
+IF(BConProc)THEN
+  CALL MPI_COMM_RANK(CMBC%COMM%UNICATOR, CMBC%COMM%MyRank, iError)
+  CALL MPI_COMM_SIZE(CMBC%COMM%UNICATOR, CMBC%COMM%nProcs, iError)
+
+  ! Inform about size of emission communicator
+  IF (CMBC%COMM%MyRank.EQ.0) THEN
+#if USE_LOADBALANCE
+    IF(.NOT.PerformLoadBalance)&
+#endif /*USE_LOADBALANCE*/
+        WRITE(UNIT_StdOut,'(A,I0,A)') ' Circuit model (CMBC) communicator on ',CMBC%COMM%nProcs,' processes'
+  END IF
+END IF ! BConProc
+
+! Sanity check:
+! Get the number of procs that actually have a local BC side that is an CMBC (required for voltage output to .csv)
+! Procs might have zero CMBC sides but are in the group because 1.) MPIRoot or 2.) the CMBC is in the halo region
+! Because only the MPI root process writes the .csv data, the information regarding the voltage on each CMBC must be
+! communicated with this process even though it might not be connected to each CMBC boundary
+ASSOCIATE( COMM => CMBC%COMM%UNICATOR )
+  IF(COMM.NE.MPI_COMM_NULL)THEN
+    ! Check if the current processor is actually connected to the CMBC via a BC side
+    IF (WithSides.EQ.0) THEN
+      ! Check local sides
+      DO SideID=1,nBCSides
+        iBC    = BC(SideID)
+        BCType = BoundaryType(iBC,BC_TYPE)
+        IF(.NOT.ANY(BCType.EQ.BCTypeCMBC)) CYCLE ! Skip other boundaries
+        WithSides = 1
+      END DO ! SideID=1,nBCSides
+    END IF ! WithSides.EQ.0
+    ! Calculate the sum across the sub-communicator. Only the MPI root process needs this information
+    IF(MPIRoot)THEN
+      CALL MPI_REDUCE(WithSides, nProcsWithSides, 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, iError)
+      ! Sanity check
+      IF(nProcsWithSides.EQ.0) CALL abort(__STAMP__,'Found CMBC with no processors connected to it')
+    ELSE
+      CALL MPI_REDUCE(WithSides, 0              , 1 ,MPI_INTEGER, MPI_SUM, 0, COMM, IError)
+    END IF ! MPIRoot
+  END IF ! CMBC%COMM%UNICATOR.NE.MPI_COMM_NULL
+END ASSOCIATE
+#endif /*USE_MPI*/
+
+! When restarting, load the history data from the .h5 state file
+CALL ReadCMBCDataFromH5()
+
+GETTIME(EndT)
+LBWRITE(UNIT_stdOut,'(A)',ADVANCE='NO')' | INIT CMBC'
+CALL DisplayMessageAndTime(EndT-StartT, 'DONE!')
+
+END SUBROUTINE InitCMBC
+#endif /*USE_PETSC*/
 #endif /*defined(PARTICLES)*/
 #endif /*USE_HDG*/
 

@@ -19,10 +19,8 @@ Properties = dict(
   )
 
 def RequestData():
- import math
  import numpy
- from paraview.vtk.dataset_adapter import numpyTovtkDataArray
- # This script computes the particle distribution function. Missing: Selection of 
+ # This script computes the particle distribution function. Missing: Selection of
  # spacial coordinate and velocity
  deltaX=(xMax-xMin)/float(NumberOfSpaceBins)
  deltaV=(maxVelo-minVelo)/float(NumberOfVeloBins)
@@ -41,26 +39,26 @@ def RequestData():
  else:
     pdo.SetOrigin(0,0.0,0.)
  pdo.SetSpacing(deltaXplot,deltaVplot,1.)
- 
+
  # On ParaView 3.98, 4.0 and 4.1
  pdo.SetExtent(0,NumberOfSpaceBins,0,NumberOfVeloBins,0,1)
- 
+
  PDF = numpy.zeros((NumberOfSpaceBins, NumberOfVeloBins), dtype='float')
  # generate array
- # loop over all particles 
- for i in range(0, nParts):
+ # loop over all particles
+ for i in range(nParts):
    coord = pdi.GetPoint(i)
    pos   = coord[iDirect]
    velo  = pdi.GetPointData().GetArray("Velocity").GetValue(3*i + iVelocity)
    # check max value
    if(xMin>pos):
-     print " Position < xmin. iPart ", i
+     print(" Position < xmin. iPart ", i)
    if(xMax<pos):
-     print " Position > xmax. iPart  ", i
+     print(" Position > xmax. iPart  ", i)
    if(minVelo>velo):
-     print " Velocity < minVelo. iPart ", i
+     print(" Velocity < minVelo. iPart ", i)
    if(maxVelo<velo):
-     print " Velocity > maxVelo. iPart ", i
+     print(" Velocity > maxVelo. iPart ", i)
    # compute position in 2d-space pos-velo array
    ipos = int((pos-xMin)/deltaX)#+1
    ivelo= int((velo-minVelo)/deltaV)#+1
@@ -72,8 +70,8 @@ def RequestData():
  array.SetNumberOfTuples(ncells)
  pdo.GetCellData().AddArray(array)
  ipos=0
- for j in range(0,NumberOfVeloBins):
-    for i in range(0,NumberOfSpaceBins):
+ for j in range(NumberOfVeloBins):
+    for i in range(NumberOfSpaceBins):
      # caution: transpoesed index because of storage
      array.SetValue(ipos,PDF[i,j]/float(nParts))
      ipos=ipos+1

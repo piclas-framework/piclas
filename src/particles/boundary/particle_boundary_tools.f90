@@ -43,8 +43,7 @@ USE MOD_Particle_Vars
 USE MOD_Globals                   ,ONLY: abort,DOTPRODUCT
 USE MOD_DSMC_Vars                 ,ONLY: useDSMC,PartIntEn, SpecDSMC
 USE MOD_DSMC_Vars                 ,ONLY: CollisMode,DSMC
-USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact,SWIVarTimeStep
-USE MOD_part_tools                ,ONLY: GetParticleWeight
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState,CalcSurfaceImpact
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackInfo
 USE MOD_Particle_Boundary_Vars    ,ONLY: CalcTorque, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
 USE MOD_SurfaceModel_Analyze_Vars ,ONLY: CalcSurfOutputPerGroup
@@ -63,7 +62,7 @@ REAL,INTENT(IN),OPTIONAL           :: SurfaceNormal_opt(1:3),PartPosImpact_opt(1
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-REAL            :: ETrans, ETransAmbi, ERot, EVib, EElec, MomArray(1:3), MassIC, MPF, TorqueArray(1:3)
+REAL            :: ETrans, ETransAmbi, ERot, EVib, EElec, MomArray(1:3), MassIC, PartWeight, TorqueArray(1:3)
 INTEGER         :: ETransID, ERotID, EVibID, EElecID, SpecID, SubP, SubQ
 !===================================================================================================================================
 MomArray(:)=0.
@@ -75,17 +74,23 @@ SubP = TrackInfo%p
 SubQ = TrackInfo%q
 
 SpecID = PartSpecies(PartID)
+MassIC = Species(SpecID)%MassIC
 #if USE_HDG
 ! Check particle index for VDL particles and reset to original species index
 IF(DoVirtualDielectricLayer) SpecID = ResetVDLSpecID(PartID)
 #endif/*USE_HDG*/
 
+! Particle weight for the sampling of rates (heat flux, force, torque, impacts per second):
+! Using only the actual particle weight without time step (which is included in GetParticleWeight function)
+! The surface sampling is normalized with the global sampling time, analogous to the surface flux, where the particle time step is
+! not considered, as the flux between elements stays constant. Note the difference to the species-specific time step, where for the
+! respective species the elapsed time corresponds to TimeSample * Species(SpecID)%TimeStepFactor, thus including it in the weight here
 IF(usevMPF) THEN
-  MPF = GetParticleWeight(PartID)
+  PartWeight = PartMPF(PartID)
 ELSE
-  MPF = GetParticleWeight(PartID)*Species(SpecID)%MacroParticleFactor
+  PartWeight = Species(SpecID)%MacroParticleFactor
 END IF
-MassIC = Species(SpecID)%MassIC
+IF(VarTimeStep%UseSpeciesSpecific) PartWeight = PartWeight / Species(SpecID)%TimeStepFactor
 
 ! Calculate the translational energy
 ETrans = 0.5 * Species(SpecID)%MassIC * DOTPRODUCT(PartState(4:6,PartID))
@@ -101,14 +106,14 @@ END IF
 ! from the sampling array. Additionally, the correct indices are set for the sampling array.
 SELECT CASE (TRIM(SampleType))
 CASE ('old')
-  MomArray(1:3)   = MassIC * PartState(4:6,PartID) * MPF
+  MomArray(1:3)   = MassIC * PartState(4:6,PartID) * PartWeight
   ETransID = SAMPWALL_ETRANSOLD
   ERotID   = SAMPWALL_EROTOLD
   EVibID   = SAMPWALL_EVIBOLD
   EElecID  = SAMPWALL_EELECOLD
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-      MomArray(1:3) = MomArray(1:3) + Species(DSMC%AmbiDiffElecSpec)%MassIC * PartIntEn(PartID)%ElecVelo(1:3) * MPF
+      MomArray(1:3) = MomArray(1:3) + Species(DSMC%AmbiDiffElecSpec)%MassIC * PartIntEn(PartID)%ElecVelo(1:3) * PartWeight
     END IF
   END IF
   ! Species-specific simulation particle impact counter
@@ -126,31 +131,23 @@ CASE ('old')
         END IF
       END IF
     END IF
-    CALL SampleImpactProperties(SurfSideID,SpecID,MPF,ETrans,EVib,ERot,EElec,TrackInfo%PartTrajectory,SurfaceNormal_opt)
+    CALL SampleImpactProperties(SurfSideID,SpecID,PartWeight,ETrans,EVib,ERot,EElec,TrackInfo%PartTrajectory,SurfaceNormal_opt)
     IF (DSMC%DoAmbipolarDiff) THEN
       IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-        CALL SampleImpactProperties(SurfSideID,DSMC%AmbiDiffElecSpec,MPF,ETransAmbi,0.,0.,0.,TrackInfo%PartTrajectory,SurfaceNormal_opt)
+        CALL SampleImpactProperties(SurfSideID,DSMC%AmbiDiffElecSpec,PartWeight,ETransAmbi,0.,0.,0.,TrackInfo%PartTrajectory,SurfaceNormal_opt)
       END IF
     END IF
   END IF
-  ! Sample the time step for the correct determination of the heat flux
-  IF (UseVarTimeStep) THEN
-    SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
-                                                              + PartTimeStep(PartID)
-  ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
-    SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) = SampWallState(SWIVarTimeStep,SubP,SubQ,SurfSideID) &
-                                                              + Species(SpecID)%TimeStepFactor
-  END IF
 CASE ('new')
   ! must be old_velocity-new_velocity
-  MomArray(1:3)   = -MassIC * PartState(4:6,PartID) * MPF
+  MomArray(1:3)   = -MassIC * PartState(4:6,PartID) * PartWeight
   ETransID = SAMPWALL_ETRANSNEW
   ERotID   = SAMPWALL_EROTNEW
   EVibID   = SAMPWALL_EVIBNEW
   EElecID  = SAMPWALL_EELECNEW
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
-      MomArray(1:3) = MomArray(1:3) - Species(DSMC%AmbiDiffElecSpec)%MassIC * PartIntEn(PartID)%ElecVelo(1:3) * MPF
+      MomArray(1:3) = MomArray(1:3) - Species(DSMC%AmbiDiffElecSpec)%MassIC * PartIntEn(PartID)%ElecVelo(1:3) * PartWeight
     END IF
   END IF
 CASE DEFAULT
@@ -161,7 +158,7 @@ SampWallState(SAMPWALL_DELTA_MOMENTUMX,SubP,SubQ,SurfSideID) = SampWallState(SAM
 SampWallState(SAMPWALL_DELTA_MOMENTUMY,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMY,SubP,SubQ,SurfSideID) + MomArray(2)
 SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) = SampWallState(SAMPWALL_DELTA_MOMENTUMZ,SubP,SubQ,SurfSideID) + MomArray(3)
 !----  Sampling the energy (translation) accommodation at walls
-SampWallState(ETransID ,SubP,SubQ,SurfSideID) = SampWallState(ETransID ,SubP,SubQ,SurfSideID) + ETrans * MPF
+SampWallState(ETransID ,SubP,SubQ,SurfSideID) = SampWallState(ETransID ,SubP,SubQ,SurfSideID) + ETrans * PartWeight
 !----  Sampling torque
 IF(CalcTorque) THEN
   TorqueArray(1) = PartPosImpact_opt(2) * MomArray(3) - PartPosImpact_opt(3) * MomArray(2)
@@ -175,20 +172,20 @@ IF (useDSMC) THEN
   IF (CollisMode.GT.1) THEN
     IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
       !----  Sampling the internal (rotational) energy accommodation at walls
-      SampWallState(ERotID ,SubP,SubQ,SurfSideID) = SampWallState(ERotID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%ERot(1) * MPF
+      SampWallState(ERotID ,SubP,SubQ,SurfSideID) = SampWallState(ERotID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%ERot(1) * PartWeight
       !----  Sampling for internal (vibrational) energy accommodation at walls
-      SampWallState(EVibID ,SubP,SubQ,SurfSideID) = SampWallState(EVibID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%EVib(1) * MPF
+      SampWallState(EVibID ,SubP,SubQ,SurfSideID) = SampWallState(EVibID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%EVib(1) * PartWeight
     END IF
     IF(DSMC%ElectronicModel.GT.0) THEN
       !----  Sampling for internal (electronic) energy accommodation at walls
       IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) &
-        SampWallState(EElecID ,SubP,SubQ,SurfSideID) = SampWallState(EElecID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%EElec(1) * MPF
+        SampWallState(EElecID ,SubP,SubQ,SurfSideID) = SampWallState(EElecID ,SubP,SubQ,SurfSideID) + PartIntEn(PartID)%EElec(1) * PartWeight
     END IF
   END IF
 END IF
 !---- Sampling of integral group output for SurfaceAnalyze.csv
 IF(CalcSurfOutputPerGroup) THEN
-  CALL SampleSurfaceGroupProperties(SurfSideID,PartID,SpecID,SampleType,TorqueArray,ETrans,MPF)
+  CALL SampleSurfaceGroupProperties(SurfSideID,PartID,SpecID,SampleType,TorqueArray,ETrans,PartWeight)
 END IF
 
 END SUBROUTINE CalcWallSample
@@ -626,7 +623,7 @@ intersect = (d1 * d2 .LT. 0.) .AND. (d3 * d4 .LT. 0.)
 END FUNCTION SegmentsIntersect2D
 
 
-SUBROUTINE SampleSurfaceGroupProperties(SurfSideID,PartID,SpecID,SampleType,TorqueArray,ETrans,MPF)
+SUBROUTINE SampleSurfaceGroupProperties(SurfSideID,PartID,SpecID,SampleType,TorqueArray,ETrans,PartWeight)
 !===================================================================================================================================
 !> Sampling of torque and energy for surface group output
 !===================================================================================================================================
@@ -646,7 +643,7 @@ INTEGER,INTENT(IN)       :: SpecID              !< Particle species ID
 CHARACTER(*),INTENT(IN)  :: SampleType
 REAL,INTENT(IN)          :: TorqueArray(3)      !< Torque Array of impacting particle
 REAL,INTENT(IN)          :: ETrans              !< Translational energy of impacting particle
-REAL,INTENT(IN)          :: MPF                 !< Particle macro particle factor
+REAL,INTENT(IN)          :: PartWeight          !< Particle weight (not including time step factor)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -660,37 +657,39 @@ IF(iGroup.NE.0) THEN
   SurfaceGroup%SampState(3,iGroup) = SurfaceGroup%SampState(3,iGroup) + TorqueArray(3) * SurfaceGroup%SymmetryFactor(SurfSideID)
   SELECT CASE (TRIM(SampleType))
   CASE ('old')
-    SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + ETrans * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+    SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + ETrans * PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
     IF (useDSMC) THEN
       IF (CollisMode.GT.1) THEN
         IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
           !----  Sampling the internal (rotational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%ERot(1)* MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%ERot(1)* PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
           !----  Sampling for internal (vibrational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%EVib(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%EVib(1) * PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
         END IF
         IF(DSMC%ElectronicModel.GT.0) THEN
           IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
           !----  Sampling for internal (electronic) energy accommodation at walls
-            SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%EElec(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+            SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) + PartIntEn(PartID)%EElec(1) * PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
           END IF
         END IF
       END IF
     END IF
+    ! Count the impacts to detect groups without any wall interaction during the sampling interval (only on impact)
+    SurfaceGroup%Counter(iGroup) = SurfaceGroup%Counter(iGroup) + 1
   CASE ('new')
-    SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - ETrans * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+    SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - ETrans * PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
     IF (useDSMC) THEN
       IF (CollisMode.GT.1) THEN
         IF ((Species(SpecID)%InterID.EQ.2).OR.Species(SpecID)%InterID.EQ.20) THEN
           !----  Sampling the internal (rotational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%ERot(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%ERot(1) * PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
           !----  Sampling for internal (vibrational) energy accommodation at walls
-          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EVib(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+          SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EVib(1) * PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
         END IF
         IF(DSMC%ElectronicModel.GT.0) THEN
           IF((Species(SpecID)%InterID.NE.4).AND.(.NOT.SpecDSMC(SpecID)%FullyIonized)) THEN
           !----  Sampling for internal (electronic) energy accommodation at walls
-            SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EElec(1) * MPF * SurfaceGroup%SymmetryFactor(SurfSideID)
+            SurfaceGroup%SampState(4,iGroup) = SurfaceGroup%SampState(4,iGroup) - PartIntEn(PartID)%EElec(1) * PartWeight * SurfaceGroup%SymmetryFactor(SurfSideID)
           END IF
         END IF
       END IF
@@ -698,15 +697,6 @@ IF(iGroup.NE.0) THEN
   CASE DEFAULT
     CALL abort(__STAMP__,'ERROR in CalcWallSample: wrong SampleType specified. Possible types -> ( old , new )')
   END SELECT
-! Sample the time step for the correct determination of the heat flux
-  SurfaceGroup%Counter(iGroup) = SurfaceGroup%Counter(iGroup) + 1
-  IF (UseVarTimeStep) THEN
-    SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) &
-                                                              + PartTimeStep(PartID)
-  ELSE IF(VarTimeStep%UseSpeciesSpecific) THEN
-    SurfaceGroup%VarTimeStep(iGroup) = SurfaceGroup%VarTimeStep(iGroup) &
-                                                              + Species(SpecID)%TimeStepFactor
-  END IF
 END IF
 
 END SUBROUTINE SampleSurfaceGroupProperties

@@ -40,16 +40,7 @@ To define a species, its name as well as an `InteractionID` have to be defined
     Part-Species1-InteractionID = 2
 
 During the file-based parameter read-in, name is only utilized to retrieve the electronic energy levels from an additional database.
-The interaction ID determines the type of a species as follows
-
-|   ID | Type                                                            |
-| ---: | --------------------------------------------------------------- |
-|    1 | Atom                                                            |
-|    2 | Molecule (diatomic and polyatomic)                              |
-|    4 | Electron                                                        |
-|   10 | Atomic Ion                                                      |
-|   20 | Molecular Ion                                                   |
-|  100 | Solid particle (see Section {ref}`sec:granular-flows`) |
+The interaction ID determines the type of a species, the available types are listed in Section {ref}`sec:particle-species-interactionid`.
 
 Depending on the utilized collision model, different parameters have to be defined. As an example, the parameters for the Variable
 Hard Sphere (VHS) collision cross-section model are be defined by the temperature exponent $\omega = [0,0.5]$, reference

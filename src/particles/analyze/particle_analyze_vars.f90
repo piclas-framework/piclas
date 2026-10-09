@@ -160,7 +160,6 @@ REAL                          :: PartCharge(3)                       !< Contains
 LOGICAL                       :: printDiff                           !< TODO
 REAL                          :: printDiffTime                       !< TODO
 REAL                          :: printDiffVec(6)                     !< TODO
-REAL                          :: ChemEnergySum                       !< TODO
 REAL,ALLOCATABLE              :: FlowRateSurfFlux(:,:)               !< Particle balance per surface flux BC, utilized to calculate mass flog or current
 REAL,ALLOCATABLE              :: PressureAdaptiveBC(:,:)
 LOGICAL                       :: CalcEMFieldOutput                   !< Output the electro-magnetic fields on each DOF to .h5 calculated by PIC interpolation external fields and from field solver

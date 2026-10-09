@@ -49,17 +49,19 @@ USE MOD_Eval_xyz               ,ONLY: GetPositionInRefElem
 USE MOD_part_RHS               ,ONLY: CalcPartRHSRotRefFrame
 USE MOD_Part_Tools             ,ONLY: InRotRefFrameCheck
 USE MOD_Part_Tools             ,ONLY: CalcPartSymmetryPos
+USE MOD_SurfaceModel_Chemistry ,ONLY: SurfChemCoverage
+USE MOD_Particle_SurfChemFlux  ,ONLY: PureSurfChemistry, ParticleSurfDiffusion
 #if USE_MPI
 USE MOD_Particle_MPI           ,ONLY: IRecvNbOfParticles, MPIParticleSend,MPIParticleRecv,SendNbOfparticles
 USE MOD_Particle_MPI_Vars      ,ONLY: DoParticleLatencyHiding
 USE MOD_Globals                ,ONLY: CollectiveStop
 USE MOD_Particle_MPI_Boundary_Sampling, ONLY: ExchangeChemSurfData
+USE MOD_SurfaceModel_Chemistry   ,ONLY: ExchangeSurfChemCoverage
 #endif /*USE_MPI*/
 USE MOD_BGK                    ,ONLY: BGK_main, BGK_DSMC_main
 USE MOD_BGK_Vars               ,ONLY: CoupledBGKDSMC,DoBGKCellAdaptation
 USE MOD_SurfaceModel_Porous    ,ONLY: PorousBoundaryRemovalProb_Pressure
 USE MOD_SurfaceModel_Vars      ,ONLY: nPorousBC, DoChemSurface
-USE MOD_Particle_SurfChemFlux
 USE MOD_DSMC_ParticlePairing   ,ONLY: GeoCoordToMap2D
 USE MOD_Symmetry_Vars          ,ONLY: Symmetry
 ! IMPLICIT VARIABLE HANDLING
@@ -86,10 +88,14 @@ IF (DoChemSurface) THEN
 #if USE_MPI
   CALL ExchangeChemSurfData()
 #endif /*USE_MPI*/
+  CALL SurfChemCoverage()
   IF (time.GT.0.0) THEN
-    CALL ParticleSurfChemFlux()
+    CALL PureSurfChemistry()
     CALL ParticleSurfDiffusion()
   END IF
+#if USE_MPI
+  CALL ExchangeSurfChemCoverage()
+#endif /*USE_MPI*/
 END IF
 
 DO iPart=1,PDM%ParticleVecLength
@@ -132,7 +138,7 @@ DO iPart=1,PDM%ParticleVecLength
       PartState(1:3,iPart) = PartState(1:3,iPart) + PartState(4:6,iPart) * dtVar
     END IF
     ! Axisymmetric treatment of particles: rotation of the position and velocity vector
-    CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
+    IF (.NOT.Symmetry%AxisymmetricExact) CALL CalcPartSymmetryPos(PartState(1:3,iPart),PartState(4:6,iPart))
   END IF
 END DO
 

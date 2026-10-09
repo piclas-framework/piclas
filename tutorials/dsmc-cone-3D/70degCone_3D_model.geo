@@ -35,7 +35,7 @@ Mesh.Algorithm3D = 7;
 //
 Mesh.SubdivisionAlgorithm = 2;
 //
-Mesh.OptimizeNetgen = 1;
+// Mesh.OptimizeNetgen = 1; // this creates elements with "Too small scaled Jacobians found (CL/Gauss):  -9.2502367927261870E-003"
 //
 Mesh 3;
 //

@@ -92,12 +92,14 @@ USE MOD_Globals_Vars            ,ONLY: c2_inv
 #if defined(LSERK)
 USE MOD_Particle_Vars           ,ONLY: Pt_temp
 #endif
-USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared
+USE MOD_Particle_Mesh_Vars      ,ONLY: SideInfo_Shared, SideNormalEdge2D_Shared
 USE MOD_Particle_Tracking_Vars  ,ONLY: TrackInfo
 USE MOD_Particle_Vars           ,ONLY: UseVarTimeStep, PartTimeStep, VarTimeStep
 USE MOD_TimeDisc_Vars           ,ONLY: dt,RKdtFrac
 USE MOD_Particle_Vars           ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_part_RHS                ,ONLY: CalcPartRHSRotRefFrame
+USE MOD_Symmetry_Vars           ,ONLY: Symmetry
+USE MOD_Mesh_Tools              ,ONLY: GetCNElemID
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 USE MOD_Particle_Vars           ,ONLY: PDM
 #endif
@@ -114,19 +116,19 @@ LOGICAL,INTENT(IN),OPTIONAL       :: opt_Symmetry
 ! LOCAL VARIABLES
 REAL                                 :: WallVelo(3), v_old_Ambi(1:3), NewVeloPush(1:3), OldVelo(1:3)
 REAL                                 :: LorentzFac, LorentzFacInv, POI_fak
-INTEGER                              :: locBCID, SpecID
-LOGICAL                              :: Symmetry
+INTEGER                              :: locBCID, SpecID, CNElemID, iLocSide
+LOGICAL                              :: SymmetricCase
 REAL                                 :: POI_vec(1:3)
 REAL                                 :: NormNewVeloPush(1:3)
-REAL                                 :: dtVar
+REAL                                 :: dtVar, n_loctmp(3), nValIntersec
 !===================================================================================================================================
 ! Initialize
-Symmetry = .FALSE.
+SymmetricCase = .FALSE.
 
 locBCID   = PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
 SpecID    = PartSpecies(PartID)
 WallVelo  = PartBound%WallVelo(1:3,locBCID)
-IF(PRESENT(opt_Symmetry)) Symmetry = opt_Symmetry
+IF(PRESENT(opt_Symmetry)) SymmetricCase = opt_Symmetry
 
 ! Get Point Of Intersection
 POI_vec(1:3) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*TrackInfo%alpha
@@ -151,10 +153,21 @@ IF(UseRotRefFrame) THEN
   IF(InRotRefFrame(PartID)) OldVelo = PartVeloRotRef(1:3,PartID)
 END IF
 
+IF(Symmetry%Axisymmetric.AND.Symmetry%AxisymmetricExact) THEN
+  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
+  iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
+  n_loctmp(1) = SideNormalEdge2D_Shared(1,iLocSide, CNElemID)
+  nValIntersec = SQRT(POI_vec(2)*POI_vec(2) + POI_vec(3)*POI_vec(3))
+  n_loctmp(2) = POI_vec(2)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
+  n_loctmp(3) = POI_vec(3)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
+ELSE
+ n_loctmp  = n_loc
+END IF
+
 IF(SUM(ABS(WallVelo)).GT.0.)THEN
   SELECT CASE(PartLorentzType)
   CASE(3)
-    PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+    PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loctmp)*n_loctmp + WallVelo
     ! sanity check of new particle velocity
     LorentzFac=1.0-DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
     IF(LorentzFac.LT.0.) CALL Abort(__STAMP__,'Particle exceeds speed of light! PartID ',PartID)
@@ -164,22 +177,22 @@ IF(SUM(ABS(WallVelo)).GT.0.)THEN
     LorentzFacInv         = 1.0/SQRT(LorentzFacInv)
     PartState(4:6,PartID) = LorentzFacInv*PartState(4:6,PartID)
     ! update velocity
-    PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+    PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loctmp)*n_loctmp + WallVelo
     ! map back from velocity to relativistic momentum
     LorentzFac=1.0-DOT_PRODUCT(PartState(4:6,PartID),PartState(4:6,PartID))*c2_inv
     IF(LorentzFac.LT.0.) CALL Abort(__STAMP__,'Particle exceeds speed of light! PartID ',PartID)
     LorentzFac=1.0/SQRT(LorentzFac)
     PartState(4:6,PartID) = LorentzFac*PartState(4:6,PartID)
   CASE DEFAULT
-      PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc + WallVelo
+      PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loctmp)*n_loctmp + WallVelo
   END SELECT
 ELSE
-  PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loc)*n_loc
+  PartState(4:6,PartID) = PartState(4:6,PartID) - 2.*DOT_PRODUCT(PartState(4:6,PartID),n_loctmp)*n_loctmp
   IF (DSMC%DoAmbipolarDiff) THEN
     IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
       v_old_Ambi = PartIntEn(PartID)%ElecVelo(1:3)
       PartIntEn(PartID)%ElecVelo(1:3) = PartIntEn(PartID)%ElecVelo(1:3) &
-                     - 2.*DOT_PRODUCT(PartIntEn(PartID)%ElecVelo(1:3),n_loc)*n_loc
+                     - 2.*DOT_PRODUCT(PartIntEn(PartID)%ElecVelo(1:3),n_loctmp)*n_loctmp
     END IF
   END IF
 END IF
@@ -189,7 +202,7 @@ IF(Species(SpecID)%InterID.EQ.100) PartState(4:6,PartID) = PartState(4:6,PartID)
 
 ! Set particle position on face
 LastPartPos(1:3,PartID) = POI_vec(1:3)
-TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loc)*n_loc
+TrackInfo%PartTrajectory(1:3)     = TrackInfo%PartTrajectory(1:3)-2.*DOT_PRODUCT(TrackInfo%PartTrajectory(1:3),n_loctmp)*n_loctmp
 ! Mirror the LastPartPos for new particle position
 PartState(1:3,PartID) = LastPartPos(1:3,PartID) + TrackInfo%PartTrajectory(1:3)*(TrackInfo%lengthPartTrajectory - TrackInfo%alpha)
 
@@ -202,13 +215,13 @@ IF(UseRotRefFrame) THEN
     NewVeloPush(1:3) = NewVeloPush(1:3) - CROSS(RotRefFrameOmega(1:3),LastPartPos(1:3,PartID))
     NewVeloPush(1:3) = NewVeloPush(1:3) + CalcPartRHSRotRefFrame(LastPartPos(1:3,PartID),NewVeloPush(1:3)) * (1.0 - POI_fak) * dtVar
       ! Make sure the NewVeloPush is pointing away from the wall
-    IF(DOT_PRODUCT(n_loc,NewVeloPush(1:3)).GT.0.) THEN
+    IF(DOT_PRODUCT(n_loctmp,NewVeloPush(1:3)).GT.0.) THEN
       ! Normal component of new velo push v = (v dot n / |n|^2) * n, |n| = 1
-      NormNewVeloPush(1:3) = DOT_PRODUCT(n_loc,NewVeloPush(1:3)) * n_loc
+      NormNewVeloPush(1:3) = DOT_PRODUCT(n_loctmp,NewVeloPush(1:3)) * n_loctmp
       ! Nullify normal component and keeping rest of NewVeloPush
       NewVeloPush(1:3) = NewVeloPush(1:3) - NormNewVeloPush(1:3)
       ! Move particle a little bit into the domain to avoid losing particles
-      NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loc
+      NewVeloPush(1:3) = NewVeloPush(1:3) - 1E-6 * n_loctmp
     END IF
     ! Store the new rotational reference frame velocity
     PartVeloRotRef(1:3,PartID) = NewVeloPush(1:3)
@@ -226,6 +239,7 @@ IF(ALMOSTZERO(TrackInfo%lengthPartTrajectory)) THEN
 ELSE
   TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
 END IF
+TrackInfo%alpha = 0.
 ! #endif
 
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -243,9 +257,9 @@ IF (.NOT.ALMOSTZERO(DOT_PRODUCT(WallVelo,WallVelo))) THEN
   PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 #if defined(LSERK)
 ELSE
-  Pt_temp(1:3,PartID)=Pt_temp(1:3,PartID)-2.*DOT_PRODUCT(Pt_temp(1:3,PartID),n_loc)*n_loc
-  IF (Symmetry) THEN !reflect also force history for symmetry
-    Pt_temp(4:6,PartID)=Pt_temp(4:6,PartID)-2.*DOT_PRODUCT(Pt_temp(4:6,PartID),n_loc)*n_loc
+  Pt_temp(1:3,PartID)=Pt_temp(1:3,PartID)-2.*DOT_PRODUCT(Pt_temp(1:3,PartID),n_loctmp)*n_loctmp
+  IF (SymmetricCase) THEN !reflect also force history for symmetry
+    Pt_temp(4:6,PartID)=Pt_temp(4:6,PartID)-2.*DOT_PRODUCT(Pt_temp(4:6,PartID),n_loctmp)*n_loctmp
   ELSE
     Pt_temp(4:6,PartID)=0. !produces best result compared to analytical solution in plate capacitor...
   END IF
@@ -297,14 +311,14 @@ INTEGER,INTENT(IN)                :: PartID, SideID
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                           :: LocSideID, CNElemID, locBCID, SpecID
+INTEGER                           :: LocSideID, CNElemID, locBCID, SpecID, iLocSide
 REAL                              :: WallVelo(1:3), WallTemp, TransACC, VibACC, RotACC, ElecACC
 REAL                              :: tang1(1:3), tang2(1:3), NewVelo(3), POI_vec(1:3), NewVeloAmbi(3), VeloC(1:3), VeloCAmbi(1:3)
 REAL                              :: POI_fak, TildTrajectory(3), dtVar
 ! Symmetry
 REAL                              :: rotVelY, rotVelZ, rotPosY
-REAL                              :: nx, ny, nVal, VelX, VelY, VecX, VecY, Vector1(1:2), OldVelo(1:3)
-REAL                              :: NewVeloPush(1:3)
+REAL                              :: nx, ny,nz, nVal, VelX, VelY, VecX, VecY,VecZ, Vector1(1:2), OldVelo(1:3)
+REAL                              :: NewVeloPush(1:3), nValIntersec
 !===================================================================================================================================
 ! 1.) Get the wall velocity, temperature and accommodation coefficients
 locBCID=PartBound%MapToPartBC(SideInfo_Shared(SIDE_BCID,SideID))
@@ -340,31 +354,38 @@ IF(UseRotRefFrame) THEN
   ! In case of RotRefFrame utilize the respective velocity
   IF(InRotRefFrame(PartID)) OldVelo = PartVeloRotRef(1:3,PartID)
 END IF
-
+CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
 ! 2.) Get the tangential vectors
 IF(Symmetry%Axisymmetric) THEN
-  ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
-  VelX = PartState(1,PartID) - LastPartPos(1,PartID)
-  VelY = PartState(2,PartID) - LastPartPos(2,PartID)
+  IF (Symmetry%AxisymmetricExact) THEN
+    iLocSide = SideInfo_Shared(SIDE_LOCALID,SideID)
+    nx = SideNormalEdge2D_Shared(1,iLocSide, CNElemID)
+    nValIntersec = SQRT(POI_vec(2)*POI_vec(2) + POI_vec(3)*POI_vec(3))
+    ny = POI_vec(2)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
+    nz = POI_vec(3)/nValIntersec * SideNormalEdge2D_Shared(2,iLocSide, CNElemID)
+  ELSE
+    ! Storing the old and the new particle position (which is outside the domain), at this point the position is only in the xy-plane
+    VelX = PartState(1,PartID) - LastPartPos(1,PartID)
+    VelY = PartState(2,PartID) - LastPartPos(2,PartID)
 
-  CNElemID = GetCNElemID(SideInfo_Shared(SIDE_ELEMID,SideID))
-  LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
+    LocSideID = SideInfo_Shared(SIDE_LOCALID,SideID)
 
-  ! Getting the vectors, which span the cell
-   Vector1(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,LocSideID, CNElemID))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,LocSideID, CNElemID))
+    ! Getting the vectors, which span the cell
+     Vector1(1:2) = NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(1,LocSideID, CNElemID))-NodeCoords_Shared(1:2,ElemSideNodeID2D_Shared(2,LocSideID, CNElemID))
 
-  ! Cross product of the two vectors is simplified as Vector1(3) is zero
-  nx = Vector1(2)
-  ny = -Vector1(1)
-  ! Check for the correct orientation of the normal vectors (should be inwards)
-  IF ((VelX*nx+VelY*ny).GT.0) THEN
-    nx = -Vector1(2)
-    ny = Vector1(1)
+    ! Cross product of the two vectors is simplified as Vector1(3) is zero
+    nx = Vector1(2)
+    ny = -Vector1(1)
+    ! Check for the correct orientation of the normal vectors (should be inwards)
+    IF ((VelX*nx+VelY*ny).GT.0) THEN
+      nx = -Vector1(2)
+      ny = Vector1(1)
+    END IF
+
+    nVal = SQRT(nx*nx + ny*ny)
+    nx = nx/nVal
+    ny = ny/nVal
   END IF
-
-  nVal = SQRT(nx*nx + ny*ny)
-  nx = nx/nVal
-  ny = ny/nVal
 ELSE
   CALL OrthoNormVec(n_loc,tang1,tang2)
 END IF
@@ -380,11 +401,20 @@ END IF
 ! 4.) Perform vector transformation from the local to the global coordinate system and add wall velocity
 !     NewVelo = VeloCx*tang1+CROSS(-n_loc,tang1)*VeloCy-VeloCz*n_loc
 IF(Symmetry%Axisymmetric) THEN
-  VecX = Vector1(1) / SQRT( Vector1(1)**2 + Vector1(2)**2)
-  VecY = Vector1(2) / SQRT( Vector1(1)**2 + Vector1(2)**2)
-  NewVelo(1) = VecX*VeloC(1) + nx*VeloC(3)
-  NewVelo(2) = VecY*VeloC(1) + ny*VeloC(3)
-  NewVelo(3) = VeloC(2)
+  IF (Symmetry%AxisymmetricExact) THEN
+    VecX = SideNormalEdge2D_Shared(3,iLocSide, CNElemID)
+    VecY = POI_vec(2)/nValIntersec * SideNormalEdge2D_Shared(4,iLocSide, CNElemID)
+    VecZ = POI_vec(3)/nValIntersec * SideNormalEdge2D_Shared(4,iLocSide, CNElemID)
+    NewVelo(1) = VecX*VeloC(1) + (nz*VecY-ny*VecZ)*VeloC(2) - nx*VeloC(3)
+    NewVelo(2) = VecY*VeloC(1) + (nx*VecZ-nz*VecX)*VeloC(2) - ny*VeloC(3)
+    NewVelo(3) = VecZ*VeloC(1) + (ny*VecX-nx*VecY)*VeloC(2) - nz*VeloC(3)
+  ELSE
+    VecX = Vector1(1) / SQRT( Vector1(1)**2 + Vector1(2)**2)
+    VecY = Vector1(2) / SQRT( Vector1(1)**2 + Vector1(2)**2)
+    NewVelo(1) = VecX*VeloC(1) + nx*VeloC(3)
+    NewVelo(2) = VecY*VeloC(1) + ny*VeloC(3)
+    NewVelo(3) = VeloC(2)
+  END IF
 ELSE
   NewVelo(1:3) = VeloC(1)*tang1(1:3)-tang2(1:3)*VeloC(2)-VeloC(3)*n_loc(1:3)
 END IF
@@ -394,9 +424,15 @@ NewVelo(1:3) = NewVelo(1:3) + WallVelo(1:3)
 IF (DSMC%DoAmbipolarDiff) THEN
   IF(Species(SpecID)%ChargeIC.GT.0.0) THEN
     IF(Symmetry%Axisymmetric) THEN
-      NewVeloAmbi(1) = VecX*VeloCAmbi(1) + nx*VeloCAmbi(3)
-      NewVeloAmbi(2) = VecY*VeloCAmbi(1) + ny*VeloCAmbi(3)
-      NewVeloAmbi(3) = VeloCAmbi(2)
+      IF (Symmetry%AxisymmetricExact) THEN
+        NewVeloAmbi(1) = VecX*VeloCAmbi(1) + (nz*VecY-ny*VecZ)*VeloCAmbi(2) - nx*VeloCAmbi(3)
+        NewVeloAmbi(2) = VecY*VeloCAmbi(1) + (nx*VecZ-nz*VecX)*VeloCAmbi(2) - ny*VeloCAmbi(3)
+        NewVeloAmbi(3) = VecZ*VeloCAmbi(1) + (ny*VecX-nx*VecY)*VeloCAmbi(2) - nz*VeloCAmbi(3)
+      ELSE
+        NewVeloAmbi(1) = VecX*VeloCAmbi(1) + nx*VeloCAmbi(3)
+        NewVeloAmbi(2) = VecY*VeloCAmbi(1) + ny*VeloCAmbi(3)
+        NewVeloAmbi(3) = VeloCAmbi(2)
+      END IF
     ELSE
       NewVeloAmbi(1:3) = VeloCAmbi(1)*tang1(1:3)-tang2(1:3)*VeloCAmbi(2)-VeloCAmbi(3)*n_loc(1:3)
     END IF
@@ -442,7 +478,7 @@ END IF
 PartState(1:3,PartID)   = LastPartPos(1:3,PartID) + (1.0 - POI_fak) * dtVar * NewVeloPush(1:3)
 
 ! 7.) Axisymmetric simulation: Rotate the vector back into the symmetry plane
-IF(Symmetry%Axisymmetric) THEN
+IF(Symmetry%Axisymmetric.AND.(.NOT.Symmetry%AxisymmetricExact)) THEN
   ! Symmetry considerations --------------------------------------------------------
   rotPosY = SQRT(PartState(2,PartID)**2 + (PartState(3,PartID))**2)
   ! Rotation: Vy' =   Vy * cos(alpha) + Vz * sin(alpha) =   Vy * y/y' + Vz * z/y'
@@ -476,8 +512,7 @@ IF(Symmetry%Axisymmetric) THEN
     END IF
   END IF
 END IF ! Symmetry%Axisymmetric
-
-IF(Symmetry%Order.LT.3) THEN
+IF((Symmetry%Order.LT.3).AND.(.NOT.Symmetry%AxisymmetricExact)) THEN
   ! y/z-variable is set to zero for the different symmetry cases
   LastPartPos(Symmetry%Order+1:3,PartID) = 0.0
   PartState(Symmetry%Order+1:3,PartID) = 0.0
@@ -490,7 +525,7 @@ IF (DSMC%DoAmbipolarDiff) THEN
 END IF
 
 ! Recompute trajectory etc
-IF(Symmetry%Axisymmetric) THEN
+IF(Symmetry%Axisymmetric.AND.(.NOT.Symmetry%AxisymmetricExact)) THEN
   TrackInfo%PartTrajectory(1:2)=PartState(1:2,PartID) - LastPartPos(1:2,PartID)
   TrackInfo%PartTrajectory(3) = 0.
   TrackInfo%lengthPartTrajectory=SQRT(TrackInfo%PartTrajectory(1)**2 + TrackInfo%PartTrajectory(2)**2)
@@ -500,7 +535,7 @@ ELSE
 END IF
 
 IF(ABS(TrackInfo%lengthPartTrajectory).GT.0.) TrackInfo%PartTrajectory=TrackInfo%PartTrajectory/TrackInfo%lengthPartTrajectory
-
+TrackInfo%alpha = 0.
 #if defined(LSERK) || (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
 PDM%IsNewPart(PartID)=.TRUE. !reconstruction in timedisc during push
 #endif

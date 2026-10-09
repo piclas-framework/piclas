@@ -71,7 +71,10 @@ CALL prms%CreateIntOption(      'Part-Species[$]-InteractionID' , 'ID for identi
                                                                  '  2: Molecule\n'//&
                                                                  '  4: Electron\n'//&
                                                                  ' 10: Atomic Ion\n'//&
-                                                                 ' 20: Molecular Ion', '0', numberedmulti=.TRUE.)
+                                                                 ' 20: Molecular Ion\n'//&
+                                                                 '100: Solid particle\n'//&
+                                                                 'Electrons are identified only by ID 4. If not set (0), species with '//&
+                                                                 'charge -e and electron mass are set to 4.', '0', numberedmulti=.TRUE.)
 ! Ionization
 CALL prms%CreateLogicalOption(  'Part-DoInitialIonization'    , 'When restarting from a state, ionize the species to a '//&
                                                                 'specific degree', '.FALSE.')
@@ -400,7 +403,7 @@ IF(PartBound%UseInterPlaneBC)  CALL InitRotPeriodicInterPlaneMapping()
 #if (PP_TimeDiscMethod==600)
 CALL InitParticleBoundarySampling()
 #endif
-IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive)) THEN
+IF (WriteMacroSurfaceValues.OR.DSMC%CalcSurfaceVal.OR.ANY(PartBound%Reactive).OR.ANY(PartBound%UseAdaptedWallTemp)) THEN
 #if !(PP_TimeDiscMethod==600)
   CALL InitParticleBoundarySampling()
 #endif
@@ -632,7 +635,7 @@ USE MOD_Particle_Tracking_Vars  ,ONLY: TrackingMethod
 USE MOD_Mesh_Vars               ,ONLY: nElems
 USE MOD_DSMC_Vars               ,ONLY: useDSMC
 ! IMPLICIT VARIABLE HANDLING
- IMPLICIT NONE
+IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -643,9 +646,7 @@ INTEGER               :: ALLOCSTAT
 !===================================================================================================================================
 IF(TrackingMethod.EQ.REFMAPPING)THEN
   ALLOCATE(PartPosRef(1:3,PDM%MaxParticleNumber), STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(&
-  __STAMP__&
-  ,' Cannot allocate partposref!')
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate partposref!')
   PartPosRef=-888.
 END IF
 #if (PP_TimeDiscMethod==508) || (PP_TimeDiscMethod==509)
@@ -659,27 +660,27 @@ END IF
 #endif
 #if defined(LSERK)
 ALLOCATE(Pt_temp(1:6,1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-END IF
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
 Pt_temp=0.
 #endif
 
-ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , &
-         LastPartPos(1:3,1:PDM%maxParticleNumber)     , &
-         Pt(1:3,1:PDM%maxParticleNumber)              , &
-         PartSpecies(1:PDM%maxParticleNumber)         , &
-         PDM%ParticleInside(1:PDM%maxParticleNumber)  , &
-         PDM%nextFreePosition(1:PDM%maxParticleNumber), &
-         PDM%dtFracPush(1:PDM%maxParticleNumber)      , &
-         PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) THEN
-  CALL abort(&
-__STAMP__&
-  ,'ERROR in particle_init.f90: Cannot allocate Particle arrays!')
-END IF
+ALLOCATE(PartState(1:6,1:PDM%maxParticleNumber)       , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PartState')
+ALLOCATE(LastPartPos(1:3,1:PDM%maxParticleNumber)     , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, LastPartPos')
+ALLOCATE(Pt(1:3,1:PDM%maxParticleNumber)              , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, Pt')
+ALLOCATE(PartSpecies(1:PDM%maxParticleNumber)         , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PartSpecies')
+ALLOCATE(PDM%ParticleInside(1:PDM%maxParticleNumber)  , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%ParticleInside')
+ALLOCATE(PDM%nextFreePosition(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%nextFreePosition')
+ALLOCATE(PDM%dtFracPush(1:PDM%maxParticleNumber)      , STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%dtFracPush')
+ALLOCATE(PDM%IsNewPart(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in particle_init.f90: Cannot allocate Particle arrays, PDM%IsNewPart')
+
 PDM%ParticleInside(1:PDM%maxParticleNumber) = .FALSE.
 PDM%dtFracPush(1:PDM%maxParticleNumber)     = .FALSE.
 PDM%IsNewPart(1:PDM%maxParticleNumber)      = .FALSE.
@@ -696,14 +697,18 @@ ALLOCATE(PEM%LastGlobalElemID(1:PDM%maxParticleNumber), STAT=ALLOCSTAT)
 IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,' Cannot allocate PEM%LastGlobalElemID(1:PDM%maxParticleNumber) array!')
 
 IF (useDSMC.OR.usevMPF) THEN
-  ALLOCATE(PEM%pStart(1:nElems)                         , &
-           PEM%pNumber(1:nElems)                        , &
-           PEM%pEnd(1:nElems)                           , &
-           PEM%pNext(1:PDM%maxParticleNumber)           , STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays!')
+  ALLOCATE(PEM%pStart(1:nElems)               , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pStart')
+  ALLOCATE(PEM%pNumber(1:nElems)              , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pNumber')
+  ALLOCATE(PEM%pEnd(1:nElems)                 , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pEnd')
+  ALLOCATE(PEM%pNext(1:PDM%maxParticleNumber) , STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__, ' Cannot allocate DSMC PEM arrays, PEM%pNext')
 END IF
 
 END SUBROUTINE AllocateParticleArrays
+
 
 SUBROUTINE InitializeVariablesIonization()
 !===================================================================================================================================
@@ -1151,9 +1156,8 @@ ElecSpecIndx = -1
 ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
 ! encountered
 DO iSpec = 1, nSpecies
-  IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
-      ElecSpecIndx = iSpec
+  IF(SPECIESISELECTRON(iSpec))THEN
+    ElecSpecIndx = iSpec
     EXIT
   END IF
 END DO
@@ -1174,7 +1178,7 @@ DO iElem=1,PP_nElems
   DO iPart=1,ElemCharge(iElem) ! 1 electron for each charge of each element
 
     ! Set the next free position in the particle vector list
-    ParticleIndexNbr            = GetNextFreePosition()
+    ParticleIndexNbr = GetNextFreePosition()
 
     !Set new SpeciesID of new particle (electron)
     PDM%ParticleInside(ParticleIndexNbr) = .TRUE.
@@ -1194,8 +1198,7 @@ DO iElem=1,PP_nElems
     PEM%GlobalElemID(ParticleIndexNbr) = iElem + offsetElem
 
     ! Set the electron velocity using the Maxwellian distribution (use the function that is suitable for small numbers)
-    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),&
-                                  Temperature=CellElectronTemperature)
+    CALL CalcVelocity_maxwell_lpn(ElecSpecIndx, PartState(4:6,ParticleIndexNbr),Temperature=CellElectronTemperature)
   END DO
 END DO
 
@@ -1502,6 +1505,15 @@ DO iSpec = 1, nSpecies
     Species(iSpec)%ChargeIC              = GETREAL('Part-Species'//TRIM(hilf)//'-ChargeIC')
     Species(iSpec)%MassIC                = GETREAL('Part-Species'//TRIM(hilf)//'-MassIC')
     Species(iSpec)%InterID               = GETINT('Part-Species'//TRIM(hilf)//'-InteractionID')
+    ! Set InterID for the electron for PARTISELECTRON AND SPECIESISELECTRON check
+    IF (Species(iSpec)%InterID.EQ.0) THEN
+      ! Relative tolerance of 1% covers rounded input values (e.g. MassIC = 9.1E-31 deviates by 0.1%) and avoids the integer
+      ! overflow of NINT for dummy values (e.g. MassIC = 9)
+      IF(ALMOSTEQUALRELATIVE(Species(iSpec)%ChargeIC,-ElementaryCharge,1e-2).AND. &
+         ALMOSTEQUALRELATIVE(Species(iSpec)%MassIC  , ElectronMass    ,1e-2)) THEN
+        Species(iSpec)%InterID = 4
+      END IF
+    END IF
   END IF
 END DO ! iSpec
 

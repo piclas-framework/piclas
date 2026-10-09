@@ -13,12 +13,12 @@
 #include "piclas.h"
 
 MODULE MOD_PICDepo_HDG
-#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 ! MOD PIC Depo HDG
 !===================================================================================================================================
 IMPLICIT NONE
 PRIVATE
+#if !((PP_TimeDiscMethod==4) || (PP_TimeDiscMethod==300) || (PP_TimeDiscMethod==400))
 !===================================================================================================================================
 #if USE_HDG
 PUBLIC :: DepositVirtualDielectricLayerParticles

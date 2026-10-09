@@ -43,7 +43,7 @@ SUBROUTINE DSMC_main(DoElement)
 USE MOD_Globals
 USE MOD_DSMC_BGGas            ,ONLY: BGGas_InsertParticles, DSMC_pairing_bggas, BGGas_DeleteParticles
 USE MOD_Mesh_Vars             ,ONLY: nElems
-USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, DSMCSumOfFormedParticles, BGGas, CollisMode, ElecRelaxPart
+USE MOD_DSMC_Vars             ,ONLY: DSMC, CollInf, BGGas, CollisMode, ElecRelaxPart
 USE MOD_DSMC_Analyze          ,ONLY: SummarizeQualityFactors, DSMCMacroSampling
 USE MOD_DSMC_Relaxation       ,ONLY: FinalizeCalcVibRelaxProb, InitCalcVibRelaxProb
 USE MOD_Particle_Vars         ,ONLY: PEM, PDM, WriteMacroVolumeValues, Species, PartSpecies, UseGranularSpecies
@@ -59,7 +59,7 @@ USE MOD_MCC                   ,ONLY: MonteCarloCollision
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-LOGICAL,OPTIONAL  :: DoElement(nElems)
+LOGICAL,INTENT(IN),OPTIONAL  :: DoElement(nElems)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -69,9 +69,6 @@ INTEGER           :: iElem, nPart, nPartTemp, iLoop, iPart
 REAL              :: tLBStart
 #endif /*USE_LOADBALANCE*/
 !===================================================================================================================================
-
-! Reset the number of particles created during the DSMC loop
-DSMCSumOfFormedParticles = 0
 
 DSMC%MaxMCSoverMFP = 0.0
 DSMC%ParticleCalcCollCounter = 0 ! Counts Particle Collision Calculations

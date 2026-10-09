@@ -85,7 +85,7 @@ USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSide2GlobalSide
 USE MOD_SurfaceModel_Vars         ,ONLY: nPorousBC, DoChemSurface
 USE MOD_Particle_Boundary_Vars    ,ONLY: CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars    ,ONLY: SurfSideArea,SurfSampSize,SurfOutputSize,SurfSpecOutputSize,SurfSideSamplingMidPoints
-USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState, SWIVarTimeStep, SWIStickingCoefficient
+USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallState, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars    ,ONLY: CalcTorque, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallPumpCapacity
 USE MOD_Particle_Boundary_Vars    ,ONLY: SampWallImpactEnergy
@@ -99,9 +99,9 @@ USE MOD_Particle_Mesh_Vars        ,ONLY: ElemSideNodeID_Shared
 USE MOD_Particle_Surfaces         ,ONLY: EvaluateBezierPolynomialAndGradient
 USE MOD_Particle_Surfaces_Vars    ,ONLY: BezierControlPoints3D
 USE MOD_Particle_Tracking_Vars    ,ONLY: TrackingMethod
-USE MOD_Particle_Vars             ,ONLY: nSpecies,UseVarTimeStep,VarTimeStep
+USE MOD_Particle_Vars             ,ONLY: nSpecies
 USE MOD_Symmetry_Vars             ,ONLY: Symmetry
-USE MOD_ReadInTools               ,ONLY: GETINT,GETLOGICAL,GETINTARRAY
+USE MOD_ReadInTools               ,ONLY: GETINT,GETLOGICAL,GETINTARRAY,PrintOption
 USE MOD_Particle_Mesh_Tools       ,ONLY: DSMC_2D_CalcSymmetryArea, DSMC_1D_CalcSymmetryArea
 USE MOD_Interpolation             ,ONLY: GetNodesAndWeights
 #if USE_MPI
@@ -186,11 +186,6 @@ SurfSampSize = SAMPWALL_NVARS+nSpecies
 ! Default: Heatflux + Force + Total impact counter + iBC
 SurfOutputSize = MACROSURF_NVARS
 ! Optional variables (number of sampling and output variables can differ)
-! Variable time step (required for correct heat flux calculation)
-IF(UseVarTimeStep.OR.VarTimeStep%UseSpeciesSpecific) THEN
-  SurfSampSize = SurfSampSize + 1
-  SWIVarTimeStep = SurfSampSize
-END IF
 ! Sticking coefficient (empirical model)
 IF(ANY(PartBound%SurfaceModel.EQ.1)) THEN
   SurfSampSize = SurfSampSize + 1
@@ -501,8 +496,8 @@ CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 
 IF (mySurfRank.EQ.0) THEN
 #endif
-  LBWRITE(UNIT_StdOut,'(A,I8)')       ' | Number of sampling sides:           '    , nGlobalSurfSides
-  LBWRITE(UNIT_StdOut,'(A,ES10.4E2)') ' | Surface-Area:                         ', Area
+  CALL PrintOption('Number of sampling sides','INFO',IntOpt=nGlobalSurfSides)
+  CALL PrintOption('Total surface area','CALCUL.',RealOpt=Area)
   LBWRITE(UNIT_stdOut,'(A)') ' INIT SURFACE SAMPLING DONE'
 #if USE_MPI
 END IF
@@ -526,13 +521,12 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfSample,CalcSurfaceImpact
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfSide2GlobalSide, GlobalSide2SurfSide, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: nComputeNodeSurfSides, BoundaryWallTemp
 USE MOD_Particle_Boundary_Vars     ,ONLY: PorousBCInfo_Shared,MapSurfSideToPorousSide_Shared
-USE MOD_Particle_Boundary_vars     ,ONLY: SurfOutputSize, SWIVarTimeStep, SWIStickingCoefficient
+USE MOD_Particle_Boundary_vars     ,ONLY: SurfOutputSize, SWIStickingCoefficient
 USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal, MacroSurfaceSpecVal
 USE MOD_Particle_Boundary_Vars     ,ONLY: CalcTorque, SWITorqueCoefficientX, SWITorqueCoefficientY, SWITorqueCoefficientZ
 USE MOD_Particle_Mesh_Vars         ,ONLY: SideInfo_Shared
-USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime,UseVarTimeStep,VarTimeStep
+USE MOD_Particle_Vars              ,ONLY: WriteMacroSurfaceValues,nSpecies,MacroValSampTime
 USE MOD_Symmetry_Vars              ,ONLY: Symmetry
-USE MOD_Particle_Vars              ,ONLY: Species
 USE MOD_Restart_Vars               ,ONLY: RestartTime
 USE MOD_TimeDisc_Vars              ,ONLY: TEnd
 USE MOD_Timedisc_Vars              ,ONLY: time,dt
@@ -561,7 +555,7 @@ LOGICAL, INTENT(IN), OPTIONAL      :: during_dt_opt !routine was called during t
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
 INTEGER                            :: iSpec,iSurfSide,p,q, iPBC, nVarCount, OutputCounter
-REAL                               :: TimeSample, ActualTime, TimeSampleTemp, CounterSum, nImpacts, IterNum
+REAL                               :: TimeSample, ActualTime, CounterSum, nImpacts, IterNum
 LOGICAL                            :: during_dt
 INTEGER                            :: idx, GlobalSideID, SurfSideNb, iBC
 !===================================================================================================================================
@@ -651,15 +645,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! --- Default output (force per area, heat flux, simulation particle impact per iteration, boundary index)
       CounterSum = SUM(SampWallState(SAMPWALL_NVARS+1:SAMPWALL_NVARS+nSpecies,p,q,iSurfSide))
       IF(CounterSum.GT.0.0) THEN
-        ! Correct the sample time in the case of a cell local time step with the average time step factor for each side
-        IF(UseVarTimeStep .OR. VarTimeStep%UseSpeciesSpecific) THEN
-          TimeSampleTemp = TimeSample * SampWallState(SWIVarTimeStep,p,q,iSurfSide) / CounterSum
-        ELSE
-          TimeSampleTemp = TimeSample
-        END IF
+        ! No correction of the sample time required for a variable time step: the time step factor of each particle is NOT included
+        ! in the sampled weight in CalcWallSample()
         ! Force per area in x,y,z-direction
         MacroSurfaceVal(1:3,p,q,OutputCounter) = SampWallState(SAMPWALL_DELTA_MOMENTUMX:SAMPWALL_DELTA_MOMENTUMZ,p,q,iSurfSide) &
-                                              / (SurfSideArea(p,q,iSurfSide)*TimeSampleTemp)
+                                              / (SurfSideArea(p,q,iSurfSide)*TimeSample)
         ! Deleting the y/z-component for 1D/2D/axisymmetric simulations
         IF(Symmetry%Order.LT.3) MacroSurfaceVal(Symmetry%Order+1:3,p,q,OutputCounter) = 0.
         ! Heat flux (energy difference per second per area -> W/m2)
@@ -671,11 +661,11 @@ DO iSurfSide = 1,nComputeNodeSurfSides
                                           - SampWallState(SAMPWALL_EROTNEW  ,p,q,iSurfSide)  &
                                           - SampWallState(SAMPWALL_EVIBNEW  ,p,q,iSurfSide)  &
                                           - SampWallState(SAMPWALL_EELECNEW ,p,q,iSurfSide)) &
-                                            / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
+                                            / (SurfSideArea(p,q,iSurfSide) * TimeSample)
         ! Add the heat flux due to catalytic reactions on the surface
         IF(DoChemSurface) THEN
           MacroSurfaceVal(4,p,q,OutputCounter) = MacroSurfaceVal(4,p,q,OutputCounter) + ChemWallProp(nSpecies+1,p, q, iSurfSide)&
-          / (SurfSideArea(p,q,iSurfSide)*ActualTime)
+            / (SurfSideArea(p,q,iSurfSide)*TimeSample)
         END IF
       END IF
 
@@ -717,17 +707,17 @@ DO iSurfSide = 1,nComputeNodeSurfSides
       ! Output of the heat flux due to catalytic reactions
       IF (DoChemSurface) THEN
         nVarCount = nVarCount + 1
-        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = ChemWallProp(nSpecies+1,p, q, iSurfSide)/ (SurfSideArea(p,q,iSurfSide)*ActualTime)
+        MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = ChemWallProp(nSpecies+1,p, q, iSurfSide)/ (SurfSideArea(p,q,iSurfSide)*TimeSample)
       END IF
       ! Output of torque calculation
       IF (CalcTorque) THEN
         IF(CounterSum.GT.0.0) THEN
           nVarCount = nVarCount + 1
-          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSampleTemp
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientX,p,q,iSurfSide) / TimeSample
           nVarCount = nVarCount + 1
-          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSampleTemp
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientY,p,q,iSurfSide) / TimeSample
           nVarCount = nVarCount + 1
-          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientZ,p,q,iSurfSide) / TimeSampleTemp
+          MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = SampWallState(SWITorqueCoefficientZ,p,q,iSurfSide) / TimeSample
         ELSE
           nVarCount = nVarCount + 1
           MacroSurfaceVal(nVarCount,p,q,OutputCounter)  = 0.0
@@ -783,12 +773,7 @@ DO iSurfSide = 1,nComputeNodeSurfSides
 
             ! Add number of impacts per second per square meter
             idx = idx + 1
-            IF(VarTimeStep%UseSpeciesSpecific) THEN
-              TimeSampleTemp = TimeSample * Species(iSpec)%TimeStepFactor
-            ELSE
-              TimeSampleTemp = TimeSample
-            END IF
-            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / (SurfSideArea(p,q,iSurfSide) * TimeSampleTemp)
+            MacroSurfaceSpecVal(idx,p,q,OutputCounter,iSpec) = nImpacts / (SurfSideArea(p,q,iSurfSide) * TimeSample)
           END IF ! nImpacts.GT.0.
         END IF ! CalcSurfaceImpact
 
@@ -838,7 +823,7 @@ USE MOD_Particle_Boundary_Vars     ,ONLY: nSurfBC,SurfBCName, PartBound
 USE MOD_Particle_Boundary_Vars     ,ONLY: SurfOutputSize,SurfSpecOutputSize
 USE MOD_Particle_Boundary_Vars     ,ONLY: MacroSurfaceVal,MacroSurfaceSpecVal, CalcTorque
 USE MOD_SurfaceModel_Analyze_Vars  ,ONLY: CalcSurfOutputPerGroup
-USE MOD_Particle_Vars              ,ONLY: nSpecies
+USE MOD_Particle_Vars              ,ONLY: nSpecies,Species
 #if USE_MPI
 USE MOD_Particle_Boundary_Vars     ,ONLY: nGlobalSurfSides
 USE MOD_MPI_Shared_Vars            ,ONLY: MPI_COMM_LEADERS_SURF
@@ -904,28 +889,32 @@ IF (mySurfRank.EQ.0) THEN
   Str2DVarNames(:) = ''
   nVarCount        = 1
   DO iSpec = 1,nSpecies
-    WRITE(SpecID,'(I3.3)') iSpec
-    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_SimPartPerIter')
+    IF(Species(iSpec)%Name.NE.'none') THEN
+      WRITE(SpecID,'(A,I3.3,A)') 'Spec',iSpec,'_'//TRIM(Species(iSpec)%Name)
+    ELSE
+      WRITE(SpecID,'(A,I3.3)')   'Spec',iSpec
+    END IF
+    CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_SimPartPerIter')
     ! Sampling of impact energy for each species (trans, rot, vib), impact vector (x,y,z) and angle
     IF(CalcSurfaceImpact)THEN
       ! Add average impact energy for each species (trans, rot, vib)
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyTrans')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyRot')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyVib')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactEnergyElec')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyTrans')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyRot')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyVib')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactEnergyElec')
       ! Add average impact vector for each species (x,y,z)
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorX')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorY')
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactVectorZ')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactVectorX')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactVectorY')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactVectorZ')
       ! Add average impact angle for each species
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactAngle')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactAngle')
       ! Add number of impacts
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactNumber')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactNumber')
       ! Add number of impacts per second per square meter
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_ImpactFlux')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_ImpactFlux')
     END IF ! CalcSurfaceImpact
     IF (DoChemSurface) THEN
-      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,'Spec'//TRIM(SpecID)//'_Coverage')
+      CALL AddVarName(Str2DVarNames,nVar2D_Total,nVarCount,TRIM(SpecID)//'_Coverage')
     END IF ! DoChemSurface
   END DO ! iSpec=1,nSpecies
 

@@ -73,10 +73,6 @@ INTERFACE Abort
   MODULE PROCEDURE AbortProg
 END INTERFACE Abort
 
-INTERFACE CollectiveStop
-  MODULE PROCEDURE CollectiveStop
-END INTERFACE CollectiveStop
-
 INTERFACE PrintWarning
   MODULE PROCEDURE PrintWarning
 END INTERFACE PrintWarning
@@ -120,10 +116,10 @@ END INTERFACE
 
 INTERFACE
   SUBROUTINE processmemusage(memUsed,memAvail,memTotal) BIND(C, name='processmemusage')
-    USE ISO_C_BINDING,   ONLY : c_double
-    real(c_double) :: memUsed
-    real(c_double) :: memAvail
-    real(c_double) :: memTotal
+    USE ISO_C_BINDING, ONLY: c_double
+    REAL(c_double),INTENT(OUT) :: memUsed
+    REAL(c_double),INTENT(OUT) :: memAvail
+    REAL(c_double),INTENT(OUT) :: memTotal
   END SUBROUTINE processmemusage
 END INTERFACE
 
@@ -164,14 +160,6 @@ INTERFACE TransformVectorFromSphericalCoordinates
 END INTERFACE
 
 #if defined(PARTICLES)
-INTERFACE PARTISELECTRON
-  MODULE PROCEDURE PARTISELECTRON
-END INTERFACE
-
-INTERFACE SPECIESISELECTRON
-  MODULE PROCEDURE SPECIESISELECTRON
-END INTERFACE
-
 INTERFACE DisplayNumberOfParticles
   MODULE PROCEDURE DisplayNumberOfParticles
 END INTERFACE
@@ -320,11 +308,11 @@ END SUBROUTINE ReOpenLogFile
 !
 ! END FUNCTION AlmostZero
 
+SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt&
 #if USE_MPI
-SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt,SingleOpt)
-#else
-SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInfoOpt,RealInfoOpt)
+                    ,SingleOpt&
 #endif
+                    )
 !===================================================================================================================================
 ! Terminate program correctly if an error has occurred (important in MPI mode!).
 !===================================================================================================================================
@@ -333,15 +321,15 @@ SUBROUTINE AbortProg(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,IntInf
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT VARIABLES
-CHARACTER(LEN=*)                  :: SourceFile      ! Source file where error has occurred
-INTEGER                           :: SourceLine      ! Line in source file
-CHARACTER(LEN=*)                  :: CompDate        ! Compilation date
-CHARACTER(LEN=*)                  :: CompTime        ! Compilation time
-CHARACTER(LEN=*)                  :: ErrorMessage    ! Error message
-INTEGER,OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
-REAL,OPTIONAL                     :: RealInfoOpt     ! Error info (real)
+CHARACTER(LEN=*),INTENT(IN)                  :: SourceFile      ! Source file where error has occurred
+INTEGER,INTENT(IN)                           :: SourceLine      ! Line in source file
+CHARACTER(LEN=*),INTENT(IN)                  :: CompDate        ! Compilation date
+CHARACTER(LEN=*),INTENT(IN)                  :: CompTime        ! Compilation time
+CHARACTER(LEN=*),INTENT(IN)                  :: ErrorMessage    ! Error message
+INTEGER,INTENT(IN),OPTIONAL                  :: IntInfoOpt      ! Error info (integer)
+REAL,INTENT(IN),OPTIONAL                     :: RealInfoOpt     ! Error info (real)
 #if USE_MPI
-LOGICAL,OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
+LOGICAL,INTENT(IN),OPTIONAL                  :: SingleOpt       ! Only MPI-Root performs check
 #endif
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
@@ -405,7 +393,7 @@ END SUBROUTINE AbortProg
 SUBROUTINE PrintWarning(msg)
 IMPLICIT NONE
 ! INPUT / OUTPUT VARIABLES
-CHARACTER(LEN=*) :: msg
+CHARACTER(LEN=*),INTENT(IN) :: msg
 !===================================================================================================================================
 IF (myRank.EQ.0) THEN
   WRITE(UNIT_stdOut,*) '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!'
@@ -439,13 +427,13 @@ SUBROUTINE CollectiveStop(SourceFile,SourceLine,CompDate,CompTime,ErrorMessage,I
 IMPLICIT NONE
 !----------------------------------------------------------------------------------------------------------------------------------
 ! INPUT/OUTPUT VARIABLES
-CHARACTER(LEN=*)                  :: SourceFile      !< Source file where error has occurred
-INTEGER                           :: SourceLine      !< Line in source file
-CHARACTER(LEN=*)                  :: CompDate        !< Compilation date
-CHARACTER(LEN=*)                  :: CompTime        !< Compilation time
-CHARACTER(LEN=*)                  :: ErrorMessage    !< Error message
-INTEGER,OPTIONAL                  :: IntInfo         !< Error info (integer)
-REAL,OPTIONAL                     :: RealInfo        !< Error info (real)
+CHARACTER(LEN=*),INTENT(IN) :: SourceFile      !< Source file where error has occurred
+INTEGER,INTENT(IN)          :: SourceLine      !< Line in source file
+CHARACTER(LEN=*),INTENT(IN) :: CompDate        !< Compilation date
+CHARACTER(LEN=*),INTENT(IN) :: CompTime        !< Compilation time
+CHARACTER(LEN=*),INTENT(IN) :: ErrorMessage    !< Error message
+INTEGER,INTENT(IN),OPTIONAL :: IntInfo         !< Error info (integer)
+REAL,INTENT(IN),OPTIONAL    :: RealInfo        !< Error info (real)
 !   There is no way back!
 !----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
@@ -469,7 +457,11 @@ CALL FLUSH(UNIT_stdOut)
 CALL MPI_BARRIER(MPI_COMM_PICLAS,iError)
 CALL MPI_FINALIZE(iError)
 #endif
-ERROR STOP 1
+! Display stack trace on MPIRoot during CollectiveStop only when compiling in Debug mode
+#if USE_DEBUG
+IF (MPIRoot) ERROR STOP 1
+#endif /*USE_DEBUG*/
+STOP 1, QUIET=.TRUE.
 END SUBROUTINE CollectiveStop
 
 
@@ -633,7 +625,7 @@ CHARACTER(LEN=*),INTENT(IN)          :: FileName          !> e.g. './../laser.in
 CHARACTER(LEN=*),INTENT(IN)          :: ParameterName     !> e.g. 'timestep'
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: DelimiterSymbolIN !> e.g. '=' (default is '=')
 CHARACTER(LEN=*),OPTIONAL,INTENT(IN) :: CommentSymbolIN   !> e.g. '#' (default is '!')
-CHARACTER(LEN=*),INTENT(INOUT)       :: output            !> e.g. '0.1'
+CHARACTER(LEN=255),INTENT(INOUT)     :: output            !> e.g. '0.1'
 LOGICAL,OPTIONAL,INTENT(IN)          :: DoDisplayInfo     !> default is: TRUE
                                                           !> display DefMsg or errors if the parameter or the file is not found
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1310,13 +1302,30 @@ END IF ! SubStringLength.GT.0.AND.MainStringLength.GT.0
 END FUNCTION StringBeginsWith
 
 #if defined(PARTICLES)
-PPURE FUNCTION PARTISELECTRON(PartID)
 !===================================================================================================================================
-! check if particle is an electron (species-charge = -1.609)
+!> Check if species is an electron (Species(SpecID)%InterID=4)
 !===================================================================================================================================
+PPURE FUNCTION SPECIESISELECTRON(SpecID)
 ! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species, PartSpecies
+USE MOD_Particle_Vars          ,ONLY: Species
+! IMPLICIT VARIABLE HANDLING
+IMPLICIT NONE
+!-----------------------------------------------------------------------------------------------------------------------------------
+! INPUT VARIABLES
+INTEGER,INTENT(IN) :: SpecID
+!-----------------------------------------------------------------------------------------------------------------------------------
+! OUTPUT VARIABLES
+LOGICAL            :: SPECIESISELECTRON
+!===================================================================================================================================
+SPECIESISELECTRON = (Species(SpecID)%InterID.EQ.4)
+END FUNCTION SPECIESISELECTRON
+
+!===================================================================================================================================
+!> Check if particle is an electron (Species(PartSpecies(PartID))%InterID=4)
+!===================================================================================================================================
+PPURE FUNCTION PARTISELECTRON(PartID)
+! MODULES
+USE MOD_Particle_Vars          ,ONLY: PartSpecies
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -1324,46 +1333,16 @@ IMPLICIT NONE
 INTEGER,INTENT(IN) :: PartID
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! OUTPUT VARIABLES
-LOGICAL            :: PARTISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-INTEGER            :: SpeciesID
+LOGICAL            :: PARTISELECTRON
 !===================================================================================================================================
-PARTISELECTRON=.FALSE.
-SpeciesID = PartSpecies(PartID)
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) PARTISELECTRON=.TRUE.
+PARTISELECTRON = SPECIESISELECTRON(PartSpecies(PartID))
 END FUNCTION PARTISELECTRON
-
-
-PPURE FUNCTION SPECIESISELECTRON(SpeciesID)
-!===================================================================================================================================
-! check if species is an electron (species-charge = -1.609)
-!===================================================================================================================================
-! MODULES
-USE MOD_Globals_Vars           ,ONLY: ElementaryCharge
-USE MOD_Particle_Vars          ,ONLY: Species
-! IMPLICIT VARIABLE HANDLING
-IMPLICIT NONE
-!-----------------------------------------------------------------------------------------------------------------------------------
-! INPUT VARIABLES
-INTEGER,INTENT(IN) :: SpeciesID
-!-----------------------------------------------------------------------------------------------------------------------------------
-! OUTPUT VARIABLES
-LOGICAL            :: SPECIESISELECTRON  !
-!-----------------------------------------------------------------------------------------------------------------------------------
-! LOCAL VARIABLES
-!===================================================================================================================================
-SPECIESISELECTRON=.FALSE.
-IF(Species(SpeciesID)%ChargeIC.GT.0.0) RETURN
-IF(NINT(Species(SpeciesID)%ChargeIC/(-ElementaryCharge)).EQ.1) SPECIESISELECTRON=.TRUE.
-END FUNCTION SPECIESISELECTRON
 #endif /*defined(PARTICLES)*/
 
 
 RECURSIVE FUNCTION LOG_RAN() RESULT(X)
 !===================================================================================================================================
-! check if species is an electron (species-charge = -1.609)
+! Return LOG of a uniform random number in (0,1), redrawing if the random number is zero
 !===================================================================================================================================
 ! MODULES
 ! IMPLICIT VARIABLE HANDLING

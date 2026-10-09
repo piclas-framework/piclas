@@ -1,6 +1,5 @@
-import os
-import sys
 import inspect
+import sys
 import textwrap
 
 
@@ -79,7 +78,7 @@ def getScriptPropertiesXml(info):
         extent that your filter ask up stream for.</Documentation>
       </StringVectorProperty>''' % requestUpdateExtent
 
-    return '\n'.join([requestData, requestInformation, requestUpdateExtent])
+    return f'{requestData}\n{requestInformation}\n{requestUpdateExtent}'
 
 
 
@@ -347,7 +346,7 @@ def generatePythonFilterFromFiles(scriptFile, outputFile):
 def main():
 
     if len(sys.argv) != 3:
-        print 'Usage: %s <python input filename> <xml output filename>' % sys.argv[0]
+        print('Usage: %s <python input filename> <xml output filename>' % sys.argv[0])
         sys.exit(1)
 
     inputScript = sys.argv[1]

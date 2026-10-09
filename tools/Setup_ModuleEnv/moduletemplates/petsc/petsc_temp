@@ -24,5 +24,6 @@ set     sys             linux64
 
 prepend-path    PATH            $topdir/bin
 prepend-path    LD_LIBRARY_PATH $topdir/lib
-prepend-path    PETSC_DIR       $topdir
+# PETSC_DIR must contain a single path
+setenv          PETSC_DIR       $topdir
 #set-alias       paraviewmpi "paraview --mpi$

@@ -702,7 +702,7 @@ IF(FILEEXISTS(outfile))THEN
       delimiter,L_2_Error_Part(4), &     ! L2 error for PartVelX solution
       delimiter,L_2_Error_Part(5), &     ! L2 error for PartVelY solution
       delimiter,L_2_Error_Part(6), &     ! L2 error for PartVelZ solution
-      delimiter,L_2_Error_Part(7)        ! L2 error for PartVelZ solution
+      delimiter,L_2_Error_Part(7)        ! L2 error for 1.0/SQRT(1.-gamma1) with gamma1 = Lorentz factor
   WRITE(ioUnit,'(A)')TRIM(ADJUSTL(tmpStr2)) ! clip away the front and rear white spaces of the data line
   CLOSE(ioUnit)
 ELSE

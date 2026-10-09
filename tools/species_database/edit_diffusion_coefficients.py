@@ -1,14 +1,16 @@
+import argparse
+import io
 import logging
 import os
-import io
-import pandas as pd
-import argparse
+import re
+import sys
+
 import h5py
 import numpy as np
-import re
-
-from general_functions import *
+import pandas as pd
 from config import datatype_h5
+from general_functions import *
+
 
 def check_for_bolsig(file):
     with open(file, "r") as f:
@@ -137,7 +139,7 @@ class DiffusionCoefficientsSetLXCatBolsig:
                         while line.strip() != "":
                             if 'NaN' in line:
                                 print("NaN in calculated values!")
-                                exit()
+                                sys.exit()
                             parts = re.sub(r'\s+',' ', line).split(' ')
                             plots_list.append(parts[plot_index])
                             mobility_coef.append(parts[mobility_index])
@@ -280,7 +282,7 @@ class DiffusionCoefficientsSetLXCat:
                         data_array[:,0] = data[other_info['COLUMNS'].split('|')[0]].to_numpy()
                         data_array[:,1] =data[other_info['COLUMNS'].split('|')[1]].to_numpy()
                         self.diff_coef = data_array
-                        red_field = data[other_info['COLUMNS'].split('|')[0]]
+                        data[other_info['COLUMNS'].split('|')[0]]
                         self.reference = reference #+ f'from {red_field.iloc[0]} to {red_field.iloc[-1]}'
                     line = f.readline()
         else:
@@ -309,7 +311,7 @@ def append_to_database(database_path, Input):
                 print(f'Caution! Current dataset is already stored in species database for species: {data.species}')
                 # maybe select what should be done -> override or keep
 
-                exit()
+                sys.exit()
 
         diff_coef_group[data.species][data.database].create_dataset(data.datasetname,data=data.diff_coef)
         diff_coef_group[data.species][data.database][data.datasetname].attrs.create('* Reference', data.reference)
@@ -346,7 +348,7 @@ def append_to_database_bolsig(database_path, Input):
                         print(f'{data.config[i, 0]}: {data.config[i, 1]}')
                     user_input_ = get_valid_input(create_prompt('to keep the current datasets',
                                                        'to overwrite the datasets',),
-                                                       lambda x: x == '1' or x == '2' or x == '3')
+                                                       lambda x: x in {'1', '2', '3'})
                     if user_input_ == '1':
                         return
                     elif user_input_ == '2':

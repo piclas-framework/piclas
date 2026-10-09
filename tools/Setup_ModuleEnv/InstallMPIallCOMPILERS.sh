@@ -45,12 +45,17 @@ fi
 # Settings
 # --------------------------------------------------------------------------------------------------
 NBROFCORES=$(grep ^cpu\\scores /proc/cpuinfo | uniq |  awk '{print $4}')
-# chose which mpi you want to have installed (openmpi or mpich)
+# Choose which mpi you want to have installed (either openmpi or mpich)
+
+# OpenMPI: https://www.open-mpi.org/software/ompi
 WHICHMPI=openmpi
 # WHICHMPI=openmpi-debug
-WHICHMPI=mpich
-#WHICHMPI=mpich-debug
-# choose for which compilers mpi is build (gcc or intel)
+
+# MPICH: https://www.mpich.org/static/downloads/
+# WHICHMPI=mpich
+# WHICHMPI=mpich-debug
+
+# Choose for which compilers mpi is build (gcc or intel)
 WHICHCOMPILER=gcc
 
 INSTALLDIR=/opt
@@ -61,6 +66,8 @@ if [[ ! -f ${TEMPLATEPATH} ]]; then
   echo "${RED}ERROR: module template not found under ${TEMPLATEPATH}${NC}. Exit."
   exit
 fi
+
+PATCHESDIR=$(echo `pwd`/patches)
 
 CONFIGSUFFIX=''
 if [ "${WHICHMPI}" == "openmpi" ]; then
@@ -79,6 +86,7 @@ elif [ "${WHICHMPI}" == "mpich" ]; then
   MPIVERSION=4.1.2
   # MPIVERSION=4.2.1
   MPIVERSION=4.3.1
+  MPIVERSION=5.0.1
 elif [ "${WHICHMPI}" == "mpich-debug" ]; then
   # DOWNLOAD and INSTALL MPICH (example mpich-3.2.0)
   MPIVERSION=4.1.2
@@ -190,6 +198,12 @@ if [ "${WHICHCOMPILER}" == "gcc" ] || [ "${WHICHCOMPILER}" == "intel" ]; then
         echo " " && ls -l ${TARFILE}
         echo "${RED} Failed to extract: [tar -xzf ${TARFILE}]. Broken or failed download. Try removing ${TARFILE} before processing. Exit.${NC}"
         exit
+      fi
+
+      # GCC 16 fixes for OpenMPI 5.0.9
+      if [ "${WHICHMPISHORT}" == "openmpi" ] && [ "${MPIVERSION}" == "5.0.9" ]; then
+        patch -p1 -d ${SOURCESDIR}/openmpi-${MPIVERSION} < ${PATCHESDIR}/openmpi5.0.9-brace-initialization.patch
+        patch -p1 -d ${SOURCESDIR}/openmpi-${MPIVERSION} < ${PATCHESDIR}/openmpi5.0.9-always-inline.patch
       fi
 
       if [ ! -d ${BUILDDIR} ]; then

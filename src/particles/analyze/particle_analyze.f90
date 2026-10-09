@@ -395,12 +395,12 @@ IF(CalcPointsPerDebyeLength.OR.CalcPICCFLCondition.OR.CalcMaxPartDisplacement)TH
   ! CharLength is only build for local DG elements. Therefore, array is only filled for elements on the same compute node
   offsetElemCNProc = offsetElem - offsetComputeNodeElem
 #else
-  ALLOCATE(ElemCharLengthX_Shared(nElems), &
-           ElemCharLengthY_Shared(nElems), &
-           ElemCharLengthZ_Shared(nElems), &
-           STAT=ALLOCSTAT)
-  IF (ALLOCSTAT.NE.0) &
-    CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in X, Y or Z!')
+  ALLOCATE(ElemCharLengthX_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in X')
+  ALLOCATE(ElemCharLengthY_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in Y')
+  ALLOCATE(ElemCharLengthZ_Shared(nElems), STAT=ALLOCSTAT)
+  IF (ALLOCSTAT.NE.0) CALL abort(__STAMP__,'ERROR in Particle Analyze: Cannot allocate ElemCharLength in Z')
   offsetElemCNProc = 0
 #endif  /*USE_MPI*/
   DO iElem = 1, nElems
@@ -654,8 +654,7 @@ IF(CalcRelaxProb.AND.(Collismode.LE.1)) CALL abort(__STAMP__,&
 IF(BGGas%UseDistribution.AND.(CalcNumDens.OR.DSMC%CalcQualityFactors.OR.CalcReacRates)) CALL CalcNumberDensityBGGasDistri()
 
 IF(CalcReacRates) THEN
-  IF(usevMPF.OR.UseVarTimeStep) CALL abort(__STAMP__,&
-      'ERROR: CalcReacRates is not supported with variable weighting or variable time step yet!')
+  IF(UseVarTimeStep) CALL abort(__STAMP__,'ERROR: CalcReacRates is not supported with variable time step yet!')
 END IF
 
 IF(CalcSimNumSpec.OR.CalcNumDens.OR.CalcCollRates.OR.CalcReacRates.OR.CalcSurfFluxInfo.OR.CalcRelaxProb) DoPartAnalyze = .TRUE.
@@ -735,7 +734,6 @@ END SUBROUTINE InitParticleAnalyze
 SUBROUTINE InitBulkElectronTemp()
 ! MODULES
 USE MOD_Globals
-USE MOD_Globals_Vars          ,ONLY: ElementaryCharge
 USE MOD_Particle_Vars         ,ONLY: nSpecies,Species
 USE MOD_Particle_Vars         ,ONLY: CalcBulkElectronTemp,BulkElectronTemp,BulkElectronTempSpecID
 USE MOD_HDF5_Input            ,ONLY: DatasetExists,ReadArray
@@ -783,8 +781,7 @@ IF(CalcBulkElectronTemp)THEN
   ! Loop over all species and find the index corresponding to the electron species: take the first electron species that is
   ! encountered
   DO iSpec = 1, nSpecies
-    IF (Species(iSpec)%ChargeIC.GE.0.0) CYCLE
-    IF(NINT(Species(iSpec)%ChargeIC/(-ElementaryCharge)).EQ.1)THEN
+    IF(SPECIESISELECTRON(iSpec))THEN
       BulkElectronTempSpecID = iSpec
       EXIT
     END IF
@@ -908,7 +905,7 @@ REAL                :: EkinMax(nSpecies)
 REAL                :: ETotal
 REAL                :: IntEn(nSpecAnalyze,3),IntTemp(nSpecies,3),TempTotal(nSpecAnalyze), Xi_Vib(nSpecies), Xi_Elec(nSpecies)
 REAL                :: MaxCollProb, MeanCollProb, MeanFreePath, MaxMCSoverMFP, ResolvedCellPercentage, ResolvedTimestep
-REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2)
+REAL                :: NumSpecTmp(nSpecAnalyze), RotRelaxProb(2), VibRelaxProb(2), MPF
 INTEGER             :: bgSpec
 #endif
 #if (PP_TimeDiscMethod==4)
@@ -1479,10 +1476,15 @@ ParticleAnalyzeSampleTime = Time - ParticleAnalyzeSampleTime ! Set ParticleAnaly
       DO iSpec = 1, nSpecies
         IF(BGGas%BackgroundSpecies(iSpec)) THEN
           bgSpec = BGGas%MapSpecToBGSpec(iSpec)
-          IF(BGGas%UseDistribution) THEN
-            NumSpecTmp(iSpec) = BGGas%DistributionNumDens(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
+          IF(usevMPF) THEN
+            MPF = 1.
           ELSE
-            NumSpecTmp(iSpec) = BGGas%NumberDensity(bgSpec)*MeshVolume/Species(iSpec)%MacroParticleFactor
+            MPF = Species(iSpec)%MacroParticleFactor
+          END IF
+          IF(BGGas%UseDistribution) THEN
+            NumSpecTmp(iSpec) = BGGas%DistributionNumDens(bgSpec)*MeshVolume/MPF
+          ELSE
+            NumSpecTmp(iSpec) = BGGas%NumberDensity(bgSpec)*MeshVolume/MPF
           END IF
           IF(nSpecAnalyze.GT.1) THEN
             NumSpecTmp(nSpecAnalyze) = NumSpecTmp(nSpecAnalyze) + NumSpecTmp(iSpec)

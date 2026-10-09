@@ -1,0 +1,105 @@
+[tool.ruff]
+line-length = 132
+indent-width = 4
+force-exclude = true
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".git",
+    ".pyenv",
+    ".venv",
+    ".vscode",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+    "pyhope",
+    "reggie"
+    ]
+# Required Ruff version
+required-version = ">=v0.16.7"
+show-fixes = true
+# PyHOPE requires Python 3.10 or newer
+target-version = "py310"
+
+[tool.ruff.lint]
+extend-select = [
+  "ANN",      # flake8-annotations
+  "B",        # flake8-bugbear
+  "C4",       # flake8-comprehensions
+  "FA",       # flake8-future-annotations
+  "RET",      # flake8-return
+  "SIM",      # flake8-simplify
+  "SLOT",     # flake8-slots
+  "TID",      # flake8-tidy-imports
+  "PERF",     # Perflint
+  "FURB",     # refurb
+  "I",        # isort
+  "NPY",      # NumPy-specific rules
+  ]
+# You can't ignore E999 (syntax errors) — ruff explicitly prevents it since the file can't be parsed at all, making other checks meaningless.
+ignore = [
+  "EXE001",   # shebang-not-executable             - we use shebang as file format identifier
+  "I001",     # unsorted-imports                   - we use logical sorting instead of alphabetical
+  "RET501",   # unnecessary-return-none            - we want to be explicit about our return values
+  "RUF001",   # ambiguous-unicode-character-string - we want to use all characters
+  "RUF100",   # unused-noqa                        - we want to have multiple linters, thus sometimes more exceptions are necessary
+  "UP009",    # utf8-encoding-declaration          - we want to be explicit about our encoding
+  "UP045",    # non-pep604-annotation-optional     - we want explicit typing.Optional annotations
+  "PLR0402",  # manual-from-import                 - we want every import specify the module name
+  # INFO: False positives
+  "RET503",   # implicit-return                    - ruff does not detect hopout.error[NoReturn]
+  # TODO: These should be fixed eventually
+  "BLE001",   # blind-except                       - narrow errors and exceptions
+  "S110",     # try-except-pass                    - implement feature.logger branch
+  "ANN001",   # missing-type-function-argument
+  "ANN201",   # missing-return-type-undocumented-public-function
+  "F821",     # undefined-name
+  "UP031",    # printf-string-formatting
+  "ANN204",   # missing-return-type-special-method
+  "PLW0602",  # global-variable-not-assigned
+  "TRY002",   # raise-vanilla-class
+  "RET505",   # superfluous-else-return
+  "DTZ011",   # call-date-today
+  "SIM108",   # if-else-block-instead-of-if-exp
+  "E722",     # bare-except
+  "SIM115",   # open-file-with-context-handler
+  "B007",     # unused-loop-control-variable
+  "SIM105",   # suppressible-exception
+  "ANN202",   # missing-return-type-private-function
+  "PERF203",  # try-except-in-loop
+  "SIM102",   # collapsible-if
+  "RUF012",   # mutable-class-default
+  "F841",     # unused-variable
+  "FURB154",  # repeated-global
+  "B018",     # useless-expression
+  "B904",     # raise-without-from-inside-except
+  "B905",     # zip-without-explicit-strict
+  "LOG015",   # root-logger-call
+  "RET508",   # superfluous-else-break
+  "ANN002",   # missing-type-args
+  "ANN003",   # missing-type-kwargs
+  "C408",     # unnecessary-collection-call
+  "FURB113",  # repeated-append
+  "TRY300",   # try-consider-else
+  "B011",     # assert-false
+  "FURB101",  # read-whole-file
+  "FURB118",  # reimplemented-operator
+  "PLC0206",  # dict-index-missing-items
+  "PLR1704",  # redefined-argument-from-local
+  "RET504",   # unnecessary-assign
+  "RET506",   # superfluous-else-raise
+  "C416",     # unnecessary-comprehension
+  "F509",     # percent-format-unsupported-format-character
+  "FURB103",  # write-whole-file
+  "FURB152",  # math-constant
+  "NPY201",   # numpy2-deprecation
+  "PLE1300",  # bad-string-format-character
+  "PLW0127",  # self-assigning-variable
+  "RET507",   # superfluous-else-continue
+  "S102",     # exec-builtin
+  "SIM113",   # enumerate-for-loop
+ ]
+
+[tool.ruff.format]
+quote-style  = "single"
+indent-style = "space"

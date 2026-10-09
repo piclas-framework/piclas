@@ -1987,11 +1987,12 @@ SideSlabIntervals  => SideSlabIntervals_Shared
 BoundingBoxIsEmpty => BoundingBoxIsEmpty_Shared
 CALL MPI_BARRIER(MPI_COMM_SHARED,iError)
 #else
-ALLOCATE(SideSlabNormals(1:3,1:3,1:nNonUniqueGlobalSides) &
-        ,SideSlabIntervals(  1:6,1:nNonUniqueGlobalSides) &
-        ,BoundingBoxIsEmpty(     1:nNonUniqueGlobalSides) &
-        ,STAT=ALLOCSTAT)
-IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate SideMetrics arrays!')
+ALLOCATE(SideSlabNormals(1:3,1:3,1:nNonUniqueGlobalSides), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate SideMetrics arrays, SideSlabNormals')
+ALLOCATE(SideSlabIntervals(  1:6,1:nNonUniqueGlobalSides), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate SideMetrics arrays, SideSlabIntervals')
+ALLOCATE(BoundingBoxIsEmpty(     1:nNonUniqueGlobalSides), STAT=ALLOCSTAT)
+IF (ALLOCSTAT.NE.0) CALL ABORT(__STAMP__,'  Cannot allocate SideMetrics arrays, BoundingBoxIsEmpty')
 firstSide = 1
 lastSide  = nNonUniqueGlobalSides
 #endif /* USE_MPI */

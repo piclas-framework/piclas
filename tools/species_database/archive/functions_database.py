@@ -1,5 +1,6 @@
 import sys
 
+
 def custom_sort_reactants(species_list):
     species_order = [
         'SF6',
@@ -86,9 +87,8 @@ def custom_sort_reactants(species_list):
             sys.exit()
 
     custom_order = {key:index + 1 for index, key in enumerate(species_order)}
-    sorted_list = sorted(species_list, key=lambda x: custom_order[x])
+    return sorted(species_list, key=lambda x: custom_order[x])
 
-    return sorted_list
     
     
 def custom_sort_products(species_list):

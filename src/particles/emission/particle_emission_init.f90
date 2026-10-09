@@ -219,7 +219,9 @@ DO iSpec = 1, nSpecies
   Species(iSpec)%TimeStepFactor              = GETREAL('Part-Species'//TRIM(hilf)//'-TimeStepFactor')
   IF(Species(iSpec)%TimeStepFactor.NE.1.) THEN
     VarTimeStep%UseSpeciesSpecific = .TRUE.
+    IF(UseVarTimeStep) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step cannot be used in combination with a Part-VariableTimeStep-*!')
     IF(Species(iSpec)%TimeStepFactor.GT.1.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step only allows factors below 1!')
+    IF(Species(iSpec)%TimeStepFactor.LE.0.) CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step requires a factor greater than zero!')
 #if (USE_HDG) && !(PP_TimeDiscMethod==500) && !(PP_TimeDiscMethod==508) && !(PP_TimeDiscMethod==509)
     CALL CollectiveStop(__STAMP__,'ERROR: Species-specific time step is only implemented with Euler, Leapfrog & Boris-Leapfrog time discretization!')
 #endif /*(USE_HDG)*/
@@ -278,7 +280,7 @@ DO iSpec = 1, nSpecies
         Species(iSpec)%Init(iInit)%NormalVector1IC        = (/0.,1.,0./)
       END IF
       !--- Get BaseVector2IC and normalize it
-      IF(Symmetry%Order.GE.3) THEN
+      IF(Symmetry%Order.GE.2) THEN
         Species(iSpec)%Init(iInit)%BaseVector2IC          = GETREALARRAY('Part-Species'//TRIM(hilf2)//'-BaseVector2IC',3)
         Species(iSpec)%Init(iInit)%NormalVector2IC        = UNITVECTOR(Species(iSpec)%Init(iInit)%BaseVector2IC)
       ELSE IF(Symmetry%Order.EQ.2.AND..NOT.Symmetry%Axisymmetric.AND.TRIM(Species(iSpec)%Init(iInit)%SpaceIC).EQ.'cylinder') THEN
@@ -527,7 +529,7 @@ DO iSpec = 1,nSpecies
       ! --------------------------------------------------------------------------------------------------
       ! Cell-local particle emission: every processors loops over its own elements
       CASE('cell_local')
-        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' Initial cell local particle emission for species ',iSpec,' ... '
+        LBWRITE(UNIT_stdOut,'(A,I0,A)') ' | Initial cell local particle emission for species ',iSpec,' ... '
         CALL ParticleEmissionCellLocal(iSpec,iInit,NbrOfParticle)
         ! TODO: MOVE EVERYTHING INTO THE EMISSION ROUTINE
         CALL SetParticleVelocity(iSpec,iInit,NbrOfParticle)

@@ -954,7 +954,7 @@ SUBROUTINE DSMC_perform_collision(iPair, iElem, NodeVolume, NodePartNum)
 ! MODULES
 USE MOD_Globals               ,ONLY: Abort, CROSS
 USE MOD_DSMC_Vars             ,ONLY: CollisMode, Coll_pData, SelectionProc
-USE MOD_DSMC_Vars             ,ONLY: DSMC
+USE MOD_DSMC_Vars             ,ONLY: DSMC, BGGas
 USE MOD_Particle_Vars         ,ONLY: PartState
 USE MOD_Particle_Vars         ,ONLY: UseRotRefFrame, InRotRefFrame, PartVeloRotRef, RotRefFrameOmega
 USE MOD_Symmetry_Vars         ,ONLY: Symmetry
@@ -995,7 +995,8 @@ END IF
 iPart1 = Coll_pData(iPair)%iPart_p1
 iPart2 = Coll_pData(iPair)%iPart_p2
 
-IF(DSMC%CalcQualityFactors) THEN
+! Determine collision separation distance for MCS/MFP (only for regular DSMC without background gas)
+IF(DSMC%CalcQualityFactors.AND.(BGGas%NumberOfSpecies.EQ.0)) THEN
   IF(Symmetry%Order.EQ.3) THEN
     Distance = SQRT((PartState(1,iPart1) - PartState(1,iPart2))**2 + (PartState(2,iPart1) - PartState(2,iPart2))**2 &
                     + (PartState(3,iPart1) - PartState(3,iPart2))**2)

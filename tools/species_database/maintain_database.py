@@ -1,13 +1,14 @@
-import re
 import argparse
+import re
 from pathlib import Path
-from general_functions import *
-from edit_species import *
-from edit_crosssections import *
-from edit_reactions import *
-from edit_surfchem import *
-from edit_diffusion_coefficients import *
+
 from config import *
+from edit_crosssections import *
+from edit_diffusion_coefficients import *
+from edit_reactions import *
+from edit_species import *
+from edit_surfchem import *
+from general_functions import *
 
 ###################################################################################################
 # - Program starts here
@@ -30,7 +31,7 @@ user_input = get_valid_input(create_prompt('to maintain/edit species',
                                            'to maintain/edit cross section data',
                                            'to maintain/edit surface chemistry',
                                            'to maintain/edit diffusion coefficients',),
-                                           lambda x: x == '1' or x == '2' or x =='3' or x =='4' or x =='5' or x =='6')
+                                           lambda x: x in {'1', '2', '3', '4', '5', '6'})
 ###################################################################################################
 # SPECIES
 ###################################################################################################
@@ -51,7 +52,7 @@ if user_input == "1":
     user_input = get_valid_input(create_prompt('check existing species',
                                                'add new data to existing species',
                                                'add new species'),
-                                               lambda x: x == '1' or x == '2' or x =='3' or x =='4')
+                                               lambda x: x in {'1', '2', '3', '4'})
     if user_input == "1":
         # create dictionary from ATcT data for faster access
         species_dict = create_species_dict()
@@ -158,7 +159,7 @@ if user_input == "1":
                 for attr_name, attr_value in atct_data_for_instance.items():
                     print("Adding attribute " + attr_name + " with value " + str(attr_value))
                     species_class.attributes[attr_name] = attr_value
-            except Exception as e:
+            except Exception:
                 # pass since missing data is added via user input anyway
                 pass
 
@@ -182,7 +183,7 @@ if user_input == "1":
 elif user_input == "2":
     user_input = get_valid_input(create_prompt('add new reactions',
                                                'delete reactions'),
-                                               lambda x: x == '1' or x == '2' or x =='3')
+                                               lambda x: x in {'1', '2', '3'})
     if user_input == '1':
         function = create_reaction
     elif user_input == '2':
@@ -204,14 +205,7 @@ elif user_input == "2":
 # CROSS SECTION DATA
 ###################################################################################################
 
-elif user_input == "3":
-    print("Not implemented yet")
-
-###################################################################################################
-# SURFACE CHEMISTRY
-###################################################################################################
-
-elif user_input == "4":
+elif user_input in {"3", "4"}:
     print("Not implemented yet")
 
 ###################################################################################################

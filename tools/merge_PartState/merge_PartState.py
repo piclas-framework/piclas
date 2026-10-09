@@ -1,8 +1,11 @@
-import numpy as np
-from timeit import default_timer as timer
 import argparse
 import re
 import shutil
+import sys
+from timeit import default_timer as timer
+
+import numpy as np
+
 
 class bcolors :
     """color and font style definitions for changing output appearance"""
@@ -41,7 +44,7 @@ try :
     h5py_module_loaded = True
 except ImportError :
     print(red('Could not import h5py module. This is required for analyse functions.'))
-    exit(0)
+    sys.exit(0)
 
 # Start the timer
 start = timer()
@@ -80,9 +83,9 @@ for statefile in args.files :
     except :
         print("not considering "+statefile)
 
-print("t_max     : %s" % maxtime)
-print("t_max_str : %s" % timestr)
-print("newfile   : %s" % newFile)
+print(f"t_max     : {maxtime}")
+print(f"t_max_str : {timestr}")
+print(f"newfile   : {newFile}")
 print()
 
 # Get maximum number of characters in h5 file names
@@ -121,7 +124,7 @@ for statefile in files :
     
     # 1.1.1   Read the dataset from the hdf5 file
     b1 = f1[data_set][:]
-    print("".ljust(max_length-len(statefile)),statefile," | PartData%s" % str(b1.shape))
+    print("".ljust(max_length-len(statefile)),statefile,f" | PartData{b1.shape!s}")
 
     # Save old file
     if n > 1 :
@@ -143,7 +146,7 @@ for statefile in files :
     statefile_old = statefile
     f1.close()
 print(132*"-")
-print("Files have been merged into %s | %s%s" % (newFile,data_set,b1_merged.shape))
+print(f"Files have been merged into {newFile} | {data_set}{b1_merged.shape}")
 
 
 

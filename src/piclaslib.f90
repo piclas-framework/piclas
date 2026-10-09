@@ -19,7 +19,7 @@ IMPLICIT NONE
 PRIVATE
 SAVE
 
-PUBLIC::InitializePiclas
+PUBLIC :: InitializePiclas
 
 CONTAINS
 !===================================================================================================================================
@@ -86,7 +86,12 @@ SWRITE(UNIT_stdOut,'(A)')"                                       |/       \_____
 SWRITE(UNIT_stdOut,'(132(" "))')
 SWRITE(UNIT_stdOut,'(A)')"piclas version "&
     //TRIM(int2strf(MajorVersion))//"."//TRIM(int2strf(MinorVersion))//"."//TRIM(int2strf(PatchVersion))&
-    //" with commit "//TRIM(GIT_CURRENT_COMMIT)//" and build type "//TRIM(BuildType)
+    //" with commit "//TRIM(GIT_CURRENT_COMMIT)//" and build type "//TRIM(BuildType)&
+#if USE_PGO
+    //" and profile-guided optimization"
+#else
+  ;
+#endif /*USE_PGO*/
 SWRITE(UNIT_stdOut,'(132("="))')
 
 CALL ParseCommandlineArguments()

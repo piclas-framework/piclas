@@ -35,12 +35,12 @@ INTERFACE MPI_WIN_ALLOCATE_SHARED
       USE, INTRINSIC ::  ISO_C_BINDING, ONLY : C_PTR
       USE mpi_f08, ONLY: MPI_Comm,MPI_Info,MPI_Win,MPI_COMM_NULL,MPI_ADDRESS_KIND
       IMPLICIT NONE
-      INTEGER        ::  DISP_UNIT, IERROR
-      TYPE(MPI_Info) ::  INFO
-      TYPE(MPI_comm) ::  COMM
-      TYPE(MPI_Win)  ::  WIN
-      INTEGER(KIND=MPI_ADDRESS_KIND) ::  SIZE
-      TYPE(C_PTR)    ::  BASEPTR
+      INTEGER,INTENT(IN)                        ::  DISP_UNIT, IERROR
+      TYPE(MPI_Info),INTENT(IN)                 ::  INFO
+      TYPE(MPI_comm),INTENT(IN)                 ::  COMM
+      TYPE(MPI_Win),INTENT(IN)                  ::  WIN
+      INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) ::  SIZE
+      TYPE(C_PTR),INTENT(IN)                    ::  BASEPTR
   END SUBROUTINE
 END INTERFACE
 
@@ -49,10 +49,10 @@ INTERFACE MPI_WIN_SHARED_QUERY
       USE, INTRINSIC :: ISO_C_BINDING, ONLY : C_PTR
       USE mpi_f08, ONLY: MPI_Comm,MPI_Info,MPI_Win,MPI_COMM_NULL,MPI_ADDRESS_KIND
       IMPLICIT NONE
-      INTEGER        :: RANK, DISP_UNIT, IERROR
-      TYPE(MPI_Win)  :: WIN
-      INTEGER(KIND=MPI_ADDRESS_KIND) :: SIZE
-      TYPE(C_PTR)    :: BASEPTR
+      INTEGER,INTENT(IN)                        :: RANK, DISP_UNIT, IERROR
+      TYPE(MPI_Win),INTENT(IN)                  :: WIN
+      INTEGER(KIND=MPI_ADDRESS_KIND),INTENT(IN) :: SIZE
+      TYPE(C_PTR),INTENT(IN)                    :: BASEPTR
   END SUBROUTINE
 END INTERFACE
 #endif /*LIBS_MPICH_FIX_SHM_INTERFACE*/
@@ -1388,7 +1388,7 @@ END SUBROUTINE ALLOCATE_SHARED_REAL_6
 
 
 !==================================================================================================================================
-!> Unlock and free shared memory array
+!> Synchronize the shared memory window: make local writes visible to all ranks via sync-barrier-sync
 !==================================================================================================================================
 SUBROUTINE BARRIER_AND_SYNC(SharedWindow,Communicator) !,Barrier_Opt)
 ! MODULES

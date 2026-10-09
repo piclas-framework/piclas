@@ -15,8 +15,8 @@
 MODULE MOD_Particle_Analyze_Tools
 ! IMPLICIT VARIABLE HANDLING
 IMPLICIT NONE
-#ifdef PARTICLES
 PRIVATE
+#if defined(PARTICLES)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! GLOBAL VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
@@ -2785,7 +2785,7 @@ SUBROUTINE ReacRates(NumSpec, RRate)
 USE MOD_Globals
 USE MOD_Particle_Analyze_Vars ,ONLY: ParticleAnalyzeSampleTime
 USE MOD_DSMC_Vars             ,ONLY: ChemReac, DSMC
-USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep
+USE MOD_Particle_Vars         ,ONLY: Species, nSpecies, VarTimeStep, usevMPF
 USE MOD_Particle_Mesh_Vars    ,ONLY: MeshVolume
 USE MOD_Particle_TimeStep     ,ONLY: GetSpeciesTimeStep
 ! IMPLICIT VARIABLE HANDLING
@@ -2798,8 +2798,8 @@ REAL,INTENT(IN)                 :: NumSpec(:)
 REAL,INTENT(OUT)                :: RRate(:)
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER                         :: iReac, iCase
-REAL                            :: dtVar
+INTEGER                         :: iReac, iCase, iSpec, iSpec2
+REAL                            :: dtVar, MPF
 #if USE_MPI
 REAL                            :: RD(1:ChemReac%NumOfReact)
 #endif /*USE_MPI*/
@@ -2816,42 +2816,38 @@ END IF
 IF(MPIRoot)THEN
   DO iReac=1, ChemReac%NumOfReact
     iCase = ChemReac%ReactCase(iReac)
+    iSpec = ChemReac%Reactants(iReac,1)
+    iSpec2 = ChemReac%Reactants(iReac,2)
     ! Species-specific time step
     IF(VarTimeStep%UseSpeciesSpecific.AND..NOT.VarTimeStep%DisableForMCC) THEN
       dtVar = ParticleAnalyzeSampleTime * GetSpeciesTimeStep(iCase)
     ELSE
       dtVar = ParticleAnalyzeSampleTime
     END IF
-    IF ((NumSpec(ChemReac%Reactants(iReac,1)).GT.0).AND.(NumSpec(ChemReac%Reactants(iReac,2)).GT.0)) THEN
+    IF ((NumSpec(iSpec).GT.0).AND.(NumSpec(iSpec2).GT.0)) THEN
+      IF(usevMPF) THEN
+        MPF = 1.
+      ELSE
+        MPF = Species(iSpec)%MacroParticleFactor
+      END IF
       IF(ChemReac%Reactants(iReac,3).NE.0) THEN
         ! Recombination reactions with 3 reactants
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
-                     * MeshVolume**2 / (dtVar &
-                     * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,1)) &
-                     * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor * NumSpec(ChemReac%Reactants(iReac,2)) &
-                     * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor * NumSpec(nSpecies+1))
+          RRate(iReac) = ChemReac%NumReac(iReac) * MPF * MeshVolume**2 &
+                       / (dtVar * MPF * NumSpec(iSpec) * MPF * NumSpec(iSpec2) * MPF * NumSpec(nSpecies+1))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor / (dtVar * ChemReac%ReacCount(iReac)             &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))     &
-               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2))    &
-               * Species(ChemReac%Reactants(iReac,3))%MacroParticleFactor*NumSpec(nSpecies+1))
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MeshVolume**2 * MPF &
+                       / (dtVar * ChemReac%ReacCount(iReac) * MPF*NumSpec(iSpec) * MPF*NumSpec(iSpec2) * MPF*NumSpec(nSpecies+1))
         END IF
       ELSE
         ! Regular reactions with 2 reactants (dissociation, ionization, exchange)
         IF (DSMC%ReservoirRateStatistic) THEN ! Calculation of rate constant through actual number of allowed reactions
-          RRate(iReac) = ChemReac%NumReac(iReac) * Species(ChemReac%Products(iReac,1))%MacroParticleFactor &
-                       * MeshVolume / (dtVar &
-                       * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1)) &
-                       * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
+          RRate(iReac) = ChemReac%NumReac(iReac) * MPF * MeshVolume / (dtVar * MPF*NumSpec(iSpec) * MPF*NumSpec(iSpec2))
         ! Calculation of rate constant through mean reaction probability (using mean reaction prob and sum of coll prob)
         ELSEIF(ChemReac%ReacCount(iReac).GT.0) THEN
-          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor* MeshVolume / (dtVar * ChemReac%ReacCount(iReac) &
-               * Species(ChemReac%Reactants(iReac,1))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,1))         &
-               * Species(ChemReac%Reactants(iReac,2))%MacroParticleFactor*NumSpec(ChemReac%Reactants(iReac,2)))
+          RRate(iReac) = ChemReac%NumReac(iReac) * ChemReac%ReacCollMean(iCase) * MPF* MeshVolume &
+                       / (dtVar * ChemReac%ReacCount(iReac) * MPF*NumSpec(iSpec) * MPF*NumSpec(iSpec2))
         END IF
       END IF
     END IF
@@ -3163,7 +3159,7 @@ ASSOCIATE( e   => ElementaryCharge,&
 END ASSOCIATE
 
 END SUBROUTINE CalculateCyclotronFrequencyAndRadiusCell
-#endif
+#endif /*!(USE_FV) || (USE_HDG)*/
 
 SUBROUTINE CalculatePICTimeStepCyclotron()
 !===================================================================================================================================
@@ -3185,7 +3181,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 
 ! nullify
@@ -3200,12 +3196,11 @@ END DO ! iElem=1,PP_nElems
 END SUBROUTINE CalculatePICTimeStepCyclotron
 
 
+!===================================================================================================================================
+!> use the plasma frequency per cell to estimate the pic time step
+!===================================================================================================================================
 SUBROUTINE CalculatePICTimeStepCell()
-!===================================================================================================================================
-! use the plasma frequency per cell to estimate the pic time step
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars ,ONLY: PlasmaFrequencyCell,PICTimeStepCell,PICValidPlasmaCell,PICTimeCellResolved
 USE MOD_TimeDisc_Vars         ,ONLY: dt
@@ -3217,30 +3212,28 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
-
 ! nullify
 PICTimeStepCell=0.
 PICTimeCellResolved=0
 
 ! loop over all elements and compute the PIC-timestep with the plasma frequency
 DO iElem=1,PP_nElems
-  IF(PlasmaFrequencyCell(iElem).LE.0.) CYCLE
+  ! allow(C141) False positive
+  IF(PlasmaFrequencyCell(iElem).LE.0.0) CYCLE
   PICTimeStepCell(iElem) = 0.2 / PlasmaFrequencyCell(iElem)
   IF((PICValidPlasmaCell(iElem).EQ.1).AND.(PICTimeStepCell(iElem).GE.dt)) PICTimeCellResolved = PICTimeCellResolved + 1
 END DO ! iElem=1,PP_nElems
 
 END SUBROUTINE CalculatePICTimeStepCell
 
-
+!===================================================================================================================================
+!> use the number of electron density and electron temperature to compute the cold Debye-length per cell
+!> CAUTION: use SI-units
+!===================================================================================================================================
 SUBROUTINE CalculateDebyeLengthCell()
-!===================================================================================================================================
-! use the number of electron density and electron temperature to compute the cold Debye-length per cell
-! CAUTION: use SI-units
-!===================================================================================================================================
-! MODULES                                                                                                                          !
-!----------------------------------------------------------------------------------------------------------------------------------!
+! MODULES
 USE MOD_Preproc
 USE MOD_Particle_Analyze_Vars  ,ONLY:ElectronDensityCell,ElectronTemperatureCell,DebyeLengthCell,QuasiNeutralityCell
 USE MOD_Globals_Vars           ,ONLY:ElementaryCharge, BoltzmannConst
@@ -3253,7 +3246,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 
 ! nullify
@@ -3292,7 +3285,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 ! Initialize number of elements with PPD>=1
 PPDCellResolved = 0
@@ -3341,7 +3334,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem
+INTEGER :: iElem
 !===================================================================================================================================
 ! loop over all elements
 DO iElem=1,PP_nElems
@@ -3385,9 +3378,9 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,iPart
-REAL                 :: MaxVelo(1:nElems,1:3)    ! each component
-REAL                 :: MaxVeloAbs(1:nElems,1:3) ! fastest particle in 3D
+INTEGER :: iElem,iPart
+REAL    :: MaxVelo(1:nElems,1:3)    ! each component
+REAL    :: MaxVeloAbs(1:nElems,1:3) ! fastest particle in 3D
 !===================================================================================================================================
 MaxVelo(1:nElems,1:3) = 0.0
 MaxVeloAbs(1:nElems,1:3) = 0.0
@@ -3455,7 +3448,7 @@ IMPLICIT NONE
 ! OUTPUT VARIABLES
 !-----------------------------------------------------------------------------------------------------------------------------------
 ! LOCAL VARIABLES
-INTEGER              :: iElem,CNElemID
+INTEGER :: iElem,CNElemID
 !===================================================================================================================================
 ! Nullify
 IonizationCell        = 0.

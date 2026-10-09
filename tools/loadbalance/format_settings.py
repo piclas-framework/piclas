@@ -1,5 +1,6 @@
-from pylab import *
 from matplotlib.font_manager import FontProperties
+from pylab import *
+
 font_size = 9
 print ("Font size:", font_size)
 font = FontProperties(size = font_size)

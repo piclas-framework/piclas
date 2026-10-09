@@ -80,6 +80,8 @@ ASSOCIATE( x => (/0., 0., 0./) )
     CALL ExactFunc(  -2    , x , BoundaryFieldOutput , t=time  , iRefState=BCState)
   CASE(50) ! exact BC = Dirichlet BC !! ExactFunc via bias voltage DC
     CALL ExactFunc(  -5    , x , BoundaryFieldOutput )
+  CASE(53) ! exact BC = Dirichlet BC !! ExactFunc via fixed bias voltage + sine function
+    CALL ExactFunc(  -53    , x , BoundaryFieldOutput , t=time  , iRefState=BCState)
   END SELECT ! BCType
 END ASSOCIATE
 #else
